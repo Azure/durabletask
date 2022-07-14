@@ -11,31 +11,30 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Common
+namespace DurableTask.Core.Common;
+
+/// <summary>
+/// Compression style
+/// </summary>
+public enum CompressionStyle
 {
     /// <summary>
-    /// Compression style
+    ///     Revert to pre-message compression behavior (not recommended)
     /// </summary>
-    public enum CompressionStyle
-    {
-        /// <summary>
-        ///     Revert to pre-message compression behavior (not recommended)
-        /// </summary>
-        Legacy = 0,
+    Legacy = 0,
 
-        /// <summary>
-        ///     Never compress messages
-        /// </summary>
-        Never,
+    /// <summary>
+    ///     Never compress messages
+    /// </summary>
+    Never,
 
-        /// <summary>
-        ///     Always compress messages
-        /// </summary>
-        Always,
+    /// <summary>
+    ///     Always compress messages
+    /// </summary>
+    Always,
 
-        /// <summary>
-        ///     Only compress messages if they are above the threshold
-        /// </summary>
-        Threshold,
-    }
+    /// <summary>
+    ///     Only compress messages if they are above the threshold
+    /// </summary>
+    Threshold,
 }

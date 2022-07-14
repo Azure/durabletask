@@ -11,42 +11,41 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+using System;
+using System.Collections.Generic;
+
+/// <summary>
+/// Criteria for selecting orchestration instances to purge.
+/// </summary>
+public class PurgeInstanceFilter
 {
-    using System;
-    using System.Collections.Generic;
+    /// <summary>
+    /// Constructor for purge instance conditions
+    /// </summary>
+    /// <param name="createdTimeFrom">CreatedTime of orchestrations. Purges state of orchestrations created after this time.</param>
+    /// <param name="createdTimeTo">CreatedTime of orchestrations. Purges state of orchestrations created before this time.</param>
+    /// <param name="runtimeStatus">The runtime status of the orchestrations to purge.</param>
+    public PurgeInstanceFilter(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus>? runtimeStatus)
+    {
+        this.CreatedTimeFrom = createdTimeFrom;
+        this.CreatedTimeTo = createdTimeTo;
+        this.RuntimeStatus = runtimeStatus;
+    }
 
     /// <summary>
-    /// Criteria for selecting orchestration instances to purge.
+    /// CreatedTime of orchestrations. Purges state of orchestrations created after this time.
     /// </summary>
-    public class PurgeInstanceFilter
-    {
-        /// <summary>
-        /// Constructor for purge instance conditions
-        /// </summary>
-        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Purges state of orchestrations created after this time.</param>
-        /// <param name="createdTimeTo">CreatedTime of orchestrations. Purges state of orchestrations created before this time.</param>
-        /// <param name="runtimeStatus">The runtime status of the orchestrations to purge.</param>
-        public PurgeInstanceFilter(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus>? runtimeStatus)
-        {
-            this.CreatedTimeFrom = createdTimeFrom;
-            this.CreatedTimeTo = createdTimeTo;
-            this.RuntimeStatus = runtimeStatus;
-        }
+    public DateTime CreatedTimeFrom { get; }
 
-        /// <summary>
-        /// CreatedTime of orchestrations. Purges state of orchestrations created after this time.
-        /// </summary>
-        public DateTime CreatedTimeFrom { get; }
+    /// <summary>
+    /// CreatedTime of orchestrations. Purges state of orchestrations created before this time.
+    /// </summary>
+    public DateTime? CreatedTimeTo { get; }
 
-        /// <summary>
-        /// CreatedTime of orchestrations. Purges state of orchestrations created before this time.
-        /// </summary>
-        public DateTime? CreatedTimeTo { get; }
-
-        /// <summary>
-        /// The runtime status of the orchestrations to purge.
-        /// </summary>
-        public IEnumerable<OrchestrationStatus>? RuntimeStatus { get; }
-    }
+    /// <summary>
+    /// The runtime status of the orchestrations to purge.
+    /// </summary>
+    public IEnumerable<OrchestrationStatus>? RuntimeStatus { get; }
 }

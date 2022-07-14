@@ -11,63 +11,62 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Settings
+namespace DurableTask.Core.Settings;
+
+/// <summary>
+///     Settings to configure the Task Orchestration Dispatcher
+/// </summary>
+public class TaskOrchestrationDispatcherSettings
 {
     /// <summary>
-    ///     Settings to configure the Task Orchestration Dispatcher
+    ///     Creates a new instance of the TaskOrchestrationDispatcherSettings with default settings
     /// </summary>
-    public class TaskOrchestrationDispatcherSettings
+    public TaskOrchestrationDispatcherSettings()
     {
-        /// <summary>
-        ///     Creates a new instance of the TaskOrchestrationDispatcherSettings with default settings
-        /// </summary>
-        public TaskOrchestrationDispatcherSettings()
-        {
-            TransientErrorBackOffSecs = FrameworkConstants.OrchestrationTransientErrorBackOffSecs;
-            NonTransientErrorBackOffSecs = FrameworkConstants.OrchestrationNonTransientErrorBackOffSecs;
-            DispatcherCount = FrameworkConstants.OrchestrationDefaultDispatcherCount;
-            MaxConcurrentOrchestrations = FrameworkConstants.OrchestrationDefaultMaxConcurrentItems;
-            CompressOrchestrationState = false;
-            EventBehaviourForContinueAsNew = BehaviorOnContinueAsNew.Carryover;
-        }
-
-        /// <summary>
-        ///     Time in seconds to wait before retrying on a transient error (e.g. communication exception). Default is 10s.
-        /// </summary>
-        public int TransientErrorBackOffSecs { get; set; }
-
-        /// <summary>
-        ///     Time in seconds to wait before retrying on a non-transient error. Default is 120s.
-        /// </summary>
-        public int NonTransientErrorBackOffSecs { get; set; }
-
-        /// <summary>
-        ///     How many dispatchers to create. Default is 1.
-        /// </summary>
-        public int DispatcherCount { get; set; }
-
-        /// <summary>
-        ///     How many orchestrations to process concurrently. Default is 100.
-        /// </summary>
-        public int MaxConcurrentOrchestrations { get; set; }
-
-        /// <summary>
-        ///     Compress the orchestration state to enable more complex orchestrations at the cost of throughput. Default is False.
-        /// </summary>
-        public bool CompressOrchestrationState { get; set; }
-
-        /// <summary>
-        ///  Should we carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
-        /// </summary>
-        public BehaviorOnContinueAsNew EventBehaviourForContinueAsNew { get; set; }
-
-        internal TaskOrchestrationDispatcherSettings Clone()
-         => new TaskOrchestrationDispatcherSettings
-         {
-             TransientErrorBackOffSecs = TransientErrorBackOffSecs,
-             NonTransientErrorBackOffSecs = NonTransientErrorBackOffSecs,
-             MaxConcurrentOrchestrations = MaxConcurrentOrchestrations,
-             CompressOrchestrationState = CompressOrchestrationState,
-         };
+        TransientErrorBackOffSecs = FrameworkConstants.OrchestrationTransientErrorBackOffSecs;
+        NonTransientErrorBackOffSecs = FrameworkConstants.OrchestrationNonTransientErrorBackOffSecs;
+        DispatcherCount = FrameworkConstants.OrchestrationDefaultDispatcherCount;
+        MaxConcurrentOrchestrations = FrameworkConstants.OrchestrationDefaultMaxConcurrentItems;
+        CompressOrchestrationState = false;
+        EventBehaviourForContinueAsNew = BehaviorOnContinueAsNew.Carryover;
     }
+
+    /// <summary>
+    ///     Time in seconds to wait before retrying on a transient error (e.g. communication exception). Default is 10s.
+    /// </summary>
+    public int TransientErrorBackOffSecs { get; set; }
+
+    /// <summary>
+    ///     Time in seconds to wait before retrying on a non-transient error. Default is 120s.
+    /// </summary>
+    public int NonTransientErrorBackOffSecs { get; set; }
+
+    /// <summary>
+    ///     How many dispatchers to create. Default is 1.
+    /// </summary>
+    public int DispatcherCount { get; set; }
+
+    /// <summary>
+    ///     How many orchestrations to process concurrently. Default is 100.
+    /// </summary>
+    public int MaxConcurrentOrchestrations { get; set; }
+
+    /// <summary>
+    ///     Compress the orchestration state to enable more complex orchestrations at the cost of throughput. Default is False.
+    /// </summary>
+    public bool CompressOrchestrationState { get; set; }
+
+    /// <summary>
+    ///  Should we carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
+    /// </summary>
+    public BehaviorOnContinueAsNew EventBehaviourForContinueAsNew { get; set; }
+
+    internal TaskOrchestrationDispatcherSettings Clone()
+     => new TaskOrchestrationDispatcherSettings
+     {
+         TransientErrorBackOffSecs = TransientErrorBackOffSecs,
+         NonTransientErrorBackOffSecs = NonTransientErrorBackOffSecs,
+         MaxConcurrentOrchestrations = MaxConcurrentOrchestrations,
+         CompressOrchestrationState = CompressOrchestrationState,
+     };
 }

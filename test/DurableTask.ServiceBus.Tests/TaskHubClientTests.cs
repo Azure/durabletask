@@ -11,109 +11,108 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceBus.Tests
+namespace DurableTask.ServiceBus.Tests;
+
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using DurableTask.Core;
+using DurableTask.ServiceBus.Settings;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class TaskHubClientTests
 {
-    using System.Collections.Generic;
-    using System.Threading.Tasks;
-    using DurableTask.Core;
-    using DurableTask.ServiceBus.Settings;
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
+    private TaskHubClient client;
+    private TaskHubWorker taskHub;
 
-    [TestClass]
-    public class TaskHubClientTests
+    [TestCategory("DisabledInCI")] // https://github.com/Azure/durabletask/issues/262
+    [TestMethod]
+    public async Task TestCreateIfNew()
     {
-        private TaskHubClient client;
-        private TaskHubWorker taskHub;
+        this.taskHub = TestHelpers.CreateTaskHub();
+        var service = this.taskHub.OrchestrationService as ServiceBusOrchestrationService;
+        Assert.IsNotNull(service);
 
-        [TestCategory("DisabledInCI")] // https://github.com/Azure/durabletask/issues/262
-        [TestMethod]
-        public async Task TestCreateIfNew()
-        {
-            this.taskHub = TestHelpers.CreateTaskHub();
-            var service = this.taskHub.OrchestrationService as ServiceBusOrchestrationService;
-            Assert.IsNotNull(service);
-
-            await service.CreateAsync();
-            await service.CreateIfNotExistsAsync();
-            Assert.IsTrue(await service.HubExistsAsync());
-            await service.DeleteAsync();
-            Assert.IsFalse(await service.HubExistsAsync());
-        }
-
-        [TestMethod]
-        public async Task TestOrchestrationCount()
-        {
-            this.taskHub = TestHelpers.CreateTaskHub();
-            this.client = TestHelpers.CreateTaskHubClient();
-            var service = this.taskHub.OrchestrationService as ServiceBusOrchestrationService;
-            Assert.IsNotNull(service);
-            await service.CreateAsync();
-            await this.client.CreateOrchestrationInstanceAsync("foo", "1.0", null);
-            await this.client.CreateOrchestrationInstanceAsync("foo1", "1.0", null);
-            await this.client.CreateOrchestrationInstanceAsync("foo2", "1.0", null);
-            Assert.IsTrue(await service.GetPendingOrchestrationsCount() == 3);
-            await service.DeleteAsync();
-        }
-
-        [TestCategory("DisabledInCI")] // https://github.com/Azure/durabletask/issues/262
-        [TestMethod]
-        public async Task TestMaxDeliveryCount()
-        {
-            var settings = new ServiceBusOrchestrationServiceSettings
-            {
-                MaxTaskActivityDeliveryCount = 100,
-                MaxTaskOrchestrationDeliveryCount = 100,
-                MaxTrackingDeliveryCount = 100
-            };
-
-            this.taskHub = TestHelpers.CreateTaskHub(settings);
-            var service = this.taskHub.OrchestrationService as ServiceBusOrchestrationService;
-            Assert.IsNotNull(service);
-            await service.CreateAsync();
-
-            Dictionary<string, int> retQueues = await service.GetHubQueueMaxDeliveryCountsAsync();
-
-            Assert.AreEqual(settings.MaxTaskActivityDeliveryCount, retQueues["TaskOrchestration"]);
-            Assert.AreEqual(settings.MaxTaskOrchestrationDeliveryCount, retQueues["TaskActivity"]);
-            Assert.AreEqual(settings.MaxTrackingDeliveryCount, retQueues["Tracking"]);
-
-            await service.DeleteAsync();
-        }
-
-        [TestCategory("DisabledInCI")] // https://github.com/Azure/durabletask/issues/262
-        [TestMethod]
-        public async Task TestMaxDeliveryCountIfNew()
-        {
-            var settings = new ServiceBusOrchestrationServiceSettings
-            {
-                MaxTaskActivityDeliveryCount = 100,
-                MaxTaskOrchestrationDeliveryCount = 100,
-                MaxTrackingDeliveryCount = 100
-            };
-
-            this.taskHub = TestHelpers.CreateTaskHub(settings);
-            var service = this.taskHub.OrchestrationService as ServiceBusOrchestrationService;
-            Assert.IsNotNull(service);
-            await service.CreateIfNotExistsAsync();
-
-            Dictionary<string, int> retQueues = await service.GetHubQueueMaxDeliveryCountsAsync();
-
-            Assert.AreEqual(settings.MaxTaskActivityDeliveryCount, retQueues["TaskOrchestration"]);
-            Assert.AreEqual(settings.MaxTaskOrchestrationDeliveryCount, retQueues["TaskActivity"]);
-            Assert.AreEqual(settings.MaxTrackingDeliveryCount, retQueues["Tracking"]);
-
-            await service.DeleteAsync();
-        }
-
-        //        [TestMethod]
-        //        public void TestWorkItemCount()
-        //        {
-        //            this.client.Create();
-        //            this.client.CreateOrchestrationInstance("foo", "1.0", null);
-        //            this.client.CreateOrchestrationInstance("foo1", "1.0", null);
-        //            this.client.CreateOrchestrationInstance("foo2", "1.0", null);
-        //            Assert.IsTrue(this.client.GetOrchestrationCount() == 1);
-        //            this.client.Delete();
-        //        }
+        await service.CreateAsync();
+        await service.CreateIfNotExistsAsync();
+        Assert.IsTrue(await service.HubExistsAsync());
+        await service.DeleteAsync();
+        Assert.IsFalse(await service.HubExistsAsync());
     }
+
+    [TestMethod]
+    public async Task TestOrchestrationCount()
+    {
+        this.taskHub = TestHelpers.CreateTaskHub();
+        this.client = TestHelpers.CreateTaskHubClient();
+        var service = this.taskHub.OrchestrationService as ServiceBusOrchestrationService;
+        Assert.IsNotNull(service);
+        await service.CreateAsync();
+        await this.client.CreateOrchestrationInstanceAsync("foo", "1.0", null);
+        await this.client.CreateOrchestrationInstanceAsync("foo1", "1.0", null);
+        await this.client.CreateOrchestrationInstanceAsync("foo2", "1.0", null);
+        Assert.IsTrue(await service.GetPendingOrchestrationsCount() == 3);
+        await service.DeleteAsync();
+    }
+
+    [TestCategory("DisabledInCI")] // https://github.com/Azure/durabletask/issues/262
+    [TestMethod]
+    public async Task TestMaxDeliveryCount()
+    {
+        var settings = new ServiceBusOrchestrationServiceSettings
+        {
+            MaxTaskActivityDeliveryCount = 100,
+            MaxTaskOrchestrationDeliveryCount = 100,
+            MaxTrackingDeliveryCount = 100
+        };
+
+        this.taskHub = TestHelpers.CreateTaskHub(settings);
+        var service = this.taskHub.OrchestrationService as ServiceBusOrchestrationService;
+        Assert.IsNotNull(service);
+        await service.CreateAsync();
+
+        Dictionary<string, int> retQueues = await service.GetHubQueueMaxDeliveryCountsAsync();
+
+        Assert.AreEqual(settings.MaxTaskActivityDeliveryCount, retQueues["TaskOrchestration"]);
+        Assert.AreEqual(settings.MaxTaskOrchestrationDeliveryCount, retQueues["TaskActivity"]);
+        Assert.AreEqual(settings.MaxTrackingDeliveryCount, retQueues["Tracking"]);
+
+        await service.DeleteAsync();
+    }
+
+    [TestCategory("DisabledInCI")] // https://github.com/Azure/durabletask/issues/262
+    [TestMethod]
+    public async Task TestMaxDeliveryCountIfNew()
+    {
+        var settings = new ServiceBusOrchestrationServiceSettings
+        {
+            MaxTaskActivityDeliveryCount = 100,
+            MaxTaskOrchestrationDeliveryCount = 100,
+            MaxTrackingDeliveryCount = 100
+        };
+
+        this.taskHub = TestHelpers.CreateTaskHub(settings);
+        var service = this.taskHub.OrchestrationService as ServiceBusOrchestrationService;
+        Assert.IsNotNull(service);
+        await service.CreateIfNotExistsAsync();
+
+        Dictionary<string, int> retQueues = await service.GetHubQueueMaxDeliveryCountsAsync();
+
+        Assert.AreEqual(settings.MaxTaskActivityDeliveryCount, retQueues["TaskOrchestration"]);
+        Assert.AreEqual(settings.MaxTaskOrchestrationDeliveryCount, retQueues["TaskActivity"]);
+        Assert.AreEqual(settings.MaxTrackingDeliveryCount, retQueues["Tracking"]);
+
+        await service.DeleteAsync();
+    }
+
+    //        [TestMethod]
+    //        public void TestWorkItemCount()
+    //        {
+    //            this.client.Create();
+    //            this.client.CreateOrchestrationInstance("foo", "1.0", null);
+    //            this.client.CreateOrchestrationInstance("foo1", "1.0", null);
+    //            this.client.CreateOrchestrationInstance("foo2", "1.0", null);
+    //            Assert.IsTrue(this.client.GetOrchestrationCount() == 1);
+    //            this.client.Delete();
+    //        }
 }

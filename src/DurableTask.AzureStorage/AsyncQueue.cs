@@ -11,42 +11,41 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage
+namespace DurableTask.AzureStorage;
+
+using System;
+using System.Collections.Concurrent;
+using System.Threading;
+using System.Threading.Tasks;
+
+sealed class AsyncQueue<T> : IDisposable
 {
-    using System;
-    using System.Collections.Concurrent;
-    using System.Threading;
-    using System.Threading.Tasks;
+    readonly SemaphoreSlim semaphore = new SemaphoreSlim(0);
+    readonly ConcurrentQueue<T> innerQueue = new ConcurrentQueue<T>();
 
-    sealed class AsyncQueue<T> : IDisposable
+    public int Count => this.innerQueue.Count;
+
+    public void Enqueue(T item)
     {
-        readonly SemaphoreSlim semaphore = new SemaphoreSlim(0);
-        readonly ConcurrentQueue<T> innerQueue = new ConcurrentQueue<T>();
+        this.innerQueue.Enqueue(item);
+        this.semaphore.Release();
+    }
 
-        public int Count => this.innerQueue.Count;
-
-        public void Enqueue(T item)
+    public async Task<T> DequeueAsync(CancellationToken cancellationToken)
+    {
+        while (true)
         {
-            this.innerQueue.Enqueue(item);
-            this.semaphore.Release();
-        }
+            await this.semaphore.WaitAsync(cancellationToken);
 
-        public async Task<T> DequeueAsync(CancellationToken cancellationToken)
-        {
-            while (true)
+            if (this.innerQueue.TryDequeue(out T item))
             {
-                await this.semaphore.WaitAsync(cancellationToken);
-
-                if (this.innerQueue.TryDequeue(out T item))
-                {
-                    return item;
-                }
+                return item;
             }
         }
+    }
 
-        public void Dispose()
-        {
-            this.semaphore.Dispose();
-        }
+    public void Dispose()
+    {
+        this.semaphore.Dispose();
     }
 }

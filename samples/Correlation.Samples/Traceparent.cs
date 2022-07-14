@@ -11,16 +11,15 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace Correlation.Samples
+namespace Correlation.Samples;
+
+public class TraceParent
 {
-    public class TraceParent
-    {
-        public string Version { get; set; }
+    public string Version { get; set; }
 
-        public string TraceId { get; set; }
+    public string TraceId { get; set; }
 
-        public string SpanId { get; set; }
+    public string SpanId { get; set; }
 
-        public string TraceFlags { get; set; }
-    }
+    public string TraceFlags { get; set; }
 }

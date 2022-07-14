@@ -11,24 +11,23 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.Core.Command
+namespace DurableTask.Core.Command;
+
+using System;
+
+/// <summary>
+/// Orchestrator action for creating durable timers.
+/// </summary>
+public class CreateTimerOrchestratorAction : OrchestratorAction
 {
-    using System;
+    // NOTE: Actions must be serializable by a variety of different serializer types to support out-of-process execution.
+    //       To ensure maximum compatibility, all properties should be public and settable by default.
+
+    /// <inheritdoc/>
+    public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.CreateTimer;
 
     /// <summary>
-    /// Orchestrator action for creating durable timers.
+    /// The time at which the created timer should fire.
     /// </summary>
-    public class CreateTimerOrchestratorAction : OrchestratorAction
-    {
-        // NOTE: Actions must be serializable by a variety of different serializer types to support out-of-process execution.
-        //       To ensure maximum compatibility, all properties should be public and settable by default.
-
-        /// <inheritdoc/>
-        public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.CreateTimer;
-
-        /// <summary>
-        /// The time at which the created timer should fire.
-        /// </summary>
-        public DateTime FireAt { get; set; }
-    }
+    public DateTime FireAt { get; set; }
 }

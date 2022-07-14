@@ -11,33 +11,32 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Samples.Signal
+namespace DurableTask.Samples.Signal;
+
+using System.Threading.Tasks;
+using DurableTask.Core;
+
+public class SignalOrchestration : TaskOrchestration<string,string>
 {
-    using System.Threading.Tasks;
-    using DurableTask.Core;
+    private TaskCompletionSource<string> resumeHandle;
 
-    public class SignalOrchestration : TaskOrchestration<string,string>
+    public override async Task<string> RunTask(OrchestrationContext context, string input)
     {
-        private TaskCompletionSource<string> resumeHandle;
+        string user = await WaitForSignal();
+        string greeting = await context.ScheduleTask<string>("DurableTask.Samples.Greetings.SendGreetingTask", string.Empty, user);
+        return greeting;
+    }
 
-        public override async Task<string> RunTask(OrchestrationContext context, string input)
-        {
-            string user = await WaitForSignal();
-            string greeting = await context.ScheduleTask<string>("DurableTask.Samples.Greetings.SendGreetingTask", string.Empty, user);
-            return greeting;
-        }
+    private async Task<string> WaitForSignal()
+    {
+        this.resumeHandle = new TaskCompletionSource<string>();
+        string data = await this.resumeHandle.Task;
+        this.resumeHandle = null;
+        return data;
+    }
 
-        private async Task<string> WaitForSignal()
-        {
-            this.resumeHandle = new TaskCompletionSource<string>();
-            string data = await this.resumeHandle.Task;
-            this.resumeHandle = null;
-            return data;
-        }
-
-        public override void OnEvent(OrchestrationContext context, string name, string input)
-        {
-            this.resumeHandle?.SetResult(input);
-        }
+    public override void OnEvent(OrchestrationContext context, string name, string input)
+    {
+        this.resumeHandle?.SetResult(input);
     }
 }

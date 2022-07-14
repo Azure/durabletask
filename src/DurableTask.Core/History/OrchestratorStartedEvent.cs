@@ -11,28 +11,27 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.History
+namespace DurableTask.Core.History;
+
+using System.Runtime.Serialization;
+
+/// <summary>
+/// A history event for orchestrator started
+/// </summary>
+[DataContract]
+public class OrchestratorStartedEvent : HistoryEvent
 {
-    using System.Runtime.Serialization;
+    /// <summary>
+    /// Creates a new <see cref="OrchestratorStartedEvent"/> with the supplied parameters
+    /// </summary>
+    /// <param name="eventId">The event id of the history event</param>
+    public OrchestratorStartedEvent(int eventId)
+        : base(eventId)
+    {
+    }
 
     /// <summary>
-    /// A history event for orchestrator started
+    /// Gets the event type
     /// </summary>
-    [DataContract]
-    public class OrchestratorStartedEvent : HistoryEvent
-    {
-        /// <summary>
-        /// Creates a new <see cref="OrchestratorStartedEvent"/> with the supplied parameters
-        /// </summary>
-        /// <param name="eventId">The event id of the history event</param>
-        public OrchestratorStartedEvent(int eventId)
-            : base(eventId)
-        {
-        }
-
-        /// <summary>
-        /// Gets the event type
-        /// </summary>
-        public override EventType EventType => EventType.OrchestratorStarted;
-    }
+    public override EventType EventType => EventType.OrchestratorStarted;
 }

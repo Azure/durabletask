@@ -11,34 +11,33 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
-{
-    using System;
-    using System.Collections.Generic;
-    using System.Text;
+namespace DurableTask.Core;
 
-    /// <summary>
-    /// NullObjectTraceContext is for the behavior which is not supported the Distributed Tracing
-    /// </summary>
-    public class NullObjectTraceContext : TraceContextBase
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+/// <summary>
+/// NullObjectTraceContext is for the behavior which is not supported the Distributed Tracing
+/// </summary>
+public class NullObjectTraceContext : TraceContextBase
+{
+    /// <inheritdoc />
+    public override TimeSpan Duration => TimeSpan.MinValue;
+    /// <inheritdoc />
+    public override string TelemetryId => "NullObjectTraceContextTelemetryId";
+    /// <inheritdoc />
+    public override string TelemetryContextOperationId => "NullObjectTraceContextOperationId";
+    /// <inheritdoc />
+    public override string TelemetryContextOperationParentId => "NullObjectTraceContextParentId";
+    /// <inheritdoc />
+    public override void SetParentAndStart(TraceContextBase parentTraceContext)
     {
-        /// <inheritdoc />
-        public override TimeSpan Duration => TimeSpan.MinValue;
-        /// <inheritdoc />
-        public override string TelemetryId => "NullObjectTraceContextTelemetryId";
-        /// <inheritdoc />
-        public override string TelemetryContextOperationId => "NullObjectTraceContextOperationId";
-        /// <inheritdoc />
-        public override string TelemetryContextOperationParentId => "NullObjectTraceContextParentId";
-        /// <inheritdoc />
-        public override void SetParentAndStart(TraceContextBase parentTraceContext)
-        {
-            
-        }
-        /// <inheritdoc />
-        public override void StartAsNew()
-        {
-            
-        }
+        
+    }
+    /// <inheritdoc />
+    public override void StartAsNew()
+    {
+        
     }
 }

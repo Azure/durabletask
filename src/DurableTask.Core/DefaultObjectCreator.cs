@@ -11,57 +11,56 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+using System;
+
+/// <summary>
+/// Object instance creator for a type using default name and version based on the type
+/// </summary>
+/// <typeparam name="T">Type of Object</typeparam>
+public class DefaultObjectCreator<T> : ObjectCreator<T>
 {
-    using System;
+    private readonly T instance;
+    private readonly Type prototype;
 
     /// <summary>
-    /// Object instance creator for a type using default name and version based on the type
+    /// Creates a new DefaultObjectCreator of supplied type
     /// </summary>
-    /// <typeparam name="T">Type of Object</typeparam>
-    public class DefaultObjectCreator<T> : ObjectCreator<T>
+    /// <param name="type">Type to use for the creator</param>
+    public DefaultObjectCreator(Type type)
     {
-        private readonly T instance;
-        private readonly Type prototype;
+        this.prototype = type;
+        Initialize(type);
+    }
 
-        /// <summary>
-        /// Creates a new DefaultObjectCreator of supplied type
-        /// </summary>
-        /// <param name="type">Type to use for the creator</param>
-        public DefaultObjectCreator(Type type)
+    /// <summary>
+    /// Creates a new DefaultObjectCreator using type of supplied object instance
+    /// </summary>
+    /// <param name="instance">Object instances to infer the type from</param>
+    public DefaultObjectCreator(T instance)
+    {
+        this.instance = instance;
+        Initialize(instance);
+    }
+
+    /// <summary>
+    /// Creates a new instance of the object creator's type
+    /// </summary>
+    /// <returns>An instance of the type T</returns>
+    public override T Create()
+    {
+        if (this.prototype is not null)
         {
-            this.prototype = type;
-            Initialize(type);
+            return (T)Activator.CreateInstance(this.prototype);
         }
 
-        /// <summary>
-        /// Creates a new DefaultObjectCreator using type of supplied object instance
-        /// </summary>
-        /// <param name="instance">Object instances to infer the type from</param>
-        public DefaultObjectCreator(T instance)
-        {
-            this.instance = instance;
-            Initialize(instance);
-        }
+        return this.instance;
+    }
 
-        /// <summary>
-        /// Creates a new instance of the object creator's type
-        /// </summary>
-        /// <returns>An instance of the type T</returns>
-        public override T Create()
-        {
-            if (this.prototype is not null)
-            {
-                return (T)Activator.CreateInstance(this.prototype);
-            }
-
-            return this.instance;
-        }
-
-        private void Initialize(object obj)
-        {
-            Name = NameVersionHelper.GetDefaultName(obj);
-            Version = NameVersionHelper.GetDefaultVersion(obj);
-        }
+    private void Initialize(object obj)
+    {
+        Name = NameVersionHelper.GetDefaultName(obj);
+        Version = NameVersionHelper.GetDefaultVersion(obj);
     }
 }

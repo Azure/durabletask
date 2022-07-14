@@ -11,14 +11,13 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.TaskHelpers
+namespace DurableTask.AzureServiceFabric.TaskHelpers;
+
+using System;
+
+internal interface IRetryPolicy
 {
-    using System;
+    bool ShouldExecute();
 
-    internal interface IRetryPolicy
-    {
-        bool ShouldExecute();
-
-        TimeSpan GetNextDelay();
-    }
+    TimeSpan GetNextDelay();
 }

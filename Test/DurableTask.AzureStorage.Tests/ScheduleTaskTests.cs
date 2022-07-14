@@ -11,47 +11,46 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Tests
+namespace DurableTask.AzureStorage.Tests;
+
+using System.Threading.Tasks;
+
+using DurableTask.Core;
+
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class ScheduleTaskTests
 {
-    using System.Threading.Tasks;
-
-    using DurableTask.Core;
-
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
-
-    [TestClass]
-    public class ScheduleTaskTests
+    /// <summary>
+    /// This test checks that an orchestration fails with an InvalidOperationException
+    /// when a typed CallActivityAsync() call that expects a Task actually returns void.
+    /// </summary>
+    [TestMethod]
+    public async Task TaskReturnsVoid_OrchestratorFails()
     {
-        /// <summary>
-        /// This test checks that an orchestration fails with an InvalidOperationException
-        /// when a typed CallActivityAsync() call that expects a Task actually returns void.
-        /// </summary>
-        [TestMethod]
-        public async Task TaskReturnsVoid_OrchestratorFails()
+        using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(false))
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(false))
-            {
-                await host.StartAsync();
+            await host.StartAsync();
 
-                TaskActivity activity = TestOrchestrationHost.MakeActivity<int, Task>(
-                    delegate (TaskContext ctx, int input)
-                    {
-                        return Task.CompletedTask;
-                    });
+            TaskActivity activity = TestOrchestrationHost.MakeActivity<int, Task>(
+                delegate (TaskContext ctx, int input)
+                {
+                    return Task.CompletedTask;
+                });
 
-                TestInstance<int> instance = await host.StartInlineOrchestration(
-                    input: 123,
-                    orchestrationName: "TestOrchestration",
-                    implementation: (ctx, input) => ctx.ScheduleTask<int>("Activity", "", input),
-                    activities: ("Activity", activity));
+            TestInstance<int> instance = await host.StartInlineOrchestration(
+                input: 123,
+                orchestrationName: "TestOrchestration",
+                implementation: (ctx, input) => ctx.ScheduleTask<int>("Activity", "", input),
+                activities: ("Activity", activity));
 
-                // The expectedOutput value is the string that's passed into the InvalidOperationException
-                await Task.WhenAll(instance.WaitForCompletion(
-                    expectedStatus: OrchestrationStatus.Completed,
-                    expectedOutput: 0));
+            // The expectedOutput value is the string that's passed into the InvalidOperationException
+            await Task.WhenAll(instance.WaitForCompletion(
+                expectedStatus: OrchestrationStatus.Completed,
+                expectedOutput: 0));
 
-                await host.StopAsync();
-            }
+            await host.StopAsync();
         }
     }
 }

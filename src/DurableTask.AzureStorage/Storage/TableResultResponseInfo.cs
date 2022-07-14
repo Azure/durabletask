@@ -11,17 +11,16 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.AzureStorage.Storage
+namespace DurableTask.AzureStorage.Storage;
+
+using System.Collections.Generic;
+using Microsoft.WindowsAzure.Storage.Table;
+
+class TableResultResponseInfo
 {
-    using System.Collections.Generic;
-    using Microsoft.WindowsAzure.Storage.Table;
+    public long ElapsedMilliseconds { get; set; }
 
-    class TableResultResponseInfo
-    {
-        public long ElapsedMilliseconds { get; set; }
+    public int RequestCount { get; set; }
 
-        public int RequestCount { get; set; }
-
-        public IList<TableResult>? TableResults { get; set; }
-    }
+    public IList<TableResult>? TableResults { get; set; }
 }

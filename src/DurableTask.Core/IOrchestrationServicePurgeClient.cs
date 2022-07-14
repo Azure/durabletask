@@ -11,27 +11,26 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+using System.Threading.Tasks;
+
+/// <summary>
+/// Orchestration Service client interface for purging orchestration instance state.
+/// </summary>
+public interface IOrchestrationServicePurgeClient
 {
-    using System.Threading.Tasks;
+    /// <summary>
+    /// Purge state for an orchestration with a specified instance ID.
+    /// </summary>
+    /// <param name="instanceId">Instance ID of the orchestration to purge.</param>
+    /// <returns>A <see cref="PurgeResult"/> object containing more information about the purged instance.</returns>
+    Task<PurgeResult> PurgeInstanceStateAsync(string instanceId);
 
     /// <summary>
-    /// Orchestration Service client interface for purging orchestration instance state.
+    /// Purge state for orchestrations that match the specified parameters.
     /// </summary>
-    public interface IOrchestrationServicePurgeClient
-    {
-        /// <summary>
-        /// Purge state for an orchestration with a specified instance ID.
-        /// </summary>
-        /// <param name="instanceId">Instance ID of the orchestration to purge.</param>
-        /// <returns>A <see cref="PurgeResult"/> object containing more information about the purged instance.</returns>
-        Task<PurgeResult> PurgeInstanceStateAsync(string instanceId);
-
-        /// <summary>
-        /// Purge state for orchestrations that match the specified parameters.
-        /// </summary>
-        /// <param name="purgeInstanceFilter">A <see cref="PurgeInstanceFilter"/> object that determines which orchestration instances to purge.</param>
-        /// <returns>A <see cref="PurgeResult"/> object containing more information about the purged instances.</returns>
-        Task<PurgeResult> PurgeInstanceStateAsync(PurgeInstanceFilter purgeInstanceFilter);
-    }
+    /// <param name="purgeInstanceFilter">A <see cref="PurgeInstanceFilter"/> object that determines which orchestration instances to purge.</param>
+    /// <returns>A <see cref="PurgeResult"/> object containing more information about the purged instances.</returns>
+    Task<PurgeResult> PurgeInstanceStateAsync(PurgeInstanceFilter purgeInstanceFilter);
 }

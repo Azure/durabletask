@@ -11,69 +11,68 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+using System;
+using System.Diagnostics;
+using System.Linq;
+using System.Reflection;
+using System.Threading.Tasks;
+using Castle.DynamicProxy;
+
+internal class RetryProxy : IInterceptor
 {
-    using System;
-    using System.Diagnostics;
-    using System.Linq;
-    using System.Reflection;
-    using System.Threading.Tasks;
-    using Castle.DynamicProxy;
+    private readonly OrchestrationContext context;
+    private readonly RetryOptions retryOptions;
 
-    internal class RetryProxy : IInterceptor
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RetryProxy"/> class.
+    /// </summary>
+    /// <param name="context">The orchestration context.</param>
+    /// <param name="retryOptions">The retry options.</param>
+    public RetryProxy(OrchestrationContext context, RetryOptions retryOptions)
     {
-        private readonly OrchestrationContext context;
-        private readonly RetryOptions retryOptions;
+        this.context = context;
+        this.retryOptions = retryOptions;
+    }
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="RetryProxy"/> class.
-        /// </summary>
-        /// <param name="context">The orchestration context.</param>
-        /// <param name="retryOptions">The retry options.</param>
-        public RetryProxy(OrchestrationContext context, RetryOptions retryOptions)
+    /// <inheritdoc/>
+    public void Intercept(IInvocation invocation)
+    {
+        var returnType = invocation.Method.ReturnType;
+        if (!typeof(Task).IsAssignableFrom(returnType))
         {
-            this.context = context;
-            this.retryOptions = retryOptions;
+            throw new InvalidOperationException($"Invoked method must return a task. Current return type is {invocation.Method.ReturnType}");
         }
 
-        /// <inheritdoc/>
-        public void Intercept(IInvocation invocation)
+        if (returnType == typeof(Task))
         {
-            var returnType = invocation.Method.ReturnType;
-            if (!typeof(Task).IsAssignableFrom(returnType))
-            {
-                throw new InvalidOperationException($"Invoked method must return a task. Current return type is {invocation.Method.ReturnType}");
-            }
-
-            if (returnType == typeof(Task))
-            {
-                invocation.ReturnValue = this.InvokeWithRetry<object>(invocation);
-                return;
-            }
-
-            returnType = invocation.Method.ReturnType.GetGenericArguments().Single();
-
-            MethodInfo invokeMethod = this.GetType().GetMethod("InvokeWithRetry", BindingFlags.Instance | BindingFlags.NonPublic);
-
-            Debug.Assert(invokeMethod is not null);
-
-            MethodInfo genericInvokeMethod = invokeMethod.MakeGenericMethod(returnType);
-            invocation.ReturnValue = genericInvokeMethod.Invoke(this, new object[] { invocation });
-
+            invocation.ReturnValue = this.InvokeWithRetry<object>(invocation);
             return;
         }
 
-        private async Task<TReturnType> InvokeWithRetry<TReturnType>(IInvocation invocation)
+        returnType = invocation.Method.ReturnType.GetGenericArguments().Single();
+
+        MethodInfo invokeMethod = this.GetType().GetMethod("InvokeWithRetry", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Debug.Assert(invokeMethod is not null);
+
+        MethodInfo genericInvokeMethod = invokeMethod.MakeGenericMethod(returnType);
+        invocation.ReturnValue = genericInvokeMethod.Invoke(this, new object[] { invocation });
+
+        return;
+    }
+
+    private async Task<TReturnType> InvokeWithRetry<TReturnType>(IInvocation invocation)
+    {
+        Task<TReturnType> RetryCall()
         {
-            Task<TReturnType> RetryCall()
-            {
-                invocation.Proceed();
-                return (Task<TReturnType>)invocation.ReturnValue;
-            }
-
-            var retryInterceptor = new RetryInterceptor<TReturnType>(this.context, this.retryOptions, RetryCall);
-
-            return await retryInterceptor.Invoke();
+            invocation.Proceed();
+            return (Task<TReturnType>)invocation.ReturnValue;
         }
+
+        var retryInterceptor = new RetryInterceptor<TReturnType>(this.context, this.retryOptions, RetryCall);
+
+        return await retryInterceptor.Invoke();
     }
 }

@@ -11,711 +11,787 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceBus.Tests
-{
+namespace DurableTask.ServiceBus.Tests;
+
 #pragma warning disable CA1812 // Private classes instantiated indirectly
-    using System;
-    using System.Collections.Generic;
-    using System.Diagnostics.Contracts;
-    using System.Linq;
-    using System.Threading;
-    using System.Threading.Tasks;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics.Contracts;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
-    using DurableTask.Core;
-    using DurableTask.Core.Exceptions;
-    using DurableTask.Core.Tests;
+using DurableTask.Core;
+using DurableTask.Core.Exceptions;
+using DurableTask.Core.Tests;
 
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-    [TestClass]
-    public class SampleScenarioTests
+[TestClass]
+public class SampleScenarioTests
+{
+    private TaskHubClient client;
+    private TaskHubWorker fakeTaskHub;
+    private TaskHubWorker taskHub;
+    private TaskHubWorker taskHubNoCompression;
+
+    public TestContext TestContext { get; set; }
+
+    [TestInitialize]
+    public void TestInitialize()
     {
-        private TaskHubClient client;
-        private TaskHubWorker fakeTaskHub;
-        private TaskHubWorker taskHub;
-        private TaskHubWorker taskHubNoCompression;
-
-        public TestContext TestContext { get; set; }
-
-        [TestInitialize]
-        public void TestInitialize()
+        if (!TestContext.TestName.Contains("TestHost"))
         {
-            if (!TestContext.TestName.Contains("TestHost"))
-            {
-                this.client = TestHelpers.CreateTaskHubClient();
+            this.client = TestHelpers.CreateTaskHubClient();
 
-                this.taskHub = TestHelpers.CreateTaskHub();
-                this.fakeTaskHub = TestHelpers.CreateTaskHub();
+            this.taskHub = TestHelpers.CreateTaskHub();
+            this.fakeTaskHub = TestHelpers.CreateTaskHub();
 
-                this.taskHubNoCompression = TestHelpers.CreateTaskHubNoCompression();
-                this.taskHub.OrchestrationService.CreateAsync(true).Wait();
-            }
+            this.taskHubNoCompression = TestHelpers.CreateTaskHubNoCompression();
+            this.taskHub.OrchestrationService.CreateAsync(true).Wait();
         }
+    }
 
-        [TestCleanup]
-        public void TestCleanup()
+    [TestCleanup]
+    public void TestCleanup()
+    {
+        if (!TestContext.TestName.Contains("TestHost"))
         {
-            if (!TestContext.TestName.Contains("TestHost"))
-            {
-                this.taskHub.StopAsync(true).Wait();
-                this.taskHubNoCompression.StopAsync().Wait();
-                this.fakeTaskHub.StopAsync(true).Wait();
-                this.taskHub.OrchestrationService.DeleteAsync(true).Wait();
-            }
+            this.taskHub.StopAsync(true).Wait();
+            this.taskHubNoCompression.StopAsync().Wait();
+            this.fakeTaskHub.StopAsync(true).Wait();
+            this.taskHub.OrchestrationService.DeleteAsync(true).Wait();
         }
+    }
 
-        #region Common TaskActivities
+    #region Common TaskActivities
 
-        public sealed class SendGreetingTask : TaskActivity<string, string>
-        {
+    public sealed class SendGreetingTask : TaskActivity<string, string>
+    {
 #pragma warning disable CA1725 // Parameter names should match base declaration
-            protected override string Execute(TaskContext context, string user)
-            {
-                return "Greeting send to " + user;
-            }
+        protected override string Execute(TaskContext context, string user)
+        {
+            return "Greeting send to " + user;
+        }
 #pragma warning restore CA1725 // Parameter names should match base declaration
-        }
+    }
 
-        #endregion
+    #endregion
 
-        #region Simplest Greetings Test
+    #region Simplest Greetings Test
 
-        [TestMethod]
-        public async Task SimplestGreetingsTest()
+    [TestMethod]
+    public async Task SimplestGreetingsTest()
+    {
+        await this.taskHub.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
+            .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
+            .StartAsync();
+
+        OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
+
+        bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+        Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+        Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
+            "Orchestration Result is wrong!!!");
+    }
+
+    [TestMethod]
+    public async Task SimplestGreetingsRecreationTest()
+    {
+        SimplestGreetingsOrchestration.Result = string.Empty;
+
+        await this.taskHub.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
+            .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
+            .StartAsync();
+
+        OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
+
+        bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60, true, true);
+        Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+        Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
+            "Orchestration Result is wrong!!!");
+
+        await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(() => this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null));
+
+        await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(() => this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, null));
+
+        await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(() => this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, new[] { OrchestrationStatus.Completed, OrchestrationStatus.Terminated }));
+
+        SimplestGreetingsOrchestration.Result = string.Empty;
+
+        OrchestrationInstance id2 = await this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, new[] { OrchestrationStatus.Terminated });
+
+        isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id2, 60, true, true);
+        Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id2, 60));
+        Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
+            "Orchestration Result on re create is wrong!!!");
+
+        SimplestGreetingsOrchestration.Result = string.Empty;
+
+        OrchestrationInstance id3 = await this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, Array.Empty<OrchestrationStatus>());
+
+        isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id3, 60, true, true);
+        Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id3, 60));
+        Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
+            "Orchestration Result on 2nd re create is wrong!!!");
+    }
+
+    [TestMethod]
+    public async Task SimplestGreetingsNoCompressionTest()
+    {
+        await this.taskHubNoCompression.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
+            .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
+            .StartAsync();
+
+        OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
+
+        bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+        Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+        Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
+            "Orchestration Result is wrong!!!");
+    }
+
+    public sealed class SimplestGetUserTask : TaskActivity<string, string>
+    {
+        protected override string Execute(TaskContext context, string input)
         {
-            await this.taskHub.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
-                .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
-                .StartAsync();
-
-            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
-
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
-            Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
-                "Orchestration Result is wrong!!!");
+            return "Gabbar";
         }
+    }
 
-        [TestMethod]
-        public async Task SimplestGreetingsRecreationTest()
-        {
-            SimplestGreetingsOrchestration.Result = string.Empty;
-
-            await this.taskHub.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
-                .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
-                .StartAsync();
-
-            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
-
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60, true, true);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
-            Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
-                "Orchestration Result is wrong!!!");
-
-            await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(() => this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null));
-
-            await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(() => this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, null));
-
-            await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(() => this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, new[] { OrchestrationStatus.Completed, OrchestrationStatus.Terminated }));
-
-            SimplestGreetingsOrchestration.Result = string.Empty;
-
-            OrchestrationInstance id2 = await this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, new[] { OrchestrationStatus.Terminated });
-
-            isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id2, 60, true, true);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id2, 60));
-            Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
-                "Orchestration Result on re create is wrong!!!");
-
-            SimplestGreetingsOrchestration.Result = string.Empty;
-
-            OrchestrationInstance id3 = await this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, Array.Empty<OrchestrationStatus>());
-
-            isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id3, 60, true, true);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id3, 60));
-            Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
-                "Orchestration Result on 2nd re create is wrong!!!");
-        }
-
-        [TestMethod]
-        public async Task SimplestGreetingsNoCompressionTest()
-        {
-            await this.taskHubNoCompression.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
-                .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
-                .StartAsync();
-
-            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
-
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
-            Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
-                "Orchestration Result is wrong!!!");
-        }
-
-        public sealed class SimplestGetUserTask : TaskActivity<string, string>
-        {
-            protected override string Execute(TaskContext context, string input)
-            {
-                return "Gabbar";
-            }
-        }
-
-        public class SimplestGreetingsOrchestration : TaskOrchestration<string, string>
-        {
+    public class SimplestGreetingsOrchestration : TaskOrchestration<string, string>
+    {
 #pragma warning disable CA2211 // Non-constant fields should not be visible
-            // HACK: This is just a hack to communicate result of orchestration back to test
-            public static string Result;
+        // HACK: This is just a hack to communicate result of orchestration back to test
+        public static string Result;
 #pragma warning restore CA2211 // Non-constant fields should not be visible
 
-            public override async Task<string> RunTask(OrchestrationContext context, string input)
-            {
-                Contract.Assume(context is not null);
-                string user = await context.ScheduleTask<string>(typeof(SimplestGetUserTask));
-                string greeting = await context.ScheduleTask<string>(typeof(SimplestSendGreetingTask), user);
-                // This is a HACK to get unit test up and running.  Should never be done in actual code.
-                Result = greeting;
-
-                return greeting;
-            }
-        }
-
-        public sealed class SimplestSendGreetingTask : TaskActivity<string, string>
+        public override async Task<string> RunTask(OrchestrationContext context, string input)
         {
+            Contract.Assume(context is not null);
+            string user = await context.ScheduleTask<string>(typeof(SimplestGetUserTask));
+            string greeting = await context.ScheduleTask<string>(typeof(SimplestSendGreetingTask), user);
+            // This is a HACK to get unit test up and running.  Should never be done in actual code.
+            Result = greeting;
+
+            return greeting;
+        }
+    }
+
+    public sealed class SimplestSendGreetingTask : TaskActivity<string, string>
+    {
 #pragma warning disable CA1725 // Parameter names should match base declaration
-            protected override string Execute(TaskContext context, string user) => "Greeting send to " + user;
+        protected override string Execute(TaskContext context, string user) => "Greeting send to " + user;
 #pragma warning restore CA1725 // Parameter names should match base declaration
-        }
+    }
 
-        #endregion
+    #endregion
 
-        #region Greetings Test
+    #region Greetings Test
 
-        [TestMethod]
-        public async Task GreetingsTest()
+    [TestMethod]
+    public async Task GreetingsTest()
+    {
+        await this.taskHub.AddTaskOrchestrations(typeof(GreetingsOrchestration))
+            .AddTaskActivities(typeof(GetUserTask), typeof(SendGreetingTask))
+            .StartAsync();
+
+        OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(GreetingsOrchestration), null);
+
+        bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+        Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+        Assert.AreEqual("Greeting send to Gabbar", GreetingsOrchestration.Result, "Orchestration Result is wrong!!!");
+    }
+
+    public sealed class GetUserTask : TaskActivity<string, string>
+    {
+        protected override string Execute(TaskContext context, string input)
         {
-            await this.taskHub.AddTaskOrchestrations(typeof(GreetingsOrchestration))
-                .AddTaskActivities(typeof(GetUserTask), typeof(SendGreetingTask))
-                .StartAsync();
-
-            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(GreetingsOrchestration), null);
-
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
-            Assert.AreEqual("Greeting send to Gabbar", GreetingsOrchestration.Result, "Orchestration Result is wrong!!!");
+            return "Gabbar";
         }
+    }
 
-        public sealed class GetUserTask : TaskActivity<string, string>
-        {
-            protected override string Execute(TaskContext context, string input)
-            {
-                return "Gabbar";
-            }
-        }
-
-        public class GreetingsOrchestration : TaskOrchestration<string, string>
-        {
+    public class GreetingsOrchestration : TaskOrchestration<string, string>
+    {
 #pragma warning disable CA2211 // Non-constant fields should not be visible
-            // HACK: This is just a hack to communicate result of orchestration back to test
-            public static string Result;
+        // HACK: This is just a hack to communicate result of orchestration back to test
+        public static string Result;
 #pragma warning restore CA2211 // Non-constant fields should not be visible
 
-            public override async Task<string> RunTask(OrchestrationContext context, string input)
-            {
-                Contract.Assume(context is not null);
-                string user = await context.ScheduleTask<string>(typeof(GetUserTask));
-                string greeting = await context.ScheduleTask<string>(typeof(SendGreetingTask), user);
-                // This is a HACK to get unit test up and running.  Should never be done in actual code.
-                Result = greeting;
-
-                return greeting;
-            }
-        }
-
-        #endregion
-
-        #region Greetings2 Test
-
-        [TestMethod]
-        public async Task Greetings2Test()
+        public override async Task<string> RunTask(OrchestrationContext context, string input)
         {
-            await this.taskHub.AddTaskOrchestrations(typeof(GreetingsOrchestration2))
-                .AddTaskActivities(typeof(GetUserTask2), typeof(SendGreetingTask))
-                .StartAsync();
+            Contract.Assume(context is not null);
+            string user = await context.ScheduleTask<string>(typeof(GetUserTask));
+            string greeting = await context.ScheduleTask<string>(typeof(SendGreetingTask), user);
+            // This is a HACK to get unit test up and running.  Should never be done in actual code.
+            Result = greeting;
 
-            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(GreetingsOrchestration2), 20);
-
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
-            Assert.AreEqual("Greeting send to Gabbar", GreetingsOrchestration2.Result,
-                "Orchestration Result is wrong!!!");
-
-            id = this.client.CreateOrchestrationInstanceAsync(typeof(GreetingsOrchestration2), 2).Result;
-
-            isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
-            Assert.AreEqual("Greeting send to TimedOut", GreetingsOrchestration2.Result,
-                "Orchestration Result is wrong!!!");
+            return greeting;
         }
+    }
 
-        public sealed class GetUserTask2 : TaskActivity<string, string>
+    #endregion
+
+    #region Greetings2 Test
+
+    [TestMethod]
+    public async Task Greetings2Test()
+    {
+        await this.taskHub.AddTaskOrchestrations(typeof(GreetingsOrchestration2))
+            .AddTaskActivities(typeof(GetUserTask2), typeof(SendGreetingTask))
+            .StartAsync();
+
+        OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(GreetingsOrchestration2), 20);
+
+        bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+        Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+        Assert.AreEqual("Greeting send to Gabbar", GreetingsOrchestration2.Result,
+            "Orchestration Result is wrong!!!");
+
+        id = this.client.CreateOrchestrationInstanceAsync(typeof(GreetingsOrchestration2), 2).Result;
+
+        isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+        Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+        Assert.AreEqual("Greeting send to TimedOut", GreetingsOrchestration2.Result,
+            "Orchestration Result is wrong!!!");
+    }
+
+    public sealed class GetUserTask2 : TaskActivity<string, string>
+    {
+        protected override string Execute(TaskContext context, string input)
         {
-            protected override string Execute(TaskContext context, string input)
-            {
-                Thread.Sleep(15 * 1000);
-                return "Gabbar";
-            }
+            Thread.Sleep(15 * 1000);
+            return "Gabbar";
         }
+    }
 
-        public class GreetingsOrchestration2 : TaskOrchestration<string, int>
-        {
+    public class GreetingsOrchestration2 : TaskOrchestration<string, int>
+    {
 #pragma warning disable CA2211 // Non-constant fields should not be visible
-            // HACK: This is just a hack to communicate result of orchestration back to test
-            public static string Result;
+        // HACK: This is just a hack to communicate result of orchestration back to test
+        public static string Result;
 #pragma warning restore CA2211 // Non-constant fields should not be visible
 
 #pragma warning disable CA1725 // Parameter names should match base declaration
-            public override async Task<string> RunTask(OrchestrationContext context, int secondsToWait)
-            {
-                Contract.Assume(context is not null);
-                Task<string> user = context.ScheduleTask<string>(typeof(GetUserTask2));
-                Task<string> timer = context.CreateTimer(context.CurrentUtcDateTime.AddSeconds(secondsToWait),
-                    "TimedOut");
+        public override async Task<string> RunTask(OrchestrationContext context, int secondsToWait)
+        {
+            Contract.Assume(context is not null);
+            Task<string> user = context.ScheduleTask<string>(typeof(GetUserTask2));
+            Task<string> timer = context.CreateTimer(context.CurrentUtcDateTime.AddSeconds(secondsToWait),
+                "TimedOut");
 
-                Task<string> u = await Task.WhenAny(user, timer);
-                string greeting = await context.ScheduleTask<string>(typeof(SendGreetingTask), u.Result);
-                // This is a HACK to get unit test up and running.  Should never be done in actual code.
-                Result = greeting;
+            Task<string> u = await Task.WhenAny(user, timer);
+            string greeting = await context.ScheduleTask<string>(typeof(SendGreetingTask), u.Result);
+            // This is a HACK to get unit test up and running.  Should never be done in actual code.
+            Result = greeting;
 
-                return greeting;
-            }
+            return greeting;
+        }
 #pragma warning restore CA1725 // Parameter names should match base declaration
-        }
+    }
 
-        #endregion
+    #endregion
 
-        #region EventConversation
+    #region EventConversation
 
-        [TestMethod]
-        public async Task EventConversation()
-        {
-            await this.taskHub
-                .AddTaskOrchestrations(typeof(Test.Orchestrations.EventConversationOrchestration),
-                                       typeof(Test.Orchestrations.EventConversationOrchestration.Responder))
-                .StartAsync();
+    [TestMethod]
+    public async Task EventConversation()
+    {
+        await this.taskHub
+            .AddTaskOrchestrations(typeof(Test.Orchestrations.EventConversationOrchestration),
+                                   typeof(Test.Orchestrations.EventConversationOrchestration.Responder))
+            .StartAsync();
 
-            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(Test.Orchestrations.EventConversationOrchestration), "false");
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
-            Assert.IsTrue(Test.Orchestrations.EventConversationOrchestration.OkResult, "Orchestration did not finish ok!!!");
-        }
+        OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(Test.Orchestrations.EventConversationOrchestration), "false");
+        bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+        Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+        Assert.IsTrue(Test.Orchestrations.EventConversationOrchestration.OkResult, "Orchestration did not finish ok!!!");
+    }
 
-        #endregion
+    #endregion
 
-        #region Message Overflow Test for Large Orchestration Input Output
+    #region Message Overflow Test for Large Orchestration Input Output
 
-        [TestMethod]
-        public async Task MessageOverflowTest()
-        {
-            await this.taskHub.AddTaskOrchestrations(typeof(LargeInputOutputOrchestration)).StartAsync();
+    [TestMethod]
+    public async Task MessageOverflowTest()
+    {
+        await this.taskHub.AddTaskOrchestrations(typeof(LargeInputOutputOrchestration)).StartAsync();
 
-            // generate a large string as the orchestration input;
-            // make it random so that it won't be compressed too much.
-            string largeInput = TestUtils.GenerateRandomString(1000 * 1024);
-            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(LargeInputOutputOrchestration), largeInput);
+        // generate a large string as the orchestration input;
+        // make it random so that it won't be compressed too much.
+        string largeInput = TestUtils.GenerateRandomString(1000 * 1024);
+        OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(LargeInputOutputOrchestration), largeInput);
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
-            Assert.AreEqual($"output-{largeInput}", LargeInputOutputOrchestration.Result, "Orchestration Result is wrong!!!");
-        }
+        bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+        Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+        Assert.AreEqual($"output-{largeInput}", LargeInputOutputOrchestration.Result, "Orchestration Result is wrong!!!");
+    }
 
-        public class LargeInputOutputOrchestration : TaskOrchestration<string, string>
-        {
+    public class LargeInputOutputOrchestration : TaskOrchestration<string, string>
+    {
 #pragma warning disable CA2211 // Non-constant fields should not be visible
-            // HACK: This is just a hack to communicate result of orchestration back to test
-            public static string Result;
+        // HACK: This is just a hack to communicate result of orchestration back to test
+        public static string Result;
 #pragma warning restore CA2211 // Non-constant fields should not be visible
 
-            public override Task<string> RunTask(OrchestrationContext context, string input)
+        public override Task<string> RunTask(OrchestrationContext context, string input)
+        {
+            string output = $"output-{input}";
+            Result = output;
+            return Task.FromResult(output);
+        }
+    }
+
+    #endregion Message Overflow Test for Large Orchestration Input Output
+
+    #region AverageCalculator Test
+
+    [TestMethod]
+    public async Task AverageCalculatorTest()
+    {
+        await this.taskHub.AddTaskOrchestrations(typeof(AverageCalculatorOrchestration))
+            .AddTaskActivities(typeof(ComputeSumTask))
+            .StartAsync();
+
+        OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(
+            typeof(AverageCalculatorOrchestration),
+            new[] { 1, 50, 10 });
+
+        bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+        Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+        Assert.AreEqual(25.5, AverageCalculatorOrchestration.Result, "Orchestration Result is wrong!!!");
+    }
+
+    private class AverageCalculatorOrchestration : TaskOrchestration<double, int[]>
+    {
+        // HACK: This is just a hack to communicate result of orchestration back to test
+        public static double Result;
+
+        public override async Task<double> RunTask(OrchestrationContext context, int[] input)
+        {
+            if (input is null || input.Length != 3)
             {
-                string output = $"output-{input}";
-                Result = output;
-                return Task.FromResult(output);
+                throw new ArgumentException("input Lenght cannot be other than 3", nameof(input));
             }
-        }
 
-        #endregion Message Overflow Test for Large Orchestration Input Output
+            int start = input[0];
+            int end = input[1];
+            int step = input[2];
+            int total = end - start + 1;
 
-        #region AverageCalculator Test
-
-        [TestMethod]
-        public async Task AverageCalculatorTest()
-        {
-            await this.taskHub.AddTaskOrchestrations(typeof(AverageCalculatorOrchestration))
-                .AddTaskActivities(typeof(ComputeSumTask))
-                .StartAsync();
-
-            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(
-                typeof(AverageCalculatorOrchestration),
-                new[] { 1, 50, 10 });
-
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
-            Assert.AreEqual(25.5, AverageCalculatorOrchestration.Result, "Orchestration Result is wrong!!!");
-        }
-
-        private class AverageCalculatorOrchestration : TaskOrchestration<double, int[]>
-        {
-            // HACK: This is just a hack to communicate result of orchestration back to test
-            public static double Result;
-
-            public override async Task<double> RunTask(OrchestrationContext context, int[] input)
+            var chunks = new List<Task<int>>();
+            while (start < end)
             {
-                if (input is null || input.Length != 3)
+                int current = start + step - 1;
+                if (current > end)
                 {
-                    throw new ArgumentException("input Lenght cannot be other than 3", nameof(input));
+                    current = end;
                 }
 
-                int start = input[0];
-                int end = input[1];
-                int step = input[2];
-                int total = end - start + 1;
+                Task<int> chunk = context.ScheduleTask<int>(typeof(ComputeSumTask), new[] { start, current });
+                chunks.Add(chunk);
 
-                var chunks = new List<Task<int>>();
-                while (start < end)
-                {
-                    int current = start + step - 1;
-                    if (current > end)
-                    {
-                        current = end;
-                    }
-
-                    Task<int> chunk = context.ScheduleTask<int>(typeof(ComputeSumTask), new[] { start, current });
-                    chunks.Add(chunk);
-
-                    start = current + 1;
-                }
-
-                var sum = 0;
-                int[] allChunks = await Task.WhenAll(chunks.ToArray());
-                foreach (int result in allChunks)
-                {
-                    sum += result;
-                }
-
-                double r = sum / (double)total;
-                Result = r;
-                return r;
+                start = current + 1;
             }
-        }
 
-        public sealed class ComputeSumTask : TaskActivity<int[], int>
-        {
+            var sum = 0;
+            int[] allChunks = await Task.WhenAll(chunks.ToArray());
+            foreach (int result in allChunks)
+            {
+                sum += result;
+            }
+
+            double r = sum / (double)total;
+            Result = r;
+            return r;
+        }
+    }
+
+    public sealed class ComputeSumTask : TaskActivity<int[], int>
+    {
 #pragma warning disable CA1725 // Parameter names should match base declaration
-            protected override int Execute(TaskContext context, int[] chunk)
+        protected override int Execute(TaskContext context, int[] chunk)
+        {
+            if (chunk is null || chunk.Length != 2)
             {
-                if (chunk is null || chunk.Length != 2)
-                {
-                    throw new ArgumentException("chunk length cannot be other than 2", nameof(chunk));
-                }
-
-                Console.WriteLine("Compute Sum for " + chunk[0] + "," + chunk[1]);
-                var sum = 0;
-                int start = chunk[0];
-                int end = chunk[1];
-                for (int i = start; i <= end; i++)
-                {
-                    sum += i;
-                }
-
-                Console.WriteLine("Total Sum for chunk '" + chunk[0] + "," + chunk[1] + "' is " + sum);
-
-                return sum;
+                throw new ArgumentException("chunk length cannot be other than 2", nameof(chunk));
             }
+
+            Console.WriteLine("Compute Sum for " + chunk[0] + "," + chunk[1]);
+            var sum = 0;
+            int start = chunk[0];
+            int end = chunk[1];
+            for (int i = start; i <= end; i++)
+            {
+                sum += i;
+            }
+
+            Console.WriteLine("Total Sum for chunk '" + chunk[0] + "," + chunk[1] + "' is " + sum);
+
+            return sum;
+        }
 #pragma warning restore CA1725 // Parameter names should match base declaration
-        }
+    }
 
-        #endregion
+    #endregion
 
-        #region Signal Test
+    #region Signal Test
 
-        [TestMethod]
-        public async Task SignalTest()
-        {
-            await this.taskHub.AddTaskOrchestrations(typeof(SignalOrchestration))
-                .AddTaskActivities(typeof(SendGreetingTask))
-                .StartAsync();
+    [TestMethod]
+    public async Task SignalTest()
+    {
+        await this.taskHub.AddTaskOrchestrations(typeof(SignalOrchestration))
+            .AddTaskActivities(typeof(SendGreetingTask))
+            .StartAsync();
 
-            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(SignalOrchestration), null);
+        OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(SignalOrchestration), null);
 
-            await Task.Delay(2 * 1000);
-            await this.client.RaiseEventAsync(id, "GetUser", "Gabbar");
+        await Task.Delay(2 * 1000);
+        await this.client.RaiseEventAsync(id, "GetUser", "Gabbar");
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
-            Assert.AreEqual("Greeting send to Gabbar", SignalOrchestration.Result,
-                "Orchestration Result is wrong!!!");
-        }
+        bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+        Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+        Assert.AreEqual("Greeting send to Gabbar", SignalOrchestration.Result,
+            "Orchestration Result is wrong!!!");
+    }
 
-        public class SignalOrchestration : TaskOrchestration<string, string>
-        {
+    public class SignalOrchestration : TaskOrchestration<string, string>
+    {
 #pragma warning disable CA2211 // Non-constant fields should not be visible
-            // HACK: This is just a hack to communicate result of orchestration back to test
-            public static string Result;
+        // HACK: This is just a hack to communicate result of orchestration back to test
+        public static string Result;
 #pragma warning restore CA2211 // Non-constant fields should not be visible
-            private TaskCompletionSource<string> resumeHandle;
+        private TaskCompletionSource<string> resumeHandle;
 
-            public override async Task<string> RunTask(OrchestrationContext context, string input)
-            {
-                Contract.Assume(context is not null);
-                string user = await WaitForSignal();
-                string greeting = await context.ScheduleTask<string>(typeof(SendGreetingTask), user);
-                Result = greeting;
-                return greeting;
-            }
-
-            private async Task<string> WaitForSignal()
-            {
-                this.resumeHandle = new TaskCompletionSource<string>();
-                string data = await this.resumeHandle.Task;
-                this.resumeHandle = null;
-                return data;
-            }
-
-            public override void OnEvent(OrchestrationContext context, string name, string input)
-            {
-                Assert.AreEqual("GetUser", name, "Unknown signal received...");
-                this.resumeHandle?.SetResult(input);
-            }
+        public override async Task<string> RunTask(OrchestrationContext context, string input)
+        {
+            Contract.Assume(context is not null);
+            string user = await WaitForSignal();
+            string greeting = await context.ScheduleTask<string>(typeof(SendGreetingTask), user);
+            Result = greeting;
+            return greeting;
         }
 
-        #endregion
-
-        #region ErrorHandling Test
-
-        [TestMethod]
-        public async Task ErrorHandlingTest()
+        private async Task<string> WaitForSignal()
         {
-            await this.taskHub.AddTaskOrchestrations(typeof(ErrorHandlingOrchestration))
-                .AddTaskActivities(typeof(GoodTask), typeof(BadTask), typeof(CleanupTask))
-                .StartAsync();
-            this.taskHub.TaskActivityDispatcher.IncludeDetails = true;
-
-            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(ErrorHandlingOrchestration), null);
-
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
-            Assert.AreEqual("CleanupResult", ErrorHandlingOrchestration.Result,
-                "Orchestration Result is wrong!!!");
+            this.resumeHandle = new TaskCompletionSource<string>();
+            string data = await this.resumeHandle.Task;
+            this.resumeHandle = null;
+            return data;
         }
 
-        public sealed class BadTask : TaskActivity<string, string>
+        public override void OnEvent(OrchestrationContext context, string name, string input)
         {
-            protected override string Execute(TaskContext context, string input)
-            {
-                throw new InvalidOperationException("BadTask failed.");
-            }
+            Assert.AreEqual("GetUser", name, "Unknown signal received...");
+            this.resumeHandle?.SetResult(input);
         }
+    }
 
-        public sealed class CleanupTask : TaskActivity<string, string>
+    #endregion
+
+    #region ErrorHandling Test
+
+    [TestMethod]
+    public async Task ErrorHandlingTest()
+    {
+        await this.taskHub.AddTaskOrchestrations(typeof(ErrorHandlingOrchestration))
+            .AddTaskActivities(typeof(GoodTask), typeof(BadTask), typeof(CleanupTask))
+            .StartAsync();
+        this.taskHub.TaskActivityDispatcher.IncludeDetails = true;
+
+        OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(ErrorHandlingOrchestration), null);
+
+        bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+        Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+        Assert.AreEqual("CleanupResult", ErrorHandlingOrchestration.Result,
+            "Orchestration Result is wrong!!!");
+    }
+
+    public sealed class BadTask : TaskActivity<string, string>
+    {
+        protected override string Execute(TaskContext context, string input)
         {
-            protected override string Execute(TaskContext context, string input)
-            {
-                return "CleanupResult";
-            }
+            throw new InvalidOperationException("BadTask failed.");
         }
+    }
 
-        public class ErrorHandlingOrchestration : TaskOrchestration<string, string>
+    public sealed class CleanupTask : TaskActivity<string, string>
+    {
+        protected override string Execute(TaskContext context, string input)
         {
+            return "CleanupResult";
+        }
+    }
+
+    public class ErrorHandlingOrchestration : TaskOrchestration<string, string>
+    {
 #pragma warning disable CA2211 // Non-constant fields should not be visible
-            // HACK: This is just a hack to communicate result of orchestration back to test
-            public static string Result;
+        // HACK: This is just a hack to communicate result of orchestration back to test
+        public static string Result;
 #pragma warning restore CA2211 // Non-constant fields should not be visible
 
-            public override async Task<string> RunTask(OrchestrationContext context, string input)
+        public override async Task<string> RunTask(OrchestrationContext context, string input)
+        {
+            Contract.Assume(context is not null);
+            string goodResult = null;
+            string result = null;
+            var hasError = false;
+            try
             {
-                Contract.Assume(context is not null);
-                string goodResult = null;
-                string result = null;
-                var hasError = false;
-                try
-                {
-                    goodResult = await context.ScheduleTask<string>(typeof(GoodTask));
-                    string badResult = await context.ScheduleTask<string>(typeof(BadTask));
-                    result = goodResult + badResult;
-                }
-                catch (TaskFailedException e)
-                {
-                    Assert.IsInstanceOfType(e.InnerException, typeof(InvalidOperationException));
-                    Assert.AreEqual("BadTask failed.", e.Message);
-                    hasError = true;
-                }
-
-                if (hasError && !string.IsNullOrWhiteSpace(goodResult))
-                {
-                    result = await context.ScheduleTask<string>(typeof(CleanupTask));
-                }
-
-                Result = result;
-                return result;
+                goodResult = await context.ScheduleTask<string>(typeof(GoodTask));
+                string badResult = await context.ScheduleTask<string>(typeof(BadTask));
+                result = goodResult + badResult;
             }
-        }
-
-        public sealed class GoodTask : TaskActivity<string, string>
-        {
-            protected override string Execute(TaskContext context, string input)
+            catch (TaskFailedException e)
             {
-                return "GoodResult";
+                Assert.IsInstanceOfType(e.InnerException, typeof(InvalidOperationException));
+                Assert.AreEqual("BadTask failed.", e.Message);
+                hasError = true;
             }
-        }
 
-        #endregion
-
-        #region Cron Test
-
-        public enum RecurrenceFrequency
-        {
-            Second,
-            Minute,
-            Hour,
-            Day,
-            Week,
-            Month,
-            Year
-        }
-
-        [TestMethod]
-        public async Task CronTest()
-        {
-            await this.taskHub.AddTaskOrchestrations(typeof(CronOrchestration))
-                .AddTaskActivities(typeof(CronTask))
-                .StartAsync();
-
-            CronOrchestration.Tasks.Clear();
-            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(CronOrchestration), new CronJob
+            if (hasError && !string.IsNullOrWhiteSpace(goodResult))
             {
-                Frequency = RecurrenceFrequency.Second,
-                Count = 5,
-                Interval = 3,
-            });
+                result = await context.ScheduleTask<string>(typeof(CleanupTask));
+            }
 
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 120);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 120));
-            Assert.AreEqual(5, CronTask.Result, "Orchestration Result is wrong!!!");
-            Assert.AreEqual(5, CronOrchestration.Result, "Orchestration Result is wrong!!!");
-            int taskExceptions = CronOrchestration.Tasks.Count(task => task.Exception is not null);
-            Assert.AreEqual(0, taskExceptions, $"Orchestration Result contains {taskExceptions} exceptions!!!");
+            Result = result;
+            return result;
         }
+    }
 
-        public class CronJob
+    public sealed class GoodTask : TaskActivity<string, string>
+    {
+        protected override string Execute(TaskContext context, string input)
         {
-            public RecurrenceFrequency Frequency { get; set; }
-
-            public int Interval { get; set; }
-
-            public int Count { get; set; }
+            return "GoodResult";
         }
+    }
 
-        public class CronOrchestration : TaskOrchestration<string, CronJob>
+    #endregion
+
+    #region Cron Test
+
+    public enum RecurrenceFrequency
+    {
+        Second,
+        Minute,
+        Hour,
+        Day,
+        Week,
+        Month,
+        Year
+    }
+
+    [TestMethod]
+    public async Task CronTest()
+    {
+        await this.taskHub.AddTaskOrchestrations(typeof(CronOrchestration))
+            .AddTaskActivities(typeof(CronTask))
+            .StartAsync();
+
+        CronOrchestration.Tasks.Clear();
+        OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(CronOrchestration), new CronJob
         {
+            Frequency = RecurrenceFrequency.Second,
+            Count = 5,
+            Interval = 3,
+        });
+
+        bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 120);
+        Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 120));
+        Assert.AreEqual(5, CronTask.Result, "Orchestration Result is wrong!!!");
+        Assert.AreEqual(5, CronOrchestration.Result, "Orchestration Result is wrong!!!");
+        int taskExceptions = CronOrchestration.Tasks.Count(task => task.Exception is not null);
+        Assert.AreEqual(0, taskExceptions, $"Orchestration Result contains {taskExceptions} exceptions!!!");
+    }
+
+    public class CronJob
+    {
+        public RecurrenceFrequency Frequency { get; set; }
+
+        public int Interval { get; set; }
+
+        public int Count { get; set; }
+    }
+
+    public class CronOrchestration : TaskOrchestration<string, CronJob>
+    {
 #pragma warning disable CA2211 // Non-constant fields should not be visible
-            public static int Result;
-            public static List<Task<string>> Tasks = new List<Task<string>>();
+        public static int Result;
+        public static List<Task<string>> Tasks = new List<Task<string>>();
 #pragma warning restore CA2211 // Non-constant fields should not be visible
 
 #pragma warning disable CA1725 // Parameter names should match base declaration
-            public override async Task<string> RunTask(OrchestrationContext context, CronJob job)
+        public override async Task<string> RunTask(OrchestrationContext context, CronJob job)
+        {
+            Contract.Assume(context is not null);
+            Contract.Assume(job is not null);
+            int runAfterEverySeconds;
+            if (job.Frequency == RecurrenceFrequency.Second)
             {
-                Contract.Assume(context is not null);
-                Contract.Assume(job is not null);
-                int runAfterEverySeconds;
-                if (job.Frequency == RecurrenceFrequency.Second)
-                {
-                    runAfterEverySeconds = job.Interval;
-                }
-                else
-                {
-                    throw new NotSupportedException("Job Frequency '" + job.Frequency + "' not supported...");
-                }
-
-                int i;
-                for (i = 1; i <= job.Count; i++)
-                {
-                    DateTime currentTime = context.CurrentUtcDateTime;
-                    DateTime fireAt = currentTime.AddSeconds(runAfterEverySeconds);
-
-                    string attempt = await context.CreateTimer(fireAt, i.ToString());
-
-                    Tasks.Add(context.ScheduleTask<string>(typeof(CronTask), attempt));
-                }
-
-                Result = i - 1;
-                return "Done";
+                runAfterEverySeconds = job.Interval;
             }
+            else
+            {
+                throw new NotSupportedException("Job Frequency '" + job.Frequency + "' not supported...");
+            }
+
+            int i;
+            for (i = 1; i <= job.Count; i++)
+            {
+                DateTime currentTime = context.CurrentUtcDateTime;
+                DateTime fireAt = currentTime.AddSeconds(runAfterEverySeconds);
+
+                string attempt = await context.CreateTimer(fireAt, i.ToString());
+
+                Tasks.Add(context.ScheduleTask<string>(typeof(CronTask), attempt));
+            }
+
+            Result = i - 1;
+            return "Done";
+        }
 #pragma warning restore CA1725 // Parameter names should match base declaration
-        }
+    }
 
-        private sealed class CronTask : TaskActivity<string, string>
+    private sealed class CronTask : TaskActivity<string, string>
+    {
+        public static int Result;
+
+        protected override string Execute(TaskContext context, string input)
         {
-            public static int Result;
-
-            protected override string Execute(TaskContext context, string input)
-            {
-                Result++;
-                Thread.Sleep(2 * 1000);
-                string completed = "Cron Job '" + input + "' Completed...";
-                return completed;
-            }
+            Result++;
+            Thread.Sleep(2 * 1000);
+            string completed = "Cron Job '" + input + "' Completed...";
+            return completed;
         }
+    }
 
-        #endregion
+    #endregion
 
-        #region SubOrchestrationInstance Test
+    #region SubOrchestrationInstance Test
 
-        [TestMethod]
-        public async Task SubOrchestrationTest()
+    [TestMethod]
+    public async Task SubOrchestrationTest()
+    {
+        await this.taskHub.AddTaskOrchestrations(typeof(ParentWorkflow), typeof(ChildWorkflow))
+            .StartAsync();
+
+        OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(ParentWorkflow), true);
+
+        bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+        Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+        Assert.AreEqual(
+            "Child '0' completed.Child '1' completed.Child '2' completed.Child '3' completed.Child '4' completed.",
+            ParentWorkflow.Result, "Orchestration Result is wrong!!!");
+
+        id = await this.client.CreateOrchestrationInstanceAsync(typeof(ParentWorkflow), false);
+
+        isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+        Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+        Assert.AreEqual(
+            "Child '0' completed.Child '1' completed.Child '2' completed.Child '3' completed.Child '4' completed.",
+            ParentWorkflow.Result, "Orchestration Result is wrong!!!");
+    }
+
+    public class ChildWorkflow : TaskOrchestration<string, int>
+    {
+        public override Task<string> RunTask(OrchestrationContext context, int input)
         {
-            await this.taskHub.AddTaskOrchestrations(typeof(ParentWorkflow), typeof(ChildWorkflow))
-                .StartAsync();
-
-            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(ParentWorkflow), true);
-
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
-            Assert.AreEqual(
-                "Child '0' completed.Child '1' completed.Child '2' completed.Child '3' completed.Child '4' completed.",
-                ParentWorkflow.Result, "Orchestration Result is wrong!!!");
-
-            id = await this.client.CreateOrchestrationInstanceAsync(typeof(ParentWorkflow), false);
-
-            isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
-            Assert.AreEqual(
-                "Child '0' completed.Child '1' completed.Child '2' completed.Child '3' completed.Child '4' completed.",
-                ParentWorkflow.Result, "Orchestration Result is wrong!!!");
+            return Task.FromResult($"Child '{input}' completed.");
         }
+    }
 
-        public class ChildWorkflow : TaskOrchestration<string, int>
-        {
-            public override Task<string> RunTask(OrchestrationContext context, int input)
-            {
-                return Task.FromResult($"Child '{input}' completed.");
-            }
-        }
-
-        public class ParentWorkflow : TaskOrchestration<string, bool>
-        {
+    public class ParentWorkflow : TaskOrchestration<string, bool>
+    {
 #pragma warning disable CA2211 // Non-constant fields should not be visible
-            // HACK: This is just a hack to communicate result of orchestration back to test
-            public static string Result;
+        // HACK: This is just a hack to communicate result of orchestration back to test
+        public static string Result;
 #pragma warning restore CA2211 // Non-constant fields should not be visible
 
 #pragma warning disable CA1725 // Parameter names should match base declaration
-            public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
+        public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
+        {
+            Contract.Assume(context is not null);
+            var results = new Task<string>[5];
+            for (var i = 0; i < 5; i++)
             {
-                Contract.Assume(context is not null);
-                var results = new Task<string>[5];
+                Task<string> r = context.CreateSubOrchestrationInstance<string>(typeof(ChildWorkflow), i);
+                if (waitForCompletion)
+                {
+                    await r;
+                }
+
+                results[i] = r;
+            }
+
+            string[] data = await Task.WhenAll(results);
+            Result = string.Concat(data);
+            return Result;
+        }
+#pragma warning restore CA1725 // Parameter names should match base declaration
+    }
+
+    #endregion
+
+    #region SubOrchestrationInstance Failure Test
+
+    [TestMethod]
+    public async Task SubOrchestrationFailedTest()
+    {
+        await this.taskHub.AddTaskOrchestrations(typeof(ParentWorkflow2), typeof(ChildWorkflow2))
+            .StartAsync();
+        this.taskHub.TaskOrchestrationDispatcher.IncludeDetails = true;
+
+        ChildWorkflow2.Count = 0;
+        ParentWorkflow2.Result = null;
+        OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(ParentWorkflow2), true);
+
+        bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+        Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+
+        Assert.AreEqual("Test", ParentWorkflow2.Result, "Orchestration Result is wrong!!!");
+        Assert.AreEqual(1, ChildWorkflow2.Count, "Child Workflow Count invalid.");
+
+        ChildWorkflow2.Count = 0;
+        ParentWorkflow2.Result = null;
+        id = await this.client.CreateOrchestrationInstanceAsync(typeof(ParentWorkflow2), false);
+
+        isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+        Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+        Assert.AreEqual("Test", ParentWorkflow2.Result, "Orchestration Result is wrong!!!");
+        Assert.AreEqual(5, ChildWorkflow2.Count, "Child Workflow Count invalid.");
+    }
+
+    public class ChildWorkflow2 : TaskOrchestration<string, int>
+    {
+#pragma warning disable CA2211 // Non-constant fields should not be visible
+        public static int Count;
+#pragma warning restore CA2211 // Non-constant fields should not be visible
+
+        public override Task<string> RunTask(OrchestrationContext context, int input)
+        {
+            Count++;
+            throw new InvalidOperationException("Test");
+        }
+    }
+
+    public class ParentWorkflow2 : TaskOrchestration<string, bool>
+    {
+#pragma warning disable CA2211 // Non-constant fields should not be visible
+        // HACK: This is just a hack to communicate result of orchestration back to test
+        public static string Result;
+#pragma warning restore CA2211 // Non-constant fields should not be visible
+
+#pragma warning disable CA1725 // Parameter names should match base declaration
+        public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
+        {
+            Contract.Assume(context is not null);
+            var results = new Task<string>[5];
+            try
+            {
                 for (var i = 0; i < 5; i++)
                 {
-                    Task<string> r = context.CreateSubOrchestrationInstance<string>(typeof(ChildWorkflow), i);
+                    Task<string> r = context.CreateSubOrchestrationInstance<string>(typeof(ChildWorkflow2), i);
                     if (waitForCompletion)
                     {
                         await r;
@@ -726,220 +802,143 @@ namespace DurableTask.ServiceBus.Tests
 
                 string[] data = await Task.WhenAll(results);
                 Result = string.Concat(data);
-                return Result;
             }
+            catch (SubOrchestrationFailedException e)
+            {
+                Assert.IsInstanceOfType(e.InnerException, typeof(InvalidOperationException),
+                    "Actual exception is not InvalidOperationException.");
+                Result = e.Message;
+            }
+
+            return Result;
+        }
 #pragma warning restore CA1725 // Parameter names should match base declaration
-        }
-
-        #endregion
-
-        #region SubOrchestrationInstance Failure Test
-
-        [TestMethod]
-        public async Task SubOrchestrationFailedTest()
-        {
-            await this.taskHub.AddTaskOrchestrations(typeof(ParentWorkflow2), typeof(ChildWorkflow2))
-                .StartAsync();
-            this.taskHub.TaskOrchestrationDispatcher.IncludeDetails = true;
-
-            ChildWorkflow2.Count = 0;
-            ParentWorkflow2.Result = null;
-            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(ParentWorkflow2), true);
-
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
-
-            Assert.AreEqual("Test", ParentWorkflow2.Result, "Orchestration Result is wrong!!!");
-            Assert.AreEqual(1, ChildWorkflow2.Count, "Child Workflow Count invalid.");
-
-            ChildWorkflow2.Count = 0;
-            ParentWorkflow2.Result = null;
-            id = await this.client.CreateOrchestrationInstanceAsync(typeof(ParentWorkflow2), false);
-
-            isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
-            Assert.AreEqual("Test", ParentWorkflow2.Result, "Orchestration Result is wrong!!!");
-            Assert.AreEqual(5, ChildWorkflow2.Count, "Child Workflow Count invalid.");
-        }
-
-        public class ChildWorkflow2 : TaskOrchestration<string, int>
-        {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
-            public static int Count;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
-
-            public override Task<string> RunTask(OrchestrationContext context, int input)
-            {
-                Count++;
-                throw new InvalidOperationException("Test");
-            }
-        }
-
-        public class ParentWorkflow2 : TaskOrchestration<string, bool>
-        {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
-            // HACK: This is just a hack to communicate result of orchestration back to test
-            public static string Result;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
-
-#pragma warning disable CA1725 // Parameter names should match base declaration
-            public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
-            {
-                Contract.Assume(context is not null);
-                var results = new Task<string>[5];
-                try
-                {
-                    for (var i = 0; i < 5; i++)
-                    {
-                        Task<string> r = context.CreateSubOrchestrationInstance<string>(typeof(ChildWorkflow2), i);
-                        if (waitForCompletion)
-                        {
-                            await r;
-                        }
-
-                        results[i] = r;
-                    }
-
-                    string[] data = await Task.WhenAll(results);
-                    Result = string.Concat(data);
-                }
-                catch (SubOrchestrationFailedException e)
-                {
-                    Assert.IsInstanceOfType(e.InnerException, typeof(InvalidOperationException),
-                        "Actual exception is not InvalidOperationException.");
-                    Result = e.Message;
-                }
-
-                return Result;
-            }
-#pragma warning restore CA1725 // Parameter names should match base declaration
-        }
-
-        #endregion
-
-        #region BadOrchestration Test
-
-        [TestMethod]
-        public async Task BadOrchestrationTest()
-        {
-            await this.taskHub.AddTaskOrchestrations(typeof(BadOrchestration))
-                .StartAsync();
-
-            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(BadOrchestration), null);
-
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
-        }
-
-        public class BadOrchestration : TaskOrchestration<string, string>
-        {
-#pragma warning disable 1998
-            public override async Task<string> RunTask(OrchestrationContext context, string input)
-#pragma warning restore 1998
-            {
-                throw new Exception("something very bad happened");
-            }
-        }
-
-        #endregion
-
-        #region SubOrchestrationInstance Explicit InstanceId Test
-
-        [TestMethod]
-        public async Task SubOrchestrationExplicitIdTest()
-        {
-            SimpleChildWorkflow.ChildInstanceId = null;
-            await this.taskHub.AddTaskOrchestrations(typeof(SimpleParentWorkflow), typeof(SimpleChildWorkflow))
-                .StartAsync();
-
-            OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(SimpleParentWorkflow), null);
-
-            bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
-            Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
-            Assert.AreEqual("foo_instance", SimpleChildWorkflow.ChildInstanceId);
-        }
-
-        public class SimpleChildWorkflow : TaskOrchestration<string, object>
-        {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
-            // HACK: This is just a hack to communicate result of orchestration back to test
-            public static string ChildInstanceId;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
-
-            public override Task<string> RunTask(OrchestrationContext context, object input)
-            {
-                Contract.Assume(context is not null);
-                ChildInstanceId = context.OrchestrationInstance.InstanceId;
-                return Task.FromResult<string>(null);
-            }
-        }
-
-        public class SimpleParentWorkflow : TaskOrchestration<string, object>
-        {
-            public override async Task<string> RunTask(OrchestrationContext context, object input)
-            {
-                Contract.Assume(context is not null);
-                await
-                    context.CreateSubOrchestrationInstanceWithRetry<string>(typeof(SimpleChildWorkflow), "foo_instance",
-                        new RetryOptions(TimeSpan.FromSeconds(5), 3), null);
-                return null;
-            }
-        }
-
-        #endregion
-
-        #region StartAt Test
-
-        public class StartAtTimeOrchestration : TaskOrchestration<DateTime, string>
-        {
-            public override Task<DateTime> RunTask(OrchestrationContext context, string input)
-            {
-                Contract.Assume(context is not null);
-                return Task.FromResult(context.CurrentUtcDateTime);
-            }
-        }
-
-        /// <summary>
-        /// Validates scheduled starts, ensuring they are executed according to defined start date time
-        /// </summary>
-        [TestMethod]
-        public async Task ScheduledStart()
-        {
-            const int MaxSecondsToCompleteNotDelayedOrchestration = 10;
-
-            await this.taskHub.AddTaskOrchestrations(typeof(StartAtTimeOrchestration))
-               .StartAsync();
-
-            // orchestrationId1 has delayed start
-            var delay = TimeSpan.FromSeconds(30);
-            var expectedStartTime = DateTime.UtcNow.Add(delay);
-            OrchestrationInstance orchestrationId1 = await this.client.CreateScheduledOrchestrationInstanceAsync(typeof(StartAtTimeOrchestration), null, expectedStartTime);
-
-            // orchestrationId2 can start immediately
-            OrchestrationInstance orchestrationId2 = await this.client.CreateOrchestrationInstanceAsync(typeof(StartAtTimeOrchestration), null);
-
-            // Ensure that the orchestration with delay has been created properly
-            var orchestration1StateAfterCreation = await this.client.GetOrchestrationStateAsync(orchestrationId1);
-            Assert.AreEqual(OrchestrationStatus.Pending, orchestration1StateAfterCreation.OrchestrationStatus);
-
-            // Ensure that the orchestration without delay has been created properly
-            var orchestration2StateAfterCreation = await this.client.GetOrchestrationStateAsync(orchestrationId2);
-            Assert.IsTrue(new[] { OrchestrationStatus.Pending, OrchestrationStatus.Running, OrchestrationStatus.Completed }.Contains(orchestration2StateAfterCreation.OrchestrationStatus));
-
-            // Wait until orchestration 2 (not delayed) is complete
-            bool isOrchestration2Complete = await TestHelpers.WaitForInstanceAsync(this.client, orchestrationId2, 60);
-            Assert.IsTrue(isOrchestration2Complete, TestHelpers.GetInstanceNotCompletedMessage(this.client, orchestrationId2, 60));
-            var orchestration2CompletedState = await client.GetOrchestrationStateAsync(orchestrationId2);
-            var orchestration2TimeToCompleteInSeconds = (int)orchestration2CompletedState.CompletedTime.Subtract(orchestration2CompletedState.CreatedTime).TotalSeconds;
-            Assert.IsTrue(orchestration2TimeToCompleteInSeconds < MaxSecondsToCompleteNotDelayedOrchestration, $"Expected not delayed orchestration to be complete in under {MaxSecondsToCompleteNotDelayedOrchestration} secs, but was {orchestration2TimeToCompleteInSeconds}");
-
-            // Wait until orchestration 1 (delayed) is complete
-            bool isOrchestration1Complete = await TestHelpers.WaitForInstanceAsync(this.client, orchestrationId1, 60);
-            Assert.IsTrue(isOrchestration1Complete, TestHelpers.GetInstanceNotCompletedMessage(this.client, orchestrationId1, 60));
-            var orchestration1CompletedState = await client.GetOrchestrationStateAsync(orchestrationId1);
-            var orchestration1TimeToCompleteInSeconds = (int)orchestration1CompletedState.CompletedTime.Subtract(orchestration1CompletedState.CreatedTime).TotalSeconds;
-            Assert.IsTrue(orchestration1TimeToCompleteInSeconds >= delay.TotalSeconds, $"Expected delayed orchestration to be completed after {delay.TotalSeconds} seconds or more relative to the creation time, but was {orchestration1TimeToCompleteInSeconds} seconds");
-        }
-        #endregion
     }
+
+    #endregion
+
+    #region BadOrchestration Test
+
+    [TestMethod]
+    public async Task BadOrchestrationTest()
+    {
+        await this.taskHub.AddTaskOrchestrations(typeof(BadOrchestration))
+            .StartAsync();
+
+        OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(BadOrchestration), null);
+
+        bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+        Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+    }
+
+    public class BadOrchestration : TaskOrchestration<string, string>
+    {
+#pragma warning disable 1998
+        public override async Task<string> RunTask(OrchestrationContext context, string input)
+#pragma warning restore 1998
+        {
+            throw new Exception("something very bad happened");
+        }
+    }
+
+    #endregion
+
+    #region SubOrchestrationInstance Explicit InstanceId Test
+
+    [TestMethod]
+    public async Task SubOrchestrationExplicitIdTest()
+    {
+        SimpleChildWorkflow.ChildInstanceId = null;
+        await this.taskHub.AddTaskOrchestrations(typeof(SimpleParentWorkflow), typeof(SimpleChildWorkflow))
+            .StartAsync();
+
+        OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(SimpleParentWorkflow), null);
+
+        bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
+        Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
+        Assert.AreEqual("foo_instance", SimpleChildWorkflow.ChildInstanceId);
+    }
+
+    public class SimpleChildWorkflow : TaskOrchestration<string, object>
+    {
+#pragma warning disable CA2211 // Non-constant fields should not be visible
+        // HACK: This is just a hack to communicate result of orchestration back to test
+        public static string ChildInstanceId;
+#pragma warning restore CA2211 // Non-constant fields should not be visible
+
+        public override Task<string> RunTask(OrchestrationContext context, object input)
+        {
+            Contract.Assume(context is not null);
+            ChildInstanceId = context.OrchestrationInstance.InstanceId;
+            return Task.FromResult<string>(null);
+        }
+    }
+
+    public class SimpleParentWorkflow : TaskOrchestration<string, object>
+    {
+        public override async Task<string> RunTask(OrchestrationContext context, object input)
+        {
+            Contract.Assume(context is not null);
+            await
+                context.CreateSubOrchestrationInstanceWithRetry<string>(typeof(SimpleChildWorkflow), "foo_instance",
+                    new RetryOptions(TimeSpan.FromSeconds(5), 3), null);
+            return null;
+        }
+    }
+
+    #endregion
+
+    #region StartAt Test
+
+    public class StartAtTimeOrchestration : TaskOrchestration<DateTime, string>
+    {
+        public override Task<DateTime> RunTask(OrchestrationContext context, string input)
+        {
+            Contract.Assume(context is not null);
+            return Task.FromResult(context.CurrentUtcDateTime);
+        }
+    }
+
+    /// <summary>
+    /// Validates scheduled starts, ensuring they are executed according to defined start date time
+    /// </summary>
+    [TestMethod]
+    public async Task ScheduledStart()
+    {
+        const int MaxSecondsToCompleteNotDelayedOrchestration = 10;
+
+        await this.taskHub.AddTaskOrchestrations(typeof(StartAtTimeOrchestration))
+           .StartAsync();
+
+        // orchestrationId1 has delayed start
+        var delay = TimeSpan.FromSeconds(30);
+        var expectedStartTime = DateTime.UtcNow.Add(delay);
+        OrchestrationInstance orchestrationId1 = await this.client.CreateScheduledOrchestrationInstanceAsync(typeof(StartAtTimeOrchestration), null, expectedStartTime);
+
+        // orchestrationId2 can start immediately
+        OrchestrationInstance orchestrationId2 = await this.client.CreateOrchestrationInstanceAsync(typeof(StartAtTimeOrchestration), null);
+
+        // Ensure that the orchestration with delay has been created properly
+        var orchestration1StateAfterCreation = await this.client.GetOrchestrationStateAsync(orchestrationId1);
+        Assert.AreEqual(OrchestrationStatus.Pending, orchestration1StateAfterCreation.OrchestrationStatus);
+
+        // Ensure that the orchestration without delay has been created properly
+        var orchestration2StateAfterCreation = await this.client.GetOrchestrationStateAsync(orchestrationId2);
+        Assert.IsTrue(new[] { OrchestrationStatus.Pending, OrchestrationStatus.Running, OrchestrationStatus.Completed }.Contains(orchestration2StateAfterCreation.OrchestrationStatus));
+
+        // Wait until orchestration 2 (not delayed) is complete
+        bool isOrchestration2Complete = await TestHelpers.WaitForInstanceAsync(this.client, orchestrationId2, 60);
+        Assert.IsTrue(isOrchestration2Complete, TestHelpers.GetInstanceNotCompletedMessage(this.client, orchestrationId2, 60));
+        var orchestration2CompletedState = await client.GetOrchestrationStateAsync(orchestrationId2);
+        var orchestration2TimeToCompleteInSeconds = (int)orchestration2CompletedState.CompletedTime.Subtract(orchestration2CompletedState.CreatedTime).TotalSeconds;
+        Assert.IsTrue(orchestration2TimeToCompleteInSeconds < MaxSecondsToCompleteNotDelayedOrchestration, $"Expected not delayed orchestration to be complete in under {MaxSecondsToCompleteNotDelayedOrchestration} secs, but was {orchestration2TimeToCompleteInSeconds}");
+
+        // Wait until orchestration 1 (delayed) is complete
+        bool isOrchestration1Complete = await TestHelpers.WaitForInstanceAsync(this.client, orchestrationId1, 60);
+        Assert.IsTrue(isOrchestration1Complete, TestHelpers.GetInstanceNotCompletedMessage(this.client, orchestrationId1, 60));
+        var orchestration1CompletedState = await client.GetOrchestrationStateAsync(orchestrationId1);
+        var orchestration1TimeToCompleteInSeconds = (int)orchestration1CompletedState.CompletedTime.Subtract(orchestration1CompletedState.CreatedTime).TotalSeconds;
+        Assert.IsTrue(orchestration1TimeToCompleteInSeconds >= delay.TotalSeconds, $"Expected delayed orchestration to be completed after {delay.TotalSeconds} seconds or more relative to the creation time, but was {orchestration1TimeToCompleteInSeconds} seconds");
+    }
+    #endregion
 }

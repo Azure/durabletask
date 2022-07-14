@@ -11,63 +11,62 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Integration.Tests
+namespace DurableTask.AzureServiceFabric.Integration.Tests;
+
+using System;
+using System.Diagnostics;
+using System.Net.Http;
+using System.Threading.Tasks;
+using DurableTask.Core;
+using DurableTask.AzureServiceFabric.Remote;
+using DurableTask.AzureServiceFabric.Service;
+
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+public static class Utilities
 {
-    using System;
-    using System.Diagnostics;
-    using System.Net.Http;
-    using System.Threading.Tasks;
-    using DurableTask.Core;
-    using DurableTask.AzureServiceFabric.Remote;
-    using DurableTask.AzureServiceFabric.Service;
-
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
-
-    public static class Utilities
+    public static TaskHubClient CreateTaskHubClient()
     {
-        public static TaskHubClient CreateTaskHubClient()
+        var partitionProvider = new FabricPartitionEndpointResolver(new Uri(Constants.TestFabricApplicationAddress), new DefaultStringPartitionHashing());
+        var httpClientHandler = new HttpClientHandler()
         {
-            var partitionProvider = new FabricPartitionEndpointResolver(new Uri(Constants.TestFabricApplicationAddress), new DefaultStringPartitionHashing());
-            var httpClientHandler = new HttpClientHandler()
-            {
-                ServerCertificateCustomValidationCallback = (message, certificate, chain, errors) => true
-            };
-            return new TaskHubClient(new RemoteOrchestrationServiceClient(partitionProvider, httpClientHandler));
+            ServerCertificateCustomValidationCallback = (message, certificate, chain, errors) => true
+        };
+        return new TaskHubClient(new RemoteOrchestrationServiceClient(partitionProvider, httpClientHandler));
+    }
+
+    public static async Task ThrowsException<TException>(Func<Task> action, string expectedMessage) where TException : Exception
+    {
+        try
+        {
+            await action();
+            Assert.Fail($"Method {action.Method} did not throw the expected exception of type {typeof(TException).Name}");
         }
-
-        public static async Task ThrowsException<TException>(Func<Task> action, string expectedMessage) where TException : Exception
+        catch (Exception ex)
         {
-            try
+            AggregateException aggregate = ex as AggregateException;
+            if (aggregate is not null)
             {
-                await action();
-                Assert.Fail($"Method {action.Method} did not throw the expected exception of type {typeof(TException).Name}");
+                ex = aggregate.InnerException;
             }
-            catch (Exception ex)
-            {
-                AggregateException aggregate = ex as AggregateException;
-                if (aggregate is not null)
-                {
-                    ex = aggregate.InnerException;
-                }
 
-                TException expected = ex as TException;
-                if (expected is null)
-                {
-                    Assert.Fail($"Method {action.Method} is expected to throw exception of type {typeof(TException).Name} but has thrown {ex.GetType().Name} instead.");
-                }
-                else if (!string.Equals(expected.Message, expectedMessage, StringComparison.Ordinal))
-                {
-                    Assert.Fail($"Method {action.Method} is expected to throw exception with message '{expectedMessage}' but has thrown the message '{expected.Message}' instead.");
-                }
+            TException expected = ex as TException;
+            if (expected is null)
+            {
+                Assert.Fail($"Method {action.Method} is expected to throw exception of type {typeof(TException).Name} but has thrown {ex.GetType().Name} instead.");
+            }
+            else if (!string.Equals(expected.Message, expectedMessage, StringComparison.Ordinal))
+            {
+                Assert.Fail($"Method {action.Method} is expected to throw exception with message '{expectedMessage}' but has thrown the message '{expected.Message}' instead.");
             }
         }
+    }
 
-        public static async Task<TimeSpan> MeasureAsync(Func<Task> asyncAction)
-        {
-            var timer = Stopwatch.StartNew();
-            await asyncAction();
-            timer.Stop();
-            return timer.Elapsed;
-        }
+    public static async Task<TimeSpan> MeasureAsync(Func<Task> asyncAction)
+    {
+        var timer = Stopwatch.StartNew();
+        await asyncAction();
+        timer.Stop();
+        return timer.Elapsed;
     }
 }

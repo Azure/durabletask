@@ -11,81 +11,80 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.Core.Exceptions
+namespace DurableTask.Core.Exceptions;
+
+using System;
+using System.Runtime.Serialization;
+
+/// <summary>
+/// Represents errors created during orchestration execution
+/// </summary>
+[Serializable]
+public class OrchestrationException : Exception
 {
-    using System;
-    using System.Runtime.Serialization;
+    /// <summary>
+    /// Initializes an new instance of the OrchestrationException class
+    /// </summary>
+    public OrchestrationException()
+    {
+    }
 
     /// <summary>
-    /// Represents errors created during orchestration execution
+    /// Initializes an new instance of the OrchestrationException class with a specified error message
     /// </summary>
-    [Serializable]
-    public class OrchestrationException : Exception
+    /// <param name="message">The message that describes the error.</param>
+    public OrchestrationException(string message)
+        : base(message)
     {
-        /// <summary>
-        /// Initializes an new instance of the OrchestrationException class
-        /// </summary>
-        public OrchestrationException()
-        {
-        }
-
-        /// <summary>
-        /// Initializes an new instance of the OrchestrationException class with a specified error message
-        /// </summary>
-        /// <param name="message">The message that describes the error.</param>
-        public OrchestrationException(string message)
-            : base(message)
-        {
-        }
-
-        /// <summary>
-        /// Initializes an new instance of the OrchestrationException class with a specified error message
-        ///    and a reference to the inner exception that is the cause of this exception.
-        /// </summary>
-        /// <param name="message">The message that describes the error.</param>
-        /// <param name="innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
-        public OrchestrationException(string message, Exception innerException)
-            : base(message, innerException) { }
-
-        /// <summary>
-        /// Initializes an new instance of the OrchestrationException class with a specified event id and error message
-        ///    and a reference to the inner exception that is the cause of this exception.
-        /// </summary>
-        /// <param name="eventId">EventId of the error.</param>
-        /// <param name="message">The message that describes the error.</param>
-        /// <param name="innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
-        public OrchestrationException(int eventId, string message, Exception innerException)
-            : base(message, innerException)
-         => EventId = eventId;
-
-        /// <summary>
-        /// Initializes a new instance of the OrchestrationException class with serialized data.
-        /// </summary>
-        /// <param name="info">The System.Runtime.Serialization.SerializationInfo that holds the serialized object data about the exception being thrown.</param>
-        /// <param name="context">The System.Runtime.Serialization.StreamingContext that contains contextual information about the source or destination.</param>
-        protected OrchestrationException(SerializationInfo info, StreamingContext context)
-            : base(info, context)
-        {
-            EventId = info.GetInt32(nameof(EventId));
-            FailureDetails = (FailureDetails)info.GetValue(nameof(FailureDetails), typeof(FailureDetails));
-        }
-
-        /// <inheritdoc />
-        public override void GetObjectData(SerializationInfo info, StreamingContext context)
-        {
-            base.GetObjectData(info, context);
-            info.AddValue(nameof(EventId), EventId);
-            info.AddValue(nameof(FailureDetails), FailureDetails);
-        }
-
-        /// <summary>
-        /// Gets or sets the EventId of the exception
-        /// </summary>
-        public int EventId { get; set; }
-
-        /// <summary>
-        /// Gets additional details about the failure. May be <c>null</c> if the failure details collection is not enabled.
-        /// </summary>
-        public FailureDetails? FailureDetails { get; internal set; }
     }
+
+    /// <summary>
+    /// Initializes an new instance of the OrchestrationException class with a specified error message
+    ///    and a reference to the inner exception that is the cause of this exception.
+    /// </summary>
+    /// <param name="message">The message that describes the error.</param>
+    /// <param name="innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
+    public OrchestrationException(string message, Exception innerException)
+        : base(message, innerException) { }
+
+    /// <summary>
+    /// Initializes an new instance of the OrchestrationException class with a specified event id and error message
+    ///    and a reference to the inner exception that is the cause of this exception.
+    /// </summary>
+    /// <param name="eventId">EventId of the error.</param>
+    /// <param name="message">The message that describes the error.</param>
+    /// <param name="innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
+    public OrchestrationException(int eventId, string message, Exception innerException)
+        : base(message, innerException)
+     => EventId = eventId;
+
+    /// <summary>
+    /// Initializes a new instance of the OrchestrationException class with serialized data.
+    /// </summary>
+    /// <param name="info">The System.Runtime.Serialization.SerializationInfo that holds the serialized object data about the exception being thrown.</param>
+    /// <param name="context">The System.Runtime.Serialization.StreamingContext that contains contextual information about the source or destination.</param>
+    protected OrchestrationException(SerializationInfo info, StreamingContext context)
+        : base(info, context)
+    {
+        EventId = info.GetInt32(nameof(EventId));
+        FailureDetails = (FailureDetails)info.GetValue(nameof(FailureDetails), typeof(FailureDetails));
+    }
+
+    /// <inheritdoc />
+    public override void GetObjectData(SerializationInfo info, StreamingContext context)
+    {
+        base.GetObjectData(info, context);
+        info.AddValue(nameof(EventId), EventId);
+        info.AddValue(nameof(FailureDetails), FailureDetails);
+    }
+
+    /// <summary>
+    /// Gets or sets the EventId of the exception
+    /// </summary>
+    public int EventId { get; set; }
+
+    /// <summary>
+    /// Gets additional details about the failure. May be <c>null</c> if the failure details collection is not enabled.
+    /// </summary>
+    public FailureDetails? FailureDetails { get; internal set; }
 }

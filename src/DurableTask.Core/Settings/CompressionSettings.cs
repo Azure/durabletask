@@ -11,24 +11,23 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Settings
+namespace DurableTask.Core.Settings;
+
+using DurableTask.Core.Common;
+
+/// <summary>
+/// Compression settings
+/// </summary>
+public struct CompressionSettings
 {
-    using DurableTask.Core.Common;
+    /// <summary>
+    ///     Type of compression
+    /// </summary>
+    public CompressionStyle Style { get; set; }
 
     /// <summary>
-    /// Compression settings
+    ///     Compression threshold in bytes; if specified by compression criteria, compression will not be done
+    ///     if size is below this value
     /// </summary>
-    public struct CompressionSettings
-    {
-        /// <summary>
-        ///     Type of compression
-        /// </summary>
-        public CompressionStyle Style { get; set; }
-
-        /// <summary>
-        ///     Compression threshold in bytes; if specified by compression criteria, compression will not be done
-        ///     if size is below this value
-        /// </summary>
-        public int ThresholdInBytes { get; set; }
-    }
+    public int ThresholdInBytes { get; set; }
 }

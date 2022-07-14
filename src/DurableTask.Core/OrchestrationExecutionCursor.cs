@@ -11,31 +11,30 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+using System.Collections.Generic;
+using DurableTask.Core.Command;
+
+internal class OrchestrationExecutionCursor
 {
-    using System.Collections.Generic;
-    using DurableTask.Core.Command;
-
-    internal class OrchestrationExecutionCursor
+    public OrchestrationExecutionCursor(
+        OrchestrationRuntimeState state,
+        TaskOrchestration orchestration,
+        TaskOrchestrationExecutor executor,
+        IEnumerable<OrchestratorAction> latestDecisions)
     {
-        public OrchestrationExecutionCursor(
-            OrchestrationRuntimeState state,
-            TaskOrchestration orchestration,
-            TaskOrchestrationExecutor executor,
-            IEnumerable<OrchestratorAction> latestDecisions)
-        {
-            RuntimeState = state;
-            TaskOrchestration = orchestration;
-            OrchestrationExecutor = executor;
-            LatestDecisions = latestDecisions;
-        }
-
-        public OrchestrationRuntimeState RuntimeState { get; }
-
-        public TaskOrchestration TaskOrchestration { get; }
-
-        public TaskOrchestrationExecutor OrchestrationExecutor { get; }
-
-        public IEnumerable<OrchestratorAction> LatestDecisions { get; set; }
+        RuntimeState = state;
+        TaskOrchestration = orchestration;
+        OrchestrationExecutor = executor;
+        LatestDecisions = latestDecisions;
     }
+
+    public OrchestrationRuntimeState RuntimeState { get; }
+
+    public TaskOrchestration TaskOrchestration { get; }
+
+    public TaskOrchestrationExecutor OrchestrationExecutor { get; }
+
+    public IEnumerable<OrchestratorAction> LatestDecisions { get; set; }
 }

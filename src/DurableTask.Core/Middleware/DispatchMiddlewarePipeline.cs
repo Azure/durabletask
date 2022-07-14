@@ -11,36 +11,35 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Middleware
+namespace DurableTask.Core.Middleware;
+
+using System;
+using System.Collections.Concurrent;
+using System.Threading.Tasks;
+
+internal class DispatchMiddlewarePipeline
 {
-    using System;
-    using System.Collections.Concurrent;
-    using System.Threading.Tasks;
+    private readonly ConcurrentStack<Func<DispatchMiddlewareDelegate, DispatchMiddlewareDelegate>> components =
+        new ConcurrentStack<Func<DispatchMiddlewareDelegate, DispatchMiddlewareDelegate>>();
 
-    internal class DispatchMiddlewarePipeline
+    public Task RunAsync(DispatchMiddlewareContext context, DispatchMiddlewareDelegate handler)
     {
-        private readonly ConcurrentStack<Func<DispatchMiddlewareDelegate, DispatchMiddlewareDelegate>> components =
-            new ConcurrentStack<Func<DispatchMiddlewareDelegate, DispatchMiddlewareDelegate>>();
-
-        public Task RunAsync(DispatchMiddlewareContext context, DispatchMiddlewareDelegate handler)
+        // Build the delegate chain
+        foreach (Func<DispatchMiddlewareDelegate, DispatchMiddlewareDelegate> component in this.components)
         {
-            // Build the delegate chain
-            foreach (Func<DispatchMiddlewareDelegate, DispatchMiddlewareDelegate> component in this.components)
-            {
-                handler = component(handler);
-            }
-
-            return handler(context);
+            handler = component(handler);
         }
 
-        public void Add(Func<DispatchMiddlewareContext, Func<Task>, Task> middleware)
-         => this.components.Push(next =>
-            {
-                return context =>
-                {
-                    Task SimpleNext() => next(context);
-                    return middleware(context, SimpleNext);
-                };
-            });
+        return handler(context);
     }
+
+    public void Add(Func<DispatchMiddlewareContext, Func<Task>, Task> middleware)
+     => this.components.Push(next =>
+        {
+            return context =>
+            {
+                Task SimpleNext() => next(context);
+                return middleware(context, SimpleNext);
+            };
+        });
 }

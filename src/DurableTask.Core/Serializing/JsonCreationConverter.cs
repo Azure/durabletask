@@ -11,46 +11,45 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Serializing
+namespace DurableTask.Core.Serializing;
+
+using System;
+
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+
+/// <summary>
+///     Helper class for supporting deserialization from JSON into a custom class hierarchy
+/// </summary>
+internal abstract class JsonCreationConverter<T> : JsonConverter where T : class
 {
-    using System;
+    public override bool CanWrite => false;
 
-    using Newtonsoft.Json;
-    using Newtonsoft.Json.Linq;
+    public override bool CanConvert(Type objectType) => typeof(T).IsAssignableFrom(objectType);
 
-    /// <summary>
-    ///     Helper class for supporting deserialization from JSON into a custom class hierarchy
-    /// </summary>
-    internal abstract class JsonCreationConverter<T> : JsonConverter where T : class
+    public override object ReadJson(JsonReader reader, Type objectType, object existingValue,
+        JsonSerializer serializer)
     {
-        public override bool CanWrite => false;
-
-        public override bool CanConvert(Type objectType) => typeof(T).IsAssignableFrom(objectType);
-
-        public override object ReadJson(JsonReader reader, Type objectType, object existingValue,
-            JsonSerializer serializer)
+        if (reader.TokenType != JsonToken.StartObject)
         {
-            if (reader.TokenType != JsonToken.StartObject)
-            {
-                return null;
-            }
-
-            JObject value = JObject.Load(reader);
-
-            // Create target object based on JObject
-            T target = CreateObject(objectType, value);
-
-            serializer.Populate(value.CreateReader(), target);
-
-            return target;
+            return null;
         }
 
-        public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
-         => throw new NotSupportedException();
+        JObject value = JObject.Load(reader);
 
-        /// <summary>
-        /// Creates an instance of objectType, based properties in the JSON object
-        /// </summary>
-        protected abstract T CreateObject(Type objectType, JObject jObject);
+        // Create target object based on JObject
+        T target = CreateObject(objectType, value);
+
+        serializer.Populate(value.CreateReader(), target);
+
+        return target;
     }
+
+    public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+     => throw new NotSupportedException();
+
+    /// <summary>
+    /// Creates an instance of objectType, based properties in the JSON object
+    /// </summary>
+    protected abstract T CreateObject(Type objectType, JObject jObject);
 }

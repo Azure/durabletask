@@ -11,46 +11,45 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric
+namespace DurableTask.AzureServiceFabric;
+
+using System;
+using System.Net.Http;
+using System.Threading.Tasks;
+using System.Web;
+
+using DurableTask.AzureServiceFabric.Exceptions;
+
+/// <summary>
+/// Defines extensions methods.
+/// </summary>
+public static class Extensions
 {
-    using System;
-    using System.Net.Http;
-    using System.Threading.Tasks;
-    using System.Web;
-
-    using DurableTask.AzureServiceFabric.Exceptions;
-
     /// <summary>
-    /// Defines extensions methods.
+    /// Validates given instanceId.
     /// </summary>
-    public static class Extensions
+    /// <param name="instanceId">Id of an orchestration instance</param>
+    /// <returns>boolean indicating whether instanceId is valid or not</returns>
+    public static bool IsValidInstanceId(this string instanceId)
     {
-        /// <summary>
-        /// Validates given instanceId.
-        /// </summary>
-        /// <param name="instanceId">Id of an orchestration instance</param>
-        /// <returns>boolean indicating whether instanceId is valid or not</returns>
-        public static bool IsValidInstanceId(this string instanceId)
+        if (instanceId is null)
         {
-            if (instanceId is null)
-            {
-                return false;
-            }
-
-            // InsanceId consists of valid url characters is treated as valid.
-            var encodedInstanceId = HttpUtility.UrlEncode(instanceId);
-
-            return instanceId.Equals(encodedInstanceId, StringComparison.OrdinalIgnoreCase);
+            return false;
         }
 
-        internal static void EnsureValidInstanceId(this string instanceId)
-        {
-            // For now do not enforce InstanceId validation here. Let the application/user decide.
-            // Revist or enable this logic after finding out the chars that are not allowed in the InstanceID
-            //if (!instanceId.IsValidInstanceId())
-            //{
-            //    throw new InvalidInstanceIdException(instanceId);
-            //}
-        }
+        // InsanceId consists of valid url characters is treated as valid.
+        var encodedInstanceId = HttpUtility.UrlEncode(instanceId);
+
+        return instanceId.Equals(encodedInstanceId, StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static void EnsureValidInstanceId(this string instanceId)
+    {
+        // For now do not enforce InstanceId validation here. Let the application/user decide.
+        // Revist or enable this logic after finding out the chars that are not allowed in the InstanceID
+        //if (!instanceId.IsValidInstanceId())
+        //{
+        //    throw new InvalidInstanceIdException(instanceId);
+        //}
     }
 }

@@ -11,40 +11,39 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Remote
+namespace DurableTask.AzureServiceFabric.Remote;
+
+using System;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+
+/// <summary>
+/// Implements <see cref="IPartitionHashing{T}"/> for string elements.
+/// </summary>
+public class DefaultStringPartitionHashing : IPartitionHashing<string>
 {
-    using System;
-    using System.Security.Cryptography;
-    using System.Text;
-    using System.Threading;
-    using System.Threading.Tasks;
-
-    /// <summary>
-    /// Implements <see cref="IPartitionHashing{T}"/> for string elements.
-    /// </summary>
-    public class DefaultStringPartitionHashing : IPartitionHashing<string>
+    /// <inheritdoc/>
+    public Task<long> GeneratePartitionHashCodeAsync(string value, CancellationToken cancellationToken)
     {
-        /// <inheritdoc/>
-        public Task<long> GeneratePartitionHashCodeAsync(string value, CancellationToken cancellationToken)
+        cancellationToken.ThrowIfCancellationRequested();
+        long hashCode = 0;
+        if (!string.IsNullOrEmpty(value))
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            long hashCode = 0;
-            if (!string.IsNullOrEmpty(value))
+            using (var sha256 = SHA256Managed.Create())
             {
-                using (var sha256 = SHA256Managed.Create())
-                {
-                    var bytes = Encoding.UTF8.GetBytes(value);
-                    var hash = sha256.ComputeHash(bytes);
-                    var long1 = BitConverter.ToInt64(hash, 0);
-                    var long2 = BitConverter.ToInt64(hash, 8);
-                    var long3 = BitConverter.ToInt64(hash, 16);
-                    var long4 = BitConverter.ToInt64(hash, 24);
+                var bytes = Encoding.UTF8.GetBytes(value);
+                var hash = sha256.ComputeHash(bytes);
+                var long1 = BitConverter.ToInt64(hash, 0);
+                var long2 = BitConverter.ToInt64(hash, 8);
+                var long3 = BitConverter.ToInt64(hash, 16);
+                var long4 = BitConverter.ToInt64(hash, 24);
 
-                    hashCode = long1 ^ long2 ^ long3 ^ long4;
-                }
+                hashCode = long1 ^ long2 ^ long3 ^ long4;
             }
-
-            return Task.FromResult(hashCode);
         }
+
+        return Task.FromResult(hashCode);
     }
 }

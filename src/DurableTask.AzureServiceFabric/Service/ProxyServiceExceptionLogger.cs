@@ -11,26 +11,25 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Service
+namespace DurableTask.AzureServiceFabric.Service;
+
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Web.Http.ExceptionHandling;
+
+using DurableTask.AzureServiceFabric.Tracing;
+
+/// <summary>
+/// Traces application exceptions.
+/// </summary>
+public class ProxyServiceExceptionLogger : ExceptionLogger
 {
-    using System;
-    using System.Threading;
-    using System.Threading.Tasks;
-    using System.Web.Http.ExceptionHandling;
-
-    using DurableTask.AzureServiceFabric.Tracing;
-
-    /// <summary>
-    /// Traces application exceptions.
-    /// </summary>
-    public class ProxyServiceExceptionLogger : ExceptionLogger
+    /// <inheritdoc />
+    public async override Task LogAsync(ExceptionLoggerContext context, CancellationToken cancellationToken)
     {
-        /// <inheritdoc />
-        public async override Task LogAsync(ExceptionLoggerContext context, CancellationToken cancellationToken)
-        {
-            var activityId = Guid.NewGuid().ToString("D");
-            ServiceFabricProviderEventSource.Tracing.LogProxyServiceError(activityId, context.Request.Method.ToString(), context.Request.RequestUri.AbsolutePath, context.Exception);
-            await base.LogAsync(context, cancellationToken);
-        }
+        var activityId = Guid.NewGuid().ToString("D");
+        ServiceFabricProviderEventSource.Tracing.LogProxyServiceError(activityId, context.Request.Method.ToString(), context.Request.RequestUri.AbsolutePath, context.Exception);
+        await base.LogAsync(context, cancellationToken);
     }
 }

@@ -11,14 +11,13 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace TestApplication.Common.OrchestrationTasks
+namespace TestApplication.Common.OrchestrationTasks;
+
+using System.Threading.Tasks;
+
+public interface IUserTasks
 {
-    using System.Threading.Tasks;
+    Task<string> GetUserAsync();
 
-    public interface IUserTasks
-    {
-        Task<string> GetUserAsync();
-
-        Task<string> GreetUserAsync(string user);
-    }
+    Task<string> GreetUserAsync(string user);
 }

@@ -11,71 +11,70 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Monitoring
+namespace DurableTask.AzureStorage.Monitoring;
+
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+/// <summary>
+/// Data structure containing point-in-time performance metrics for a durable task hub.
+/// </summary>
+public class PerformanceHeartbeat
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Text;
+    /// <summary>
+    /// Gets the number of partitions configured in the task hub.
+    /// </summary>
+    public int PartitionCount { get; set; }
 
     /// <summary>
-    /// Data structure containing point-in-time performance metrics for a durable task hub.
+    /// Gets the number of messages across all control queues.
     /// </summary>
-    public class PerformanceHeartbeat
+    public IReadOnlyList<int> ControlQueueLengths { get; set; }
+
+    /// <summary>
+    /// Gets the latency of messages in all control queues.
+    /// </summary>
+    public IReadOnlyList<TimeSpan> ControlQueueLatencies { get; set; }
+
+    /// <summary>
+    /// Gets the number of messages in the work-item queue.
+    /// </summary>
+    public int WorkItemQueueLength { get; set; }
+
+    /// <summary>
+    /// Gets a trend value describing the latency of messages in the work-item queue over a period of time.
+    /// </summary>
+    public double WorkItemQueueLatencyTrend { get; set; }
+
+    /// <summary>
+    /// Gets the approximate age of the first work-item queue message.
+    /// </summary>
+    public TimeSpan WorkItemQueueLatency { get; set; }
+
+    /// <summary>
+    /// Gets a scale recommendation for the task hub given the current performance metrics.
+    /// </summary>
+    public ScaleRecommendation ScaleRecommendation { get; internal set; }
+
+    /// <summary>
+    /// Gets a string description of the current <see cref="PerformanceHeartbeat"/> object.
+    /// </summary>
+    /// <returns>A string description useful for diagnostics.</returns>
+    public override string ToString()
     {
-        /// <summary>
-        /// Gets the number of partitions configured in the task hub.
-        /// </summary>
-        public int PartitionCount { get; set; }
-
-        /// <summary>
-        /// Gets the number of messages across all control queues.
-        /// </summary>
-        public IReadOnlyList<int> ControlQueueLengths { get; set; }
-
-        /// <summary>
-        /// Gets the latency of messages in all control queues.
-        /// </summary>
-        public IReadOnlyList<TimeSpan> ControlQueueLatencies { get; set; }
-
-        /// <summary>
-        /// Gets the number of messages in the work-item queue.
-        /// </summary>
-        public int WorkItemQueueLength { get; set; }
-
-        /// <summary>
-        /// Gets a trend value describing the latency of messages in the work-item queue over a period of time.
-        /// </summary>
-        public double WorkItemQueueLatencyTrend { get; set; }
-
-        /// <summary>
-        /// Gets the approximate age of the first work-item queue message.
-        /// </summary>
-        public TimeSpan WorkItemQueueLatency { get; set; }
-
-        /// <summary>
-        /// Gets a scale recommendation for the task hub given the current performance metrics.
-        /// </summary>
-        public ScaleRecommendation ScaleRecommendation { get; internal set; }
-
-        /// <summary>
-        /// Gets a string description of the current <see cref="PerformanceHeartbeat"/> object.
-        /// </summary>
-        /// <returns>A string description useful for diagnostics.</returns>
-        public override string ToString()
+        var sb = new StringBuilder(1024);
+        sb.Append(nameof(this.PartitionCount)).Append(": ").Append(this.PartitionCount).Append(", ");
+        if (this.ControlQueueLengths is not null)
         {
-            var sb = new StringBuilder(1024);
-            sb.Append(nameof(this.PartitionCount)).Append(": ").Append(this.PartitionCount).Append(", ");
-            if (this.ControlQueueLengths is not null)
-            {
-                sb.Append(nameof(this.ControlQueueLengths)).Append(": ").Append(string.Join(",", this.ControlQueueLengths)).Append(", ");
-            }
-
-            sb.Append(nameof(this.ControlQueueLatencies)).Append(": ").Append(string.Join(",", this.ControlQueueLatencies)).Append(", ");
-            sb.Append(nameof(this.WorkItemQueueLength)).Append(": ").Append(this.WorkItemQueueLength).Append(", ");
-            sb.Append(nameof(this.WorkItemQueueLatency)).Append(": ").Append(this.WorkItemQueueLatency).Append(", ");
-            sb.Append(nameof(this.WorkItemQueueLatencyTrend)).Append(": ").Append(this.WorkItemQueueLatencyTrend).Append(", ");
-            sb.Append(nameof(this.ScaleRecommendation)).Append(": ").Append(this.ScaleRecommendation);
-            return sb.ToString();
+            sb.Append(nameof(this.ControlQueueLengths)).Append(": ").Append(string.Join(",", this.ControlQueueLengths)).Append(", ");
         }
+
+        sb.Append(nameof(this.ControlQueueLatencies)).Append(": ").Append(string.Join(",", this.ControlQueueLatencies)).Append(", ");
+        sb.Append(nameof(this.WorkItemQueueLength)).Append(": ").Append(this.WorkItemQueueLength).Append(", ");
+        sb.Append(nameof(this.WorkItemQueueLatency)).Append(": ").Append(this.WorkItemQueueLatency).Append(", ");
+        sb.Append(nameof(this.WorkItemQueueLatencyTrend)).Append(": ").Append(this.WorkItemQueueLatencyTrend).Append(", ");
+        sb.Append(nameof(this.ScaleRecommendation)).Append(": ").Append(this.ScaleRecommendation);
+        return sb.ToString();
     }
 }

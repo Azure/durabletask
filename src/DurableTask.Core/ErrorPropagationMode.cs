@@ -11,28 +11,27 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+using System;
+using DurableTask.Core.Exceptions;
+
+/// <summary>
+/// Specifies the mechanism for propagating unhandled exception information from tasks to their parent orchestrations.
+/// </summary>
+public enum ErrorPropagationMode
 {
-    using System;
-    using DurableTask.Core.Exceptions;
+    /// <summary>
+    /// Unhandled exceptions are serialized and surfaced to callers via the <see cref="Exception.InnerException"/>
+    /// property of <see cref="TaskFailedException"/>. This is the legacy behavior and doesn't work for all exception types.
+    /// </summary>
+    SerializeExceptions = 0,
 
     /// <summary>
-    /// Specifies the mechanism for propagating unhandled exception information from tasks to their parent orchestrations.
+    /// Details of unhandled exceptions are surfaced via the <see cref="OrchestrationException.FailureDetails"/> property.
+    /// The original exception objects are not serialized and deserialized across tasks. This option is preferred
+    /// when consistency is required or in advanced scenarios where orchestration or activity code are executed
+    /// out of process, potentially in other language runtimes that don't support .NET/CLR exceptions.
     /// </summary>
-    public enum ErrorPropagationMode
-    {
-        /// <summary>
-        /// Unhandled exceptions are serialized and surfaced to callers via the <see cref="Exception.InnerException"/>
-        /// property of <see cref="TaskFailedException"/>. This is the legacy behavior and doesn't work for all exception types.
-        /// </summary>
-        SerializeExceptions = 0,
-
-        /// <summary>
-        /// Details of unhandled exceptions are surfaced via the <see cref="OrchestrationException.FailureDetails"/> property.
-        /// The original exception objects are not serialized and deserialized across tasks. This option is preferred
-        /// when consistency is required or in advanced scenarios where orchestration or activity code are executed
-        /// out of process, potentially in other language runtimes that don't support .NET/CLR exceptions.
-        /// </summary>
-        UseFailureDetails = 1,
-    }
+    UseFailureDetails = 1,
 }

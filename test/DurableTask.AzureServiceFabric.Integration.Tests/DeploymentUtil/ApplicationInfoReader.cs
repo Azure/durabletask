@@ -11,98 +11,97 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Integration.Tests.DeploymentUtil
+namespace DurableTask.AzureServiceFabric.Integration.Tests.DeploymentUtil;
+
+using System.Collections.Specialized;
+using System.IO;
+using System.Linq;
+using System.Xml;
+
+internal class ApplicationInfoReader
 {
-    using System.Collections.Specialized;
-    using System.IO;
-    using System.Linq;
-    using System.Xml;
+    private readonly string applicationRootPath;
+    private readonly string applicationPackagePath;
+    private readonly XmlElement applicationManifestRoot;
+    private readonly XmlNamespaceManager applicationManifestNamespaceManager;
+    private readonly XmlElement serviceManifestRoot;
+    private readonly XmlNamespaceManager serviceManifestNamespaceManager;
+    private const string ApplicationManifestNodePath = "/sf:ApplicationManifest";
+    private const string ApplicationNameAttribute = "ApplicationTypeName";
+    private const string ApplicationVersionAttribute = "ApplicationTypeVersion";
+    private const string StatefulServiceNodePath = "/sf:ServiceManifest/sf:ServiceTypes/sf:StatefulServiceType";
+    private const string StatelessServiceNodePath = "/sf:ServiceManifest/sf:ServiceTypes/sf:StatelessServiceType";
+    private const string ServiceTypeNameAttribute = "ServiceTypeName";
 
-    internal class ApplicationInfoReader
+    public ApplicationInfoReader(string applicationRootPath)
     {
-        private readonly string applicationRootPath;
-        private readonly string applicationPackagePath;
-        private readonly XmlElement applicationManifestRoot;
-        private readonly XmlNamespaceManager applicationManifestNamespaceManager;
-        private readonly XmlElement serviceManifestRoot;
-        private readonly XmlNamespaceManager serviceManifestNamespaceManager;
-        private const string ApplicationManifestNodePath = "/sf:ApplicationManifest";
-        private const string ApplicationNameAttribute = "ApplicationTypeName";
-        private const string ApplicationVersionAttribute = "ApplicationTypeVersion";
-        private const string StatefulServiceNodePath = "/sf:ServiceManifest/sf:ServiceTypes/sf:StatefulServiceType";
-        private const string StatelessServiceNodePath = "/sf:ServiceManifest/sf:ServiceTypes/sf:StatelessServiceType";
-        private const string ServiceTypeNameAttribute = "ServiceTypeName";
+        this.applicationRootPath = applicationRootPath;
+        this.applicationPackagePath = Path.Combine(applicationRootPath, @"pkg\Debug");
 
-        public ApplicationInfoReader(string applicationRootPath)
+        var applicationManifest = new XmlDocument();
+        applicationManifest.Load(Path.Combine(this.applicationPackagePath, "ApplicationManifest.xml"));
+        this.applicationManifestNamespaceManager = GetXmlNamespaceManager(applicationManifest.NameTable);
+        this.applicationManifestRoot = applicationManifest.DocumentElement;
+
+        var serviceManifest = new XmlDocument();
+        var serviceDirectory = Directory.EnumerateDirectories(this.applicationPackagePath).First();
+        serviceManifest.Load(Path.Combine(Path.Combine(this.applicationPackagePath, serviceDirectory), "ServiceManifest.xml"));
+        this.serviceManifestNamespaceManager = GetXmlNamespaceManager(serviceManifest.NameTable);
+        this.serviceManifestRoot = serviceManifest.DocumentElement;
+    }
+
+    public string GetApplicationName()
+    {
+        return GetSingleNodeAttributeValue(applicationManifestRoot, applicationManifestNamespaceManager, ApplicationManifestNodePath, ApplicationNameAttribute);
+    }
+
+    public string GetApplicationVersion()
+    {
+        return GetSingleNodeAttributeValue(applicationManifestRoot, applicationManifestNamespaceManager, ApplicationManifestNodePath, ApplicationVersionAttribute);
+    }
+
+    public string GetServiceName()
+    {
+        return GetSingleNodeAttributeValue(serviceManifestRoot, serviceManifestNamespaceManager, StatefulServiceNodePath, ServiceTypeNameAttribute) ??
+               GetSingleNodeAttributeValue(serviceManifestRoot, serviceManifestNamespaceManager, StatelessServiceNodePath, ServiceTypeNameAttribute);
+    }
+
+    public NameValueCollection GetApplicationParameters(int nodeCount)
+    {
+        string paramFileName = "Local.1Node.xml";
+        if (nodeCount >= 5)
         {
-            this.applicationRootPath = applicationRootPath;
-            this.applicationPackagePath = Path.Combine(applicationRootPath, @"pkg\Debug");
-
-            var applicationManifest = new XmlDocument();
-            applicationManifest.Load(Path.Combine(this.applicationPackagePath, "ApplicationManifest.xml"));
-            this.applicationManifestNamespaceManager = GetXmlNamespaceManager(applicationManifest.NameTable);
-            this.applicationManifestRoot = applicationManifest.DocumentElement;
-
-            var serviceManifest = new XmlDocument();
-            var serviceDirectory = Directory.EnumerateDirectories(this.applicationPackagePath).First();
-            serviceManifest.Load(Path.Combine(Path.Combine(this.applicationPackagePath, serviceDirectory), "ServiceManifest.xml"));
-            this.serviceManifestNamespaceManager = GetXmlNamespaceManager(serviceManifest.NameTable);
-            this.serviceManifestRoot = serviceManifest.DocumentElement;
+            paramFileName = "Local.5Node.xml";
         }
 
-        public string GetApplicationName()
+        var applicationParametersPath = Path.Combine(applicationRootPath, @"ApplicationParameters\" + paramFileName);
+
+        var applicationParameters = new XmlDocument();
+        applicationParameters.Load(applicationParametersPath);
+
+        var parametersPath = "/sf:Application/sf:Parameters/sf:Parameter";
+        var parameters = new NameValueCollection();
+
+        foreach (var parameterNode in applicationParameters.DocumentElement.SelectNodes(parametersPath, GetXmlNamespaceManager(applicationParameters.NameTable)).OfType<XmlNode>())
         {
-            return GetSingleNodeAttributeValue(applicationManifestRoot, applicationManifestNamespaceManager, ApplicationManifestNodePath, ApplicationNameAttribute);
+            parameters.Add(parameterNode.Attributes["Name"].Value, parameterNode.Attributes["Value"].Value);
         }
 
-        public string GetApplicationVersion()
-        {
-            return GetSingleNodeAttributeValue(applicationManifestRoot, applicationManifestNamespaceManager, ApplicationManifestNodePath, ApplicationVersionAttribute);
-        }
+        return parameters;
+    }
 
-        public string GetServiceName()
-        {
-            return GetSingleNodeAttributeValue(serviceManifestRoot, serviceManifestNamespaceManager, StatefulServiceNodePath, ServiceTypeNameAttribute) ??
-                   GetSingleNodeAttributeValue(serviceManifestRoot, serviceManifestNamespaceManager, StatelessServiceNodePath, ServiceTypeNameAttribute);
-        }
+    public string ApplicationPackagePath => this.applicationPackagePath;
 
-        public NameValueCollection GetApplicationParameters(int nodeCount)
-        {
-            string paramFileName = "Local.1Node.xml";
-            if (nodeCount >= 5)
-            {
-                paramFileName = "Local.5Node.xml";
-            }
+    private string GetSingleNodeAttributeValue(XmlElement root, XmlNamespaceManager namespaceManager, string queryPath, string attributeName)
+    {
+        var node = root.SelectSingleNode(queryPath, namespaceManager);
+        return node?.Attributes?[attributeName].Value;
+    }
 
-            var applicationParametersPath = Path.Combine(applicationRootPath, @"ApplicationParameters\" + paramFileName);
-
-            var applicationParameters = new XmlDocument();
-            applicationParameters.Load(applicationParametersPath);
-
-            var parametersPath = "/sf:Application/sf:Parameters/sf:Parameter";
-            var parameters = new NameValueCollection();
-
-            foreach (var parameterNode in applicationParameters.DocumentElement.SelectNodes(parametersPath, GetXmlNamespaceManager(applicationParameters.NameTable)).OfType<XmlNode>())
-            {
-                parameters.Add(parameterNode.Attributes["Name"].Value, parameterNode.Attributes["Value"].Value);
-            }
-
-            return parameters;
-        }
-
-        public string ApplicationPackagePath => this.applicationPackagePath;
-
-        private string GetSingleNodeAttributeValue(XmlElement root, XmlNamespaceManager namespaceManager, string queryPath, string attributeName)
-        {
-            var node = root.SelectSingleNode(queryPath, namespaceManager);
-            return node?.Attributes?[attributeName].Value;
-        }
-
-        private XmlNamespaceManager GetXmlNamespaceManager(XmlNameTable nameTable)
-        {
-            var result = new XmlNamespaceManager(nameTable);
-            result.AddNamespace("sf", "http://schemas.microsoft.com/2011/01/fabric");
-            return result;
-        }
+    private XmlNamespaceManager GetXmlNamespaceManager(XmlNameTable nameTable)
+    {
+        var result = new XmlNamespaceManager(nameTable);
+        result.AddNamespace("sf", "http://schemas.microsoft.com/2011/01/fabric");
+        return result;
     }
 }

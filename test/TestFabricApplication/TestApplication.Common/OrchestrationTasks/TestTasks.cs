@@ -11,48 +11,47 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace TestApplication.Common.OrchestrationTasks
+namespace TestApplication.Common.OrchestrationTasks;
+
+using System.Threading.Tasks;
+
+using TestApplication.Common.Orchestrations;
+
+public class TestTasks : ITestTasks
 {
-    using System.Threading.Tasks;
+    private static int generationCount = 0;
 
-    using TestApplication.Common.Orchestrations;
-
-    public class TestTasks : ITestTasks
+    /// <summary>
+    /// Increments Generation Count variable.
+    /// </summary>
+    /// <returns>Generation count</returns>
+    public Task<int> IncrementGenerationCount()
     {
-        private static int generationCount = 0;
+        return Task.FromResult(++generationCount);
+    }
 
-        /// <summary>
-        /// Increments Generation Count variable.
-        /// </summary>
-        /// <returns>Generation count</returns>
-        public Task<int> IncrementGenerationCount()
+    /// <summary>
+    /// Utility method to reset counter at the beginning of test.
+    /// </summary>
+    /// <returns>Generation coutner value</returns>
+    public Task<int> ResetGenerationCounter()
+    {
+        generationCount = 0;
+        return Task.FromResult(generationCount);
+    }
+
+    /// <summary>
+    /// Throws exception when remainingAttempts > 0. Otherwise succeeds.
+    /// </summary>
+    /// <param name="remainingAttempts">remaining number of attempts</param>
+    /// <returns>bool indicating whether task completed successfully or not.</returns>
+    public  Task<bool> ThrowExceptionAsync(int remainingAttempts)
+    {
+        if (remainingAttempts > 0)
         {
-            return Task.FromResult(++generationCount);
+            throw new CounterException(remainingAttempts);
         }
 
-        /// <summary>
-        /// Utility method to reset counter at the beginning of test.
-        /// </summary>
-        /// <returns>Generation coutner value</returns>
-        public Task<int> ResetGenerationCounter()
-        {
-            generationCount = 0;
-            return Task.FromResult(generationCount);
-        }
-
-        /// <summary>
-        /// Throws exception when remainingAttempts > 0. Otherwise succeeds.
-        /// </summary>
-        /// <param name="remainingAttempts">remaining number of attempts</param>
-        /// <returns>bool indicating whether task completed successfully or not.</returns>
-        public  Task<bool> ThrowExceptionAsync(int remainingAttempts)
-        {
-            if (remainingAttempts > 0)
-            {
-                throw new CounterException(remainingAttempts);
-            }
-
-            return Task.FromResult(true);
-        }
+        return Task.FromResult(true);
     }
 }

@@ -18,101 +18,100 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using Newtonsoft.Json;
 
-namespace DurableTask.AzureStorage
+namespace DurableTask.AzureStorage;
+
+/// <summary>
+/// This class bridges <see cref="DataContractJsonSerializer"/> with Newtonsoft.Json. This serializer
+/// is slower, but it handles writing to <see cref="IExtensibleDataObject"/>, which Newtonsoft does not.
+/// A drawback of <see cref="DataContractJsonSerializer"/> is that ExtensionData Namespaces are not populated,
+/// meaning reading via the regular <see cref="DataContractSerializer"/> will not correctly hydrate extra fields
+/// from ExtensionData. However, it can still be done by using <see cref="DataContractJsonSerializer"/> instead.
+/// </summary>
+class DataContractJsonConverter : JsonConverter
 {
-    /// <summary>
-    /// This class bridges <see cref="DataContractJsonSerializer"/> with Newtonsoft.Json. This serializer
-    /// is slower, but it handles writing to <see cref="IExtensibleDataObject"/>, which Newtonsoft does not.
-    /// A drawback of <see cref="DataContractJsonSerializer"/> is that ExtensionData Namespaces are not populated,
-    /// meaning reading via the regular <see cref="DataContractSerializer"/> will not correctly hydrate extra fields
-    /// from ExtensionData. However, it can still be done by using <see cref="DataContractJsonSerializer"/> instead.
-    /// </summary>
-    class DataContractJsonConverter : JsonConverter
+    public override bool CanConvert(Type objectType)
     {
-        public override bool CanConvert(Type objectType)
+        if (objectType is null)
         {
-            if (objectType is null)
-            {
-                throw new ArgumentNullException(nameof(objectType));
-            }
-
-            return objectType.GetCustomAttribute<DataContractAttribute>() is not null
-                && typeof(IExtensibleDataObject).IsAssignableFrom(objectType);
+            throw new ArgumentNullException(nameof(objectType));
         }
 
-        /// <inheritdoc />
-        public override object ReadJson(
-            JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+        return objectType.GetCustomAttribute<DataContractAttribute>() is not null
+            && typeof(IExtensibleDataObject).IsAssignableFrom(objectType);
+    }
+
+    /// <inheritdoc />
+    public override object ReadJson(
+        JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+    {
+        if (reader is null)
         {
-            if (reader is null)
-            {
-                throw new ArgumentNullException(nameof(reader));
-            }
-
-            if (objectType is null)
-            {
-                throw new ArgumentNullException(nameof(objectType));
-            }
-
-            if (serializer is null)
-            {
-                throw new ArgumentNullException(nameof(serializer));
-            }
-
-            using (var stream = new MemoryStream())
-            using (var writer = new StreamWriter(stream))
-            using (var jsonWriter = new JsonTextWriter(writer))
-            {
-                jsonWriter.WriteToken(reader, writeChildren: true);
-                jsonWriter.Flush();
-                stream.Position = 0;
-
-                var contractSerializer = CreateSerializer(objectType, serializer);
-                return contractSerializer.ReadObject(stream);
-            }
+            throw new ArgumentNullException(nameof(reader));
         }
 
-        /// <inheritdoc />
-        public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+        if (objectType is null)
         {
-            if (writer is null)
-            {
-                throw new ArgumentNullException(nameof(writer));
-            }
-
-            if (value is null)
-            {
-                writer.WriteNull();
-                return;
-            }
-
-            if (serializer is null)
-            {
-                throw new ArgumentNullException(nameof(serializer));
-            }
-
-            using (var memoryStream = new MemoryStream())
-            {
-                var contractSerializer = CreateSerializer(value.GetType(), serializer);
-                contractSerializer.WriteObject(memoryStream, value);
-                memoryStream.Position = 0;
-
-                using (var streamReader = new StreamReader(memoryStream))
-                using (var jsonReader = new JsonTextReader(streamReader))
-                {
-                    writer.WriteToken(jsonReader, writeChildren: true);
-                }
-            }
+            throw new ArgumentNullException(nameof(objectType));
         }
 
-        static DataContractJsonSerializer CreateSerializer(Type type, JsonSerializer serializer)
+        if (serializer is null)
         {
-            return new DataContractJsonSerializer(
-                type,
-                new DataContractJsonSerializerSettings
-                {
-                    DateTimeFormat = new DateTimeFormat(serializer.DateFormatString),
-                });
+            throw new ArgumentNullException(nameof(serializer));
         }
+
+        using (var stream = new MemoryStream())
+        using (var writer = new StreamWriter(stream))
+        using (var jsonWriter = new JsonTextWriter(writer))
+        {
+            jsonWriter.WriteToken(reader, writeChildren: true);
+            jsonWriter.Flush();
+            stream.Position = 0;
+
+            var contractSerializer = CreateSerializer(objectType, serializer);
+            return contractSerializer.ReadObject(stream);
+        }
+    }
+
+    /// <inheritdoc />
+    public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+    {
+        if (writer is null)
+        {
+            throw new ArgumentNullException(nameof(writer));
+        }
+
+        if (value is null)
+        {
+            writer.WriteNull();
+            return;
+        }
+
+        if (serializer is null)
+        {
+            throw new ArgumentNullException(nameof(serializer));
+        }
+
+        using (var memoryStream = new MemoryStream())
+        {
+            var contractSerializer = CreateSerializer(value.GetType(), serializer);
+            contractSerializer.WriteObject(memoryStream, value);
+            memoryStream.Position = 0;
+
+            using (var streamReader = new StreamReader(memoryStream))
+            using (var jsonReader = new JsonTextReader(streamReader))
+            {
+                writer.WriteToken(jsonReader, writeChildren: true);
+            }
+        }
+    }
+
+    static DataContractJsonSerializer CreateSerializer(Type type, JsonSerializer serializer)
+    {
+        return new DataContractJsonSerializer(
+            type,
+            new DataContractJsonSerializerSettings
+            {
+                DateTimeFormat = new DateTimeFormat(serializer.DateFormatString),
+            });
     }
 }

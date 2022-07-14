@@ -11,68 +11,67 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace Correlation.Samples
-{
+namespace Correlation.Samples;
+
 #pragma warning disable CA1812 // Internal classes instantiated indirectly
-    using System;
-    using System.Runtime.Serialization;
-    using System.Threading.Tasks;
+using System;
+using System.Runtime.Serialization;
+using System.Threading.Tasks;
 
-    using DurableTask.Core;
+using DurableTask.Core;
 
-    [KnownType(typeof(MultiLayeredOrchestrationChildWithRetry))]
-    [KnownType(typeof(NeedToExecuteTwice01))]
-    [KnownType(typeof(NeedToExecuteTwice02))]
-    internal class MultiLayeredOrchestrationWithRetryOrchestrator : TaskOrchestration<string, string>
+[KnownType(typeof(MultiLayeredOrchestrationChildWithRetry))]
+[KnownType(typeof(NeedToExecuteTwice01))]
+[KnownType(typeof(NeedToExecuteTwice02))]
+internal class MultiLayeredOrchestrationWithRetryOrchestrator : TaskOrchestration<string, string>
+{
+    public override Task<string> RunTask(OrchestrationContext context, string input)
     {
-        public override Task<string> RunTask(OrchestrationContext context, string input)
-        {
-            var retryOption = new RetryOptions(TimeSpan.FromMilliseconds(10), 3);
-            return context.CreateSubOrchestrationInstanceWithRetry<string>(typeof(MultiLayeredOrchestrationChildWithRetry), retryOption, input);
-        }
+        var retryOption = new RetryOptions(TimeSpan.FromMilliseconds(10), 3);
+        return context.CreateSubOrchestrationInstanceWithRetry<string>(typeof(MultiLayeredOrchestrationChildWithRetry), retryOption, input);
     }
+}
 
-    [KnownType(typeof(NeedToExecuteTwice01))]
-    [KnownType(typeof(NeedToExecuteTwice02))]
-    internal class MultiLayeredOrchestrationChildWithRetry : TaskOrchestration<string, string>
+[KnownType(typeof(NeedToExecuteTwice01))]
+[KnownType(typeof(NeedToExecuteTwice02))]
+internal class MultiLayeredOrchestrationChildWithRetry : TaskOrchestration<string, string>
+{
+    public override async Task<string> RunTask(OrchestrationContext context, string input)
     {
-        public override async Task<string> RunTask(OrchestrationContext context, string input)
-        {
-            var result01 = await context.ScheduleTask<string>(typeof(NeedToExecuteTwice01), input);
-            var result02 = await context.ScheduleTask<string>(typeof(NeedToExecuteTwice02), input);
-            return $"{result01}:{result02}";
-        }
+        var result01 = await context.ScheduleTask<string>(typeof(NeedToExecuteTwice01), input);
+        var result02 = await context.ScheduleTask<string>(typeof(NeedToExecuteTwice02), input);
+        return $"{result01}:{result02}";
     }
+}
 
-    internal class NeedToExecuteTwice01 : TaskActivity<string, string>
+internal class NeedToExecuteTwice01 : TaskActivity<string, string>
+{
+    private static int counter = 0;
+
+    protected override string Execute(TaskContext context, string input)
     {
-        private static int counter = 0;
-
-        protected override string Execute(TaskContext context, string input)
+        if (counter == 0)
         {
-            if (counter == 0)
-            {
-                counter++;
-                throw new Exception("Something happens");
-            }
-
-            return $"Hello {input} with retry";
+            counter++;
+            throw new Exception("Something happens");
         }
+
+        return $"Hello {input} with retry";
     }
+}
 
-    internal class NeedToExecuteTwice02 : TaskActivity<string, string>
+internal class NeedToExecuteTwice02 : TaskActivity<string, string>
+{
+    private static int counter = 0;
+
+    protected override string Execute(TaskContext context, string input)
     {
-        private static int counter = 0;
-
-        protected override string Execute(TaskContext context, string input)
+        if (counter == 0)
         {
-            if (counter == 0)
-            {
-                counter++;
-                throw new Exception("Something happens");
-            }
-
-            return $"Hello {input} with retry";
+            counter++;
+            throw new Exception("Something happens");
         }
+
+        return $"Hello {input} with retry";
     }
 }

@@ -11,52 +11,51 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceBus.Tests
+namespace DurableTask.ServiceBus.Tests;
+
+using DurableTask.Core;
+using DurableTask.ServiceBus.Tracking;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Microsoft.WindowsAzure.Storage.Table;
+
+[TestClass]
+public class AzureTableClientTest
 {
-    using DurableTask.Core;
-    using DurableTask.ServiceBus.Tracking;
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using Microsoft.WindowsAzure.Storage.Table;
+    private const string ConnectionString = "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://myProxyUri";
 
-    [TestClass]
-    public class AzureTableClientTest
+    [TestMethod]
+    public void CreateQueryWithoutFilter()
     {
-        private const string ConnectionString = "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://myProxyUri";
+        var tableClient = new AzureTableClient("myHub", ConnectionString);
+        var stateQuery = new OrchestrationStateQuery();
 
-        [TestMethod]
-        public void CreateQueryWithoutFilter()
-        {
-            var tableClient = new AzureTableClient("myHub", ConnectionString);
-            var stateQuery = new OrchestrationStateQuery();
+        TableQuery<AzureTableOrchestrationStateEntity> query = tableClient.CreateQueryInternal(stateQuery, 1, false);
 
-            TableQuery<AzureTableOrchestrationStateEntity> query = tableClient.CreateQueryInternal(stateQuery, 1, false);
+        Assert.AreEqual("(PartitionKey eq 'IS')", query.FilterString);
+    }
 
-            Assert.AreEqual("(PartitionKey eq 'IS')", query.FilterString);
-        }
+    [TestMethod]
+    public void CreateQueryWithPrimaryFilter()
+    {
+        var tableClient = new AzureTableClient("myHub", ConnectionString);
+        var stateQuery = new OrchestrationStateQuery();
+        stateQuery.AddInstanceFilter("myInstance");
 
-        [TestMethod]
-        public void CreateQueryWithPrimaryFilter()
-        {
-            var tableClient = new AzureTableClient("myHub", ConnectionString);
-            var stateQuery = new OrchestrationStateQuery();
-            stateQuery.AddInstanceFilter("myInstance");
+        TableQuery<AzureTableOrchestrationStateEntity> query = tableClient.CreateQueryInternal(stateQuery, 1, false);
 
-            TableQuery<AzureTableOrchestrationStateEntity> query = tableClient.CreateQueryInternal(stateQuery, 1, false);
+        Assert.AreEqual("(PartitionKey eq 'IS') and (RowKey ge 'ID_EID_myInstance') and (RowKey lt 'ID_EID_myInstancf')", query.FilterString);
+    }
 
-            Assert.AreEqual("(PartitionKey eq 'IS') and (RowKey ge 'ID_EID_myInstance') and (RowKey lt 'ID_EID_myInstancf')", query.FilterString);
-        }
+    [TestMethod]
+    public void CreateQueryWithPrimaryAndSecondaryFilter()
+    {
+        var tableClient = new AzureTableClient("myHub", ConnectionString);
+        var stateQuery = new OrchestrationStateQuery();
+        stateQuery.AddInstanceFilter("myInstance");
+        stateQuery.AddNameVersionFilter("myName");
 
-        [TestMethod]
-        public void CreateQueryWithPrimaryAndSecondaryFilter()
-        {
-            var tableClient = new AzureTableClient("myHub", ConnectionString);
-            var stateQuery = new OrchestrationStateQuery();
-            stateQuery.AddInstanceFilter("myInstance");
-            stateQuery.AddNameVersionFilter("myName");
+        TableQuery<AzureTableOrchestrationStateEntity> query = tableClient.CreateQueryInternal(stateQuery, 1, false);
 
-            TableQuery<AzureTableOrchestrationStateEntity> query = tableClient.CreateQueryInternal(stateQuery, 1, false);
-
-            Assert.AreEqual("(PartitionKey eq 'IS') and (RowKey ge 'ID_EID_myInstance') and (RowKey lt 'ID_EID_myInstancf') and (InstanceId eq 'myInstance') and (Name eq 'myName')", query.FilterString);
-        }
+        Assert.AreEqual("(PartitionKey eq 'IS') and (RowKey ge 'ID_EID_myInstance') and (RowKey lt 'ID_EID_myInstancf') and (InstanceId eq 'myInstance') and (Name eq 'myName')", query.FilterString);
     }
 }

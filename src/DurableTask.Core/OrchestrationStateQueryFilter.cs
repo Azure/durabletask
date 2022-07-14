@@ -11,12 +11,11 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+/// <summary>
+/// Abstract class for an orchestration state query filter
+/// </summary>
+public abstract class OrchestrationStateQueryFilter
 {
-    /// <summary>
-    /// Abstract class for an orchestration state query filter
-    /// </summary>
-    public abstract class OrchestrationStateQueryFilter
-    {
-    }
 }

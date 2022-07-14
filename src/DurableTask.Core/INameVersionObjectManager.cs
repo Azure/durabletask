@@ -11,25 +11,24 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+/// <summary>
+/// Interface for name and version manager class to be used in type lookup mappings
+/// </summary>
+public interface INameVersionObjectManager<T>
 {
     /// <summary>
-    /// Interface for name and version manager class to be used in type lookup mappings
+    /// Adds a new ObjectCreator to the name version Object manager
     /// </summary>
-    public interface INameVersionObjectManager<T>
-    {
-        /// <summary>
-        /// Adds a new ObjectCreator to the name version Object manager
-        /// </summary>
-        /// <param name="creator">Class for creation of a new name and version instance</param>
-        void Add(ObjectCreator<T> creator);
+    /// <param name="creator">Class for creation of a new name and version instance</param>
+    void Add(ObjectCreator<T> creator);
 
-        /// <summary>
-        /// Gets a creator class instance based on a name and version
-        /// </summary>
-        /// <param name="name">Name of the class to return the creator for</param>
-        /// <param name="version">Version of the class to return the creator for</param>
-        /// <returns>Class instance based on the matching creator class for the supplied name and version</returns>
-        T? GetObject(string name, string? version);
-    }
+    /// <summary>
+    /// Gets a creator class instance based on a name and version
+    /// </summary>
+    /// <param name="name">Name of the class to return the creator for</param>
+    /// <param name="version">Version of the class to return the creator for</param>
+    /// <returns>Class instance based on the matching creator class for the supplied name and version</returns>
+    T? GetObject(string name, string? version);
 }

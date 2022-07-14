@@ -11,327 +11,326 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Tracing
+namespace DurableTask.Core.Tracing;
+
+using System;
+using System.Diagnostics;
+using System.Diagnostics.Tracing;
+
+/// <summary>
+///     Default event source for all DurableTask tracing
+/// </summary>
+[EventSource(
+    Name = "DurableTask-Core",
+    Guid = "7DA4779A-152E-44A2-A6F2-F80D991A5BEE")]
+[System.Runtime.InteropServices.ComVisible(false)]
+public class DefaultEventSource : EventSource
 {
-    using System;
-    using System.Diagnostics;
-    using System.Diagnostics.Tracing;
+    private const int TraceEventId = 1;
+    private const int DebugEventId = 2;
+    private const int InfoEventId = 3;
+    private const int WarningEventId = 4;
+    private const int ErrorEventId = 5;
+    private const int CriticalEventId = 6;
 
     /// <summary>
-    ///     Default event source for all DurableTask tracing
+    ///     EventKeywords for the event source
     /// </summary>
-    [EventSource(
-        Name = "DurableTask-Core",
-        Guid = "7DA4779A-152E-44A2-A6F2-F80D991A5BEE")]
-    [System.Runtime.InteropServices.ComVisible(false)]
-    public class DefaultEventSource : EventSource
+    public static class Keywords
     {
-        private const int TraceEventId = 1;
-        private const int DebugEventId = 2;
-        private const int InfoEventId = 3;
-        private const int WarningEventId = 4;
-        private const int ErrorEventId = 5;
-        private const int CriticalEventId = 6;
-
         /// <summary>
-        ///     EventKeywords for the event source
+        /// Diagnostic keyword
         /// </summary>
-        public static class Keywords
+        public const EventKeywords Diagnostics = (EventKeywords)1L;
+    }
+
+    /// <summary>
+    /// Gets the static instance of the DefaultEventSource
+    /// </summary>
+    public static readonly DefaultEventSource Log = new DefaultEventSource();
+    private readonly string processName;
+
+    /// <summary>
+    ///     Creates a new instance of the DefaultEventSource
+    /// </summary>
+    private DefaultEventSource()
+    {
+        using (Process process = Process.GetCurrentProcess())
         {
-            /// <summary>
-            /// Diagnostic keyword
-            /// </summary>
-            public const EventKeywords Diagnostics = (EventKeywords)1L;
+            this.processName = process.ProcessName.ToLowerInvariant();
         }
+    }
 
-        /// <summary>
-        /// Gets the static instance of the DefaultEventSource
-        /// </summary>
-        public static readonly DefaultEventSource Log = new DefaultEventSource();
-        private readonly string processName;
+    /// <summary>
+    /// Gets whether trace logs are enabled
+    /// </summary>
+    public bool IsTraceEnabled => IsEnabled(EventLevel.Verbose, Keywords.Diagnostics);
 
-        /// <summary>
-        ///     Creates a new instance of the DefaultEventSource
-        /// </summary>
-        private DefaultEventSource()
+    /// <summary>
+    /// Gets whether debug logs are enabled
+    /// </summary>
+    public bool IsDebugEnabled => IsEnabled(EventLevel.Verbose, Keywords.Diagnostics);
+
+    /// <summary>
+    /// Gets whether informational logs are enabled
+    /// </summary>
+    public bool IsInfoEnabled => IsEnabled(EventLevel.Informational, Keywords.Diagnostics);
+
+    /// <summary>
+    /// Gets whether warning logs are enabled
+    /// </summary>
+    public bool IsWarningEnabled => IsEnabled(EventLevel.Warning, Keywords.Diagnostics);
+
+    /// <summary>
+    /// Gets whether error logs are enabled
+    /// </summary>
+    public bool IsErrorEnabled => IsEnabled(EventLevel.Error, Keywords.Diagnostics);
+
+    /// <summary>
+    /// Gets whether critical logs are enabled
+    /// </summary>
+    public bool IsCriticalEnabled => IsEnabled(EventLevel.Critical, Keywords.Diagnostics);
+
+    /// <summary>
+    /// Trace an event for the supplied event type and parameters
+    /// </summary>
+    [NonEvent]
+    public void TraceEvent(TraceEventType eventLevel, string source, string instanceId, string executionId, string sessionId, string message, string eventType)
+    {
+        switch (eventLevel)
         {
-            using (Process process = Process.GetCurrentProcess())
-            {
-                this.processName = process.ProcessName.ToLowerInvariant();
-            }
+            case TraceEventType.Critical:
+                Critical(source, instanceId, executionId, sessionId, message, eventType);
+                break;
+            case TraceEventType.Error:
+                Error(source, instanceId, executionId, sessionId, message, eventType);
+                break;
+            case TraceEventType.Warning:
+                Warning(source, instanceId, executionId, sessionId, message, eventType);
+                break;
+            case TraceEventType.Information:
+                Info(source, instanceId, executionId, sessionId, message, eventType);
+                break;
+            default:
+                Trace(source, instanceId, executionId, sessionId, message, eventType);
+                break;
         }
+    }
 
-        /// <summary>
-        /// Gets whether trace logs are enabled
-        /// </summary>
-        public bool IsTraceEnabled => IsEnabled(EventLevel.Verbose, Keywords.Diagnostics);
+    /// <summary>
+    /// Trace an event for the supplied event type, exception and parameters
+    /// </summary>
+    [NonEvent]
+    public void TraceEvent(TraceEventType eventLevel, string source, string instanceId, string executionId, string sessionId, Exception exception, string eventType) =>
+        TraceEvent(eventLevel, source, instanceId, executionId, sessionId, exception?.ToString() ?? string.Empty, eventType);
 
-        /// <summary>
-        /// Gets whether debug logs are enabled
-        /// </summary>
-        public bool IsDebugEnabled => IsEnabled(EventLevel.Verbose, Keywords.Diagnostics);
+    /// <summary>
+    /// Trace an event for the supplied parameters
+    /// </summary>
+    [NonEvent]
+    public void Trace(string source, string instanceId, string executionId, string sessionId, string message, string eventType) => 
+        Trace(source, instanceId, executionId, sessionId, message, string.Empty, eventType);
 
-        /// <summary>
-        /// Gets whether informational logs are enabled
-        /// </summary>
-        public bool IsInfoEnabled => IsEnabled(EventLevel.Informational, Keywords.Diagnostics);
+    /// <summary>
+    /// Trace an event for the supplied exception and parameters
+    /// </summary>
+    [NonEvent]
+    public void Trace(string source, string instanceId, string executionId, string sessionId, string message, Exception exception, string eventType) =>
+         Trace(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty, eventType);
 
-        /// <summary>
-        /// Gets whether warning logs are enabled
-        /// </summary>
-        public bool IsWarningEnabled => IsEnabled(EventLevel.Warning, Keywords.Diagnostics);
-
-        /// <summary>
-        /// Gets whether error logs are enabled
-        /// </summary>
-        public bool IsErrorEnabled => IsEnabled(EventLevel.Error, Keywords.Diagnostics);
-
-        /// <summary>
-        /// Gets whether critical logs are enabled
-        /// </summary>
-        public bool IsCriticalEnabled => IsEnabled(EventLevel.Critical, Keywords.Diagnostics);
-
-        /// <summary>
-        /// Trace an event for the supplied event type and parameters
-        /// </summary>
-        [NonEvent]
-        public void TraceEvent(TraceEventType eventLevel, string source, string instanceId, string executionId, string sessionId, string message, string eventType)
+    /// <summary>
+    /// Trace an event for the supplied parameters
+    /// </summary>
+    [Event(TraceEventId, Level = EventLevel.Verbose, Keywords = Keywords.Diagnostics, Version = 3)]
+    public void Trace(string source, string instanceId, string executionId, string sessionId, string message, string info, string eventType)
+    {
+        if (IsTraceEnabled)
         {
-            switch (eventLevel)
-            {
-                case TraceEventType.Critical:
-                    Critical(source, instanceId, executionId, sessionId, message, eventType);
-                    break;
-                case TraceEventType.Error:
-                    Error(source, instanceId, executionId, sessionId, message, eventType);
-                    break;
-                case TraceEventType.Warning:
-                    Warning(source, instanceId, executionId, sessionId, message, eventType);
-                    break;
-                case TraceEventType.Information:
-                    Info(source, instanceId, executionId, sessionId, message, eventType);
-                    break;
-                default:
-                    Trace(source, instanceId, executionId, sessionId, message, eventType);
-                    break;
-            }
+            WriteEventInternal(TraceEventId, source, instanceId, executionId, sessionId, message, info, eventType);
         }
+    }
 
-        /// <summary>
-        /// Trace an event for the supplied event type, exception and parameters
-        /// </summary>
-        [NonEvent]
-        public void TraceEvent(TraceEventType eventLevel, string source, string instanceId, string executionId, string sessionId, Exception exception, string eventType) =>
-            TraceEvent(eventLevel, source, instanceId, executionId, sessionId, exception?.ToString() ?? string.Empty, eventType);
+    /// <summary>
+    /// Log debug event for the supplied parameters
+    /// </summary>
+    [NonEvent]
+    public void Debug(string source, string instanceId, string executionId, string sessionId, string message, string eventType) => 
+        Debug(source, instanceId, executionId, sessionId, message, string.Empty, eventType);
 
-        /// <summary>
-        /// Trace an event for the supplied parameters
-        /// </summary>
-        [NonEvent]
-        public void Trace(string source, string instanceId, string executionId, string sessionId, string message, string eventType) => 
-            Trace(source, instanceId, executionId, sessionId, message, string.Empty, eventType);
+    /// <summary>
+    /// Log debug event for the supplied exception and parameters
+    /// </summary>
+    [NonEvent]
+    public void Debug(string source, string instanceId, string executionId, string sessionId, string message, Exception exception, string eventType) =>
+        Debug(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty, eventType);
 
-        /// <summary>
-        /// Trace an event for the supplied exception and parameters
-        /// </summary>
-        [NonEvent]
-        public void Trace(string source, string instanceId, string executionId, string sessionId, string message, Exception exception, string eventType) =>
-             Trace(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty, eventType);
-
-        /// <summary>
-        /// Trace an event for the supplied parameters
-        /// </summary>
-        [Event(TraceEventId, Level = EventLevel.Verbose, Keywords = Keywords.Diagnostics, Version = 3)]
-        public void Trace(string source, string instanceId, string executionId, string sessionId, string message, string info, string eventType)
+    /// <summary>
+    /// Log debug event for the supplied parameters
+    /// </summary>
+    [Event(DebugEventId, Level = EventLevel.Verbose, Keywords = Keywords.Diagnostics, Version = 3)]
+    public void Debug(string source, string instanceId, string executionId, string sessionId, string message, string info, string eventType)
+    {
+        if (IsDebugEnabled)
         {
-            if (IsTraceEnabled)
-            {
-                WriteEventInternal(TraceEventId, source, instanceId, executionId, sessionId, message, info, eventType);
-            }
+            WriteEventInternal(DebugEventId, source, instanceId, executionId, sessionId, message, info, eventType);
         }
+    }
 
-        /// <summary>
-        /// Log debug event for the supplied parameters
-        /// </summary>
-        [NonEvent]
-        public void Debug(string source, string instanceId, string executionId, string sessionId, string message, string eventType) => 
-            Debug(source, instanceId, executionId, sessionId, message, string.Empty, eventType);
+    /// <summary>
+    /// Log informational event for the supplied parameters
+    /// </summary>
+    [NonEvent]
+    public void Info(string source, string instanceId, string executionId, string sessionId, string message, string eventType) => 
+        Info(source, instanceId, executionId, sessionId, message, string.Empty, eventType);
 
-        /// <summary>
-        /// Log debug event for the supplied exception and parameters
-        /// </summary>
-        [NonEvent]
-        public void Debug(string source, string instanceId, string executionId, string sessionId, string message, Exception exception, string eventType) =>
-            Debug(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty, eventType);
+    /// <summary>
+    /// Log informational event for the supplied exception and parameters
+    /// </summary>
+    [NonEvent]
+    public void Info(string source, string instanceId, string executionId, string sessionId, string message, Exception exception, string eventType) =>
+        Info(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty, eventType);
 
-        /// <summary>
-        /// Log debug event for the supplied parameters
-        /// </summary>
-        [Event(DebugEventId, Level = EventLevel.Verbose, Keywords = Keywords.Diagnostics, Version = 3)]
-        public void Debug(string source, string instanceId, string executionId, string sessionId, string message, string info, string eventType)
+    /// <summary>
+    /// Log informational event for the supplied parameters
+    /// </summary>
+    [Event(InfoEventId, Level = EventLevel.Informational, Keywords = Keywords.Diagnostics, Version = 3)]
+    public void Info(string source, string instanceId, string executionId, string sessionId, string message, string info, string eventType)
+    {
+        if (IsInfoEnabled)
         {
-            if (IsDebugEnabled)
-            {
-                WriteEventInternal(DebugEventId, source, instanceId, executionId, sessionId, message, info, eventType);
-            }
+            WriteEventInternal(InfoEventId, source, instanceId, executionId, sessionId, message, info, eventType);
         }
+    }
 
-        /// <summary>
-        /// Log informational event for the supplied parameters
-        /// </summary>
-        [NonEvent]
-        public void Info(string source, string instanceId, string executionId, string sessionId, string message, string eventType) => 
-            Info(source, instanceId, executionId, sessionId, message, string.Empty, eventType);
+    /// <summary>
+    /// Log warning event for the supplied parameters
+    /// </summary>
+    [NonEvent]
+    public void Warning(string source, string instanceId, string executionId, string sessionId, string message, string eventType) => 
+        Warning(source, instanceId, executionId, sessionId, message, string.Empty, eventType);
 
-        /// <summary>
-        /// Log informational event for the supplied exception and parameters
-        /// </summary>
-        [NonEvent]
-        public void Info(string source, string instanceId, string executionId, string sessionId, string message, Exception exception, string eventType) =>
-            Info(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty, eventType);
+    /// <summary>
+    /// Log warning event for the supplied exception and parameters
+    /// </summary>
+    [NonEvent]
+    public void Warning(string source, string instanceId, string executionId, string sessionId, string message, Exception exception, string eventType) =>
+        Warning(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty, eventType);
 
-        /// <summary>
-        /// Log informational event for the supplied parameters
-        /// </summary>
-        [Event(InfoEventId, Level = EventLevel.Informational, Keywords = Keywords.Diagnostics, Version = 3)]
-        public void Info(string source, string instanceId, string executionId, string sessionId, string message, string info, string eventType)
+    /// <summary>
+    /// Log warning event for the supplied parameters
+    /// </summary>
+    [Event(WarningEventId, Level = EventLevel.Warning, Keywords = Keywords.Diagnostics, Version = 3)]
+    public void Warning(string source, string instanceId, string executionId, string sessionId, string message, string exception, string eventType)
+    {
+        if (IsWarningEnabled)
         {
-            if (IsInfoEnabled)
-            {
-                WriteEventInternal(InfoEventId, source, instanceId, executionId, sessionId, message, info, eventType);
-            }
+            WriteEventInternal(WarningEventId, source, instanceId, executionId, sessionId, message, exception, eventType);
         }
+    }
 
-        /// <summary>
-        /// Log warning event for the supplied parameters
-        /// </summary>
-        [NonEvent]
-        public void Warning(string source, string instanceId, string executionId, string sessionId, string message, string eventType) => 
-            Warning(source, instanceId, executionId, sessionId, message, string.Empty, eventType);
+    /// <summary>
+    /// Log error event for the supplied parameters
+    /// </summary>
+    [NonEvent]
+    public void Error(string source, string instanceId, string executionId, string sessionId, string message, string eventType) =>
+        Error(source, instanceId, executionId, sessionId, message, string.Empty, eventType);
 
-        /// <summary>
-        /// Log warning event for the supplied exception and parameters
-        /// </summary>
-        [NonEvent]
-        public void Warning(string source, string instanceId, string executionId, string sessionId, string message, Exception exception, string eventType) =>
-            Warning(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty, eventType);
+    /// <summary>
+    /// Log error event for the supplied exception and parameters
+    /// </summary>
+    [NonEvent]
+    public void Error(string source, string instanceId, string executionId, string sessionId, string message, Exception exception, string eventType) =>
+        Error(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty, eventType);
 
-        /// <summary>
-        /// Log warning event for the supplied parameters
-        /// </summary>
-        [Event(WarningEventId, Level = EventLevel.Warning, Keywords = Keywords.Diagnostics, Version = 3)]
-        public void Warning(string source, string instanceId, string executionId, string sessionId, string message, string exception, string eventType)
+    /// <summary>
+    /// Log error event for the supplied parameters
+    /// </summary>
+    [Event(ErrorEventId, Level = EventLevel.Error, Keywords = Keywords.Diagnostics, Version = 3)]
+    public void Error(string source, string instanceId, string executionId, string sessionId, string message, string exception, string eventType)
+    {
+        if (IsErrorEnabled)
         {
-            if (IsWarningEnabled)
-            {
-                WriteEventInternal(WarningEventId, source, instanceId, executionId, sessionId, message, exception, eventType);
-            }
+            WriteEventInternal(ErrorEventId, source, instanceId, executionId, sessionId, message, exception, eventType);
         }
+    }
 
-        /// <summary>
-        /// Log error event for the supplied parameters
-        /// </summary>
-        [NonEvent]
-        public void Error(string source, string instanceId, string executionId, string sessionId, string message, string eventType) =>
-            Error(source, instanceId, executionId, sessionId, message, string.Empty, eventType);
+    /// <summary>
+    /// Log critical event for the supplied parameters
+    /// </summary>
+    [NonEvent]
+    public void Critical(string source, string instanceId, string executionId, string sessionId, string message, string eventType) =>
+        Critical(source, instanceId, executionId, sessionId, message, string.Empty, eventType);
 
-        /// <summary>
-        /// Log error event for the supplied exception and parameters
-        /// </summary>
-        [NonEvent]
-        public void Error(string source, string instanceId, string executionId, string sessionId, string message, Exception exception, string eventType) =>
-            Error(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty, eventType);
+    /// <summary>
+    /// Log critical event for the supplied exception and parameters
+    /// </summary>
+    [NonEvent]
+    public void Critical(string source, string instanceId, string executionId, string sessionId, string message, Exception exception, string eventType) =>
+        Critical(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty, eventType);
 
-        /// <summary>
-        /// Log error event for the supplied parameters
-        /// </summary>
-        [Event(ErrorEventId, Level = EventLevel.Error, Keywords = Keywords.Diagnostics, Version = 3)]
-        public void Error(string source, string instanceId, string executionId, string sessionId, string message, string exception, string eventType)
+    /// <summary>
+    /// Log critical event for the supplied parameters
+    /// </summary>
+    [Event(CriticalEventId, Level = EventLevel.Critical, Keywords = Keywords.Diagnostics, Version = 3)]
+    public void Critical(string source, string instanceId, string executionId, string sessionId, string message, string exception, string eventType)
+    {
+        if (IsCriticalEnabled)
         {
-            if (IsErrorEnabled)
-            {
-                WriteEventInternal(ErrorEventId, source, instanceId, executionId, sessionId, message, exception, eventType);
-            }
+            WriteEventInternal(CriticalEventId, source, instanceId, executionId, sessionId, message, exception, eventType);
         }
+    }
 
-        /// <summary>
-        /// Log critical event for the supplied parameters
-        /// </summary>
-        [NonEvent]
-        public void Critical(string source, string instanceId, string executionId, string sessionId, string message, string eventType) =>
-            Critical(source, instanceId, executionId, sessionId, message, string.Empty, eventType);
+    [NonEvent]
+    private unsafe void WriteEventInternal(int eventId, string source, string instanceId, string executionId, string sessionId, string message, string info, string eventType)
+    {
+        source = string.Concat(source, '-', this.processName);
 
-        /// <summary>
-        /// Log critical event for the supplied exception and parameters
-        /// </summary>
-        [NonEvent]
-        public void Critical(string source, string instanceId, string executionId, string sessionId, string message, Exception exception, string eventType) =>
-            Critical(source, instanceId, executionId, sessionId, message, exception?.ToString() ?? string.Empty, eventType);
+        MakeSafe(ref source);
+        MakeSafe(ref instanceId);
+        MakeSafe(ref executionId);
+        MakeSafe(ref sessionId);
+        MakeSafe(ref message);
+        MakeSafe(ref info);
+        MakeSafe(ref eventType);
 
-        /// <summary>
-        /// Log critical event for the supplied parameters
-        /// </summary>
-        [Event(CriticalEventId, Level = EventLevel.Critical, Keywords = Keywords.Diagnostics, Version = 3)]
-        public void Critical(string source, string instanceId, string executionId, string sessionId, string message, string exception, string eventType)
+        const int EventDataCount = 7;
+        fixed (char* chPtrSource = source)
+        fixed (char* chPtrInstanceId = instanceId)
+        fixed (char* chPtrExecutionId = executionId)
+        fixed (char* chPtrSessionId = sessionId)
+        fixed (char* chPtrMessage = message)
+        fixed (char* chPtrInfo = info)
+        fixed (char* chPtrEventType = eventType)
         {
-            if (IsCriticalEnabled)
-            {
-                WriteEventInternal(CriticalEventId, source, instanceId, executionId, sessionId, message, exception, eventType);
-            }
+            EventData* data = stackalloc EventData[EventDataCount];
+            data[0].DataPointer = (IntPtr)chPtrSource;
+            data[0].Size = (source.Length + 1) * 2;
+            data[1].DataPointer = (IntPtr)chPtrInstanceId;
+            data[1].Size = (instanceId.Length + 1) * 2;
+            data[2].DataPointer = (IntPtr)chPtrExecutionId;
+            data[2].Size = (executionId.Length + 1) * 2;
+            data[3].DataPointer = (IntPtr)chPtrSessionId;
+            data[3].Size = (sessionId.Length + 1) * 2;
+            data[4].DataPointer = (IntPtr)chPtrMessage;
+            data[4].Size = (message.Length + 1) * 2;
+            data[5].DataPointer = (IntPtr)chPtrInfo;
+            data[5].Size = (info.Length + 1) * 2;
+            data[6].DataPointer = (IntPtr)chPtrEventType;
+            data[6].Size = (eventType.Length + 1) * 2;
+
+            // todo: use WriteEventWithRelatedActivityIdCore for correlation
+            WriteEventCore(eventId, EventDataCount, data);
         }
+    }
 
-        [NonEvent]
-        private unsafe void WriteEventInternal(int eventId, string source, string instanceId, string executionId, string sessionId, string message, string info, string eventType)
+    private static void MakeSafe(ref string value)
+    {
+        const int MaxLength = 0x7C00; // max event size is 64k, truncating to roughly 31k chars
+        value = value ?? string.Empty;
+
+        if (value.Length > MaxLength)
         {
-            source = string.Concat(source, '-', this.processName);
-
-            MakeSafe(ref source);
-            MakeSafe(ref instanceId);
-            MakeSafe(ref executionId);
-            MakeSafe(ref sessionId);
-            MakeSafe(ref message);
-            MakeSafe(ref info);
-            MakeSafe(ref eventType);
-
-            const int EventDataCount = 7;
-            fixed (char* chPtrSource = source)
-            fixed (char* chPtrInstanceId = instanceId)
-            fixed (char* chPtrExecutionId = executionId)
-            fixed (char* chPtrSessionId = sessionId)
-            fixed (char* chPtrMessage = message)
-            fixed (char* chPtrInfo = info)
-            fixed (char* chPtrEventType = eventType)
-            {
-                EventData* data = stackalloc EventData[EventDataCount];
-                data[0].DataPointer = (IntPtr)chPtrSource;
-                data[0].Size = (source.Length + 1) * 2;
-                data[1].DataPointer = (IntPtr)chPtrInstanceId;
-                data[1].Size = (instanceId.Length + 1) * 2;
-                data[2].DataPointer = (IntPtr)chPtrExecutionId;
-                data[2].Size = (executionId.Length + 1) * 2;
-                data[3].DataPointer = (IntPtr)chPtrSessionId;
-                data[3].Size = (sessionId.Length + 1) * 2;
-                data[4].DataPointer = (IntPtr)chPtrMessage;
-                data[4].Size = (message.Length + 1) * 2;
-                data[5].DataPointer = (IntPtr)chPtrInfo;
-                data[5].Size = (info.Length + 1) * 2;
-                data[6].DataPointer = (IntPtr)chPtrEventType;
-                data[6].Size = (eventType.Length + 1) * 2;
-
-                // todo: use WriteEventWithRelatedActivityIdCore for correlation
-                WriteEventCore(eventId, EventDataCount, data);
-            }
-        }
-
-        private static void MakeSafe(ref string value)
-        {
-            const int MaxLength = 0x7C00; // max event size is 64k, truncating to roughly 31k chars
-            value = value ?? string.Empty;
-
-            if (value.Length > MaxLength)
-            {
-                value = value.Remove(MaxLength);
-            }
+            value = value.Remove(MaxLength);
         }
     }
 }

@@ -11,76 +11,75 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Tests
+namespace DurableTask.AzureServiceFabric.Tests;
+
+using DurableTask.Core;
+
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class OrchestrationInstanceComparerTests
 {
-    using DurableTask.Core;
-
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
-
-    [TestClass]
-    public class OrchestrationInstanceComparerTests
+    [TestMethod]
+    public void OrchestrationInstanceComparer_NullInstanceTests()
     {
-        [TestMethod]
-        public void OrchestrationInstanceComparer_NullInstanceTests()
+        Assert.IsTrue(OrchestrationInstanceComparer.Default.Equals(null, null));
+        Assert.IsFalse(OrchestrationInstanceComparer.Default.Equals(null, new OrchestrationInstance()));
+        Assert.IsFalse(OrchestrationInstanceComparer.Default.Equals(new OrchestrationInstance(), null));
+    }
+
+    [TestMethod]
+    public void OrchestrationInstanceComparer_SameOrchestrationInstances()
+    {
+        var first = new OrchestrationInstance()
         {
-            Assert.IsTrue(OrchestrationInstanceComparer.Default.Equals(null, null));
-            Assert.IsFalse(OrchestrationInstanceComparer.Default.Equals(null, new OrchestrationInstance()));
-            Assert.IsFalse(OrchestrationInstanceComparer.Default.Equals(new OrchestrationInstance(), null));
-        }
+            InstanceId = "InstanceId",
+            ExecutionId = "ExecutionId"
+        };
 
-        [TestMethod]
-        public void OrchestrationInstanceComparer_SameOrchestrationInstances()
+        var second = new OrchestrationInstance()
         {
-            var first = new OrchestrationInstance()
-            {
-                InstanceId = "InstanceId",
-                ExecutionId = "ExecutionId"
-            };
+            InstanceId = "InstanceId",
+            ExecutionId = "ExecutionId"
+        };
 
-            var second = new OrchestrationInstance()
-            {
-                InstanceId = "InstanceId",
-                ExecutionId = "ExecutionId"
-            };
+        Assert.IsTrue(OrchestrationInstanceComparer.Default.Equals(first, first));
+        Assert.IsTrue(OrchestrationInstanceComparer.Default.Equals(first, second));
+    }
 
-            Assert.IsTrue(OrchestrationInstanceComparer.Default.Equals(first, first));
-            Assert.IsTrue(OrchestrationInstanceComparer.Default.Equals(first, second));
-        }
-
-        [TestMethod]
-        public void OrchestrationInstanceComparer_DifferentExecutionIdInstances()
+    [TestMethod]
+    public void OrchestrationInstanceComparer_DifferentExecutionIdInstances()
+    {
+        var first = new OrchestrationInstance()
         {
-            var first = new OrchestrationInstance()
-            {
-                InstanceId = "InstanceId",
-                ExecutionId = "ExecutionId1"
-            };
+            InstanceId = "InstanceId",
+            ExecutionId = "ExecutionId1"
+        };
 
-            var second = new OrchestrationInstance()
-            {
-                InstanceId = "InstanceId",
-                ExecutionId = "ExecutionId2"
-            };
-
-            Assert.IsFalse(OrchestrationInstanceComparer.Default.Equals(first, second));
-        }
-
-        [TestMethod]
-        public void OrchestrationInstanceComparer_DifferentOrchestrationInstances()
+        var second = new OrchestrationInstance()
         {
-            var first = new OrchestrationInstance()
-            {
-                InstanceId = "InstanceId1",
-                ExecutionId = "ExecutionId1"
-            };
+            InstanceId = "InstanceId",
+            ExecutionId = "ExecutionId2"
+        };
 
-            var second = new OrchestrationInstance()
-            {
-                InstanceId = "InstanceId2",
-                ExecutionId = "ExecutionId2"
-            };
+        Assert.IsFalse(OrchestrationInstanceComparer.Default.Equals(first, second));
+    }
 
-            Assert.IsFalse(OrchestrationInstanceComparer.Default.Equals(first, second));
-        }
+    [TestMethod]
+    public void OrchestrationInstanceComparer_DifferentOrchestrationInstances()
+    {
+        var first = new OrchestrationInstance()
+        {
+            InstanceId = "InstanceId1",
+            ExecutionId = "ExecutionId1"
+        };
+
+        var second = new OrchestrationInstance()
+        {
+            InstanceId = "InstanceId2",
+            ExecutionId = "ExecutionId2"
+        };
+
+        Assert.IsFalse(OrchestrationInstanceComparer.Default.Equals(first, second));
     }
 }

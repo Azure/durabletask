@@ -11,43 +11,42 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+/// <summary>
+/// A class that includes an exception and correlation information for sending telemetry
+/// </summary>
+public class CorrelatedExceptionDetails
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Text;
+    /// <summary>
+    /// Exception that is sent to E2E tracing system
+    /// </summary>
+    public Exception Exception { get; set; }
 
     /// <summary>
-    /// A class that includes an exception and correlation information for sending telemetry
+    /// OperationId is unique id of end to end tracing
     /// </summary>
-    public class CorrelatedExceptionDetails
+    public string OperationId { get; set; }
+
+    /// <summary>
+    /// ParentId is an id of an end to end tracing
+    /// </summary>
+    public string ParentId { get; set; }
+
+    /// <summary>
+    /// A constructor with mandatory parameters.
+    /// </summary>
+    /// <param name="exception">Exception</param> 
+    /// <param name="operationId">OperationId</param>
+    /// <param name="parentId">ParentId</param>
+    public CorrelatedExceptionDetails(Exception exception, string operationId, string parentId)
     {
-        /// <summary>
-        /// Exception that is sent to E2E tracing system
-        /// </summary>
-        public Exception Exception { get; set; }
-
-        /// <summary>
-        /// OperationId is unique id of end to end tracing
-        /// </summary>
-        public string OperationId { get; set; }
-
-        /// <summary>
-        /// ParentId is an id of an end to end tracing
-        /// </summary>
-        public string ParentId { get; set; }
-
-        /// <summary>
-        /// A constructor with mandatory parameters.
-        /// </summary>
-        /// <param name="exception">Exception</param> 
-        /// <param name="operationId">OperationId</param>
-        /// <param name="parentId">ParentId</param>
-        public CorrelatedExceptionDetails(Exception exception, string operationId, string parentId)
-        {
-            this.Exception = exception;
-            this.ParentId = parentId;
-            this.OperationId = operationId;
-        }
+        this.Exception = exception;
+        this.ParentId = parentId;
+        this.OperationId = operationId;
     }
 }

@@ -11,39 +11,37 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Samples.ErrorHandling
+namespace DurableTask.Samples.ErrorHandling;
+
+using System;
+using DurableTask.Core;
+
+public sealed class GoodTask : TaskActivity<string, string>
 {
-    using System;
-    using DurableTask.Core;
-
-    public sealed class GoodTask : TaskActivity<string, string>
+    protected override string Execute(DurableTask.Core.TaskContext context, string input)
     {
-        protected override string Execute(DurableTask.Core.TaskContext context, string input)
-        {
-            Console.WriteLine("GoodTask Executed...");
+        Console.WriteLine("GoodTask Executed...");
 
-            return "GoodResult";
-        }
+        return "GoodResult";
     }
+}
 
-    public sealed class BadTask : TaskActivity<string, string>
+public sealed class BadTask : TaskActivity<string, string>
+{
+    protected override string Execute(DurableTask.Core.TaskContext context, string input)
     {
-        protected override string Execute(DurableTask.Core.TaskContext context, string input)
-        {
-            Console.WriteLine("BadTask Executed...");
+        Console.WriteLine("BadTask Executed...");
 
-            throw new InvalidOperationException("BadTask failed.");
-        }
+        throw new InvalidOperationException("BadTask failed.");
     }
+}
 
-    public sealed class CleanupTask : TaskActivity<string, string>
+public sealed class CleanupTask : TaskActivity<string, string>
+{
+    protected override string Execute(DurableTask.Core.TaskContext context, string input)
     {
-        protected override string Execute(DurableTask.Core.TaskContext context, string input)
-        {
-            Console.WriteLine("CleanupTask Executed...");
+        Console.WriteLine("CleanupTask Executed...");
 
-            return "CleanupResult";
-        }
+        return "CleanupResult";
     }
-
 }

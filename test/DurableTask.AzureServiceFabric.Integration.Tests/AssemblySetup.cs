@@ -11,53 +11,52 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Integration.Tests
+namespace DurableTask.AzureServiceFabric.Integration.Tests;
+
+using System;
+using System.IO;
+
+using DurableTask.AzureServiceFabric.Integration.Tests.DeploymentUtil;
+
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class AssemblySetup
 {
-    using System;
-    using System.IO;
-
-    using DurableTask.AzureServiceFabric.Integration.Tests.DeploymentUtil;
-
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
-
-    [TestClass]
-    public class AssemblySetup
+    [AssemblyInitialize]
+    public static void AssemblyInitialize(TestContext testContext)
     {
-        [AssemblyInitialize]
-        public static void AssemblyInitialize(TestContext testContext)
-        {
-            //Todo: This will fail if local cluster is not setup, currently the test code does not automatically
-            //start a local cluster and that's a manual pre-req step.
-            //Todo: Also this will assume that latest SF test application and service code is packaged, if that's not true
-            //the issue might be hard to detect :-(
-            DeploymentHelper.CleanAsync().Wait();
-            DeploymentHelper.DeployAsync(TestApplicationRootPath).Wait();
-        }
+        //Todo: This will fail if local cluster is not setup, currently the test code does not automatically
+        //start a local cluster and that's a manual pre-req step.
+        //Todo: Also this will assume that latest SF test application and service code is packaged, if that's not true
+        //the issue might be hard to detect :-(
+        DeploymentHelper.CleanAsync().Wait();
+        DeploymentHelper.DeployAsync(TestApplicationRootPath).Wait();
+    }
 
-        [AssemblyCleanup]
-        public static void AssemblyCleanup()
-        {
-            DeploymentHelper.CleanAsync().Wait();
-        }
+    [AssemblyCleanup]
+    public static void AssemblyCleanup()
+    {
+        DeploymentHelper.CleanAsync().Wait();
+    }
 
-        private static string TestApplicationRootPath
+    private static string TestApplicationRootPath
+    {
+        get
         {
-            get
+            var applicationPath = Path.Combine(Directory.GetCurrentDirectory(), @"..\..\..\..\TestFabricApplication\TestApplication");
+
+            if (!Directory.Exists(applicationPath))
             {
-                var applicationPath = Path.Combine(Directory.GetCurrentDirectory(), @"..\..\..\..\TestFabricApplication\TestApplication");
-
-                if (!Directory.Exists(applicationPath))
-                {
-                    throw new Exception($"Could not find test application path '{applicationPath}', define SourceRoot environment variable to the source path");
-                }
-
-                if (!Directory.Exists(Path.Combine(applicationPath, "pkg", "Debug")))
-                {
-                    throw new Exception($"Could not find test application package in '{applicationPath}', make sure the test application is built and package generated before running the tests");
-                }
-
-                return applicationPath;
+                throw new Exception($"Could not find test application path '{applicationPath}', define SourceRoot environment variable to the source path");
             }
+
+            if (!Directory.Exists(Path.Combine(applicationPath, "pkg", "Debug")))
+            {
+                throw new Exception($"Could not find test application package in '{applicationPath}', make sure the test application is built and package generated before running the tests");
+            }
+
+            return applicationPath;
         }
     }
 }

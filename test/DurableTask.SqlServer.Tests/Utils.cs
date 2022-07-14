@@ -11,65 +11,64 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.SqlServer.Tests
+namespace DurableTask.SqlServer.Tests;
+
+using DurableTask.Core;
+using DurableTask.Core.History;
+using DurableTask.Core.Tracking;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+public static class Utils
 {
-    using DurableTask.Core;
-    using DurableTask.Core.History;
-    using DurableTask.Core.Tracking;
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
+    private static readonly Random random = new Random();
 
-    public static class Utils
+    public static IEnumerable<OrchestrationStateInstanceEntity> InfiniteOrchestrationTestData()
     {
-        private static readonly Random random = new Random();
+        var statusValues = Enum.GetValues(typeof(OrchestrationStatus)).Cast<OrchestrationStatus>().ToArray();
 
-        public static IEnumerable<OrchestrationStateInstanceEntity> InfiniteOrchestrationTestData()
-        {
-            var statusValues = Enum.GetValues(typeof(OrchestrationStatus)).Cast<OrchestrationStatus>().ToArray();
-
-            while (true)
-                yield return new OrchestrationStateInstanceEntity
+        while (true)
+            yield return new OrchestrationStateInstanceEntity
+            {
+                State = new OrchestrationState
                 {
-                    State = new OrchestrationState
+                    CompletedTime = DateTime.MaxValue,
+                    CreatedTime = DateTime.UtcNow,
+                    Input = $"\"{GetRandomStringValue()}\"",
+                    LastUpdatedTime = DateTime.UtcNow,
+                    Name = GetRandomStringValue(),
+                    OrchestrationInstance = new OrchestrationInstance
                     {
-                        CompletedTime = DateTime.MaxValue,
-                        CreatedTime = DateTime.UtcNow,
-                        Input = $"\"{GetRandomStringValue()}\"",
-                        LastUpdatedTime = DateTime.UtcNow,
-                        Name = GetRandomStringValue(),
-                        OrchestrationInstance = new OrchestrationInstance
-                        {
-                            ExecutionId = Guid.NewGuid().ToString("N"),
-                            InstanceId = Guid.NewGuid().ToString("N")
-                        },
-                        OrchestrationStatus = statusValues[random.Next(statusValues.Length)],
-                        Version = string.Empty,
-                    }
-                };
-        }
+                        ExecutionId = Guid.NewGuid().ToString("N"),
+                        InstanceId = Guid.NewGuid().ToString("N")
+                    },
+                    OrchestrationStatus = statusValues[random.Next(statusValues.Length)],
+                    Version = string.Empty,
+                }
+            };
+    }
 
-        public static IEnumerable<OrchestrationWorkItemInstanceEntity> InfiniteWorkItemTestData(string instanceId, string executionId)
-        {
-            var sequenceNumber = 0;
-            while (true)
-                yield return new OrchestrationWorkItemInstanceEntity
-                {
-                    EventTimestamp = DateTime.UtcNow,
-                    ExecutionId = executionId,
-                    InstanceId = instanceId,
-                    SequenceNumber = sequenceNumber++,
-                    HistoryEvent = new GenericEvent(random.Next(100), GetRandomStringValue())
-                };
-        }
+    public static IEnumerable<OrchestrationWorkItemInstanceEntity> InfiniteWorkItemTestData(string instanceId, string executionId)
+    {
+        var sequenceNumber = 0;
+        while (true)
+            yield return new OrchestrationWorkItemInstanceEntity
+            {
+                EventTimestamp = DateTime.UtcNow,
+                ExecutionId = executionId,
+                InstanceId = instanceId,
+                SequenceNumber = sequenceNumber++,
+                HistoryEvent = new GenericEvent(random.Next(100), GetRandomStringValue())
+            };
+    }
 
-        private static string GetRandomStringValue(int minimumLength = 5, int maximumLength = 15)
-        {
-            var length = random.Next(maximumLength - minimumLength) + minimumLength;
+    private static string GetRandomStringValue(int minimumLength = 5, int maximumLength = 15)
+    {
+        var length = random.Next(maximumLength - minimumLength) + minimumLength;
 
-            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-            return new string(Enumerable.Repeat(chars, length)
-              .Select(s => s[random.Next(s.Length)]).ToArray());
-        }
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        return new string(Enumerable.Repeat(chars, length)
+          .Select(s => s[random.Next(s.Length)]).ToArray());
     }
 }

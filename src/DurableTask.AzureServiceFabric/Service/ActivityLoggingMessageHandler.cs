@@ -11,39 +11,38 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Service
+namespace DurableTask.AzureServiceFabric.Service;
+
+using System;
+using System.Net;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
+
+using DurableTask.AzureServiceFabric.Tracing;
+
+internal class ActivityLoggingMessageHandler : DelegatingHandler
 {
-    using System;
-    using System.Net;
-    using System.Net.Http;
-    using System.Threading;
-    using System.Threading.Tasks;
-
-    using DurableTask.AzureServiceFabric.Tracing;
-
-    internal class ActivityLoggingMessageHandler : DelegatingHandler
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        string requestMethod = request.Method.ToString();
+        string requestUri = request.RequestUri.ToString();
+        string activityId = Guid.NewGuid().ToString("D");
+        ServiceFabricProviderEventSource.Tracing.LogProxyServiceRequestInformation($"{activityId} : Proxy service incoming request {requestUri} with method {requestMethod}");
+        HttpResponseMessage response = null;
+        try
         {
-            string requestMethod = request.Method.ToString();
-            string requestUri = request.RequestUri.ToString();
-            string activityId = Guid.NewGuid().ToString("D");
-            ServiceFabricProviderEventSource.Tracing.LogProxyServiceRequestInformation($"{activityId} : Proxy service incoming request {requestUri} with method {requestMethod}");
-            HttpResponseMessage response = null;
-            try
-            {
-                response = await base.SendAsync(request, cancellationToken);
-                ServiceFabricProviderEventSource.Tracing.LogProxyServiceRequestInformation($"{activityId} : Proxy service responding request {requestUri} with method {requestMethod} with status code {response.StatusCode}");
-            }
-            catch (Exception exception)
-            {
-                ServiceFabricProviderEventSource.Tracing.LogProxyServiceError(activityId, requestUri, requestMethod, exception);
-                response = request.CreateResponse(HttpStatusCode.InternalServerError, exception);
-            }
-
-            response.Headers.TryAddWithoutValidation(Constants.ActivityIdHeaderName, activityId);
-
-            return response;
+            response = await base.SendAsync(request, cancellationToken);
+            ServiceFabricProviderEventSource.Tracing.LogProxyServiceRequestInformation($"{activityId} : Proxy service responding request {requestUri} with method {requestMethod} with status code {response.StatusCode}");
         }
+        catch (Exception exception)
+        {
+            ServiceFabricProviderEventSource.Tracing.LogProxyServiceError(activityId, requestUri, requestMethod, exception);
+            response = request.CreateResponse(HttpStatusCode.InternalServerError, exception);
+        }
+
+        response.Headers.TryAddWithoutValidation(Constants.ActivityIdHeaderName, activityId);
+
+        return response;
     }
 }

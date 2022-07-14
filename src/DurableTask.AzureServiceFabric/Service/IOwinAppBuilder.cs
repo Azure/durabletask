@@ -11,26 +11,25 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Service
+namespace DurableTask.AzureServiceFabric.Service;
+
+using Owin;
+
+/// <summary>
+/// Owin application startup interface.
+/// </summary>
+public interface IOwinAppBuilder
 {
-    using Owin;
+    /// <summary>
+    /// Gets the listening Address.
+    /// </summary>
+    /// <returns></returns>
+    string GetListeningAddress();
+
 
     /// <summary>
-    /// Owin application startup interface.
+    /// Starts up an Owin App.
     /// </summary>
-    public interface IOwinAppBuilder
-    {
-        /// <summary>
-        /// Gets the listening Address.
-        /// </summary>
-        /// <returns></returns>
-        string GetListeningAddress();
-
-
-        /// <summary>
-        /// Starts up an Owin App.
-        /// </summary>
-        /// <param name="appBuilder">an instance of <see cref="IAppBuilder"/> </param>
-        void Startup(IAppBuilder appBuilder);
-    }
+    /// <param name="appBuilder">an instance of <see cref="IAppBuilder"/> </param>
+    void Startup(IAppBuilder appBuilder);
 }

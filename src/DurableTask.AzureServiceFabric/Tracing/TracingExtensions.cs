@@ -11,34 +11,33 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Tracing
+namespace DurableTask.AzureServiceFabric.Tracing;
+
+using System;
+
+using Microsoft.ServiceFabric.Services.Runtime;
+
+internal static class TracingExtensions
 {
-    using System;
-
-    using Microsoft.ServiceFabric.Services.Runtime;
-
-    internal static class TracingExtensions
+    internal static void LogFabricServiceInformation(this ServiceFabricProviderEventSource eventSource, StatefulService service, string message, params object[] args)
     {
-        internal static void LogFabricServiceInformation(this ServiceFabricProviderEventSource eventSource, StatefulService service, string message, params object[] args)
-        {
-            string formattedMessage = string.Format(message, args);
-            eventSource.LogFabricServiceInformation(
-                service.Context.ServiceName.ToString(),
-                service.Context.ServiceTypeName,
-                service.Context.ReplicaId,
-                service.Context.PartitionId,
-                service.Context.CodePackageActivationContext.ApplicationName,
-                service.Context.CodePackageActivationContext.ApplicationTypeName,
-                service.Context.NodeContext.NodeName,
-                formattedMessage);
-        }
+        string formattedMessage = string.Format(message, args);
+        eventSource.LogFabricServiceInformation(
+            service.Context.ServiceName.ToString(),
+            service.Context.ServiceTypeName,
+            service.Context.ReplicaId,
+            service.Context.PartitionId,
+            service.Context.CodePackageActivationContext.ApplicationName,
+            service.Context.CodePackageActivationContext.ApplicationTypeName,
+            service.Context.NodeContext.NodeName,
+            formattedMessage);
+    }
 
-        internal static void LogProxyServiceError(this ServiceFabricProviderEventSource eventSource, string activityId, string requestUri, string requestMethod, Exception exception)
-        {
-            string exceptionDetails = $"Type: {exception.GetType()}, Message: {exception.Message}, StackTrace: {exception.StackTrace}, InnerException: {exception.InnerException}";
-            string logMessage = $"{activityId} : Proxy service request {requestUri} with method {requestMethod} resulted in error. Exception Details - {exceptionDetails}";
+    internal static void LogProxyServiceError(this ServiceFabricProviderEventSource eventSource, string activityId, string requestUri, string requestMethod, Exception exception)
+    {
+        string exceptionDetails = $"Type: {exception.GetType()}, Message: {exception.Message}, StackTrace: {exception.StackTrace}, InnerException: {exception.InnerException}";
+        string logMessage = $"{activityId} : Proxy service request {requestUri} with method {requestMethod} resulted in error. Exception Details - {exceptionDetails}";
 
-            eventSource.LogProxyServiceError(logMessage);
-        }
+        eventSource.LogProxyServiceError(logMessage);
     }
 }

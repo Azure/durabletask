@@ -11,369 +11,405 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Test.Orchestrations
+namespace DurableTask.Test.Orchestrations;
+
+using System;
+using System.Collections.Generic;
+using System.Runtime.Serialization;
+using System.Threading;
+using System.Threading.Tasks;
+
+using DurableTask.Core;
+
+[System.Runtime.InteropServices.ComVisible(false)]
+public sealed class SimplestGetUserTask : TaskActivity<string, string>
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Runtime.Serialization;
-    using System.Threading;
-    using System.Threading.Tasks;
-
-    using DurableTask.Core;
-
-    [System.Runtime.InteropServices.ComVisible(false)]
-    public sealed class SimplestGetUserTask : TaskActivity<string, string>
+    protected override string Execute(TaskContext context, string input)
     {
-        protected override string Execute(TaskContext context, string input)
-        {
-            return "Gabbar";
-        }
+        return "Gabbar";
     }
+}
 
-    public class SimpleGenerationOrchestration : TaskOrchestration<string, string>
+public class SimpleGenerationOrchestration : TaskOrchestration<string, string>
+{
+    // HACK: This is just a hack to communicate result of orchestration back to test
+    public static string Result;
+
+    public override async Task<string> RunTask(OrchestrationContext context, string input)
     {
-        // HACK: This is just a hack to communicate result of orchestration back to test
-        public static string Result;
+        string user = await context.ScheduleTask<string>(typeof(SimplestGetUserTask));
+        int delayInSeconds = string.IsNullOrWhiteSpace(input) ? 0 : Int32.Parse(input);
 
-        public override async Task<string> RunTask(OrchestrationContext context, string input)
+        if (delayInSeconds > 0)
         {
-            string user = await context.ScheduleTask<string>(typeof(SimplestGetUserTask));
-            int delayInSeconds = string.IsNullOrWhiteSpace(input) ? 0 : Int32.Parse(input);
+            await context.CreateTimer<object>(context.CurrentUtcDateTime.Add(TimeSpan.FromSeconds(delayInSeconds)), null);
+        }
 
-            if (delayInSeconds > 0)
+        string greeting = await context.ScheduleTask<string>(typeof(SimplestSendGreetingTask), user);
+        // This is a HACK to get unit test up and running.  Should never be done in actual code.
+        Result = greeting;
+
+        return greeting;
+    }
+}
+
+public class SimplestGreetingsOrchestration : TaskOrchestration<string, string>
+{
+    // HACK: This is just a hack to communicate result of orchestration back to test
+    public static string Result;
+
+    public override async Task<string> RunTask(OrchestrationContext context, string input)
+    {
+        string user = await context.ScheduleTask<string>(typeof(SimplestGetUserTask));
+        int delayInSeconds = string.IsNullOrWhiteSpace(input) ? 0 : Int32.Parse(input);
+
+        if (delayInSeconds > 0)
+        {
+            await context.CreateTimer<object>(context.CurrentUtcDateTime.Add(TimeSpan.FromSeconds(delayInSeconds)), null);
+        }
+
+        string greeting = await context.ScheduleTask<string>(typeof(SimplestSendGreetingTask), user);
+        // This is a HACK to get unit test up and running.  Should never be done in actual code.
+        Result = greeting;
+
+        return greeting;
+    }
+}
+
+public class GreetingsRepeatWaitOrchestration : TaskOrchestration<string, string>
+{
+    // HACK: This is just a hack to communicate result of orchestration back to test
+    public static string Result;
+
+    public override async Task<string> RunTask(OrchestrationContext context, string input)
+    {
+        string user = await context.ScheduleTask<string>(typeof(SimplestGetUserTask));
+        int delayInSeconds = string.IsNullOrWhiteSpace(input) ? 0 : Int32.Parse(input);
+
+        if (delayInSeconds > 0)
+        {
+            for (var i = 0; i < 3; i++)
             {
                 await context.CreateTimer<object>(context.CurrentUtcDateTime.Add(TimeSpan.FromSeconds(delayInSeconds)), null);
             }
-
-            string greeting = await context.ScheduleTask<string>(typeof(SimplestSendGreetingTask), user);
-            // This is a HACK to get unit test up and running.  Should never be done in actual code.
-            Result = greeting;
-
-            return greeting;
         }
-    }
 
-    public class SimplestGreetingsOrchestration : TaskOrchestration<string, string>
+        string greeting = await context.ScheduleTask<string>(typeof(SimplestSendGreetingTask), user);
+        // This is a HACK to get unit test up and running.  Should never be done in actual code.
+        Result = greeting;
+
+        return greeting;
+    }
+}
+
+public sealed class SimplestSendGreetingTask : TaskActivity<string, string>
+{
+    protected override string Execute(TaskContext context, string user)
     {
-        // HACK: This is just a hack to communicate result of orchestration back to test
-        public static string Result;
-
-        public override async Task<string> RunTask(OrchestrationContext context, string input)
-        {
-            string user = await context.ScheduleTask<string>(typeof(SimplestGetUserTask));
-            int delayInSeconds = string.IsNullOrWhiteSpace(input) ? 0 : Int32.Parse(input);
-
-            if (delayInSeconds > 0)
-            {
-                await context.CreateTimer<object>(context.CurrentUtcDateTime.Add(TimeSpan.FromSeconds(delayInSeconds)), null);
-            }
-
-            string greeting = await context.ScheduleTask<string>(typeof(SimplestSendGreetingTask), user);
-            // This is a HACK to get unit test up and running.  Should never be done in actual code.
-            Result = greeting;
-
-            return greeting;
-        }
+        return "Greeting send to " + user;
     }
+}
 
-    public class GreetingsRepeatWaitOrchestration : TaskOrchestration<string, string>
+public class GenerationSignalOrchestration : TaskOrchestration<int, int>
+{
+    // HACK: This is just a hack to communicate result of orchestration back to test
+    public static string Result;
+    public static ManualResetEvent Signal = new ManualResetEvent(false);
+    private TaskCompletionSource<string> resumeHandle;
+
+    public override async Task<int> RunTask(OrchestrationContext context, int numberOfGenerations)
     {
-        // HACK: This is just a hack to communicate result of orchestration back to test
-        public static string Result;
-
-        public override async Task<string> RunTask(OrchestrationContext context, string input)
+        int count = await WaitForSignal();
+        Signal.WaitOne();
+        numberOfGenerations--;
+        if (numberOfGenerations > 0)
         {
-            string user = await context.ScheduleTask<string>(typeof(SimplestGetUserTask));
-            int delayInSeconds = string.IsNullOrWhiteSpace(input) ? 0 : Int32.Parse(input);
-
-            if (delayInSeconds > 0)
-            {
-                for (var i = 0; i < 3; i++)
-                {
-                    await context.CreateTimer<object>(context.CurrentUtcDateTime.Add(TimeSpan.FromSeconds(delayInSeconds)), null);
-                }
-            }
-
-            string greeting = await context.ScheduleTask<string>(typeof(SimplestSendGreetingTask), user);
-            // This is a HACK to get unit test up and running.  Should never be done in actual code.
-            Result = greeting;
-
-            return greeting;
+            context.ContinueAsNew(numberOfGenerations);
         }
+
+        // This is a HACK to get unit test up and running.  Should never be done in actual code.
+        Result = count.ToString();
+        return count;
     }
 
-    public sealed class SimplestSendGreetingTask : TaskActivity<string, string>
+    private async Task<int> WaitForSignal()
     {
-        protected override string Execute(TaskContext context, string user)
-        {
-            return "Greeting send to " + user;
-        }
+        this.resumeHandle = new TaskCompletionSource<string>();
+        string data = await this.resumeHandle.Task;
+        this.resumeHandle = null;
+        return int.Parse(data);
     }
 
-    public class GenerationSignalOrchestration : TaskOrchestration<int, int>
+    public override void OnEvent(OrchestrationContext context, string name, string input)
     {
-        // HACK: This is just a hack to communicate result of orchestration back to test
-        public static string Result;
-        public static ManualResetEvent Signal = new ManualResetEvent(false);
-        private TaskCompletionSource<string> resumeHandle;
-
-        public override async Task<int> RunTask(OrchestrationContext context, int numberOfGenerations)
+        if (!string.Equals("Count", name, StringComparison.Ordinal))
         {
-            int count = await WaitForSignal();
-            Signal.WaitOne();
-            numberOfGenerations--;
-            if (numberOfGenerations > 0)
-            {
-                context.ContinueAsNew(numberOfGenerations);
-            }
-
-            // This is a HACK to get unit test up and running.  Should never be done in actual code.
-            Result = count.ToString();
-            return count;
+            throw new ArgumentOutOfRangeException(nameof(name), name, "Unknown signal recieved...");
         }
 
-        private async Task<int> WaitForSignal()
-        {
-            this.resumeHandle = new TaskCompletionSource<string>();
-            string data = await this.resumeHandle.Task;
-            this.resumeHandle = null;
-            return int.Parse(data);
-        }
-
-        public override void OnEvent(OrchestrationContext context, string name, string input)
-        {
-            if (!string.Equals("Count", name, StringComparison.Ordinal))
-            {
-                throw new ArgumentOutOfRangeException(nameof(name), name, "Unknown signal recieved...");
-            }
-
-            this.resumeHandle?.SetResult(input);
-        }
+        this.resumeHandle?.SetResult(input);
     }
+}
 
-    public class ChildWorkflow : TaskOrchestration<string, int>
+public class ChildWorkflow : TaskOrchestration<string, int>
+{
+    public override Task<string> RunTask(OrchestrationContext context, int input)
     {
-        public override Task<string> RunTask(OrchestrationContext context, int input)
-        {
-            return Task.FromResult($"Child '{input}' completed.");
-        }
+        return Task.FromResult($"Child '{input}' completed.");
     }
+}
 
-    public class ParentWorkflow : TaskOrchestration<string, bool>
+public class ParentWorkflow : TaskOrchestration<string, bool>
+{
+    // HACK: This is just a hack to communicate result of orchestration back to test
+    public static string Result;
+
+    public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
     {
-        // HACK: This is just a hack to communicate result of orchestration back to test
-        public static string Result;
-
-        public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
+        var results = new Task<string>[5];
+        for (int i = 0; i < 5; i++)
         {
-            var results = new Task<string>[5];
-            for (int i = 0; i < 5; i++)
+            Task<string> r = context.CreateSubOrchestrationInstance<string>(typeof(ChildWorkflow), i);
+            if (waitForCompletion)
             {
-                Task<string> r = context.CreateSubOrchestrationInstance<string>(typeof(ChildWorkflow), i);
-                if (waitForCompletion)
-                {
-                    await r;
-                }
-
-                results[i] = r;
+                await r;
             }
 
-            string[] data = await Task.WhenAll(results);
-            Result = string.Concat(data);
-            return Result;
+            results[i] = r;
         }
-    }
 
-    public class GenerationBasicOrchestration : TaskOrchestration<int, int>
+        string[] data = await Task.WhenAll(results);
+        Result = string.Concat(data);
+        return Result;
+    }
+}
+
+public class GenerationBasicOrchestration : TaskOrchestration<int, int>
+{
+    // HACK: This is just a hack to communicate result of orchestration back to test
+    public static int Result;
+
+    public override async Task<int> RunTask(OrchestrationContext context, int numberOfGenerations)
     {
-        // HACK: This is just a hack to communicate result of orchestration back to test
-        public static int Result;
-
-        public override async Task<int> RunTask(OrchestrationContext context, int numberOfGenerations)
+        int count = await context.ScheduleTask<int>(typeof(GenerationBasicTask));
+        numberOfGenerations--;
+        if (numberOfGenerations > 0)
         {
-            int count = await context.ScheduleTask<int>(typeof(GenerationBasicTask));
-            numberOfGenerations--;
-            if (numberOfGenerations > 0)
-            {
-                context.ContinueAsNew(numberOfGenerations);
-            }
-
-            // This is a HACK to get unit test up and running.  Should never be done in actual code.
-            Result = count;
-            return count;
+            context.ContinueAsNew(numberOfGenerations);
         }
-    }
 
-    public sealed class GenerationBasicTask : TaskActivity<string, int>
+        // This is a HACK to get unit test up and running.  Should never be done in actual code.
+        Result = count;
+        return count;
+    }
+}
+
+public sealed class GenerationBasicTask : TaskActivity<string, int>
+{
+    // HACK: This is just a hack to communicate result of orchestration back to test
+    public static int GenerationCount = 0;
+
+    protected override int Execute(TaskContext context, string input)
     {
-        // HACK: This is just a hack to communicate result of orchestration back to test
-        public static int GenerationCount = 0;
-
-        protected override int Execute(TaskContext context, string input)
-        {
-            GenerationCount++;
-            return GenerationCount;
-        }
+        GenerationCount++;
+        return GenerationCount;
     }
+}
 
-    public sealed class CounterOrchestration : TaskOrchestration<int, int>
+public sealed class CounterOrchestration : TaskOrchestration<int, int>
+{
+    private TaskCompletionSource<string> waitForOperationHandle;
+
+    public override async Task<int> RunTask(OrchestrationContext context, int currentValue)
     {
-        private TaskCompletionSource<string> waitForOperationHandle;
+        string operation = await this.WaitForOperation();
 
-        public override async Task<int> RunTask(OrchestrationContext context, int currentValue)
+        bool done = false;
+        switch (operation?.ToLowerInvariant())
         {
-            string operation = await this.WaitForOperation();
-
-            bool done = false;
-            switch (operation?.ToLowerInvariant())
-            {
-                case "incr":
-                    currentValue++;
-                    break;
-                case "decr":
-                    currentValue--;
-                    break;
-                case "end":
-                    done = true;
-                    break;
-            }
-
-            if (!done)
-            {
-                context.ContinueAsNew(currentValue);
-            }
-
-            return currentValue;
-
+            case "incr":
+                currentValue++;
+                break;
+            case "decr":
+                currentValue--;
+                break;
+            case "end":
+                done = true;
+                break;
         }
 
-        private async Task<string> WaitForOperation()
+        if (!done)
         {
-            this.waitForOperationHandle = new TaskCompletionSource<string>();
-            string operation = await this.waitForOperationHandle.Task;
-            this.waitForOperationHandle = null;
-            return operation;
+            context.ContinueAsNew(currentValue);
         }
 
-        public override void OnEvent(OrchestrationContext context, string name, string input)
-        {
-            if (this.waitForOperationHandle is not null && !this.waitForOperationHandle.Task.IsCompleted)
-            {
-                this.waitForOperationHandle.SetResult(input);
-            }
-        }
+        return currentValue;
+
     }
 
-    public sealed class ContinueAsNewThenTimerOrchestration : TaskOrchestration<string, int>
+    private async Task<string> WaitForOperation()
     {
-        public override async Task<string> RunTask(OrchestrationContext context, int input)
-        {
-            if (input == 0)
-            {
-                context.ContinueAsNew(1);
-
-                return "continue as new";
-            }
-            else if (input == 1)
-            {
-                await context.CreateTimer(context.CurrentUtcDateTime, 0);
-
-                return "OK";
-            }
-            else
-            {
-                throw new InvalidOperationException();
-            }
-        }
+        this.waitForOperationHandle = new TaskCompletionSource<string>();
+        string operation = await this.waitForOperationHandle.Task;
+        this.waitForOperationHandle = null;
+        return operation;
     }
 
-    public sealed class ChangeStatusOrchestration : TaskOrchestration<string, string[]>
+    public override void OnEvent(OrchestrationContext context, string name, string input)
     {
-        private bool hasSetCustomStatus = false;
-        private string customStatus = null;
-
-        private async Task SetCustomStatus(OrchestrationContext context, string status)
+        if (this.waitForOperationHandle is not null && !this.waitForOperationHandle.Task.IsCompleted)
         {
-            this.hasSetCustomStatus = true;
-            this.customStatus = status;
-            // Dummy timer to persist state.
-            await context.CreateTimer<int>(context.CurrentUtcDateTime, 0);
+            this.waitForOperationHandle.SetResult(input);
+        }
+    }
+}
+
+public sealed class ContinueAsNewThenTimerOrchestration : TaskOrchestration<string, int>
+{
+    public override async Task<string> RunTask(OrchestrationContext context, int input)
+    {
+        if (input == 0)
+        {
+            context.ContinueAsNew(1);
+
+            return "continue as new";
+        }
+        else if (input == 1)
+        {
+            await context.CreateTimer(context.CurrentUtcDateTime, 0);
+
+            return "OK";
+        }
+        else
+        {
+            throw new InvalidOperationException();
+        }
+    }
+}
+
+public sealed class ChangeStatusOrchestration : TaskOrchestration<string, string[]>
+{
+    private bool hasSetCustomStatus = false;
+    private string customStatus = null;
+
+    private async Task SetCustomStatus(OrchestrationContext context, string status)
+    {
+        this.hasSetCustomStatus = true;
+        this.customStatus = status;
+        // Dummy timer to persist state.
+        await context.CreateTimer<int>(context.CurrentUtcDateTime, 0);
+    }
+
+    public override async Task<string> RunTask(OrchestrationContext context, string[] input)
+    {
+        foreach (var status in input)
+        {
+            await this.SetCustomStatus(context, status);
         }
 
-        public override async Task<string> RunTask(OrchestrationContext context, string[] input)
-        {
-            foreach (var status in input)
-            {
-                await this.SetCustomStatus(context, status);
-            }
+        return string.Empty;
+    }
 
-            return string.Empty;
+    public override string OnGetStatus()
+    {
+        if (this.hasSetCustomStatus)
+        {
+            return this.customStatus;
         }
 
-        public override string OnGetStatus()
+        return base.OnGetStatus();
+    }
+}
+
+[KnownType(typeof(EventConversationOrchestration.Responder))]
+public sealed class EventConversationOrchestration : TaskOrchestration<string, bool>
+{
+    private readonly TaskCompletionSource<string> tcs
+        = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
+
+    // HACK: This is just a hack to communicate result of orchestration back to test
+    public static bool OkResult;
+
+    public async override Task<string> RunTask(OrchestrationContext context, bool useFireAndForgetSubOrchestration)
+    {
+        // start a responder orchestration
+        var responderId = "responderId";
+        Task<string> responderOrchestration = null;
+
+        if (!useFireAndForgetSubOrchestration)
         {
-            if (this.hasSetCustomStatus)
+            responderOrchestration = context.CreateSubOrchestrationInstance<string>(typeof(Responder), responderId, "Herkimer");
+        }
+        else
+        {
+            var dummyTask = context.CreateSubOrchestrationInstance<object>(NameVersionHelper.GetDefaultName(typeof(Responder)), "", responderId, "Herkimer",
+                new Dictionary<string, string>() { { OrchestrationTags.FireAndForget, "" } });
+
+            if (!dummyTask.IsCompleted)
             {
-                return this.customStatus;
+                throw new Exception("test failed: fire-and-forget should complete immediately");
             }
 
-            return base.OnGetStatus();
+            responderOrchestration = Task.FromResult("Herkimer is done");
+        }
+
+        // send the id of this orchestration to the responder
+        var responderInstance = new OrchestrationInstance() { InstanceId = responderId };
+        context.SendEvent(responderInstance, ChannelName, context.OrchestrationInstance.InstanceId);
+
+        // wait for a response event
+        var message = await tcs.Task;
+        if (message != "hi from Herkimer")
+            throw new Exception("test failed");
+
+        // tell the responder to stop listening
+        context.SendEvent(responderInstance, ChannelName, "stop");
+
+        // if this was not a fire-and-forget orchestration, wait for it to complete
+        var receiverResult = await responderOrchestration;
+
+        if (receiverResult != "Herkimer is done")
+            throw new Exception("test failed");
+
+        OkResult = true;
+
+        return "OK";
+    }
+
+    public override void OnEvent(OrchestrationContext context, string name, string input)
+    {
+        if (name == ChannelName)
+        {
+            tcs.TrySetResult(input);
         }
     }
 
-    [KnownType(typeof(EventConversationOrchestration.Responder))]
-    public sealed class EventConversationOrchestration : TaskOrchestration<string, bool>
+    private const string ChannelName = "conversation";
+
+    public class Responder : TaskOrchestration<string, string>
     {
         private readonly TaskCompletionSource<string> tcs
             = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
 
-        // HACK: This is just a hack to communicate result of orchestration back to test
-        public static bool OkResult;
-
-        public async override Task<string> RunTask(OrchestrationContext context, bool useFireAndForgetSubOrchestration)
+        public async override Task<string> RunTask(OrchestrationContext context, string input)
         {
-            // start a responder orchestration
-            var responderId = "responderId";
-            Task<string> responderOrchestration = null;
+            var message = await tcs.Task;
 
-            if (!useFireAndForgetSubOrchestration)
+            if (message == "stop")
             {
-                responderOrchestration = context.CreateSubOrchestrationInstance<string>(typeof(Responder), responderId, "Herkimer");
+                return $"{input} is done";
             }
             else
             {
-                var dummyTask = context.CreateSubOrchestrationInstance<object>(NameVersionHelper.GetDefaultName(typeof(Responder)), "", responderId, "Herkimer",
-                    new Dictionary<string, string>() { { OrchestrationTags.FireAndForget, "" } });
+                // send a message back to the sender
+                var senderInstance = new OrchestrationInstance() { InstanceId = message };
+                context.SendEvent(senderInstance, ChannelName, $"hi from {input}");
 
-                if (!dummyTask.IsCompleted)
-                {
-                    throw new Exception("test failed: fire-and-forget should complete immediately");
-                }
+                // start over to wait for the next message
+                context.ContinueAsNew(input);
 
-                responderOrchestration = Task.FromResult("Herkimer is done");
+                return "this value is meaningless";
             }
-
-            // send the id of this orchestration to the responder
-            var responderInstance = new OrchestrationInstance() { InstanceId = responderId };
-            context.SendEvent(responderInstance, ChannelName, context.OrchestrationInstance.InstanceId);
-
-            // wait for a response event
-            var message = await tcs.Task;
-            if (message != "hi from Herkimer")
-                throw new Exception("test failed");
-
-            // tell the responder to stop listening
-            context.SendEvent(responderInstance, ChannelName, "stop");
-
-            // if this was not a fire-and-forget orchestration, wait for it to complete
-            var receiverResult = await responderOrchestration;
-
-            if (receiverResult != "Herkimer is done")
-                throw new Exception("test failed");
-
-            OkResult = true;
-
-            return "OK";
         }
 
         public override void OnEvent(OrchestrationContext context, string name, string input)
@@ -383,43 +419,6 @@ namespace DurableTask.Test.Orchestrations
                 tcs.TrySetResult(input);
             }
         }
-
-        private const string ChannelName = "conversation";
-
-        public class Responder : TaskOrchestration<string, string>
-        {
-            private readonly TaskCompletionSource<string> tcs
-                = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
-
-            public async override Task<string> RunTask(OrchestrationContext context, string input)
-            {
-                var message = await tcs.Task;
-
-                if (message == "stop")
-                {
-                    return $"{input} is done";
-                }
-                else
-                {
-                    // send a message back to the sender
-                    var senderInstance = new OrchestrationInstance() { InstanceId = message };
-                    context.SendEvent(senderInstance, ChannelName, $"hi from {input}");
-
-                    // start over to wait for the next message
-                    context.ContinueAsNew(input);
-
-                    return "this value is meaningless";
-                }
-            }
-
-            public override void OnEvent(OrchestrationContext context, string name, string input)
-            {
-                if (name == ChannelName)
-                {
-                    tcs.TrySetResult(input);
-                }
-            }
-        }
     }
-
 }
+

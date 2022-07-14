@@ -11,25 +11,24 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Tests
+namespace DurableTask.Core.Tests;
+
+using System;
+using DurableTask.Core;
+
+internal class TestObjectCreator<T> : ObjectCreator<T>
 {
-    using System;
-    using DurableTask.Core;
+    private readonly Func<T> creator;
 
-    internal class TestObjectCreator<T> : ObjectCreator<T>
+    public TestObjectCreator(string name, string version, Func<T> creator)
     {
-        private readonly Func<T> creator;
+        Name = name;
+        Version = version;
+        this.creator = creator;
+    }
 
-        public TestObjectCreator(string name, string version, Func<T> creator)
-        {
-            Name = name;
-            Version = version;
-            this.creator = creator;
-        }
-
-        public override T Create()
-        {
-            return this.creator();
-        }
+    public override T Create()
+    {
+        return this.creator();
     }
 }

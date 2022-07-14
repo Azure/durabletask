@@ -11,24 +11,23 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Models
+namespace DurableTask.AzureServiceFabric.Models;
+
+using System;
+using DurableTask.Core;
+
+/// <summary>
+/// Purging orchestration history parameters.
+/// </summary>
+public class PurgeOrchestrationHistoryParameters
 {
-    using System;
-    using DurableTask.Core;
+    /// <summary>
+    /// Starting date time for purging orchestrations.
+    /// </summary>
+    public DateTime ThresholdDateTimeUtc { get; set; }
 
     /// <summary>
-    /// Purging orchestration history parameters.
+    /// Orchestration start time range filter type.
     /// </summary>
-    public class PurgeOrchestrationHistoryParameters
-    {
-        /// <summary>
-        /// Starting date time for purging orchestrations.
-        /// </summary>
-        public DateTime ThresholdDateTimeUtc { get; set; }
-
-        /// <summary>
-        /// Orchestration start time range filter type.
-        /// </summary>
-        public OrchestrationStateTimeRangeFilterType TimeRangeFilterType { get; set; }
-    }
+    public OrchestrationStateTimeRangeFilterType TimeRangeFilterType { get; set; }
 }

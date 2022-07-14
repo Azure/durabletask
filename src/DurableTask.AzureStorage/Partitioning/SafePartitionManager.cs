@@ -11,147 +11,146 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Partitioning
+namespace DurableTask.AzureStorage.Partitioning;
+
+using System;
+using System.Collections.Generic;
+using System.Runtime.ExceptionServices;
+using System.Threading.Tasks;
+using DurableTask.AzureStorage.Storage;
+using Microsoft.WindowsAzure.Storage;
+
+class SafePartitionManager : IPartitionManager
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Runtime.ExceptionServices;
-    using System.Threading.Tasks;
-    using DurableTask.AzureStorage.Storage;
-    using Microsoft.WindowsAzure.Storage;
+    readonly AzureStorageOrchestrationService service;
+    readonly AzureStorageClient azureStorageClient;
+    readonly AzureStorageOrchestrationServiceSettings settings;
+    readonly OrchestrationSessionManager sessionManager;
 
-    class SafePartitionManager : IPartitionManager
+    readonly BlobLeaseManager intentLeaseManager;
+    readonly LeaseCollectionBalancer<BlobLease> intentLeaseCollectionManager;
+
+    readonly BlobLeaseManager ownershipLeaseManager;
+    readonly LeaseCollectionBalancer<BlobLease> ownershipLeaseCollectionManager;
+
+    IDisposable intentLeaseSubscription;
+    IDisposable ownershipLeaseSubscription;
+
+    public SafePartitionManager(
+        AzureStorageOrchestrationService service,
+        AzureStorageClient azureStorageClient,
+        OrchestrationSessionManager sessionManager)
     {
-        readonly AzureStorageOrchestrationService service;
-        readonly AzureStorageClient azureStorageClient;
-        readonly AzureStorageOrchestrationServiceSettings settings;
-        readonly OrchestrationSessionManager sessionManager;
+        this.service = service;
+        this.azureStorageClient = azureStorageClient;
+        this.settings = this.azureStorageClient.Settings;
+        this.sessionManager = sessionManager;
 
-        readonly BlobLeaseManager intentLeaseManager;
-        readonly LeaseCollectionBalancer<BlobLease> intentLeaseCollectionManager;
+        this.intentLeaseManager = AzureStorageOrchestrationService.GetBlobLeaseManager(
+            this.azureStorageClient,
+            "intent");
 
-        readonly BlobLeaseManager ownershipLeaseManager;
-        readonly LeaseCollectionBalancer<BlobLease> ownershipLeaseCollectionManager;
-
-        IDisposable intentLeaseSubscription;
-        IDisposable ownershipLeaseSubscription;
-
-        public SafePartitionManager(
-            AzureStorageOrchestrationService service,
-            AzureStorageClient azureStorageClient,
-            OrchestrationSessionManager sessionManager)
-        {
-            this.service = service;
-            this.azureStorageClient = azureStorageClient;
-            this.settings = this.azureStorageClient.Settings;
-            this.sessionManager = sessionManager;
-
-            this.intentLeaseManager = AzureStorageOrchestrationService.GetBlobLeaseManager(
-                this.azureStorageClient,
-                "intent");
-
-            this.intentLeaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
-                "intent",
-                settings,
-                this.azureStorageClient.BlobAccountName,
-                this.intentLeaseManager,
-                new LeaseCollectionBalancerOptions
-                {
-                    AcquireInterval = settings.LeaseAcquireInterval,
-                    RenewInterval = settings.LeaseRenewInterval,
-                    LeaseInterval = settings.LeaseInterval,
-                });
-
-            var currentlyOwnedIntentLeases = this.intentLeaseCollectionManager.GetCurrentlyOwnedLeases();
-
-            this.ownershipLeaseManager = AzureStorageOrchestrationService.GetBlobLeaseManager(
-                this.azureStorageClient,
-                "ownership");
-
-            this.ownershipLeaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
-                "ownership",
-                this.settings,
-                this.azureStorageClient.BlobAccountName,
-                this.ownershipLeaseManager,
-                new LeaseCollectionBalancerOptions
-                {
-                    AcquireInterval = TimeSpan.FromSeconds(5),
-                    RenewInterval = TimeSpan.FromSeconds(10),
-                    LeaseInterval = TimeSpan.FromSeconds(15),
-                    ShouldStealLeases = false
-                },
-                shouldAquireLeaseDelegate: leaseKey => currentlyOwnedIntentLeases.ContainsKey(leaseKey),
-                shouldRenewLeaseDelegate: leaseKey => currentlyOwnedIntentLeases.ContainsKey(leaseKey)
-                                                      || this.sessionManager.IsControlQueueReceivingMessages(leaseKey)
-                                                      || this.sessionManager.IsControlQueueProcessingMessages(leaseKey));
-        }
-
-        Task<IEnumerable<BlobLease>> IPartitionManager.GetOwnershipBlobLeases()
-        {
-            return this.ownershipLeaseManager.ListLeasesAsync();
-        }
-
-        Task IPartitionManager.CreateLeaseStore()
-        {
-            TaskHubInfo hubInfo = new TaskHubInfo(this.settings.TaskHubName, DateTime.UtcNow, this.settings.PartitionCount);
-            return Task.WhenAll(
-                // Only need to check if the lease store (i.e. the taskhub.json) is stale for one of the two
-                // lease managers.
-                this.intentLeaseManager.CreateLeaseStoreIfNotExistsAsync(hubInfo, checkIfStale: true),
-                this.ownershipLeaseManager.CreateLeaseStoreIfNotExistsAsync(hubInfo, checkIfStale: false));
-        }
-
-        Task IPartitionManager.DeleteLeases()
-        {
-            return Task.WhenAll(
-                this.intentLeaseManager.DeleteAllAsync(),
-                this.ownershipLeaseManager.DeleteAllAsync()
-                ).ContinueWith(t =>
+        this.intentLeaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
+            "intent",
+            settings,
+            this.azureStorageClient.BlobAccountName,
+            this.intentLeaseManager,
+            new LeaseCollectionBalancerOptions
             {
-                if (t.Exception?.InnerExceptions?.Count > 0)
+                AcquireInterval = settings.LeaseAcquireInterval,
+                RenewInterval = settings.LeaseRenewInterval,
+                LeaseInterval = settings.LeaseInterval,
+            });
+
+        var currentlyOwnedIntentLeases = this.intentLeaseCollectionManager.GetCurrentlyOwnedLeases();
+
+        this.ownershipLeaseManager = AzureStorageOrchestrationService.GetBlobLeaseManager(
+            this.azureStorageClient,
+            "ownership");
+
+        this.ownershipLeaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
+            "ownership",
+            this.settings,
+            this.azureStorageClient.BlobAccountName,
+            this.ownershipLeaseManager,
+            new LeaseCollectionBalancerOptions
+            {
+                AcquireInterval = TimeSpan.FromSeconds(5),
+                RenewInterval = TimeSpan.FromSeconds(10),
+                LeaseInterval = TimeSpan.FromSeconds(15),
+                ShouldStealLeases = false
+            },
+            shouldAquireLeaseDelegate: leaseKey => currentlyOwnedIntentLeases.ContainsKey(leaseKey),
+            shouldRenewLeaseDelegate: leaseKey => currentlyOwnedIntentLeases.ContainsKey(leaseKey)
+                                                  || this.sessionManager.IsControlQueueReceivingMessages(leaseKey)
+                                                  || this.sessionManager.IsControlQueueProcessingMessages(leaseKey));
+    }
+
+    Task<IEnumerable<BlobLease>> IPartitionManager.GetOwnershipBlobLeases()
+    {
+        return this.ownershipLeaseManager.ListLeasesAsync();
+    }
+
+    Task IPartitionManager.CreateLeaseStore()
+    {
+        TaskHubInfo hubInfo = new TaskHubInfo(this.settings.TaskHubName, DateTime.UtcNow, this.settings.PartitionCount);
+        return Task.WhenAll(
+            // Only need to check if the lease store (i.e. the taskhub.json) is stale for one of the two
+            // lease managers.
+            this.intentLeaseManager.CreateLeaseStoreIfNotExistsAsync(hubInfo, checkIfStale: true),
+            this.ownershipLeaseManager.CreateLeaseStoreIfNotExistsAsync(hubInfo, checkIfStale: false));
+    }
+
+    Task IPartitionManager.DeleteLeases()
+    {
+        return Task.WhenAll(
+            this.intentLeaseManager.DeleteAllAsync(),
+            this.ownershipLeaseManager.DeleteAllAsync()
+            ).ContinueWith(t =>
+        {
+            if (t.Exception?.InnerExceptions?.Count > 0)
+            {
+                foreach (Exception e in t.Exception.InnerExceptions)
                 {
-                    foreach (Exception e in t.Exception.InnerExceptions)
+                    StorageException storageException = e as StorageException;
+                    if (storageException is null || storageException.RequestInformation.HttpStatusCode != 404)
                     {
-                        StorageException storageException = e as StorageException;
-                        if (storageException is null || storageException.RequestInformation.HttpStatusCode != 404)
-                        {
-                            ExceptionDispatchInfo.Capture(e).Throw();
-                        }
+                        ExceptionDispatchInfo.Capture(e).Throw();
                     }
                 }
-            });
-        }
+            }
+        });
+    }
 
-        async Task IPartitionManager.StartAsync()
-        {
-            await this.intentLeaseCollectionManager.InitializeAsync();
-            this.intentLeaseSubscription = await this.intentLeaseCollectionManager.SubscribeAsync(
-                this.service.OnIntentLeaseAquiredAsync,
-                this.service.OnIntentLeaseReleasedAsync);
-            await this.intentLeaseCollectionManager.StartAsync();
+    async Task IPartitionManager.StartAsync()
+    {
+        await this.intentLeaseCollectionManager.InitializeAsync();
+        this.intentLeaseSubscription = await this.intentLeaseCollectionManager.SubscribeAsync(
+            this.service.OnIntentLeaseAquiredAsync,
+            this.service.OnIntentLeaseReleasedAsync);
+        await this.intentLeaseCollectionManager.StartAsync();
 
-            await this.ownershipLeaseCollectionManager.InitializeAsync();
-            this.ownershipLeaseSubscription = await this.ownershipLeaseCollectionManager.SubscribeAsync(
-                this.service.OnOwnershipLeaseAquiredAsync,
-                this.service.OnOwnershipLeaseReleasedAsync);
-            await this.ownershipLeaseCollectionManager.StartAsync();
-        }
+        await this.ownershipLeaseCollectionManager.InitializeAsync();
+        this.ownershipLeaseSubscription = await this.ownershipLeaseCollectionManager.SubscribeAsync(
+            this.service.OnOwnershipLeaseAquiredAsync,
+            this.service.OnOwnershipLeaseReleasedAsync);
+        await this.ownershipLeaseCollectionManager.StartAsync();
+    }
 
-        async Task IPartitionManager.StopAsync()
-        {
-            await this.intentLeaseCollectionManager.StopAsync();
-            this.intentLeaseSubscription?.Dispose();
+    async Task IPartitionManager.StopAsync()
+    {
+        await this.intentLeaseCollectionManager.StopAsync();
+        this.intentLeaseSubscription?.Dispose();
 
-            await this.ownershipLeaseCollectionManager.StopAsync();
-            this.ownershipLeaseSubscription?.Dispose();
-        }
+        await this.ownershipLeaseCollectionManager.StopAsync();
+        this.ownershipLeaseSubscription?.Dispose();
+    }
 
-        Task IPartitionManager.CreateLease(string leaseName)
-        {
-            return Task.WhenAll(
-                this.intentLeaseManager.CreateLeaseIfNotExistAsync(leaseName),
-                this.ownershipLeaseManager.CreateLeaseIfNotExistAsync(leaseName)
-            );
-        }
+    Task IPartitionManager.CreateLease(string leaseName)
+    {
+        return Task.WhenAll(
+            this.intentLeaseManager.CreateLeaseIfNotExistAsync(leaseName),
+            this.ownershipLeaseManager.CreateLeaseIfNotExistAsync(leaseName)
+        );
     }
 }

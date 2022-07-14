@@ -11,221 +11,220 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Tracing
-{
-    using System;
-    using System.Diagnostics;
-    using System.Globalization;
-    using System.Runtime.ExceptionServices;
+namespace DurableTask.Core.Tracing;
 
-    using DurableTask.Core.Common;
+using System;
+using System.Diagnostics;
+using System.Globalization;
+using System.Runtime.ExceptionServices;
+
+using DurableTask.Core.Common;
+
+/// <summary>
+///     Helper class for logging/tracing
+/// </summary>
+public class TraceHelper
+{
+    private const string Source = "DurableTask";
 
     /// <summary>
-    ///     Helper class for logging/tracing
+    ///     Simple trace with no iid or eid
     /// </summary>
-    public class TraceHelper
+    public static void Trace(TraceEventType eventLevel, string eventType, Func<string> generateMessage)
+     => ExceptionHandlingWrapper(
+            () => DefaultEventSource.Log.TraceEvent(eventLevel, Source, string.Empty, string.Empty, string.Empty, generateMessage(), eventType));
+
+    /// <summary>
+    ///     Simple trace with no iid or eid
+    /// </summary>
+    public static void Trace(TraceEventType eventLevel, string eventType, string format, params object[] args)
+     => ExceptionHandlingWrapper(
+            () => DefaultEventSource.Log.TraceEvent(eventLevel, Source, string.Empty, string.Empty, string.Empty, FormatString(format, args), eventType));
+
+    /// <summary>
+    ///     Trace with iid but no eid
+    /// </summary>
+    public static void TraceSession(TraceEventType eventLevel, string eventType, string sessionId, Func<string> generateMessage)
+     => ExceptionHandlingWrapper(
+            () => DefaultEventSource.Log.TraceEvent(eventLevel, Source, string.Empty, string.Empty, sessionId, generateMessage(), eventType));
+
+    /// <summary>
+    ///     Trace with iid but no eid
+    /// </summary>
+    public static void TraceSession(TraceEventType eventLevel, string eventType, string sessionId, string format, params object[] args)
+     => ExceptionHandlingWrapper(
+            () => DefaultEventSource.Log.TraceEvent(eventLevel, Source, string.Empty, string.Empty, sessionId, FormatString(format, args), eventType));
+
+    /// <summary>
+    ///     Trace with iid and eid
+    /// </summary>
+    public static void TraceInstance(TraceEventType eventLevel, string eventType, OrchestrationInstance orchestrationInstance,
+        string format, params object[] args)
+     => ExceptionHandlingWrapper(
+            () => DefaultEventSource.Log.TraceEvent(
+                eventLevel,
+                Source,
+                orchestrationInstance is null ? string.Empty : orchestrationInstance.InstanceId,
+                orchestrationInstance is null ? string.Empty : orchestrationInstance.ExecutionId,
+                string.Empty,
+                FormatString(format, args),
+                eventType));
+
+    /// <summary>
+    ///     Trace with iid and eid
+    /// </summary>
+    public static void TraceInstance(TraceEventType eventLevel, string eventType, OrchestrationInstance orchestrationInstance,
+        Func<string> generateMessage)
+     => ExceptionHandlingWrapper(
+            () => DefaultEventSource.Log.TraceEvent(
+                eventLevel,
+                Source,
+                orchestrationInstance is null ? string.Empty : orchestrationInstance.InstanceId,
+                orchestrationInstance is null ? string.Empty : orchestrationInstance.ExecutionId,
+                string.Empty,
+                generateMessage(),
+                eventType));
+
+    /// <summary>
+    ///     Trace an exception
+    /// </summary>
+    public static Exception TraceException(TraceEventType eventLevel, string eventType, Exception exception)
+     => TraceException(eventLevel, eventType, exception, string.Empty);
+
+    /// <summary>
+    ///     Trace an exception and message
+    /// </summary>
+    public static Exception TraceException(TraceEventType eventLevel, string eventType, Exception exception,
+        Func<string> generateMessage)
+     => TraceExceptionCore(eventLevel, eventType, string.Empty, string.Empty, exception, generateMessage);
+
+    /// <summary>
+    ///     Trace an exception and message
+    /// </summary>
+    public static Exception TraceException(TraceEventType eventLevel, string eventType, Exception exception, string format,
+        params object[] args)
+     => TraceExceptionCore(eventLevel, eventType, string.Empty, string.Empty, ExceptionDispatchInfo.Capture(exception), format, args).SourceException;
+
+    /// <summary>
+    ///     Trace an instance exception
+    /// </summary>
+    public static Exception TraceExceptionInstance(TraceEventType eventLevel, string eventType,
+        OrchestrationInstance orchestrationInstance, Exception exception)
+     => TraceExceptionCore(eventLevel, eventType, orchestrationInstance.InstanceId, orchestrationInstance.ExecutionId,
+            ExceptionDispatchInfo.Capture(exception), string.Empty).SourceException;
+
+    /// <summary>
+    ///     Trace an instance exception and message
+    /// </summary>
+    public static Exception TraceExceptionInstance(TraceEventType eventLevel, string eventType,
+        OrchestrationInstance orchestrationInstance, Exception exception, Func<string> generateMessage)
+     => TraceExceptionCore(eventLevel, eventType, orchestrationInstance.InstanceId, orchestrationInstance.ExecutionId,
+            exception, generateMessage);
+
+    /// <summary>
+    ///     Trace an instance exception and message
+    /// </summary>
+    public static Exception TraceExceptionInstance(TraceEventType eventLevel, string eventType,
+        OrchestrationInstance orchestrationInstance, Exception exception, string format, params object[] args)
+     => TraceExceptionCore(eventLevel, eventType, orchestrationInstance.InstanceId, orchestrationInstance.ExecutionId,
+            ExceptionDispatchInfo.Capture(exception), format, args).SourceException;
+
+    /// <summary>
+    ///     Trace a session exception without execution id
+    /// </summary>
+    public static Exception TraceExceptionSession(TraceEventType eventLevel, string eventType, string sessionId, Exception exception)
+     => TraceExceptionCore(eventLevel, eventType, sessionId, string.Empty, ExceptionDispatchInfo.Capture(exception), string.Empty).SourceException;
+
+    /// <summary>
+    ///     Trace a session exception without execution id
+    /// </summary>
+    public static ExceptionDispatchInfo TraceExceptionSession(TraceEventType eventLevel, string eventType, string sessionId, ExceptionDispatchInfo exceptionDispatchInfo)
+     => TraceExceptionCore(eventLevel, eventType, sessionId, string.Empty, exceptionDispatchInfo, string.Empty);
+
+    /// <summary>
+    ///     Trace a session exception and message without execution id
+    /// </summary>
+    public static Exception TraceExceptionSession(TraceEventType eventLevel, string eventType, string sessionId, Exception exception,
+        Func<string> generateMessage)
+     => TraceExceptionCore(eventLevel, eventType, sessionId, string.Empty, exception, generateMessage);
+
+    /// <summary>
+    ///     Trace a session exception and message without execution id
+    /// </summary>
+    public static Exception TraceExceptionSession(TraceEventType eventLevel, string eventType, string sessionId, Exception exception,
+        string format, params object[] args)
+     => TraceExceptionCore(eventLevel, eventType, sessionId, string.Empty, ExceptionDispatchInfo.Capture(exception), format, args).SourceException;
+
+    /// <summary>
+    ///     Trace a session exception and message without execution id
+    /// </summary>
+    public static ExceptionDispatchInfo TraceExceptionSession(TraceEventType eventLevel, string eventType, string sessionId, ExceptionDispatchInfo exceptionDispatchInfo,
+        string format, params object[] args)
+     => TraceExceptionCore(eventLevel, eventType, sessionId, string.Empty, exceptionDispatchInfo, format, args);
+
+    // helper methods
+    private static ExceptionDispatchInfo TraceExceptionCore(TraceEventType eventLevel, string eventType, string iid, string eid, ExceptionDispatchInfo exceptionDispatchInfo,
+        string format, params object[] args)
     {
-        private const string Source = "DurableTask";
+        Exception exception = exceptionDispatchInfo.SourceException;
 
-        /// <summary>
-        ///     Simple trace with no iid or eid
-        /// </summary>
-        public static void Trace(TraceEventType eventLevel, string eventType, Func<string> generateMessage)
-         => ExceptionHandlingWrapper(
-                () => DefaultEventSource.Log.TraceEvent(eventLevel, Source, string.Empty, string.Empty, string.Empty, generateMessage(), eventType));
+        string newFormat = format + "\nException: " + exception.GetType() + " : " + exception.Message + "\n\t" +
+                           exception.StackTrace + "\nInner Exception: " +
+                           exception.InnerException?.ToString();
 
-        /// <summary>
-        ///     Simple trace with no iid or eid
-        /// </summary>
-        public static void Trace(TraceEventType eventLevel, string eventType, string format, params object[] args)
-         => ExceptionHandlingWrapper(
-                () => DefaultEventSource.Log.TraceEvent(eventLevel, Source, string.Empty, string.Empty, string.Empty, FormatString(format, args), eventType));
+        ExceptionHandlingWrapper(
+            () => DefaultEventSource.Log.TraceEvent(eventLevel, Source, iid, eid, string.Empty, FormatString(newFormat, args), eventType));
 
-        /// <summary>
-        ///     Trace with iid but no eid
-        /// </summary>
-        public static void TraceSession(TraceEventType eventLevel, string eventType, string sessionId, Func<string> generateMessage)
-         => ExceptionHandlingWrapper(
-                () => DefaultEventSource.Log.TraceEvent(eventLevel, Source, string.Empty, string.Empty, sessionId, generateMessage(), eventType));
+        return exceptionDispatchInfo;
+    }
 
-        /// <summary>
-        ///     Trace with iid but no eid
-        /// </summary>
-        public static void TraceSession(TraceEventType eventLevel, string eventType, string sessionId, string format, params object[] args)
-         => ExceptionHandlingWrapper(
-                () => DefaultEventSource.Log.TraceEvent(eventLevel, Source, string.Empty, string.Empty, sessionId, FormatString(format, args), eventType));
+    private static Exception TraceExceptionCore(TraceEventType eventLevel, string eventType, string iid, string eid, Exception exception,
+        Func<string> generateMessage)
+    {
+        string newFormat = generateMessage() + "\nException: " + exception.GetType() + " : " + exception.Message +
+                           "\n\t" + exception.StackTrace + "\nInner Exception: " +
+                           exception.InnerException?.ToString();
 
-        /// <summary>
-        ///     Trace with iid and eid
-        /// </summary>
-        public static void TraceInstance(TraceEventType eventLevel, string eventType, OrchestrationInstance orchestrationInstance,
-            string format, params object[] args)
-         => ExceptionHandlingWrapper(
-                () => DefaultEventSource.Log.TraceEvent(
-                    eventLevel,
-                    Source,
-                    orchestrationInstance is null ? string.Empty : orchestrationInstance.InstanceId,
-                    orchestrationInstance is null ? string.Empty : orchestrationInstance.ExecutionId,
-                    string.Empty,
-                    FormatString(format, args),
-                    eventType));
+        ExceptionHandlingWrapper(
+            () => DefaultEventSource.Log.TraceEvent(eventLevel, Source, iid, eid, string.Empty, newFormat, eventType));
 
-        /// <summary>
-        ///     Trace with iid and eid
-        /// </summary>
-        public static void TraceInstance(TraceEventType eventLevel, string eventType, OrchestrationInstance orchestrationInstance,
-            Func<string> generateMessage)
-         => ExceptionHandlingWrapper(
-                () => DefaultEventSource.Log.TraceEvent(
-                    eventLevel,
-                    Source,
-                    orchestrationInstance is null ? string.Empty : orchestrationInstance.InstanceId,
-                    orchestrationInstance is null ? string.Empty : orchestrationInstance.ExecutionId,
-                    string.Empty,
-                    generateMessage(),
-                    eventType));
+        return exception;
+    }
 
-        /// <summary>
-        ///     Trace an exception
-        /// </summary>
-        public static Exception TraceException(TraceEventType eventLevel, string eventType, Exception exception)
-         => TraceException(eventLevel, eventType, exception, string.Empty);
-
-        /// <summary>
-        ///     Trace an exception and message
-        /// </summary>
-        public static Exception TraceException(TraceEventType eventLevel, string eventType, Exception exception,
-            Func<string> generateMessage)
-         => TraceExceptionCore(eventLevel, eventType, string.Empty, string.Empty, exception, generateMessage);
-
-        /// <summary>
-        ///     Trace an exception and message
-        /// </summary>
-        public static Exception TraceException(TraceEventType eventLevel, string eventType, Exception exception, string format,
-            params object[] args)
-         => TraceExceptionCore(eventLevel, eventType, string.Empty, string.Empty, ExceptionDispatchInfo.Capture(exception), format, args).SourceException;
-
-        /// <summary>
-        ///     Trace an instance exception
-        /// </summary>
-        public static Exception TraceExceptionInstance(TraceEventType eventLevel, string eventType,
-            OrchestrationInstance orchestrationInstance, Exception exception)
-         => TraceExceptionCore(eventLevel, eventType, orchestrationInstance.InstanceId, orchestrationInstance.ExecutionId,
-                ExceptionDispatchInfo.Capture(exception), string.Empty).SourceException;
-
-        /// <summary>
-        ///     Trace an instance exception and message
-        /// </summary>
-        public static Exception TraceExceptionInstance(TraceEventType eventLevel, string eventType,
-            OrchestrationInstance orchestrationInstance, Exception exception, Func<string> generateMessage)
-         => TraceExceptionCore(eventLevel, eventType, orchestrationInstance.InstanceId, orchestrationInstance.ExecutionId,
-                exception, generateMessage);
-
-        /// <summary>
-        ///     Trace an instance exception and message
-        /// </summary>
-        public static Exception TraceExceptionInstance(TraceEventType eventLevel, string eventType,
-            OrchestrationInstance orchestrationInstance, Exception exception, string format, params object[] args)
-         => TraceExceptionCore(eventLevel, eventType, orchestrationInstance.InstanceId, orchestrationInstance.ExecutionId,
-                ExceptionDispatchInfo.Capture(exception), format, args).SourceException;
-
-        /// <summary>
-        ///     Trace a session exception without execution id
-        /// </summary>
-        public static Exception TraceExceptionSession(TraceEventType eventLevel, string eventType, string sessionId, Exception exception)
-         => TraceExceptionCore(eventLevel, eventType, sessionId, string.Empty, ExceptionDispatchInfo.Capture(exception), string.Empty).SourceException;
-
-        /// <summary>
-        ///     Trace a session exception without execution id
-        /// </summary>
-        public static ExceptionDispatchInfo TraceExceptionSession(TraceEventType eventLevel, string eventType, string sessionId, ExceptionDispatchInfo exceptionDispatchInfo)
-         => TraceExceptionCore(eventLevel, eventType, sessionId, string.Empty, exceptionDispatchInfo, string.Empty);
-
-        /// <summary>
-        ///     Trace a session exception and message without execution id
-        /// </summary>
-        public static Exception TraceExceptionSession(TraceEventType eventLevel, string eventType, string sessionId, Exception exception,
-            Func<string> generateMessage)
-         => TraceExceptionCore(eventLevel, eventType, sessionId, string.Empty, exception, generateMessage);
-
-        /// <summary>
-        ///     Trace a session exception and message without execution id
-        /// </summary>
-        public static Exception TraceExceptionSession(TraceEventType eventLevel, string eventType, string sessionId, Exception exception,
-            string format, params object[] args)
-         => TraceExceptionCore(eventLevel, eventType, sessionId, string.Empty, ExceptionDispatchInfo.Capture(exception), format, args).SourceException;
-
-        /// <summary>
-        ///     Trace a session exception and message without execution id
-        /// </summary>
-        public static ExceptionDispatchInfo TraceExceptionSession(TraceEventType eventLevel, string eventType, string sessionId, ExceptionDispatchInfo exceptionDispatchInfo,
-            string format, params object[] args)
-         => TraceExceptionCore(eventLevel, eventType, sessionId, string.Empty, exceptionDispatchInfo, format, args);
-
-        // helper methods
-        private static ExceptionDispatchInfo TraceExceptionCore(TraceEventType eventLevel, string eventType, string iid, string eid, ExceptionDispatchInfo exceptionDispatchInfo,
-            string format, params object[] args)
+    private static string FormatString(string formatted, params object[] args)
+    {
+        if (args is null || args.Length == 0)
         {
-            Exception exception = exceptionDispatchInfo.SourceException;
-
-            string newFormat = format + "\nException: " + exception.GetType() + " : " + exception.Message + "\n\t" +
-                               exception.StackTrace + "\nInner Exception: " +
-                               exception.InnerException?.ToString();
-
-            ExceptionHandlingWrapper(
-                () => DefaultEventSource.Log.TraceEvent(eventLevel, Source, iid, eid, string.Empty, FormatString(newFormat, args), eventType));
-
-            return exceptionDispatchInfo;
+            return formatted;
         }
 
-        private static Exception TraceExceptionCore(TraceEventType eventLevel, string eventType, string iid, string eid, Exception exception,
-            Func<string> generateMessage)
+        try
         {
-            string newFormat = generateMessage() + "\nException: " + exception.GetType() + " : " + exception.Message +
-                               "\n\t" + exception.StackTrace + "\nInner Exception: " +
-                               exception.InnerException?.ToString();
-
-            ExceptionHandlingWrapper(
-                () => DefaultEventSource.Log.TraceEvent(eventLevel, Source, iid, eid, string.Empty, newFormat, eventType));
-
-            return exception;
+            return string.Format(CultureInfo.InvariantCulture, formatted, args);
         }
-
-        private static string FormatString(string formatted, params object[] args)
+        catch (FormatException ex)
         {
-            if (args is null || args.Length == 0)
-            {
-                return formatted;
-            }
+            string message = string.Format(CultureInfo.InvariantCulture, "String FormatException for '{0}'. Args count: {1}. Exception: {2}", formatted, args.Length, ex);
+            DefaultEventSource.Log.TraceEvent(TraceEventType.Error, Source, string.Empty, string.Empty, string.Empty, message, "LogFormattingFailed");
 
-            try
-            {
-                return string.Format(CultureInfo.InvariantCulture, formatted, args);
-            }
-            catch (FormatException ex)
-            {
-                string message = string.Format(CultureInfo.InvariantCulture, "String FormatException for '{0}'. Args count: {1}. Exception: {2}", formatted, args.Length, ex);
-                DefaultEventSource.Log.TraceEvent(TraceEventType.Error, Source, string.Empty, string.Empty, string.Empty, message, "LogFormattingFailed");
-
-                return formatted;
-            }
+            return formatted;
         }
+    }
 
-        private static void ExceptionHandlingWrapper(Action innerFunc)
+    private static void ExceptionHandlingWrapper(Action innerFunc)
+    {
+        try
+        {
+            innerFunc();
+        }
+        catch (Exception exception) when (!Utils.IsFatal(exception))
         {
             try
             {
-                innerFunc();
+                DefaultEventSource.Log.TraceEvent(TraceEventType.Error, Source, string.Empty, string.Empty, string.Empty, exception, "WriteEventFailed");
             }
-            catch (Exception exception) when (!Utils.IsFatal(exception))
+            catch (Exception anotherException) when (!Utils.IsFatal(anotherException))
             {
-                try
-                {
-                    DefaultEventSource.Log.TraceEvent(TraceEventType.Error, Source, string.Empty, string.Empty, string.Empty, exception, "WriteEventFailed");
-                }
-                catch (Exception anotherException) when (!Utils.IsFatal(anotherException))
-                {
-                }
             }
         }
     }

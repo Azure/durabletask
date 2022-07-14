@@ -11,22 +11,21 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace TestApplication.Common.Orchestrations
-{
-    using System.Threading.Tasks;
-    using DurableTask.Core;
-    using TestApplication.Common.OrchestrationTasks;
+namespace TestApplication.Common.Orchestrations;
 
-    public class SimpleOrchestrationWithSubOrchestration : TaskOrchestration<string, string>
+using System.Threading.Tasks;
+using DurableTask.Core;
+using TestApplication.Common.OrchestrationTasks;
+
+public class SimpleOrchestrationWithSubOrchestration : TaskOrchestration<string, string>
+{
+    public override async Task<string> RunTask(OrchestrationContext context, string input)
     {
-        public override async Task<string> RunTask(OrchestrationContext context, string input)
-        {
-            IUserTasks userTasks = context.CreateClient<IUserTasks>();
-            var subOrch1 = context.CreateSubOrchestrationInstance<string>(typeof(SimpleOrchestrationWithTasks), input);
-            var subOrch2 = context.CreateSubOrchestrationInstance<string>(typeof(SimpleOrchestrationWithTasks), input);
-            var myTask = userTasks.GreetUserAsync("World");
-            await Task.WhenAll(subOrch1, subOrch2, myTask);
-            return $"TaskResult = {myTask.Result} , SubOrchestration1Result = {subOrch1.Result}, SubOrchestration2Result = {subOrch2.Result}";
-        }
+        IUserTasks userTasks = context.CreateClient<IUserTasks>();
+        var subOrch1 = context.CreateSubOrchestrationInstance<string>(typeof(SimpleOrchestrationWithTasks), input);
+        var subOrch2 = context.CreateSubOrchestrationInstance<string>(typeof(SimpleOrchestrationWithTasks), input);
+        var myTask = userTasks.GreetUserAsync("World");
+        await Task.WhenAll(subOrch1, subOrch2, myTask);
+        return $"TaskResult = {myTask.Result} , SubOrchestration1Result = {subOrch1.Result}, SubOrchestration2Result = {subOrch2.Result}";
     }
 }

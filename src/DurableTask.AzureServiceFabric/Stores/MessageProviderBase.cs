@@ -11,168 +11,167 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Stores
+namespace DurableTask.AzureServiceFabric.Stores;
+
+using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Fabric;
+using System.Threading;
+using System.Threading.Tasks;
+
+using DurableTask.AzureServiceFabric.TaskHelpers;
+using DurableTask.AzureServiceFabric.Tracing;
+
+using Microsoft.ServiceFabric.Data;
+using Microsoft.ServiceFabric.Data.Collections;
+
+[SuppressMessage("Microsoft.Design", "CA1001", Justification = "Disposing is done through StartAsync and StopAsync")]
+internal abstract class MessageProviderBase<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Diagnostics.CodeAnalysis;
-    using System.Fabric;
-    using System.Threading;
-    using System.Threading.Tasks;
+    private readonly string storeName;
+    private readonly AsyncManualResetEvent waitEvent = new AsyncManualResetEvent();
+    private readonly TimeSpan metricsInterval = TimeSpan.FromMinutes(1);
 
-    using DurableTask.AzureServiceFabric.TaskHelpers;
-    using DurableTask.AzureServiceFabric.Tracing;
-
-    using Microsoft.ServiceFabric.Data;
-    using Microsoft.ServiceFabric.Data.Collections;
-
-    [SuppressMessage("Microsoft.Design", "CA1001", Justification = "Disposing is done through StartAsync and StopAsync")]
-    internal abstract class MessageProviderBase<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
+    protected MessageProviderBase(IReliableStateManager stateManager, string storeName, CancellationToken token)
     {
-        private readonly string storeName;
-        private readonly AsyncManualResetEvent waitEvent = new AsyncManualResetEvent();
-        private readonly TimeSpan metricsInterval = TimeSpan.FromMinutes(1);
+        this.StateManager = stateManager;
+        this.storeName = storeName;
+        this.CancellationToken = token;
+    }
 
-        protected MessageProviderBase(IReliableStateManager stateManager, string storeName, CancellationToken token)
+    protected IReliableStateManager StateManager { get; }
+
+    protected CancellationToken CancellationToken { get; private set; }
+
+    protected IReliableDictionary<TKey, TValue> Store { get; private set; }
+
+    public virtual async Task StartAsync()
+    {
+        await this.InitializeStore();
+        await this.EnumerateItems(kvp => this.AddItemInMemory(kvp.Key, kvp.Value));
+        Task nowait = this.LogMetrics();
+    }
+
+    protected async Task InitializeStore()
+     => this.Store = await this.StateManager.GetOrAddAsync<IReliableDictionary<TKey, TValue>>(this.storeName);
+
+    public Task CompleteAsync(ITransaction tx, TKey key) => this.Store.TryRemoveAsync(tx, key);
+
+    public async Task CompleteBatchAsync(ITransaction tx, IEnumerable<TKey> keys)
+    {
+        foreach (TKey key in keys)
         {
-            this.StateManager = stateManager;
-            this.storeName = storeName;
-            this.CancellationToken = token;
+            await this.Store.TryRemoveAsync(tx, key);
         }
+    }
 
-        protected IReliableStateManager StateManager { get; }
+    /// <summary>
+    /// Caller has to pass in a transaction and must call SendComplete with the same item
+    /// after the transaction commit succeeded.
+    /// </summary>
+    public Task SendBeginAsync(ITransaction tx, Message<TKey, TValue> item)
+     => this.Store.TryAddAsync(tx, item.Key, item.Value);
 
-        protected CancellationToken CancellationToken { get; private set; }
+    public void SendComplete(Message<TKey, TValue> item)
+    {
+        this.AddItemInMemory(item.Key, item.Value);
+        this.waitEvent.Set();
+    }
 
-        protected IReliableDictionary<TKey, TValue> Store { get; private set; }
-
-        public virtual async Task StartAsync()
+    /// <summary>
+    /// Caller has to pass in a transaction and must call SendBatchComplete with the same items
+    /// after the transaction commit succeeded.
+    /// </summary>
+    public async Task SendBatchBeginAsync(ITransaction tx, IEnumerable<Message<TKey, TValue>> items)
+    {
+        foreach (Message<TKey, TValue> item in items)
         {
-            await this.InitializeStore();
-            await this.EnumerateItems(kvp => this.AddItemInMemory(kvp.Key, kvp.Value));
-            Task nowait = this.LogMetrics();
+            await this.Store.TryAddAsync(tx, item.Key, item.Value);
         }
+    }
 
-        protected async Task InitializeStore()
-         => this.Store = await this.StateManager.GetOrAddAsync<IReliableDictionary<TKey, TValue>>(this.storeName);
-
-        public Task CompleteAsync(ITransaction tx, TKey key) => this.Store.TryRemoveAsync(tx, key);
-
-        public async Task CompleteBatchAsync(ITransaction tx, IEnumerable<TKey> keys)
-        {
-            foreach (TKey key in keys)
-            {
-                await this.Store.TryRemoveAsync(tx, key);
-            }
-        }
-
-        /// <summary>
-        /// Caller has to pass in a transaction and must call SendComplete with the same item
-        /// after the transaction commit succeeded.
-        /// </summary>
-        public Task SendBeginAsync(ITransaction tx, Message<TKey, TValue> item)
-         => this.Store.TryAddAsync(tx, item.Key, item.Value);
-
-        public void SendComplete(Message<TKey, TValue> item)
+    public void SendBatchComplete(IEnumerable<Message<TKey, TValue>> items)
+    {
+        foreach (Message<TKey, TValue> item in items)
         {
             this.AddItemInMemory(item.Key, item.Value);
-            this.waitEvent.Set();
         }
+        this.waitEvent.Set();
+    }
 
-        /// <summary>
-        /// Caller has to pass in a transaction and must call SendBatchComplete with the same items
-        /// after the transaction commit succeeded.
-        /// </summary>
-        public async Task SendBatchBeginAsync(ITransaction tx, IEnumerable<Message<TKey, TValue>> items)
+    protected Task<Message<TKey, TValue>> GetValueAsync(TKey key)
+     => RetryHelper.ExecuteWithRetryOnTransient(async () =>
         {
-            foreach (Message<TKey, TValue> item in items)
+            using (var tx = this.StateManager.CreateTransaction())
             {
-                await this.Store.TryAddAsync(tx, item.Key, item.Value);
-            }
-        }
-
-        public void SendBatchComplete(IEnumerable<Message<TKey, TValue>> items)
-        {
-            foreach (Message<TKey, TValue> item in items)
-            {
-                this.AddItemInMemory(item.Key, item.Value);
-            }
-            this.waitEvent.Set();
-        }
-
-        protected Task<Message<TKey, TValue>> GetValueAsync(TKey key)
-         => RetryHelper.ExecuteWithRetryOnTransient(async () =>
-            {
-                using (var tx = this.StateManager.CreateTransaction())
+                var result = await this.Store.TryGetValueAsync(tx, key);
+                if (result.HasValue)
                 {
-                    var result = await this.Store.TryGetValueAsync(tx, key);
-                    if (result.HasValue)
-                    {
-                        return new Message<TKey, TValue>(key, result.Value);
-                    }
-                    var errorMessage = $"Internal Server Error: Did not find an item in reliable dictionary while having the item key {key} in memory";
-                    ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
-                    throw new Exception(errorMessage);
+                    return new Message<TKey, TValue>(key, result.Value);
                 }
-            }, uniqueActionIdentifier: $"Key = {key}, Action = MessageProviderBase.GetValueAsync, StoreName : {this.storeName}");
+                var errorMessage = $"Internal Server Error: Did not find an item in reliable dictionary while having the item key {key} in memory";
+                ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
+                throw new Exception(errorMessage);
+            }
+        }, uniqueActionIdentifier: $"Key = {key}, Action = MessageProviderBase.GetValueAsync, StoreName : {this.storeName}");
 
-        protected Task EnumerateItems(Action<KeyValuePair<TKey, TValue>> itemAction)
-         => RetryHelper.ExecuteWithRetryOnTransient(async () =>
+    protected Task EnumerateItems(Action<KeyValuePair<TKey, TValue>> itemAction)
+     => RetryHelper.ExecuteWithRetryOnTransient(async () =>
+        {
+            using (var tx = this.StateManager.CreateTransaction())
             {
-                using (var tx = this.StateManager.CreateTransaction())
-                {
-                    var count = await this.Store.GetCountAsync(tx);
+                var count = await this.Store.GetCountAsync(tx);
 
-                    if (count > 0)
+                if (count > 0)
+                {
+                    var enumerable = await this.Store.CreateEnumerableAsync(tx, EnumerationMode.Unordered);
+                    using (var enumerator = enumerable.GetAsyncEnumerator())
                     {
-                        var enumerable = await this.Store.CreateEnumerableAsync(tx, EnumerationMode.Unordered);
-                        using (var enumerator = enumerable.GetAsyncEnumerator())
+                        while (await enumerator.MoveNextAsync(this.CancellationToken))
                         {
-                            while (await enumerator.MoveNextAsync(this.CancellationToken))
-                            {
-                                itemAction(enumerator.Current);
-                            }
+                            itemAction(enumerator.Current);
                         }
                     }
                 }
-            }, uniqueActionIdentifier: $"Action = MessageProviderBase.EnumerateItems, StoreName : {this.storeName}");
-
-        public Task EnsureStoreInitialized()
-        {
-            if (this.Store is null)
-            {
-                return this.InitializeStore();
             }
+        }, uniqueActionIdentifier: $"Action = MessageProviderBase.EnumerateItems, StoreName : {this.storeName}");
 
-            return Task.CompletedTask;
+    public Task EnsureStoreInitialized()
+    {
+        if (this.Store is null)
+        {
+            return this.InitializeStore();
         }
 
-        protected Task<bool> WaitForItemsAsync(TimeSpan timeout)
-        {
-            this.waitEvent.Reset();
-            return this.waitEvent.WaitAsync(timeout, this.CancellationToken);
-        }
-
-        protected void SetWaiterForNewItems() => this.waitEvent.Set();
-
-        protected abstract void AddItemInMemory(TKey key, TValue value);
-
-        protected bool IsStopped() => this.CancellationToken.IsCancellationRequested;
-
-        protected Task LogMetrics() => Utils.RunBackgroundJob(async () =>
-        {
-            try
-            {
-                using (ITransaction tx = this.StateManager.CreateTransaction())
-                {
-                    long count = await this.Store.GetCountAsync(tx);
-                    ServiceFabricProviderEventSource.Tracing.LogStoreCount(this.storeName, count);
-                }
-            }
-            catch (FabricObjectClosedException)
-            {
-                ServiceFabricProviderEventSource.Tracing.ExceptionWhileRunningBackgroundJob("LogMetrics", "Fabric object is closed while running the loop action");
-            }
-        }, initialDelay: this.metricsInterval, delayOnSuccess: this.metricsInterval, delayOnException: this.metricsInterval, actionName: $"Log Store Count of {this.storeName}", token: this.CancellationToken);
+        return Task.CompletedTask;
     }
+
+    protected Task<bool> WaitForItemsAsync(TimeSpan timeout)
+    {
+        this.waitEvent.Reset();
+        return this.waitEvent.WaitAsync(timeout, this.CancellationToken);
+    }
+
+    protected void SetWaiterForNewItems() => this.waitEvent.Set();
+
+    protected abstract void AddItemInMemory(TKey key, TValue value);
+
+    protected bool IsStopped() => this.CancellationToken.IsCancellationRequested;
+
+    protected Task LogMetrics() => Utils.RunBackgroundJob(async () =>
+    {
+        try
+        {
+            using (ITransaction tx = this.StateManager.CreateTransaction())
+            {
+                long count = await this.Store.GetCountAsync(tx);
+                ServiceFabricProviderEventSource.Tracing.LogStoreCount(this.storeName, count);
+            }
+        }
+        catch (FabricObjectClosedException)
+        {
+            ServiceFabricProviderEventSource.Tracing.ExceptionWhileRunningBackgroundJob("LogMetrics", "Fabric object is closed while running the loop action");
+        }
+    }, initialDelay: this.metricsInterval, delayOnSuccess: this.metricsInterval, delayOnException: this.metricsInterval, actionName: $"Log Store Count of {this.storeName}", token: this.CancellationToken);
 }

@@ -11,42 +11,41 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.AzureStorage.Storage
+namespace DurableTask.AzureStorage.Storage;
+
+using System;
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Blob.Protocol;
+
+[Serializable]
+class DurableTaskStorageException : Exception
 {
-    using System;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Blob.Protocol;
-
-    [Serializable]
-    class DurableTaskStorageException : Exception
+    public DurableTaskStorageException()
     {
-        public DurableTaskStorageException()
-        {
-        }
-
-        public DurableTaskStorageException(string message)
-            : base(message)
-        {
-        }
-
-        public DurableTaskStorageException(string message, Exception inner)
-            : base(message, inner)
-        {
-        }
-
-        public DurableTaskStorageException(StorageException storageException)
-            : base(storageException.Message, storageException)
-        {
-            this.HttpStatusCode = storageException.RequestInformation.HttpStatusCode;
-            StorageExtendedErrorInformation extendedErrorInfo = storageException.RequestInformation.ExtendedErrorInformation;
-            if (extendedErrorInfo?.ErrorCode == BlobErrorCodeStrings.LeaseLost)
-            {
-                LeaseLost = true;
-            }
-        }
-
-        public int HttpStatusCode { get; }
-
-        public bool LeaseLost { get; }
     }
+
+    public DurableTaskStorageException(string message)
+        : base(message)
+    {
+    }
+
+    public DurableTaskStorageException(string message, Exception inner)
+        : base(message, inner)
+    {
+    }
+
+    public DurableTaskStorageException(StorageException storageException)
+        : base(storageException.Message, storageException)
+    {
+        this.HttpStatusCode = storageException.RequestInformation.HttpStatusCode;
+        StorageExtendedErrorInformation extendedErrorInfo = storageException.RequestInformation.ExtendedErrorInformation;
+        if (extendedErrorInfo?.ErrorCode == BlobErrorCodeStrings.LeaseLost)
+        {
+            LeaseLost = true;
+        }
+    }
+
+    public int HttpStatusCode { get; }
+
+    public bool LeaseLost { get; }
 }

@@ -11,44 +11,43 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+/// <summary>
+/// Class to hold context for a WorkItemDispatcher call
+/// </summary>
+public class WorkItemDispatcherContext
 {
     /// <summary>
-    /// Class to hold context for a WorkItemDispatcher call
+    /// Creates a new instance of the WorkItemDispatcherContext class
     /// </summary>
-    public class WorkItemDispatcherContext
+    /// <param name="name">The context name</param>
+    /// <param name="id">The context id</param>
+    /// <param name="dispatcherId">The context dispatcher id</param>
+    public WorkItemDispatcherContext(string name, string id, string dispatcherId)
     {
-        /// <summary>
-        /// Creates a new instance of the WorkItemDispatcherContext class
-        /// </summary>
-        /// <param name="name">The context name</param>
-        /// <param name="id">The context id</param>
-        /// <param name="dispatcherId">The context dispatcher id</param>
-        public WorkItemDispatcherContext(string name, string id, string dispatcherId)
-        {
-            this.Name = name;
-            this.Id = id;
-            this.DispatcherId = dispatcherId;
-        }
-
-        /// <summary>
-        /// Gets the name from the context
-        /// </summary>
-        public string Name { get; }
-
-        /// <summary>
-        /// Gets the id from the context
-        /// </summary>
-        public string Id { get; }
-
-        /// <summary>
-        /// Gets the dispatcher id from the context
-        /// </summary>
-        public string DispatcherId { get; }
-
-        internal string GetDisplayName() => $"{this.Name}-{this.Id}-{this.DispatcherId}";
-
-        /// <inheritdoc />
-        public override string ToString() => this.GetDisplayName();
+        this.Name = name;
+        this.Id = id;
+        this.DispatcherId = dispatcherId;
     }
+
+    /// <summary>
+    /// Gets the name from the context
+    /// </summary>
+    public string Name { get; }
+
+    /// <summary>
+    /// Gets the id from the context
+    /// </summary>
+    public string Id { get; }
+
+    /// <summary>
+    /// Gets the dispatcher id from the context
+    /// </summary>
+    public string DispatcherId { get; }
+
+    internal string GetDisplayName() => $"{this.Name}-{this.Id}-{this.DispatcherId}";
+
+    /// <inheritdoc />
+    public override string ToString() => this.GetDisplayName();
 }

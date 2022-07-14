@@ -11,158 +11,157 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Tests
+namespace DurableTask.AzureStorage.Tests;
+
+using System;
+using System.Diagnostics;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using DurableTask.Core;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+
+internal class TestInstance<T>
 {
-    using System;
-    using System.Diagnostics;
-    using System.Text.RegularExpressions;
-    using System.Threading.Tasks;
-    using DurableTask.Core;
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using Newtonsoft.Json;
-    using Newtonsoft.Json.Linq;
+    private readonly TaskHubClient client;
+    private readonly OrchestrationInstance instance;
+    private readonly DateTime startTime;
+    private readonly T input;
 
-    internal class TestInstance<T>
+    public TestInstance(
+        TaskHubClient client,
+        OrchestrationInstance instance,
+        DateTime startTime,
+        T input)
     {
-        private readonly TaskHubClient client;
-        private readonly OrchestrationInstance instance;
-        private readonly DateTime startTime;
-        private readonly T input;
+        this.client = client;
+        this.instance = instance;
+        this.startTime = startTime;
+        this.input = input;
+    }
 
-        public TestInstance(
-            TaskHubClient client,
-            OrchestrationInstance instance,
-            DateTime startTime,
-            T input)
+    public string InstanceId => this.instance?.InstanceId;
+
+    public string ExecutionId => this.instance?.ExecutionId;
+
+    private OrchestrationInstance GetInstanceForAnyExecution() => new OrchestrationInstance
+    {
+        InstanceId = this.instance.InstanceId,
+    };
+
+    public async Task<OrchestrationState> WaitForStart(TimeSpan timeout = default)
+    {
+        AdjustTimeout(ref timeout);
+
+        Stopwatch sw = Stopwatch.StartNew();
+        do
         {
-            this.client = client;
-            this.instance = instance;
-            this.startTime = startTime;
-            this.input = input;
-        }
-
-        public string InstanceId => this.instance?.InstanceId;
-
-        public string ExecutionId => this.instance?.ExecutionId;
-
-        private OrchestrationInstance GetInstanceForAnyExecution() => new OrchestrationInstance
-        {
-            InstanceId = this.instance.InstanceId,
-        };
-
-        public async Task<OrchestrationState> WaitForStart(TimeSpan timeout = default)
-        {
-            AdjustTimeout(ref timeout);
-
-            Stopwatch sw = Stopwatch.StartNew();
-            do
+            OrchestrationState state = await this.GetStateAsync();
+            if (state is not null && state.OrchestrationStatus != OrchestrationStatus.Pending)
             {
-                OrchestrationState state = await this.GetStateAsync();
-                if (state is not null && state.OrchestrationStatus != OrchestrationStatus.Pending)
-                {
-                    return state;
-                }
-
-                await Task.Delay(TimeSpan.FromMilliseconds(500));
-
-            } while (sw.Elapsed < timeout);
-
-            throw new TimeoutException($"Orchestration with instance ID '{this.instance.InstanceId}' failed to start.");
-        }
-
-        public async Task<OrchestrationState> WaitForCompletion(
-            TimeSpan timeout = default,
-            OrchestrationStatus? expectedStatus = OrchestrationStatus.Completed,
-            object expectedOutput = null,
-            string expectedOutputRegex = null,
-            bool continuedAsNew = false)
-        {
-            AdjustTimeout(ref timeout);
-
-            OrchestrationState state = await this.client.WaitForOrchestrationAsync(this.GetInstanceForAnyExecution(), timeout);
-            Assert.IsNotNull(state);
-            if (expectedStatus is not null)
-            {
-                Assert.AreEqual(expectedStatus, state.OrchestrationStatus);
+                return state;
             }
 
-            if (!continuedAsNew)
-            {
-                if (this.input is not null)
-                {
-                    Assert.AreEqual(JToken.FromObject(this.input).ToString(), JToken.Parse(state.Input).ToString());
-                }
-                else
-                {
-                    Assert.IsNull(state.Input);
-                }
-            }
+            await Task.Delay(TimeSpan.FromMilliseconds(500));
 
-            // For created time, account for potential clock skew
-            Assert.IsTrue(state.CreatedTime >= this.startTime.AddMinutes(-5));
-            Assert.IsTrue(state.LastUpdatedTime > state.CreatedTime);
-            Assert.IsTrue(state.CompletedTime > state.CreatedTime);
-            Assert.IsNotNull(state.OrchestrationInstance);
-            Assert.AreEqual(this.instance.InstanceId, state.OrchestrationInstance.InstanceId);
+        } while (sw.Elapsed < timeout);
 
-            // Make sure there is an ExecutionId, but don't require it to match any particular value
-            Assert.IsNotNull(state.OrchestrationInstance.ExecutionId);
+        throw new TimeoutException($"Orchestration with instance ID '{this.instance.InstanceId}' failed to start.");
+    }
 
-            if (expectedOutput is not null)
-            {
-                Assert.IsNotNull(state.Output);
-                try
-                {
-                    // DTFx usually encodes outputs as JSON values. The exception is error messages.
-                    // If this is an error message, we'll throw here and try the logic in the catch block.
-                    JToken.Parse(state.Output);
-                    Assert.AreEqual(JToken.FromObject(expectedOutput).ToString(Formatting.None), state.Output);
-                }
-                catch (JsonReaderException)
-                {
-                    Assert.AreEqual(expectedOutput, state?.Output);
-                }
-            }
+    public async Task<OrchestrationState> WaitForCompletion(
+        TimeSpan timeout = default,
+        OrchestrationStatus? expectedStatus = OrchestrationStatus.Completed,
+        object expectedOutput = null,
+        string expectedOutputRegex = null,
+        bool continuedAsNew = false)
+    {
+        AdjustTimeout(ref timeout);
 
-            if (expectedOutputRegex is not null)
-            {
-                Assert.IsTrue(
-                    Regex.IsMatch(state.Output, expectedOutputRegex),
-                    $"The output '{state.Output}' doesn't match the regex pattern '{expectedOutputRegex}'.");
-            }
-
-            return state;
+        OrchestrationState state = await this.client.WaitForOrchestrationAsync(this.GetInstanceForAnyExecution(), timeout);
+        Assert.IsNotNull(state);
+        if (expectedStatus is not null)
+        {
+            Assert.AreEqual(expectedStatus, state.OrchestrationStatus);
         }
 
-        internal Task<OrchestrationState> GetStateAsync()
+        if (!continuedAsNew)
         {
-            return this.client.GetOrchestrationStateAsync(this.instance);
-        }
-
-        internal Task RaiseEventAsync(string name, object value)
-        {
-            return this.client.RaiseEventAsync(this.instance, name, value);
-        }
-
-        internal Task TerminateAsync(string reason)
-        {
-            return this.client.TerminateInstanceAsync(this.instance, reason);
-        }
-
-        private static void AdjustTimeout(ref TimeSpan timeout)
-        {
-            if (timeout == default)
+            if (this.input is not null)
             {
-                timeout = TimeSpan.FromSeconds(10);
+                Assert.AreEqual(JToken.FromObject(this.input).ToString(), JToken.Parse(state.Input).ToString());
             }
-
-            if (Debugger.IsAttached)
+            else
             {
-                TimeSpan debuggingTimeout = TimeSpan.FromMinutes(5);
-                if (debuggingTimeout > timeout)
-                {
-                    timeout = debuggingTimeout;
-                }
+                Assert.IsNull(state.Input);
+            }
+        }
+
+        // For created time, account for potential clock skew
+        Assert.IsTrue(state.CreatedTime >= this.startTime.AddMinutes(-5));
+        Assert.IsTrue(state.LastUpdatedTime > state.CreatedTime);
+        Assert.IsTrue(state.CompletedTime > state.CreatedTime);
+        Assert.IsNotNull(state.OrchestrationInstance);
+        Assert.AreEqual(this.instance.InstanceId, state.OrchestrationInstance.InstanceId);
+
+        // Make sure there is an ExecutionId, but don't require it to match any particular value
+        Assert.IsNotNull(state.OrchestrationInstance.ExecutionId);
+
+        if (expectedOutput is not null)
+        {
+            Assert.IsNotNull(state.Output);
+            try
+            {
+                // DTFx usually encodes outputs as JSON values. The exception is error messages.
+                // If this is an error message, we'll throw here and try the logic in the catch block.
+                JToken.Parse(state.Output);
+                Assert.AreEqual(JToken.FromObject(expectedOutput).ToString(Formatting.None), state.Output);
+            }
+            catch (JsonReaderException)
+            {
+                Assert.AreEqual(expectedOutput, state?.Output);
+            }
+        }
+
+        if (expectedOutputRegex is not null)
+        {
+            Assert.IsTrue(
+                Regex.IsMatch(state.Output, expectedOutputRegex),
+                $"The output '{state.Output}' doesn't match the regex pattern '{expectedOutputRegex}'.");
+        }
+
+        return state;
+    }
+
+    internal Task<OrchestrationState> GetStateAsync()
+    {
+        return this.client.GetOrchestrationStateAsync(this.instance);
+    }
+
+    internal Task RaiseEventAsync(string name, object value)
+    {
+        return this.client.RaiseEventAsync(this.instance, name, value);
+    }
+
+    internal Task TerminateAsync(string reason)
+    {
+        return this.client.TerminateInstanceAsync(this.instance, reason);
+    }
+
+    private static void AdjustTimeout(ref TimeSpan timeout)
+    {
+        if (timeout == default)
+        {
+            timeout = TimeSpan.FromSeconds(10);
+        }
+
+        if (Debugger.IsAttached)
+        {
+            TimeSpan debuggingTimeout = TimeSpan.FromMinutes(5);
+            if (debuggingTimeout > timeout)
+            {
+                timeout = debuggingTimeout;
             }
         }
     }

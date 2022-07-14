@@ -11,56 +11,55 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace TestApplication.Common.Orchestrations
+namespace TestApplication.Common.Orchestrations;
+
+using System;
+using System.Threading.Tasks;
+
+using DurableTask.Core;
+using DurableTask.Core.Exceptions;
+
+using TestApplication.Common.OrchestrationTasks;
+
+public class OrchestrationRunningIntoRetry : TaskOrchestration<int, int>
 {
-    using System;
-    using System.Threading.Tasks;
+    private CounterException latestException;
 
-    using DurableTask.Core;
-    using DurableTask.Core.Exceptions;
-
-    using TestApplication.Common.OrchestrationTasks;
-
-    public class OrchestrationRunningIntoRetry : TaskOrchestration<int, int>
+    public override async Task<int> RunTask(OrchestrationContext context, int numberOfRetriesToEnforce)
     {
-        private CounterException latestException;
-
-        public override async Task<int> RunTask(OrchestrationContext context, int numberOfRetriesToEnforce)
+        var retryOptions = new RetryOptions(TimeSpan.FromSeconds(1), 5)
         {
-            var retryOptions = new RetryOptions(TimeSpan.FromSeconds(1), 5)
-            {
-                BackoffCoefficient = 2,
-                MaxRetryInterval = TimeSpan.FromMinutes(1),
-                Handle = RetryExceptionHandler
-            };
-            ITestTasks testTasks = context.CreateRetryableClient<ITestTasks>(retryOptions);
-            var result = await testTasks.ThrowExceptionAsync(this.latestException?.Counter - 1 ?? numberOfRetriesToEnforce);
+            BackoffCoefficient = 2,
+            MaxRetryInterval = TimeSpan.FromMinutes(1),
+            Handle = RetryExceptionHandler
+        };
+        ITestTasks testTasks = context.CreateRetryableClient<ITestTasks>(retryOptions);
+        var result = await testTasks.ThrowExceptionAsync(this.latestException?.Counter - 1 ?? numberOfRetriesToEnforce);
 
-            if (result)
-            {
-                return numberOfRetriesToEnforce;
-            }
-
-            throw new Exception($"Unexpected exception thrown from {nameof(OrchestrationRunningIntoRetry)}.");
+        if (result)
+        {
+            return numberOfRetriesToEnforce;
         }
 
-        private bool RetryExceptionHandler(Exception e)
+        throw new Exception($"Unexpected exception thrown from {nameof(OrchestrationRunningIntoRetry)}.");
+    }
+
+    private bool RetryExceptionHandler(Exception e)
+    {
+        TaskFailedException tfe = e as TaskFailedException;
+
+        if (tfe is not null && tfe.InnerException is not null)
         {
-            TaskFailedException tfe = e as TaskFailedException;
-
-            if (tfe is not null && tfe.InnerException is not null)
-            {
-                e = tfe.InnerException;
-            }
-
-            CounterException ce = e as CounterException;
-            if (ce is not null)
-            {
-                latestException = ce;
-                return true;
-            }
-
-            return false;
+            e = tfe.InnerException;
         }
+
+        CounterException ce = e as CounterException;
+        if (ce is not null)
+        {
+            latestException = ce;
+            return true;
+        }
+
+        return false;
     }
 }

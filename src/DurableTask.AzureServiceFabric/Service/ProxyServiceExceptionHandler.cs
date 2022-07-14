@@ -11,28 +11,27 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Service
+namespace DurableTask.AzureServiceFabric.Service;
+
+using System;
+using System.Net;
+using System.Net.Http;
+using System.Web.Http.ExceptionHandling;
+using System.Web.Http.Results;
+
+using DurableTask.AzureServiceFabric.Tracing;
+
+internal class ProxyServiceExceptionHandler : ExceptionHandler
 {
-    using System;
-    using System.Net;
-    using System.Net.Http;
-    using System.Web.Http.ExceptionHandling;
-    using System.Web.Http.Results;
-
-    using DurableTask.AzureServiceFabric.Tracing;
-
-    internal class ProxyServiceExceptionHandler : ExceptionHandler
+    public override void Handle(ExceptionHandlerContext context)
     {
-        public override void Handle(ExceptionHandlerContext context)
-        {
-            var activityId = Guid.NewGuid().ToString("D");
-            ServiceFabricProviderEventSource.Tracing.LogProxyServiceError(activityId,
-                context.Request.Method.ToString(),
-                context.Request.RequestUri.AbsolutePath,
-                context.Exception);
+        var activityId = Guid.NewGuid().ToString("D");
+        ServiceFabricProviderEventSource.Tracing.LogProxyServiceError(activityId,
+            context.Request.Method.ToString(),
+            context.Request.RequestUri.AbsolutePath,
+            context.Exception);
 
-            HttpResponseMessage response = context.Request.CreateResponse(HttpStatusCode.InternalServerError, context.Exception);
-            context.Result = new ResponseMessageResult(response);
-        }
+        HttpResponseMessage response = context.Request.CreateResponse(HttpStatusCode.InternalServerError, context.Exception);
+        context.Result = new ResponseMessageResult(response);
     }
 }

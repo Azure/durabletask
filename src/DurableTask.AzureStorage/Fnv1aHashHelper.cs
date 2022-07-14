@@ -11,55 +11,54 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage
+namespace DurableTask.AzureStorage;
+
+using System.Text;
+
+/// <summary>
+/// Fast, non-cryptographic hash function helper.
+/// </summary>
+/// <remarks>
+/// See https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function.
+/// Tested with production data and random guids. The result was good distribution.
+/// </remarks>
+static class Fnv1aHashHelper
 {
-    using System.Text;
+    const uint FnvPrime = unchecked(16777619);
+    const uint FnvOffsetBasis = unchecked(2166136261);
 
-    /// <summary>
-    /// Fast, non-cryptographic hash function helper.
-    /// </summary>
-    /// <remarks>
-    /// See https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function.
-    /// Tested with production data and random guids. The result was good distribution.
-    /// </remarks>
-    static class Fnv1aHashHelper
+    public static uint ComputeHash(string value)
     {
-        const uint FnvPrime = unchecked(16777619);
-        const uint FnvOffsetBasis = unchecked(2166136261);
+        return ComputeHash(value, encoding: null);
+    }
 
-        public static uint ComputeHash(string value)
-        {
-            return ComputeHash(value, encoding: null);
-        }
+    public static uint ComputeHash(string value, Encoding encoding)
+    {
+        return ComputeHash(value, encoding, hash: FnvOffsetBasis);
+    }
 
-        public static uint ComputeHash(string value, Encoding encoding)
-        {
-            return ComputeHash(value, encoding, hash: FnvOffsetBasis);
-        }
+    public static uint ComputeHash(string value, Encoding encoding, uint hash)
+    {
+        byte[] bytes = (encoding ?? Encoding.UTF8).GetBytes(value);
+        return ComputeHash(bytes, hash);
+    }
 
-        public static uint ComputeHash(string value, Encoding encoding, uint hash)
-        {
-            byte[] bytes = (encoding ?? Encoding.UTF8).GetBytes(value);
-            return ComputeHash(bytes, hash);
-        }
+    public static uint ComputeHash(byte[] array)
+    {
+        return ComputeHash(array, hash: FnvOffsetBasis);
+    }
 
-        public static uint ComputeHash(byte[] array)
+    public static uint ComputeHash(byte[] array, uint hash)
+    {
+        for (var i = 0; i < array.Length; i++)
         {
-            return ComputeHash(array, hash: FnvOffsetBasis);
-        }
-
-        public static uint ComputeHash(byte[] array, uint hash)
-        {
-            for (var i = 0; i < array.Length; i++)
+            unchecked
             {
-                unchecked
-                {
-                    hash ^= array[i];
-                    hash *= FnvPrime;
-                }
+                hash ^= array[i];
+                hash *= FnvPrime;
             }
-
-            return hash;
         }
+
+        return hash;
     }
 }

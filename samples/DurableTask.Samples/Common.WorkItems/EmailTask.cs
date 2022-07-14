@@ -11,56 +11,55 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Samples.Common.WorkItems
+namespace DurableTask.Samples.Common.WorkItems;
+
+using System;
+using System.Configuration;
+using System.Net;
+using System.Net.Mail;
+using DurableTask.Core;
+
+public sealed class EmailInput
 {
-    using System;
-    using System.Configuration;
-    using System.Net;
-    using System.Net.Mail;
-    using DurableTask.Core;
+    public string To;
+    public string ToAddress;
+    public string Subject;
+    public string Body;
+}
 
-    public sealed class EmailInput
+public sealed class EmailTask : TaskActivity<EmailInput, object>
+{
+    private static readonly MailAddress FromAddress = new MailAddress("azuresbtest@outlook.com", "Service Bus Task Mailer");
+
+    protected override object Execute(TaskContext context, EmailInput input)
     {
-        public string To;
-        public string ToAddress;
-        public string Subject;
-        public string Body;
-    }
+        var toAddress = new MailAddress(input.ToAddress, input.To);
 
-    public sealed class EmailTask : TaskActivity<EmailInput, object>
-    {
-        private static readonly MailAddress FromAddress = new MailAddress("azuresbtest@outlook.com", "Service Bus Task Mailer");
-
-        protected override object Execute(TaskContext context, EmailInput input)
+        string networkCredentials = ConfigurationManager.AppSettings["SmtpNetworkCredentials"];
+        if (string.IsNullOrWhiteSpace(networkCredentials))
         {
-            var toAddress = new MailAddress(input.ToAddress, input.To);
-
-            string networkCredentials = ConfigurationManager.AppSettings["SmtpNetworkCredentials"];
-            if (string.IsNullOrWhiteSpace(networkCredentials))
-            {
-                throw new ArgumentException("Network Credentials not set for SMTP client, set the 'SmtpNetworkCredentials' parameter in App.config");
-            }
-
-            var smtp = new SmtpClient
-            {
-                Host = "smtp.live.com",
-                Port = 587,
-                EnableSsl = true,
-                DeliveryMethod = SmtpDeliveryMethod.Network,
-                UseDefaultCredentials = false,
-                Credentials = new NetworkCredential(FromAddress.Address, networkCredentials)
-            };
-
-            using (var message = new MailMessage(FromAddress, toAddress)
-            {
-                Subject = input.Subject,
-                Body = input.Body
-            })
-            {
-                smtp.Send(message);
-            }
-
-            return null;
+            throw new ArgumentException("Network Credentials not set for SMTP client, set the 'SmtpNetworkCredentials' parameter in App.config");
         }
+
+        var smtp = new SmtpClient
+        {
+            Host = "smtp.live.com",
+            Port = 587,
+            EnableSsl = true,
+            DeliveryMethod = SmtpDeliveryMethod.Network,
+            UseDefaultCredentials = false,
+            Credentials = new NetworkCredential(FromAddress.Address, networkCredentials)
+        };
+
+        using (var message = new MailMessage(FromAddress, toAddress)
+        {
+            Subject = input.Subject,
+            Body = input.Body
+        })
+        {
+            smtp.Send(message);
+        }
+
+        return null;
     }
 }

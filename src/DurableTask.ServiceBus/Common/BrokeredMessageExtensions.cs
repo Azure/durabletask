@@ -11,28 +11,27 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceBus.Common.Abstraction
+namespace DurableTask.ServiceBus.Common.Abstraction;
+
+using System;
+using DurableTask.Core.Common;
+
+/// <summary>
+/// Extension methods for BrokeredMessage
+/// </summary>
+public static class BrokeredMessageExtensions
 {
-    using System;
-    using DurableTask.Core.Common;
-
     /// <summary>
-    /// Extension methods for BrokeredMessage
-    /// </summary>
-    public static class BrokeredMessageExtensions
+    /// Returns delivery latency of the message
+    /// </summary>        
+    public static double DeliveryLatency(this Message message)
     {
-        /// <summary>
-        /// Returns delivery latency of the message
-        /// </summary>        
-        public static double DeliveryLatency(this Message message)
+        if (message is null)
         {
-            if (message is null)
-            {
-                return 0;
-            }
-
-            DateTime actualEnqueueTimeUtc = (!message.ScheduledEnqueueTimeUtc.IsSet()) ? message.SystemProperties.EnqueuedTimeUtc : message.ScheduledEnqueueTimeUtc;
-            return (DateTime.UtcNow - actualEnqueueTimeUtc).TotalMilliseconds;
+            return 0;
         }
+
+        DateTime actualEnqueueTimeUtc = (!message.ScheduledEnqueueTimeUtc.IsSet()) ? message.SystemProperties.EnqueuedTimeUtc : message.ScheduledEnqueueTimeUtc;
+        return (DateTime.UtcNow - actualEnqueueTimeUtc).TotalMilliseconds;
     }
 }

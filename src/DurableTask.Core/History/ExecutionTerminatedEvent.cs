@@ -11,32 +11,31 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.History
+namespace DurableTask.Core.History;
+
+using System.Runtime.Serialization;
+
+/// <summary>
+/// A history event for orchestration abrupt termination
+/// </summary>
+[DataContract]
+public class ExecutionTerminatedEvent : HistoryEvent
 {
-    using System.Runtime.Serialization;
+    /// <summary>
+    /// Creates a new ExecutionTerminatedEvent with the supplied params
+    /// </summary>
+    /// <param name="eventId">The event id of the history event</param>
+    /// <param name="input">The serialized input of the termination event</param>
+    public ExecutionTerminatedEvent(int eventId, string input) : base(eventId) => Input = input;
 
     /// <summary>
-    /// A history event for orchestration abrupt termination
+    /// Gets the event type
     /// </summary>
-    [DataContract]
-    public class ExecutionTerminatedEvent : HistoryEvent
-    {
-        /// <summary>
-        /// Creates a new ExecutionTerminatedEvent with the supplied params
-        /// </summary>
-        /// <param name="eventId">The event id of the history event</param>
-        /// <param name="input">The serialized input of the termination event</param>
-        public ExecutionTerminatedEvent(int eventId, string input) : base(eventId) => Input = input;
+    public override EventType EventType => EventType.ExecutionTerminated;
 
-        /// <summary>
-        /// Gets the event type
-        /// </summary>
-        public override EventType EventType => EventType.ExecutionTerminated;
-
-        /// <summary>
-        /// Gets or sets the serialized input for the the termination event
-        /// </summary>
-        [DataMember]
-        public string Input { get; set; }
-    }
+    /// <summary>
+    /// Gets or sets the serialized input for the the termination event
+    /// </summary>
+    [DataMember]
+    public string Input { get; set; }
 }

@@ -11,44 +11,43 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Samples.Cron
+namespace DurableTask.Samples.Cron;
+
+using System;
+using System.Threading.Tasks;
+using DurableTask.Core;
+using NCrontab;
+
+public class CronOrchestration : TaskOrchestration<string, string>
 {
-    using System;
-    using System.Threading.Tasks;
-    using DurableTask.Core;
-    using NCrontab;
-
-    public class CronOrchestration : TaskOrchestration<string, string>
+    public override async Task<string> RunTask(OrchestrationContext context, string cronSchedule)
     {
-        public override async Task<string> RunTask(OrchestrationContext context, string cronSchedule)
+        var numberOfTimes = 4;
+        var runAfterEverySeconds = 10;
+
+        for (var i = 1; i <= numberOfTimes; i++)
         {
-            var numberOfTimes = 4;
-            var runAfterEverySeconds = 10;
+            Console.WriteLine($"Schedule CronTask({i}) start");
 
-            for (var i = 1; i <= numberOfTimes; i++)
+            DateTime currentTime = context.CurrentUtcDateTime;
+            DateTime fireAt;
+            if (string.IsNullOrWhiteSpace(cronSchedule))
             {
-                Console.WriteLine($"Schedule CronTask({i}) start");
-
-                DateTime currentTime = context.CurrentUtcDateTime;
-                DateTime fireAt;
-                if (string.IsNullOrWhiteSpace(cronSchedule))
-                {
-                    fireAt = currentTime.AddSeconds(runAfterEverySeconds);
-                }
-                else
-                {
-                    CrontabSchedule schedule = CrontabSchedule.Parse(cronSchedule);
-                    fireAt = schedule.GetNextOccurrence(context.CurrentUtcDateTime);
-                }
-                
-                string attempt = await context.CreateTimer(fireAt, i.ToString());
-                Console.WriteLine($"Schedule CronTask({i}) at {fireAt}");
-
-                Task<string> resultTask = context.ScheduleTask<string>(typeof(CronTask), attempt);
-                await resultTask;
+                fireAt = currentTime.AddSeconds(runAfterEverySeconds);
             }
+            else
+            {
+                CrontabSchedule schedule = CrontabSchedule.Parse(cronSchedule);
+                fireAt = schedule.GetNextOccurrence(context.CurrentUtcDateTime);
+            }
+            
+            string attempt = await context.CreateTimer(fireAt, i.ToString());
+            Console.WriteLine($"Schedule CronTask({i}) at {fireAt}");
 
-            return "Done";
+            Task<string> resultTask = context.ScheduleTask<string>(typeof(CronTask), attempt);
+            await resultTask;
         }
+
+        return "Done";
     }
 }

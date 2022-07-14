@@ -11,75 +11,74 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric
+namespace DurableTask.AzureServiceFabric;
+
+using System;
+using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
+
+using DurableTask.AzureServiceFabric.Tracing;
+using DurableTask.Core;
+
+internal static class Utils
 {
-    using System;
-    using System.Diagnostics;
-    using System.Threading;
-    using System.Threading.Tasks;
+    public static OrchestrationState BuildOrchestrationState(OrchestrationRuntimeState runtimeState)
+     => new OrchestrationState
+     {
+         OrchestrationInstance = runtimeState.OrchestrationInstance,
+         ParentInstance = runtimeState.ParentInstance,
+         Name = runtimeState.Name,
+         Version = runtimeState.Version,
+         Status = runtimeState.Status,
+         Tags = runtimeState.Tags,
+         OrchestrationStatus = runtimeState.OrchestrationStatus,
+         CreatedTime = runtimeState.CreatedTime,
+         CompletedTime = runtimeState.CompletedTime,
+         LastUpdatedTime = DateTime.UtcNow,
+         Size = runtimeState.Size,
+         CompressedSize = runtimeState.CompressedSize,
+         Input = runtimeState.Input,
+         Output = runtimeState.Output
+     };
 
-    using DurableTask.AzureServiceFabric.Tracing;
-    using DurableTask.Core;
-
-    internal static class Utils
+    public static TimeSpan Measure(Action action)
     {
-        public static OrchestrationState BuildOrchestrationState(OrchestrationRuntimeState runtimeState)
-         => new OrchestrationState
-         {
-             OrchestrationInstance = runtimeState.OrchestrationInstance,
-             ParentInstance = runtimeState.ParentInstance,
-             Name = runtimeState.Name,
-             Version = runtimeState.Version,
-             Status = runtimeState.Status,
-             Tags = runtimeState.Tags,
-             OrchestrationStatus = runtimeState.OrchestrationStatus,
-             CreatedTime = runtimeState.CreatedTime,
-             CompletedTime = runtimeState.CompletedTime,
-             LastUpdatedTime = DateTime.UtcNow,
-             Size = runtimeState.Size,
-             CompressedSize = runtimeState.CompressedSize,
-             Input = runtimeState.Input,
-             Output = runtimeState.Output
-         };
+        var timer = Stopwatch.StartNew();
+        action();
+        timer.Stop();
+        return timer.Elapsed;
+    }
 
-        public static TimeSpan Measure(Action action)
+    public static async Task<TimeSpan> MeasureAsync(Func<Task> asyncAction)
+    {
+        var timer = Stopwatch.StartNew();
+        await asyncAction();
+        timer.Stop();
+        return timer.Elapsed;
+    }
+
+    public static async Task RunBackgroundJob(Func<Task> loopAction, TimeSpan initialDelay, TimeSpan delayOnSuccess, TimeSpan delayOnException, string actionName, CancellationToken token)
+    {
+        try
         {
-            var timer = Stopwatch.StartNew();
-            action();
-            timer.Stop();
-            return timer.Elapsed;
+            await Task.Delay(initialDelay, token);
+        }
+        catch (TaskCanceledException)
+        {
         }
 
-        public static async Task<TimeSpan> MeasureAsync(Func<Task> asyncAction)
-        {
-            var timer = Stopwatch.StartNew();
-            await asyncAction();
-            timer.Stop();
-            return timer.Elapsed;
-        }
-
-        public static async Task RunBackgroundJob(Func<Task> loopAction, TimeSpan initialDelay, TimeSpan delayOnSuccess, TimeSpan delayOnException, string actionName, CancellationToken token)
+        while (!token.IsCancellationRequested)
         {
             try
             {
-                await Task.Delay(initialDelay, token);
+                await loopAction();
+                await Task.Delay(delayOnSuccess).ConfigureAwait(false);
             }
-            catch (TaskCanceledException)
+            catch (Exception e)
             {
-            }
-
-            while (!token.IsCancellationRequested)
-            {
-                try
-                {
-                    await loopAction();
-                    await Task.Delay(delayOnSuccess).ConfigureAwait(false);
-                }
-                catch (Exception e)
-                {
-                    ServiceFabricProviderEventSource.Tracing.ExceptionWhileRunningBackgroundJob(actionName, e.ToString());
-                    await Task.Delay(delayOnException).ConfigureAwait(false);
-                }
+                ServiceFabricProviderEventSource.Tracing.ExceptionWhileRunningBackgroundJob(actionName, e.ToString());
+                await Task.Delay(delayOnException).ConfigureAwait(false);
             }
         }
     }

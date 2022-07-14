@@ -11,33 +11,32 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace Correlation.Samples
-{
+namespace Correlation.Samples;
+
 #pragma warning disable CA1812 // Internal classes instantiated indirectly
-    using System;
-    using System.Runtime.Serialization;
-    using System.Threading.Tasks;
+using System;
+using System.Runtime.Serialization;
+using System.Threading.Tasks;
 
-    using DurableTask.Core;
+using DurableTask.Core;
 
-    [KnownType(typeof(WaitActivity))]
-    internal class TerminatedOrchestration : TaskOrchestration<string, string>
+[KnownType(typeof(WaitActivity))]
+internal class TerminatedOrchestration : TaskOrchestration<string, string>
+{
+    public override async Task<string> RunTask(OrchestrationContext context, string input)
+     => await context.ScheduleTask<string>(typeof(WaitActivity), "");
+}
+
+internal class WaitActivity : TaskActivity<string, string>
+{
+    protected override string Execute(TaskContext context, string input) => input;
+
+    protected override async Task<string> ExecuteAsync(TaskContext context, string input)
     {
-        public override async Task<string> RunTask(OrchestrationContext context, string input)
-         => await context.ScheduleTask<string>(typeof(WaitActivity), "");
-    }
+        // Wait for 5 min for terminate.
+        await Task.Delay(TimeSpan.FromMinutes(2));
 
-    internal class WaitActivity : TaskActivity<string, string>
-    {
-        protected override string Execute(TaskContext context, string input) => input;
-
-        protected override async Task<string> ExecuteAsync(TaskContext context, string input)
-        {
-            // Wait for 5 min for terminate.
-            await Task.Delay(TimeSpan.FromMinutes(2));
-
-            Console.WriteLine($"Activity: Hello {input}");
-            return $"Hello, {input}!";
-        }
+        Console.WriteLine($"Activity: Hello {input}");
+        return $"Hello, {input}!";
     }
 }

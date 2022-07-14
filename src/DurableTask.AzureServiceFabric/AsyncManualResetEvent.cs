@@ -11,42 +11,41 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric
+namespace DurableTask.AzureServiceFabric;
+
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+
+internal sealed class AsyncManualResetEvent
 {
-    using System;
-    using System.Threading;
-    using System.Threading.Tasks;
+    private TaskCompletionSource<bool> taskCompletionSource = new TaskCompletionSource<bool>();
 
-    internal sealed class AsyncManualResetEvent
+    public async Task<bool> WaitAsync(TimeSpan timeout, CancellationToken cancellationToken)
     {
-        private TaskCompletionSource<bool> taskCompletionSource = new TaskCompletionSource<bool>();
-
-        public async Task<bool> WaitAsync(TimeSpan timeout, CancellationToken cancellationToken)
+        if (timeout < TimeSpan.Zero)
         {
-            if (timeout < TimeSpan.Zero)
-            {
-                timeout = TimeSpan.Zero;
-            }
-
-            var delayTask = Task.Delay(timeout, cancellationToken);
-            var resultTask = await Task.WhenAny(delayTask, this.taskCompletionSource.Task);
-            return delayTask != resultTask;
+            timeout = TimeSpan.Zero;
         }
 
-        public void Set() => this.taskCompletionSource.TrySetResult(true);
+        var delayTask = Task.Delay(timeout, cancellationToken);
+        var resultTask = await Task.WhenAny(delayTask, this.taskCompletionSource.Task);
+        return delayTask != resultTask;
+    }
 
-        public void Reset()
+    public void Set() => this.taskCompletionSource.TrySetResult(true);
+
+    public void Reset()
+    {
+        while (true)
         {
-            while (true)
-            {
-                TaskCompletionSource<bool> thisTcs;
-                thisTcs = this.taskCompletionSource;
+            TaskCompletionSource<bool> thisTcs;
+            thisTcs = this.taskCompletionSource;
 
-                if (!thisTcs.Task.IsCompleted
-                 || Interlocked.CompareExchange(ref this.taskCompletionSource, new TaskCompletionSource<bool>(), thisTcs) == thisTcs)
-                {
-                    return;
-                }
+            if (!thisTcs.Task.IsCompleted
+             || Interlocked.CompareExchange(ref this.taskCompletionSource, new TaskCompletionSource<bool>(), thisTcs) == thisTcs)
+            {
+                return;
             }
         }
     }

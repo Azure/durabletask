@@ -11,47 +11,46 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric
+namespace DurableTask.AzureServiceFabric;
+
+using System;
+using System.Collections.Generic;
+using DurableTask.Core.History;
+
+internal sealed class TimerFiredEventComparer : IComparer<Message<Guid, TaskMessageItem>>
 {
-    using System;
-    using System.Collections.Generic;
-    using DurableTask.Core.History;
+    public static readonly TimerFiredEventComparer Instance = new TimerFiredEventComparer();
 
-    internal sealed class TimerFiredEventComparer : IComparer<Message<Guid, TaskMessageItem>>
+    public int Compare(Message<Guid, TaskMessageItem> first, Message<Guid, TaskMessageItem> second)
     {
-        public static readonly TimerFiredEventComparer Instance = new TimerFiredEventComparer();
-
-        public int Compare(Message<Guid, TaskMessageItem> first, Message<Guid, TaskMessageItem> second)
+        if (first is null)
         {
-            if (first is null)
-            {
-                throw new ArgumentNullException(nameof(first));
-            }
-
-            if (second is null)
-            {
-                throw new ArgumentNullException(nameof(second));
-            }
-
-            var firstTimer = first.Value.TaskMessage.Event as TimerFiredEvent;
-            var secondTimer = second.Value.TaskMessage.Event as TimerFiredEvent;
-
-            if (firstTimer is null)
-            {
-                throw new ArgumentException(nameof(first));
-            }
-            if (secondTimer is null)
-            {
-                throw new ArgumentException(nameof(second));
-            }
-
-            int firedAtCompareValue = DateTime.Compare(firstTimer.FireAt, secondTimer.FireAt);
-            if (firedAtCompareValue != 0)
-            {
-                return firedAtCompareValue;
-            }
-
-            return first.Key.CompareTo(second.Key);
+            throw new ArgumentNullException(nameof(first));
         }
+
+        if (second is null)
+        {
+            throw new ArgumentNullException(nameof(second));
+        }
+
+        var firstTimer = first.Value.TaskMessage.Event as TimerFiredEvent;
+        var secondTimer = second.Value.TaskMessage.Event as TimerFiredEvent;
+
+        if (firstTimer is null)
+        {
+            throw new ArgumentException(nameof(first));
+        }
+        if (secondTimer is null)
+        {
+            throw new ArgumentException(nameof(second));
+        }
+
+        int firedAtCompareValue = DateTime.Compare(firstTimer.FireAt, secondTimer.FireAt);
+        if (firedAtCompareValue != 0)
+        {
+            return firedAtCompareValue;
+        }
+
+        return first.Key.CompareTo(second.Key);
     }
 }

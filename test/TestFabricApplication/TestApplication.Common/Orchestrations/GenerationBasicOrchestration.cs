@@ -11,32 +11,31 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace TestApplication.Common.Orchestrations
+namespace TestApplication.Common.Orchestrations;
+
+using System.Threading.Tasks;
+
+using DurableTask.Core;
+
+using TestApplication.Common.OrchestrationTasks;
+
+public class GenerationBasicOrchestration : TaskOrchestration<int, int>
 {
-    using System.Threading.Tasks;
+    // HACK: This is just a hack to communicate result of orchestration back to test
+    public static int Result;
 
-    using DurableTask.Core;
-
-    using TestApplication.Common.OrchestrationTasks;
-
-    public class GenerationBasicOrchestration : TaskOrchestration<int, int>
+    public override async Task<int> RunTask(OrchestrationContext context, int numberOfGenerations)
     {
-        // HACK: This is just a hack to communicate result of orchestration back to test
-        public static int Result;
-
-        public override async Task<int> RunTask(OrchestrationContext context, int numberOfGenerations)
+        var testTasks = context.CreateClient<ITestTasks>();
+        int count = await testTasks.IncrementGenerationCount();
+        numberOfGenerations--;
+        if (numberOfGenerations > 0)
         {
-            var testTasks = context.CreateClient<ITestTasks>();
-            int count = await testTasks.IncrementGenerationCount();
-            numberOfGenerations--;
-            if (numberOfGenerations > 0)
-            {
-                context.ContinueAsNew(numberOfGenerations);
-            }
-
-            // This is a HACK to get unit test up and running.  Should never be done in actual code.
-            Result = count;
-            return count;
+            context.ContinueAsNew(numberOfGenerations);
         }
+
+        // This is a HACK to get unit test up and running.  Should never be done in actual code.
+        Result = count;
+        return count;
     }
 }

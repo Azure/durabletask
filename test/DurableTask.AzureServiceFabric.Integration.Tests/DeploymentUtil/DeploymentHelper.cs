@@ -11,96 +11,95 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Integration.Tests.DeploymentUtil
+namespace DurableTask.AzureServiceFabric.Integration.Tests.DeploymentUtil;
+
+using System;
+using System.Fabric;
+using System.Fabric.Description;
+using System.Fabric.Health;
+using System.Fabric.Query;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Xml;
+
+internal static class DeploymentHelper
 {
-    using System;
-    using System.Fabric;
-    using System.Fabric.Description;
-    using System.Fabric.Health;
-    using System.Fabric.Query;
-    using System.Linq;
-    using System.Threading.Tasks;
-    using System.Xml;
+    private static readonly FabricClient client = new FabricClient();
 
-    internal static class DeploymentHelper
+    public static async Task DeployAsync(string applicationRootPath)
     {
-        private static readonly FabricClient client = new FabricClient();
+        var appInfoReader = new ApplicationInfoReader(applicationRootPath);
+        var serviceName = new Uri(Constants.TestFabricApplicationAddress);
+        var nodeList = await client.QueryManager.GetNodeListAsync();
+        var applicationDescription =
+            new ApplicationDescription(
+                new Uri($"fabric:/{appInfoReader.GetApplicationName()}"),
+                appInfoReader.GetApplicationName(),
+                appInfoReader.GetApplicationVersion(),
+                appInfoReader.GetApplicationParameters(nodeList.Count));
 
-        public static async Task DeployAsync(string applicationRootPath)
+        await DeployAsync(appInfoReader.ApplicationPackagePath, applicationDescription);
+        await WaitForHealthStatusAsync(applicationDescription, serviceName);
+    }
+
+    public static async Task CleanAsync()
+    {
+        var applications = await client.QueryManager.GetApplicationListAsync();
+        foreach (var application in applications)
         {
-            var appInfoReader = new ApplicationInfoReader(applicationRootPath);
-            var serviceName = new Uri(Constants.TestFabricApplicationAddress);
-            var nodeList = await client.QueryManager.GetNodeListAsync();
-            var applicationDescription =
-                new ApplicationDescription(
-                    new Uri($"fabric:/{appInfoReader.GetApplicationName()}"),
-                    appInfoReader.GetApplicationName(),
-                    appInfoReader.GetApplicationVersion(),
-                    appInfoReader.GetApplicationParameters(nodeList.Count));
+            await client.ApplicationManager.DeleteApplicationAsync(new DeleteApplicationDescription(application.ApplicationName) { ForceDelete = true });
 
-            await DeployAsync(appInfoReader.ApplicationPackagePath, applicationDescription);
-            await WaitForHealthStatusAsync(applicationDescription, serviceName);
-        }
-
-        public static async Task CleanAsync()
-        {
-            var applications = await client.QueryManager.GetApplicationListAsync();
-            foreach (var application in applications)
+            foreach (var node in await client.QueryManager.GetNodeListAsync())
             {
-                await client.ApplicationManager.DeleteApplicationAsync(new DeleteApplicationDescription(application.ApplicationName) { ForceDelete = true });
-
-                foreach (var node in await client.QueryManager.GetNodeListAsync())
+                var replicas = (await client.QueryManager.GetDeployedReplicaListAsync(node.NodeName, application.ApplicationName)).OfType<DeployedStatefulServiceReplica>();
+                foreach (var replica in replicas)
                 {
-                    var replicas = (await client.QueryManager.GetDeployedReplicaListAsync(node.NodeName, application.ApplicationName)).OfType<DeployedStatefulServiceReplica>();
-                    foreach (var replica in replicas)
-                    {
-                        await client.ServiceManager.RemoveReplicaAsync(node.NodeName, replica.Partitionid, replica.ReplicaId);
-                    }
+                    await client.ServiceManager.RemoveReplicaAsync(node.NodeName, replica.Partitionid, replica.ReplicaId);
                 }
             }
+        }
 
-            var applicationTypeList = await client.QueryManager.GetApplicationTypeListAsync();
-            foreach (var applicationType in applicationTypeList)
+        var applicationTypeList = await client.QueryManager.GetApplicationTypeListAsync();
+        foreach (var applicationType in applicationTypeList)
+        {
+            await client.ApplicationManager.UnprovisionApplicationAsync(applicationType.ApplicationTypeName, applicationType.ApplicationTypeVersion);
+        }
+    }
+
+    private static async Task DeployAsync(string applicationPackagePath, ApplicationDescription applicationDescription)
+    {
+        var clusterManifest = new XmlDocument();
+        var clusterManifestXml = await client.ClusterManager.GetClusterManifestAsync();
+        clusterManifest.LoadXml(clusterManifestXml);
+        var namespaceManager = new XmlNamespaceManager(clusterManifest.NameTable);
+        namespaceManager.AddNamespace("sf", "http://schemas.microsoft.com/2011/01/fabric");
+        var imageStoreConnectionStringPath = "/sf:ClusterManifest/sf:FabricSettings/sf:Section[@Name='Management']/sf:Parameter[@Name='ImageStoreConnectionString']";
+        var imageStoreConnectionStringNode = clusterManifest.DocumentElement.SelectSingleNode(imageStoreConnectionStringPath, namespaceManager);
+        var imageStoreConnectionString = imageStoreConnectionStringNode.Attributes["Value"].Value;
+
+        var path = Guid.NewGuid().ToString();
+        client.ApplicationManager.CopyApplicationPackage(imageStoreConnectionString, applicationPackagePath, path);
+
+        await client.ApplicationManager.ProvisionApplicationAsync(path);
+
+        client.ApplicationManager.RemoveApplicationPackage(imageStoreConnectionString, path);
+
+        await client.ApplicationManager.CreateApplicationAsync(applicationDescription);
+    }
+
+    private static async Task WaitForHealthStatusAsync(ApplicationDescription applicationDescription, Uri serviceName)
+    {
+        while (true)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2));
+            var states = (await client.HealthManager.GetApplicationHealthAsync(applicationDescription.ApplicationName)).ServiceHealthStates;
+            if (states.Any() && states.All(s => s.AggregatedHealthState == HealthState.Ok))
             {
-                await client.ApplicationManager.UnprovisionApplicationAsync(applicationType.ApplicationTypeName, applicationType.ApplicationTypeVersion);
+                return;
             }
-        }
-
-        private static async Task DeployAsync(string applicationPackagePath, ApplicationDescription applicationDescription)
-        {
-            var clusterManifest = new XmlDocument();
-            var clusterManifestXml = await client.ClusterManager.GetClusterManifestAsync();
-            clusterManifest.LoadXml(clusterManifestXml);
-            var namespaceManager = new XmlNamespaceManager(clusterManifest.NameTable);
-            namespaceManager.AddNamespace("sf", "http://schemas.microsoft.com/2011/01/fabric");
-            var imageStoreConnectionStringPath = "/sf:ClusterManifest/sf:FabricSettings/sf:Section[@Name='Management']/sf:Parameter[@Name='ImageStoreConnectionString']";
-            var imageStoreConnectionStringNode = clusterManifest.DocumentElement.SelectSingleNode(imageStoreConnectionStringPath, namespaceManager);
-            var imageStoreConnectionString = imageStoreConnectionStringNode.Attributes["Value"].Value;
-
-            var path = Guid.NewGuid().ToString();
-            client.ApplicationManager.CopyApplicationPackage(imageStoreConnectionString, applicationPackagePath, path);
-
-            await client.ApplicationManager.ProvisionApplicationAsync(path);
-
-            client.ApplicationManager.RemoveApplicationPackage(imageStoreConnectionString, path);
-
-            await client.ApplicationManager.CreateApplicationAsync(applicationDescription);
-        }
-
-        private static async Task WaitForHealthStatusAsync(ApplicationDescription applicationDescription, Uri serviceName)
-        {
-            while (true)
+            if (states.Any() && states.Any(s => s.AggregatedHealthState == HealthState.Error || s.AggregatedHealthState == HealthState.Invalid))
             {
-                await Task.Delay(TimeSpan.FromSeconds(2));
-                var states = (await client.HealthManager.GetApplicationHealthAsync(applicationDescription.ApplicationName)).ServiceHealthStates;
-                if (states.Any() && states.All(s => s.AggregatedHealthState == HealthState.Ok))
-                {
-                    return;
-                }
-                if (states.Any() && states.Any(s => s.AggregatedHealthState == HealthState.Error || s.AggregatedHealthState == HealthState.Invalid))
-                {
-                    throw new Exception($"Deployment of {serviceName} failed");
-                }
+                throw new Exception($"Deployment of {serviceName} failed");
             }
         }
     }

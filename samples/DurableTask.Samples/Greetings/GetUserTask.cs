@@ -11,30 +11,29 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Samples.Greetings
+namespace DurableTask.Samples.Greetings;
+
+using System;
+using System.Windows.Forms;
+using DurableTask.Core;
+
+public sealed class GetUserTask : TaskActivity<string, string>
 {
-    using System;
-    using System.Windows.Forms;
-    using DurableTask.Core;
-
-    public sealed class GetUserTask : TaskActivity<string, string>
+    protected override string Execute(DurableTask.Core.TaskContext context, string input)
     {
-        protected override string Execute(DurableTask.Core.TaskContext context, string input)
+        var userNameDialog = new GetUserName();
+
+        Console.WriteLine("Waiting for user to enter name...");
+
+        var user = "";
+        DialogResult dialogResult = userNameDialog.ShowDialog();
+        if (dialogResult == DialogResult.OK)
         {
-            var userNameDialog = new GetUserName();
-
-            Console.WriteLine("Waiting for user to enter name...");
-
-            var user = "";
-            DialogResult dialogResult = userNameDialog.ShowDialog();
-            if (dialogResult == DialogResult.OK)
-            {
-                user = userNameDialog.UserName;
-            }
-
-            Console.WriteLine("User Name Entered: " + user);
-
-            return user;
+            user = userNameDialog.UserName;
         }
+
+        Console.WriteLine("User Name Entered: " + user);
+
+        return user;
     }
 }

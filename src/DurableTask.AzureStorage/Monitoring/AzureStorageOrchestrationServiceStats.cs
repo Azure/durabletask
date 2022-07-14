@@ -11,29 +11,28 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Monitoring
+namespace DurableTask.AzureStorage.Monitoring;
+
+using DurableTask.Core.Stats;
+using System.Collections.Concurrent;
+
+class AzureStorageOrchestrationServiceStats
 {
-    using DurableTask.Core.Stats;
-    using System.Collections.Concurrent;
+    public Counter StorageRequests { get; } = new Counter();
 
-    class AzureStorageOrchestrationServiceStats
-    {
-        public Counter StorageRequests { get; } = new Counter();
+    public Counter MessagesSent { get; } = new Counter();
 
-        public Counter MessagesSent { get; } = new Counter();
+    public Counter MessagesRead { get; } = new Counter();
 
-        public Counter MessagesRead { get; } = new Counter();
+    public Counter MessagesUpdated { get; } = new Counter();
 
-        public Counter MessagesUpdated { get; } = new Counter();
+    public Counter TableEntitiesWritten { get; } = new Counter();
 
-        public Counter TableEntitiesWritten { get; } = new Counter();
+    public Counter TableEntitiesRead { get; } = new Counter();
 
-        public Counter TableEntitiesRead { get; } = new Counter();
+    public Counter ActiveActivityExecutions { get; } = new Counter();
 
-        public Counter ActiveActivityExecutions { get; } = new Counter();
-
-        // The standard library does not support a concurrent hashset, so use ConcurrentDictionary with the
-        // value as a byte, as the value does not matter.
-        public ConcurrentDictionary<string, byte> PendingOrchestratorMessages { get; } = new ConcurrentDictionary<string, byte>();
-    }
+    // The standard library does not support a concurrent hashset, so use ConcurrentDictionary with the
+    // value as a byte, as the value does not matter.
+    public ConcurrentDictionary<string, byte> PendingOrchestratorMessages { get; } = new ConcurrentDictionary<string, byte>();
 }

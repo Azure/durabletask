@@ -11,10 +11,9 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Integration.Tests
+namespace DurableTask.AzureServiceFabric.Integration.Tests;
+
+internal static class Constants
 {
-    internal static class Constants
-    {
-        public const string TestFabricApplicationAddress = "fabric:/TestFabricApplicationType/TestStatefulService";
-    }
+    public const string TestFabricApplicationAddress = "fabric:/TestFabricApplicationType/TestStatefulService";
 }

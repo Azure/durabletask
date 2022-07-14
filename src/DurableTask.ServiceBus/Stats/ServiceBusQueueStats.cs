@@ -11,72 +11,71 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceBus.Stats
+namespace DurableTask.ServiceBus.Stats;
+
+using DurableTask.Core.Stats;
+
+/// <summary>
+/// Stats container for a Service Bus queue
+/// </summary>
+public class ServiceBusQueueStats
 {
-    using DurableTask.Core.Stats;
+    /// <summary>
+    /// The number of actual messages sent
+    /// </summary>
+    public Counter MessagesSent { get; } = new Counter();
 
     /// <summary>
-    /// Stats container for a Service Bus queue
+    /// The number of actual messages received
     /// </summary>
-    public class ServiceBusQueueStats
-    {
-        /// <summary>
-        /// The number of actual messages sent
-        /// </summary>
-        public Counter MessagesSent { get; } = new Counter();
+    public Counter MessagesReceived { get; } = new Counter();
 
-        /// <summary>
-        /// The number of actual messages received
-        /// </summary>
-        public Counter MessagesReceived { get; } = new Counter();
+    /// <summary>
+    /// The number of batches sent
+    /// </summary>
+    public Counter MessageBatchesSent { get; } = new Counter();
 
-        /// <summary>
-        /// The number of batches sent
-        /// </summary>
-        public Counter MessageBatchesSent { get; } = new Counter();
+    /// <summary>
+    /// The number of batches received
+    /// </summary>
+    public Counter MessageBatchesReceived { get; } = new Counter();
 
-        /// <summary>
-        /// The number of batches received
-        /// </summary>
-        public Counter MessageBatchesReceived { get; } = new Counter();
+    /// <summary>
+    /// The number of messages renewed
+    /// </summary>
+    public Counter SessionsRenewed { get; } = new Counter();
 
-        /// <summary>
-        /// The number of messages renewed
-        /// </summary>
-        public Counter SessionsRenewed { get; } = new Counter();
+    /// <summary>
+    /// The number of sessions received
+    /// </summary>
+    public Counter SessionsReceived { get; } = new Counter();
 
-        /// <summary>
-        /// The number of sessions received
-        /// </summary>
-        public Counter SessionsReceived { get; } = new Counter();
+    /// <summary>
+    /// The number of session batches completed
+    /// </summary>
+    public Counter SessionBatchesCompleted { get; } = new Counter();
 
-        /// <summary>
-        /// The number of session batches completed
-        /// </summary>
-        public Counter SessionBatchesCompleted { get; } = new Counter();
+    /// <summary>
+    /// The number of session state sets
+    /// </summary>
+    public Counter SessionSets { get; } = new Counter();
 
-        /// <summary>
-        /// The number of session state sets
-        /// </summary>
-        public Counter SessionSets { get; } = new Counter();
+    /// <summary>
+    /// The number of session state gets
+    /// </summary>
+    public Counter SessionGets { get; } = new Counter();
 
-        /// <summary>
-        /// The number of session state gets
-        /// </summary>
-        public Counter SessionGets { get; } = new Counter();
-
-        /// <summary>
-        /// Returns a string that represents the Queue Stats.
-        /// </summary>
-        public override string ToString()
-         => $"MessagesSent: {MessagesSent}"
-          + $", MessagesReceived: {MessagesReceived}"
-          + $", MessageBatchesSent: {MessageBatchesSent}"
-          + $", MessageBatchesReceived: {MessageBatchesReceived}"
-          + $", SessionsRenewed: {SessionsRenewed}"
-          + $", SessionsReceived: {SessionsReceived}"
-          + $", SessionBatchesCompleted: {SessionBatchesCompleted}"
-          + $", SessionSets: {SessionSets}"
-          + $", SessionGets: {SessionGets}";
-    }
+    /// <summary>
+    /// Returns a string that represents the Queue Stats.
+    /// </summary>
+    public override string ToString()
+     => $"MessagesSent: {MessagesSent}"
+      + $", MessagesReceived: {MessagesReceived}"
+      + $", MessageBatchesSent: {MessageBatchesSent}"
+      + $", MessageBatchesReceived: {MessageBatchesReceived}"
+      + $", SessionsRenewed: {SessionsRenewed}"
+      + $", SessionsReceived: {SessionsReceived}"
+      + $", SessionBatchesCompleted: {SessionBatchesCompleted}"
+      + $", SessionSets: {SessionSets}"
+      + $", SessionGets: {SessionGets}";
 }

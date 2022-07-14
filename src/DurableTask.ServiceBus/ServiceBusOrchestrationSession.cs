@@ -11,17 +11,16 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceBus
-{
-    using System;
-    using System.Collections.Generic;
-    using DurableTask.Core;
-    using DurableTask.ServiceBus.Common.Abstraction;
+namespace DurableTask.ServiceBus;
 
-    internal class ServiceBusOrchestrationSession
-    {
-        public IMessageSession Session;
-        public Dictionary<string, Message> LockTokens;
-        public long SequenceNumber;
-    }
+using System;
+using System.Collections.Generic;
+using DurableTask.Core;
+using DurableTask.ServiceBus.Common.Abstraction;
+
+internal class ServiceBusOrchestrationSession
+{
+    public IMessageSession Session;
+    public Dictionary<string, Message> LockTokens;
+    public long SequenceNumber;
 }

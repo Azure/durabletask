@@ -11,23 +11,22 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Tests
+namespace DurableTask.Core.Tests;
+
+using System;
+using System.Text;
+
+public static class TestUtils
 {
-    using System;
-    using System.Text;
-
-    public static class TestUtils
+    public static string GenerateRandomString(int length)
     {
-        public static string GenerateRandomString(int length)
+        var result = new StringBuilder(length);
+        while (result.Length < length)
         {
-            var result = new StringBuilder(length);
-            while (result.Length < length)
-            {
-                // Use GUIDs so these don't compress well
-                result.Append(Guid.NewGuid().ToString("N"));
-            }
-
-            return result.ToString(0, length);
+            // Use GUIDs so these don't compress well
+            result.Append(Guid.NewGuid().ToString("N"));
         }
+
+        return result.ToString(0, length);
     }
 }

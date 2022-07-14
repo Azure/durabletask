@@ -11,88 +11,87 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage
+namespace DurableTask.AzureStorage;
+
+using System;
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Auth;
+
+/// <summary>
+/// Connection details of the Azure Storage account
+/// </summary>
+public sealed class StorageAccountDetails
 {
-    using System;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Auth;
+    /// <summary>
+    /// The storage account credentials
+    /// </summary>
+    public StorageCredentials StorageCredentials { get; set; }
 
     /// <summary>
-    /// Connection details of the Azure Storage account
+    /// The storage account name
     /// </summary>
-    public sealed class StorageAccountDetails
+    public string AccountName { get; set; }
+
+    /// <summary>
+    /// The storage account endpoint suffix
+    /// </summary>
+    public string EndpointSuffix { get; set; }
+
+    /// <summary>
+    /// The storage account connection string.
+    /// </summary>
+    /// <remarks>
+    /// If specified, this value overrides any other settings.
+    /// </remarks>
+    public string ConnectionString { get; set; }
+
+    /// <summary>
+    /// The data plane URI for the blob service of the storage account.
+    /// </summary>
+    public Uri BlobServiceUri { get; set; }
+
+    /// <summary>
+    /// The data plane URI for the queue service of the storage account.
+    /// </summary>
+    public Uri QueueServiceUri { get; set; }
+
+    /// <summary>
+    /// The data plane URI for the table service of the storage account.
+    /// </summary>
+    public Uri TableServiceUri { get; set; }
+
+    /// <summary>
+    /// Convert this to its equivalent <see cref="CloudStorageAccount"/>.
+    /// </summary>
+    /// <returns>The corresponding <see cref="CloudStorageAccount"/> instance.</returns>
+    public CloudStorageAccount ToCloudStorageAccount()
     {
-        /// <summary>
-        /// The storage account credentials
-        /// </summary>
-        public StorageCredentials StorageCredentials { get; set; }
-
-        /// <summary>
-        /// The storage account name
-        /// </summary>
-        public string AccountName { get; set; }
-
-        /// <summary>
-        /// The storage account endpoint suffix
-        /// </summary>
-        public string EndpointSuffix { get; set; }
-
-        /// <summary>
-        /// The storage account connection string.
-        /// </summary>
-        /// <remarks>
-        /// If specified, this value overrides any other settings.
-        /// </remarks>
-        public string ConnectionString { get; set; }
-
-        /// <summary>
-        /// The data plane URI for the blob service of the storage account.
-        /// </summary>
-        public Uri BlobServiceUri { get; set; }
-
-        /// <summary>
-        /// The data plane URI for the queue service of the storage account.
-        /// </summary>
-        public Uri QueueServiceUri { get; set; }
-
-        /// <summary>
-        /// The data plane URI for the table service of the storage account.
-        /// </summary>
-        public Uri TableServiceUri { get; set; }
-
-        /// <summary>
-        /// Convert this to its equivalent <see cref="CloudStorageAccount"/>.
-        /// </summary>
-        /// <returns>The corresponding <see cref="CloudStorageAccount"/> instance.</returns>
-        public CloudStorageAccount ToCloudStorageAccount()
+        if (!string.IsNullOrEmpty(this.ConnectionString))
         {
-            if (!string.IsNullOrEmpty(this.ConnectionString))
+            return CloudStorageAccount.Parse(this.ConnectionString);
+        }
+        else if (this.BlobServiceUri is not null || this.QueueServiceUri is not null || this.TableServiceUri is not null)
+        {
+            if (this.BlobServiceUri is null || this.QueueServiceUri is null || this.TableServiceUri is null)
             {
-                return CloudStorageAccount.Parse(this.ConnectionString);
+                throw new InvalidOperationException(
+                    $"If at least one Azure Storage service URI is specified, {nameof(BlobServiceUri)}, {nameof(QueueServiceUri)}, and {nameof(TableServiceUri)} must all be provided.");
             }
-            else if (this.BlobServiceUri is not null || this.QueueServiceUri is not null || this.TableServiceUri is not null)
-            {
-                if (this.BlobServiceUri is null || this.QueueServiceUri is null || this.TableServiceUri is null)
-                {
-                    throw new InvalidOperationException(
-                        $"If at least one Azure Storage service URI is specified, {nameof(BlobServiceUri)}, {nameof(QueueServiceUri)}, and {nameof(TableServiceUri)} must all be provided.");
-                }
 
-                return new CloudStorageAccount(
-                    this.StorageCredentials,
-                    this.BlobServiceUri,
-                    this.QueueServiceUri,
-                    this.TableServiceUri,
-                    fileEndpoint: null);
-            }
-            else
-            {
-                return new CloudStorageAccount(
-                    this.StorageCredentials,
-                    this.AccountName,
-                    this.EndpointSuffix,
-                    useHttps: true);
-            }
+            return new CloudStorageAccount(
+                this.StorageCredentials,
+                this.BlobServiceUri,
+                this.QueueServiceUri,
+                this.TableServiceUri,
+                fileEndpoint: null);
+        }
+        else
+        {
+            return new CloudStorageAccount(
+                this.StorageCredentials,
+                this.AccountName,
+                this.EndpointSuffix,
+                useHttps: true);
         }
     }
 }

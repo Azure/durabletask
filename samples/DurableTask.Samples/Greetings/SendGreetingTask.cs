@@ -11,33 +11,32 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Samples.Greetings
+namespace DurableTask.Samples.Greetings;
+
+using System;
+using System.Threading;
+using DurableTask.Core;
+
+public sealed class SendGreetingTask : TaskActivity<string, string>
 {
-    using System;
-    using System.Threading;
-    using DurableTask.Core;
-
-    public sealed class SendGreetingTask : TaskActivity<string, string>
+    protected override string Execute(DurableTask.Core.TaskContext context, string user)
     {
-        protected override string Execute(DurableTask.Core.TaskContext context, string user)
+        string message;
+        if (!string.IsNullOrWhiteSpace(user) && user.Equals("TimedOut"))
         {
-            string message;
-            if (!string.IsNullOrWhiteSpace(user) && user.Equals("TimedOut"))
-            {
-                message = "GetUser Timed out!!!";
-                Console.WriteLine(message);
-            }
-            else
-            {
-                Console.WriteLine("Sending greetings to user: " + user + "...");
-
-                Thread.Sleep(5 * 1000);
-
-                message = "Greeting sent to " + user;
-                Console.WriteLine(message);
-            }
-
-            return message;
+            message = "GetUser Timed out!!!";
+            Console.WriteLine(message);
         }
+        else
+        {
+            Console.WriteLine("Sending greetings to user: " + user + "...");
+
+            Thread.Sleep(5 * 1000);
+
+            message = "Greeting sent to " + user;
+            Console.WriteLine(message);
+        }
+
+        return message;
     }
 }

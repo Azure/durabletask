@@ -11,44 +11,43 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage
+namespace DurableTask.AzureStorage;
+
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+
+class AsyncManualResetEvent
 {
-    using System;
-    using System.Threading;
-    using System.Threading.Tasks;
+    readonly object mutex = new object();
+    TaskCompletionSource<object> tcs = new TaskCompletionSource<object>();
 
-    class AsyncManualResetEvent
+    public async Task<bool> WaitAsync(TimeSpan timeout, CancellationToken cancellationToken)
     {
-        readonly object mutex = new object();
-        TaskCompletionSource<object> tcs = new TaskCompletionSource<object>();
+        Task delayTask = Task.Delay(timeout, cancellationToken);
+        Task waitTask = this.tcs.Task;
 
-        public async Task<bool> WaitAsync(TimeSpan timeout, CancellationToken cancellationToken)
-        {
-            Task delayTask = Task.Delay(timeout, cancellationToken);
-            Task waitTask = this.tcs.Task;
+        return await Task.WhenAny(waitTask, delayTask) == waitTask;
+    }
 
-            return await Task.WhenAny(waitTask, delayTask) == waitTask;
-        }
-
-        public void Set()
-        {
-            Task.Run(() =>
-            {
-                lock (this.mutex)
-                {
-                    this.tcs.TrySetResult(null);
-                }
-            });
-        }
-
-        public void Reset()
+    public void Set()
+    {
+        Task.Run(() =>
         {
             lock (this.mutex)
             {
-                if (this.tcs.Task.IsCompleted)
-                {
-                    this.tcs = new TaskCompletionSource<object>();
-                }
+                this.tcs.TrySetResult(null);
+            }
+        });
+    }
+
+    public void Reset()
+    {
+        lock (this.mutex)
+        {
+            if (this.tcs.Task.IsCompleted)
+            {
+                this.tcs = new TaskCompletionSource<object>();
             }
         }
     }

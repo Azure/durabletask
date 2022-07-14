@@ -11,35 +11,34 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceBus.Settings
+namespace DurableTask.ServiceBus.Settings;
+
+using DurableTask.Core;
+
+/// <summary>
+///     Settings to configure the Service Bus message.
+///     TODO: add a flag OverflowEnabled to indicate if the overflow settings are enabled
+/// </summary>
+public class ServiceBusMessageSettings
 {
-    using DurableTask.Core;
+    internal ServiceBusMessageSettings() :
+        this(FrameworkConstants.MessageOverflowThresholdInBytesDefault, FrameworkConstants.MessageMaxSizeInBytesDefault)
+    {
+    }
+
+    internal ServiceBusMessageSettings(int messageOverflowThresholdInBytes, int messageMaxSizeInBytes)
+    {
+        MessageOverflowThresholdInBytes = messageOverflowThresholdInBytes;
+        MessageMaxSizeInBytes = messageMaxSizeInBytes;
+    }
 
     /// <summary>
-    ///     Settings to configure the Service Bus message.
-    ///     TODO: add a flag OverflowEnabled to indicate if the overflow settings are enabled
+    ///     The max allowed message size in service bus. Default is 170K.
     /// </summary>
-    public class ServiceBusMessageSettings
-    {
-        internal ServiceBusMessageSettings() :
-            this(FrameworkConstants.MessageOverflowThresholdInBytesDefault, FrameworkConstants.MessageMaxSizeInBytesDefault)
-        {
-        }
+    public int MessageOverflowThresholdInBytes { get; set; }
 
-        internal ServiceBusMessageSettings(int messageOverflowThresholdInBytes, int messageMaxSizeInBytes)
-        {
-            MessageOverflowThresholdInBytes = messageOverflowThresholdInBytes;
-            MessageMaxSizeInBytes = messageMaxSizeInBytes;
-        }
-
-        /// <summary>
-        ///     The max allowed message size in service bus. Default is 170K.
-        /// </summary>
-        public int MessageOverflowThresholdInBytes { get; set; }
-
-        /// <summary>
-        ///    The max allowed message size for external storage. Default is 10M.
-        /// </summary>
-        public int MessageMaxSizeInBytes { get; set; }
-    }
+    /// <summary>
+    ///    The max allowed message size for external storage. Default is 10M.
+    /// </summary>
+    public int MessageMaxSizeInBytes { get; set; }
 }

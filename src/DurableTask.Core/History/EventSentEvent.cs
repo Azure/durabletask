@@ -11,46 +11,45 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.History
+namespace DurableTask.Core.History;
+
+using System.Runtime.Serialization;
+
+/// <summary>
+/// A history event for event sent
+/// </summary>
+[DataContract]
+public class EventSentEvent : HistoryEvent
 {
-    using System.Runtime.Serialization;
+    /// <summary>
+    /// Creates a new <see cref="EventSentEvent"/> with the supplied event id.
+    /// </summary>
+    /// <param name="eventId">The ID of the event.</param>
+    public EventSentEvent(int eventId)
+        : base(eventId)
+    {
+    }
 
     /// <summary>
-    /// A history event for event sent
+    /// Gets the event type
     /// </summary>
-    [DataContract]
-    public class EventSentEvent : HistoryEvent
-    {
-        /// <summary>
-        /// Creates a new <see cref="EventSentEvent"/> with the supplied event id.
-        /// </summary>
-        /// <param name="eventId">The ID of the event.</param>
-        public EventSentEvent(int eventId)
-            : base(eventId)
-        {
-        }
+    public override EventType EventType => EventType.EventSent;
 
-        /// <summary>
-        /// Gets the event type
-        /// </summary>
-        public override EventType EventType => EventType.EventSent;
+    /// <summary>
+    /// The orchestration instance ID for this event
+    /// </summary>
+    [DataMember]
+    public string InstanceId { get; set; }
 
-        /// <summary>
-        /// The orchestration instance ID for this event
-        /// </summary>
-        [DataMember]
-        public string InstanceId { get; set; }
+    /// <summary>
+    /// Gets or sets the orchestration name
+    /// </summary>
+    [DataMember]
+    public string Name { get; set; }
 
-        /// <summary>
-        /// Gets or sets the orchestration name
-        /// </summary>
-        [DataMember]
-        public string Name { get; set; }
-
-        /// <summary>
-        /// Gets or sets the serialized payload of the event
-        /// </summary>
-        [DataMember]
-        public string Input { get; set; }
-    }
+    /// <summary>
+    /// Gets or sets the serialized payload of the event
+    /// </summary>
+    [DataMember]
+    public string Input { get; set; }
 }

@@ -11,21 +11,20 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Samples.Greetings
+namespace DurableTask.Samples.Greetings;
+
+using System.Windows.Forms;
+
+public partial class GetUserName : Form
 {
-    using System.Windows.Forms;
-
-    public partial class GetUserName : Form
+    public GetUserName()
     {
-        public GetUserName()
-        {
-            InitializeComponent();
-        }
+        InitializeComponent();
+    }
 
-        public string UserName
-        {
-            get => this.txtUserName.Text;
-            set => this.txtUserName.Text = value;
-        }
+    public string UserName
+    {
+        get => this.txtUserName.Text;
+        set => this.txtUserName.Text = value;
     }
 }

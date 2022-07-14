@@ -11,30 +11,29 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Messaging
+namespace DurableTask.AzureStorage.Messaging;
+
+using System;
+
+class ActivitySession : SessionBase
 {
-    using System;
+    readonly int orchestrationEpisode;
 
-    class ActivitySession : SessionBase
+    public ActivitySession(
+        AzureStorageOrchestrationServiceSettings settings,
+        string storageAccountName,
+        MessageData message,
+        Guid traceActivityId)
+        : base(settings, storageAccountName, message.TaskMessage.OrchestrationInstance, traceActivityId)
     {
-        readonly int orchestrationEpisode;
+        this.MessageData = message ?? throw new ArgumentNullException(nameof(message));
+        this.orchestrationEpisode = message.Episode ?? -1;
+    }
 
-        public ActivitySession(
-            AzureStorageOrchestrationServiceSettings settings,
-            string storageAccountName,
-            MessageData message,
-            Guid traceActivityId)
-            : base(settings, storageAccountName, message.TaskMessage.OrchestrationInstance, traceActivityId)
-        {
-            this.MessageData = message ?? throw new ArgumentNullException(nameof(message));
-            this.orchestrationEpisode = message.Episode ?? -1;
-        }
+    public MessageData MessageData { get; }
 
-        public MessageData MessageData { get; }
-
-        public override int GetCurrentEpisode()
-        {
-            return this.orchestrationEpisode;
-        }
+    public override int GetCurrentEpisode()
+    {
+        return this.orchestrationEpisode;
     }
 }

@@ -11,48 +11,47 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+using System.Runtime.Serialization;
+
+/// <summary>
+/// Represents the parent orchestration of a sub orchestration
+/// </summary>
+[DataContract]
+public class ParentInstance : IExtensibleDataObject
 {
-    using System.Runtime.Serialization;
+    /// <summary>
+    /// The orchestration name of the parent instance
+    /// </summary>
+    [DataMember] public string Name;
 
     /// <summary>
-    /// Represents the parent orchestration of a sub orchestration
+    /// The orchestration instance of this parent instance
     /// </summary>
-    [DataContract]
-    public class ParentInstance : IExtensibleDataObject
-    {
-        /// <summary>
-        /// The orchestration name of the parent instance
-        /// </summary>
-        [DataMember] public string Name;
+    [DataMember] public OrchestrationInstance OrchestrationInstance;
 
-        /// <summary>
-        /// The orchestration instance of this parent instance
-        /// </summary>
-        [DataMember] public OrchestrationInstance OrchestrationInstance;
+    /// <summary>
+    /// The id of the child orchestration action
+    /// </summary>
+    [DataMember] public int TaskScheduleId;
 
-        /// <summary>
-        /// The id of the child orchestration action
-        /// </summary>
-        [DataMember] public int TaskScheduleId;
+    /// <summary>
+    /// The orchestration version of the parent instance
+    /// </summary>
+    [DataMember] public string Version;
 
-        /// <summary>
-        /// The orchestration version of the parent instance
-        /// </summary>
-        [DataMember] public string Version;
+    internal ParentInstance Clone()
+     => new ParentInstance
+     {
+         Name = this.Name,
+         Version = this.Version,
+         TaskScheduleId = this.TaskScheduleId,
+         OrchestrationInstance = this.OrchestrationInstance.Clone()
+     };
 
-        internal ParentInstance Clone()
-         => new ParentInstance
-         {
-             Name = this.Name,
-             Version = this.Version,
-             TaskScheduleId = this.TaskScheduleId,
-             OrchestrationInstance = this.OrchestrationInstance.Clone()
-         };
-
-        /// <summary>
-        /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
-        /// </summary>
-        public ExtensionDataObject ExtensionData { get; set; }
-    }
+    /// <summary>
+    /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
+    /// </summary>
+    public ExtensionDataObject ExtensionData { get; set; }
 }

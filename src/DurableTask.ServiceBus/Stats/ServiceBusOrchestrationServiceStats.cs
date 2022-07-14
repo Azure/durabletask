@@ -11,51 +11,50 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceBus.Stats
+namespace DurableTask.ServiceBus.Stats;
+
+/// <summary>
+/// Stats for the ServiceBusOrchestrationService
+/// </summary>
+public class ServiceBusOrchestrationServiceStats
 {
+    // TODO: This should implement an interface so implementation specific perf counter implementations are possible
+    // TODO: Add:
+    //      receive latency
+    //      message/session throughput
+    //      average E2E latency(i.e.look at curenttimeutc - enqueuedtimeutc on the received message)
+    //      queue depths
+
     /// <summary>
-    /// Stats for the ServiceBusOrchestrationService
+    /// Creates a new instance of the ServiceBusOrchestrationServiceStats class
     /// </summary>
-    public class ServiceBusOrchestrationServiceStats
+    public ServiceBusOrchestrationServiceStats()
     {
-        // TODO: This should implement an interface so implementation specific perf counter implementations are possible
-        // TODO: Add:
-        //      receive latency
-        //      message/session throughput
-        //      average E2E latency(i.e.look at curenttimeutc - enqueuedtimeutc on the received message)
-        //      queue depths
-
-        /// <summary>
-        /// Creates a new instance of the ServiceBusOrchestrationServiceStats class
-        /// </summary>
-        public ServiceBusOrchestrationServiceStats()
-        {
-            OrchestrationDispatcherStats = new ServiceBusQueueStats();
-            ActivityDispatcherStats = new ServiceBusQueueStats();
-            TrackingDispatcherStats = new ServiceBusQueueStats();
-        }
-
-        /// <summary>
-        /// The orchestration dispatcher queue stats
-        /// </summary>
-        public ServiceBusQueueStats OrchestrationDispatcherStats { get; private set; }
-
-        /// <summary>
-        /// The activity dispatcher queue stats
-        /// </summary>
-        public ServiceBusQueueStats ActivityDispatcherStats { get; private set; }
-
-        /// <summary>
-        /// The tracking dispatcher queue stats
-        /// </summary>
-        public ServiceBusQueueStats TrackingDispatcherStats { get; private set; }
-
-        /// <summary>
-        /// Returns a string that represents the stats for each queue.
-        /// </summary>
-        public override string ToString()
-         => $"OrchestrationDispatcherStats: {{{OrchestrationDispatcherStats}}}"
-          + $", ActivityDispatcherStats: {{{ActivityDispatcherStats}}}"
-          + $", TrackingDispatcherStats: {{{TrackingDispatcherStats}}}";
+        OrchestrationDispatcherStats = new ServiceBusQueueStats();
+        ActivityDispatcherStats = new ServiceBusQueueStats();
+        TrackingDispatcherStats = new ServiceBusQueueStats();
     }
+
+    /// <summary>
+    /// The orchestration dispatcher queue stats
+    /// </summary>
+    public ServiceBusQueueStats OrchestrationDispatcherStats { get; private set; }
+
+    /// <summary>
+    /// The activity dispatcher queue stats
+    /// </summary>
+    public ServiceBusQueueStats ActivityDispatcherStats { get; private set; }
+
+    /// <summary>
+    /// The tracking dispatcher queue stats
+    /// </summary>
+    public ServiceBusQueueStats TrackingDispatcherStats { get; private set; }
+
+    /// <summary>
+    /// Returns a string that represents the stats for each queue.
+    /// </summary>
+    public override string ToString()
+     => $"OrchestrationDispatcherStats: {{{OrchestrationDispatcherStats}}}"
+      + $", ActivityDispatcherStats: {{{ActivityDispatcherStats}}}"
+      + $", TrackingDispatcherStats: {{{TrackingDispatcherStats}}}";
 }

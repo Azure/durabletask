@@ -11,35 +11,34 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric
-{
-    using System;
-    using System.Collections.Generic;
-    using System.Threading.Tasks;
+namespace DurableTask.AzureServiceFabric;
 
-    using DurableTask.Core;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
+using DurableTask.Core;
+
+/// <summary>
+/// Provides additional useful functionality which is not available through <see cref="TaskHubClient"/>.
+/// </summary>
+internal interface IFabricProviderClient
+{
+    /// <summary>
+    /// Gets all the orchestration instances which are currently running or pending.
+    /// </summary>
+    /// <returns></returns>
+    Task<IEnumerable<OrchestrationInstance>> GetRunningOrchestrationsAsync();
 
     /// <summary>
-    /// Provides additional useful functionality which is not available through <see cref="TaskHubClient"/>.
+    /// Gets runtime state of a running or pending orchestration which includes the history events.
     /// </summary>
-    internal interface IFabricProviderClient
-    {
-        /// <summary>
-        /// Gets all the orchestration instances which are currently running or pending.
-        /// </summary>
-        /// <returns></returns>
-        Task<IEnumerable<OrchestrationInstance>> GetRunningOrchestrationsAsync();
-
-        /// <summary>
-        /// Gets runtime state of a running or pending orchestration which includes the history events.
-        /// </summary>
-        /// <param name="instanceId">The <see cref="OrchestrationInstance.InstanceId"/>
-        /// of the orchestration.</param>
-        /// <returns>Returns serialized runtime state which includes all the history events if the
-        /// orchestration is running or pending.</returns>
-        /// <remarks>The API is intended for diagnostics purpose, so current implementation returns
-        /// a formatted json serialized string which can be very large.</remarks>
-        /// <exception cref="ArgumentException">When the orchestration already completed or was never started.</exception>
-        Task<string> GetOrchestrationRuntimeStateAsync(string instanceId);
-    }
+    /// <param name="instanceId">The <see cref="OrchestrationInstance.InstanceId"/>
+    /// of the orchestration.</param>
+    /// <returns>Returns serialized runtime state which includes all the history events if the
+    /// orchestration is running or pending.</returns>
+    /// <remarks>The API is intended for diagnostics purpose, so current implementation returns
+    /// a formatted json serialized string which can be very large.</remarks>
+    /// <exception cref="ArgumentException">When the orchestration already completed or was never started.</exception>
+    Task<string> GetOrchestrationRuntimeStateAsync(string instanceId);
 }

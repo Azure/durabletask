@@ -11,34 +11,33 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+using System;
+using System.Collections.Generic;
+
+/// <summary>
+/// An active tracking work item
+/// </summary>
+public class TrackingWorkItem
 {
-    using System;
-    using System.Collections.Generic;
+    /// <summary>
+    /// The instance id of this tracking work item
+    /// </summary>
+    public string InstanceId;
 
     /// <summary>
-    /// An active tracking work item
+    /// The datetime this work item is locked until
     /// </summary>
-    public class TrackingWorkItem
-    {
-        /// <summary>
-        /// The instance id of this tracking work item
-        /// </summary>
-        public string InstanceId;
+    public DateTime LockedUntilUtc;
 
-        /// <summary>
-        /// The datetime this work item is locked until
-        /// </summary>
-        public DateTime LockedUntilUtc;
+    /// <summary>
+    /// The list of new messages to process tracking for
+    /// </summary>
+    public IList<TaskMessage> NewMessages;
 
-        /// <summary>
-        /// The list of new messages to process tracking for
-        /// </summary>
-        public IList<TaskMessage> NewMessages;
-
-        /// <summary>
-        /// The session instance this tracking item is associated with
-        /// </summary>
-        public object SessionInstance;
-    }
+    /// <summary>
+    /// The session instance this tracking item is associated with
+    /// </summary>
+    public object SessionInstance;
 }

@@ -11,108 +11,107 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Exceptions
+namespace DurableTask.Core.Exceptions;
+
+using System;
+using System.Runtime.Serialization;
+
+/// <summary>
+/// Represents errors created during task execution
+/// </summary>
+[Serializable]
+public class TaskFailedException : OrchestrationException
 {
-    using System;
-    using System.Runtime.Serialization;
+    /// <summary>
+    /// Initializes an new instance of the TaskFailedException class
+    /// </summary>
+    public TaskFailedException()
+    {
+    }
 
     /// <summary>
-    /// Represents errors created during task execution
+    /// Initializes an new instance of the TaskFailedException class with a specified error message
     /// </summary>
-    [Serializable]
-    public class TaskFailedException : OrchestrationException
+    /// <param name="reason">The message that describes the error.</param>
+    public TaskFailedException(string reason)
+        : base(reason)
     {
-        /// <summary>
-        /// Initializes an new instance of the TaskFailedException class
-        /// </summary>
-        public TaskFailedException()
-        {
-        }
-
-        /// <summary>
-        /// Initializes an new instance of the TaskFailedException class with a specified error message
-        /// </summary>
-        /// <param name="reason">The message that describes the error.</param>
-        public TaskFailedException(string reason)
-            : base(reason)
-        {
-        }
-
-        /// <summary>
-        /// Initializes an new instance of the TaskFailedException class with a specified error message
-        ///    and a reference to the inner exception that is the cause of this exception.
-        /// </summary>
-        /// <param name="reason">The message that describes the error.</param>
-        /// <param name="innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
-        public TaskFailedException(string reason, Exception innerException)
-            : base(reason, innerException)
-        {
-        }
-
-        /// <summary>
-        /// Initializes an new instance of the TaskFailedException class with a specified event id, schedule id, name, version and error message
-        ///    and a reference to the inner exception that is the cause of this exception.
-        /// </summary>
-        /// <param name="eventId">EventId of the error.</param>
-        /// <param name="scheduleId">ScheduleId of the error.</param>
-        /// <param name="name">Name of the Type Instance that experienced the error.</param>
-        /// <param name="version">Version of the Type Instance that experienced the error.</param>
-        /// <param name="reason">The message that describes the error.</param>
-        /// <param name="cause">The exception that is the cause of the current exception, or a null reference if no cause is specified.</param>
-        public TaskFailedException(int eventId, int scheduleId, string name, string version, string reason,
-            Exception cause)
-            : base(eventId, reason, cause)
-        {
-            ScheduleId = scheduleId;
-            Name = name;
-            Version = version;
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the TaskFailedException class with serialized data.
-        /// </summary>
-        /// <param name="info">The System.Runtime.Serialization.SerializationInfo that holds the serialized object data about the exception being thrown.</param>
-        /// <param name="context">The System.Runtime.Serialization.StreamingContext that contains contextual information about the source or destination.</param>
-        protected TaskFailedException(SerializationInfo info, StreamingContext context)
-            : base(info, context)
-        {
-            ScheduleId = info.GetInt32(nameof(ScheduleId));
-            Name = info.GetString(nameof(Name));
-            Version = info.GetString(nameof(Version));
-        }
-
-        /// <summary>
-        /// Initializes an new instance of the TaskFailedException class with a specified event id and error message
-        /// and a reference to the inner exception that is the cause of this exception.
-        /// </summary>
-        /// <param name="eventId">EventId of the error.</param>
-        /// <param name="message">The message that describes the error.</param>
-        /// <param name="innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
-        private TaskFailedException(int eventId, string message, Exception innerException)
-            : base(eventId, message, innerException) { }
-
-        /// <inheritdoc />
-        public override void GetObjectData(SerializationInfo info, StreamingContext context)
-        {
-            base.GetObjectData(info, context);
-            info.AddValue(nameof(ScheduleId), ScheduleId);
-            info.AddValue(nameof(Name), Name);
-            info.AddValue(nameof(Version), Version);
-        }
-
-        /// <summary>
-        /// Schedule Id of the exception
-        /// </summary>
-        public int ScheduleId { get; set; }
-
-        /// <summary>
-        /// Name of the Type Instance that experienced the error
-        /// </summary>
-        public string Name { get; set; }
-
-        /// <summary>
-        /// Version of the Type Instance that experienced the error
-        /// </summary>
-        public string Version { get; set; }
     }
+
+    /// <summary>
+    /// Initializes an new instance of the TaskFailedException class with a specified error message
+    ///    and a reference to the inner exception that is the cause of this exception.
+    /// </summary>
+    /// <param name="reason">The message that describes the error.</param>
+    /// <param name="innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
+    public TaskFailedException(string reason, Exception innerException)
+        : base(reason, innerException)
+    {
+    }
+
+    /// <summary>
+    /// Initializes an new instance of the TaskFailedException class with a specified event id, schedule id, name, version and error message
+    ///    and a reference to the inner exception that is the cause of this exception.
+    /// </summary>
+    /// <param name="eventId">EventId of the error.</param>
+    /// <param name="scheduleId">ScheduleId of the error.</param>
+    /// <param name="name">Name of the Type Instance that experienced the error.</param>
+    /// <param name="version">Version of the Type Instance that experienced the error.</param>
+    /// <param name="reason">The message that describes the error.</param>
+    /// <param name="cause">The exception that is the cause of the current exception, or a null reference if no cause is specified.</param>
+    public TaskFailedException(int eventId, int scheduleId, string name, string version, string reason,
+        Exception cause)
+        : base(eventId, reason, cause)
+    {
+        ScheduleId = scheduleId;
+        Name = name;
+        Version = version;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the TaskFailedException class with serialized data.
+    /// </summary>
+    /// <param name="info">The System.Runtime.Serialization.SerializationInfo that holds the serialized object data about the exception being thrown.</param>
+    /// <param name="context">The System.Runtime.Serialization.StreamingContext that contains contextual information about the source or destination.</param>
+    protected TaskFailedException(SerializationInfo info, StreamingContext context)
+        : base(info, context)
+    {
+        ScheduleId = info.GetInt32(nameof(ScheduleId));
+        Name = info.GetString(nameof(Name));
+        Version = info.GetString(nameof(Version));
+    }
+
+    /// <summary>
+    /// Initializes an new instance of the TaskFailedException class with a specified event id and error message
+    /// and a reference to the inner exception that is the cause of this exception.
+    /// </summary>
+    /// <param name="eventId">EventId of the error.</param>
+    /// <param name="message">The message that describes the error.</param>
+    /// <param name="innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
+    private TaskFailedException(int eventId, string message, Exception innerException)
+        : base(eventId, message, innerException) { }
+
+    /// <inheritdoc />
+    public override void GetObjectData(SerializationInfo info, StreamingContext context)
+    {
+        base.GetObjectData(info, context);
+        info.AddValue(nameof(ScheduleId), ScheduleId);
+        info.AddValue(nameof(Name), Name);
+        info.AddValue(nameof(Version), Version);
+    }
+
+    /// <summary>
+    /// Schedule Id of the exception
+    /// </summary>
+    public int ScheduleId { get; set; }
+
+    /// <summary>
+    /// Name of the Type Instance that experienced the error
+    /// </summary>
+    public string Name { get; set; }
+
+    /// <summary>
+    /// Version of the Type Instance that experienced the error
+    /// </summary>
+    public string Version { get; set; }
 }

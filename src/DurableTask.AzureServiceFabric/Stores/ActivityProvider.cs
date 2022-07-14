@@ -11,54 +11,53 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Stores
+namespace DurableTask.AzureServiceFabric.Stores;
+
+using System;
+using System.Collections.Concurrent;
+using System.Threading;
+using System.Threading.Tasks;
+
+using Microsoft.ServiceFabric.Data;
+
+internal class ActivityProvider : MessageProviderBase<string, TaskMessageItem>
 {
-    using System;
-    using System.Collections.Concurrent;
-    using System.Threading;
-    using System.Threading.Tasks;
+    private readonly ConcurrentQueue<string> inMemoryQueue = new ConcurrentQueue<string>();
 
-    using Microsoft.ServiceFabric.Data;
+    public ActivityProvider(IReliableStateManager stateManager, string storeName, CancellationToken token)
+        : base(stateManager, storeName, token) { }
 
-    internal class ActivityProvider : MessageProviderBase<string, TaskMessageItem>
+    protected override void AddItemInMemory(string key, TaskMessageItem value) => this.inMemoryQueue.Enqueue(key);
+
+    public async Task<Message<string, TaskMessageItem>> ReceiveAsync(TimeSpan receiveTimeout)
     {
-        private readonly ConcurrentQueue<string> inMemoryQueue = new ConcurrentQueue<string>();
-
-        public ActivityProvider(IReliableStateManager stateManager, string storeName, CancellationToken token)
-            : base(stateManager, storeName, token) { }
-
-        protected override void AddItemInMemory(string key, TaskMessageItem value) => this.inMemoryQueue.Enqueue(key);
-
-        public async Task<Message<string, TaskMessageItem>> ReceiveAsync(TimeSpan receiveTimeout)
+        if (!IsStopped())
         {
-            if (!IsStopped())
+            bool newItemsBeforeTimeout = true;
+            while (newItemsBeforeTimeout)
             {
-                bool newItemsBeforeTimeout = true;
-                while (newItemsBeforeTimeout)
+                if (this.inMemoryQueue.TryDequeue(out string key))
                 {
-                    if (this.inMemoryQueue.TryDequeue(out string key))
+                    try
                     {
-                        try
-                        {
-                            return await GetValueAsync(key);
-                        }
-                        catch (Exception)
-                        {
-                            this.inMemoryQueue.Enqueue(key);
-                            throw;
-                        }
+                        return await GetValueAsync(key);
                     }
-
-                    newItemsBeforeTimeout = await WaitForItemsAsync(receiveTimeout);
+                    catch (Exception)
+                    {
+                        this.inMemoryQueue.Enqueue(key);
+                        throw;
+                    }
                 }
-            }
-            return null;
-        }
 
-        public void Abandon(string key)
-        {
-            this.inMemoryQueue.Enqueue(key);
-            SetWaiterForNewItems();
+                newItemsBeforeTimeout = await WaitForItemsAsync(receiveTimeout);
+            }
         }
+        return null;
+    }
+
+    public void Abandon(string key)
+    {
+        this.inMemoryQueue.Enqueue(key);
+        SetWaiterForNewItems();
     }
 }

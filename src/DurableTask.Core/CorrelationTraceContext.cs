@@ -11,37 +11,36 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
-{
-    using System.Threading;
+namespace DurableTask.Core;
 
-    /// <summary>
-    /// Manage TraceContext for Dependency.
-    /// This class share the TraceContext using AsyncLocal.
-    /// </summary>
-    public class CorrelationTraceContext
-    {
+using System.Threading;
+
+/// <summary>
+/// Manage TraceContext for Dependency.
+/// This class share the TraceContext using AsyncLocal.
+/// </summary>
+public class CorrelationTraceContext
+{
 #pragma warning disable IDE1006 // Naming Styles
-        private static readonly AsyncLocal<TraceContextBase> current = new AsyncLocal<TraceContextBase>();
-        private static readonly AsyncLocal<bool> generateDependencyTracking = new AsyncLocal<bool>();
+    private static readonly AsyncLocal<TraceContextBase> current = new AsyncLocal<TraceContextBase>();
+    private static readonly AsyncLocal<bool> generateDependencyTracking = new AsyncLocal<bool>();
 #pragma warning restore IDE1006 // Naming Styles
 
-        /// <summary>
-        /// Share the TraceContext on the call graph contextBase.
-        /// </summary>
-        public static TraceContextBase Current
-        {
-            get => current.Value;
-            set => current.Value = value;
-        }
+    /// <summary>
+    /// Share the TraceContext on the call graph contextBase.
+    /// </summary>
+    public static TraceContextBase Current
+    {
+        get => current.Value;
+        set => current.Value = value;
+    }
 
-        /// <summary>
-        /// Set true if a DependencyTelemetry tracking is generated on the TaskHubQueue.
-        /// </summary>
-        public static bool GenerateDependencyTracking
-        {
-            get => generateDependencyTracking.Value;
-            set => generateDependencyTracking.Value = value;
-        }
+    /// <summary>
+    /// Set true if a DependencyTelemetry tracking is generated on the TaskHubQueue.
+    /// </summary>
+    public static bool GenerateDependencyTracking
+    {
+        get => generateDependencyTracking.Value;
+        set => generateDependencyTracking.Value = value;
     }
 }

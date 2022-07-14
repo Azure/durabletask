@@ -11,27 +11,26 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage
-{
-    using System;
-    using Microsoft.WindowsAzure.Storage.Table;
+namespace DurableTask.AzureStorage;
 
-    /// <summary>
-    /// Table Entity Representation of an Orchestration Instance's Status
-    /// </summary>
-    class OrchestrationInstanceStatus : TableEntity
-    {
-        public string ExecutionId { get; set; }
-        public string Name { get; set; }
-        public string Version { get; set; }
-        public string Input { get; set; }
-        public string Output { get; set; }
-        public string CustomStatus { get; set; }
-        public DateTime CreatedTime { get; set; }
-        public DateTime LastUpdatedTime { get; set; }
-        public DateTime? CompletedTime { get; set; }
-        public string RuntimeStatus { get; set; }
-        public DateTime? ScheduledStartTime { get; set; }
-        public int Generation { get; set; }
-    }
+using System;
+using Microsoft.WindowsAzure.Storage.Table;
+
+/// <summary>
+/// Table Entity Representation of an Orchestration Instance's Status
+/// </summary>
+class OrchestrationInstanceStatus : TableEntity
+{
+    public string ExecutionId { get; set; }
+    public string Name { get; set; }
+    public string Version { get; set; }
+    public string Input { get; set; }
+    public string Output { get; set; }
+    public string CustomStatus { get; set; }
+    public DateTime CreatedTime { get; set; }
+    public DateTime LastUpdatedTime { get; set; }
+    public DateTime? CompletedTime { get; set; }
+    public string RuntimeStatus { get; set; }
+    public DateTime? ScheduledStartTime { get; set; }
+    public int Generation { get; set; }
 }

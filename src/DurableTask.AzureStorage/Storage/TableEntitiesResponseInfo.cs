@@ -11,18 +11,17 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.AzureStorage.Storage
+namespace DurableTask.AzureStorage.Storage;
+
+using System.Collections.Generic;
+
+class TableEntitiesResponseInfo<T>
 {
-    using System.Collections.Generic;
+    public long ElapsedMilliseconds { get; set; }
 
-    class TableEntitiesResponseInfo<T>
-    {
-        public long ElapsedMilliseconds { get; set; }
+    public int RequestCount { get; set; }
 
-        public int RequestCount { get; set; }
+    public IList<T>? ReturnedEntities { get; set; }
 
-        public IList<T>? ReturnedEntities { get; set; }
-
-        public string? ContinuationToken { get; set; }
-    }
+    public string? ContinuationToken { get; set; }
 }

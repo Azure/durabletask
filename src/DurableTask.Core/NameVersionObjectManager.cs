@@ -11,49 +11,48 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+using System;
+using System.Collections.Generic;
+
+internal class NameVersionObjectManager<T> : INameVersionObjectManager<T>
 {
-    using System;
-    using System.Collections.Generic;
+    private readonly IDictionary<string, ObjectCreator<T>> creators;
+    private readonly object thisLock = new object();
 
-    internal class NameVersionObjectManager<T> : INameVersionObjectManager<T>
+    public NameVersionObjectManager() => this.creators = new Dictionary<string, ObjectCreator<T>>();
+
+    public void Add(ObjectCreator<T> creator)
     {
-        private readonly IDictionary<string, ObjectCreator<T>> creators;
-        private readonly object thisLock = new object();
-
-        public NameVersionObjectManager() => this.creators = new Dictionary<string, ObjectCreator<T>>();
-
-        public void Add(ObjectCreator<T> creator)
+        lock (this.thisLock)
         {
-            lock (this.thisLock)
+            string key = GetKey(creator.Name, creator.Version);
+
+            if (this.creators.ContainsKey(key))
             {
-                string key = GetKey(creator.Name, creator.Version);
-
-                if (this.creators.ContainsKey(key))
-                {
-                    throw new InvalidOperationException("Duplicate entry detected: " + creator.Name + " " +
-                                                        creator.Version);
-                }
-
-                this.creators.Add(key, creator);
+                throw new InvalidOperationException("Duplicate entry detected: " + creator.Name + " " +
+                                                    creator.Version);
             }
+
+            this.creators.Add(key, creator);
         }
-
-        public T GetObject(string name, string version)
-        {
-            string key = GetKey(name, version);
-
-            lock (this.thisLock)
-            {
-                if (this.creators.TryGetValue(key, out ObjectCreator<T> creator))
-                {
-                    return creator.Create();
-                }
-
-                return default(T);
-            }
-        }
-
-        private string GetKey(string name, string version) => $"{name}_{version}";
     }
+
+    public T GetObject(string name, string version)
+    {
+        string key = GetKey(name, version);
+
+        lock (this.thisLock)
+        {
+            if (this.creators.TryGetValue(key, out ObjectCreator<T> creator))
+            {
+                return creator.Create();
+            }
+
+            return default(T);
+        }
+    }
+
+    private string GetKey(string name, string version) => $"{name}_{version}";
 }

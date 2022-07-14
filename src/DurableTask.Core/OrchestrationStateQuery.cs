@@ -11,216 +11,215 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+/// <summary>
+///     Query class that can be used to filter results from the Orchestration instance store.
+///     Instance methods are not thread safe.
+/// </summary>
+public class OrchestrationStateQuery
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
+    // if we get multiple filters in a state query, we will pick one as the primary filter to pass on in the
+    // azure table store query. the remaining filters will be used to trim the results in-memory
+    // this table gives the precedence of the filters. higher number will be selected over the lower one.
+    //
+    private static readonly Dictionary<Type, int> FilterPrecedenceMap = new Dictionary<Type, int>
+    {
+        {typeof (OrchestrationStateTimeRangeFilter), 10},
+        {typeof (OrchestrationStateInstanceFilter), 5},
+        {typeof (OrchestrationStateNameVersionFilter), 3},
+        {typeof (OrchestrationStateStatusFilter), 1},
+    };
 
     /// <summary>
     ///     Query class that can be used to filter results from the Orchestration instance store.
     ///     Instance methods are not thread safe.
     /// </summary>
-    public class OrchestrationStateQuery
+    public OrchestrationStateQuery() => FilterMap = new Dictionary<Type, OrchestrationStateQueryFilter>();
+
+    /// <summary>
+    /// Gets the FilterMap for the query
+    /// </summary>
+    public IDictionary<Type, OrchestrationStateQueryFilter> FilterMap { get; private set; }
+
+    /// <summary>
+    /// Gets the primary_filter, collection_of(secondary_filters) for the query
+    /// </summary>
+    public (OrchestrationStateQueryFilter Primary, IEnumerable<OrchestrationStateQueryFilter> Secondary) GetFilters()
     {
-        // if we get multiple filters in a state query, we will pick one as the primary filter to pass on in the
-        // azure table store query. the remaining filters will be used to trim the results in-memory
-        // this table gives the precedence of the filters. higher number will be selected over the lower one.
-        //
-        private static readonly Dictionary<Type, int> FilterPrecedenceMap = new Dictionary<Type, int>
+        ICollection<OrchestrationStateQueryFilter> filters = FilterMap.Values;
+        if (filters.Count == 0)
         {
-            {typeof (OrchestrationStateTimeRangeFilter), 10},
-            {typeof (OrchestrationStateInstanceFilter), 5},
-            {typeof (OrchestrationStateNameVersionFilter), 3},
-            {typeof (OrchestrationStateStatusFilter), 1},
-        };
+            return default;
+        }
 
-        /// <summary>
-        ///     Query class that can be used to filter results from the Orchestration instance store.
-        ///     Instance methods are not thread safe.
-        /// </summary>
-        public OrchestrationStateQuery() => FilterMap = new Dictionary<Type, OrchestrationStateQueryFilter>();
+        var secondaryFilters = new List<OrchestrationStateQueryFilter>();
 
-        /// <summary>
-        /// Gets the FilterMap for the query
-        /// </summary>
-        public IDictionary<Type, OrchestrationStateQueryFilter> FilterMap { get; private set; }
+        OrchestrationStateQueryFilter primaryFilter = filters.First();
+        int primaryFilterPrecedence = SafeGetFilterPrecedence(primaryFilter);
 
-        /// <summary>
-        /// Gets the primary_filter, collection_of(secondary_filters) for the query
-        /// </summary>
-        public (OrchestrationStateQueryFilter Primary, IEnumerable<OrchestrationStateQueryFilter> Secondary) GetFilters()
+        if (filters.Count > 1)
         {
-            ICollection<OrchestrationStateQueryFilter> filters = FilterMap.Values;
-            if (filters.Count == 0)
+            foreach (OrchestrationStateQueryFilter filter in filters)
             {
-                return default;
-            }
-
-            var secondaryFilters = new List<OrchestrationStateQueryFilter>();
-
-            OrchestrationStateQueryFilter primaryFilter = filters.First();
-            int primaryFilterPrecedence = SafeGetFilterPrecedence(primaryFilter);
-
-            if (filters.Count > 1)
-            {
-                foreach (OrchestrationStateQueryFilter filter in filters)
+                int newPrecedence = SafeGetFilterPrecedence(filter);
+                if (newPrecedence > primaryFilterPrecedence)
                 {
-                    int newPrecedence = SafeGetFilterPrecedence(filter);
-                    if (newPrecedence > primaryFilterPrecedence)
-                    {
-                        secondaryFilters.Add(primaryFilter);
+                    secondaryFilters.Add(primaryFilter);
 
-                        primaryFilter = filter;
-                        primaryFilterPrecedence = newPrecedence;
-                    }
-                    else
-                    {
-                        secondaryFilters.Add(filter);
-                    }
+                    primaryFilter = filter;
+                    primaryFilterPrecedence = newPrecedence;
+                }
+                else
+                {
+                    secondaryFilters.Add(filter);
                 }
             }
-
-            return (primaryFilter, secondaryFilters);
         }
 
-        private int SafeGetFilterPrecedence(OrchestrationStateQueryFilter filter)
+        return (primaryFilter, secondaryFilters);
+    }
+
+    private int SafeGetFilterPrecedence(OrchestrationStateQueryFilter filter)
+    {
+        if (!FilterPrecedenceMap.ContainsKey(filter.GetType()))
         {
-            if (!FilterPrecedenceMap.ContainsKey(filter.GetType()))
-            {
-                throw new InvalidOperationException("Unknown filter type: " + filter.GetType());
-            }
-
-            return FilterPrecedenceMap[filter.GetType()];
+            throw new InvalidOperationException("Unknown filter type: " + filter.GetType());
         }
 
-        /// <summary>
-        ///     Adds an exact match instance id filter on the returned orchestrations
-        /// </summary>
-        /// <param name="instanceId">Instance Id to filter by</param>
-        /// <returns></returns>
-        public OrchestrationStateQuery AddInstanceFilter(string instanceId) => AddInstanceFilter(instanceId, false);
+        return FilterPrecedenceMap[filter.GetType()];
+    }
 
-        /// <summary>
-        ///     Adds an exact match instance id filter on the returned orchestrations
-        /// </summary>
-        /// <param name="instanceId">Instance Id to filter by</param>
-        /// <param name="executionId">Execution Id to filter by</param>
-        /// <returns></returns>
-        public OrchestrationStateQuery AddInstanceFilter(string instanceId, string executionId)
+    /// <summary>
+    ///     Adds an exact match instance id filter on the returned orchestrations
+    /// </summary>
+    /// <param name="instanceId">Instance Id to filter by</param>
+    /// <returns></returns>
+    public OrchestrationStateQuery AddInstanceFilter(string instanceId) => AddInstanceFilter(instanceId, false);
+
+    /// <summary>
+    ///     Adds an exact match instance id filter on the returned orchestrations
+    /// </summary>
+    /// <param name="instanceId">Instance Id to filter by</param>
+    /// <param name="executionId">Execution Id to filter by</param>
+    /// <returns></returns>
+    public OrchestrationStateQuery AddInstanceFilter(string instanceId, string executionId)
+    {
+        if (FilterMap.ContainsKey(typeof(OrchestrationStateInstanceFilter)))
         {
-            if (FilterMap.ContainsKey(typeof(OrchestrationStateInstanceFilter)))
-            {
-                throw new ArgumentException("Cannot add more than one instance filters");
-            }
-
-            FilterMap.Add(typeof(OrchestrationStateInstanceFilter),
-                new OrchestrationStateInstanceFilter
-                {
-                    InstanceId = instanceId,
-                    ExecutionId = executionId,
-                    StartsWith = false
-                });
-
-            return this;
+            throw new ArgumentException("Cannot add more than one instance filters");
         }
 
-        /// <summary>
-        ///     Adds an instance id filter on the returned orchestrations
-        /// </summary>
-        /// <param name="instanceId">Instance Id to filter by</param>
-        /// <param name="startsWith">Exact match if set to false, otherwise do a starts-with match</param>
-        /// <returns></returns>
-        public OrchestrationStateQuery AddInstanceFilter(string instanceId, bool startsWith)
+        FilterMap.Add(typeof(OrchestrationStateInstanceFilter),
+            new OrchestrationStateInstanceFilter
+            {
+                InstanceId = instanceId,
+                ExecutionId = executionId,
+                StartsWith = false
+            });
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Adds an instance id filter on the returned orchestrations
+    /// </summary>
+    /// <param name="instanceId">Instance Id to filter by</param>
+    /// <param name="startsWith">Exact match if set to false, otherwise do a starts-with match</param>
+    /// <returns></returns>
+    public OrchestrationStateQuery AddInstanceFilter(string instanceId, bool startsWith)
+    {
+        if (FilterMap.ContainsKey(typeof(OrchestrationStateInstanceFilter)))
         {
-            if (FilterMap.ContainsKey(typeof(OrchestrationStateInstanceFilter)))
-            {
-                throw new ArgumentException("Cannot add more than one instance filters");
-            }
-
-            FilterMap.Add(typeof(OrchestrationStateInstanceFilter),
-                new OrchestrationStateInstanceFilter { InstanceId = instanceId, StartsWith = startsWith });
-
-            return this;
+            throw new ArgumentException("Cannot add more than one instance filters");
         }
 
-        /// <summary>
-        ///     Adds a name filter on the returned orchestrations
-        /// </summary>
-        /// <param name="name">The name of the orchestration to filter by</param>
-        /// <returns></returns>
-        public OrchestrationStateQuery AddNameVersionFilter(string name) => AddNameVersionFilter(name, null);
+        FilterMap.Add(typeof(OrchestrationStateInstanceFilter),
+            new OrchestrationStateInstanceFilter { InstanceId = instanceId, StartsWith = startsWith });
 
-        /// <summary>
-        ///     Adds a name/version filter on the returned orchestrations
-        /// </summary>
-        /// <param name="name">The name of the orchestration to filter by</param>
-        /// <param name="version">The version of the orchestration to filter by</param>
-        /// <returns></returns>
-        public OrchestrationStateQuery AddNameVersionFilter(string name, string version)
+        return this;
+    }
+
+    /// <summary>
+    ///     Adds a name filter on the returned orchestrations
+    /// </summary>
+    /// <param name="name">The name of the orchestration to filter by</param>
+    /// <returns></returns>
+    public OrchestrationStateQuery AddNameVersionFilter(string name) => AddNameVersionFilter(name, null);
+
+    /// <summary>
+    ///     Adds a name/version filter on the returned orchestrations
+    /// </summary>
+    /// <param name="name">The name of the orchestration to filter by</param>
+    /// <param name="version">The version of the orchestration to filter by</param>
+    /// <returns></returns>
+    public OrchestrationStateQuery AddNameVersionFilter(string name, string version)
+    {
+        if (FilterMap.ContainsKey(typeof(OrchestrationStateNameVersionFilter)))
         {
-            if (FilterMap.ContainsKey(typeof(OrchestrationStateNameVersionFilter)))
-            {
-                throw new ArgumentException("Cannot add more than one name/version filters");
-            }
-
-            FilterMap.Add(typeof(OrchestrationStateNameVersionFilter),
-                new OrchestrationStateNameVersionFilter { Name = name, Version = version });
-
-            return this;
+            throw new ArgumentException("Cannot add more than one name/version filters");
         }
 
-        /// <summary>
-        ///     Adds a status filter on the returned orchestrations. Defaults to the equality Comparison Type.
-        /// </summary>
-        /// <param name="status">The status to filter by</param>
-        /// <returns></returns>
-        public OrchestrationStateQuery AddStatusFilter(OrchestrationStatus status)
-         => AddStatusFilter(status, FilterComparisonType.Equals);
+        FilterMap.Add(typeof(OrchestrationStateNameVersionFilter),
+            new OrchestrationStateNameVersionFilter { Name = name, Version = version });
 
-        /// <summary>
-        ///     Adds a status filter on the returned orchestrations
-        /// </summary>
-        /// <param name="status">The status to filter by</param>
-        /// <param name="comparisonType">type of comparison to be performed on the status</param>
-        /// <returns></returns>
-        public OrchestrationStateQuery AddStatusFilter(OrchestrationStatus status, FilterComparisonType comparisonType)
+        return this;
+    }
+
+    /// <summary>
+    ///     Adds a status filter on the returned orchestrations. Defaults to the equality Comparison Type.
+    /// </summary>
+    /// <param name="status">The status to filter by</param>
+    /// <returns></returns>
+    public OrchestrationStateQuery AddStatusFilter(OrchestrationStatus status)
+     => AddStatusFilter(status, FilterComparisonType.Equals);
+
+    /// <summary>
+    ///     Adds a status filter on the returned orchestrations
+    /// </summary>
+    /// <param name="status">The status to filter by</param>
+    /// <param name="comparisonType">type of comparison to be performed on the status</param>
+    /// <returns></returns>
+    public OrchestrationStateQuery AddStatusFilter(OrchestrationStatus status, FilterComparisonType comparisonType)
+    {
+        if (FilterMap.ContainsKey(typeof(OrchestrationStateStatusFilter)))
         {
-            if (FilterMap.ContainsKey(typeof(OrchestrationStateStatusFilter)))
-            {
-                throw new ArgumentException("Cannot add more than one status filters");
-            }
-
-            FilterMap.Add(typeof(OrchestrationStateStatusFilter),
-                new OrchestrationStateStatusFilter { Status = status, ComparisonType = comparisonType });
-
-            return this;
+            throw new ArgumentException("Cannot add more than one status filters");
         }
 
-        /// <summary>
-        ///     Adds a time range filter on the returned orchestrations
-        /// </summary>
-        /// <param name="startTime">Start of the time range to filter by</param>
-        /// <param name="endTime">End of the time range to filter by</param>
-        /// <param name="filterType">Type of orchestration timestamp to apply filter on</param>
-        /// <returns></returns>
-        public OrchestrationStateQuery AddTimeRangeFilter(DateTime startTime, DateTime endTime,
-            OrchestrationStateTimeRangeFilterType filterType)
+        FilterMap.Add(typeof(OrchestrationStateStatusFilter),
+            new OrchestrationStateStatusFilter { Status = status, ComparisonType = comparisonType });
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Adds a time range filter on the returned orchestrations
+    /// </summary>
+    /// <param name="startTime">Start of the time range to filter by</param>
+    /// <param name="endTime">End of the time range to filter by</param>
+    /// <param name="filterType">Type of orchestration timestamp to apply filter on</param>
+    /// <returns></returns>
+    public OrchestrationStateQuery AddTimeRangeFilter(DateTime startTime, DateTime endTime,
+        OrchestrationStateTimeRangeFilterType filterType)
+    {
+        if (FilterMap.ContainsKey(typeof(OrchestrationStateTimeRangeFilter)))
         {
-            if (FilterMap.ContainsKey(typeof(OrchestrationStateTimeRangeFilter)))
-            {
-                throw new ArgumentException("Cannot add more than one time range filters");
-            }
-
-            FilterMap.Add(typeof(OrchestrationStateTimeRangeFilter),
-                new OrchestrationStateTimeRangeFilter
-                {
-                    StartTime = startTime,
-                    EndTime = endTime,
-                    FilterType = filterType
-                });
-
-            return this;
+            throw new ArgumentException("Cannot add more than one time range filters");
         }
+
+        FilterMap.Add(typeof(OrchestrationStateTimeRangeFilter),
+            new OrchestrationStateTimeRangeFilter
+            {
+                StartTime = startTime,
+                EndTime = endTime,
+                FilterType = filterType
+            });
+
+        return this;
     }
 }

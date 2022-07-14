@@ -11,27 +11,26 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceBus
+namespace DurableTask.ServiceBus;
+
+internal class ServiceBusConstants
 {
-    internal class ServiceBusConstants
-    {
-        // name format constants
-        public const string OrchestratorEndpointFormat = "{0}/orchestrator";
-        public const string WorkerEndpointFormat = "{0}/worker";
-        public const string TrackingEndpointFormat = "{0}/tracking";
+    // name format constants
+    public const string OrchestratorEndpointFormat = "{0}/orchestrator";
+    public const string WorkerEndpointFormat = "{0}/worker";
+    public const string TrackingEndpointFormat = "{0}/tracking";
 
-        // tracking constants
-        public const string TaskMessageContentType = "TaskMessage";
-        public const string StateMessageContentType = "StateMessage";
-        public const string HistoryEventIndexPropertyName = "HistoryEventIndex";
+    // tracking constants
+    public const string TaskMessageContentType = "TaskMessage";
+    public const string StateMessageContentType = "StateMessage";
+    public const string HistoryEventIndexPropertyName = "HistoryEventIndex";
 
-        public const int MaxDeliveryCount = 10;
+    public const int MaxDeliveryCount = 10;
 
-        // message blob key in message property
-        // this property is a key to the message blob when it exceeds the message limit
-        public const string MessageBlobKey = "MessageBlobKey";
+    // message blob key in message property
+    // this property is a key to the message blob when it exceeds the message limit
+    public const string MessageBlobKey = "MessageBlobKey";
 
-        // instance store constants
-        public const int MaxStringLengthForAzureTableColumn = 1024 * 15; // cut off at 15k * 2 bytes
-    }
+    // instance store constants
+    public const int MaxStringLengthForAzureTableColumn = 1024 * 15; // cut off at 15k * 2 bytes
 }

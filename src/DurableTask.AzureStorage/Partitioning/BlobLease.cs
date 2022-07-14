@@ -11,35 +11,34 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Partitioning
+namespace DurableTask.AzureStorage.Partitioning;
+
+using System.Threading.Tasks;
+using DurableTask.AzureStorage.Storage;
+using Newtonsoft.Json;
+
+class BlobLease : Lease
 {
-    using System.Threading.Tasks;
-    using DurableTask.AzureStorage.Storage;
-    using Newtonsoft.Json;
-
-    class BlobLease : Lease
+    public BlobLease()
+        : base()
     {
-        public BlobLease()
-            : base()
-        {
-        }
-
-        public BlobLease(Blob leaseBlob)
-            : this()
-        {
-            this.Blob = leaseBlob;
-        }
-
-        public BlobLease(BlobLease source)
-            : base(source)
-        {
-            this.Blob = source.Blob;
-        }
-
-        [JsonIgnore]
-        public Blob Blob { get; set; }
-
-        [JsonIgnore]
-        public override bool IsExpired => !Blob.IsLeased;
     }
+
+    public BlobLease(Blob leaseBlob)
+        : this()
+    {
+        this.Blob = leaseBlob;
+    }
+
+    public BlobLease(BlobLease source)
+        : base(source)
+    {
+        this.Blob = source.Blob;
+    }
+
+    [JsonIgnore]
+    public Blob Blob { get; set; }
+
+    [JsonIgnore]
+    public override bool IsExpired => !Blob.IsLeased;
 }

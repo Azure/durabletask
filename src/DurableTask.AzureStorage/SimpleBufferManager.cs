@@ -11,130 +11,129 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage
+namespace DurableTask.AzureStorage;
+
+using System;
+using System.Collections.Concurrent;
+using System.Threading;
+using Microsoft.WindowsAzure.Storage;
+
+/// <summary>
+/// Simple buffer manager intended for use with Azure Storage SDK and compression code.
+/// It is not intended to be robust enough for external use.
+/// </summary>
+class SimpleBufferManager : IBufferManager
 {
-    using System;
-    using System.Collections.Concurrent;
-    using System.Threading;
-    using Microsoft.WindowsAzure.Storage;
+    internal const int MaxBufferSize = 1024 * 1024; //  1 MB
+    const int DefaultBufferSize = 64 * 1024;        // 64 KB
+    public const int SmallBufferSize = 1024;        //  1 KB
 
     /// <summary>
-    /// Simple buffer manager intended for use with Azure Storage SDK and compression code.
-    /// It is not intended to be robust enough for external use.
+    /// Shared singleton instance of <see cref="SimpleBufferManager"/>.
     /// </summary>
-    class SimpleBufferManager : IBufferManager
+    public static SimpleBufferManager Shared { get; } = new SimpleBufferManager();
+
+    /// <summary>
+    /// Internal pool of buffers. Using stacks internally ensures that the same pool can be
+    /// frequently reused, which can result in improved performance due to hardware caching.
+    /// </summary>
+    readonly ConcurrentDictionary<int, ConcurrentStack<byte[]>> pool;
+
+    int allocatedBytes;
+    int availableBytes;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SimpleBufferManager"/> class.
+    /// </summary>
+    public SimpleBufferManager()
     {
-        internal const int MaxBufferSize = 1024 * 1024; //  1 MB
-        const int DefaultBufferSize = 64 * 1024;        // 64 KB
-        public const int SmallBufferSize = 1024;        //  1 KB
+        this.pool = new ConcurrentDictionary<int, ConcurrentStack<byte[]>>();
+    }
 
-        /// <summary>
-        /// Shared singleton instance of <see cref="SimpleBufferManager"/>.
-        /// </summary>
-        public static SimpleBufferManager Shared { get; } = new SimpleBufferManager();
+    /// <summary>
+    /// The total number of bytes allocated by this buffer.
+    /// </summary>
+    public int AllocatedBytes => this.allocatedBytes;
 
-        /// <summary>
-        /// Internal pool of buffers. Using stacks internally ensures that the same pool can be
-        /// frequently reused, which can result in improved performance due to hardware caching.
-        /// </summary>
-        readonly ConcurrentDictionary<int, ConcurrentStack<byte[]>> pool;
+    /// <summary>
+    /// The total bytes available to be reused.
+    /// </summary>
+    public int AvailableBytes => this.availableBytes;
 
-        int allocatedBytes;
-        int availableBytes;
+    /// <summary>
+    /// The number of buckets allocated by this pool.
+    /// </summary>
+    public int BucketCount => this.pool.Count;
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="SimpleBufferManager"/> class.
-        /// </summary>
-        public SimpleBufferManager()
+    /// <inheritdoc />
+    public int GetDefaultBufferSize()
+    {
+        return DefaultBufferSize;
+    }
+
+    /// <inheritdoc />
+    public void ReturnBuffer(byte[] buffer)
+    {
+        if (buffer is null)
         {
-            this.pool = new ConcurrentDictionary<int, ConcurrentStack<byte[]>>();
+            throw new ArgumentNullException(nameof(buffer));
         }
 
-        /// <summary>
-        /// The total number of bytes allocated by this buffer.
-        /// </summary>
-        public int AllocatedBytes => this.allocatedBytes;
-
-        /// <summary>
-        /// The total bytes available to be reused.
-        /// </summary>
-        public int AvailableBytes => this.availableBytes;
-
-        /// <summary>
-        /// The number of buckets allocated by this pool.
-        /// </summary>
-        public int BucketCount => this.pool.Count;
-
-        /// <inheritdoc />
-        public int GetDefaultBufferSize()
+        int bufferSize = buffer.Length;
+        if (bufferSize > MaxBufferSize)
         {
-            return DefaultBufferSize;
+            // This was a large buffer which we're not tracking.
+            return;
         }
 
-        /// <inheritdoc />
-        public void ReturnBuffer(byte[] buffer)
+        ConcurrentStack<byte[]> bucket;
+        if (!this.pool.TryGetValue(bufferSize, out bucket))
         {
-            if (buffer is null)
-            {
-                throw new ArgumentNullException(nameof(buffer));
-            }
-
-            int bufferSize = buffer.Length;
-            if (bufferSize > MaxBufferSize)
-            {
-                // This was a large buffer which we're not tracking.
-                return;
-            }
-
-            ConcurrentStack<byte[]> bucket;
-            if (!this.pool.TryGetValue(bufferSize, out bucket))
-            {
-                throw new ArgumentException("The returned buffer did not come from this pool.", nameof(buffer));
-            }
-
-            bucket.Push(buffer);
-            Interlocked.Add(ref this.availableBytes, bufferSize);
+            throw new ArgumentException("The returned buffer did not come from this pool.", nameof(buffer));
         }
 
-        /// <inheritdoc />
-        public byte[] TakeBuffer(int bufferSize)
+        bucket.Push(buffer);
+        Interlocked.Add(ref this.availableBytes, bufferSize);
+    }
+
+    /// <inheritdoc />
+    public byte[] TakeBuffer(int bufferSize)
+    {
+        if (bufferSize > MaxBufferSize)
         {
-            if (bufferSize > MaxBufferSize)
-            {
-                // We don't track large buffers
-                return new byte[bufferSize];
-            }
-
-            bufferSize = (bufferSize < 0) ? DefaultBufferSize : bufferSize;
-
-            ConcurrentStack<byte[]> bucket = this.pool.GetOrAdd(
-                bufferSize,
-                size => new ConcurrentStack<byte[]>());
-
-            byte[] buffer;
-            if (bucket.TryPop(out buffer))
-            {
-                Interlocked.Add(ref this.availableBytes, -bufferSize);
-            }
-            else
-            {
-                buffer = new byte[bufferSize];
-                Interlocked.Add(ref this.allocatedBytes, bufferSize);
-            }
-
-            return buffer;
+            // We don't track large buffers
+            return new byte[bufferSize];
         }
 
-        /// <summary>
-        /// Returns a debug string representing the current state of the buffer manager.
-        /// </summary>
-        public override string ToString()
+        bufferSize = (bufferSize < 0) ? DefaultBufferSize : bufferSize;
+
+        ConcurrentStack<byte[]> bucket = this.pool.GetOrAdd(
+            bufferSize,
+            size => new ConcurrentStack<byte[]>());
+
+        byte[] buffer;
+        if (bucket.TryPop(out buffer))
         {
-            return string.Format(
-                "BucketCount: {0}, AvailableBytes: {1}, AllocatedBytes: {2}.",
-                this.BucketCount,
-                this.AvailableBytes,
-                this.AllocatedBytes);
+            Interlocked.Add(ref this.availableBytes, -bufferSize);
         }
+        else
+        {
+            buffer = new byte[bufferSize];
+            Interlocked.Add(ref this.allocatedBytes, bufferSize);
+        }
+
+        return buffer;
+    }
+
+    /// <summary>
+    /// Returns a debug string representing the current state of the buffer manager.
+    /// </summary>
+    public override string ToString()
+    {
+        return string.Format(
+            "BucketCount: {0}, AvailableBytes: {1}, AllocatedBytes: {2}.",
+            this.BucketCount,
+            this.AvailableBytes,
+            this.AllocatedBytes);
     }
 }

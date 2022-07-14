@@ -11,71 +11,70 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.Core.History
+namespace DurableTask.Core.History;
+
+using System.Runtime.Serialization;
+
+/// <summary>
+/// A history event for a sub orchestration instance failure
+/// </summary>
+[DataContract]
+public class SubOrchestrationInstanceFailedEvent : HistoryEvent
 {
-    using System.Runtime.Serialization;
+    /// <summary>
+    /// Creates a new SubOrchestrationInstanceFailedEvent with the supplied params
+    /// </summary>
+    /// <param name="eventId">The event id of the history event</param>
+    /// <param name="taskScheduledId">The scheduled parent instance event id</param>
+    /// <param name="reason">The sub orchestration failure reason</param>
+    /// <param name="details">Details of the sub orchestration failure</param>
+    /// <param name="failureDetails">Structured details of the sub orchestration failure.</param>
+    public SubOrchestrationInstanceFailedEvent(int eventId, int taskScheduledId, string? reason, string? details, FailureDetails? failureDetails)
+        : base(eventId)
+    {
+        TaskScheduledId = taskScheduledId;
+        Reason = reason;
+        Details = details;
+        FailureDetails = failureDetails;
+    }
+
+    /// <inheritdoc cref="SubOrchestrationInstanceFailedEvent(int, int, string?, string?, FailureDetails?)"/>
+    public SubOrchestrationInstanceFailedEvent(int eventId, int taskScheduledId, string? reason, string? details)
+        : this(eventId, taskScheduledId, reason, details, null)
+    {
+    }
+
+    // Needed for deserialization
+    private SubOrchestrationInstanceFailedEvent()
+        : base(-1)
+    { }
 
     /// <summary>
-    /// A history event for a sub orchestration instance failure
+    /// Gets the event type
     /// </summary>
-    [DataContract]
-    public class SubOrchestrationInstanceFailedEvent : HistoryEvent
-    {
-        /// <summary>
-        /// Creates a new SubOrchestrationInstanceFailedEvent with the supplied params
-        /// </summary>
-        /// <param name="eventId">The event id of the history event</param>
-        /// <param name="taskScheduledId">The scheduled parent instance event id</param>
-        /// <param name="reason">The sub orchestration failure reason</param>
-        /// <param name="details">Details of the sub orchestration failure</param>
-        /// <param name="failureDetails">Structured details of the sub orchestration failure.</param>
-        public SubOrchestrationInstanceFailedEvent(int eventId, int taskScheduledId, string? reason, string? details, FailureDetails? failureDetails)
-            : base(eventId)
-        {
-            TaskScheduledId = taskScheduledId;
-            Reason = reason;
-            Details = details;
-            FailureDetails = failureDetails;
-        }
+    public override EventType EventType => EventType.SubOrchestrationInstanceFailed;
 
-        /// <inheritdoc cref="SubOrchestrationInstanceFailedEvent(int, int, string?, string?, FailureDetails?)"/>
-        public SubOrchestrationInstanceFailedEvent(int eventId, int taskScheduledId, string? reason, string? details)
-            : this(eventId, taskScheduledId, reason, details, null)
-        {
-        }
+    /// <summary>
+    /// Gets the scheduled parent instance event id
+    /// </summary>
+    [DataMember]
+    public int TaskScheduledId { get; private set; }
 
-        // Needed for deserialization
-        private SubOrchestrationInstanceFailedEvent()
-            : base(-1)
-        { }
+    /// <summary>
+    /// Gets the sub orchestration failure reason
+    /// </summary>
+    [DataMember]
+    public string? Reason { get; private set; }
 
-        /// <summary>
-        /// Gets the event type
-        /// </summary>
-        public override EventType EventType => EventType.SubOrchestrationInstanceFailed;
+    /// <summary>
+    /// Gets the details of the sub orchestration failure
+    /// </summary>
+    [DataMember]
+    public string? Details { get; private set; }
 
-        /// <summary>
-        /// Gets the scheduled parent instance event id
-        /// </summary>
-        [DataMember]
-        public int TaskScheduledId { get; private set; }
-
-        /// <summary>
-        /// Gets the sub orchestration failure reason
-        /// </summary>
-        [DataMember]
-        public string? Reason { get; private set; }
-
-        /// <summary>
-        /// Gets the details of the sub orchestration failure
-        /// </summary>
-        [DataMember]
-        public string? Details { get; private set; }
-
-        /// <summary>
-        /// Gets the structured details of the sub orchestration failure.
-        /// </summary>
-        [DataMember]
-        public FailureDetails? FailureDetails { get; internal set; }
-    }
+    /// <summary>
+    /// Gets the structured details of the sub orchestration failure.
+    /// </summary>
+    [DataMember]
+    public FailureDetails? FailureDetails { get; internal set; }
 }

@@ -11,27 +11,26 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+/// <summary>
+/// Task context
+/// </summary>
+public class TaskContext
 {
     /// <summary>
-    /// Task context
+    /// Creates a new TaskContext with the supplied OrchestrationInstance
     /// </summary>
-    public class TaskContext
-    {
-        /// <summary>
-        /// Creates a new TaskContext with the supplied OrchestrationInstance
-        /// </summary>
-        /// <param name="orchestrationInstance"></param>
-        public TaskContext(OrchestrationInstance orchestrationInstance) => OrchestrationInstance = orchestrationInstance;
+    /// <param name="orchestrationInstance"></param>
+    public TaskContext(OrchestrationInstance orchestrationInstance) => OrchestrationInstance = orchestrationInstance;
 
-        /// <summary>
-        /// Gets the OrchestrationInstance for this task context
-        /// </summary>
-        public OrchestrationInstance OrchestrationInstance { get; private set; }
+    /// <summary>
+    /// Gets the OrchestrationInstance for this task context
+    /// </summary>
+    public OrchestrationInstance OrchestrationInstance { get; private set; }
 
-        /// <summary>
-        /// Gets or sets a value indicating how to propagate unhandled exception metadata.
-        /// </summary>
-        internal ErrorPropagationMode ErrorPropagationMode { get; set; }
-    }
+    /// <summary>
+    /// Gets or sets a value indicating how to propagate unhandled exception metadata.
+    /// </summary>
+    internal ErrorPropagationMode ErrorPropagationMode { get; set; }
 }

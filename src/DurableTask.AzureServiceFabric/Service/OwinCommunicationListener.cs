@@ -11,96 +11,95 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Service
+namespace DurableTask.AzureServiceFabric.Service;
+
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+
+using DurableTask.AzureServiceFabric.Tracing;
+
+using Microsoft.Owin.Hosting;
+using Microsoft.ServiceFabric.Services.Communication.Runtime;
+
+/// <summary>
+/// Provides <see cref="ICommunicationListener"/> with support for Owin.
+/// </summary>
+public class OwinCommunicationListener : ICommunicationListener
 {
-    using System;
-    using System.Threading;
-    using System.Threading.Tasks;
+    /// <summary>
+    /// OWIN server handle.
+    /// </summary>
+    private IDisposable serverHandle;
 
-    using DurableTask.AzureServiceFabric.Tracing;
-
-    using Microsoft.Owin.Hosting;
-    using Microsoft.ServiceFabric.Services.Communication.Runtime;
+    private readonly IOwinAppBuilder owinAppBuilder;
 
     /// <summary>
-    /// Provides <see cref="ICommunicationListener"/> with support for Owin.
+    /// Instantiates OwinCommunicationListener from IOwinAppBuilder
     /// </summary>
-    public class OwinCommunicationListener : ICommunicationListener
+    /// <param name="owinAppBuilder">Owin Application builder</param>
+    public OwinCommunicationListener(IOwinAppBuilder owinAppBuilder) => this.owinAppBuilder = owinAppBuilder;
+
+    /// <summary>
+    /// Opens the listener asynchronously
+    /// </summary>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public Task<string> OpenAsync(CancellationToken cancellationToken)
     {
-        /// <summary>
-        /// OWIN server handle.
-        /// </summary>
-        private IDisposable serverHandle;
+        var listeningAddress = this.owinAppBuilder.GetListeningAddress();
+        ServiceFabricProviderEventSource.Tracing.TraceMessage(nameof(OwinCommunicationListener), $"Opening on {listeningAddress}");
 
-        private readonly IOwinAppBuilder owinAppBuilder;
-
-        /// <summary>
-        /// Instantiates OwinCommunicationListener from IOwinAppBuilder
-        /// </summary>
-        /// <param name="owinAppBuilder">Owin Application builder</param>
-        public OwinCommunicationListener(IOwinAppBuilder owinAppBuilder) => this.owinAppBuilder = owinAppBuilder;
-
-        /// <summary>
-        /// Opens the listener asynchronously
-        /// </summary>
-        /// <param name="cancellationToken"></param>
-        /// <returns></returns>
-        public Task<string> OpenAsync(CancellationToken cancellationToken)
+        try
         {
-            var listeningAddress = this.owinAppBuilder.GetListeningAddress();
-            ServiceFabricProviderEventSource.Tracing.TraceMessage(nameof(OwinCommunicationListener), $"Opening on {listeningAddress}");
+            var builder = new UriBuilder(listeningAddress)
+            {
+                Host = "+"
+            };
+            var listeningAddressInPlusFormat = builder.ToString();
+            this.serverHandle = WebApp.Start(listeningAddressInPlusFormat, appBuilder => this.owinAppBuilder.Startup(appBuilder));
+            return Task.FromResult(listeningAddress);
+        }
+        catch (Exception ex)
+        {
+            ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition($"{ex.Message} {ex.StackTrace} {ex.InnerException}");
+            this.StopWebServer();
+            throw;
+        }
+    }
 
+    /// <summary>
+    /// Close Owin service.
+    /// </summary>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public Task CloseAsync(CancellationToken cancellationToken)
+    {
+        ServiceFabricProviderEventSource.Tracing.TraceMessage(nameof(OwinCommunicationListener), "Listener is closing");
+        this.StopWebServer();
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Abort service.
+    /// </summary>
+    public void Abort()
+    {
+        ServiceFabricProviderEventSource.Tracing.TraceMessage(nameof(OwinCommunicationListener), "Listener is aborting");
+        this.StopWebServer();
+    }
+
+    private void StopWebServer()
+    {
+        if (this.serverHandle is not null)
+        {
             try
             {
-                var builder = new UriBuilder(listeningAddress)
-                {
-                    Host = "+"
-                };
-                var listeningAddressInPlusFormat = builder.ToString();
-                this.serverHandle = WebApp.Start(listeningAddressInPlusFormat, appBuilder => this.owinAppBuilder.Startup(appBuilder));
-                return Task.FromResult(listeningAddress);
+                this.serverHandle.Dispose();
             }
-            catch (Exception ex)
+            catch (ObjectDisposedException)
             {
-                ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition($"{ex.Message} {ex.StackTrace} {ex.InnerException}");
-                this.StopWebServer();
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Close Owin service.
-        /// </summary>
-        /// <param name="cancellationToken"></param>
-        /// <returns></returns>
-        public Task CloseAsync(CancellationToken cancellationToken)
-        {
-            ServiceFabricProviderEventSource.Tracing.TraceMessage(nameof(OwinCommunicationListener), "Listener is closing");
-            this.StopWebServer();
-            return Task.CompletedTask;
-        }
-
-        /// <summary>
-        /// Abort service.
-        /// </summary>
-        public void Abort()
-        {
-            ServiceFabricProviderEventSource.Tracing.TraceMessage(nameof(OwinCommunicationListener), "Listener is aborting");
-            this.StopWebServer();
-        }
-
-        private void StopWebServer()
-        {
-            if (this.serverHandle is not null)
-            {
-                try
-                {
-                    this.serverHandle.Dispose();
-                }
-                catch (ObjectDisposedException)
-                {
-                    // no-op
-                }
+                // no-op
             }
         }
     }

@@ -11,53 +11,52 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Serializing
+namespace DurableTask.Core.Serializing;
+
+using System;
+
+/// <summary>
+/// Abstract class for serializing and deserializing data
+/// </summary>
+public abstract class DataConverter
 {
-    using System;
+    /// <summary>
+    /// Serialize an Object to string with default formatting
+    /// </summary>
+    /// <param name="value">Object to serialize</param>
+    /// <returns>Object serialized to a string</returns>
+    public abstract string Serialize(object value);
 
     /// <summary>
-    /// Abstract class for serializing and deserializing data
+    /// Serialize an Object to string with supplied formatting
     /// </summary>
-    public abstract class DataConverter
+    /// <param name="value">Object to serialize</param>
+    /// <param name="formatted">Boolean indicating whether to format the results or not</param>
+    /// <returns>Object serialized to a string</returns>
+    public abstract string Serialize(object value, bool formatted);
+
+    /// <summary>
+    /// Deserialize a string to an Object of supplied type
+    /// </summary>
+    /// <param name="data">String data of the Object to deserialize</param>
+    /// <param name="objectType">Type to deserialize to</param>
+    /// <returns>Deserialized Object</returns>
+    public abstract object Deserialize(string data, Type objectType);
+
+    /// <summary>
+    /// Deserialize a string to an Object of supplied type
+    /// </summary>
+    /// <param name="data">String data of the Object to deserialize</param>
+    /// <typeparam name="T">Type to deserialize to</typeparam>
+    /// <returns>Deserialized Object</returns>
+    public T Deserialize<T>(string data)
     {
-        /// <summary>
-        /// Serialize an Object to string with default formatting
-        /// </summary>
-        /// <param name="value">Object to serialize</param>
-        /// <returns>Object serialized to a string</returns>
-        public abstract string Serialize(object value);
-
-        /// <summary>
-        /// Serialize an Object to string with supplied formatting
-        /// </summary>
-        /// <param name="value">Object to serialize</param>
-        /// <param name="formatted">Boolean indicating whether to format the results or not</param>
-        /// <returns>Object serialized to a string</returns>
-        public abstract string Serialize(object value, bool formatted);
-
-        /// <summary>
-        /// Deserialize a string to an Object of supplied type
-        /// </summary>
-        /// <param name="data">String data of the Object to deserialize</param>
-        /// <param name="objectType">Type to deserialize to</param>
-        /// <returns>Deserialized Object</returns>
-        public abstract object Deserialize(string data, Type objectType);
-
-        /// <summary>
-        /// Deserialize a string to an Object of supplied type
-        /// </summary>
-        /// <param name="data">String data of the Object to deserialize</param>
-        /// <typeparam name="T">Type to deserialize to</typeparam>
-        /// <returns>Deserialized Object</returns>
-        public T Deserialize<T>(string data)
+        object result = this.Deserialize(data, typeof(T));
+        if (result is null)
         {
-            object result = this.Deserialize(data, typeof(T));
-            if (result is null)
-            {
-                return default(T);
-            }
-
-            return (T)result;
+            return default(T);
         }
+
+        return (T)result;
     }
 }

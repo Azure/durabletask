@@ -11,28 +11,27 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+/// <summary>
+/// Abstract class for object creation based on name and version
+/// </summary>
+/// <typeparam name="T">The type to create</typeparam>
+public abstract class ObjectCreator<T> : INameVersionInfo
 {
     /// <summary>
-    /// Abstract class for object creation based on name and version
+    /// The name of the method
     /// </summary>
-    /// <typeparam name="T">The type to create</typeparam>
-    public abstract class ObjectCreator<T> : INameVersionInfo
-    {
-        /// <summary>
-        /// The name of the method
-        /// </summary>
-        public string Name { get; protected set; }
+    public string Name { get; protected set; }
 
-        /// <summary>
-        /// The version of the method
-        /// </summary>
-        public string Version { get; protected set; }
+    /// <summary>
+    /// The version of the method
+    /// </summary>
+    public string Version { get; protected set; }
 
-        /// <summary>
-        /// Instance creator method
-        /// </summary>
-        /// <returns>An instance of the type T</returns>
-        public abstract T Create();
-    }
+    /// <summary>
+    /// Instance creator method
+    /// </summary>
+    /// <returns>An instance of the type T</returns>
+    public abstract T Create();
 }

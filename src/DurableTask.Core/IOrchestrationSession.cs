@@ -11,24 +11,23 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
-{
-    using System.Collections.Generic;
-    using System.Threading.Tasks;
+namespace DurableTask.Core;
 
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
+/// <summary>
+/// Interface allowing providers to implement extended sessions (aka "sticky sessions").
+/// </summary>
+public interface IOrchestrationSession
+{
     /// <summary>
-    /// Interface allowing providers to implement extended sessions (aka "sticky sessions").
+    /// When implemented, fetches a new batch of messages for a particular work item.
     /// </summary>
-    public interface IOrchestrationSession
-    {
-        /// <summary>
-        /// When implemented, fetches a new batch of messages for a particular work item.
-        /// </summary>
-        /// <remarks>
-        /// Implementors of this method should feel free to block until new messages are available,
-        /// or until an internal wait period has expired. In either case, <c>null</c> can be returned
-        /// and the dispatcher will shut down the session.
-        /// </remarks>
-        Task<IList<TaskMessage>> FetchNewOrchestrationMessagesAsync(TaskOrchestrationWorkItem workItem);
-    }
+    /// <remarks>
+    /// Implementors of this method should feel free to block until new messages are available,
+    /// or until an internal wait period has expired. In either case, <c>null</c> can be returned
+    /// and the dispatcher will shut down the session.
+    /// </remarks>
+    Task<IList<TaskMessage>> FetchNewOrchestrationMessagesAsync(TaskOrchestrationWorkItem workItem);
 }

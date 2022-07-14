@@ -12,21 +12,20 @@
 //  ----------------------------------------------------------------------------------
 
 
-namespace DurableTask.SqlServer.Tests
+namespace DurableTask.SqlServer.Tests;
+
+using System;
+using System.Collections.Generic;
+
+public class AppSettings
 {
-    using System;
-    using System.Collections.Generic;
+    public Uri DockerEndpoint { get; set; }
+    public ContainerInformation SqlContainer { get; set; }
+    public IDictionary<string, string> ConnectionStrings { get; }
 
-    public class AppSettings
+    public class ContainerInformation
     {
-        public Uri DockerEndpoint { get; set; }
-        public ContainerInformation SqlContainer { get; set; }
-        public IDictionary<string, string> ConnectionStrings { get; }
-
-        public class ContainerInformation
-        {
-            public string Image { get; set; }
-            public string Tag { get; set; }
-        }
+        public string Image { get; set; }
+        public string Tag { get; set; }
     }
 }

@@ -11,33 +11,32 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Partitioning
+namespace DurableTask.AzureStorage.Partitioning;
+
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
+interface ILeaseManager<T> where T : Lease
 {
-    using System.Collections.Generic;
-    using System.Threading.Tasks;
+    Task<bool> LeaseStoreExistsAsync();
 
-    interface ILeaseManager<T> where T : Lease
-    {
-        Task<bool> LeaseStoreExistsAsync();
+    Task<bool> CreateLeaseStoreIfNotExistsAsync(TaskHubInfo eventHubInfo, bool checkIfStale = true);
 
-        Task<bool> CreateLeaseStoreIfNotExistsAsync(TaskHubInfo eventHubInfo, bool checkIfStale = true);
+    Task<IEnumerable<T>> ListLeasesAsync();
 
-        Task<IEnumerable<T>> ListLeasesAsync();
+    Task CreateLeaseIfNotExistAsync(string partitionId);
 
-        Task CreateLeaseIfNotExistAsync(string partitionId);
+    Task<T> GetLeaseAsync(string partitionId);
 
-        Task<T> GetLeaseAsync(string partitionId);
+    Task<bool> RenewAsync(T lease);
 
-        Task<bool> RenewAsync(T lease);
+    Task<bool> AcquireAsync(T lease, string owner);
 
-        Task<bool> AcquireAsync(T lease, string owner);
+    Task<bool> ReleaseAsync(T lease);
 
-        Task<bool> ReleaseAsync(T lease);
+    Task DeleteAsync(T lease);
 
-        Task DeleteAsync(T lease);
+    Task DeleteAllAsync();
 
-        Task DeleteAllAsync();
-
-        Task<bool> UpdateAsync(T lease);
-    }
+    Task<bool> UpdateAsync(T lease);
 }

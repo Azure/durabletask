@@ -11,95 +11,94 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Partitioning
+namespace DurableTask.AzureStorage.Partitioning;
+
+using System;
+using System.Collections.Generic;
+using System.Runtime.ExceptionServices;
+using System.Threading.Tasks;
+using DurableTask.AzureStorage.Storage;
+using Microsoft.WindowsAzure.Storage;
+
+class LegacyPartitionManager : IPartitionManager
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Runtime.ExceptionServices;
-    using System.Threading.Tasks;
-    using DurableTask.AzureStorage.Storage;
-    using Microsoft.WindowsAzure.Storage;
+    readonly AzureStorageOrchestrationService service;
+    readonly AzureStorageClient azureStorageClient;
+    readonly AzureStorageOrchestrationServiceSettings settings;
 
-    class LegacyPartitionManager : IPartitionManager
+    readonly BlobLeaseManager leaseManager;
+    readonly LeaseCollectionBalancer<BlobLease> leaseCollectionManager;
+
+    public LegacyPartitionManager(
+        AzureStorageOrchestrationService service,
+        AzureStorageClient azureStorageClient)
     {
-        readonly AzureStorageOrchestrationService service;
-        readonly AzureStorageClient azureStorageClient;
-        readonly AzureStorageOrchestrationServiceSettings settings;
+        this.service = service;
+        this.azureStorageClient = azureStorageClient;
+        this.settings = this.azureStorageClient.Settings;
+        this.leaseManager = AzureStorageOrchestrationService.GetBlobLeaseManager(
+            this.azureStorageClient,
+            "default");
 
-        readonly BlobLeaseManager leaseManager;
-        readonly LeaseCollectionBalancer<BlobLease> leaseCollectionManager;
-
-        public LegacyPartitionManager(
-            AzureStorageOrchestrationService service,
-            AzureStorageClient azureStorageClient)
-        {
-            this.service = service;
-            this.azureStorageClient = azureStorageClient;
-            this.settings = this.azureStorageClient.Settings;
-            this.leaseManager = AzureStorageOrchestrationService.GetBlobLeaseManager(
-                this.azureStorageClient,
-                "default");
-
-            this.leaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
-                "default",
-                settings,
-                this.azureStorageClient.BlobAccountName,
-                leaseManager,
-                new LeaseCollectionBalancerOptions
-                {
-                    AcquireInterval = settings.LeaseAcquireInterval,
-                    RenewInterval = settings.LeaseRenewInterval,
-                    LeaseInterval = settings.LeaseInterval,
-                    ShouldStealLeases = true,
-                });
-        }
-
-        Task IPartitionManager.CreateLease(string leaseName)
-        {
-            return this.leaseManager.CreateLeaseIfNotExistAsync(leaseName);
-        }
-
-        Task IPartitionManager.CreateLeaseStore()
-        {    
-            TaskHubInfo hubInfo = new TaskHubInfo(this.settings.TaskHubName, DateTime.UtcNow, this.settings.PartitionCount);
-            return this.leaseManager.CreateLeaseStoreIfNotExistsAsync(hubInfo, checkIfStale: true);
-        }
-
-        Task IPartitionManager.DeleteLeases()
-        {
-            return this.leaseManager.DeleteAllAsync().ContinueWith(t =>
+        this.leaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
+            "default",
+            settings,
+            this.azureStorageClient.BlobAccountName,
+            leaseManager,
+            new LeaseCollectionBalancerOptions
             {
-                if (t.Exception?.InnerExceptions?.Count > 0)
+                AcquireInterval = settings.LeaseAcquireInterval,
+                RenewInterval = settings.LeaseRenewInterval,
+                LeaseInterval = settings.LeaseInterval,
+                ShouldStealLeases = true,
+            });
+    }
+
+    Task IPartitionManager.CreateLease(string leaseName)
+    {
+        return this.leaseManager.CreateLeaseIfNotExistAsync(leaseName);
+    }
+
+    Task IPartitionManager.CreateLeaseStore()
+    {    
+        TaskHubInfo hubInfo = new TaskHubInfo(this.settings.TaskHubName, DateTime.UtcNow, this.settings.PartitionCount);
+        return this.leaseManager.CreateLeaseStoreIfNotExistsAsync(hubInfo, checkIfStale: true);
+    }
+
+    Task IPartitionManager.DeleteLeases()
+    {
+        return this.leaseManager.DeleteAllAsync().ContinueWith(t =>
+        {
+            if (t.Exception?.InnerExceptions?.Count > 0)
+            {
+                foreach (Exception e in t.Exception.InnerExceptions)
                 {
-                    foreach (Exception e in t.Exception.InnerExceptions)
+                    StorageException storageException = e as StorageException;
+                    if (storageException is null || storageException.RequestInformation.HttpStatusCode != 404)
                     {
-                        StorageException storageException = e as StorageException;
-                        if (storageException is null || storageException.RequestInformation.HttpStatusCode != 404)
-                        {
-                            ExceptionDispatchInfo.Capture(e).Throw();
-                        }
+                        ExceptionDispatchInfo.Capture(e).Throw();
                     }
                 }
-            });
-        }
+            }
+        });
+    }
 
-        Task<IEnumerable<BlobLease>> IPartitionManager.GetOwnershipBlobLeases()
-        {
-            return this.leaseManager.ListLeasesAsync();
-        }
+    Task<IEnumerable<BlobLease>> IPartitionManager.GetOwnershipBlobLeases()
+    {
+        return this.leaseManager.ListLeasesAsync();
+    }
 
-        async Task IPartitionManager.StartAsync()
-        {
-            await this.leaseCollectionManager.InitializeAsync();
-            await this.leaseCollectionManager.SubscribeAsync(
-                this.service.OnOwnershipLeaseAquiredAsync,
-                this.service.OnOwnershipLeaseReleasedAsync);
-            await this.leaseCollectionManager.StartAsync();
-        }
+    async Task IPartitionManager.StartAsync()
+    {
+        await this.leaseCollectionManager.InitializeAsync();
+        await this.leaseCollectionManager.SubscribeAsync(
+            this.service.OnOwnershipLeaseAquiredAsync,
+            this.service.OnOwnershipLeaseReleasedAsync);
+        await this.leaseCollectionManager.StartAsync();
+    }
 
-        Task IPartitionManager.StopAsync()
-        {
-            return this.leaseCollectionManager.StopAsync();
-        }
+    Task IPartitionManager.StopAsync()
+    {
+        return this.leaseCollectionManager.StopAsync();
     }
 }

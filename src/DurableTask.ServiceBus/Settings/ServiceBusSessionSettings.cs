@@ -11,35 +11,34 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceBus.Settings
+namespace DurableTask.ServiceBus.Settings;
+
+using DurableTask.Core;
+using DurableTask.Core.Settings;
+
+/// <summary>
+///     Settings to configure the Service Bus session.
+/// </summary>
+public class ServiceBusSessionSettings : ISessionSettings
 {
-    using DurableTask.Core;
-    using DurableTask.Core.Settings;
+    internal ServiceBusSessionSettings() :
+        this(FrameworkConstants.SessionOverflowThresholdInBytesDefault, FrameworkConstants.SessionMaxSizeInBytesDefault)
+    {
+    }
+
+    internal ServiceBusSessionSettings(int sessionOverflowThresholdInBytes, int sessionMaxSizeInBytes)
+    {
+        SessionOverflowThresholdInBytes = sessionOverflowThresholdInBytes;
+        SessionMaxSizeInBytes = sessionMaxSizeInBytes;
+    }
 
     /// <summary>
-    ///     Settings to configure the Service Bus session.
+    ///     The max allowed session size in service bus. Default is 230K.
     /// </summary>
-    public class ServiceBusSessionSettings : ISessionSettings
-    {
-        internal ServiceBusSessionSettings() :
-            this(FrameworkConstants.SessionOverflowThresholdInBytesDefault, FrameworkConstants.SessionMaxSizeInBytesDefault)
-        {
-        }
+    public int SessionOverflowThresholdInBytes { get; set; }
 
-        internal ServiceBusSessionSettings(int sessionOverflowThresholdInBytes, int sessionMaxSizeInBytes)
-        {
-            SessionOverflowThresholdInBytes = sessionOverflowThresholdInBytes;
-            SessionMaxSizeInBytes = sessionMaxSizeInBytes;
-        }
-
-        /// <summary>
-        ///     The max allowed session size in service bus. Default is 230K.
-        /// </summary>
-        public int SessionOverflowThresholdInBytes { get; set; }
-
-        /// <summary>
-        ///     The max allowed session size for external storage. Default is 10M.
-        /// </summary>
-        public int SessionMaxSizeInBytes { get; set; }
-    }
+    /// <summary>
+    ///     The max allowed session size for external storage. Default is 10M.
+    /// </summary>
+    public int SessionMaxSizeInBytes { get; set; }
 }

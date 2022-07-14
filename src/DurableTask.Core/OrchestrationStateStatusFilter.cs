@@ -11,21 +11,20 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+/// <summary>
+/// Filter for Orchestration Status
+/// </summary>
+public class OrchestrationStateStatusFilter : OrchestrationStateQueryFilter
 {
     /// <summary>
-    /// Filter for Orchestration Status
+    /// Gets or sets the Status for the filter
     /// </summary>
-    public class OrchestrationStateStatusFilter : OrchestrationStateQueryFilter
-    {
-        /// <summary>
-        /// Gets or sets the Status for the filter
-        /// </summary>
-        public OrchestrationStatus Status { get; set; }
+    public OrchestrationStatus Status { get; set; }
 
-        /// <summary>
-        /// Type of comparison to be formed with the state
-        /// </summary>
-        public FilterComparisonType ComparisonType { get; set; }
-    }
+    /// <summary>
+    /// Type of comparison to be formed with the state
+    /// </summary>
+    public FilterComparisonType ComparisonType { get; set; }
 }

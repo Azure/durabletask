@@ -11,44 +11,43 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Monitoring
+namespace DurableTask.AzureStorage.Monitoring;
+
+using System;
+
+/// <summary>
+/// Represents a scale recommendation for the task hub given the current performance metrics.
+/// </summary>
+public class ScaleRecommendation : EventArgs
 {
-    using System;
+    internal ScaleRecommendation(ScaleAction scaleAction, bool keepWorkersAlive, string reason)
+    {
+        this.Action = scaleAction;
+        this.KeepWorkersAlive = keepWorkersAlive;
+        this.Reason = reason;
+    }
 
     /// <summary>
-    /// Represents a scale recommendation for the task hub given the current performance metrics.
+    /// Gets the recommended scale action for the current task hub.
     /// </summary>
-    public class ScaleRecommendation : EventArgs
+    public ScaleAction Action { get; }
+
+    /// <summary>
+    /// Gets a recommendation about whether to keep existing task hub workers alive.
+    /// </summary>
+    public bool KeepWorkersAlive { get; }
+
+    /// <summary>
+    /// Gets text describing why a particular scale action was recommended.
+    /// </summary>
+    public string Reason { get; }
+
+    /// <summary>
+    /// Gets a string description of the current <see cref="ScaleRecommendation"/> object.
+    /// </summary>
+    /// <returns>A string description useful for diagnostics.</returns>
+    public override string ToString()
     {
-        internal ScaleRecommendation(ScaleAction scaleAction, bool keepWorkersAlive, string reason)
-        {
-            this.Action = scaleAction;
-            this.KeepWorkersAlive = keepWorkersAlive;
-            this.Reason = reason;
-        }
-
-        /// <summary>
-        /// Gets the recommended scale action for the current task hub.
-        /// </summary>
-        public ScaleAction Action { get; }
-
-        /// <summary>
-        /// Gets a recommendation about whether to keep existing task hub workers alive.
-        /// </summary>
-        public bool KeepWorkersAlive { get; }
-
-        /// <summary>
-        /// Gets text describing why a particular scale action was recommended.
-        /// </summary>
-        public string Reason { get; }
-
-        /// <summary>
-        /// Gets a string description of the current <see cref="ScaleRecommendation"/> object.
-        /// </summary>
-        /// <returns>A string description useful for diagnostics.</returns>
-        public override string ToString()
-        {
-            return $"{nameof(this.Action)}: {this.Action}, {nameof(KeepWorkersAlive)}: {this.KeepWorkersAlive}, {nameof(Reason)}: {this.Reason}";
-        }
+        return $"{nameof(this.Action)}: {this.Action}, {nameof(KeepWorkersAlive)}: {this.KeepWorkersAlive}, {nameof(Reason)}: {this.Reason}";
     }
 }

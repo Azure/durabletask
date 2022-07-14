@@ -11,24 +11,23 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Samples.Cron
+namespace DurableTask.Samples.Cron;
+
+using System;
+using System.Threading;
+using DurableTask.Core;
+
+public sealed class CronTask : TaskActivity<string,string>
 {
-    using System;
-    using System.Threading;
-    using DurableTask.Core;
-
-    public sealed class CronTask : TaskActivity<string,string>
+    protected override string Execute(DurableTask.Core.TaskContext context, string input)
     {
-        protected override string Execute(DurableTask.Core.TaskContext context, string input)
-        {
-            Console.WriteLine($"Executing Cron Job.  Started At: '{DateTime.Now}' Number: {input}");
+        Console.WriteLine($"Executing Cron Job.  Started At: '{DateTime.Now}' Number: {input}");
 
-            Thread.Sleep(2 * 1000);
+        Thread.Sleep(2 * 1000);
 
-            string completed = $"Cron Job '{input}' Completed...";
-            Console.WriteLine(completed);
+        string completed = $"Cron Job '{input}' Completed...";
+        Console.WriteLine(completed);
 
-            return completed;
-        }
+        return completed;
     }
 }

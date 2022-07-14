@@ -11,39 +11,38 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric
+namespace DurableTask.AzureServiceFabric;
+
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+
+/// <summary>
+/// Provides partition related information.
+/// </summary>
+public interface IPartitionEndpointResolver
 {
-    using System.Collections.Generic;
-    using System.Threading;
-    using System.Threading.Tasks;
+    /// <summary>
+    /// Gets end points for all the partitions.
+    /// </summary>
+    /// <param name="cancellationToken">Token to inform when a task is cancelled.</param>
+    /// <returns> All the end points. </returns>
+    Task<IEnumerable<string>> GetPartitionEndpointsAsync(CancellationToken cancellationToken);
 
     /// <summary>
-    /// Provides partition related information.
+    /// Gets partition end point for given instanceId.
     /// </summary>
-    public interface IPartitionEndpointResolver
-    {
-        /// <summary>
-        /// Gets end points for all the partitions.
-        /// </summary>
-        /// <param name="cancellationToken">Token to inform when a task is cancelled.</param>
-        /// <returns> All the end points. </returns>
-        Task<IEnumerable<string>> GetPartitionEndpointsAsync(CancellationToken cancellationToken);
+    /// <param name="instanceId">InstanceId of orchestration</param>
+    /// <param name="cancellationToken">Token to inform when a task is cancelled.</param>
+    /// <returns> Partition end point </returns>
+    Task<string> GetPartitionEndPointAsync(string instanceId, CancellationToken cancellationToken);
 
-        /// <summary>
-        /// Gets partition end point for given instanceId.
-        /// </summary>
-        /// <param name="instanceId">InstanceId of orchestration</param>
-        /// <param name="cancellationToken">Token to inform when a task is cancelled.</param>
-        /// <returns> Partition end point </returns>
-        Task<string> GetPartitionEndPointAsync(string instanceId, CancellationToken cancellationToken);
-
-        /// <summary>
-        /// Indicates to the resolver that the current endpoint may be stale and requests
-        /// for the endpoint to be refreshed.
-        /// </summary>
-        /// <param name="instanceId">InstanceId of orchestration</param>
-        /// <param name="cancellationToken">Token to inform when a task is cancelled.</param>
-        /// <returns>An asynchronous task to monitor the completion of this operation.</returns>
-        Task RefreshPartitionEndpointAsync(string instanceId, CancellationToken cancellationToken);
-    }
+    /// <summary>
+    /// Indicates to the resolver that the current endpoint may be stale and requests
+    /// for the endpoint to be refreshed.
+    /// </summary>
+    /// <param name="instanceId">InstanceId of orchestration</param>
+    /// <param name="cancellationToken">Token to inform when a task is cancelled.</param>
+    /// <returns>An asynchronous task to monitor the completion of this operation.</returns>
+    Task RefreshPartitionEndpointAsync(string instanceId, CancellationToken cancellationToken);
 }

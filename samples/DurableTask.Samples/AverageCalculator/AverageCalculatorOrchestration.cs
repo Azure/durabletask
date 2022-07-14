@@ -11,52 +11,51 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Samples.AverageCalculator
+namespace DurableTask.Samples.AverageCalculator;
+
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using DurableTask.Core;
+
+public class AverageCalculatorOrchestration : TaskOrchestration<double, int[]>
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Threading.Tasks;
-    using DurableTask.Core;
-
-    public class AverageCalculatorOrchestration : TaskOrchestration<double, int[]>
+    public override async Task<double> RunTask(OrchestrationContext context, int[] input)
     {
-        public override async Task<double> RunTask(OrchestrationContext context, int[] input)
+        if (input is null || input.Length != 3)
         {
-            if (input is null || input.Length != 3)
-            {
-                throw new ArgumentException("input");
-            }
-
-            int start = input[0];
-            int end = input[1];
-            int step = input[2];
-            int total = end - start + 1;
-
-            var chunks = new List<Task<int>>();
-            while (start < end)
-            {
-                int current = start + step - 1;
-                if (current > end)
-                {
-                    current = end;
-                }
-
-                Task<int> chunk = context.ScheduleTask<int>(typeof(ComputeSumTask), new int[] { start, current });
-                chunks.Add(chunk);
-
-                start = current + 1;
-            }
-
-            var sum = 0;
-            int[] allChunks = await Task.WhenAll(chunks.ToArray());
-            foreach (int result in allChunks)
-            {
-                sum += result;
-            }
-
-            Console.WriteLine($"Completed Average: for sum: {sum}, total: {total} = {sum / total}");
-
-            return sum / (double)total;
+            throw new ArgumentException("input");
         }
+
+        int start = input[0];
+        int end = input[1];
+        int step = input[2];
+        int total = end - start + 1;
+
+        var chunks = new List<Task<int>>();
+        while (start < end)
+        {
+            int current = start + step - 1;
+            if (current > end)
+            {
+                current = end;
+            }
+
+            Task<int> chunk = context.ScheduleTask<int>(typeof(ComputeSumTask), new int[] { start, current });
+            chunks.Add(chunk);
+
+            start = current + 1;
+        }
+
+        var sum = 0;
+        int[] allChunks = await Task.WhenAll(chunks.ToArray());
+        foreach (int result in allChunks)
+        {
+            sum += result;
+        }
+
+        Console.WriteLine($"Completed Average: for sum: {sum}, total: {total} = {sum / total}");
+
+        return sum / (double)total;
     }
 }

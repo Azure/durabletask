@@ -11,18 +11,17 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Test.Orchestrations.Performance
+namespace DurableTask.Test.Orchestrations.Performance;
+
+using System.Runtime.Serialization;
+
+[DataContract]
+[KnownType(typeof(DriverOrchestrationData))]
+public class DriverOrchestrationData
 {
-    using System.Runtime.Serialization;
+    [DataMember]
+    public int NumberOfParallelOrchestrations { get; set; }
 
-    [DataContract]
-    [KnownType(typeof(DriverOrchestrationData))]
-    public class DriverOrchestrationData
-    {
-        [DataMember]
-        public int NumberOfParallelOrchestrations { get; set; }
-
-        [DataMember]
-        public TestOrchestrationData SubOrchestrationData { get; set; }
-    }
+    [DataMember]
+    public TestOrchestrationData SubOrchestrationData { get; set; }
 }

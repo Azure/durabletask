@@ -11,50 +11,49 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.Core.Command
+namespace DurableTask.Core.Command;
+
+using System.Collections.Generic;
+using DurableTask.Core.History;
+
+/// <summary>
+/// Action associated with an orchestrator reaching a terminal state.
+/// </summary>
+public class OrchestrationCompleteOrchestratorAction : OrchestratorAction
 {
-    using System.Collections.Generic;
-    using DurableTask.Core.History;
+    // NOTE: Actions must be serializable by a variety of different serializer types to support out-of-process execution.
+    //       To ensure maximum compatibility, all properties should be public and settable by default.
 
     /// <summary>
-    /// Action associated with an orchestrator reaching a terminal state.
+    /// Gets the completion status of the orchestration.
     /// </summary>
-    public class OrchestrationCompleteOrchestratorAction : OrchestratorAction
-    {
-        // NOTE: Actions must be serializable by a variety of different serializer types to support out-of-process execution.
-        //       To ensure maximum compatibility, all properties should be public and settable by default.
+    public OrchestrationStatus OrchestrationStatus { get; set; }
 
-        /// <summary>
-        /// Gets the completion status of the orchestration.
-        /// </summary>
-        public OrchestrationStatus OrchestrationStatus { get; set; }
+    /// <inheritdoc/>
+    public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.OrchestrationComplete;
 
-        /// <inheritdoc/>
-        public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.OrchestrationComplete;
+    /// <summary>
+    /// Gets or sets the result of the orchestration.
+    /// </summary>
+    public string? Result { get; set; }
 
-        /// <summary>
-        /// Gets or sets the result of the orchestration.
-        /// </summary>
-        public string? Result { get; set; }
+    /// <summary>
+    /// More details about how an orchestration completed, such as unhandled exception details.
+    /// </summary>
+    public string? Details { get; set; }
 
-        /// <summary>
-        /// More details about how an orchestration completed, such as unhandled exception details.
-        /// </summary>
-        public string? Details { get; set; }
+    /// <summary>
+    /// Gets or sets error information associated with an orchestration failure, if applicable.
+    /// </summary>
+    public FailureDetails? FailureDetails { get; set; }
 
-        /// <summary>
-        /// Gets or sets error information associated with an orchestration failure, if applicable.
-        /// </summary>
-        public FailureDetails? FailureDetails { get; set; }
+    /// <summary>
+    /// For continue-as-new scenarios, gets the new version of the orchestrator to start.
+    /// </summary>
+    public string? NewVersion { get; set; }
 
-        /// <summary>
-        /// For continue-as-new scenarios, gets the new version of the orchestrator to start.
-        /// </summary>
-        public string? NewVersion { get; set; }
-
-        /// <summary>
-        /// Gets a list of events that should be carried over when continuing an orchestration as new.
-        /// </summary>
-        public IList<HistoryEvent> CarryoverEvents { get; } = new List<HistoryEvent>();
-    }
+    /// <summary>
+    /// Gets a list of events that should be carried over when continuing an orchestration as new.
+    /// </summary>
+    public IList<HistoryEvent> CarryoverEvents { get; } = new List<HistoryEvent>();
 }

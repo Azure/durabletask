@@ -11,36 +11,35 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Command
+namespace DurableTask.Core.Command;
+
+/// <summary>
+/// Enumeration of orchestrator actions.
+/// </summary>
+public enum OrchestratorActionType
 {
     /// <summary>
-    /// Enumeration of orchestrator actions.
+    /// A new task was scheduled by the orchestrator.
     /// </summary>
-    public enum OrchestratorActionType
-    {
-        /// <summary>
-        /// A new task was scheduled by the orchestrator.
-        /// </summary>
-        ScheduleOrchestrator,
+    ScheduleOrchestrator,
 
-        /// <summary>
-        /// A sub-orchestration was scheduled by the orchestrator.
-        /// </summary>
-        CreateSubOrchestration,
+    /// <summary>
+    /// A sub-orchestration was scheduled by the orchestrator.
+    /// </summary>
+    CreateSubOrchestration,
 
-        /// <summary>
-        /// A timer was scheduled by the orchestrator.
-        /// </summary>
-        CreateTimer,
+    /// <summary>
+    /// A timer was scheduled by the orchestrator.
+    /// </summary>
+    CreateTimer,
 
-        /// <summary>
-        /// An outgoing external event was scheduled by the orchestrator.
-        /// </summary>
-        SendEvent,
+    /// <summary>
+    /// An outgoing external event was scheduled by the orchestrator.
+    /// </summary>
+    SendEvent,
 
-        /// <summary>
-        /// The orchestrator completed.
-        /// </summary>
-        OrchestrationComplete,
-    }
+    /// <summary>
+    /// The orchestrator completed.
+    /// </summary>
+    OrchestrationComplete,
 }

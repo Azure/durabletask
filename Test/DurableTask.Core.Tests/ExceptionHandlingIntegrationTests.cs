@@ -11,220 +11,219 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.Core.Tests
+namespace DurableTask.Core.Tests;
+
+using System;
+using System.Diagnostics;
+using System.Threading.Tasks;
+
+using DurableTask.Core.Exceptions;
+using DurableTask.Emulator;
+
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+using Newtonsoft.Json;
+
+[TestClass]
+public class ExceptionHandlingIntegrationTests
 {
-    using System;
-    using System.Diagnostics;
-    using System.Threading.Tasks;
+    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 300 : 10);
+    private readonly TaskHubWorker worker;
+    private readonly TaskHubClient client;
 
-    using DurableTask.Core.Exceptions;
-    using DurableTask.Emulator;
-
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
-
-    using Newtonsoft.Json;
-
-    [TestClass]
-    public class ExceptionHandlingIntegrationTests
+    public ExceptionHandlingIntegrationTests()
     {
-        private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 300 : 10);
-        private readonly TaskHubWorker worker;
-        private readonly TaskHubClient client;
-
-        public ExceptionHandlingIntegrationTests()
-        {
 #pragma warning disable CA2000 // Dispose objects before losing scope
-            var service = new LocalOrchestrationService();
-            this.worker = new TaskHubWorker(service);
-            this.client = new TaskHubClient(service);
+        var service = new LocalOrchestrationService();
+        this.worker = new TaskHubWorker(service);
+        this.client = new TaskHubClient(service);
 #pragma warning restore CA2000 // Dispose objects before losing scope
-        }
+    }
 
-        [DataTestMethod]
-        [DataRow(ErrorPropagationMode.SerializeExceptions)]
-        [DataRow(ErrorPropagationMode.UseFailureDetails)]
-        public async Task CatchInvalidOperationException(ErrorPropagationMode mode)
+    [DataTestMethod]
+    [DataRow(ErrorPropagationMode.SerializeExceptions)]
+    [DataRow(ErrorPropagationMode.UseFailureDetails)]
+    public async Task CatchInvalidOperationException(ErrorPropagationMode mode)
+    {
+        // The error propagation mode must be set before the worker is started
+        this.worker.ErrorPropagationMode = mode;
+
+        await this.worker
+            .AddTaskOrchestrations(typeof(ExceptionHandlingOrchestration))
+            .AddTaskActivities(typeof(ThrowInvalidOperationException))
+            .StartAsync();
+
+        // This is required for exceptions to be serialized
+        this.worker.TaskActivityDispatcher.IncludeDetails = true;
+
+        OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(typeof(ExceptionHandlingOrchestration), null);
+        OrchestrationState state = await this.client.WaitForOrchestrationAsync(instance, DefaultTimeout);
+        Assert.IsNotNull(state);
+        Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+        Assert.IsNotNull(state.Output, "The expected error information wasn't found!");
+
+        if (mode == ErrorPropagationMode.SerializeExceptions)
         {
-            // The error propagation mode must be set before the worker is started
-            this.worker.ErrorPropagationMode = mode;
+            // The exception should be deserializable
+            InvalidOperationException e = JsonConvert.DeserializeObject<InvalidOperationException>(state.Output);
+            Assert.IsNotNull(e);
+            Assert.AreEqual("This is a test exception", e.Message);
+        }
+        else if (mode == ErrorPropagationMode.UseFailureDetails)
+        {
+            // The failure details should contain the relevant exception metadata
+            FailureDetails details = JsonConvert.DeserializeObject<FailureDetails>(state.Output);
+            Assert.IsNotNull(details);
+            Assert.AreEqual(typeof(InvalidOperationException).FullName, details.ErrorType);
+            Assert.IsTrue(details.IsCausedBy<InvalidOperationException>());
+            Assert.IsTrue(details.IsCausedBy<Exception>()); // check that base types work too
+            Assert.AreEqual("This is a test exception", details.ErrorMessage);
+            Assert.IsNotNull(details.StackTrace);
 
-            await this.worker
-                .AddTaskOrchestrations(typeof(ExceptionHandlingOrchestration))
-                .AddTaskActivities(typeof(ThrowInvalidOperationException))
-                .StartAsync();
+            // The callstack should be in the error details
+            string expectedCallstackSubstring = typeof(ThrowInvalidOperationException).FullName!.Replace('+', '.');
+            Assert.IsTrue(
+                details.StackTrace!.IndexOf(expectedCallstackSubstring) > 0,
+                $"Expected to find {expectedCallstackSubstring} in the exception details. Actual: {details.StackTrace}");
+        }
+        else
+        {
+            Assert.Fail($"Unexpected {nameof(ErrorPropagationMode)} value: {mode}");
+        }
+    }
 
-            // This is required for exceptions to be serialized
-            this.worker.TaskActivityDispatcher.IncludeDetails = true;
+    [TestMethod]
+    public async Task FailureDetailsOnHandled()
+    {
+        // The error propagation mode must be set before the worker is started
+        this.worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
 
-            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(typeof(ExceptionHandlingOrchestration), null);
-            OrchestrationState state = await this.client.WaitForOrchestrationAsync(instance, DefaultTimeout);
-            Assert.IsNotNull(state);
-            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
-            Assert.IsNotNull(state.Output, "The expected error information wasn't found!");
+        await this.worker
+            .AddTaskOrchestrations(typeof(ExceptionHandlingWithRetryOrchestration))
+            .AddTaskActivities(typeof(ThrowInvalidOperationException))
+            .StartAsync();
 
-            if (mode == ErrorPropagationMode.SerializeExceptions)
+        OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(typeof(ExceptionHandlingWithRetryOrchestration), null);
+        OrchestrationState state = await this.client.WaitForOrchestrationAsync(instance, DefaultTimeout);
+        Assert.IsNotNull(state);
+        Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+        Assert.IsNotNull(state.Output, "No output was returned!");
+
+        // The orchestration is written in such a way that there should be only one call into the retry policy
+        int retryPolicyInvokedCount = JsonConvert.DeserializeObject<int>(state.Output);
+        Assert.AreEqual(1, retryPolicyInvokedCount);
+    }
+
+    [DataTestMethod]
+    [DataRow(ErrorPropagationMode.SerializeExceptions)]
+    [DataRow(ErrorPropagationMode.UseFailureDetails)]
+    public async Task FailureDetailsOnUnhandled(ErrorPropagationMode mode)
+    {
+        // The error propagation mode must be set before the worker is started
+        this.worker.ErrorPropagationMode = mode;
+
+        await this.worker
+            .AddTaskOrchestrations(typeof(NoExceptionHandlingOrchestration))
+            .AddTaskActivities(typeof(ThrowInvalidOperationException))
+            .StartAsync();
+
+        OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(
+            typeof(NoExceptionHandlingOrchestration),
+            input: null);
+        OrchestrationState state = await this.client.WaitForOrchestrationAsync(instance, DefaultTimeout);
+        Assert.IsNotNull(state);
+        Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
+
+        string expectedErrorMessage = "This is a test exception";
+        if (mode == ErrorPropagationMode.SerializeExceptions)
+        {
+            // Legacy behavior is to set the output of the orchestration to be the exception message
+            Assert.AreEqual(expectedErrorMessage, state.Output);
+        }
+        else if (mode == ErrorPropagationMode.UseFailureDetails)
+        {
+            string activityName = typeof(ThrowInvalidOperationException).FullName!;
+            string expectedOutput = $"{typeof(TaskFailedException).FullName}: Task '{activityName}' (#0) failed with an unhandled exception: {expectedErrorMessage}";
+            Assert.AreEqual(expectedOutput, state.Output);
+        }
+        else
+        {
+            Assert.Fail($"Unexpected {nameof(ErrorPropagationMode)} value: {mode}");
+        }
+    }
+
+    private class ExceptionHandlingOrchestration : TaskOrchestration<object, string>
+    {
+        public override async Task<object> RunTask(OrchestrationContext context, string input)
+        {
+            try
             {
-                // The exception should be deserializable
-                InvalidOperationException e = JsonConvert.DeserializeObject<InvalidOperationException>(state.Output);
-                Assert.IsNotNull(e);
-                Assert.AreEqual("This is a test exception", e.Message);
+                return await context.ScheduleTask<object>(typeof(ThrowInvalidOperationException));
             }
-            else if (mode == ErrorPropagationMode.UseFailureDetails)
+            catch (TaskFailedException e)
             {
-                // The failure details should contain the relevant exception metadata
-                FailureDetails details = JsonConvert.DeserializeObject<FailureDetails>(state.Output);
-                Assert.IsNotNull(details);
-                Assert.AreEqual(typeof(InvalidOperationException).FullName, details.ErrorType);
-                Assert.IsTrue(details.IsCausedBy<InvalidOperationException>());
-                Assert.IsTrue(details.IsCausedBy<Exception>()); // check that base types work too
-                Assert.AreEqual("This is a test exception", details.ErrorMessage);
-                Assert.IsNotNull(details.StackTrace);
-
-                // The callstack should be in the error details
-                string expectedCallstackSubstring = typeof(ThrowInvalidOperationException).FullName!.Replace('+', '.');
-                Assert.IsTrue(
-                    details.StackTrace!.IndexOf(expectedCallstackSubstring) > 0,
-                    $"Expected to find {expectedCallstackSubstring} in the exception details. Actual: {details.StackTrace}");
-            }
-            else
-            {
-                Assert.Fail($"Unexpected {nameof(ErrorPropagationMode)} value: {mode}");
+                // Exactly one of these properties should be null
+                return (object)e.FailureDetails! ?? e.InnerException!;
             }
         }
+    }
 
-        [TestMethod]
-        public async Task FailureDetailsOnHandled()
+    private class ExceptionHandlingWithRetryOrchestration : TaskOrchestration<int, string>
+    {
+        public override async Task<int> RunTask(OrchestrationContext context, string input)
         {
-            // The error propagation mode must be set before the worker is started
-            this.worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
-
-            await this.worker
-                .AddTaskOrchestrations(typeof(ExceptionHandlingWithRetryOrchestration))
-                .AddTaskActivities(typeof(ThrowInvalidOperationException))
-                .StartAsync();
-
-            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(typeof(ExceptionHandlingWithRetryOrchestration), null);
-            OrchestrationState state = await this.client.WaitForOrchestrationAsync(instance, DefaultTimeout);
-            Assert.IsNotNull(state);
-            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
-            Assert.IsNotNull(state.Output, "No output was returned!");
-
-            // The orchestration is written in such a way that there should be only one call into the retry policy
-            int retryPolicyInvokedCount = JsonConvert.DeserializeObject<int>(state.Output);
-            Assert.AreEqual(1, retryPolicyInvokedCount);
-        }
-
-        [DataTestMethod]
-        [DataRow(ErrorPropagationMode.SerializeExceptions)]
-        [DataRow(ErrorPropagationMode.UseFailureDetails)]
-        public async Task FailureDetailsOnUnhandled(ErrorPropagationMode mode)
-        {
-            // The error propagation mode must be set before the worker is started
-            this.worker.ErrorPropagationMode = mode;
-
-            await this.worker
-                .AddTaskOrchestrations(typeof(NoExceptionHandlingOrchestration))
-                .AddTaskActivities(typeof(ThrowInvalidOperationException))
-                .StartAsync();
-
-            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(
-                typeof(NoExceptionHandlingOrchestration),
-                input: null);
-            OrchestrationState state = await this.client.WaitForOrchestrationAsync(instance, DefaultTimeout);
-            Assert.IsNotNull(state);
-            Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
-
-            string expectedErrorMessage = "This is a test exception";
-            if (mode == ErrorPropagationMode.SerializeExceptions)
+            int handleCount = 0;
+            try
             {
-                // Legacy behavior is to set the output of the orchestration to be the exception message
-                Assert.AreEqual(expectedErrorMessage, state.Output);
-            }
-            else if (mode == ErrorPropagationMode.UseFailureDetails)
-            {
-                string activityName = typeof(ThrowInvalidOperationException).FullName!;
-                string expectedOutput = $"{typeof(TaskFailedException).FullName}: Task '{activityName}' (#0) failed with an unhandled exception: {expectedErrorMessage}";
-                Assert.AreEqual(expectedOutput, state.Output);
-            }
-            else
-            {
-                Assert.Fail($"Unexpected {nameof(ErrorPropagationMode)} value: {mode}");
-            }
-        }
-
-        private class ExceptionHandlingOrchestration : TaskOrchestration<object, string>
-        {
-            public override async Task<object> RunTask(OrchestrationContext context, string input)
-            {
-                try
-                {
-                    return await context.ScheduleTask<object>(typeof(ThrowInvalidOperationException));
-                }
-                catch (TaskFailedException e)
-                {
-                    // Exactly one of these properties should be null
-                    return (object)e.FailureDetails! ?? e.InnerException!;
-                }
-            }
-        }
-
-        private class ExceptionHandlingWithRetryOrchestration : TaskOrchestration<int, string>
-        {
-            public override async Task<int> RunTask(OrchestrationContext context, string input)
-            {
-                int handleCount = 0;
-                try
-                {
-                    await context.ScheduleWithRetry<object>(
-                        typeof(ThrowInvalidOperationException),
-                        new RetryOptions(TimeSpan.FromMilliseconds(1), maxNumberOfAttempts: 3)
+                await context.ScheduleWithRetry<object>(
+                    typeof(ThrowInvalidOperationException),
+                    new RetryOptions(TimeSpan.FromMilliseconds(1), maxNumberOfAttempts: 3)
+                    {
+                        Handle = e =>
                         {
-                            Handle = e =>
+                            handleCount++;
+
+                            // Users should be able to examine the structured exception details when
+                            // ErrorPropagationMode is set to UseFailureDetails
+                            if (e is TaskFailedException tfe &&
+                                tfe.FailureDetails is not null &&
+                                tfe.FailureDetails.ErrorType == typeof(InvalidOperationException).FullName &&
+                                tfe.FailureDetails.ErrorMessage == "This is a test exception" &&
+                                tfe.FailureDetails.StackTrace!.Contains(typeof(ThrowInvalidOperationException).Name) &&
+                                tfe.FailureDetails.IsCausedBy<InvalidOperationException>() &&
+                                tfe.FailureDetails.IsCausedBy<Exception>()) // check that base types work too
                             {
-                                handleCount++;
-
-                                // Users should be able to examine the structured exception details when
-                                // ErrorPropagationMode is set to UseFailureDetails
-                                if (e is TaskFailedException tfe &&
-                                    tfe.FailureDetails is not null &&
-                                    tfe.FailureDetails.ErrorType == typeof(InvalidOperationException).FullName &&
-                                    tfe.FailureDetails.ErrorMessage == "This is a test exception" &&
-                                    tfe.FailureDetails.StackTrace!.Contains(typeof(ThrowInvalidOperationException).Name) &&
-                                    tfe.FailureDetails.IsCausedBy<InvalidOperationException>() &&
-                                    tfe.FailureDetails.IsCausedBy<Exception>()) // check that base types work too
-                                {
-                                    // Stop retrying
-                                    return false;
-                                }
-
-                                // Keep retrying
-                                return true;
+                                // Stop retrying
+                                return false;
                             }
-                        });
-                }
-                catch (TaskFailedException)
-                {
-                }
 
-                return handleCount;
+                            // Keep retrying
+                            return true;
+                        }
+                    });
             }
-        }
-
-        private class NoExceptionHandlingOrchestration : TaskOrchestration<object, string>
-        {
-            public override Task<object> RunTask(OrchestrationContext context, string input)
+            catch (TaskFailedException)
             {
-                // let the exception go unhandled and fail the orchestration
-                return context.ScheduleTask<object>(typeof(ThrowInvalidOperationException));
             }
-        }
 
-        private class ThrowInvalidOperationException : TaskActivity<string, string>
+            return handleCount;
+        }
+    }
+
+    private class NoExceptionHandlingOrchestration : TaskOrchestration<object, string>
+    {
+        public override Task<object> RunTask(OrchestrationContext context, string input)
         {
-            protected override string Execute(TaskContext context, string input)
-            {
-                throw new InvalidOperationException("This is a test exception");
-            }
+            // let the exception go unhandled and fail the orchestration
+            return context.ScheduleTask<object>(typeof(ThrowInvalidOperationException));
+        }
+    }
+
+    private class ThrowInvalidOperationException : TaskActivity<string, string>
+    {
+        protected override string Execute(TaskContext context, string input)
+        {
+            throw new InvalidOperationException("This is a test exception");
         }
     }
 }

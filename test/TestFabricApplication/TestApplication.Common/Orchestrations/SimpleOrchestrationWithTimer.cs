@@ -11,20 +11,19 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace TestApplication.Common.Orchestrations
-{
-    using System;
-    using System.Threading.Tasks;
-    using DurableTask.Core;
-    using TestApplication.Common.OrchestrationTasks;
+namespace TestApplication.Common.Orchestrations;
 
-    public class SimpleOrchestrationWithTimer : TaskOrchestration<string, int>
+using System;
+using System.Threading.Tasks;
+using DurableTask.Core;
+using TestApplication.Common.OrchestrationTasks;
+
+public class SimpleOrchestrationWithTimer : TaskOrchestration<string, int>
+{
+    public override async Task<string> RunTask(OrchestrationContext context, int input)
     {
-        public override async Task<string> RunTask(OrchestrationContext context, int input)
-        {
-            IUserTasks userTasks = context.CreateClient<IUserTasks>();
-            await context.CreateTimer<object>(context.CurrentUtcDateTime.Add(TimeSpan.FromSeconds(input)), null);
-            return await userTasks.GreetUserAsync("Gabbar");
-        }
+        IUserTasks userTasks = context.CreateClient<IUserTasks>();
+        await context.CreateTimer<object>(context.CurrentUtcDateTime.Add(TimeSpan.FromSeconds(input)), null);
+        return await userTasks.GreetUserAsync("Gabbar");
     }
 }

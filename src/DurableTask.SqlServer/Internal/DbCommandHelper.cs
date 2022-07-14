@@ -11,72 +11,71 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.SqlServer.Internal
+namespace DurableTask.SqlServer.Internal;
+
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Data.Common;
+
+/// <summary>
+/// Intended for internal use only; not all edge cases are handled, but these extension methods will work correctly for the queries defined in this assembly and results in more readable code.
+/// </summary>
+internal static class DbCommandHelper
 {
-    using System;
-    using System.Collections.Generic;
-    using System.ComponentModel;
-    using System.Data;
-    using System.Data.Common;
+    internal readonly static IDictionary<string, object> EmptyParameters = new Dictionary<string, object>();
 
-    /// <summary>
-    /// Intended for internal use only; not all edge cases are handled, but these extension methods will work correctly for the queries defined in this assembly and results in more readable code.
-    /// </summary>
-    internal static class DbCommandHelper
+    internal static void AddStatement(this DbCommand source, string sql, IDictionary<string, object> parameters = null)
     {
-        internal readonly static IDictionary<string, object> EmptyParameters = new Dictionary<string, object>();
+        if (source is null) throw new ArgumentNullException(nameof(source));
 
-        internal static void AddStatement(this DbCommand source, string sql, IDictionary<string, object> parameters = null)
+        //replace each parameter in the sql statement with auto-generated names
+        //add parameters using new auto-generated names
+        foreach (var parameter in parameters ?? EmptyParameters)
         {
-            if (source is null) throw new ArgumentNullException(nameof(source));
-
-            //replace each parameter in the sql statement with auto-generated names
-            //add parameters using new auto-generated names
-            foreach (var parameter in parameters ?? EmptyParameters)
-            {
-                var newName = Guid.NewGuid().ToString("N");
-                sql = sql.Replace("@" + parameter.Key, "@" + newName);
-                source.AddParameter(newName, parameter.Value);
-            }
-
-            //add newline to ensure commands have some white-space between them; added two new lines for readability
-            if (!string.IsNullOrWhiteSpace(source.CommandText))
-                source.CommandText += Environment.NewLine + Environment.NewLine;
-
-            source.CommandText += sql;
-            return;
+            var newName = Guid.NewGuid().ToString("N");
+            sql = sql.Replace("@" + parameter.Key, "@" + newName);
+            source.AddParameter(newName, parameter.Value);
         }
 
-        internal static void AddStatement(this DbCommand source, string sql, object parameters)
+        //add newline to ensure commands have some white-space between them; added two new lines for readability
+        if (!string.IsNullOrWhiteSpace(source.CommandText))
+            source.CommandText += Environment.NewLine + Environment.NewLine;
+
+        source.CommandText += sql;
+        return;
+    }
+
+    internal static void AddStatement(this DbCommand source, string sql, object parameters)
+    {
+        if (source is null) throw new ArgumentNullException(nameof(source));
+
+        var dictionary = new Dictionary<string, object>();
+
+        //convert object to dictionary
+        foreach (PropertyDescriptor descriptor in TypeDescriptor.GetProperties(parameters))
         {
-            if (source is null) throw new ArgumentNullException(nameof(source));
-
-            var dictionary = new Dictionary<string, object>();
-
-            //convert object to dictionary
-            foreach (PropertyDescriptor descriptor in TypeDescriptor.GetProperties(parameters))
-            {
-                dictionary.Add(descriptor.Name, descriptor.GetValue(parameters));
-            }
-
-            source.AddStatement(sql, dictionary);
+            dictionary.Add(descriptor.Name, descriptor.GetValue(parameters));
         }
 
-        internal static DbCommand AddParameter(this DbCommand source, string name, object value)
-        {
-            if (source is null) throw new ArgumentNullException(nameof(source));
+        source.AddStatement(sql, dictionary);
+    }
 
-            var parameter = source.CreateParameter();
-            parameter.ParameterName = name;
-            parameter.Value = value ?? DBNull.Value;
+    internal static DbCommand AddParameter(this DbCommand source, string name, object value)
+    {
+        if (source is null) throw new ArgumentNullException(nameof(source));
 
-            if (value is DateTime)
-                parameter.DbType = DbType.DateTime2;
+        var parameter = source.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.Value = value ?? DBNull.Value;
 
-            source.Parameters.Add(parameter);
+        if (value is DateTime)
+            parameter.DbType = DbType.DateTime2;
 
-            //allow method-chaining
-            return source;
-        }
+        source.Parameters.Add(parameter);
+
+        //allow method-chaining
+        return source;
     }
 }

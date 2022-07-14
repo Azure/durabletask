@@ -11,56 +11,55 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Service
+namespace DurableTask.AzureServiceFabric.Service;
+
+using System;
+using System.Net;
+using System.Web.Http;
+using System.Web.Http.ExceptionHandling;
+
+using DurableTask.AzureServiceFabric;
+using DurableTask.Core;
+
+using Microsoft.Extensions.DependencyInjection;
+
+using Owin;
+
+internal class Startup : IOwinAppBuilder
 {
-    using System;
-    using System.Net;
-    using System.Web.Http;
-    using System.Web.Http.ExceptionHandling;
+    private readonly FabricOrchestrationProvider fabricOrchestrationProvider;
+    private readonly string listeningAddress;
 
-    using DurableTask.AzureServiceFabric;
-    using DurableTask.Core;
-
-    using Microsoft.Extensions.DependencyInjection;
-
-    using Owin;
-
-    internal class Startup : IOwinAppBuilder
+    public Startup(string listeningAddress, FabricOrchestrationProvider fabricOrchestrationProvider)
     {
-        private readonly FabricOrchestrationProvider fabricOrchestrationProvider;
-        private readonly string listeningAddress;
+        this.listeningAddress = listeningAddress ?? throw new ArgumentNullException(nameof(listeningAddress));
+        this.fabricOrchestrationProvider = fabricOrchestrationProvider ?? throw new ArgumentNullException(nameof(fabricOrchestrationProvider));
+    }
 
-        public Startup(string listeningAddress, FabricOrchestrationProvider fabricOrchestrationProvider)
-        {
-            this.listeningAddress = listeningAddress ?? throw new ArgumentNullException(nameof(listeningAddress));
-            this.fabricOrchestrationProvider = fabricOrchestrationProvider ?? throw new ArgumentNullException(nameof(fabricOrchestrationProvider));
-        }
+    public string GetListeningAddress() => this.listeningAddress;
 
-        public string GetListeningAddress() => this.listeningAddress;
+    private ServiceProvider GenerateServiceProvider()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IOrchestrationServiceClient>(this.fabricOrchestrationProvider.OrchestrationServiceClient);
+        services.AddTransient<FabricOrchestrationServiceController>();
+        services.AddSingleton<IExceptionLogger, ProxyServiceExceptionLogger>();
+        services.AddSingleton<IExceptionHandler, ProxyServiceExceptionHandler>();
+        var serviceProvider = services.BuildServiceProvider();
+        return serviceProvider;
+    }
 
-        private ServiceProvider GenerateServiceProvider()
-        {
-            var services = new ServiceCollection();
-            services.AddSingleton<IOrchestrationServiceClient>(this.fabricOrchestrationProvider.OrchestrationServiceClient);
-            services.AddTransient<FabricOrchestrationServiceController>();
-            services.AddSingleton<IExceptionLogger, ProxyServiceExceptionLogger>();
-            services.AddSingleton<IExceptionHandler, ProxyServiceExceptionHandler>();
-            var serviceProvider = services.BuildServiceProvider();
-            return serviceProvider;
-        }
-
-        void IOwinAppBuilder.Startup(IAppBuilder appBuilder)
-        {
-            ServicePointManager.DefaultConnectionLimit = 256;
-            HttpConfiguration config = new HttpConfiguration();
-            config.MapHttpAttributeRoutes();
-            config.DependencyResolver = new DefaultDependencyResolver(GenerateServiceProvider());
-            config.MessageHandlers.Add(new ActivityLoggingMessageHandler());
-            config.IncludeErrorDetailPolicy = IncludeErrorDetailPolicy.Always;
-            config.Formatters.Remove(config.Formatters.XmlFormatter);
-            config.Formatters.Remove(config.Formatters.FormUrlEncodedFormatter);
-            config.Formatters.JsonFormatter.SerializerSettings.TypeNameHandling = Newtonsoft.Json.TypeNameHandling.All;
-            appBuilder.UseWebApi(config);
-        }
+    void IOwinAppBuilder.Startup(IAppBuilder appBuilder)
+    {
+        ServicePointManager.DefaultConnectionLimit = 256;
+        HttpConfiguration config = new HttpConfiguration();
+        config.MapHttpAttributeRoutes();
+        config.DependencyResolver = new DefaultDependencyResolver(GenerateServiceProvider());
+        config.MessageHandlers.Add(new ActivityLoggingMessageHandler());
+        config.IncludeErrorDetailPolicy = IncludeErrorDetailPolicy.Always;
+        config.Formatters.Remove(config.Formatters.XmlFormatter);
+        config.Formatters.Remove(config.Formatters.FormUrlEncodedFormatter);
+        config.Formatters.JsonFormatter.SerializerSettings.TypeNameHandling = Newtonsoft.Json.TypeNameHandling.All;
+        appBuilder.UseWebApi(config);
     }
 }

@@ -11,23 +11,22 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Tracking
+namespace DurableTask.Core.Tracking;
+
+using System;
+
+/// <summary>
+/// History Entity for orchestration jump start state
+/// </summary>
+public class OrchestrationJumpStartInstanceEntity : InstanceEntityBase
 {
-    using System;
+    /// <summary>
+    /// The start time of the jump start event
+    /// </summary>
+    public DateTime JumpStartTime;
 
     /// <summary>
-    /// History Entity for orchestration jump start state
+    /// Orchestration state of the jump start instance
     /// </summary>
-    public class OrchestrationJumpStartInstanceEntity : InstanceEntityBase
-    {
-        /// <summary>
-        /// The start time of the jump start event
-        /// </summary>
-        public DateTime JumpStartTime;
-
-        /// <summary>
-        /// Orchestration state of the jump start instance
-        /// </summary>
-        public OrchestrationState State;
-    }
+    public OrchestrationState State;
 }

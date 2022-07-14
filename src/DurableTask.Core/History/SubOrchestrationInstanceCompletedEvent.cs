@@ -11,44 +11,43 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.History
+namespace DurableTask.Core.History;
+
+using System.Runtime.Serialization;
+
+/// <summary>
+/// A history event for sub orchestration instance completion
+/// </summary>
+[DataContract]
+public class SubOrchestrationInstanceCompletedEvent : HistoryEvent
 {
-    using System.Runtime.Serialization;
+    /// <summary>
+    /// Create a new SubOrchestrationInstanceCompletedEvent with the supplied params
+    /// </summary>
+    /// <param name="eventId">The event id of the history event</param>
+    /// <param name="taskScheduledId">The scheduled parent instance event id</param>
+    /// <param name="result">The serialized result</param>
+    public SubOrchestrationInstanceCompletedEvent(int eventId, int taskScheduledId, string result)
+        : base(eventId)
+    {
+        TaskScheduledId = taskScheduledId;
+        Result = result;
+    }
 
     /// <summary>
-    /// A history event for sub orchestration instance completion
+    /// Gets the event type
     /// </summary>
-    [DataContract]
-    public class SubOrchestrationInstanceCompletedEvent : HistoryEvent
-    {
-        /// <summary>
-        /// Create a new SubOrchestrationInstanceCompletedEvent with the supplied params
-        /// </summary>
-        /// <param name="eventId">The event id of the history event</param>
-        /// <param name="taskScheduledId">The scheduled parent instance event id</param>
-        /// <param name="result">The serialized result</param>
-        public SubOrchestrationInstanceCompletedEvent(int eventId, int taskScheduledId, string result)
-            : base(eventId)
-        {
-            TaskScheduledId = taskScheduledId;
-            Result = result;
-        }
+    public override EventType EventType => EventType.SubOrchestrationInstanceCompleted;
 
-        /// <summary>
-        /// Gets the event type
-        /// </summary>
-        public override EventType EventType => EventType.SubOrchestrationInstanceCompleted;
+    /// <summary>
+    /// Gets the scheduled parent instance event id
+    /// </summary>
+    [DataMember]
+    public int TaskScheduledId { get; private set; }
 
-        /// <summary>
-        /// Gets the scheduled parent instance event id
-        /// </summary>
-        [DataMember]
-        public int TaskScheduledId { get; private set; }
-
-        /// <summary>
-        /// Get the serialized result
-        /// </summary>
-        [DataMember]
-        public string Result { get; private set; }
-    }
+    /// <summary>
+    /// Get the serialized result
+    /// </summary>
+    [DataMember]
+    public string Result { get; private set; }
 }

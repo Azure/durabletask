@@ -11,50 +11,49 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace Correlation.Samples
+namespace Correlation.Samples;
+
+using System;
+using System.Diagnostics;
+using System.Diagnostics.Contracts;
+using System.Threading.Tasks;
+
+using DurableTask.Core.Settings;
+
+public class ScenarioInvoker
 {
-    using System;
-    using System.Diagnostics;
-    using System.Diagnostics.Contracts;
-    using System.Threading.Tasks;
-
-    using DurableTask.Core.Settings;
-
-    public class ScenarioInvoker
+    public async Task ExecuteAsync(Type orchestratorType, object orchestratorInput, int timeoutSec)
     {
-        public async Task ExecuteAsync(Type orchestratorType, object orchestratorInput, int timeoutSec)
+        Contract.Assume(orchestratorType is not null);
+        new TelemetryActivator().Initialize();
+
+        using (
+            TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(false))
         {
-            Contract.Assume(orchestratorType is not null);
-            new TelemetryActivator().Initialize();
+            await host.StartAsync();
+            using var activity = new Activity("Start Orchestration");
+            SetupActivity(activity);
+            activity.Start();
+            var client = await host.StartOrchestrationAsync(orchestratorType, orchestratorInput); // TODO The parameter null will throw exception. (for the experiment)
+            var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(timeoutSec));
 
-            using (
-                TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(false))
-            {
-                await host.StartAsync();
-                using var activity = new Activity("Start Orchestration");
-                SetupActivity(activity);
-                activity.Start();
-                var client = await host.StartOrchestrationAsync(orchestratorType, orchestratorInput); // TODO The parameter null will throw exception. (for the experiment)
-                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(timeoutSec));
-
-                await host.StopAsync();
-            }
+            await host.StopAsync();
         }
+    }
 
-        private void SetupActivity(Activity activity)
+    private void SetupActivity(Activity activity)
+    {
+        var protocol = Environment.GetEnvironmentVariable("CorrelationProtocol");
+        switch (protocol)
         {
-            var protocol = Environment.GetEnvironmentVariable("CorrelationProtocol");
-            switch (protocol)
-            {
-                case "HTTP":
-                    CorrelationSettings.Current.Protocol = Protocol.HttpCorrelationProtocol;
-                    activity.SetIdFormat(ActivityIdFormat.Hierarchical);
-                    return;
-                default:
-                    CorrelationSettings.Current.Protocol = Protocol.W3CTraceContext;
-                    activity.SetIdFormat(ActivityIdFormat.W3C);
-                    return;
-            }
+            case "HTTP":
+                CorrelationSettings.Current.Protocol = Protocol.HttpCorrelationProtocol;
+                activity.SetIdFormat(ActivityIdFormat.Hierarchical);
+                return;
+            default:
+                CorrelationSettings.Current.Protocol = Protocol.W3CTraceContext;
+                activity.SetIdFormat(ActivityIdFormat.W3C);
+                return;
         }
     }
 }

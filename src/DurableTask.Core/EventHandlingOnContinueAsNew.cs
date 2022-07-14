@@ -11,21 +11,20 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+/// <summary>
+/// Specifies Behavior to be followed when dealing with unprocessed EventRaisedEvents when an orchestration continues as new
+/// </summary>
+public enum BehaviorOnContinueAsNew
 {
     /// <summary>
-    /// Specifies Behavior to be followed when dealing with unprocessed EventRaisedEvents when an orchestration continues as new
+    /// All pending EventRaisedEvents will be ignored
     /// </summary>
-    public enum BehaviorOnContinueAsNew
-    {
-        /// <summary>
-        /// All pending EventRaisedEvents will be ignored
-        /// </summary>
-        Ignore,
+    Ignore,
 
-        /// <summary>
-        /// All pending EventRaisedEvents will be carried
-        /// </summary>
-        Carryover,
-    }
+    /// <summary>
+    /// All pending EventRaisedEvents will be carried
+    /// </summary>
+    Carryover,
 }

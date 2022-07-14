@@ -206,9 +206,8 @@ csharp_preserve_single_line_statements                                   = true
 csharp_preserve_single_line_blocks                                       = true
 csharp_using_directive_placement = outside_namespace:silent
 csharp_prefer_simple_using_statement                                     = true:suggestion
-# csharp_style_namespace_declarations                                      = file_scoped:warning
+csharp_style_namespace_declarations                                      = file_scoped:warning
 csharp_style_prefer_method_group_conversion                              = true:silent
-csharp_style_namespace_declarations = block_scoped:silent
 ###############################
 # F# Coding Conventions       #
 ###############################

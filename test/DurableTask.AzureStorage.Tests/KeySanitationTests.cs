@@ -11,63 +11,62 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Tests
+namespace DurableTask.AzureStorage.Tests;
+
+using System;
+using System.Linq;
+using DurableTask.AzureStorage.Tracking;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+/// <summary>
+/// Extension methods for String Test
+/// </summary>
+[TestClass]
+public class KeySanitationTests
 {
-    using System;
-    using System.Linq;
-    using DurableTask.AzureStorage.Tracking;
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
+    [TestMethod]
+    [DataRow("\r")]
+    [DataRow("")]
+    [DataRow("hello")]
+    [DataRow("\uFFFF")]
+    [DataRow("\u0000")]
+    [DataRow("#")]
+    [DataRow("%")]
+    [DataRow("/")]
+    [DataRow("\\")]
+    [DataRow("?")]
+    [DataRow("^")]
+    [DataRow("^^")]
+    [DataRow("^^^")]
+    [DataRow("!@#$%^&*()_+=-0987654321d")]
+    [DataRow("\'\"\\\r\n\t")]
+    [DataRow("\u001F\u007F\u009F")]
+    [DataRow(null)]
 
-    /// <summary>
-    /// Extension methods for String Test
-    /// </summary>
-    [TestClass]
-    public class KeySanitationTests
+    public void TestRoundTrip(string original)
     {
-        [TestMethod]
-        [DataRow("\r")]
-        [DataRow("")]
-        [DataRow("hello")]
-        [DataRow("\uFFFF")]
-        [DataRow("\u0000")]
-        [DataRow("#")]
-        [DataRow("%")]
-        [DataRow("/")]
-        [DataRow("\\")]
-        [DataRow("?")]
-        [DataRow("^")]
-        [DataRow("^^")]
-        [DataRow("^^^")]
-        [DataRow("!@#$%^&*()_+=-0987654321d")]
-        [DataRow("\'\"\\\r\n\t")]
-        [DataRow("\u001F\u007F\u009F")]
-        [DataRow(null)]
+        string sanitized = KeySanitation.EscapePartitionKey(original);
+        string roundtrip = KeySanitation.UnescapePartitionKey(sanitized);
 
-        public void TestRoundTrip(string original)
+        Assert.AreEqual(original, roundtrip);
+
+        if (sanitized is not null)
         {
-            string sanitized = KeySanitation.EscapePartitionKey(original);
-            string roundtrip = KeySanitation.UnescapePartitionKey(sanitized);
+            Assert.IsTrue(sanitized.All(c => IsValid(c)));
+        }
 
-            Assert.AreEqual(original, roundtrip);
-
-            if (sanitized is not null)
+        bool IsValid(char c)
+        {
+            if (c == '\\' || c == '?' || c == '#' || c == '/')
             {
-                Assert.IsTrue(sanitized.All(c => IsValid(c)));
+                return false;
             }
-
-            bool IsValid(char c)
+            uint val = (uint)c;
+            if (val <= 0x1F || (val >= 0x7F && val <= 0x9F))
             {
-                if (c == '\\' || c == '?' || c == '#' || c == '/')
-                {
-                    return false;
-                }
-                uint val = (uint)c;
-                if (val <= 0x1F || (val >= 0x7F && val <= 0x9F))
-                {
-                    return false;
-                }
-                return true;
+                return false;
             }
+            return true;
         }
     }
 }

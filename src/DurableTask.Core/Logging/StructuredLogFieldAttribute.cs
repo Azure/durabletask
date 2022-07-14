@@ -11,25 +11,24 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Logging
+namespace DurableTask.Core.Logging;
+
+using System;
+
+/// <summary>
+/// Attribute used to indicate that a <see cref="ILogEvent"/> field should be serialized to the structured log provider.
+/// </summary>
+[AttributeUsage(AttributeTargets.Property, AllowMultiple = false)]
+public class StructuredLogFieldAttribute : Attribute
 {
-    using System;
+    /// <summary>
+    /// Initializes a new instance of the <see cref="StructuredLogFieldAttribute"/> class.
+    /// </summary>
+    /// <param name="name">The name of the log entry field. If not specified, the name of the property is used.</param>
+    public StructuredLogFieldAttribute(string name = null) => this.Name = name;
 
     /// <summary>
-    /// Attribute used to indicate that a <see cref="ILogEvent"/> field should be serialized to the structured log provider.
+    /// Gets the name of the log entry field. If not specified, the name of the property is used.
     /// </summary>
-    [AttributeUsage(AttributeTargets.Property, AllowMultiple = false)]
-    public class StructuredLogFieldAttribute : Attribute
-    {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="StructuredLogFieldAttribute"/> class.
-        /// </summary>
-        /// <param name="name">The name of the log entry field. If not specified, the name of the property is used.</param>
-        public StructuredLogFieldAttribute(string name = null) => this.Name = name;
-
-        /// <summary>
-        /// Gets the name of the log entry field. If not specified, the name of the property is used.
-        /// </summary>
-        public string Name { get; }
-    }
+    public string Name { get; }
 }

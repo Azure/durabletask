@@ -11,168 +11,167 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceBus.Tracking
+namespace DurableTask.ServiceBus.Tracking;
+
+using System;
+using System.Collections.Generic;
+
+using DurableTask.Core.History;
+using DurableTask.Core.Serializing;
+
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Table;
+
+using Newtonsoft.Json;
+
+/// <summary>
+/// History Tracking entity for orchestration history events
+/// </summary>
+public class AzureTableOrchestrationHistoryEventEntity : AzureTableCompositeTableEntity
 {
-    using System;
-    using System.Collections.Generic;
+    private static readonly JsonSerializerSettings WriteJsonSettings = new JsonSerializerSettings
+    {
+        Formatting = Formatting.Indented,
+        TypeNameHandling = TypeNameHandling.Objects
+    };
 
-    using DurableTask.Core.History;
-    using DurableTask.Core.Serializing;
-
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Table;
-
-    using Newtonsoft.Json;
+    private static readonly JsonSerializerSettings ReadJsonSettings = new JsonSerializerSettings
+    {
+        TypeNameHandling = TypeNameHandling.Objects,
+#if NETSTANDARD2_0
+        SerializationBinder = new PackageUpgradeSerializationBinder()
+#else
+        Binder = new PackageUpgradeSerializationBinder()
+#endif
+    };
 
     /// <summary>
-    /// History Tracking entity for orchestration history events
+    /// Creates a new AzureTableOrchestrationHistoryEventEntity
     /// </summary>
-    public class AzureTableOrchestrationHistoryEventEntity : AzureTableCompositeTableEntity
+    public AzureTableOrchestrationHistoryEventEntity()
     {
-        private static readonly JsonSerializerSettings WriteJsonSettings = new JsonSerializerSettings
-        {
-            Formatting = Formatting.Indented,
-            TypeNameHandling = TypeNameHandling.Objects
-        };
-
-        private static readonly JsonSerializerSettings ReadJsonSettings = new JsonSerializerSettings
-        {
-            TypeNameHandling = TypeNameHandling.Objects,
-#if NETSTANDARD2_0
-            SerializationBinder = new PackageUpgradeSerializationBinder()
-#else
-            Binder = new PackageUpgradeSerializationBinder()
-#endif
-        };
-
-        /// <summary>
-        /// Creates a new AzureTableOrchestrationHistoryEventEntity
-        /// </summary>
-        public AzureTableOrchestrationHistoryEventEntity()
-        {
-        }
-
-        /// <summary>
-        /// Creates a new AzureTableOrchestrationHistoryEventEntity with supplied parameters
-        /// </summary>
-        /// <param name="instanceId">The orchestration instance id</param>
-        /// <param name="executionId">The orchestration execution id</param>
-        /// <param name="sequenceNumber">Sequence number for ordering events</param>
-        /// <param name="taskTimeStamp">Timestamp of history event</param>
-        /// <param name="historyEvent">The history event details</param>
-        public AzureTableOrchestrationHistoryEventEntity(
-            string instanceId,
-            string executionId,
-            long sequenceNumber,
-            DateTime taskTimeStamp,
-            HistoryEvent historyEvent)
-        {
-            InstanceId = instanceId;
-            ExecutionId = executionId;
-            SequenceNumber = (int)sequenceNumber;
-            TaskTimeStamp = taskTimeStamp;
-            HistoryEvent = historyEvent;
-
-            PartitionKey = AzureTableConstants.InstanceHistoryEventPrefix +
-                           AzureTableConstants.JoinDelimiter + InstanceId;
-            RowKey = ExecutionId + AzureTableConstants.JoinDelimiter + SequenceNumber;
-        }
-
-        /// <summary>
-        /// Gets or set the instance id of the orchestration
-        /// </summary>
-        public string InstanceId { get; set; }
-
-        /// <summary>
-        /// Gets or set the execution id of the orchestration
-        /// </summary>
-        public string ExecutionId { get; set; }
-
-        /// <summary>
-        /// Gets or set the sequence number for ordering events
-        /// </summary>
-        public int SequenceNumber { get; set; }
-
-        /// <summary>
-        /// Gets or set the history event detail for the tracking entity
-        /// </summary>
-        public HistoryEvent HistoryEvent { get; set; }
-
-        internal override IEnumerable<ITableEntity> BuildDenormalizedEntities()
-        {
-            var entity = new AzureTableOrchestrationHistoryEventEntity(InstanceId,
-                ExecutionId,
-                SequenceNumber,
-                TaskTimeStamp, HistoryEvent)
-            {
-                PartitionKey = AzureTableConstants.InstanceHistoryEventPrefix +
-                                  AzureTableConstants.JoinDelimiter + InstanceId,
-                RowKey = AzureTableConstants.InstanceHistoryEventRowPrefix +
-                            AzureTableConstants.JoinDelimiter +
-                            ExecutionId + AzureTableConstants.JoinDelimiter + SequenceNumber
-            };
-
-            return new[] { entity };
-        }
-
-        /// <summary>
-        /// Write an entity to a dictionary of entity properties
-        /// </summary>
-        /// <param name="operationContext">The operation context</param>
-        public override IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext)
-        {
-            string serializedHistoryEvent = JsonConvert.SerializeObject(HistoryEvent, WriteJsonSettings);
-
-            // replace with a generic event with the truncated history so at least we have some record
-            // note that this makes the history stored in the instance store unreplayable. so any replay logic
-            // that we build will have to especially check for this event and flag the orchestration as unplayable if it sees this event
-            if (!string.IsNullOrWhiteSpace(serializedHistoryEvent) &&
-                serializedHistoryEvent.Length > ServiceBusConstants.MaxStringLengthForAzureTableColumn)
-            {
-                serializedHistoryEvent = JsonConvert.SerializeObject(new GenericEvent(HistoryEvent.EventId,
-                    serializedHistoryEvent.Substring(0, ServiceBusConstants.MaxStringLengthForAzureTableColumn) + " ....(truncated)..]"),
-                    WriteJsonSettings);
-            }
-
-            var returnValues = new Dictionary<string, EntityProperty>
-            {
-                { "InstanceId", new EntityProperty(InstanceId) },
-                { "ExecutionId", new EntityProperty(ExecutionId) },
-                { "TaskTimeStamp", new EntityProperty(TaskTimeStamp) },
-                { "SequenceNumber", new EntityProperty(SequenceNumber) },
-                { "HistoryEvent", new EntityProperty(serializedHistoryEvent) }
-            };
-
-            return returnValues;
-        }
-
-        /// <summary>
-        /// Read an entity properties based on the supplied dictionary or entity properties
-        /// </summary>
-        /// <param name="properties">Dictionary of properties to read for the entity</param>
-        /// <param name="operationContext">The operation context</param>
-        public override void ReadEntity(IDictionary<string, EntityProperty> properties,
-            OperationContext operationContext)
-        {
-            InstanceId = GetValue("InstanceId", properties, property => property.StringValue);
-            ExecutionId = GetValue("ExecutionId", properties, property => property.StringValue);
-            SequenceNumber = GetValue("SequenceNumber", properties, property => property.Int32Value).GetValueOrDefault();
-            TaskTimeStamp =
-                GetValue("TaskTimeStamp", properties, property => property.DateTimeOffsetValue)
-                    .GetValueOrDefault()
-                    .DateTime;
-
-            string serializedHistoryEvent = GetValue("HistoryEvent", properties, property => property.StringValue);
-            HistoryEvent = JsonConvert.DeserializeObject<HistoryEvent>(serializedHistoryEvent, ReadJsonSettings);
-        }
-
-        /// <summary>
-        /// Returns a string that represents the current object.
-        /// </summary>
-        /// <returns>
-        /// A string that represents the current object.
-        /// </returns>
-        public override string ToString()
-        => $"Instance Id: {InstanceId} Execution Id: {ExecutionId} Seq: {SequenceNumber.ToString()} Time: {TaskTimeStamp} HistoryEvent: {HistoryEvent.EventType.ToString()}";
     }
+
+    /// <summary>
+    /// Creates a new AzureTableOrchestrationHistoryEventEntity with supplied parameters
+    /// </summary>
+    /// <param name="instanceId">The orchestration instance id</param>
+    /// <param name="executionId">The orchestration execution id</param>
+    /// <param name="sequenceNumber">Sequence number for ordering events</param>
+    /// <param name="taskTimeStamp">Timestamp of history event</param>
+    /// <param name="historyEvent">The history event details</param>
+    public AzureTableOrchestrationHistoryEventEntity(
+        string instanceId,
+        string executionId,
+        long sequenceNumber,
+        DateTime taskTimeStamp,
+        HistoryEvent historyEvent)
+    {
+        InstanceId = instanceId;
+        ExecutionId = executionId;
+        SequenceNumber = (int)sequenceNumber;
+        TaskTimeStamp = taskTimeStamp;
+        HistoryEvent = historyEvent;
+
+        PartitionKey = AzureTableConstants.InstanceHistoryEventPrefix +
+                       AzureTableConstants.JoinDelimiter + InstanceId;
+        RowKey = ExecutionId + AzureTableConstants.JoinDelimiter + SequenceNumber;
+    }
+
+    /// <summary>
+    /// Gets or set the instance id of the orchestration
+    /// </summary>
+    public string InstanceId { get; set; }
+
+    /// <summary>
+    /// Gets or set the execution id of the orchestration
+    /// </summary>
+    public string ExecutionId { get; set; }
+
+    /// <summary>
+    /// Gets or set the sequence number for ordering events
+    /// </summary>
+    public int SequenceNumber { get; set; }
+
+    /// <summary>
+    /// Gets or set the history event detail for the tracking entity
+    /// </summary>
+    public HistoryEvent HistoryEvent { get; set; }
+
+    internal override IEnumerable<ITableEntity> BuildDenormalizedEntities()
+    {
+        var entity = new AzureTableOrchestrationHistoryEventEntity(InstanceId,
+            ExecutionId,
+            SequenceNumber,
+            TaskTimeStamp, HistoryEvent)
+        {
+            PartitionKey = AzureTableConstants.InstanceHistoryEventPrefix +
+                              AzureTableConstants.JoinDelimiter + InstanceId,
+            RowKey = AzureTableConstants.InstanceHistoryEventRowPrefix +
+                        AzureTableConstants.JoinDelimiter +
+                        ExecutionId + AzureTableConstants.JoinDelimiter + SequenceNumber
+        };
+
+        return new[] { entity };
+    }
+
+    /// <summary>
+    /// Write an entity to a dictionary of entity properties
+    /// </summary>
+    /// <param name="operationContext">The operation context</param>
+    public override IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext)
+    {
+        string serializedHistoryEvent = JsonConvert.SerializeObject(HistoryEvent, WriteJsonSettings);
+
+        // replace with a generic event with the truncated history so at least we have some record
+        // note that this makes the history stored in the instance store unreplayable. so any replay logic
+        // that we build will have to especially check for this event and flag the orchestration as unplayable if it sees this event
+        if (!string.IsNullOrWhiteSpace(serializedHistoryEvent) &&
+            serializedHistoryEvent.Length > ServiceBusConstants.MaxStringLengthForAzureTableColumn)
+        {
+            serializedHistoryEvent = JsonConvert.SerializeObject(new GenericEvent(HistoryEvent.EventId,
+                serializedHistoryEvent.Substring(0, ServiceBusConstants.MaxStringLengthForAzureTableColumn) + " ....(truncated)..]"),
+                WriteJsonSettings);
+        }
+
+        var returnValues = new Dictionary<string, EntityProperty>
+        {
+            { "InstanceId", new EntityProperty(InstanceId) },
+            { "ExecutionId", new EntityProperty(ExecutionId) },
+            { "TaskTimeStamp", new EntityProperty(TaskTimeStamp) },
+            { "SequenceNumber", new EntityProperty(SequenceNumber) },
+            { "HistoryEvent", new EntityProperty(serializedHistoryEvent) }
+        };
+
+        return returnValues;
+    }
+
+    /// <summary>
+    /// Read an entity properties based on the supplied dictionary or entity properties
+    /// </summary>
+    /// <param name="properties">Dictionary of properties to read for the entity</param>
+    /// <param name="operationContext">The operation context</param>
+    public override void ReadEntity(IDictionary<string, EntityProperty> properties,
+        OperationContext operationContext)
+    {
+        InstanceId = GetValue("InstanceId", properties, property => property.StringValue);
+        ExecutionId = GetValue("ExecutionId", properties, property => property.StringValue);
+        SequenceNumber = GetValue("SequenceNumber", properties, property => property.Int32Value).GetValueOrDefault();
+        TaskTimeStamp =
+            GetValue("TaskTimeStamp", properties, property => property.DateTimeOffsetValue)
+                .GetValueOrDefault()
+                .DateTime;
+
+        string serializedHistoryEvent = GetValue("HistoryEvent", properties, property => property.StringValue);
+        HistoryEvent = JsonConvert.DeserializeObject<HistoryEvent>(serializedHistoryEvent, ReadJsonSettings);
+    }
+
+    /// <summary>
+    /// Returns a string that represents the current object.
+    /// </summary>
+    /// <returns>
+    /// A string that represents the current object.
+    /// </returns>
+    public override string ToString()
+    => $"Instance Id: {InstanceId} Execution Id: {ExecutionId} Seq: {SequenceNumber.ToString()} Time: {TaskTimeStamp} HistoryEvent: {HistoryEvent.EventType.ToString()}";
 }

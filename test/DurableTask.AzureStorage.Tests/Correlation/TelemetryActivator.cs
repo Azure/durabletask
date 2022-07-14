@@ -11,82 +11,81 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Tests.Correlation
+namespace DurableTask.AzureStorage.Tests.Correlation;
+
+using System;
+
+using DurableTask.Core;
+
+using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.Channel;
+using Microsoft.ApplicationInsights.DependencyCollector;
+using Microsoft.ApplicationInsights.Extensibility;
+
+public class TelemetryActivator
 {
-    using System;
+    private TelemetryClient telemetryClient;
 
-    using DurableTask.Core;
-
-    using Microsoft.ApplicationInsights;
-    using Microsoft.ApplicationInsights.Channel;
-    using Microsoft.ApplicationInsights.DependencyCollector;
-    using Microsoft.ApplicationInsights.Extensibility;
-
-    public class TelemetryActivator
+    public void Initialize()
     {
-        private TelemetryClient telemetryClient;
+        SetUpTelemetryClient(null, null);
+        SetUpTelemetryCallbacks();
+    }
 
-        public void Initialize()
-        {
-            SetUpTelemetryClient(null, null);
-            SetUpTelemetryCallbacks();
-        }
+    public void Initialize(Action<ITelemetry> onSend, string instrumentationKey)
+    {
+        SetUpTelemetryClient(onSend, instrumentationKey);
+        SetUpTelemetryCallbacks();
+    }
 
-        public void Initialize(Action<ITelemetry> onSend, string instrumentationKey)
-        {
-            SetUpTelemetryClient(onSend, instrumentationKey);
-            SetUpTelemetryCallbacks();
-        }
+    private void SetUpTelemetryCallbacks()
+    {
+        CorrelationTraceClient.SetUp(
+            (TraceContextBase requestTraceContext) =>
+            {
+                requestTraceContext.Stop();
 
-        private void SetUpTelemetryCallbacks()
-        {
-            CorrelationTraceClient.SetUp(
-                (TraceContextBase requestTraceContext) =>
-                {
-                    requestTraceContext.Stop();
+                var requestTelemetry = requestTraceContext.CreateRequestTelemetry();
+                telemetryClient.TrackRequest(requestTelemetry);
+            },
+            (TraceContextBase dependencyTraceContext) =>
+            {
+                dependencyTraceContext.Stop();
+                var dependencyTelemetry = dependencyTraceContext.CreateDependencyTelemetry();
+                telemetryClient.TrackDependency(dependencyTelemetry);
+            },
+            (Exception e) =>
+            {
+                telemetryClient.TrackException(e);
+            }
+        );
+    }
 
-                    var requestTelemetry = requestTraceContext.CreateRequestTelemetry();
-                    telemetryClient.TrackRequest(requestTelemetry);
-                },
-                (TraceContextBase dependencyTraceContext) =>
-                {
-                    dependencyTraceContext.Stop();
-                    var dependencyTelemetry = dependencyTraceContext.CreateDependencyTelemetry();
-                    telemetryClient.TrackDependency(dependencyTelemetry);
-                },
-                (Exception e) =>
-                {
-                    telemetryClient.TrackException(e);
-                }
-            );
-        }
-
-        private void SetUpTelemetryClient(Action<ITelemetry> onSend, string instrumentationKey)
-        {
-            using var module = new DependencyTrackingTelemetryModule();
-            // Currently it seems have a problem https://github.com/microsoft/ApplicationInsights-dotnet-server/issues/536
-            module.ExcludeComponentCorrelationHttpHeadersOnDomains.Add("core.windows.net");
-            module.ExcludeComponentCorrelationHttpHeadersOnDomains.Add("127.0.0.1");
+    private void SetUpTelemetryClient(Action<ITelemetry> onSend, string instrumentationKey)
+    {
+        using var module = new DependencyTrackingTelemetryModule();
+        // Currently it seems have a problem https://github.com/microsoft/ApplicationInsights-dotnet-server/issues/536
+        module.ExcludeComponentCorrelationHttpHeadersOnDomains.Add("core.windows.net");
+        module.ExcludeComponentCorrelationHttpHeadersOnDomains.Add("127.0.0.1");
 
 #pragma warning disable CA2000 // Dispose objects before losing scope
-            TelemetryConfiguration config = TelemetryConfiguration.CreateDefault();
+        TelemetryConfiguration config = TelemetryConfiguration.CreateDefault();
 #pragma warning restore CA2000 // Dispose objects before losing scope
-            if (onSend is not null)
-            {
-                config.TelemetryChannel = new NoOpTelemetryChannel { OnSend = onSend };
-            }
+        if (onSend is not null)
+        {
+            config.TelemetryChannel = new NoOpTelemetryChannel { OnSend = onSend };
+        }
 
 #pragma warning disable 618 // DurableTaskCorrelationTelemetryIntializer() requires suppression. It is required for W3C for this System.Diagnostics version.
-            var telemetryInitializer = new DurableTaskCorrelationTelemetryInitializer();
-            // TODO It should be suppressed by DependencyTrackingTelemetryModule, however, it doesn't work currently.
-            // Once the bug is fixed, remove this settings.
-            telemetryInitializer.ExcludeComponentCorrelationHttpHeadersOnDomains.Add("127.0.0.1");
-            config.TelemetryInitializers.Add(telemetryInitializer);
+        var telemetryInitializer = new DurableTaskCorrelationTelemetryInitializer();
+        // TODO It should be suppressed by DependencyTrackingTelemetryModule, however, it doesn't work currently.
+        // Once the bug is fixed, remove this settings.
+        telemetryInitializer.ExcludeComponentCorrelationHttpHeadersOnDomains.Add("127.0.0.1");
+        config.TelemetryInitializers.Add(telemetryInitializer);
 #pragma warning restore 618
-            module.Initialize(config);
-            instrumentationKey = instrumentationKey ?? Environment.GetEnvironmentVariable("APPINSIGHTS_INSTRUMENTATIONKEY");
+        module.Initialize(config);
+        instrumentationKey = instrumentationKey ?? Environment.GetEnvironmentVariable("APPINSIGHTS_INSTRUMENTATIONKEY");
 
-            telemetryClient = new TelemetryClient(config);
-        }
+        telemetryClient = new TelemetryClient(config);
     }
 }

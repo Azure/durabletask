@@ -11,64 +11,63 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace Correlation.Samples
+namespace Correlation.Samples;
+
+using System;
+using System.IO;
+
+using DurableTask.AzureStorage;
+
+using Microsoft.Extensions.Configuration;
+
+public static class TestHelpers
 {
-    using System;
-    using System.IO;
+    public static IConfigurationRoot Configuration { get; set; }
 
-    using DurableTask.AzureStorage;
-
-    using Microsoft.Extensions.Configuration;
-
-    public static class TestHelpers
+    static TestHelpers()
     {
-        public static IConfigurationRoot Configuration { get; set; }
+        var builder = new ConfigurationBuilder()
+            .SetBasePath(Directory.GetCurrentDirectory())
+            .AddJsonFile("appsettings.json");
+        Configuration = builder.Build();
+    }
 
-        static TestHelpers()
+    internal static TestOrchestrationHost GetTestOrchestrationHost(
+        bool enableExtendedSessions,
+        int extendedSessionTimeoutInSeconds = 30)
+    {
+        string storageConnectionString = GetTestStorageAccountConnectionString();
+
+        var settings = new AzureStorageOrchestrationServiceSettings
         {
-            var builder = new ConfigurationBuilder()
-                .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile("appsettings.json");
-            Configuration = builder.Build();
+            StorageConnectionString = storageConnectionString,
+            TaskHubName = Configuration["taskHubName"],
+            ExtendedSessionsEnabled = enableExtendedSessions,
+            ExtendedSessionIdleTimeout = TimeSpan.FromSeconds(extendedSessionTimeoutInSeconds),
+        };
+
+        return new TestOrchestrationHost(settings);
+    }
+
+    public static string GetTestStorageAccountConnectionString()
+    {
+        string storageConnectionString = GetTestSetting("StorageConnectionString");
+        if (string.IsNullOrEmpty(storageConnectionString))
+        {
+            throw new ArgumentNullException("A Storage connection string must be defined in either an environment variable or in appsettings.json.");
         }
 
-        internal static TestOrchestrationHost GetTestOrchestrationHost(
-            bool enableExtendedSessions,
-            int extendedSessionTimeoutInSeconds = 30)
+        return storageConnectionString;
+    }
+
+    private static string GetTestSetting(string name)
+    {
+        string value = Environment.GetEnvironmentVariable("DurableTaskTest" + name);
+        if (string.IsNullOrEmpty(value))
         {
-            string storageConnectionString = GetTestStorageAccountConnectionString();
-
-            var settings = new AzureStorageOrchestrationServiceSettings
-            {
-                StorageConnectionString = storageConnectionString,
-                TaskHubName = Configuration["taskHubName"],
-                ExtendedSessionsEnabled = enableExtendedSessions,
-                ExtendedSessionIdleTimeout = TimeSpan.FromSeconds(extendedSessionTimeoutInSeconds),
-            };
-
-            return new TestOrchestrationHost(settings);
+            value = Configuration[name];
         }
 
-        public static string GetTestStorageAccountConnectionString()
-        {
-            string storageConnectionString = GetTestSetting("StorageConnectionString");
-            if (string.IsNullOrEmpty(storageConnectionString))
-            {
-                throw new ArgumentNullException("A Storage connection string must be defined in either an environment variable or in appsettings.json.");
-            }
-
-            return storageConnectionString;
-        }
-
-        private static string GetTestSetting(string name)
-        {
-            string value = Environment.GetEnvironmentVariable("DurableTaskTest" + name);
-            if (string.IsNullOrEmpty(value))
-            {
-                value = Configuration[name];
-            }
-
-            return value;
-        }
+        return value;
     }
 }

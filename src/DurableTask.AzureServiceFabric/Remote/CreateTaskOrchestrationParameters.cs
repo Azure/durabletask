@@ -11,23 +11,22 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Models
+namespace DurableTask.AzureServiceFabric.Models;
+
+using DurableTask.Core;
+
+/// <summary>
+/// Task orchestration creation parameters.
+/// </summary>
+public class CreateTaskOrchestrationParameters
 {
-    using DurableTask.Core;
+    /// <summary>
+    /// Task message representing task orchestration.
+    /// </summary>
+    public TaskMessage TaskMessage { get; set; }
 
     /// <summary>
-    /// Task orchestration creation parameters.
+    /// States of previous orchestration executions to be considered while de-duping new orchestrations on the client.
     /// </summary>
-    public class CreateTaskOrchestrationParameters
-    {
-        /// <summary>
-        /// Task message representing task orchestration.
-        /// </summary>
-        public TaskMessage TaskMessage { get; set; }
-
-        /// <summary>
-        /// States of previous orchestration executions to be considered while de-duping new orchestrations on the client.
-        /// </summary>
-        public OrchestrationStatus[] DedupeStatuses { get; set; }
-    }
+    public OrchestrationStatus[] DedupeStatuses { get; set; }
 }

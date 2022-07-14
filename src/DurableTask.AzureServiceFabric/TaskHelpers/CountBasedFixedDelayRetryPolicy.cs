@@ -11,26 +11,25 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.TaskHelpers
+namespace DurableTask.AzureServiceFabric.TaskHelpers;
+
+using System;
+
+internal class CountBasedFixedDelayRetryPolicy : IRetryPolicy
 {
-    using System;
+    private readonly TimeSpan delay;
+    private int pendingAttempts;
 
-    internal class CountBasedFixedDelayRetryPolicy : IRetryPolicy
+    public CountBasedFixedDelayRetryPolicy(int maxNumberOfAttempts, TimeSpan delay)
     {
-        private readonly TimeSpan delay;
-        private int pendingAttempts;
-
-        public CountBasedFixedDelayRetryPolicy(int maxNumberOfAttempts, TimeSpan delay)
-        {
-            this.delay = delay;
-            this.pendingAttempts = maxNumberOfAttempts;
-        }
-
-        public bool ShouldExecute() => this.pendingAttempts-- > 0;
-
-        public TimeSpan GetNextDelay() => this.pendingAttempts < 1 ? TimeSpan.Zero : this.delay;
-
-        public static IRetryPolicy GetNewDefaultPolicy()
-         => new CountBasedFixedDelayRetryPolicy(3, TimeSpan.FromMilliseconds(100));
+        this.delay = delay;
+        this.pendingAttempts = maxNumberOfAttempts;
     }
+
+    public bool ShouldExecute() => this.pendingAttempts-- > 0;
+
+    public TimeSpan GetNextDelay() => this.pendingAttempts < 1 ? TimeSpan.Zero : this.delay;
+
+    public static IRetryPolicy GetNewDefaultPolicy()
+     => new CountBasedFixedDelayRetryPolicy(3, TimeSpan.FromMilliseconds(100));
 }

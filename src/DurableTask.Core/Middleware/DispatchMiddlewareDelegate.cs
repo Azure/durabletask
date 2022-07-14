@@ -11,14 +11,13 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Middleware
-{
-    using System.Threading.Tasks;
+namespace DurableTask.Core.Middleware;
 
-    /// <summary>
-    /// A function that runs in the task execution middleware pipeline.
-    /// </summary>
-    /// <param name="context">The <see cref="DispatchMiddlewareContext"/> for the task execution.</param>
-    /// <returns>A task that represents the completion of the durable task execution.</returns>
-    public delegate Task DispatchMiddlewareDelegate(DispatchMiddlewareContext context);
-}
+using System.Threading.Tasks;
+
+/// <summary>
+/// A function that runs in the task execution middleware pipeline.
+/// </summary>
+/// <param name="context">The <see cref="DispatchMiddlewareContext"/> for the task execution.</param>
+/// <returns>A task that represents the completion of the durable task execution.</returns>
+public delegate Task DispatchMiddlewareDelegate(DispatchMiddlewareContext context);

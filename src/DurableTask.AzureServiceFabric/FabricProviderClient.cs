@@ -11,48 +11,47 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric
+namespace DurableTask.AzureServiceFabric;
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+
+using DurableTask.AzureServiceFabric.Stores;
+using DurableTask.Core;
+using DurableTask.Core.Serializing;
+
+using Microsoft.ServiceFabric.Data;
+
+using Newtonsoft.Json;
+
+internal class FabricProviderClient : IFabricProviderClient
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Threading.Tasks;
+    // TOOD: Check why is it imported if never used
+    private readonly IReliableStateManager stateManager;
+    private readonly SessionProvider orchestrationProvider;
+    private readonly JsonDataConverter formattingConverter = new JsonDataConverter(new JsonSerializerSettings() { Formatting = Formatting.Indented });
 
-    using DurableTask.AzureServiceFabric.Stores;
-    using DurableTask.Core;
-    using DurableTask.Core.Serializing;
-
-    using Microsoft.ServiceFabric.Data;
-
-    using Newtonsoft.Json;
-
-    internal class FabricProviderClient : IFabricProviderClient
+    public FabricProviderClient(IReliableStateManager stateManager, SessionProvider orchestrationProvider)
     {
-        // TOOD: Check why is it imported if never used
-        private readonly IReliableStateManager stateManager;
-        private readonly SessionProvider orchestrationProvider;
-        private readonly JsonDataConverter formattingConverter = new JsonDataConverter(new JsonSerializerSettings() { Formatting = Formatting.Indented });
+        this.stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
+        this.orchestrationProvider = orchestrationProvider ?? throw new ArgumentNullException(nameof(orchestrationProvider));
+    }
 
-        public FabricProviderClient(IReliableStateManager stateManager, SessionProvider orchestrationProvider)
-        {
-            this.stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
-            this.orchestrationProvider = orchestrationProvider ?? throw new ArgumentNullException(nameof(orchestrationProvider));
-        }
+    public async Task<IEnumerable<OrchestrationInstance>> GetRunningOrchestrationsAsync()
+    {
+        var sessions = await this.orchestrationProvider.GetSessions();
+        return sessions.Select(s => s.SessionId);
+    }
 
-        public async Task<IEnumerable<OrchestrationInstance>> GetRunningOrchestrationsAsync()
+    public async Task<string> GetOrchestrationRuntimeStateAsync(string instanceId)
+    {
+        var session = await this.orchestrationProvider.GetSession(instanceId);
+        if (session is null)
         {
-            var sessions = await this.orchestrationProvider.GetSessions();
-            return sessions.Select(s => s.SessionId);
+            throw new ArgumentException($"There is no running or pending Orchestration with the instanceId {instanceId}");
         }
-
-        public async Task<string> GetOrchestrationRuntimeStateAsync(string instanceId)
-        {
-            var session = await this.orchestrationProvider.GetSession(instanceId);
-            if (session is null)
-            {
-                throw new ArgumentException($"There is no running or pending Orchestration with the instanceId {instanceId}");
-            }
-            return formattingConverter.Serialize(session.SessionState);
-        }
+        return formattingConverter.Serialize(session.SessionState);
     }
 }

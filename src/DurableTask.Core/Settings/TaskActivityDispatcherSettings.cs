@@ -11,50 +11,49 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Settings
+namespace DurableTask.Core.Settings;
+
+/// <summary>
+///     Settings to configure the Task Activity Dispatcher
+/// </summary>
+public class TaskActivityDispatcherSettings
 {
     /// <summary>
-    ///     Settings to configure the Task Activity Dispatcher
+    ///     Creates a new instance of the TaskActivityDispatcherSettings with the default settings
     /// </summary>
-    public class TaskActivityDispatcherSettings
+    public TaskActivityDispatcherSettings()
     {
-        /// <summary>
-        ///     Creates a new instance of the TaskActivityDispatcherSettings with the default settings
-        /// </summary>
-        public TaskActivityDispatcherSettings()
-        {
-            TransientErrorBackOffSecs = FrameworkConstants.ActivityTransientErrorBackOffSecs;
-            NonTransientErrorBackOffSecs = FrameworkConstants.ActivityNonTransientErrorBackOffSecs;
-            DispatcherCount = FrameworkConstants.ActivityDefaultDispatcherCount;
-            MaxConcurrentActivities = FrameworkConstants.ActivityDefaultMaxConcurrentItems;
-        }
-
-        /// <summary>
-        ///     Time in seconds to wait before retrying on a transient error (e.g. communication exception). Default is 10s.
-        /// </summary>
-        public int TransientErrorBackOffSecs { get; set; }
-
-        /// <summary>
-        ///     Time in seconds to wait before retrying on a non-transient error. Default is 120s.
-        /// </summary>
-        public int NonTransientErrorBackOffSecs { get; set; }
-
-        /// <summary>
-        ///     How many dispatchers to create. Default is 1.
-        /// </summary>
-        public int DispatcherCount { get; set; }
-
-        /// <summary>
-        ///     How many activities to process concurrently. Default is 10.
-        /// </summary>
-        public int MaxConcurrentActivities { get; set; }
-
-        internal TaskActivityDispatcherSettings Clone()
-         => new TaskActivityDispatcherSettings
-         {
-             TransientErrorBackOffSecs = TransientErrorBackOffSecs,
-             NonTransientErrorBackOffSecs = NonTransientErrorBackOffSecs,
-             MaxConcurrentActivities = MaxConcurrentActivities,
-         };
+        TransientErrorBackOffSecs = FrameworkConstants.ActivityTransientErrorBackOffSecs;
+        NonTransientErrorBackOffSecs = FrameworkConstants.ActivityNonTransientErrorBackOffSecs;
+        DispatcherCount = FrameworkConstants.ActivityDefaultDispatcherCount;
+        MaxConcurrentActivities = FrameworkConstants.ActivityDefaultMaxConcurrentItems;
     }
+
+    /// <summary>
+    ///     Time in seconds to wait before retrying on a transient error (e.g. communication exception). Default is 10s.
+    /// </summary>
+    public int TransientErrorBackOffSecs { get; set; }
+
+    /// <summary>
+    ///     Time in seconds to wait before retrying on a non-transient error. Default is 120s.
+    /// </summary>
+    public int NonTransientErrorBackOffSecs { get; set; }
+
+    /// <summary>
+    ///     How many dispatchers to create. Default is 1.
+    /// </summary>
+    public int DispatcherCount { get; set; }
+
+    /// <summary>
+    ///     How many activities to process concurrently. Default is 10.
+    /// </summary>
+    public int MaxConcurrentActivities { get; set; }
+
+    internal TaskActivityDispatcherSettings Clone()
+     => new TaskActivityDispatcherSettings
+     {
+         TransientErrorBackOffSecs = TransientErrorBackOffSecs,
+         NonTransientErrorBackOffSecs = NonTransientErrorBackOffSecs,
+         MaxConcurrentActivities = MaxConcurrentActivities,
+     };
 }

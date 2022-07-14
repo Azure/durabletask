@@ -11,25 +11,24 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceBus.Settings
+namespace DurableTask.ServiceBus.Settings;
+
+using DurableTask.Core;
+
+/// <summary>
+///     Settings to configure the Service Bus message sender
+/// </summary>
+public class ServiceBusMessageSenderSettings
 {
-    using DurableTask.Core;
+    internal ServiceBusMessageSenderSettings() :
+        this(FrameworkConstants.BatchFlushIntervalInMilliSecs) { }
+
+    internal ServiceBusMessageSenderSettings(int batchFlushInterval)
+     => BatchFlushIntervalInMilliSecs = batchFlushInterval;
 
     /// <summary>
-    ///     Settings to configure the Service Bus message sender
+    ///    The sender batch flush interval in milliseconds
     /// </summary>
-    public class ServiceBusMessageSenderSettings
-    {
-        internal ServiceBusMessageSenderSettings() :
-            this(FrameworkConstants.BatchFlushIntervalInMilliSecs) { }
-
-        internal ServiceBusMessageSenderSettings(int batchFlushInterval)
-         => BatchFlushIntervalInMilliSecs = batchFlushInterval;
-
-        /// <summary>
-        ///    The sender batch flush interval in milliseconds
-        /// </summary>
-        // ReSharper disable once IdentifierTypo (avoid breaking change)
-        public int BatchFlushIntervalInMilliSecs { get; set; }
-    }
+    // ReSharper disable once IdentifierTypo (avoid breaking change)
+    public int BatchFlushIntervalInMilliSecs { get; set; }
 }

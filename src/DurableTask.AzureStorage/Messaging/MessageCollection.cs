@@ -11,32 +11,31 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Messaging
+namespace DurableTask.AzureStorage.Messaging;
+
+using System.Collections.Generic;
+using DurableTask.AzureStorage.Storage;
+
+class MessageCollection : List<MessageData>
 {
-    using System.Collections.Generic;
-    using DurableTask.AzureStorage.Storage;
-
-    class MessageCollection : List<MessageData>
+    /// <summary>
+    /// Adds or replaces a message in the list based on the message ID.
+    /// </summary>
+    public void AddOrReplace(MessageData message)
     {
-        /// <summary>
-        /// Adds or replaces a message in the list based on the message ID.
-        /// </summary>
-        public void AddOrReplace(MessageData message)
+        // If a message has been sitting in the buffer for too long, the invisibility timeout may expire and 
+        // it may get dequeued a second time. In such cases, we should replace the existing copy of the message
+        // with the newer copy to ensure it can be deleted successfully after being processed.
+        for (int i = 0; i < this.Count; i++)
         {
-            // If a message has been sitting in the buffer for too long, the invisibility timeout may expire and 
-            // it may get dequeued a second time. In such cases, we should replace the existing copy of the message
-            // with the newer copy to ensure it can be deleted successfully after being processed.
-            for (int i = 0; i < this.Count; i++)
+            QueueMessage existingMessage = this[i].OriginalQueueMessage;
+            if (existingMessage.Id == message.OriginalQueueMessage.Id)
             {
-                QueueMessage existingMessage = this[i].OriginalQueueMessage;
-                if (existingMessage.Id == message.OriginalQueueMessage.Id)
-                {
-                    this[i] = message;
-                    return;
-                }
+                this[i] = message;
+                return;
             }
-
-            this.Add(message);
         }
+
+        this.Add(message);
     }
 }

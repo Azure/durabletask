@@ -11,36 +11,35 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceBus.Settings
+namespace DurableTask.ServiceBus.Settings;
+
+using System;
+using DurableTask.Core;
+
+/// <summary>
+///     Settings to configure the jump start manager
+/// </summary>
+public class JumpStartSettings
 {
-    using System;
-    using DurableTask.Core;
+    internal JumpStartSettings()
+    {
+        JumpStartEnabled = true;
+        Interval = FrameworkConstants.JumpStartDefaultInterval;
+        IgnoreWindow = FrameworkConstants.JumpStartDefaultIgnoreWindow;
+    }
 
     /// <summary>
-    ///     Settings to configure the jump start manager
+    ///     Boolean indicating whether to enable the jump start manager or not.
     /// </summary>
-    public class JumpStartSettings
-    {
-        internal JumpStartSettings()
-        {
-            JumpStartEnabled = true;
-            Interval = FrameworkConstants.JumpStartDefaultInterval;
-            IgnoreWindow = FrameworkConstants.JumpStartDefaultIgnoreWindow;
-        }
+    public bool JumpStartEnabled { get; set; }
 
-        /// <summary>
-        ///     Boolean indicating whether to enable the jump start manager or not.
-        /// </summary>
-        public bool JumpStartEnabled { get; set; }
+    /// <summary>
+    ///     Time frequency for the jump start manager to poll
+    /// </summary>
+    public TimeSpan Interval { get; set; }
 
-        /// <summary>
-        ///     Time frequency for the jump start manager to poll
-        /// </summary>
-        public TimeSpan Interval { get; set; }
-
-        /// <summary>
-        ///     Window of time to ignore when polling to allow messages to process
-        /// </summary>
-        public TimeSpan IgnoreWindow { get; set; }
-    }
+    /// <summary>
+    ///     Window of time to ignore when polling to allow messages to process
+    /// </summary>
+    public TimeSpan IgnoreWindow { get; set; }
 }

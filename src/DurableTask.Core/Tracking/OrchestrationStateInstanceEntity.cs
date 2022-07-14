@@ -11,16 +11,15 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Tracking
+namespace DurableTask.Core.Tracking;
+
+/// <summary>
+/// History Entity for Orchestration State
+/// </summary>
+public class OrchestrationStateInstanceEntity : InstanceEntityBase
 {
     /// <summary>
-    /// History Entity for Orchestration State
+    /// The orchestration state for this instance entity
     /// </summary>
-    public class OrchestrationStateInstanceEntity : InstanceEntityBase
-    {
-        /// <summary>
-        /// The orchestration state for this instance entity
-        /// </summary>
-        public OrchestrationState State;
-    }
+    public OrchestrationState State;
 }

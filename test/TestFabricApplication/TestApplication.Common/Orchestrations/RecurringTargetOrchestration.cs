@@ -11,21 +11,20 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace TestApplication.Common.Orchestrations
+namespace TestApplication.Common.Orchestrations;
+
+using System.Threading.Tasks;
+
+using DurableTask.Core;
+
+using TestApplication.Common.OrchestrationTasks;
+
+public class RecurringTargetOrchestration : TaskOrchestration<int, int>
 {
-    using System.Threading.Tasks;
-
-    using DurableTask.Core;
-
-    using TestApplication.Common.OrchestrationTasks;
-
-    public class RecurringTargetOrchestration : TaskOrchestration<int, int>
+    public override async Task<int> RunTask(OrchestrationContext context, int input)
     {
-        public override async Task<int> RunTask(OrchestrationContext context, int input)
-        {
-            var testTasks = context.CreateClient<ITestTasks>();
-            int count = await testTasks.IncrementGenerationCount();
-            return count;
-        }
+        var testTasks = context.CreateClient<ITestTasks>();
+        int count = await testTasks.IncrementGenerationCount();
+        return count;
     }
 }

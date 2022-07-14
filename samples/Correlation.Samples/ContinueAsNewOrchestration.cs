@@ -11,45 +11,44 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace Correlation.Samples
-{
+namespace Correlation.Samples;
+
 #pragma warning disable CA1812 // Internal classes instantiated indirectly
-    using System;
-    using System.Runtime.Serialization;
-    using System.Threading.Tasks;
+using System;
+using System.Runtime.Serialization;
+using System.Threading.Tasks;
 
-    using DurableTask.Core;
+using DurableTask.Core;
 
-    [KnownType(typeof(HelloActivity))]
-    internal class ContinueAsNewOrchestration : TaskOrchestration<string, string>
+[KnownType(typeof(HelloActivity))]
+internal class ContinueAsNewOrchestration : TaskOrchestration<string, string>
+{
+    private static int counter = 0;
+
+    public override async Task<string> RunTask(OrchestrationContext context, string input)
     {
-        private static int counter = 0;
-
-        public override async Task<string> RunTask(OrchestrationContext context, string input)
+        string result = await context.ScheduleTask<string>(typeof(HelloActivity), input);
+        result = input + ":" + result;
+        if (counter < 3)
         {
-            string result = await context.ScheduleTask<string>(typeof(HelloActivity), input);
-            result = input + ":" + result;
-            if (counter < 3)
-            {
-                counter++;
-                context.ContinueAsNew(result);
-            }
-
-            return result;
+            counter++;
+            context.ContinueAsNew(result);
         }
+
+        return result;
     }
+}
 
-    internal class HelloActivity : TaskActivity<string, string>
+internal class HelloActivity : TaskActivity<string, string>
+{
+    protected override string Execute(TaskContext context, string input)
     {
-        protected override string Execute(TaskContext context, string input)
+        if (string.IsNullOrEmpty(input))
         {
-            if (string.IsNullOrEmpty(input))
-            {
-                throw new ArgumentNullException(nameof(input));
-            }
-
-            Console.WriteLine($"Activity: Hello {input}");
-            return $"Hello, {input}!";
+            throw new ArgumentNullException(nameof(input));
         }
+
+        Console.WriteLine($"Activity: Hello {input}");
+        return $"Hello, {input}!";
     }
 }

@@ -11,62 +11,61 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace TestApplication.Common.Orchestrations
+namespace TestApplication.Common.Orchestrations;
+
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+
+using DurableTask.Core;
+
+using TestApplication.Common.OrchestrationTasks;
+
+public class RecurringOrchestration : TaskOrchestration<int, RecurringOrchestrationInput>
 {
-    using System;
-    using System.Threading;
-    using System.Threading.Tasks;
-
-    using DurableTask.Core;
-
-    using TestApplication.Common.OrchestrationTasks;
-
-    public class RecurringOrchestration : TaskOrchestration<int, RecurringOrchestrationInput>
+    public override async Task<int> RunTask(OrchestrationContext context, RecurringOrchestrationInput input)
     {
-        public override async Task<int> RunTask(OrchestrationContext context, RecurringOrchestrationInput input)
+        var testTasks = context.CreateClient<ITestTasks>();
+
+        if (input.TargetOrchestrationInput == 0)
         {
-            var testTasks = context.CreateClient<ITestTasks>();
-
-            if (input.TargetOrchestrationInput == 0)
-            {
-                // First time, Reset Generation Count variable.
-                await testTasks.ResetGenerationCounter();
-            }
-
-            int result = await context.CreateSubOrchestrationInstance<int>(input.TargetOrchestrationType,
-                GetTargetOrchestrationVersion(),
-                input.TargetOrchestrationInstanceId,
-                input.TargetOrchestrationInput);
-
-            await context.CreateTimer(GetNextExecutionTime(context, result), true, CancellationToken.None);
-            if (ShouldRepeatTargetOrchestration(result))
-            {
-                // Send a different input for the new instance
-                input.TargetOrchestrationInput = result;
-                context.ContinueAsNew(input);
-            }
-            else
-            {
-                // Finally, Reset Generation Count variable.
-                await testTasks.ResetGenerationCounter();
-            }
-
-            return result;
+            // First time, Reset Generation Count variable.
+            await testTasks.ResetGenerationCounter();
         }
 
-        public virtual DateTime GetNextExecutionTime(OrchestrationContext context, int iterationCount)
+        int result = await context.CreateSubOrchestrationInstance<int>(input.TargetOrchestrationType,
+            GetTargetOrchestrationVersion(),
+            input.TargetOrchestrationInstanceId,
+            input.TargetOrchestrationInput);
+
+        await context.CreateTimer(GetNextExecutionTime(context, result), true, CancellationToken.None);
+        if (ShouldRepeatTargetOrchestration(result))
         {
-            return context.CurrentUtcDateTime.AddSeconds(iterationCount);
+            // Send a different input for the new instance
+            input.TargetOrchestrationInput = result;
+            context.ContinueAsNew(input);
+        }
+        else
+        {
+            // Finally, Reset Generation Count variable.
+            await testTasks.ResetGenerationCounter();
         }
 
-        public virtual string GetTargetOrchestrationVersion()
-        {
-            return string.Empty;
-        }
+        return result;
+    }
 
-        public virtual bool ShouldRepeatTargetOrchestration(int count)
-        {
-            return count < 4;
-        }
+    public virtual DateTime GetNextExecutionTime(OrchestrationContext context, int iterationCount)
+    {
+        return context.CurrentUtcDateTime.AddSeconds(iterationCount);
+    }
+
+    public virtual string GetTargetOrchestrationVersion()
+    {
+        return string.Empty;
+    }
+
+    public virtual bool ShouldRepeatTargetOrchestration(int count)
+    {
+        return count < 4;
     }
 }

@@ -11,71 +11,70 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.Core.History
+namespace DurableTask.Core.History;
+
+using System.Runtime.Serialization;
+
+/// <summary>
+/// A history event for a task failure
+/// </summary>
+[DataContract]
+public class TaskFailedEvent : HistoryEvent
 {
-    using System.Runtime.Serialization;
+    /// <summary>
+    /// Creates a new TaskFailedEvent with the supplied parameters
+    /// </summary>
+    /// <param name="eventId">The event id of the history event</param>
+    /// <param name="taskScheduledId">The scheduled parent instance event id</param>
+    /// <param name="reason">The task failure reason</param>
+    /// <param name="details">Serialized details of the task failure</param>
+    /// <param name="failureDetails">Structured details of the task failure.</param>
+    public TaskFailedEvent(int eventId, int taskScheduledId, string? reason, string? details, FailureDetails? failureDetails)
+        : base(eventId)
+    {
+        TaskScheduledId = taskScheduledId;
+        Reason = reason;
+        Details = details;
+        FailureDetails = failureDetails;
+    }
+
+    /// <inheritdoc cref="TaskFailedEvent(int, int, string?, string?, FailureDetails?)"/>
+    public TaskFailedEvent(int eventId, int taskScheduledId, string? reason, string? details)
+        : this(eventId, taskScheduledId, reason, details, failureDetails: null)
+    {
+    }
+
+    // Needed for deserialization
+    private TaskFailedEvent()
+        : base(-1)
+    { }
 
     /// <summary>
-    /// A history event for a task failure
+    /// Gets the event type
     /// </summary>
-    [DataContract]
-    public class TaskFailedEvent : HistoryEvent
-    {
-        /// <summary>
-        /// Creates a new TaskFailedEvent with the supplied parameters
-        /// </summary>
-        /// <param name="eventId">The event id of the history event</param>
-        /// <param name="taskScheduledId">The scheduled parent instance event id</param>
-        /// <param name="reason">The task failure reason</param>
-        /// <param name="details">Serialized details of the task failure</param>
-        /// <param name="failureDetails">Structured details of the task failure.</param>
-        public TaskFailedEvent(int eventId, int taskScheduledId, string? reason, string? details, FailureDetails? failureDetails)
-            : base(eventId)
-        {
-            TaskScheduledId = taskScheduledId;
-            Reason = reason;
-            Details = details;
-            FailureDetails = failureDetails;
-        }
+    public override EventType EventType => EventType.TaskFailed;
 
-        /// <inheritdoc cref="TaskFailedEvent(int, int, string?, string?, FailureDetails?)"/>
-        public TaskFailedEvent(int eventId, int taskScheduledId, string? reason, string? details)
-            : this(eventId, taskScheduledId, reason, details, failureDetails: null)
-        {
-        }
+    /// <summary>
+    /// Gets the scheduled parent instance event id
+    /// </summary>
+    [DataMember]
+    public int TaskScheduledId { get; private set; }
 
-        // Needed for deserialization
-        private TaskFailedEvent()
-            : base(-1)
-        { }
+    /// <summary>
+    /// Gets the task failure reason
+    /// </summary>
+    [DataMember]
+    public string? Reason { get; private set; }
 
-        /// <summary>
-        /// Gets the event type
-        /// </summary>
-        public override EventType EventType => EventType.TaskFailed;
+    /// <summary>
+    /// Gets details of the task failure
+    /// </summary>
+    [DataMember]
+    public string? Details { get; private set; }
 
-        /// <summary>
-        /// Gets the scheduled parent instance event id
-        /// </summary>
-        [DataMember]
-        public int TaskScheduledId { get; private set; }
-
-        /// <summary>
-        /// Gets the task failure reason
-        /// </summary>
-        [DataMember]
-        public string? Reason { get; private set; }
-
-        /// <summary>
-        /// Gets details of the task failure
-        /// </summary>
-        [DataMember]
-        public string? Details { get; private set; }
-
-        /// <summary>
-        /// Gets the structured details of the task failure.
-        /// </summary>
-        [DataMember]
-        public FailureDetails? FailureDetails { get; private set; }
-    }
+    /// <summary>
+    /// Gets the structured details of the task failure.
+    /// </summary>
+    [DataMember]
+    public FailureDetails? FailureDetails { get; private set; }
 }

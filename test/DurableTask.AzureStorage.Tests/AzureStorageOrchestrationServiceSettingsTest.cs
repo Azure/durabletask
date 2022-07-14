@@ -11,40 +11,39 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Tests
+namespace DurableTask.AzureStorage.Tests;
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class AzureStorageOrchestrationServiceSettingsTest
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Text;
-    using System.Threading.Tasks;
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
-
-    [TestClass]
-    public class AzureStorageOrchestrationServiceSettingsTest
+    [TestMethod]
+    public void TrackingStoreStorageAccountDetailsNotSet()
     {
-        [TestMethod]
-        public void TrackingStoreStorageAccountDetailsNotSet()
+        var settings = new AzureStorageOrchestrationServiceSettings()
         {
-            var settings = new AzureStorageOrchestrationServiceSettings()
-            {
-                TaskHubName = "foo",
-            };
-            Assert.AreEqual("fooHistory", settings.HistoryTableName);
-            Assert.AreEqual("fooInstances", settings.InstanceTableName);
-        }
+            TaskHubName = "foo",
+        };
+        Assert.AreEqual("fooHistory", settings.HistoryTableName);
+        Assert.AreEqual("fooInstances", settings.InstanceTableName);
+    }
 
-        [TestMethod]
-        public void TrackingStoreStorageAccountDetailsHasSet()
+    [TestMethod]
+    public void TrackingStoreStorageAccountDetailsHasSet()
+    {
+        var settings = new AzureStorageOrchestrationServiceSettings()
         {
-            var settings = new AzureStorageOrchestrationServiceSettings()
-            {
-                TaskHubName = "foo",
-                TrackingStoreNamePrefix = "bar",
-                TrackingStoreStorageAccountDetails = new StorageAccountDetails()
-            };
-            Assert.AreEqual("barHistory", settings.HistoryTableName);
-            Assert.AreEqual("barInstances", settings.InstanceTableName);
-        }
+            TaskHubName = "foo",
+            TrackingStoreNamePrefix = "bar",
+            TrackingStoreStorageAccountDetails = new StorageAccountDetails()
+        };
+        Assert.AreEqual("barHistory", settings.HistoryTableName);
+        Assert.AreEqual("barInstances", settings.InstanceTableName);
     }
 }

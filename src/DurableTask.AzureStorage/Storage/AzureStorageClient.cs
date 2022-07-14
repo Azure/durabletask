@@ -11,153 +11,152 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.AzureStorage.Storage
+namespace DurableTask.AzureStorage.Storage;
+
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using DurableTask.AzureStorage.Monitoring;
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Auth;
+using Microsoft.WindowsAzure.Storage.Blob;
+using Microsoft.WindowsAzure.Storage.Queue;
+using Microsoft.WindowsAzure.Storage.Table;
+
+class AzureStorageClient
 {
-    using System;
-    using System.Threading;
-    using System.Threading.Tasks;
-    using DurableTask.AzureStorage.Monitoring;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Auth;
-    using Microsoft.WindowsAzure.Storage.Blob;
-    using Microsoft.WindowsAzure.Storage.Queue;
-    using Microsoft.WindowsAzure.Storage.Table;
+    static readonly TimeSpan StorageMaximumExecutionTime = TimeSpan.FromMinutes(2);
+    readonly CloudBlobClient blobClient;
+    readonly CloudQueueClient queueClient;
+    readonly CloudTableClient tableClient;
+    readonly SemaphoreSlim requestThrottleSemaphore;
 
-    class AzureStorageClient
+    public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings) : 
+        this(settings.StorageAccountDetails is null ?
+            CloudStorageAccount.Parse(settings.StorageConnectionString) : settings.StorageAccountDetails.ToCloudStorageAccount(),
+            settings)
+    { }
+
+    public AzureStorageClient(CloudStorageAccount account, AzureStorageOrchestrationServiceSettings settings)
     {
-        static readonly TimeSpan StorageMaximumExecutionTime = TimeSpan.FromMinutes(2);
-        readonly CloudBlobClient blobClient;
-        readonly CloudQueueClient queueClient;
-        readonly CloudTableClient tableClient;
-        readonly SemaphoreSlim requestThrottleSemaphore;
+        this.Settings = settings;
 
-        public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings) : 
-            this(settings.StorageAccountDetails is null ?
-                CloudStorageAccount.Parse(settings.StorageConnectionString) : settings.StorageAccountDetails.ToCloudStorageAccount(),
-                settings)
-        { }
+        this.BlobAccountName = GetAccountName(account.Credentials, settings, account.BlobStorageUri, "blob");
+        this.QueueAccountName = GetAccountName(account.Credentials, settings, account.QueueStorageUri, "queue");
+        this.TableAccountName = GetAccountName(account.Credentials, settings, account.TableStorageUri, "table");
+        this.Stats = new AzureStorageOrchestrationServiceStats();
+        this.queueClient = account.CreateCloudQueueClient();
+        this.queueClient.BufferManager = SimpleBufferManager.Shared;
+        this.blobClient = account.CreateCloudBlobClient();
+        this.blobClient.BufferManager = SimpleBufferManager.Shared;
 
-        public AzureStorageClient(CloudStorageAccount account, AzureStorageOrchestrationServiceSettings settings)
+        this.blobClient.DefaultRequestOptions.MaximumExecutionTime = StorageMaximumExecutionTime;
+
+        if (settings.HasTrackingStoreStorageAccount)
         {
-            this.Settings = settings;
-
-            this.BlobAccountName = GetAccountName(account.Credentials, settings, account.BlobStorageUri, "blob");
-            this.QueueAccountName = GetAccountName(account.Credentials, settings, account.QueueStorageUri, "queue");
-            this.TableAccountName = GetAccountName(account.Credentials, settings, account.TableStorageUri, "table");
-            this.Stats = new AzureStorageOrchestrationServiceStats();
-            this.queueClient = account.CreateCloudQueueClient();
-            this.queueClient.BufferManager = SimpleBufferManager.Shared;
-            this.blobClient = account.CreateCloudBlobClient();
-            this.blobClient.BufferManager = SimpleBufferManager.Shared;
-
-            this.blobClient.DefaultRequestOptions.MaximumExecutionTime = StorageMaximumExecutionTime;
-
-            if (settings.HasTrackingStoreStorageAccount)
-            {
-                var trackingStoreAccount = settings.TrackingStoreStorageAccountDetails.ToCloudStorageAccount();
-                this.tableClient = trackingStoreAccount.CreateCloudTableClient();
-            }
-            else
-            {
-                this.tableClient = account.CreateCloudTableClient();
-            }
-
-            this.tableClient.BufferManager = SimpleBufferManager.Shared;
-
-            this.requestThrottleSemaphore = new SemaphoreSlim(this.Settings.MaxStorageOperationConcurrency);
+            var trackingStoreAccount = settings.TrackingStoreStorageAccountDetails.ToCloudStorageAccount();
+            this.tableClient = trackingStoreAccount.CreateCloudTableClient();
+        }
+        else
+        {
+            this.tableClient = account.CreateCloudTableClient();
         }
 
-        public AzureStorageOrchestrationServiceSettings Settings { get; }
+        this.tableClient.BufferManager = SimpleBufferManager.Shared;
 
-        public AzureStorageOrchestrationServiceStats Stats { get; }
+        this.requestThrottleSemaphore = new SemaphoreSlim(this.Settings.MaxStorageOperationConcurrency);
+    }
 
-        public string BlobAccountName { get; }
+    public AzureStorageOrchestrationServiceSettings Settings { get; }
 
-        public string QueueAccountName { get; }
+    public AzureStorageOrchestrationServiceStats Stats { get; }
 
-        public string TableAccountName { get; }
+    public string BlobAccountName { get; }
 
-        public Blob GetBlobReference(string container, string blobName, string? blobDirectory = null)
+    public string QueueAccountName { get; }
+
+    public string TableAccountName { get; }
+
+    public Blob GetBlobReference(string container, string blobName, string? blobDirectory = null)
+    {
+        NameValidator.ValidateBlobName(blobName);
+        return new Blob(this, this.blobClient, container, blobName, blobDirectory);
+    }
+
+    internal Blob GetBlobReference(Uri blobUri)
+    {
+        return new Blob(this, this.blobClient, blobUri);
+    }
+
+    public BlobContainer GetBlobContainerReference(string container)
+    {
+        NameValidator.ValidateContainerName(container);
+        return new BlobContainer(this, this.blobClient, container);
+    }
+
+    public Queue GetQueueReference(string queueName)
+    {
+        NameValidator.ValidateQueueName(queueName);
+        return new Queue(this, this.queueClient, queueName);
+    }
+
+    public Table GetTableReference(string tableName)
+    {
+        NameValidator.ValidateTableName(tableName);
+        return new Table(this, this.tableClient, tableName);
+    }
+
+    public Task<T> MakeBlobStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string? clientRequestId = null) =>
+        this.MakeStorageRequest<T>(storageRequest, BlobAccountName, operationName, clientRequestId);
+
+    public Task<T> MakeQueueStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string? clientRequestId = null) =>
+        this.MakeStorageRequest<T>(storageRequest, QueueAccountName, operationName, clientRequestId);
+
+    public Task<T> MakeTableStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string? clientRequestId = null) =>
+        this.MakeStorageRequest<T>(storageRequest, TableAccountName, operationName, clientRequestId);
+
+    public Task MakeBlobStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string operationName, string? clientRequestId = null, bool force = false) =>
+        this.MakeStorageRequest(storageRequest, BlobAccountName, operationName, clientRequestId, force);
+
+    public Task MakeQueueStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string operationName, string? clientRequestId = null) =>
+        this.MakeStorageRequest(storageRequest, QueueAccountName, operationName, clientRequestId);
+
+    public Task MakeTableStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string operationName, string? clientRequestId = null) =>
+        this.MakeStorageRequest(storageRequest, TableAccountName, operationName, clientRequestId);
+
+    async Task<T> MakeStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string accountName, string operationName, string? clientRequestId = null, bool force = false)
+    {
+        if (!force)
         {
-            NameValidator.ValidateBlobName(blobName);
-            return new Blob(this, this.blobClient, container, blobName, blobDirectory);
+            await requestThrottleSemaphore.WaitAsync();
         }
 
-        internal Blob GetBlobReference(Uri blobUri)
+        try
         {
-            return new Blob(this, this.blobClient, blobUri);
+            return await TimeoutHandler.ExecuteWithTimeout<T>(operationName, accountName, this.Settings, storageRequest, this.Stats, clientRequestId);
         }
-
-        public BlobContainer GetBlobContainerReference(string container)
+        catch (StorageException ex)
         {
-            NameValidator.ValidateContainerName(container);
-            return new BlobContainer(this, this.blobClient, container);
+            throw new DurableTaskStorageException(ex);
         }
-
-        public Queue GetQueueReference(string queueName)
-        {
-            NameValidator.ValidateQueueName(queueName);
-            return new Queue(this, this.queueClient, queueName);
-        }
-
-        public Table GetTableReference(string tableName)
-        {
-            NameValidator.ValidateTableName(tableName);
-            return new Table(this, this.tableClient, tableName);
-        }
-
-        public Task<T> MakeBlobStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string? clientRequestId = null) =>
-            this.MakeStorageRequest<T>(storageRequest, BlobAccountName, operationName, clientRequestId);
-
-        public Task<T> MakeQueueStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string? clientRequestId = null) =>
-            this.MakeStorageRequest<T>(storageRequest, QueueAccountName, operationName, clientRequestId);
-
-        public Task<T> MakeTableStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string? clientRequestId = null) =>
-            this.MakeStorageRequest<T>(storageRequest, TableAccountName, operationName, clientRequestId);
-
-        public Task MakeBlobStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string operationName, string? clientRequestId = null, bool force = false) =>
-            this.MakeStorageRequest(storageRequest, BlobAccountName, operationName, clientRequestId, force);
-
-        public Task MakeQueueStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string operationName, string? clientRequestId = null) =>
-            this.MakeStorageRequest(storageRequest, QueueAccountName, operationName, clientRequestId);
-
-        public Task MakeTableStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string operationName, string? clientRequestId = null) =>
-            this.MakeStorageRequest(storageRequest, TableAccountName, operationName, clientRequestId);
-
-        async Task<T> MakeStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string accountName, string operationName, string? clientRequestId = null, bool force = false)
+        finally
         {
             if (!force)
             {
-                await requestThrottleSemaphore.WaitAsync();
-            }
-
-            try
-            {
-                return await TimeoutHandler.ExecuteWithTimeout<T>(operationName, accountName, this.Settings, storageRequest, this.Stats, clientRequestId);
-            }
-            catch (StorageException ex)
-            {
-                throw new DurableTaskStorageException(ex);
-            }
-            finally
-            {
-                if (!force)
-                {
-                    requestThrottleSemaphore.Release();
-                }
+                requestThrottleSemaphore.Release();
             }
         }
-
-        Task MakeStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string accountName, string operationName, string? clientRequestId = null, bool force = false) =>
-            this.MakeStorageRequest<object?>((context, cancellationToken) => WrapFunctionWithReturnType(storageRequest, context, cancellationToken), accountName, operationName, clientRequestId, force);
-
-        static async Task<object?> WrapFunctionWithReturnType(Func<OperationContext, CancellationToken, Task> storageRequest, OperationContext context, CancellationToken cancellationToken)
-        {
-            await storageRequest(context, cancellationToken);
-            return null;
-        }
-
-        static string GetAccountName(StorageCredentials credentials, AzureStorageOrchestrationServiceSettings settings, StorageUri serviceUri, string service) =>
-            credentials.AccountName ?? settings.StorageAccountDetails?.AccountName ?? serviceUri.GetAccountName(service) ?? "(unknown)";
     }
+
+    Task MakeStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string accountName, string operationName, string? clientRequestId = null, bool force = false) =>
+        this.MakeStorageRequest<object?>((context, cancellationToken) => WrapFunctionWithReturnType(storageRequest, context, cancellationToken), accountName, operationName, clientRequestId, force);
+
+    static async Task<object?> WrapFunctionWithReturnType(Func<OperationContext, CancellationToken, Task> storageRequest, OperationContext context, CancellationToken cancellationToken)
+    {
+        await storageRequest(context, cancellationToken);
+        return null;
+    }
+
+    static string GetAccountName(StorageCredentials credentials, AzureStorageOrchestrationServiceSettings settings, StorageUri serviceUri, string service) =>
+        credentials.AccountName ?? settings.StorageAccountDetails?.AccountName ?? serviceUri.GetAccountName(service) ?? "(unknown)";
 }

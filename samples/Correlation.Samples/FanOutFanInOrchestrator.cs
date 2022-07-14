@@ -11,50 +11,49 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace Correlation.Samples
-{
+namespace Correlation.Samples;
+
 #pragma warning disable CA1812 // Internal classes instantiated indirectly
-    using System;
-    using System.Runtime.Serialization;
-    using System.Text;
-    using System.Threading.Tasks;
+using System;
+using System.Runtime.Serialization;
+using System.Text;
+using System.Threading.Tasks;
 
-    using DurableTask.Core;
+using DurableTask.Core;
 
-    [KnownType(typeof(ParallelHello))]
-    internal class FanOutFanInOrchestrator : TaskOrchestration<string, string>
+[KnownType(typeof(ParallelHello))]
+internal class FanOutFanInOrchestrator : TaskOrchestration<string, string>
+{
+    public override async Task<string> RunTask(OrchestrationContext context, string input)
     {
-        public override async Task<string> RunTask(OrchestrationContext context, string input)
+        var tasks = new Task<string>[3];
+        for (int i = 0; i < 3; i++)
         {
-            var tasks = new Task<string>[3];
-            for (int i = 0; i < 3; i++)
-            {
-                tasks[i] = context.ScheduleTask<string>(typeof(ParallelHello), $"world({i})");
-            }
-
-            await Task.WhenAll(tasks);
-            var buffer = new StringBuilder();
-            foreach (var task in tasks)
-            {
-                buffer.Append(task.Result);
-                buffer.Append(":");
-            }
-
-            return buffer.ToString();
+            tasks[i] = context.ScheduleTask<string>(typeof(ParallelHello), $"world({i})");
         }
+
+        await Task.WhenAll(tasks);
+        var buffer = new StringBuilder();
+        foreach (var task in tasks)
+        {
+            buffer.Append(task.Result);
+            buffer.Append(":");
+        }
+
+        return buffer.ToString();
     }
+}
 
-    internal class ParallelHello : TaskActivity<string, string>
+internal class ParallelHello : TaskActivity<string, string>
+{
+    protected override string Execute(TaskContext context, string input)
     {
-        protected override string Execute(TaskContext context, string input)
+        if (string.IsNullOrEmpty(input))
         {
-            if (string.IsNullOrEmpty(input))
-            {
-                throw new ArgumentNullException(nameof(input));
-            }
-
-            Console.WriteLine($"Activity: Parallel Hello {input}");
-            return $"Parallel Hello, {input}!";
+            throw new ArgumentNullException(nameof(input));
         }
+
+        Console.WriteLine($"Activity: Parallel Hello {input}");
+        return $"Parallel Hello, {input}!";
     }
 }

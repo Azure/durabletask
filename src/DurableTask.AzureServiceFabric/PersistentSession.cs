@@ -11,53 +11,52 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric
+namespace DurableTask.AzureServiceFabric;
+
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Runtime.Serialization;
+
+using DurableTask.Core;
+using DurableTask.Core.History;
+
+[DataContract]
+internal sealed partial class PersistentSession : IExtensibleDataObject
 {
-    using System.Collections.Generic;
-    using System.Collections.Immutable;
-    using System.Runtime.Serialization;
+    // Note : Ideally all the properties in this class should be readonly because this
+    // class is designed to be immutable class. We use private settable properties
+    // for DataContract serialization to work - the private setters should not be used
+    // in the code within this class as that would violate the immutable design. Any
+    // method that mutates the state should return a new instance instead.
+    [DataMember]
+    public OrchestrationInstance SessionId { get; private set; }
 
-    using DurableTask.Core;
-    using DurableTask.Core.History;
+    // Note: The properties below are marked IEnumerable but not
+    // IImmutableList because DataContract serialization cannot deserialize the latter.
+    // Except for the constructor and serialization methods, rest of the code in this class
+    // should use only the public immutable list members.
 
-    [DataContract]
-    internal sealed partial class PersistentSession : IExtensibleDataObject
+    /// <summary>
+    /// Do not use except in the constructor or serialization methods, use <see cref="SessionState"/> property instead.
+    /// </summary>
+    [DataMember]
+    private IEnumerable<HistoryEvent> sessionState { get; set; }
+
+    [OnDeserialized]
+    private void OnDeserialized(StreamingContext context) => this.sessionState = this.sessionState.ToImmutableList();
+
+    private PersistentSession(OrchestrationInstance sessionId, IImmutableList<HistoryEvent> sessionState)
     {
-        // Note : Ideally all the properties in this class should be readonly because this
-        // class is designed to be immutable class. We use private settable properties
-        // for DataContract serialization to work - the private setters should not be used
-        // in the code within this class as that would violate the immutable design. Any
-        // method that mutates the state should return a new instance instead.
-        [DataMember]
-        public OrchestrationInstance SessionId { get; private set; }
-
-        // Note: The properties below are marked IEnumerable but not
-        // IImmutableList because DataContract serialization cannot deserialize the latter.
-        // Except for the constructor and serialization methods, rest of the code in this class
-        // should use only the public immutable list members.
-
-        /// <summary>
-        /// Do not use except in the constructor or serialization methods, use <see cref="SessionState"/> property instead.
-        /// </summary>
-        [DataMember]
-        private IEnumerable<HistoryEvent> sessionState { get; set; }
-
-        [OnDeserialized]
-        private void OnDeserialized(StreamingContext context) => this.sessionState = this.sessionState.ToImmutableList();
-
-        private PersistentSession(OrchestrationInstance sessionId, IImmutableList<HistoryEvent> sessionState)
-        {
-            this.SessionId = sessionId;
-            this.sessionState = sessionState ?? ImmutableList<HistoryEvent>.Empty;
-        }
-
-        public static PersistentSession Create(OrchestrationInstance sessionId) => Create(sessionId, null);
-
-        public static PersistentSession Create(OrchestrationInstance sessionId, IImmutableList<HistoryEvent> sessionState)
-         => new PersistentSession(sessionId, sessionState);
-
-        public ImmutableList<HistoryEvent> SessionState => this.sessionState.ToImmutableList();
-
-        public ExtensionDataObject ExtensionData { get; set; }
+        this.SessionId = sessionId;
+        this.sessionState = sessionState ?? ImmutableList<HistoryEvent>.Empty;
     }
+
+    public static PersistentSession Create(OrchestrationInstance sessionId) => Create(sessionId, null);
+
+    public static PersistentSession Create(OrchestrationInstance sessionId, IImmutableList<HistoryEvent> sessionState)
+     => new PersistentSession(sessionId, sessionState);
+
+    public ImmutableList<HistoryEvent> SessionState => this.sessionState.ToImmutableList();
+
+    public ExtensionDataObject ExtensionData { get; set; }
 }

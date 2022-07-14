@@ -11,34 +11,33 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+using DurableTask.Core.History;
+using System.Collections.Generic;
+
+/// <summary>
+/// A snapshot / state dump of an OrchestrationRuntimeState's events
+/// </summary>
+public class OrchestrationRuntimeStateDump
 {
-    using DurableTask.Core.History;
-    using System.Collections.Generic;
+    /// <summary>
+    /// The number of all history events for this runtime state dump.
+    /// </summary>
+    public int EventCount { get; set; }
 
     /// <summary>
-    /// A snapshot / state dump of an OrchestrationRuntimeState's events
+    /// The number of new events added during an execution for this runtime state dump.
     /// </summary>
-    public class OrchestrationRuntimeStateDump
-    {
-        /// <summary>
-        /// The number of all history events for this runtime state dump.
-        /// </summary>
-        public int EventCount { get; set; }
+    public int NewEventsCount { get; set; }
 
-        /// <summary>
-        /// The number of new events added during an execution for this runtime state dump.
-        /// </summary>
-        public int NewEventsCount { get; set; }
+    /// <summary>
+    /// List of all history events for this runtime state dump
+    /// </summary>
+    public IList<HistoryEvent> Events;
 
-        /// <summary>
-        /// List of all history events for this runtime state dump
-        /// </summary>
-        public IList<HistoryEvent> Events;
-
-        /// <summary>
-        /// List of new events added during an execution for this runtime state dump
-        /// </summary>
-        public IList<HistoryEvent> NewEvents;
-    }
+    /// <summary>
+    /// List of new events added during an execution for this runtime state dump
+    /// </summary>
+    public IList<HistoryEvent> NewEvents;
 }

@@ -11,91 +11,90 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceBus.Settings
-{
+namespace DurableTask.ServiceBus.Settings;
+
 #if NETSTANDARD2_0
-    using Microsoft.Azure.ServiceBus;
-    using Microsoft.Azure.ServiceBus.Primitives;
+using Microsoft.Azure.ServiceBus;
+using Microsoft.Azure.ServiceBus.Primitives;
 
 #endif
-    using System;
+using System;
+
+/// <summary>
+/// Service Bus connection settings
+/// </summary>
+public class ServiceBusConnectionSettings
+{
+    /// <summary>
+    /// Creates an instance of <see cref="ServiceBusConnectionSettings"/>
+    /// </summary>
+    /// <param name="connectionString">Service Bus connection string</param>
+    /// <returns></returns>
+    public static ServiceBusConnectionSettings Create(string connectionString)
+     => new ServiceBusConnectionSettings
+     {
+         ConnectionString = connectionString
+     };
+
+#if NETSTANDARD2_0
 
     /// <summary>
-    /// Service Bus connection settings
+    /// Creates an instance of <see cref="ServiceBusConnectionSettings"/>
     /// </summary>
-    public class ServiceBusConnectionSettings
+    /// <param name="namespaceHostName">Service Bus namespace host name</param>
+    /// <param name="tokenProvider">Service Bus authentication token provider</param>
+    /// <param name="transportType">Service Bus messaging protocol</param>
+    /// <returns></returns>
+    public static ServiceBusConnectionSettings Create(string namespaceHostName, ITokenProvider tokenProvider, TransportType transportType = TransportType.Amqp)
+     => new ServiceBusConnectionSettings
+     {
+         Endpoint = new Uri($"sb://{namespaceHostName}/"),
+         TokenProvider = tokenProvider,
+         TransportType = transportType
+     };
+
+    /// <summary>
+    /// Creates an instance of <see cref="ServiceBusConnectionSettings"/>
+    /// </summary>
+    /// <param name="serviceBusEndpoint">Service Bus endpoint</param>
+    /// <param name="tokenProvider">Service Bus authentication token provider</param>
+    /// <param name="transportType">Service Bus messaging protocol</param>
+    /// <returns></returns>
+    public static ServiceBusConnectionSettings Create(Uri serviceBusEndpoint, ITokenProvider tokenProvider, TransportType transportType = TransportType.Amqp)
+     => new ServiceBusConnectionSettings
+     {
+         Endpoint = serviceBusEndpoint,
+         TokenProvider = tokenProvider,
+         TransportType = transportType
+     };
+
+#endif
+
+    private ServiceBusConnectionSettings()
     {
-        /// <summary>
-        /// Creates an instance of <see cref="ServiceBusConnectionSettings"/>
-        /// </summary>
-        /// <param name="connectionString">Service Bus connection string</param>
-        /// <returns></returns>
-        public static ServiceBusConnectionSettings Create(string connectionString)
-         => new ServiceBusConnectionSettings
-         {
-             ConnectionString = connectionString
-         };
-
-#if NETSTANDARD2_0
-
-        /// <summary>
-        /// Creates an instance of <see cref="ServiceBusConnectionSettings"/>
-        /// </summary>
-        /// <param name="namespaceHostName">Service Bus namespace host name</param>
-        /// <param name="tokenProvider">Service Bus authentication token provider</param>
-        /// <param name="transportType">Service Bus messaging protocol</param>
-        /// <returns></returns>
-        public static ServiceBusConnectionSettings Create(string namespaceHostName, ITokenProvider tokenProvider, TransportType transportType = TransportType.Amqp)
-         => new ServiceBusConnectionSettings
-         {
-             Endpoint = new Uri($"sb://{namespaceHostName}/"),
-             TokenProvider = tokenProvider,
-             TransportType = transportType
-         };
-
-        /// <summary>
-        /// Creates an instance of <see cref="ServiceBusConnectionSettings"/>
-        /// </summary>
-        /// <param name="serviceBusEndpoint">Service Bus endpoint</param>
-        /// <param name="tokenProvider">Service Bus authentication token provider</param>
-        /// <param name="transportType">Service Bus messaging protocol</param>
-        /// <returns></returns>
-        public static ServiceBusConnectionSettings Create(Uri serviceBusEndpoint, ITokenProvider tokenProvider, TransportType transportType = TransportType.Amqp)
-         => new ServiceBusConnectionSettings
-         {
-             Endpoint = serviceBusEndpoint,
-             TokenProvider = tokenProvider,
-             TransportType = transportType
-         };
-
-#endif
-
-        private ServiceBusConnectionSettings()
-        {
-        }
-
-        /// <summary>
-        /// Service Bus connection string
-        /// </summary>
-        public string ConnectionString { get; private set; }
-
-#if NETSTANDARD2_0
-
-        /// <summary>
-        /// Service Bus endpoint
-        /// </summary>
-        public Uri Endpoint { get; private set; }
-
-        /// <summary>
-        /// Service Bus authentication token provider
-        /// </summary>
-        public ITokenProvider TokenProvider { get; private set; }
-
-        /// <summary>
-        /// Service Bus messaging protocol
-        /// </summary>
-        public TransportType TransportType { get; private set; }
-#endif
-
     }
+
+    /// <summary>
+    /// Service Bus connection string
+    /// </summary>
+    public string ConnectionString { get; private set; }
+
+#if NETSTANDARD2_0
+
+    /// <summary>
+    /// Service Bus endpoint
+    /// </summary>
+    public Uri Endpoint { get; private set; }
+
+    /// <summary>
+    /// Service Bus authentication token provider
+    /// </summary>
+    public ITokenProvider TokenProvider { get; private set; }
+
+    /// <summary>
+    /// Service Bus messaging protocol
+    /// </summary>
+    public TransportType TransportType { get; private set; }
+#endif
+
 }

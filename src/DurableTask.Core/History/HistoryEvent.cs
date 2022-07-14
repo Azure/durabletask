@@ -11,84 +11,83 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.Core.History
+namespace DurableTask.Core.History;
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.Serialization;
+
+/// <summary>
+/// Base class for history events
+/// </summary>
+[DataContract]
+[KnownType(nameof(KnownTypes))]
+public abstract class HistoryEvent : IExtensibleDataObject
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Runtime.Serialization;
+    private static IReadOnlyCollection<Type>? knownTypes;
 
     /// <summary>
-    /// Base class for history events
+    /// List of all event classes, for use by the DataContractSerializer
     /// </summary>
-    [DataContract]
-    [KnownType(nameof(KnownTypes))]
-    public abstract class HistoryEvent : IExtensibleDataObject
+    /// <returns>An enumerable of all known types that implement <see cref="HistoryEvent"/>.</returns>
+    public static IEnumerable<Type> KnownTypes()
     {
-        private static IReadOnlyCollection<Type>? knownTypes;
-
-        /// <summary>
-        /// List of all event classes, for use by the DataContractSerializer
-        /// </summary>
-        /// <returns>An enumerable of all known types that implement <see cref="HistoryEvent"/>.</returns>
-        public static IEnumerable<Type> KnownTypes()
+        if (knownTypes is not null)
         {
-            if (knownTypes is not null)
-            {
-                return knownTypes;
-            }
-
-            knownTypes = typeof(HistoryEvent).Assembly
-                .GetTypes()
-                .Where(x => !x.IsAbstract && typeof(HistoryEvent).IsAssignableFrom(x))
-                .ToList()
-                .AsReadOnly();
-
             return knownTypes;
         }
 
-        /// <summary>
-        /// Creates a new history event
-        /// </summary>
-        internal HistoryEvent() => Timestamp = DateTime.UtcNow;
+        knownTypes = typeof(HistoryEvent).Assembly
+            .GetTypes()
+            .Where(x => !x.IsAbstract && typeof(HistoryEvent).IsAssignableFrom(x))
+            .ToList()
+            .AsReadOnly();
 
-        /// <summary>
-        /// Creates a new history event with the supplied event id
-        /// </summary>
-        /// <param name="eventId">The integer event id</param>
-        protected HistoryEvent(int eventId)
-        {
-            EventId = eventId;
-            Timestamp = DateTime.UtcNow;
-        }
-
-        /// <summary>
-        /// Gets the event id
-        /// </summary>
-        [DataMember]
-        public int EventId { get; internal set; }
-
-        /// <summary>
-        /// Gets the IsPlayed status
-        /// </summary>
-        [DataMember]
-        public bool IsPlayed { get; set; }
-
-        /// <summary>
-        /// Gets the event timestamp
-        /// </summary>
-        [DataMember]
-        public DateTime Timestamp { get; set; }
-
-        /// <summary>
-        /// Gets the event type
-        /// </summary>
-        [DataMember]
-        public virtual EventType EventType { get; private set; }
-
-        /// <summary>
-        /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
-        /// </summary>
-        public ExtensionDataObject? ExtensionData { get; set; }
+        return knownTypes;
     }
+
+    /// <summary>
+    /// Creates a new history event
+    /// </summary>
+    internal HistoryEvent() => Timestamp = DateTime.UtcNow;
+
+    /// <summary>
+    /// Creates a new history event with the supplied event id
+    /// </summary>
+    /// <param name="eventId">The integer event id</param>
+    protected HistoryEvent(int eventId)
+    {
+        EventId = eventId;
+        Timestamp = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Gets the event id
+    /// </summary>
+    [DataMember]
+    public int EventId { get; internal set; }
+
+    /// <summary>
+    /// Gets the IsPlayed status
+    /// </summary>
+    [DataMember]
+    public bool IsPlayed { get; set; }
+
+    /// <summary>
+    /// Gets the event timestamp
+    /// </summary>
+    [DataMember]
+    public DateTime Timestamp { get; set; }
+
+    /// <summary>
+    /// Gets the event type
+    /// </summary>
+    [DataMember]
+    public virtual EventType EventType { get; private set; }
+
+    /// <summary>
+    /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
+    /// </summary>
+    public ExtensionDataObject? ExtensionData { get; set; }
 }

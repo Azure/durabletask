@@ -11,171 +11,170 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Tracking
+namespace DurableTask.AzureStorage.Tracking;
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using DurableTask.Core;
+using DurableTask.Core.History;
+using DurableTask.Core.Tracking;
+
+class InstanceStoreBackedTrackingStore : TrackingStoreBase
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Threading;
-    using System.Threading.Tasks;
-    using DurableTask.Core;
-    using DurableTask.Core.History;
-    using DurableTask.Core.Tracking;
+    readonly IOrchestrationServiceInstanceStore instanceStore;
 
-    class InstanceStoreBackedTrackingStore : TrackingStoreBase
+    /// <inheritdoc />
+    public InstanceStoreBackedTrackingStore(IOrchestrationServiceInstanceStore instanceStore)
     {
-        readonly IOrchestrationServiceInstanceStore instanceStore;
+        this.instanceStore = instanceStore;
+    }
 
-        /// <inheritdoc />
-        public InstanceStoreBackedTrackingStore(IOrchestrationServiceInstanceStore instanceStore)
+    /// <inheritdoc />
+    public override Task CreateAsync()
+    {
+        return this.instanceStore.InitializeStoreAsync(false);
+    }
+
+    /// <inheritdoc />
+    public override Task DeleteAsync()
+    {
+        return this.instanceStore.DeleteStoreAsync();
+    }
+
+    /// <inheritdoc />
+    public override async Task<OrchestrationHistory> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken))
+    {
+        //If no execution Id is provided get the latest executionId by getting the latest state
+        if (expectedExecutionId is null)
         {
-            this.instanceStore = instanceStore;
+            expectedExecutionId = (await this.instanceStore.GetOrchestrationStateAsync(instanceId, false)).FirstOrDefault()?.State.OrchestrationInstance.ExecutionId;
         }
 
-        /// <inheritdoc />
-        public override Task CreateAsync()
+        var events = await this.instanceStore.GetOrchestrationHistoryEventsAsync(instanceId, expectedExecutionId);
+
+        if (events is null || !events.Any())
         {
-            return this.instanceStore.InitializeStoreAsync(false);
+            return new OrchestrationHistory(EmptyHistoryEventList);
+        }
+        else
+        {
+            return new OrchestrationHistory(events.Select(x => x.HistoryEvent).ToList());
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<InstanceStatus> FetchInstanceStatusAsync(string instanceId)
+    {
+        OrchestrationState state = await this.GetStateAsync(instanceId, executionId: null);
+        return state is not null ? new InstanceStatus(state) : null;
+    }
+
+    /// <inheritdoc />
+    public override async Task<IList<OrchestrationState>> GetStateAsync(string instanceId, bool allExecutions, bool fetchInput = true)
+    {
+        IEnumerable<OrchestrationStateInstanceEntity> states = await instanceStore.GetOrchestrationStateAsync(instanceId, allExecutions);
+        return states?.Select(s => s.State).ToList() ?? new List<OrchestrationState>();
+    }
+
+    /// <inheritdoc />
+    public override async Task<OrchestrationState> GetStateAsync(string instanceId, string executionId, bool fetchInput = true)
+    {
+        if (executionId is null)
+        {
+            return (await this.GetStateAsync(instanceId, false)).FirstOrDefault();
+        }
+        else
+        {
+            return (await this.instanceStore.GetOrchestrationStateAsync(instanceId, executionId))?.State;
+        }
+    }
+
+    /// <inheritdoc />
+    public override Task PurgeHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
+    {
+        return this.instanceStore.PurgeOrchestrationHistoryEventsAsync(thresholdDateTimeUtc, timeRangeFilterType);
+    }
+
+    /// <inheritdoc />
+    public override async Task<bool> SetNewExecutionAsync(
+        ExecutionStartedEvent executionStartedEvent,
+        string eTag /* not used */,
+        string inputStatusOverride)
+    {
+        var orchestrationState = new OrchestrationState()
+        {
+            Name = executionStartedEvent.Name,
+            Version = executionStartedEvent.Version,
+            OrchestrationInstance = executionStartedEvent.OrchestrationInstance,
+            OrchestrationStatus = OrchestrationStatus.Pending,
+            Input = inputStatusOverride ?? executionStartedEvent.Input,
+            Tags = executionStartedEvent.Tags,
+            CreatedTime = executionStartedEvent.Timestamp,
+            LastUpdatedTime = DateTime.UtcNow,
+            CompletedTime = Core.Common.DateTimeUtils.MinDateTime,
+            ScheduledStartTime = executionStartedEvent.ScheduledStartTime,
+            Generation = executionStartedEvent.Generation
+        };
+
+        var orchestrationStateEntity = new OrchestrationStateInstanceEntity()
+        {
+            State = orchestrationState,
+            SequenceNumber = 0
+        };
+
+        await this.instanceStore.WriteEntitiesAsync(new[] { orchestrationStateEntity });
+        return true;
+    }
+
+    /// <inheritdoc />
+    public override Task StartAsync()
+    {
+        //NOP
+        return Utils.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public override async Task<string> UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, string eTag)
+    {
+        //In case there is a runtime state for an older execution/iteration as well that needs to be committed, commit it.
+        //This may be the case if a ContinueAsNew was executed on the orchestration
+        if (newRuntimeState != oldRuntimeState)
+        {
+            eTag = await UpdateStateAsync(oldRuntimeState, instanceId, oldRuntimeState.OrchestrationInstance.ExecutionId, eTag);
         }
 
-        /// <inheritdoc />
-        public override Task DeleteAsync()
-        {
-            return this.instanceStore.DeleteStoreAsync();
-        }
+        return await UpdateStateAsync(newRuntimeState, instanceId, executionId, eTag);
+    }
 
-        /// <inheritdoc />
-        public override async Task<OrchestrationHistory> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken))
+    /// <inheritdoc />
+    async Task<string> UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId, string eTag)
+    {
+        int oldEventsCount = (runtimeState.Events.Count - runtimeState.NewEvents.Count);
+        await instanceStore.WriteEntitiesAsync(runtimeState.NewEvents.Select((x, i) =>
         {
-            //If no execution Id is provided get the latest executionId by getting the latest state
-            if (expectedExecutionId is null)
+            return new OrchestrationWorkItemInstanceEntity()
             {
-                expectedExecutionId = (await this.instanceStore.GetOrchestrationStateAsync(instanceId, false)).FirstOrDefault()?.State.OrchestrationInstance.ExecutionId;
-            }
-
-            var events = await this.instanceStore.GetOrchestrationHistoryEventsAsync(instanceId, expectedExecutionId);
-
-            if (events is null || !events.Any())
-            {
-                return new OrchestrationHistory(EmptyHistoryEventList);
-            }
-            else
-            {
-                return new OrchestrationHistory(events.Select(x => x.HistoryEvent).ToList());
-            }
-        }
-
-        /// <inheritdoc />
-        public override async Task<InstanceStatus> FetchInstanceStatusAsync(string instanceId)
-        {
-            OrchestrationState state = await this.GetStateAsync(instanceId, executionId: null);
-            return state is not null ? new InstanceStatus(state) : null;
-        }
-
-        /// <inheritdoc />
-        public override async Task<IList<OrchestrationState>> GetStateAsync(string instanceId, bool allExecutions, bool fetchInput = true)
-        {
-            IEnumerable<OrchestrationStateInstanceEntity> states = await instanceStore.GetOrchestrationStateAsync(instanceId, allExecutions);
-            return states?.Select(s => s.State).ToList() ?? new List<OrchestrationState>();
-        }
-
-        /// <inheritdoc />
-        public override async Task<OrchestrationState> GetStateAsync(string instanceId, string executionId, bool fetchInput = true)
-        {
-            if (executionId is null)
-            {
-                return (await this.GetStateAsync(instanceId, false)).FirstOrDefault();
-            }
-            else
-            {
-                return (await this.instanceStore.GetOrchestrationStateAsync(instanceId, executionId))?.State;
-            }
-        }
-
-        /// <inheritdoc />
-        public override Task PurgeHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
-        {
-            return this.instanceStore.PurgeOrchestrationHistoryEventsAsync(thresholdDateTimeUtc, timeRangeFilterType);
-        }
-
-        /// <inheritdoc />
-        public override async Task<bool> SetNewExecutionAsync(
-            ExecutionStartedEvent executionStartedEvent,
-            string eTag /* not used */,
-            string inputStatusOverride)
-        {
-            var orchestrationState = new OrchestrationState()
-            {
-                Name = executionStartedEvent.Name,
-                Version = executionStartedEvent.Version,
-                OrchestrationInstance = executionStartedEvent.OrchestrationInstance,
-                OrchestrationStatus = OrchestrationStatus.Pending,
-                Input = inputStatusOverride ?? executionStartedEvent.Input,
-                Tags = executionStartedEvent.Tags,
-                CreatedTime = executionStartedEvent.Timestamp,
-                LastUpdatedTime = DateTime.UtcNow,
-                CompletedTime = Core.Common.DateTimeUtils.MinDateTime,
-                ScheduledStartTime = executionStartedEvent.ScheduledStartTime,
-                Generation = executionStartedEvent.Generation
+                HistoryEvent = x,
+                ExecutionId = executionId,
+                InstanceId = instanceId,
+                SequenceNumber = i + oldEventsCount,
+                EventTimestamp = x.Timestamp
             };
 
-            var orchestrationStateEntity = new OrchestrationStateInstanceEntity()
-            {
-                State = orchestrationState,
-                SequenceNumber = 0
-            };
+        }));
 
-            await this.instanceStore.WriteEntitiesAsync(new[] { orchestrationStateEntity });
-            return true;
-        }
-
-        /// <inheritdoc />
-        public override Task StartAsync()
+        await instanceStore.WriteEntitiesAsync(new InstanceEntityBase[]
         {
-            //NOP
-            return Utils.CompletedTask;
-        }
-
-        /// <inheritdoc />
-        public override async Task<string> UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, string eTag)
-        {
-            //In case there is a runtime state for an older execution/iteration as well that needs to be committed, commit it.
-            //This may be the case if a ContinueAsNew was executed on the orchestration
-            if (newRuntimeState != oldRuntimeState)
-            {
-                eTag = await UpdateStateAsync(oldRuntimeState, instanceId, oldRuntimeState.OrchestrationInstance.ExecutionId, eTag);
-            }
-
-            return await UpdateStateAsync(newRuntimeState, instanceId, executionId, eTag);
-        }
-
-        /// <inheritdoc />
-        async Task<string> UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId, string eTag)
-        {
-            int oldEventsCount = (runtimeState.Events.Count - runtimeState.NewEvents.Count);
-            await instanceStore.WriteEntitiesAsync(runtimeState.NewEvents.Select((x, i) =>
-            {
-                return new OrchestrationWorkItemInstanceEntity()
+                new OrchestrationStateInstanceEntity()
                 {
-                    HistoryEvent = x,
-                    ExecutionId = executionId,
-                    InstanceId = instanceId,
-                    SequenceNumber = i + oldEventsCount,
-                    EventTimestamp = x.Timestamp
-                };
+                    State = Core.Common.Utils.BuildOrchestrationState(runtimeState),
+                    SequenceNumber = runtimeState.Events.Count
+                }
+        });
 
-            }));
-
-            await instanceStore.WriteEntitiesAsync(new InstanceEntityBase[]
-            {
-                    new OrchestrationStateInstanceEntity()
-                    {
-                        State = Core.Common.Utils.BuildOrchestrationState(runtimeState),
-                        SequenceNumber = runtimeState.Events.Count
-                    }
-            });
-
-            return null;
-        }
+        return null;
     }
 }

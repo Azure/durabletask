@@ -11,16 +11,15 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Tracking
+namespace DurableTask.Core.Tracking;
+
+/// <summary>
+/// Base class for history tracking events
+/// </summary>
+public class InstanceEntityBase
 {
     /// <summary>
-    /// Base class for history tracking events
+    /// Sequence number for ordering of messages in history tracking
     /// </summary>
-    public class InstanceEntityBase
-    {
-        /// <summary>
-        /// Sequence number for ordering of messages in history tracking
-        /// </summary>
-        public long SequenceNumber;
-    }
+    public long SequenceNumber;
 }

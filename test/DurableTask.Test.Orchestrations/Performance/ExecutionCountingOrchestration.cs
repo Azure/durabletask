@@ -11,24 +11,23 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Test.Orchestrations.Performance
+namespace DurableTask.Test.Orchestrations.Performance;
+
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using DurableTask.Core;
+
+public sealed class ExecutionCountingOrchestration : TaskOrchestration<int, int>
 {
-    using System.Collections.Generic;
-    using System.Threading.Tasks;
-    using DurableTask.Core;
-
-    public sealed class ExecutionCountingOrchestration : TaskOrchestration<int, int>
+    public override async Task<int> RunTask(OrchestrationContext context, int numberOfActivities)
     {
-        public override async Task<int> RunTask(OrchestrationContext context, int numberOfActivities)
+        List<Task<int>> results = new List<Task<int>>();
+        for (int i = 0; i < numberOfActivities; i++)
         {
-            List<Task<int>> results = new List<Task<int>>();
-            for (int i = 0; i < numberOfActivities; i++)
-            {
-                results.Add(context.ScheduleTask<int>(typeof(ExecutionCountingActivity), i));
-            }
-
-            await Task.WhenAll(results);
-            return ExecutionCountingActivity.Counter;
+            results.Add(context.ScheduleTask<int>(typeof(ExecutionCountingActivity), i));
         }
+
+        await Task.WhenAll(results);
+        return ExecutionCountingActivity.Counter;
     }
 }

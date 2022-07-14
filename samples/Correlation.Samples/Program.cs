@@ -11,32 +11,31 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace Correlation.Samples
+namespace Correlation.Samples;
+
+using System;
+
+using DurableTask.Core.Settings;
+
+public class Program
 {
-    using System;
-
-    using DurableTask.Core.Settings;
-
-    public class Program
+    private static void Main(string[] args)
     {
-        private static void Main(string[] args)
-        {
-            CorrelationSettings.Current.EnableDistributedTracing = true;
-            // InvokeScenario(typeof(HelloOrchestrator), "50", 50); // HelloWorldScenario.cs;
-            // InvokeScenario(typeof(SubOrchestratorOrchestration), "SubOrchestrationWorld", 50);  // SubOrchestratorScenario.cs;
-            // InvokeScenario(typeof(RetryOrchestration), "Retry Scenario", 50); // RetryScenario.cs;
-            InvokeScenario(typeof(MultiLayeredOrchestrationWithRetryOrchestrator), "world", 50); // MultiLayerOrchestrationWithRetryScenario.cs;
-            // InvokeScenario(typeof(FanOutFanInOrchestrator), "50", 50); // FanOutFanInScenario.cs;
-            // InvokeScenario(typeof(ContinueAsNewOrchestration), "50", 50); // ContinueAsNewScenario.cs;
-            // InvokeScenario(typeof(TerminatedOrchestration), "50", 50); // TerminationScenario.cs;
+        CorrelationSettings.Current.EnableDistributedTracing = true;
+        // InvokeScenario(typeof(HelloOrchestrator), "50", 50); // HelloWorldScenario.cs;
+        // InvokeScenario(typeof(SubOrchestratorOrchestration), "SubOrchestrationWorld", 50);  // SubOrchestratorScenario.cs;
+        // InvokeScenario(typeof(RetryOrchestration), "Retry Scenario", 50); // RetryScenario.cs;
+        InvokeScenario(typeof(MultiLayeredOrchestrationWithRetryOrchestrator), "world", 50); // MultiLayerOrchestrationWithRetryScenario.cs;
+        // InvokeScenario(typeof(FanOutFanInOrchestrator), "50", 50); // FanOutFanInScenario.cs;
+        // InvokeScenario(typeof(ContinueAsNewOrchestration), "50", 50); // ContinueAsNewScenario.cs;
+        // InvokeScenario(typeof(TerminatedOrchestration), "50", 50); // TerminationScenario.cs;
 
-            Console.WriteLine("Orchestration is successfully finished.");
-            Console.ReadLine();
-        }
+        Console.WriteLine("Orchestration is successfully finished.");
+        Console.ReadLine();
+    }
 
-        private static void InvokeScenario(Type orchestratorType, object orchestratorInput, int timeoutSec)
-        {
-            new ScenarioInvoker().ExecuteAsync(orchestratorType, orchestratorInput, timeoutSec).GetAwaiter().GetResult();
-        }
+    private static void InvokeScenario(Type orchestratorType, object orchestratorInput, int timeoutSec)
+    {
+        new ScenarioInvoker().ExecuteAsync(orchestratorType, orchestratorInput, timeoutSec).GetAwaiter().GetResult();
     }
 }

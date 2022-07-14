@@ -11,99 +11,98 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.TaskHelpers
+namespace DurableTask.AzureServiceFabric.TaskHelpers;
+
+using System;
+using System.Diagnostics;
+using System.Threading.Tasks;
+
+using DurableTask.AzureServiceFabric.Tracing;
+
+internal static class RetryHelper
 {
-    using System;
-    using System.Diagnostics;
-    using System.Threading.Tasks;
+    public static Task ExecuteWithRetryOnTransient(Func<Task> action, string uniqueActionIdentifier)
+     => ExecuteWithRetryOnTransient(action, CountBasedFixedDelayRetryPolicy.GetNewDefaultPolicy(), uniqueActionIdentifier);
 
-    using DurableTask.AzureServiceFabric.Tracing;
-
-    internal static class RetryHelper
+    private static async Task ExecuteWithRetryOnTransient(Func<Task> action, IRetryPolicy retryPolicy, string uniqueActionIdentifier)
     {
-        public static Task ExecuteWithRetryOnTransient(Func<Task> action, string uniqueActionIdentifier)
-         => ExecuteWithRetryOnTransient(action, CountBasedFixedDelayRetryPolicy.GetNewDefaultPolicy(), uniqueActionIdentifier);
+        Exception lastException = null;
 
-        private static async Task ExecuteWithRetryOnTransient(Func<Task> action, IRetryPolicy retryPolicy, string uniqueActionIdentifier)
+        int attemptNumber = 0;
+        while (retryPolicy.ShouldExecute())
         {
-            Exception lastException = null;
-
-            int attemptNumber = 0;
-            while (retryPolicy.ShouldExecute())
+            attemptNumber++;
+            Stopwatch timer = Stopwatch.StartNew();
+            try
             {
-                attemptNumber++;
-                Stopwatch timer = Stopwatch.StartNew();
-                try
+                ServiceFabricProviderEventSource.Tracing.LogOrchestrationInformation(uniqueActionIdentifier, null, "Executing action");
+                await action();
+                timer.Stop();
+                ServiceFabricProviderEventSource.Tracing.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, Result : Success", timer.ElapsedMilliseconds);
+                return;
+            }
+            catch (Exception e)
+            {
+                timer.Stop();
+                lastException = e;
+                bool shouldRetry = ExceptionUtilities.IsRetryableFabricException(e);
+
+                ExceptionUtilities.LogReliableCollectionException(uniqueActionIdentifier, attemptNumber, e, shouldRetry);
+                ServiceFabricProviderEventSource.Tracing.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, ShouldRetry : {shouldRetry}", timer.ElapsedMilliseconds);
+
+                if (shouldRetry)
                 {
-                    ServiceFabricProviderEventSource.Tracing.LogOrchestrationInformation(uniqueActionIdentifier, null, "Executing action");
-                    await action();
-                    timer.Stop();
-                    ServiceFabricProviderEventSource.Tracing.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, Result : Success", timer.ElapsedMilliseconds);
-                    return;
+                    await Task.Delay(retryPolicy.GetNextDelay());
                 }
-                catch (Exception e)
+                else
                 {
-                    timer.Stop();
-                    lastException = e;
-                    bool shouldRetry = ExceptionUtilities.IsRetryableFabricException(e);
-
-                    ExceptionUtilities.LogReliableCollectionException(uniqueActionIdentifier, attemptNumber, e, shouldRetry);
-                    ServiceFabricProviderEventSource.Tracing.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, ShouldRetry : {shouldRetry}", timer.ElapsedMilliseconds);
-
-                    if (shouldRetry)
-                    {
-                        await Task.Delay(retryPolicy.GetNextDelay());
-                    }
-                    else
-                    {
-                        throw;
-                    }
+                    throw;
                 }
             }
-
-            throw lastException;
         }
 
-        public static Task<TResult> ExecuteWithRetryOnTransient<TResult>(Func<Task<TResult>> action, string uniqueActionIdentifier)
-         => ExecuteWithRetryOnTransient(action, CountBasedFixedDelayRetryPolicy.GetNewDefaultPolicy(), uniqueActionIdentifier);
+        throw lastException;
+    }
 
-        private static async Task<TResult> ExecuteWithRetryOnTransient<TResult>(Func<Task<TResult>> action, IRetryPolicy retryPolicy, string uniqueActionIdentifier)
+    public static Task<TResult> ExecuteWithRetryOnTransient<TResult>(Func<Task<TResult>> action, string uniqueActionIdentifier)
+     => ExecuteWithRetryOnTransient(action, CountBasedFixedDelayRetryPolicy.GetNewDefaultPolicy(), uniqueActionIdentifier);
+
+    private static async Task<TResult> ExecuteWithRetryOnTransient<TResult>(Func<Task<TResult>> action, IRetryPolicy retryPolicy, string uniqueActionIdentifier)
+    {
+        Exception lastException = null;
+
+        int attemptNumber = 0;
+        while (retryPolicy.ShouldExecute())
         {
-            Exception lastException = null;
-
-            int attemptNumber = 0;
-            while (retryPolicy.ShouldExecute())
+            attemptNumber++;
+            Stopwatch timer = Stopwatch.StartNew();
+            try
             {
-                attemptNumber++;
-                Stopwatch timer = Stopwatch.StartNew();
-                try
+                var result = await action();
+                timer.Stop();
+                ServiceFabricProviderEventSource.Tracing.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, Result : Success", timer.ElapsedMilliseconds);
+                return result;
+            }
+            catch (Exception e)
+            {
+                timer.Stop();
+                lastException = e;
+                bool shouldRetry = ExceptionUtilities.IsRetryableFabricException(e);
+
+                ExceptionUtilities.LogReliableCollectionException(uniqueActionIdentifier, attemptNumber, e, shouldRetry);
+                ServiceFabricProviderEventSource.Tracing.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, ShouldRetry : {shouldRetry}", timer.ElapsedMilliseconds);
+
+                if (shouldRetry)
                 {
-                    var result = await action();
-                    timer.Stop();
-                    ServiceFabricProviderEventSource.Tracing.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, Result : Success", timer.ElapsedMilliseconds);
-                    return result;
+                    await Task.Delay(retryPolicy.GetNextDelay());
                 }
-                catch (Exception e)
+                else
                 {
-                    timer.Stop();
-                    lastException = e;
-                    bool shouldRetry = ExceptionUtilities.IsRetryableFabricException(e);
-
-                    ExceptionUtilities.LogReliableCollectionException(uniqueActionIdentifier, attemptNumber, e, shouldRetry);
-                    ServiceFabricProviderEventSource.Tracing.LogMeasurement($"{uniqueActionIdentifier}, Attempt Number : {attemptNumber}, ShouldRetry : {shouldRetry}", timer.ElapsedMilliseconds);
-
-                    if (shouldRetry)
-                    {
-                        await Task.Delay(retryPolicy.GetNextDelay());
-                    }
-                    else
-                    {
-                        throw;
-                    }
+                    throw;
                 }
             }
-
-            throw lastException;
         }
+
+        throw lastException;
     }
 }

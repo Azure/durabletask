@@ -11,35 +11,34 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Tracking
+namespace DurableTask.AzureStorage.Tracking;
+
+using System;
+using System.Collections.Generic;
+using DurableTask.Core.History;
+
+class OrchestrationHistory
 {
-    using System;
-    using System.Collections.Generic;
-    using DurableTask.Core.History;
-
-    class OrchestrationHistory
+    public OrchestrationHistory(IList<HistoryEvent> historyEvents)
+        : this(historyEvents, DateTime.MinValue, null)
     {
-        public OrchestrationHistory(IList<HistoryEvent> historyEvents)
-            : this(historyEvents, DateTime.MinValue, null)
-        {
-        }
-
-        public OrchestrationHistory(IList<HistoryEvent> historyEvents, DateTime lastCheckpointTime)
-            : this(historyEvents, lastCheckpointTime, null)
-        {
-        }
-
-        public OrchestrationHistory(IList<HistoryEvent> historyEvents, DateTime lastCheckpointTime, string eTag)
-        {
-            this.Events = historyEvents ?? throw new ArgumentNullException(nameof(historyEvents));
-            this.LastCheckpointTime = lastCheckpointTime;
-            this.ETag = eTag;
-        }
-
-        public IList<HistoryEvent> Events { get; }
-
-        public string ETag { get; }
-
-        public DateTime LastCheckpointTime { get; }
     }
+
+    public OrchestrationHistory(IList<HistoryEvent> historyEvents, DateTime lastCheckpointTime)
+        : this(historyEvents, lastCheckpointTime, null)
+    {
+    }
+
+    public OrchestrationHistory(IList<HistoryEvent> historyEvents, DateTime lastCheckpointTime, string eTag)
+    {
+        this.Events = historyEvents ?? throw new ArgumentNullException(nameof(historyEvents));
+        this.LastCheckpointTime = lastCheckpointTime;
+        this.ETag = eTag;
+    }
+
+    public IList<HistoryEvent> Events { get; }
+
+    public string ETag { get; }
+
+    public DateTime LastCheckpointTime { get; }
 }

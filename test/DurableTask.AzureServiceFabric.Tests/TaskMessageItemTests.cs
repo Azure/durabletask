@@ -11,33 +11,32 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Tests
+namespace DurableTask.AzureServiceFabric.Tests;
+
+using DurableTask.Core;
+using DurableTask.Core.History;
+
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class TaskMessageItemTests
 {
-    using DurableTask.Core;
-    using DurableTask.Core.History;
-
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
-
-    [TestClass]
-    public class TaskMessageItemTests
+    [TestMethod]
+    public void TaskMessageItem_SerializationTests()
     {
-        [TestMethod]
-        public void TaskMessageItem_SerializationTests()
+        var expected = new TaskMessageItem(new TaskMessage()
         {
-            var expected = new TaskMessageItem(new TaskMessage()
-            {
-                OrchestrationInstance = new OrchestrationInstance() { InstanceId = "InstanceId", ExecutionId = "ExecutionId" },
-                SequenceNumber = 33,
-                Event = new TaskScheduledEvent(-1)
-            });
+            OrchestrationInstance = new OrchestrationInstance() { InstanceId = "InstanceId", ExecutionId = "ExecutionId" },
+            SequenceNumber = 33,
+            Event = new TaskScheduledEvent(-1)
+        });
 
-            var actual = Measure.DataContractSerialization(expected);
+        var actual = Measure.DataContractSerialization(expected);
 
-            Assert.IsNotNull(actual);
-            Assert.AreEqual(expected.TaskMessage.OrchestrationInstance.InstanceId, actual.TaskMessage.OrchestrationInstance.InstanceId);
-            Assert.AreEqual(expected.TaskMessage.OrchestrationInstance.ExecutionId, actual.TaskMessage.OrchestrationInstance.ExecutionId);
-            Assert.AreEqual(expected.TaskMessage.SequenceNumber, actual.TaskMessage.SequenceNumber);
-            Assert.AreEqual(expected.TaskMessage.Event.EventId, actual.TaskMessage.Event.EventId);
-        }
+        Assert.IsNotNull(actual);
+        Assert.AreEqual(expected.TaskMessage.OrchestrationInstance.InstanceId, actual.TaskMessage.OrchestrationInstance.InstanceId);
+        Assert.AreEqual(expected.TaskMessage.OrchestrationInstance.ExecutionId, actual.TaskMessage.OrchestrationInstance.ExecutionId);
+        Assert.AreEqual(expected.TaskMessage.SequenceNumber, actual.TaskMessage.SequenceNumber);
+        Assert.AreEqual(expected.TaskMessage.Event.EventId, actual.TaskMessage.Event.EventId);
     }
 }

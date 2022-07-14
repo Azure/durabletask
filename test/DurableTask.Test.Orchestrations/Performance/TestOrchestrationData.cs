@@ -11,34 +11,33 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Test.Orchestrations.Performance
+namespace DurableTask.Test.Orchestrations.Performance;
+
+using System;
+using System.Runtime.Serialization;
+
+[DataContract]
+[KnownType(typeof(TestOrchestrationData))]
+public class TestOrchestrationData
 {
-    using System;
-    using System.Runtime.Serialization;
+    [DataMember]
+    public int NumberOfParallelTasks { get; set; }
 
-    [DataContract]
-    [KnownType(typeof(TestOrchestrationData))]
-    public class TestOrchestrationData
-    {
-        [DataMember]
-        public int NumberOfParallelTasks { get; set; }
+    [DataMember]
+    public int NumberOfSerialTasks { get; set; }
 
-        [DataMember]
-        public int NumberOfSerialTasks { get; set; }
+    [DataMember]
+    public int MaxDelay { get; set; }
 
-        [DataMember]
-        public int MaxDelay { get; set; }
+    [DataMember]
+    public int MinDelay { get; set; }
 
-        [DataMember]
-        public int MinDelay { get; set; }
+    [DataMember]
+    public TimeSpan DelayUnit { get; set; }
 
-        [DataMember]
-        public TimeSpan DelayUnit { get; set; }
+    [DataMember]
+    public bool UseTimeoutTask { get; set; }
 
-        [DataMember]
-        public bool UseTimeoutTask { get; set; }
-
-        [DataMember]
-        public TimeSpan ExecutionTimeout { get; set; }
-    }
+    [DataMember]
+    public TimeSpan ExecutionTimeout { get; set; }
 }

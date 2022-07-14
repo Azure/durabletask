@@ -11,12 +11,11 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Samples.Replat
-{
-    public class MigrateOrchestrationData 
-    {
-        public bool IsDisabled { get; set; }
+namespace DurableTask.Samples.Replat;
 
-        public string SubscriptionId { get; set; }
-    }
+public class MigrateOrchestrationData 
+{
+    public bool IsDisabled { get; set; }
+
+    public string SubscriptionId { get; set; }
 }

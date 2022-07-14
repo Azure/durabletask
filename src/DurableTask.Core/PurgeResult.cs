@@ -11,22 +11,21 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+/// <summary>
+/// Class representing the result of a purge operation.
+/// </summary>
+public class PurgeResult
 {
     /// <summary>
-    /// Class representing the result of a purge operation.
+    /// Initializes a new instance of the <see cref="PurgeResult" /> class.
     /// </summary>
-    public class PurgeResult
-    {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="PurgeResult" /> class.
-        /// </summary>
-        /// <param name="deletedInstanceCount">The number of instances deleted.</param>
-        public PurgeResult(int deletedInstanceCount) => this.DeletedInstanceCount = deletedInstanceCount;
+    /// <param name="deletedInstanceCount">The number of instances deleted.</param>
+    public PurgeResult(int deletedInstanceCount) => this.DeletedInstanceCount = deletedInstanceCount;
 
-        /// <summary>
-        /// Number of instances deleted during this execution of the purge operation.
-        /// </summary>
-        public int DeletedInstanceCount { get; }
-    }
+    /// <summary>
+    /// Number of instances deleted during this execution of the purge operation.
+    /// </summary>
+    public int DeletedInstanceCount { get; }
 }

@@ -11,238 +11,237 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.Core
-{
-    using System;
-    using System.Collections.Generic;
-    using System.Diagnostics;
-    using System.Linq;
-    using System.Runtime.ExceptionServices;
-    using System.Threading;
-    using System.Threading.Tasks;
+namespace DurableTask.Core;
 
-    using DurableTask.Core.Common;
-    using DurableTask.Core.Exceptions;
-    using DurableTask.Core.History;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Runtime.ExceptionServices;
+using System.Threading;
+using System.Threading.Tasks;
+
+using DurableTask.Core.Common;
+using DurableTask.Core.Exceptions;
+using DurableTask.Core.History;
+
+/// <summary>
+/// Utility for executing task orchestrators.
+/// </summary>
+public class TaskOrchestrationExecutor
+{
+    private readonly TaskOrchestrationContext context;
+    private readonly TaskScheduler decisionScheduler;
+    private readonly OrchestrationRuntimeState orchestrationRuntimeState;
+    private readonly TaskOrchestration taskOrchestration;
+    private readonly bool skipCarryOverEvents;
+    private Task<string>? result;
 
     /// <summary>
-    /// Utility for executing task orchestrators.
+    /// Initializes a new instance of the <see cref="TaskOrchestrationExecutor"/> class.
     /// </summary>
-    public class TaskOrchestrationExecutor
+    /// <param name="orchestrationRuntimeState"></param>
+    /// <param name="taskOrchestration"></param>
+    /// <param name="eventBehaviourForContinueAsNew"></param>
+    /// <param name="errorPropagationMode"></param>
+    public TaskOrchestrationExecutor(
+        OrchestrationRuntimeState orchestrationRuntimeState,
+        TaskOrchestration taskOrchestration,
+        BehaviorOnContinueAsNew eventBehaviourForContinueAsNew,
+        ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
     {
-        private readonly TaskOrchestrationContext context;
-        private readonly TaskScheduler decisionScheduler;
-        private readonly OrchestrationRuntimeState orchestrationRuntimeState;
-        private readonly TaskOrchestration taskOrchestration;
-        private readonly bool skipCarryOverEvents;
-        private Task<string>? result;
+        this.decisionScheduler = new SynchronousTaskScheduler();
+        this.context = new TaskOrchestrationContext(
+            orchestrationRuntimeState.OrchestrationInstance,
+            this.decisionScheduler,
+            errorPropagationMode);
+        this.orchestrationRuntimeState = orchestrationRuntimeState;
+        this.taskOrchestration = taskOrchestration;
+        this.skipCarryOverEvents = eventBehaviourForContinueAsNew == BehaviorOnContinueAsNew.Ignore;
+    }
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="TaskOrchestrationExecutor"/> class.
-        /// </summary>
-        /// <param name="orchestrationRuntimeState"></param>
-        /// <param name="taskOrchestration"></param>
-        /// <param name="eventBehaviourForContinueAsNew"></param>
-        /// <param name="errorPropagationMode"></param>
-        public TaskOrchestrationExecutor(
-            OrchestrationRuntimeState orchestrationRuntimeState,
-            TaskOrchestration taskOrchestration,
-            BehaviorOnContinueAsNew eventBehaviourForContinueAsNew,
-            ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
+    internal bool IsCompleted => this.result is not null && (this.result.IsCompleted || this.result.IsFaulted);
+
+    /// <summary>
+    /// Executes an orchestration from the beginning.
+    /// </summary>
+    /// <returns>
+    /// The result of the orchestration execution, including any actions scheduled by the orchestrator.
+    /// </returns>
+    public OrchestratorExecutionResult Execute()
+     => this.ExecuteCore(
+            pastEvents: this.orchestrationRuntimeState.PastEvents,
+            newEvents: this.orchestrationRuntimeState.NewEvents);
+
+    /// <summary>
+    /// Resumes an orchestration
+    /// </summary>
+    /// <returns>
+    /// The result of the orchestration execution, including any actions scheduled by the orchestrator.
+    /// </returns>
+    public OrchestratorExecutionResult ExecuteNewEvents()
+    {
+        this.context.ClearPendingActions();
+        return this.ExecuteCore(
+            pastEvents: Enumerable.Empty<HistoryEvent>(),
+            newEvents: this.orchestrationRuntimeState.NewEvents);
+    }
+
+    private OrchestratorExecutionResult ExecuteCore(IEnumerable<HistoryEvent> pastEvents, IEnumerable<HistoryEvent> newEvents)
+    {
+        SynchronizationContext prevCtx = SynchronizationContext.Current;
+
+        try
         {
-            this.decisionScheduler = new SynchronousTaskScheduler();
-            this.context = new TaskOrchestrationContext(
-                orchestrationRuntimeState.OrchestrationInstance,
-                this.decisionScheduler,
-                errorPropagationMode);
-            this.orchestrationRuntimeState = orchestrationRuntimeState;
-            this.taskOrchestration = taskOrchestration;
-            this.skipCarryOverEvents = eventBehaviourForContinueAsNew == BehaviorOnContinueAsNew.Ignore;
-        }
-
-        internal bool IsCompleted => this.result is not null && (this.result.IsCompleted || this.result.IsFaulted);
-
-        /// <summary>
-        /// Executes an orchestration from the beginning.
-        /// </summary>
-        /// <returns>
-        /// The result of the orchestration execution, including any actions scheduled by the orchestrator.
-        /// </returns>
-        public OrchestratorExecutionResult Execute()
-         => this.ExecuteCore(
-                pastEvents: this.orchestrationRuntimeState.PastEvents,
-                newEvents: this.orchestrationRuntimeState.NewEvents);
-
-        /// <summary>
-        /// Resumes an orchestration
-        /// </summary>
-        /// <returns>
-        /// The result of the orchestration execution, including any actions scheduled by the orchestrator.
-        /// </returns>
-        public OrchestratorExecutionResult ExecuteNewEvents()
-        {
-            this.context.ClearPendingActions();
-            return this.ExecuteCore(
-                pastEvents: Enumerable.Empty<HistoryEvent>(),
-                newEvents: this.orchestrationRuntimeState.NewEvents);
-        }
-
-        private OrchestratorExecutionResult ExecuteCore(IEnumerable<HistoryEvent> pastEvents, IEnumerable<HistoryEvent> newEvents)
-        {
-            SynchronizationContext prevCtx = SynchronizationContext.Current;
+            SynchronizationContext syncCtx = new TaskOrchestrationSynchronizationContext(this.decisionScheduler);
+            SynchronizationContext.SetSynchronizationContext(syncCtx);
+            OrchestrationContext.IsOrchestratorThread = true;
 
             try
             {
-                SynchronizationContext syncCtx = new TaskOrchestrationSynchronizationContext(this.decisionScheduler);
-                SynchronizationContext.SetSynchronizationContext(syncCtx);
-                OrchestrationContext.IsOrchestratorThread = true;
-
-                try
+                void ProcessEvents(IEnumerable<HistoryEvent> events)
                 {
-                    void ProcessEvents(IEnumerable<HistoryEvent> events)
+                    foreach (HistoryEvent historyEvent in events)
                     {
-                        foreach (HistoryEvent historyEvent in events)
+                        if (historyEvent.EventType == EventType.OrchestratorStarted)
                         {
-                            if (historyEvent.EventType == EventType.OrchestratorStarted)
+                            var decisionStartedEvent = (OrchestratorStartedEvent)historyEvent;
+                            this.context.CurrentUtcDateTime = decisionStartedEvent.Timestamp;
+                            continue;
+                        }
+
+                        this.ProcessEvent(historyEvent);
+                        historyEvent.IsPlayed = true;
+                    }
+                }
+
+                // Replay the old history to rebuild the local state of the orchestration.
+                // TODO: Log a verbose message indicating that the replay has started (include event count?)
+                this.context.IsReplaying = true;
+                ProcessEvents(pastEvents);
+
+                // Play the newly arrived events to determine the next action to take.
+                // TODO: Log a verbose message indicating that new events are being processed (include event count?)
+                this.context.IsReplaying = false;
+                ProcessEvents(newEvents);
+
+                // check if workflow is completed after this replay
+                // TODO: Create a setting that allows orchestrations to complete when the orchestrator
+                //       function completes, even if there are open tasks.
+                if (!this.context.HasOpenTasks)
+                {
+                    if (this.result!.IsCompleted)
+                    {
+                        if (this.result.IsFaulted)
+                        {
+                            Exception? exception = this.result.Exception?.InnerExceptions.FirstOrDefault();
+                            Debug.Assert(exception is not null);
+
+                            if (Utils.IsExecutionAborting(exception))
                             {
-                                var decisionStartedEvent = (OrchestratorStartedEvent)historyEvent;
-                                this.context.CurrentUtcDateTime = decisionStartedEvent.Timestamp;
-                                continue;
+                                // Let this exception propagate out to be handled by the dispatcher
+                                ExceptionDispatchInfo.Capture(exception).Throw();
                             }
 
-                            this.ProcessEvent(historyEvent);
-                            historyEvent.IsPlayed = true;
+                            this.context.FailOrchestration(exception);
+                        }
+                        else
+                        {
+                            this.context.CompleteOrchestration(this.result.Result);
                         }
                     }
 
-                    // Replay the old history to rebuild the local state of the orchestration.
-                    // TODO: Log a verbose message indicating that the replay has started (include event count?)
-                    this.context.IsReplaying = true;
-                    ProcessEvents(pastEvents);
-
-                    // Play the newly arrived events to determine the next action to take.
-                    // TODO: Log a verbose message indicating that new events are being processed (include event count?)
-                    this.context.IsReplaying = false;
-                    ProcessEvents(newEvents);
-
-                    // check if workflow is completed after this replay
-                    // TODO: Create a setting that allows orchestrations to complete when the orchestrator
-                    //       function completes, even if there are open tasks.
-                    if (!this.context.HasOpenTasks)
-                    {
-                        if (this.result!.IsCompleted)
-                        {
-                            if (this.result.IsFaulted)
-                            {
-                                Exception? exception = this.result.Exception?.InnerExceptions.FirstOrDefault();
-                                Debug.Assert(exception is not null);
-
-                                if (Utils.IsExecutionAborting(exception))
-                                {
-                                    // Let this exception propagate out to be handled by the dispatcher
-                                    ExceptionDispatchInfo.Capture(exception).Throw();
-                                }
-
-                                this.context.FailOrchestration(exception);
-                            }
-                            else
-                            {
-                                this.context.CompleteOrchestration(this.result.Result);
-                            }
-                        }
-
-                        // TODO: It is an error if result is not completed when all OpenTasks are done.
-                        // Throw an exception in that case.
-                    }
+                    // TODO: It is an error if result is not completed when all OpenTasks are done.
+                    // Throw an exception in that case.
                 }
-                catch (NonDeterministicOrchestrationException exception)
+            }
+            catch (NonDeterministicOrchestrationException exception)
+            {
+                this.context.FailOrchestration(exception);
+            }
+
+            return new OrchestratorExecutionResult
+            {
+                Actions = this.context.OrchestratorActions,
+                CustomStatus = this.taskOrchestration.GetStatus(),
+            };
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(prevCtx);
+            OrchestrationContext.IsOrchestratorThread = false;
+        }
+    }
+
+    private void ProcessEvent(HistoryEvent historyEvent)
+    {
+        switch (historyEvent.EventType)
+        {
+            case EventType.ExecutionStarted:
+                var executionStartedEvent = (ExecutionStartedEvent)historyEvent;
+                this.result = this.taskOrchestration.Execute(this.context, executionStartedEvent.Input);
+                break;
+            case EventType.ExecutionTerminated:
+                this.context.HandleExecutionTerminatedEvent((ExecutionTerminatedEvent)historyEvent);
+                break;
+            case EventType.TaskScheduled:
+                this.context.HandleTaskScheduledEvent((TaskScheduledEvent)historyEvent);
+                break;
+            case EventType.TaskCompleted:
+                this.context.HandleTaskCompletedEvent((TaskCompletedEvent)historyEvent);
+                break;
+            case EventType.TaskFailed:
+                this.context.HandleTaskFailedEvent((TaskFailedEvent)historyEvent);
+                break;
+            case EventType.SubOrchestrationInstanceCreated:
+                this.context.HandleSubOrchestrationCreatedEvent((SubOrchestrationInstanceCreatedEvent)historyEvent);
+                break;
+            case EventType.SubOrchestrationInstanceCompleted:
+                this.context.HandleSubOrchestrationInstanceCompletedEvent(
+                    (SubOrchestrationInstanceCompletedEvent)historyEvent);
+                break;
+            case EventType.SubOrchestrationInstanceFailed:
+                this.context.HandleSubOrchestrationInstanceFailedEvent((SubOrchestrationInstanceFailedEvent)historyEvent);
+                break;
+            case EventType.TimerCreated:
+                this.context.HandleTimerCreatedEvent((TimerCreatedEvent)historyEvent);
+                break;
+            case EventType.TimerFired:
+                this.context.HandleTimerFiredEvent((TimerFiredEvent)historyEvent);
+                break;
+            case EventType.EventSent:
+                this.context.HandleEventSentEvent((EventSentEvent)historyEvent);
+                break;
+            case EventType.EventRaised:
+                if (this.skipCarryOverEvents || !this.context.HasContinueAsNew)
                 {
-                    this.context.FailOrchestration(exception);
+                    var eventRaisedEvent = (EventRaisedEvent)historyEvent;
+                    this.taskOrchestration.RaiseEvent(this.context, eventRaisedEvent.Name, eventRaisedEvent.Input);
                 }
-
-                return new OrchestratorExecutionResult
+                else
                 {
-                    Actions = this.context.OrchestratorActions,
-                    CustomStatus = this.taskOrchestration.GetStatus(),
-                };
-            }
-            finally
-            {
-                SynchronizationContext.SetSynchronizationContext(prevCtx);
-                OrchestrationContext.IsOrchestratorThread = false;
-            }
+                    this.context.AddEventToNextIteration(historyEvent);
+                }
+                break;
         }
+    }
 
-        private void ProcessEvent(HistoryEvent historyEvent)
+    private class TaskOrchestrationSynchronizationContext : SynchronizationContext
+    {
+        private readonly TaskScheduler scheduler;
+
+        public TaskOrchestrationSynchronizationContext(TaskScheduler scheduler) => this.scheduler = scheduler;
+
+        public override void Post(SendOrPostCallback sendOrPostCallback, object state) => Task.Factory.StartNew(() => sendOrPostCallback(state),
+                CancellationToken.None,
+                TaskCreationOptions.None,
+                this.scheduler);
+
+        public override void Send(SendOrPostCallback sendOrPostCallback, object state)
         {
-            switch (historyEvent.EventType)
-            {
-                case EventType.ExecutionStarted:
-                    var executionStartedEvent = (ExecutionStartedEvent)historyEvent;
-                    this.result = this.taskOrchestration.Execute(this.context, executionStartedEvent.Input);
-                    break;
-                case EventType.ExecutionTerminated:
-                    this.context.HandleExecutionTerminatedEvent((ExecutionTerminatedEvent)historyEvent);
-                    break;
-                case EventType.TaskScheduled:
-                    this.context.HandleTaskScheduledEvent((TaskScheduledEvent)historyEvent);
-                    break;
-                case EventType.TaskCompleted:
-                    this.context.HandleTaskCompletedEvent((TaskCompletedEvent)historyEvent);
-                    break;
-                case EventType.TaskFailed:
-                    this.context.HandleTaskFailedEvent((TaskFailedEvent)historyEvent);
-                    break;
-                case EventType.SubOrchestrationInstanceCreated:
-                    this.context.HandleSubOrchestrationCreatedEvent((SubOrchestrationInstanceCreatedEvent)historyEvent);
-                    break;
-                case EventType.SubOrchestrationInstanceCompleted:
-                    this.context.HandleSubOrchestrationInstanceCompletedEvent(
-                        (SubOrchestrationInstanceCompletedEvent)historyEvent);
-                    break;
-                case EventType.SubOrchestrationInstanceFailed:
-                    this.context.HandleSubOrchestrationInstanceFailedEvent((SubOrchestrationInstanceFailedEvent)historyEvent);
-                    break;
-                case EventType.TimerCreated:
-                    this.context.HandleTimerCreatedEvent((TimerCreatedEvent)historyEvent);
-                    break;
-                case EventType.TimerFired:
-                    this.context.HandleTimerFiredEvent((TimerFiredEvent)historyEvent);
-                    break;
-                case EventType.EventSent:
-                    this.context.HandleEventSentEvent((EventSentEvent)historyEvent);
-                    break;
-                case EventType.EventRaised:
-                    if (this.skipCarryOverEvents || !this.context.HasContinueAsNew)
-                    {
-                        var eventRaisedEvent = (EventRaisedEvent)historyEvent;
-                        this.taskOrchestration.RaiseEvent(this.context, eventRaisedEvent.Name, eventRaisedEvent.Input);
-                    }
-                    else
-                    {
-                        this.context.AddEventToNextIteration(historyEvent);
-                    }
-                    break;
-            }
-        }
-
-        private class TaskOrchestrationSynchronizationContext : SynchronizationContext
-        {
-            private readonly TaskScheduler scheduler;
-
-            public TaskOrchestrationSynchronizationContext(TaskScheduler scheduler) => this.scheduler = scheduler;
-
-            public override void Post(SendOrPostCallback sendOrPostCallback, object state) => Task.Factory.StartNew(() => sendOrPostCallback(state),
-                    CancellationToken.None,
-                    TaskCreationOptions.None,
-                    this.scheduler);
-
-            public override void Send(SendOrPostCallback sendOrPostCallback, object state)
-            {
-                var t = new Task(() => sendOrPostCallback(state));
-                t.RunSynchronously(this.scheduler);
-                t.Wait();
-            }
+            var t = new Task(() => sendOrPostCallback(state));
+            t.RunSynchronously(this.scheduler);
+            t.Wait();
         }
     }
 }

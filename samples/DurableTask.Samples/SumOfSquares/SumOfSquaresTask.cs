@@ -11,17 +11,16 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Samples.SumOfSquares
-{
-    using System;
-    using DurableTask.Core;
+namespace DurableTask.Samples.SumOfSquares;
 
-    public sealed class SumOfSquaresTask : TaskActivity<int, int>
+using System;
+using DurableTask.Core;
+
+public sealed class SumOfSquaresTask : TaskActivity<int, int>
+{
+    protected override int Execute(DurableTask.Core.TaskContext context, int chunk)
     {
-        protected override int Execute(DurableTask.Core.TaskContext context, int chunk)
-        {
-            Console.WriteLine($"Square::{chunk}::{chunk * chunk}");
-            return chunk * chunk;
-        }
+        Console.WriteLine($"Square::{chunk}::{chunk * chunk}");
+        return chunk * chunk;
     }
 }

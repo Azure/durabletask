@@ -11,21 +11,20 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+/// <summary>
+/// Interface for name and version class to be used in lookup mappings
+/// </summary>
+public interface INameVersionInfo
 {
     /// <summary>
-    /// Interface for name and version class to be used in lookup mappings
+    /// The name of the method
     /// </summary>
-    public interface INameVersionInfo
-    {
-        /// <summary>
-        /// The name of the method
-        /// </summary>
-        string Name { get; }
+    string Name { get; }
 
-        /// <summary>
-        /// The version of the method
-        /// </summary>
-        string Version { get; }
-    }
+    /// <summary>
+    /// The version of the method
+    /// </summary>
+    string Version { get; }
 }

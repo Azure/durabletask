@@ -11,55 +11,54 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Tests
+namespace DurableTask.AzureServiceFabric.Tests;
+
+using System;
+using System.Collections.Generic;
+using System.Runtime.Serialization;
+
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class SerializationPerformanceExperiments
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Runtime.Serialization;
-
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
-
-    [TestClass]
-    public class SerializationPerformanceExperiments
+    [TestMethod]
+    public void DataContractSerializationSizeExperiment_PrimitiveTypes()
     {
-        [TestMethod]
-        public void DataContractSerializationSizeExperiment_PrimitiveTypes()
+        var testObjects = new List<object>()
         {
-            var testObjects = new List<object>()
-            {
-                Int32.MinValue,
-                Int32.MaxValue,
-                "01234567890123456789012345678901",
-                Guid.NewGuid(),
-                DateTime.UtcNow,
-                Int64.MaxValue,
-                Int64.MinValue,
-                Int16.MaxValue,
-                Int16.MinValue,
-                new ComplexType() { LongProp = 33, StringProp = "0123456789" }
-            };
+            Int32.MinValue,
+            Int32.MaxValue,
+            "01234567890123456789012345678901",
+            Guid.NewGuid(),
+            DateTime.UtcNow,
+            Int64.MaxValue,
+            Int64.MinValue,
+            Int16.MaxValue,
+            Int16.MinValue,
+            new ComplexType() { LongProp = 33, StringProp = "0123456789" }
+        };
 
-            foreach (var testObject in testObjects)
-            {
-                var type = testObject.GetType();
-                Console.WriteLine($"Type = {type.Name}");
-                Console.WriteLine($"TestObject = {testObject}");
-                Measure.DataContractSerialization(type, testObject);
-                Console.WriteLine();
-            }
+        foreach (var testObject in testObjects)
+        {
+            var type = testObject.GetType();
+            Console.WriteLine($"Type = {type.Name}");
+            Console.WriteLine($"TestObject = {testObject}");
+            Measure.DataContractSerialization(type, testObject);
+            Console.WriteLine();
         }
+    }
 
-        [DataContract]
-        private class ComplexType
+    [DataContract]
+    private class ComplexType
+    {
+        [DataMember] public long LongProp;
+
+        [DataMember] public string StringProp;
+
+        public override string ToString()
         {
-            [DataMember] public long LongProp;
-
-            [DataMember] public string StringProp;
-
-            public override string ToString()
-            {
-                return $"'LongProp = {LongProp}, StringProp = {StringProp}'";
-            }
+            return $"'LongProp = {LongProp}, StringProp = {StringProp}'";
         }
     }
 }

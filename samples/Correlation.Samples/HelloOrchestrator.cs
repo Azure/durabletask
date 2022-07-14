@@ -11,37 +11,36 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace Correlation.Samples
-{
+namespace Correlation.Samples;
+
 #pragma warning disable CA1812 // Internal classes instantiated indirectly
-    using System;
-    using System.Runtime.Serialization;
-    using System.Threading.Tasks;
+using System;
+using System.Runtime.Serialization;
+using System.Threading.Tasks;
 
-    using DurableTask.Core;
+using DurableTask.Core;
 
-    [KnownType(typeof(Hello))]
-    internal class HelloOrchestrator : TaskOrchestration<string, string>
+[KnownType(typeof(Hello))]
+internal class HelloOrchestrator : TaskOrchestration<string, string>
+{
+    public override async Task<string> RunTask(OrchestrationContext context, string input)
     {
-        public override async Task<string> RunTask(OrchestrationContext context, string input)
-        {
-            //  await contextBase.ScheduleTask<string>(typeof(Hello), "world");
-            //   if you pass an empty string it throws an error
-            return await context.ScheduleTask<string>(typeof(Hello), "world");
-        }
+        //  await contextBase.ScheduleTask<string>(typeof(Hello), "world");
+        //   if you pass an empty string it throws an error
+        return await context.ScheduleTask<string>(typeof(Hello), "world");
     }
+}
 
-    internal class Hello : TaskActivity<string, string>
+internal class Hello : TaskActivity<string, string>
+{
+    protected override string Execute(TaskContext context, string input)
     {
-        protected override string Execute(TaskContext context, string input)
+        if (string.IsNullOrEmpty(input))
         {
-            if (string.IsNullOrEmpty(input))
-            {
-                throw new ArgumentNullException(nameof(input));
-            }
-
-            Console.WriteLine($"Activity: Hello {input}");
-            return $"Hello, {input}!";
+            throw new ArgumentNullException(nameof(input));
         }
+
+        Console.WriteLine($"Activity: Hello {input}");
+        return $"Hello, {input}!";
     }
 }

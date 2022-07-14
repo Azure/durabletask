@@ -11,49 +11,48 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage
+namespace DurableTask.AzureStorage;
+
+using DurableTask.Core;
+
+/// <summary>
+/// Class to hold statistics about this execution of purge history
+/// </summary>
+public class PurgeHistoryResult
 {
-    using DurableTask.Core;
+    /// <summary>
+    /// Constructor for purge history statistics
+    /// </summary>
+    /// <param name="storageRequests">Requests sent to storage</param>
+    /// <param name="instancesDeleted">Number of instances deleted</param>
+    /// <param name="rowsDeleted">Number of rows deleted</param>
+    public PurgeHistoryResult(int storageRequests, int instancesDeleted, int rowsDeleted)
+    {
+        this.StorageRequests = storageRequests;
+        this.InstancesDeleted = instancesDeleted;
+        this.RowsDeleted = rowsDeleted;
+    }
 
     /// <summary>
-    /// Class to hold statistics about this execution of purge history
+    /// Number of requests sent to Storage during this execution of purge history
     /// </summary>
-    public class PurgeHistoryResult
+    public int StorageRequests { get; }
+
+    /// <summary>
+    /// Number of instances deleted during this execution of purge history
+    /// </summary>
+    public int InstancesDeleted { get; }
+
+    /// <summary>
+    /// Number of rows deleted during this execution of purge history
+    /// </summary>
+    public int RowsDeleted { get; }
+
+    /// <summary>
+    /// Converts from AzureStorage.PurgeHistoryResult to Core.PurgeResult type
+    /// </summary>
+    public PurgeResult ToCorePurgeHistoryResult()
     {
-        /// <summary>
-        /// Constructor for purge history statistics
-        /// </summary>
-        /// <param name="storageRequests">Requests sent to storage</param>
-        /// <param name="instancesDeleted">Number of instances deleted</param>
-        /// <param name="rowsDeleted">Number of rows deleted</param>
-        public PurgeHistoryResult(int storageRequests, int instancesDeleted, int rowsDeleted)
-        {
-            this.StorageRequests = storageRequests;
-            this.InstancesDeleted = instancesDeleted;
-            this.RowsDeleted = rowsDeleted;
-        }
-
-        /// <summary>
-        /// Number of requests sent to Storage during this execution of purge history
-        /// </summary>
-        public int StorageRequests { get; }
-
-        /// <summary>
-        /// Number of instances deleted during this execution of purge history
-        /// </summary>
-        public int InstancesDeleted { get; }
-
-        /// <summary>
-        /// Number of rows deleted during this execution of purge history
-        /// </summary>
-        public int RowsDeleted { get; }
-
-        /// <summary>
-        /// Converts from AzureStorage.PurgeHistoryResult to Core.PurgeResult type
-        /// </summary>
-        public PurgeResult ToCorePurgeHistoryResult()
-        {
-            return new PurgeResult(this.InstancesDeleted);
-        }
+        return new PurgeResult(this.InstancesDeleted);
     }
 }

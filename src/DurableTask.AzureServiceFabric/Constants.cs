@@ -11,19 +11,18 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric
+namespace DurableTask.AzureServiceFabric;
+
+internal static class Constants
 {
-    internal static class Constants
-    {
-        internal const string CollectionNameUniquenessPrefix = "DtfxSfp_";
-        internal const string SessionMessagesDictionaryPrefix = CollectionNameUniquenessPrefix + "SessionMessages_";
-        internal const string OrchestrationDictionaryName = CollectionNameUniquenessPrefix + "Orchestrations";
-        internal const string ActivitiesQueueName = CollectionNameUniquenessPrefix + "Activities";
-        internal const string InstanceStoreDictionaryName = CollectionNameUniquenessPrefix + "InstanceStore";
-        internal const string ExecutionStoreDictionaryName = CollectionNameUniquenessPrefix + "ExecutionIdStore";
-        internal const string ScheduledMessagesDictionaryName = CollectionNameUniquenessPrefix + "ScheduledMessages";
-        internal const string TaskHubProxyServiceName = "DurableTask-TaskHubProxyService";
-        internal const string TaskHubProxyListenerEndpointName = "DtfxServiceEndpoint";
-        internal const string ActivityIdHeaderName = "x-ms-durabletask-activityid";
-    }
+    internal const string CollectionNameUniquenessPrefix = "DtfxSfp_";
+    internal const string SessionMessagesDictionaryPrefix = CollectionNameUniquenessPrefix + "SessionMessages_";
+    internal const string OrchestrationDictionaryName = CollectionNameUniquenessPrefix + "Orchestrations";
+    internal const string ActivitiesQueueName = CollectionNameUniquenessPrefix + "Activities";
+    internal const string InstanceStoreDictionaryName = CollectionNameUniquenessPrefix + "InstanceStore";
+    internal const string ExecutionStoreDictionaryName = CollectionNameUniquenessPrefix + "ExecutionIdStore";
+    internal const string ScheduledMessagesDictionaryName = CollectionNameUniquenessPrefix + "ScheduledMessages";
+    internal const string TaskHubProxyServiceName = "DurableTask-TaskHubProxyService";
+    internal const string TaskHubProxyListenerEndpointName = "DtfxServiceEndpoint";
+    internal const string ActivityIdHeaderName = "x-ms-durabletask-activityid";
 }

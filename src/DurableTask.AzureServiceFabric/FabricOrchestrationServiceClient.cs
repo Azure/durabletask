@@ -11,219 +11,218 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric
+namespace DurableTask.AzureServiceFabric;
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+
+using DurableTask.Core;
+using DurableTask.Core.Exceptions;
+using DurableTask.Core.History;
+using DurableTask.Core.Tracking;
+using DurableTask.AzureServiceFabric.Stores;
+using DurableTask.AzureServiceFabric.TaskHelpers;
+using DurableTask.AzureServiceFabric.Tracing;
+
+using Microsoft.ServiceFabric.Data;
+
+using Newtonsoft.Json;
+
+internal class FabricOrchestrationServiceClient : IOrchestrationServiceClient
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Threading;
-    using System.Threading.Tasks;
+    private readonly IReliableStateManager stateManager;
+    private readonly IFabricOrchestrationServiceInstanceStore instanceStore;
+    private readonly SessionProvider orchestrationProvider;
 
-    using DurableTask.Core;
-    using DurableTask.Core.Exceptions;
-    using DurableTask.Core.History;
-    using DurableTask.Core.Tracking;
-    using DurableTask.AzureServiceFabric.Stores;
-    using DurableTask.AzureServiceFabric.TaskHelpers;
-    using DurableTask.AzureServiceFabric.Tracing;
-
-    using Microsoft.ServiceFabric.Data;
-
-    using Newtonsoft.Json;
-
-    internal class FabricOrchestrationServiceClient : IOrchestrationServiceClient
+    public FabricOrchestrationServiceClient(IReliableStateManager stateManager, SessionProvider orchestrationProvider, IFabricOrchestrationServiceInstanceStore instanceStore)
     {
-        private readonly IReliableStateManager stateManager;
-        private readonly IFabricOrchestrationServiceInstanceStore instanceStore;
-        private readonly SessionProvider orchestrationProvider;
+        this.stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
+        this.orchestrationProvider = orchestrationProvider ?? throw new ArgumentNullException(nameof(orchestrationProvider));
+        this.instanceStore = instanceStore ?? throw new ArgumentNullException(nameof(instanceStore));
+    }
 
-        public FabricOrchestrationServiceClient(IReliableStateManager stateManager, SessionProvider orchestrationProvider, IFabricOrchestrationServiceInstanceStore instanceStore)
+    #region IOrchestrationServiceClient
+    public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
+    {
+        if (creationMessage.Event is ExecutionStartedEvent executionStarted && executionStarted.ScheduledStartTime.HasValue)
         {
-            this.stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
-            this.orchestrationProvider = orchestrationProvider ?? throw new ArgumentNullException(nameof(orchestrationProvider));
-            this.instanceStore = instanceStore ?? throw new ArgumentNullException(nameof(instanceStore));
+            throw new NotSupportedException("Service Fabric storage provider for Durable Tasks currently does not support scheduled starts");
         }
 
-        #region IOrchestrationServiceClient
-        public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
+        creationMessage.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
+        ExecutionStartedEvent startEvent = creationMessage.Event as ExecutionStartedEvent;
+        if (startEvent is null)
         {
-            if (creationMessage.Event is ExecutionStartedEvent executionStarted && executionStarted.ScheduledStartTime.HasValue)
-            {
-                throw new NotSupportedException("Service Fabric storage provider for Durable Tasks currently does not support scheduled starts");
-            }
+            await this.SendTaskOrchestrationMessageAsync(creationMessage);
+            return;
+        }
 
-            creationMessage.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
-            ExecutionStartedEvent startEvent = creationMessage.Event as ExecutionStartedEvent;
-            if (startEvent is null)
-            {
-                await this.SendTaskOrchestrationMessageAsync(creationMessage);
-                return;
-            }
+        var instance = creationMessage.OrchestrationInstance;
 
-            var instance = creationMessage.OrchestrationInstance;
-
-            var added = await RetryHelper.ExecuteWithRetryOnTransient<bool>(async () =>
+        var added = await RetryHelper.ExecuteWithRetryOnTransient<bool>(async () =>
+        {
+            using (var tx = this.stateManager.CreateTransaction())
             {
-                using (var tx = this.stateManager.CreateTransaction())
+                if (await this.orchestrationProvider.TryAddSession(tx, new TaskMessageItem(creationMessage)))
                 {
-                    if (await this.orchestrationProvider.TryAddSession(tx, new TaskMessageItem(creationMessage)))
-                    {
-                        await WriteExecutionStartedEventToInstanceStore(tx, startEvent);
-                        await tx.CommitAsync();
-                        return true;
-                    }
-
-                    return false;
+                    await WriteExecutionStartedEventToInstanceStore(tx, startEvent);
+                    await tx.CommitAsync();
+                    return true;
                 }
-            }, uniqueActionIdentifier: $"Orchestration = '{instance}', Action = '{nameof(CreateTaskOrchestrationAsync)}'");
 
-            if (added)
-            {
-                string message = string.Format("Orchestration with instanceId : '{0}' and executionId : '{1}' is Created.", instance.InstanceId, instance.ExecutionId);
-                ServiceFabricProviderEventSource.Tracing.LogOrchestrationInformation(instance.InstanceId, instance.ExecutionId, message);
-                this.orchestrationProvider.TryEnqueueSession(creationMessage.OrchestrationInstance);
+                return false;
             }
-            else
-            {
-                throw new OrchestrationAlreadyExistsException($"An orchestration with id '{creationMessage.OrchestrationInstance.InstanceId}' is already running.");
-            }
-        }
+        }, uniqueActionIdentifier: $"Orchestration = '{instance}', Action = '{nameof(CreateTaskOrchestrationAsync)}'");
 
-        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
+        if (added)
         {
-            // Todo: Support for dedupeStatuses?
-            if (dedupeStatuses is not null)
-            {
-                throw new NotSupportedException($"DedupeStatuses are not supported yet with service fabric provider");
-            }
+            string message = string.Format("Orchestration with instanceId : '{0}' and executionId : '{1}' is Created.", instance.InstanceId, instance.ExecutionId);
+            ServiceFabricProviderEventSource.Tracing.LogOrchestrationInformation(instance.InstanceId, instance.ExecutionId, message);
+            this.orchestrationProvider.TryEnqueueSession(creationMessage.OrchestrationInstance);
+        }
+        else
+        {
+            throw new OrchestrationAlreadyExistsException($"An orchestration with id '{creationMessage.OrchestrationInstance.InstanceId}' is already running.");
+        }
+    }
 
-            return CreateTaskOrchestrationAsync(creationMessage);
+    public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
+    {
+        // Todo: Support for dedupeStatuses?
+        if (dedupeStatuses is not null)
+        {
+            throw new NotSupportedException($"DedupeStatuses are not supported yet with service fabric provider");
         }
 
-        public Task SendTaskOrchestrationMessageAsync(TaskMessage message)
+        return CreateTaskOrchestrationAsync(creationMessage);
+    }
+
+    public Task SendTaskOrchestrationMessageAsync(TaskMessage message)
+    {
+        message.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
+        return this.orchestrationProvider.AppendMessageAsync(new TaskMessageItem(message));
+    }
+
+    public async Task SendTaskOrchestrationMessageBatchAsync(params TaskMessage[] messages)
+    {
+        foreach (var message in messages)
         {
             message.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
-            return this.orchestrationProvider.AppendMessageAsync(new TaskMessageItem(message));
+            await this.SendTaskOrchestrationMessageAsync(message);
+        }
+    }
+
+    public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
+    {
+        instanceId.EnsureValidInstanceId();
+        var latestExecutionId = (await this.instanceStore.GetExecutionIds(instanceId)).Last();
+
+        if (latestExecutionId is null)
+        {
+            throw new ArgumentException($"No execution id found for given instanceId {instanceId}, can only terminate the latest execution of a given orchestration");
         }
 
-        public async Task SendTaskOrchestrationMessageBatchAsync(params TaskMessage[] messages)
+        if (reason?.Trim().StartsWith("CleanupStore", StringComparison.OrdinalIgnoreCase) == true)
         {
-            foreach (var message in messages)
+            using (var txn = this.stateManager.CreateTransaction())
             {
-                message.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
-                await this.SendTaskOrchestrationMessageAsync(message);
+                // DropSession does 2 things (like mentioned in the comments above) - remove the row from sessions dictionary
+                // and delete the session messages dictionary. The second step is in a background thread and not part of transaction.
+                // However even if this transaction failed but we ended up deleting session messages dictionary, that's ok - at
+                // that time, it should be an empty dictionary and we would have updated the runtime session state to full completed
+                // state in the transaction from Complete method. So the subsequent attempt would be able to complete the session.
+                var instance = new OrchestrationInstance { InstanceId = instanceId, ExecutionId = latestExecutionId };
+                await this.orchestrationProvider.DropSession(txn, instance);
+                await txn.CommitAsync();
             }
         }
-
-        public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
+        else
         {
-            instanceId.EnsureValidInstanceId();
-            var latestExecutionId = (await this.instanceStore.GetExecutionIds(instanceId)).Last();
-
-            if (latestExecutionId is null)
+            var taskMessage = new TaskMessage
             {
-                throw new ArgumentException($"No execution id found for given instanceId {instanceId}, can only terminate the latest execution of a given orchestration");
-            }
-
-            if (reason?.Trim().StartsWith("CleanupStore", StringComparison.OrdinalIgnoreCase) == true)
-            {
-                using (var txn = this.stateManager.CreateTransaction())
-                {
-                    // DropSession does 2 things (like mentioned in the comments above) - remove the row from sessions dictionary
-                    // and delete the session messages dictionary. The second step is in a background thread and not part of transaction.
-                    // However even if this transaction failed but we ended up deleting session messages dictionary, that's ok - at
-                    // that time, it should be an empty dictionary and we would have updated the runtime session state to full completed
-                    // state in the transaction from Complete method. So the subsequent attempt would be able to complete the session.
-                    var instance = new OrchestrationInstance { InstanceId = instanceId, ExecutionId = latestExecutionId };
-                    await this.orchestrationProvider.DropSession(txn, instance);
-                    await txn.CommitAsync();
-                }
-            }
-            else
-            {
-                var taskMessage = new TaskMessage
-                {
-                    OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId, ExecutionId = latestExecutionId },
-                    Event = new ExecutionTerminatedEvent(-1, reason)
-                };
-
-                await SendTaskOrchestrationMessageAsync(taskMessage);
-            }
-        }
-
-        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
-        {
-            instanceId.EnsureValidInstanceId();
-            var stateInstances = await this.instanceStore.GetOrchestrationStateAsync(instanceId, allExecutions);
-
-            var result = new List<OrchestrationState>();
-            foreach (var stateInstance in stateInstances)
-            {
-                if (stateInstance is not null)
-                {
-                    result.Add(stateInstance.State);
-                }
-            }
-            return result;
-        }
-
-        public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
-        {
-            instanceId.EnsureValidInstanceId();
-            var stateInstance = await this.instanceStore.GetOrchestrationStateAsync(instanceId, executionId);
-            return stateInstance?.State;
-        }
-
-        public Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId)
-        {
-            instanceId.EnsureValidInstanceId();
-
-            // Other implementations returns full history for the execution.
-            // This implementation returns just the final history, i.e., state.
-            var result = JsonConvert.SerializeObject(this.instanceStore.GetOrchestrationStateAsync(instanceId, executionId));
-            return Task.FromResult(result);
-        }
-
-        public Task PurgeOrchestrationHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
-        {
-            if (timeRangeFilterType != OrchestrationStateTimeRangeFilterType.OrchestrationCompletedTimeFilter)
-            {
-                throw new NotSupportedException("Purging is supported only for Orchestration completed time filter.");
-            }
-
-            return this.instanceStore.PurgeOrchestrationHistoryEventsAsync(thresholdDateTimeUtc);
-        }
-
-        public async Task<OrchestrationState> WaitForOrchestrationAsync(string instanceId, string executionId, TimeSpan timeout, CancellationToken cancellationToken)
-        {
-            instanceId.EnsureValidInstanceId();
-            var state = await this.instanceStore.WaitForOrchestrationAsync(instanceId, timeout);
-            return state?.State;
-        }
-        #endregion
-
-        private Task WriteExecutionStartedEventToInstanceStore(ITransaction tx, ExecutionStartedEvent startEvent)
-        {
-            var createdTime = DateTime.UtcNow;
-            var initialState = new OrchestrationState()
-            {
-                Name = startEvent.Name,
-                Version = startEvent.Version,
-                OrchestrationInstance = startEvent.OrchestrationInstance,
-                OrchestrationStatus = OrchestrationStatus.Pending,
-                Input = startEvent.Input,
-                Tags = startEvent.Tags,
-                CreatedTime = createdTime,
-                LastUpdatedTime = createdTime
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId, ExecutionId = latestExecutionId },
+                Event = new ExecutionTerminatedEvent(-1, reason)
             };
 
-            return this.instanceStore.WriteEntitiesAsync(tx, new InstanceEntityBase[]
-            {
-                new OrchestrationStateInstanceEntity()
-                {
-                    State = initialState
-                }
-            });
+            await SendTaskOrchestrationMessageAsync(taskMessage);
         }
+    }
+
+    public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
+    {
+        instanceId.EnsureValidInstanceId();
+        var stateInstances = await this.instanceStore.GetOrchestrationStateAsync(instanceId, allExecutions);
+
+        var result = new List<OrchestrationState>();
+        foreach (var stateInstance in stateInstances)
+        {
+            if (stateInstance is not null)
+            {
+                result.Add(stateInstance.State);
+            }
+        }
+        return result;
+    }
+
+    public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
+    {
+        instanceId.EnsureValidInstanceId();
+        var stateInstance = await this.instanceStore.GetOrchestrationStateAsync(instanceId, executionId);
+        return stateInstance?.State;
+    }
+
+    public Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId)
+    {
+        instanceId.EnsureValidInstanceId();
+
+        // Other implementations returns full history for the execution.
+        // This implementation returns just the final history, i.e., state.
+        var result = JsonConvert.SerializeObject(this.instanceStore.GetOrchestrationStateAsync(instanceId, executionId));
+        return Task.FromResult(result);
+    }
+
+    public Task PurgeOrchestrationHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
+    {
+        if (timeRangeFilterType != OrchestrationStateTimeRangeFilterType.OrchestrationCompletedTimeFilter)
+        {
+            throw new NotSupportedException("Purging is supported only for Orchestration completed time filter.");
+        }
+
+        return this.instanceStore.PurgeOrchestrationHistoryEventsAsync(thresholdDateTimeUtc);
+    }
+
+    public async Task<OrchestrationState> WaitForOrchestrationAsync(string instanceId, string executionId, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        instanceId.EnsureValidInstanceId();
+        var state = await this.instanceStore.WaitForOrchestrationAsync(instanceId, timeout);
+        return state?.State;
+    }
+    #endregion
+
+    private Task WriteExecutionStartedEventToInstanceStore(ITransaction tx, ExecutionStartedEvent startEvent)
+    {
+        var createdTime = DateTime.UtcNow;
+        var initialState = new OrchestrationState()
+        {
+            Name = startEvent.Name,
+            Version = startEvent.Version,
+            OrchestrationInstance = startEvent.OrchestrationInstance,
+            OrchestrationStatus = OrchestrationStatus.Pending,
+            Input = startEvent.Input,
+            Tags = startEvent.Tags,
+            CreatedTime = createdTime,
+            LastUpdatedTime = createdTime
+        };
+
+        return this.instanceStore.WriteEntitiesAsync(tx, new InstanceEntityBase[]
+        {
+            new OrchestrationStateInstanceEntity()
+            {
+                State = initialState
+            }
+        });
     }
 }

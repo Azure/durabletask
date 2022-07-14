@@ -11,32 +11,31 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Partitioning
+namespace DurableTask.AzureStorage.Partitioning;
+
+using System;
+using System.Threading.Tasks;
+
+sealed class LeaseObserver<T> where T : Lease
 {
-    using System;
-    using System.Threading.Tasks;
+    readonly Func<T, Task> leaseAquiredDelegate;
+    readonly Func<T, CloseReason, Task> leaseReleasedDelegate;
 
-    sealed class LeaseObserver<T> where T : Lease
+    public LeaseObserver(
+        Func<T, Task> leaseAquiredDelegate,
+        Func<T, CloseReason, Task> leaseReleasedDelegate)
     {
-        readonly Func<T, Task> leaseAquiredDelegate;
-        readonly Func<T, CloseReason, Task> leaseReleasedDelegate;
+        this.leaseAquiredDelegate = leaseAquiredDelegate;
+        this.leaseReleasedDelegate = leaseReleasedDelegate;
+    }
 
-        public LeaseObserver(
-            Func<T, Task> leaseAquiredDelegate,
-            Func<T, CloseReason, Task> leaseReleasedDelegate)
-        {
-            this.leaseAquiredDelegate = leaseAquiredDelegate;
-            this.leaseReleasedDelegate = leaseReleasedDelegate;
-        }
+    public Task OnLeaseAquiredAsync(T lease)
+    {
+        return leaseAquiredDelegate.Invoke(lease);
+    }
 
-        public Task OnLeaseAquiredAsync(T lease)
-        {
-            return leaseAquiredDelegate.Invoke(lease);
-        }
-
-        public Task OnLeaseReleasedAsync(T lease, CloseReason reason)
-        {
-            return leaseReleasedDelegate.Invoke(lease, reason);
-        }
+    public Task OnLeaseReleasedAsync(T lease, CloseReason reason)
+    {
+        return leaseReleasedDelegate.Invoke(lease, reason);
     }
 }

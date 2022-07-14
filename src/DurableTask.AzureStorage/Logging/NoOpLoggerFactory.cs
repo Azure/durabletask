@@ -11,49 +11,48 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Logging
+namespace DurableTask.AzureStorage.Logging;
+
+using System;
+using Microsoft.Extensions.Logging;
+
+// There is a NullLoggerFactory defined in Microsoft.Extensions.Logging.Abstractions v2.x and above, but we 
+// cannot rely on it because Azure Functions v1 is pinned to Microsoft.Extensions.Logging.Abstractions v1.x.
+sealed class NoOpLoggerFactory : ILoggerFactory
 {
-    using System;
-    using Microsoft.Extensions.Logging;
+    public static readonly NoOpLoggerFactory Instance = new NoOpLoggerFactory();
 
-    // There is a NullLoggerFactory defined in Microsoft.Extensions.Logging.Abstractions v2.x and above, but we 
-    // cannot rely on it because Azure Functions v1 is pinned to Microsoft.Extensions.Logging.Abstractions v1.x.
-    sealed class NoOpLoggerFactory : ILoggerFactory
+    NoOpLoggerFactory()
     {
-        public static readonly NoOpLoggerFactory Instance = new NoOpLoggerFactory();
+    }
 
-        NoOpLoggerFactory()
+    public void AddProvider(ILoggerProvider provider)
+    {
+    }
+
+    public ILogger CreateLogger(string categoryName)
+    {
+        return NoOpLogger.Instance;
+    }
+
+    public void Dispose()
+    {
+    }
+
+    sealed class NoOpLogger : ILogger, IDisposable
+    {
+        public static NoOpLogger Instance = new NoOpLogger();
+
+        public IDisposable BeginScope<TState>(TState state) => this;
+
+        public bool IsEnabled(LogLevel logLevel) => false;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
         {
         }
 
-        public void AddProvider(ILoggerProvider provider)
+        void IDisposable.Dispose()
         {
-        }
-
-        public ILogger CreateLogger(string categoryName)
-        {
-            return NoOpLogger.Instance;
-        }
-
-        public void Dispose()
-        {
-        }
-
-        sealed class NoOpLogger : ILogger, IDisposable
-        {
-            public static NoOpLogger Instance = new NoOpLogger();
-
-            public IDisposable BeginScope<TState>(TState state) => this;
-
-            public bool IsEnabled(LogLevel logLevel) => false;
-
-            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
-            {
-            }
-
-            void IDisposable.Dispose()
-            {
-            }
         }
     }
 }

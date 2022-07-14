@@ -11,169 +11,168 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Tests
+namespace DurableTask.Core.Tests;
+
+using System;
+using System.Threading.Tasks;
+using Microsoft.Practices.EnterpriseLibrary.SemanticLogging.Utility;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using DurableTask.Core.Common;
+using DurableTask.Core.Tracing;
+
+[TestClass]
+public class CommonTests
 {
-    using System;
-    using System.Threading.Tasks;
-    using Microsoft.Practices.EnterpriseLibrary.SemanticLogging.Utility;
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using DurableTask.Core.Common;
-    using DurableTask.Core.Tracing;
-
-    [TestClass]
-    public class CommonTests
+    [TestMethod]
+    public void DateTimeExtensionsIsSetTest()
     {
-        [TestMethod]
-        public void DateTimeExtensionsIsSetTest()
-        {
-            Assert.IsTrue(DateTime.Now.IsSet());
-            Assert.IsTrue(DateTime.MaxValue.IsSet());
-            Assert.IsFalse(DateTime.MinValue.IsSet());
-            Assert.IsFalse(DateTimeUtils.MinDateTime.IsSet());
+        Assert.IsTrue(DateTime.Now.IsSet());
+        Assert.IsTrue(DateTime.MaxValue.IsSet());
+        Assert.IsFalse(DateTime.MinValue.IsSet());
+        Assert.IsFalse(DateTimeUtils.MinDateTime.IsSet());
 
-            if (DateTimeUtils.MinDateTime == DateTime.FromFileTimeUtc(0))
+        if (DateTimeUtils.MinDateTime == DateTime.FromFileTimeUtc(0))
+        {
+            Assert.IsFalse(DateTime.FromFileTimeUtc(0).IsSet());
+        }
+    }
+
+    [TestMethod]
+    public void ShouldValidateEventSource()
+    {
+        EventSourceAnalyzer.InspectAll(DefaultEventSource.Log);
+    }
+
+    /// <summary>
+    /// Ignores the action since number of attempts is zero
+    /// </summary>
+    /// <returns></returns>
+    [TestMethod]
+    public async Task ExecuteWithRetryIsNoOpBecauseNoAttemptsWereMade()
+    {
+        const int NumberOfAttempts = 0;
+        var retries = 0;
+
+        // Call the method overload which signature does not return any value
+        await Utils.ExecuteWithRetries(() =>
+        {
+            retries++;
+            return Task.Delay(1);
+        }, string.Empty, string.Empty, NumberOfAttempts, 0);
+
+        Assert.AreEqual(NumberOfAttempts, retries, "Action was executed when should have been ignored");
+
+        // Call the method overload which signature does return a value
+        bool hasSucceed = await Utils.ExecuteWithRetries(() =>
+            Task.FromResult(true), string.Empty, string.Empty, NumberOfAttempts, 0);
+
+        Assert.AreEqual(NumberOfAttempts, retries, "Action was executed when should have been ignored");
+        Assert.IsFalse(hasSucceed, "Retry logic executed the action when should have been ignored");
+    }
+
+    /// <summary>
+    /// Executes the action with retry and rethrows the exception.
+    /// </summary>
+    /// <returns></returns>
+    [TestMethod]
+    public async Task ExecuteWithRetryThrowsByRetryCountLimit()
+    {
+        const int NumberOfAttempts = 3;
+        var retries = 0;
+        var hasFailed = false;
+
+        try
+        {
+            // Call the method overload which signature does not return any value
+            await Utils.ExecuteWithRetries(() =>
             {
-                Assert.IsFalse(DateTime.FromFileTimeUtc(0).IsSet());
-            }
+                // ReSharper disable once AccessToModifiedClosure (Intentional...)
+                retries++;
+
+                throw new DivideByZeroException();
+            }, string.Empty, string.Empty, NumberOfAttempts, 0);
+        }
+        catch (DivideByZeroException)
+        {
+            hasFailed = true;
         }
 
-        [TestMethod]
-        public void ShouldValidateEventSource()
+        Assert.AreEqual(NumberOfAttempts, retries, "Number of attempts not honored by the retry logic");
+        Assert.IsTrue(hasFailed, "Retry logic didn't unwind and rethrow inner exception");
+
+        retries = 0;
+        hasFailed = false;
+        try
         {
-            EventSourceAnalyzer.InspectAll(DefaultEventSource.Log);
+            // Call the method overload which signature returns a value
+            await Utils.ExecuteWithRetries<bool>(() =>
+            {
+                retries++;
+                throw new DivideByZeroException();
+            }, string.Empty, string.Empty, NumberOfAttempts, 0);
+        }
+        catch (DivideByZeroException)
+        {
+            hasFailed = true;
         }
 
-        /// <summary>
-        /// Ignores the action since number of attempts is zero
-        /// </summary>
-        /// <returns></returns>
-        [TestMethod]
-        public async Task ExecuteWithRetryIsNoOpBecauseNoAttemptsWereMade()
+        Assert.AreEqual(NumberOfAttempts, retries, "Number of attempts not honored by the retry logic");
+        Assert.IsTrue(hasFailed, "Retry logic didn't unwind and rethrow inner exception");
+    }
+
+    /// <summary>
+    /// Executes the action with retry until it succeeds.
+    /// </summary>
+    /// <returns></returns>
+    [TestMethod]
+    public async Task ExecuteWithRetrySucceedsAfterXAttemptsMinus1()
+    {
+        const int NumberOfAttempts = 5;
+
+        for (var attemptsBeforeFailure = 1; attemptsBeforeFailure < 5; attemptsBeforeFailure++)
         {
-            const int NumberOfAttempts = 0;
             var retries = 0;
+            var hasSucceed = false;
 
             // Call the method overload which signature does not return any value
             await Utils.ExecuteWithRetries(() =>
             {
                 retries++;
+
+                // ReSharper disable once AccessToModifiedClosure
+                if (retries < attemptsBeforeFailure)
+                {
+                    throw new DivideByZeroException();
+                }
+
+                hasSucceed = true;
                 return Task.Delay(1);
             }, string.Empty, string.Empty, NumberOfAttempts, 0);
 
-            Assert.AreEqual(NumberOfAttempts, retries, "Action was executed when should have been ignored");
-
-            // Call the method overload which signature does return a value
-            bool hasSucceed = await Utils.ExecuteWithRetries(() =>
-                Task.FromResult(true), string.Empty, string.Empty, NumberOfAttempts, 0);
-
-            Assert.AreEqual(NumberOfAttempts, retries, "Action was executed when should have been ignored");
-            Assert.IsFalse(hasSucceed, "Retry logic executed the action when should have been ignored");
+            Assert.AreEqual(attemptsBeforeFailure, retries, "Number of attempts not honored by the retry logic");
+            Assert.IsTrue(hasSucceed, "Retry logic throws an exception when should succeed");
         }
 
-        /// <summary>
-        /// Executes the action with retry and rethrows the exception.
-        /// </summary>
-        /// <returns></returns>
-        [TestMethod]
-        public async Task ExecuteWithRetryThrowsByRetryCountLimit()
+        for (var attemptsBeforeFailure = 1; attemptsBeforeFailure < 5; attemptsBeforeFailure++)
         {
-            const int NumberOfAttempts = 3;
             var retries = 0;
-            var hasFailed = false;
 
-            try
+            // Call the method overload which signature does return any value
+            bool hasSucceed = await Utils.ExecuteWithRetries(() =>
             {
-                // Call the method overload which signature does not return any value
-                await Utils.ExecuteWithRetries(() =>
-                {
-                    // ReSharper disable once AccessToModifiedClosure (Intentional...)
-                    retries++;
+                retries++;
 
+                // ReSharper disable once AccessToModifiedClosure
+                if (retries < attemptsBeforeFailure)
+                {
                     throw new DivideByZeroException();
-                }, string.Empty, string.Empty, NumberOfAttempts, 0);
-            }
-            catch (DivideByZeroException)
-            {
-                hasFailed = true;
-            }
+                }
 
-            Assert.AreEqual(NumberOfAttempts, retries, "Number of attempts not honored by the retry logic");
-            Assert.IsTrue(hasFailed, "Retry logic didn't unwind and rethrow inner exception");
+                return Task.FromResult(true);
+            }, string.Empty, string.Empty, NumberOfAttempts, 0);
 
-            retries = 0;
-            hasFailed = false;
-            try
-            {
-                // Call the method overload which signature returns a value
-                await Utils.ExecuteWithRetries<bool>(() =>
-                {
-                    retries++;
-                    throw new DivideByZeroException();
-                }, string.Empty, string.Empty, NumberOfAttempts, 0);
-            }
-            catch (DivideByZeroException)
-            {
-                hasFailed = true;
-            }
-
-            Assert.AreEqual(NumberOfAttempts, retries, "Number of attempts not honored by the retry logic");
-            Assert.IsTrue(hasFailed, "Retry logic didn't unwind and rethrow inner exception");
-        }
-
-        /// <summary>
-        /// Executes the action with retry until it succeeds.
-        /// </summary>
-        /// <returns></returns>
-        [TestMethod]
-        public async Task ExecuteWithRetrySucceedsAfterXAttemptsMinus1()
-        {
-            const int NumberOfAttempts = 5;
-
-            for (var attemptsBeforeFailure = 1; attemptsBeforeFailure < 5; attemptsBeforeFailure++)
-            {
-                var retries = 0;
-                var hasSucceed = false;
-
-                // Call the method overload which signature does not return any value
-                await Utils.ExecuteWithRetries(() =>
-                {
-                    retries++;
-
-                    // ReSharper disable once AccessToModifiedClosure
-                    if (retries < attemptsBeforeFailure)
-                    {
-                        throw new DivideByZeroException();
-                    }
-
-                    hasSucceed = true;
-                    return Task.Delay(1);
-                }, string.Empty, string.Empty, NumberOfAttempts, 0);
-
-                Assert.AreEqual(attemptsBeforeFailure, retries, "Number of attempts not honored by the retry logic");
-                Assert.IsTrue(hasSucceed, "Retry logic throws an exception when should succeed");
-            }
-
-            for (var attemptsBeforeFailure = 1; attemptsBeforeFailure < 5; attemptsBeforeFailure++)
-            {
-                var retries = 0;
-
-                // Call the method overload which signature does return any value
-                bool hasSucceed = await Utils.ExecuteWithRetries(() =>
-                {
-                    retries++;
-
-                    // ReSharper disable once AccessToModifiedClosure
-                    if (retries < attemptsBeforeFailure)
-                    {
-                        throw new DivideByZeroException();
-                    }
-
-                    return Task.FromResult(true);
-                }, string.Empty, string.Empty, NumberOfAttempts, 0);
-
-                Assert.AreEqual(attemptsBeforeFailure, retries, "Number of attempts not honored by the retry logic");
-                Assert.IsTrue(hasSucceed, "Retry logic throws an exception when should succeed");
-            }
+            Assert.AreEqual(attemptsBeforeFailure, retries, "Number of attempts not honored by the retry logic");
+            Assert.IsTrue(hasSucceed, "Retry logic throws an exception when should succeed");
         }
     }
 }

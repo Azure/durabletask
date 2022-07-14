@@ -11,21 +11,20 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Settings
+namespace DurableTask.Core.Settings;
+
+/// <summary>
+///     Settings to configure the Service Bus session.
+/// </summary>
+public interface ISessionSettings
 {
     /// <summary>
-    ///     Settings to configure the Service Bus session.
+    ///     The max allowed session size in service bus. Default is 230K.
     /// </summary>
-    public interface ISessionSettings
-    {
-        /// <summary>
-        ///     The max allowed session size in service bus. Default is 230K.
-        /// </summary>
-        int SessionMaxSizeInBytes { get; set; }
+    int SessionMaxSizeInBytes { get; set; }
 
-        /// <summary>
-        ///     The max allowed session size for external storage. Default is 10M.
-        /// </summary>
-        int SessionOverflowThresholdInBytes { get; set; }
-    }
+    /// <summary>
+    ///     The max allowed session size for external storage. Default is 10M.
+    /// </summary>
+    int SessionOverflowThresholdInBytes { get; set; }
 }

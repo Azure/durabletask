@@ -11,34 +11,33 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Tracking
+namespace DurableTask.Core.Tracking;
+
+using System;
+using DurableTask.Core.History;
+
+/// <summary>
+/// History Entity for a Work Item Instance
+/// </summary>
+public class OrchestrationWorkItemInstanceEntity : InstanceEntityBase
 {
-    using System;
-    using DurableTask.Core.History;
+    /// <summary>
+    /// The orchestration instance id
+    /// </summary>
+    public string InstanceId;
 
     /// <summary>
-    /// History Entity for a Work Item Instance
+    /// The orchestration execution id
     /// </summary>
-    public class OrchestrationWorkItemInstanceEntity : InstanceEntityBase
-    {
-        /// <summary>
-        /// The orchestration instance id
-        /// </summary>
-        public string InstanceId;
+    public string ExecutionId;
 
-        /// <summary>
-        /// The orchestration execution id
-        /// </summary>
-        public string ExecutionId;
+    /// <summary>
+    /// Timestamp of the instance event
+    /// </summary>
+    public DateTime EventTimestamp;
 
-        /// <summary>
-        /// Timestamp of the instance event
-        /// </summary>
-        public DateTime EventTimestamp;
-
-        /// <summary>
-        /// History event corresponding to this work item instance entity
-        /// </summary>
-        public HistoryEvent HistoryEvent;
-    }
+    /// <summary>
+    /// History event corresponding to this work item instance entity
+    /// </summary>
+    public HistoryEvent HistoryEvent;
 }

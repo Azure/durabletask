@@ -11,29 +11,28 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.History
+namespace DurableTask.Core.History;
+
+using System.Runtime.Serialization;
+
+/// <summary>
+/// A history event for continue-as-new
+/// </summary>
+[DataContract]
+public class ContinueAsNewEvent : ExecutionCompletedEvent
 {
-    using System.Runtime.Serialization;
+    /// <summary>
+    /// Creates a new ExecutionStartedEvent with the supplied parameters
+    /// </summary>
+    /// <param name="eventId">The event id of the history event</param>
+    /// <param name="input">The serialized orchestration input</param>
+    public ContinueAsNewEvent(int eventId, string input)
+        : base(eventId, input, OrchestrationStatus.ContinuedAsNew)
+    {
+    }
 
     /// <summary>
-    /// A history event for continue-as-new
+    /// Gets the event type
     /// </summary>
-    [DataContract]
-    public class ContinueAsNewEvent : ExecutionCompletedEvent
-    {
-        /// <summary>
-        /// Creates a new ExecutionStartedEvent with the supplied parameters
-        /// </summary>
-        /// <param name="eventId">The event id of the history event</param>
-        /// <param name="input">The serialized orchestration input</param>
-        public ContinueAsNewEvent(int eventId, string input)
-            : base(eventId, input, OrchestrationStatus.ContinuedAsNew)
-        {
-        }
-
-        /// <summary>
-        /// Gets the event type
-        /// </summary>
-        public override EventType EventType => EventType.ContinueAsNew;
-    }
+    public override EventType EventType => EventType.ContinueAsNew;
 }

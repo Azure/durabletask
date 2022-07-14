@@ -11,87 +11,86 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Threading.Tasks;
+using Castle.DynamicProxy;
+using DurableTask.Core.Common;
+
+internal class ScheduleProxy : IInterceptor
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Reflection;
-    using System.Threading.Tasks;
-    using Castle.DynamicProxy;
-    using DurableTask.Core.Common;
+    private readonly OrchestrationContext context;
+    private readonly bool useFullyQualifiedMethodNames;
 
-    internal class ScheduleProxy : IInterceptor
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ScheduleProxy"/> class.
+    /// </summary>
+    /// <param name="context">The orchestration context.</param>
+    public ScheduleProxy(OrchestrationContext context)
+        : this(context, false)
     {
-        private readonly OrchestrationContext context;
-        private readonly bool useFullyQualifiedMethodNames;
+    }
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="ScheduleProxy"/> class.
-        /// </summary>
-        /// <param name="context">The orchestration context.</param>
-        public ScheduleProxy(OrchestrationContext context)
-            : this(context, false)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ScheduleProxy"/> class.
+    /// </summary>
+    /// <param name="context">The orchestration context.</param>
+    /// <param name="useFullyQualifiedMethodNames">A flag indicating whether to use fully qualified method names.</param>
+    public ScheduleProxy(OrchestrationContext context, bool useFullyQualifiedMethodNames)
+    {
+        this.context = context;
+        this.useFullyQualifiedMethodNames = useFullyQualifiedMethodNames;
+    }
+
+    /// <inheritdoc/>
+    public void Intercept(IInvocation invocation)
+    {
+        Type returnType = invocation.Method.ReturnType;
+
+        if (!typeof(Task).IsAssignableFrom(returnType))
         {
+            throw new InvalidOperationException($"Invoked method must return a task. Current return type is {invocation.Method.ReturnType}");
         }
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="ScheduleProxy"/> class.
-        /// </summary>
-        /// <param name="context">The orchestration context.</param>
-        /// <param name="useFullyQualifiedMethodNames">A flag indicating whether to use fully qualified method names.</param>
-        public ScheduleProxy(OrchestrationContext context, bool useFullyQualifiedMethodNames)
+        Type[] genericArgumentValues = invocation.GenericArguments ?? Array.Empty<Type>();
+        List<object> arguments = new(invocation.Arguments);
+
+        foreach (var typeArg in genericArgumentValues)
         {
-            this.context = context;
-            this.useFullyQualifiedMethodNames = useFullyQualifiedMethodNames;
+            arguments.Add(new Utils.TypeMetadata { AssemblyName = typeArg.Assembly.FullName!, FullyQualifiedTypeName = typeArg.FullName });
         }
 
-        /// <inheritdoc/>
-        public void Intercept(IInvocation invocation)
+        string normalizedMethodName = NameVersionHelper.GetDefaultName(invocation.Method, this.useFullyQualifiedMethodNames);
+
+        if (returnType == typeof(Task))
         {
-            Type returnType = invocation.Method.ReturnType;
-
-            if (!typeof(Task).IsAssignableFrom(returnType))
-            {
-                throw new InvalidOperationException($"Invoked method must return a task. Current return type is {invocation.Method.ReturnType}");
-            }
-
-            Type[] genericArgumentValues = invocation.GenericArguments ?? Array.Empty<Type>();
-            List<object> arguments = new(invocation.Arguments);
-
-            foreach (var typeArg in genericArgumentValues)
-            {
-                arguments.Add(new Utils.TypeMetadata { AssemblyName = typeArg.Assembly.FullName!, FullyQualifiedTypeName = typeArg.FullName });
-            }
-
-            string normalizedMethodName = NameVersionHelper.GetDefaultName(invocation.Method, this.useFullyQualifiedMethodNames);
-
-            if (returnType == typeof(Task))
-            {
-                invocation.ReturnValue = this.context.ScheduleTask<object>(
-                    normalizedMethodName,
-                    NameVersionHelper.GetDefaultVersion(invocation.Method),
-                    arguments.ToArray());
-                return;
-            }
-
-            returnType = invocation.Method.ReturnType.GetGenericArguments().Single();
-
-            MethodInfo scheduleMethod = typeof(OrchestrationContext).GetMethod(
-                "ScheduleTask",
-                new[] { typeof(string), typeof(string), typeof(object[]) }) ??
-                throw new Exception($"Method 'ScheduleTask' not found. Type Name: {nameof(OrchestrationContext)}");
-
-            MethodInfo genericScheduleMethod = scheduleMethod.MakeGenericMethod(returnType);
-
-            invocation.ReturnValue = genericScheduleMethod.Invoke(this.context, new object[]
-            {
+            invocation.ReturnValue = this.context.ScheduleTask<object>(
                 normalizedMethodName,
                 NameVersionHelper.GetDefaultVersion(invocation.Method),
-                arguments.ToArray(),
-            });
-
+                arguments.ToArray());
             return;
         }
+
+        returnType = invocation.Method.ReturnType.GetGenericArguments().Single();
+
+        MethodInfo scheduleMethod = typeof(OrchestrationContext).GetMethod(
+            "ScheduleTask",
+            new[] { typeof(string), typeof(string), typeof(object[]) }) ??
+            throw new Exception($"Method 'ScheduleTask' not found. Type Name: {nameof(OrchestrationContext)}");
+
+        MethodInfo genericScheduleMethod = scheduleMethod.MakeGenericMethod(returnType);
+
+        invocation.ReturnValue = genericScheduleMethod.Invoke(this.context, new object[]
+        {
+            normalizedMethodName,
+            NameVersionHelper.GetDefaultVersion(invocation.Method),
+            arguments.ToArray(),
+        });
+
+        return;
     }
 }

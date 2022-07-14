@@ -11,18 +11,17 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Samples.Greetings
-{
-    using System.Threading.Tasks;
-    using DurableTask.Core;
+namespace DurableTask.Samples.Greetings;
 
-    public class GreetingsOrchestration : TaskOrchestration<string,string>
+using System.Threading.Tasks;
+using DurableTask.Core;
+
+public class GreetingsOrchestration : TaskOrchestration<string,string>
+{
+    public override async Task<string> RunTask(OrchestrationContext context, string input)
     {
-        public override async Task<string> RunTask(OrchestrationContext context, string input)
-        {
-            string user = await context.ScheduleTask<string>(typeof(GetUserTask));
-            string greeting = await context.ScheduleTask<string>(typeof(SendGreetingTask), user);
-            return greeting;
-        }
+        string user = await context.ScheduleTask<string>(typeof(GetUserTask));
+        string greeting = await context.ScheduleTask<string>(typeof(SendGreetingTask), user);
+        return greeting;
     }
 }

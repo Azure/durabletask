@@ -11,52 +11,51 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.Core.History
+namespace DurableTask.Core.History;
+
+using System.Runtime.Serialization;
+
+/// <summary>
+/// A history event for execution completed
+/// </summary>
+[DataContract]
+public class ExecutionCompletedEvent : HistoryEvent
 {
-    using System.Runtime.Serialization;
+    /// <summary>
+    /// Creates a new ExecutionCompletedEvent with the supplied parameters
+    /// </summary>
+    /// <param name="eventId">The event integer id</param>
+    /// <param name="result">The string serialized completion result</param>
+    /// <param name="orchestrationStatus">The orchestration status</param>
+    /// <param name="failureDetails">Structured details of the orchestration failure</param>
+    public ExecutionCompletedEvent(int eventId, string? result, OrchestrationStatus orchestrationStatus, FailureDetails? failureDetails = null)
+        : base(eventId)
+    {
+        Result = result;
+        OrchestrationStatus = orchestrationStatus;
+        FailureDetails = failureDetails;
+    }
 
     /// <summary>
-    /// A history event for execution completed
+    /// Gets the event type
     /// </summary>
-    [DataContract]
-    public class ExecutionCompletedEvent : HistoryEvent
-    {
-        /// <summary>
-        /// Creates a new ExecutionCompletedEvent with the supplied parameters
-        /// </summary>
-        /// <param name="eventId">The event integer id</param>
-        /// <param name="result">The string serialized completion result</param>
-        /// <param name="orchestrationStatus">The orchestration status</param>
-        /// <param name="failureDetails">Structured details of the orchestration failure</param>
-        public ExecutionCompletedEvent(int eventId, string? result, OrchestrationStatus orchestrationStatus, FailureDetails? failureDetails = null)
-            : base(eventId)
-        {
-            Result = result;
-            OrchestrationStatus = orchestrationStatus;
-            FailureDetails = failureDetails;
-        }
+    public override EventType EventType => EventType.ExecutionCompleted;
 
-        /// <summary>
-        /// Gets the event type
-        /// </summary>
-        public override EventType EventType => EventType.ExecutionCompleted;
+    /// <summary>
+    /// Gets the history events orchestration status
+    /// </summary>
+    [DataMember]
+    public OrchestrationStatus OrchestrationStatus { get; private set; }
 
-        /// <summary>
-        /// Gets the history events orchestration status
-        /// </summary>
-        [DataMember]
-        public OrchestrationStatus OrchestrationStatus { get; private set; }
+    /// <summary>
+    /// Gets the serialized completion result
+    /// </summary>
+    [DataMember]
+    public string? Result { get; private set; }
 
-        /// <summary>
-        /// Gets the serialized completion result
-        /// </summary>
-        [DataMember]
-        public string? Result { get; private set; }
-
-        /// <summary>
-        /// Gets the structured details of the task failure.
-        /// </summary>
-        [DataMember]
-        public FailureDetails? FailureDetails { get; private set; }
-    }
+    /// <summary>
+    /// Gets the structured details of the task failure.
+    /// </summary>
+    [DataMember]
+    public FailureDetails? FailureDetails { get; private set; }
 }

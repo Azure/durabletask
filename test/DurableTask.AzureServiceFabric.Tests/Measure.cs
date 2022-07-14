@@ -11,43 +11,42 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Tests
+namespace DurableTask.AzureServiceFabric.Tests;
+
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Runtime.Serialization;
+
+internal class Measure
 {
-    using System;
-    using System.Diagnostics;
-    using System.IO;
-    using System.Runtime.Serialization;
-
-    internal class Measure
+    public static T DataContractSerialization<T>(T testObject)
     {
-        public static T DataContractSerialization<T>(T testObject)
-        {
-            return (T)DataContractSerialization(typeof(T), testObject);
-        }
+        return (T)DataContractSerialization(typeof(T), testObject);
+    }
 
-        public static object DataContractSerialization(Type testType, object testObject)
+    public static object DataContractSerialization(Type testType, object testObject)
+    {
+        using (var stream = new MemoryStream())
         {
-            using (var stream = new MemoryStream())
-            {
-                var serializer = new DataContractSerializer(testType);
-                var time = MeasureTime(() => serializer.WriteObject(stream, testObject));
-                Console.WriteLine($"Time for serialization : {time.TotalMilliseconds} ms");
-                Console.WriteLine($"Size of serialized stream : {stream.Length} bytes.");
+            var serializer = new DataContractSerializer(testType);
+            var time = MeasureTime(() => serializer.WriteObject(stream, testObject));
+            Console.WriteLine($"Time for serialization : {time.TotalMilliseconds} ms");
+            Console.WriteLine($"Size of serialized stream : {stream.Length} bytes.");
 
-                stream.Position = 0;
-                object deserialized = null;
-                time = MeasureTime(() => { deserialized = serializer.ReadObject(stream); });
-                Console.WriteLine($"Time for deserialization : {time.TotalMilliseconds} ms");
-                return deserialized;
-            }
+            stream.Position = 0;
+            object deserialized = null;
+            time = MeasureTime(() => { deserialized = serializer.ReadObject(stream); });
+            Console.WriteLine($"Time for deserialization : {time.TotalMilliseconds} ms");
+            return deserialized;
         }
+    }
 
-        public static TimeSpan MeasureTime(Action action)
-        {
-            Stopwatch timer = Stopwatch.StartNew();
-            action();
-            timer.Stop();
-            return timer.Elapsed;
-        }
+    public static TimeSpan MeasureTime(Action action)
+    {
+        Stopwatch timer = Stopwatch.StartNew();
+        action();
+        timer.Stop();
+        return timer.Elapsed;
     }
 }

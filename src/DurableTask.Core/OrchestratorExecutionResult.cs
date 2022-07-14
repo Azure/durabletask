@@ -11,57 +11,56 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+using System;
+using System.Collections.Generic;
+
+using DurableTask.Core.Command;
+
+using Newtonsoft.Json;
+
+/// <summary>
+/// The result of an orchestration execution.
+/// </summary>
+public class OrchestratorExecutionResult
 {
-    using System;
-    using System.Collections.Generic;
-
-    using DurableTask.Core.Command;
-
-    using Newtonsoft.Json;
+    /// <summary>
+    /// The list of actions resulting from the orchestrator execution.
+    /// </summary>
+    [JsonProperty("actions")]
+    public IEnumerable<OrchestratorAction> Actions { get; set; } = Array.Empty<OrchestratorAction>();
 
     /// <summary>
-    /// The result of an orchestration execution.
+    /// The custom status, if any, of the orchestrator.
     /// </summary>
-    public class OrchestratorExecutionResult
-    {
-        /// <summary>
-        /// The list of actions resulting from the orchestrator execution.
-        /// </summary>
-        [JsonProperty("actions")]
-        public IEnumerable<OrchestratorAction> Actions { get; set; } = Array.Empty<OrchestratorAction>();
+    [JsonProperty("customStatus")]
+    public string? CustomStatus { get; set; }
 
-        /// <summary>
-        /// The custom status, if any, of the orchestrator.
-        /// </summary>
-        [JsonProperty("customStatus")]
-        public string? CustomStatus { get; set; }
+    /// <summary>
+    /// Creates an orchestrator failure result with a specified message and exception.
+    /// </summary>
+    /// <param name="message">The simple failure message.</param>
+    /// <param name="e">The exception that triggered the failure.</param>
+    /// <returns>The orchestrator failure result.</returns>
+    public static OrchestratorExecutionResult ForFailure(string message, Exception e) => ForFailure(message, e.ToString());
 
-        /// <summary>
-        /// Creates an orchestrator failure result with a specified message and exception.
-        /// </summary>
-        /// <param name="message">The simple failure message.</param>
-        /// <param name="e">The exception that triggered the failure.</param>
-        /// <returns>The orchestrator failure result.</returns>
-        public static OrchestratorExecutionResult ForFailure(string message, Exception e) => ForFailure(message, e.ToString());
-
-        /// <summary>
-        /// Creates an orchestrator failure result with a specified message and details.
-        /// </summary>
-        /// <param name="message">The simple failure message.</param>
-        /// <param name="details">The failure details that give more information about what triggered the failure.</param>
-        /// <returns>The orchestrator failure result.</returns>
-        public static OrchestratorExecutionResult ForFailure(string message, string? details)
-         => new OrchestratorExecutionResult
-         {
-             Actions = new List<OrchestratorAction>
+    /// <summary>
+    /// Creates an orchestrator failure result with a specified message and details.
+    /// </summary>
+    /// <param name="message">The simple failure message.</param>
+    /// <param name="details">The failure details that give more information about what triggered the failure.</param>
+    /// <returns>The orchestrator failure result.</returns>
+    public static OrchestratorExecutionResult ForFailure(string message, string? details)
+     => new OrchestratorExecutionResult
+     {
+         Actions = new List<OrchestratorAction>
+            {
+                new OrchestrationCompleteOrchestratorAction
                 {
-                    new OrchestrationCompleteOrchestratorAction
-                    {
-                        OrchestrationStatus = OrchestrationStatus.Failed,
-                        Result = JsonConvert.SerializeObject(new { message, details }),
-                    },
+                    OrchestrationStatus = OrchestrationStatus.Failed,
+                    Result = JsonConvert.SerializeObject(new { message, details }),
                 },
-         };
-    }
+            },
+     };
 }

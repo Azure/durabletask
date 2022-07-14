@@ -11,52 +11,51 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.History
+namespace DurableTask.Core.History;
+
+using System.Runtime.Serialization;
+
+/// <summary>
+/// A history event for sub orchestration instance creation
+/// </summary>
+[DataContract]
+public class SubOrchestrationInstanceCreatedEvent : HistoryEvent
 {
-    using System.Runtime.Serialization;
+    /// <summary>
+    /// Creates a new SubOrchestrationInstanceCreatedEvent with the supplied event id
+    /// </summary>
+    /// <param name="eventId">The event id of the history event</param>
+    public SubOrchestrationInstanceCreatedEvent(int eventId)
+        : base(eventId)
+    {
+    }
 
     /// <summary>
-    /// A history event for sub orchestration instance creation
+    /// Gets the event type
     /// </summary>
-    [DataContract]
-    public class SubOrchestrationInstanceCreatedEvent : HistoryEvent
-    {
-        /// <summary>
-        /// Creates a new SubOrchestrationInstanceCreatedEvent with the supplied event id
-        /// </summary>
-        /// <param name="eventId">The event id of the history event</param>
-        public SubOrchestrationInstanceCreatedEvent(int eventId)
-            : base(eventId)
-        {
-        }
+    public override EventType EventType => EventType.SubOrchestrationInstanceCreated;
 
-        /// <summary>
-        /// Gets the event type
-        /// </summary>
-        public override EventType EventType => EventType.SubOrchestrationInstanceCreated;
+    /// <summary>
+    /// Gets or sets the sub orchestration Name
+    /// </summary>
+    [DataMember]
+    public string Name { get; set; }
 
-        /// <summary>
-        /// Gets or sets the sub orchestration Name
-        /// </summary>
-        [DataMember]
-        public string Name { get; set; }
+    /// <summary>
+    /// Gets or sets the sub orchestration Version
+    /// </summary>
+    [DataMember]
+    public string Version { get; set; }
 
-        /// <summary>
-        /// Gets or sets the sub orchestration Version
-        /// </summary>
-        [DataMember]
-        public string Version { get; set; }
+    /// <summary>
+    /// Gets or sets the instance Id
+    /// </summary>
+    [DataMember]
+    public string InstanceId { get; set; }
 
-        /// <summary>
-        /// Gets or sets the instance Id
-        /// </summary>
-        [DataMember]
-        public string InstanceId { get; set; }
-
-        /// <summary>
-        /// Gets or sets the sub orchestration's serialized input
-        /// </summary>
-        [DataMember]
-        public string Input { get; set; }
-    }
+    /// <summary>
+    /// Gets or sets the sub orchestration's serialized input
+    /// </summary>
+    [DataMember]
+    public string Input { get; set; }
 }

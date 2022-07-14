@@ -11,70 +11,69 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+using System;
+
+/// <summary>
+///     Contains retry policies that can be passed as parameters to various operations
+/// </summary>
+public class RetryOptions
 {
-    using System;
-
     /// <summary>
-    ///     Contains retry policies that can be passed as parameters to various operations
+    /// Creates a new instance RetryOptions with the supplied first retry and max attempts
     /// </summary>
-    public class RetryOptions
+    /// <param name="firstRetryInterval">Timespan to wait for the first retry</param>
+    /// <param name="maxNumberOfAttempts">Max number of attempts to retry</param>
+    /// <exception cref="ArgumentException"></exception>
+    public RetryOptions(TimeSpan firstRetryInterval, int maxNumberOfAttempts)
     {
-        /// <summary>
-        /// Creates a new instance RetryOptions with the supplied first retry and max attempts
-        /// </summary>
-        /// <param name="firstRetryInterval">Timespan to wait for the first retry</param>
-        /// <param name="maxNumberOfAttempts">Max number of attempts to retry</param>
-        /// <exception cref="ArgumentException"></exception>
-        public RetryOptions(TimeSpan firstRetryInterval, int maxNumberOfAttempts)
+        if (firstRetryInterval <= TimeSpan.Zero)
         {
-            if (firstRetryInterval <= TimeSpan.Zero)
-            {
-                throw new ArgumentException("Invalid interval.  Specify a TimeSpan value greater then TimeSpan.Zero.",
-                    nameof(firstRetryInterval));
-            }
-
-            FirstRetryInterval = firstRetryInterval;
-            MaxNumberOfAttempts = maxNumberOfAttempts;
-            // Defaults
-            MaxRetryInterval = TimeSpan.MaxValue;
-            BackoffCoefficient = 1;
-            RetryTimeout = TimeSpan.MaxValue;
-            Handle = e => true;
+            throw new ArgumentException("Invalid interval.  Specify a TimeSpan value greater then TimeSpan.Zero.",
+                nameof(firstRetryInterval));
         }
 
-        /// <summary>
-        /// Gets or sets the first retry interval
-        /// </summary>
-        public TimeSpan FirstRetryInterval { get; set; }
-
-        /// <summary>
-        /// Gets or sets the max retry interval
-        /// defaults to TimeSpan.MaxValue
-        /// </summary>
-        public TimeSpan MaxRetryInterval { get; set; }
-
-        /// <summary>
-        /// Gets or sets the back-off coefficient
-        /// defaults to 1, used to determine rate of increase of back-off
-        /// </summary>
-        // ReSharper disable once IdentifierTypo (avoid breaking change)
-        public double BackoffCoefficient { get; set; }
-
-        /// <summary>
-        /// Gets or sets the timeout for retries
-        /// defaults to TimeSpan.MaxValue
-        /// </summary>
-        public TimeSpan RetryTimeout { get; set; }
-
-        /// <summary>
-        /// Gets or sets the max number of attempts
-        /// </summary>
-        public int MaxNumberOfAttempts { get; set; }
-
-        /// <summary>
-        /// Gets or sets a Func to call on exception to determine if retries should proceed
-        /// </summary>
-        public Func<Exception, bool> Handle { get; set; }
+        FirstRetryInterval = firstRetryInterval;
+        MaxNumberOfAttempts = maxNumberOfAttempts;
+        // Defaults
+        MaxRetryInterval = TimeSpan.MaxValue;
+        BackoffCoefficient = 1;
+        RetryTimeout = TimeSpan.MaxValue;
+        Handle = e => true;
     }
+
+    /// <summary>
+    /// Gets or sets the first retry interval
+    /// </summary>
+    public TimeSpan FirstRetryInterval { get; set; }
+
+    /// <summary>
+    /// Gets or sets the max retry interval
+    /// defaults to TimeSpan.MaxValue
+    /// </summary>
+    public TimeSpan MaxRetryInterval { get; set; }
+
+    /// <summary>
+    /// Gets or sets the back-off coefficient
+    /// defaults to 1, used to determine rate of increase of back-off
+    /// </summary>
+    // ReSharper disable once IdentifierTypo (avoid breaking change)
+    public double BackoffCoefficient { get; set; }
+
+    /// <summary>
+    /// Gets or sets the timeout for retries
+    /// defaults to TimeSpan.MaxValue
+    /// </summary>
+    public TimeSpan RetryTimeout { get; set; }
+
+    /// <summary>
+    /// Gets or sets the max number of attempts
+    /// </summary>
+    public int MaxNumberOfAttempts { get; set; }
+
+    /// <summary>
+    /// Gets or sets a Func to call on exception to determine if retries should proceed
+    /// </summary>
+    public Func<Exception, bool> Handle { get; set; }
 }

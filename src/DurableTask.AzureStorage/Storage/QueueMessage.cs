@@ -11,37 +11,36 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.AzureStorage.Storage
+namespace DurableTask.AzureStorage.Storage;
+
+using System;
+using Microsoft.WindowsAzure.Storage.Queue;
+
+class QueueMessage
 {
-    using System;
-    using Microsoft.WindowsAzure.Storage.Queue;
-
-    class QueueMessage
+    public QueueMessage(CloudQueueMessage cloudQueueMessage)
     {
-        public QueueMessage(CloudQueueMessage cloudQueueMessage)
-        {
-            this.CloudQueueMessage = cloudQueueMessage;
-            this.Message = this.CloudQueueMessage.AsString;
-            this.Id = this.CloudQueueMessage.Id;
-        }
-
-        public QueueMessage(string message)
-        {
-            this.CloudQueueMessage = new CloudQueueMessage(message);
-            this.Message = this.CloudQueueMessage.AsString;
-            this.Id = this.CloudQueueMessage.Id;
-        }
-
-        public CloudQueueMessage CloudQueueMessage { get; }
-
-        public string Message { get; }
-
-        public string Id { get; }
-
-        public int DequeueCount => this.CloudQueueMessage.DequeueCount;
-
-        public DateTimeOffset? InsertionTime => this.CloudQueueMessage.InsertionTime;
-
-        public DateTimeOffset? NextVisibleTime => this.CloudQueueMessage.NextVisibleTime;
+        this.CloudQueueMessage = cloudQueueMessage;
+        this.Message = this.CloudQueueMessage.AsString;
+        this.Id = this.CloudQueueMessage.Id;
     }
+
+    public QueueMessage(string message)
+    {
+        this.CloudQueueMessage = new CloudQueueMessage(message);
+        this.Message = this.CloudQueueMessage.AsString;
+        this.Id = this.CloudQueueMessage.Id;
+    }
+
+    public CloudQueueMessage CloudQueueMessage { get; }
+
+    public string Message { get; }
+
+    public string Id { get; }
+
+    public int DequeueCount => this.CloudQueueMessage.DequeueCount;
+
+    public DateTimeOffset? InsertionTime => this.CloudQueueMessage.InsertionTime;
+
+    public DateTimeOffset? NextVisibleTime => this.CloudQueueMessage.NextVisibleTime;
 }

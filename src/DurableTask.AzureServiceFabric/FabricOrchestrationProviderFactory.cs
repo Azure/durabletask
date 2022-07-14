@@ -11,48 +11,47 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric
-{
-    using System;
+namespace DurableTask.AzureServiceFabric;
 
-    using Microsoft.ServiceFabric.Data;
+using System;
+
+using Microsoft.ServiceFabric.Data;
+
+/// <summary>
+/// Factory to create instances of <see cref="FabricOrchestrationProvider"/>.
+/// </summary>
+public class FabricOrchestrationProviderFactory
+{
+    private readonly IReliableStateManager stateManager;
+    private readonly FabricOrchestrationProviderSettings settings;
 
     /// <summary>
-    /// Factory to create instances of <see cref="FabricOrchestrationProvider"/>.
+    /// Constructor that uses default <see cref="FabricOrchestrationProviderSettings"/>.
     /// </summary>
-    public class FabricOrchestrationProviderFactory
+    /// <param name="stateManager">Reliable state manager instance. Comes from service fabric stateful service implementation.</param>
+    public FabricOrchestrationProviderFactory(IReliableStateManager stateManager)
+        : this(stateManager, new FabricOrchestrationProviderSettings())
     {
-        private readonly IReliableStateManager stateManager;
-        private readonly FabricOrchestrationProviderSettings settings;
-
-        /// <summary>
-        /// Constructor that uses default <see cref="FabricOrchestrationProviderSettings"/>.
-        /// </summary>
-        /// <param name="stateManager">Reliable state manager instance. Comes from service fabric stateful service implementation.</param>
-        public FabricOrchestrationProviderFactory(IReliableStateManager stateManager)
-            : this(stateManager, new FabricOrchestrationProviderSettings())
-        {
-        }
-
-        /// <summary>
-        /// Constructor that takes the custom <see cref="FabricOrchestrationProviderSettings"/>.
-        /// </summary>
-        /// <param name="stateManager">Reliable state manager instance. Comes from service fabric stateful service implementation.</param>
-        /// <param name="settings">Settings to be used for the provider. Refer to <see cref="FabricOrchestrationProviderSettings"/> for documentation about specific settings.</param>
-        public FabricOrchestrationProviderFactory(IReliableStateManager stateManager, FabricOrchestrationProviderSettings settings)
-        {
-            if (stateManager is null)
-            {
-                throw new ArgumentNullException(nameof(stateManager));
-            }
-
-            this.stateManager = stateManager;
-            this.settings = settings ?? new FabricOrchestrationProviderSettings();
-        }
-
-        /// <summary>
-        /// Creates a new <see cref="FabricOrchestrationProvider"/> object using the factory's state manager and settings.
-        /// </summary>
-        public FabricOrchestrationProvider CreateProvider() => new FabricOrchestrationProvider(this.stateManager, this.settings);
     }
+
+    /// <summary>
+    /// Constructor that takes the custom <see cref="FabricOrchestrationProviderSettings"/>.
+    /// </summary>
+    /// <param name="stateManager">Reliable state manager instance. Comes from service fabric stateful service implementation.</param>
+    /// <param name="settings">Settings to be used for the provider. Refer to <see cref="FabricOrchestrationProviderSettings"/> for documentation about specific settings.</param>
+    public FabricOrchestrationProviderFactory(IReliableStateManager stateManager, FabricOrchestrationProviderSettings settings)
+    {
+        if (stateManager is null)
+        {
+            throw new ArgumentNullException(nameof(stateManager));
+        }
+
+        this.stateManager = stateManager;
+        this.settings = settings ?? new FabricOrchestrationProviderSettings();
+    }
+
+    /// <summary>
+    /// Creates a new <see cref="FabricOrchestrationProvider"/> object using the factory's state manager and settings.
+    /// </summary>
+    public FabricOrchestrationProvider CreateProvider() => new FabricOrchestrationProvider(this.stateManager, this.settings);
 }

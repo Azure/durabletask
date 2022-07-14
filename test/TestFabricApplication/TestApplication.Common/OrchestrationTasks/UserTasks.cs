@@ -11,22 +11,21 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace TestApplication.Common.OrchestrationTasks
+namespace TestApplication.Common.OrchestrationTasks;
+
+using System.Threading.Tasks;
+
+public class UserTasks : IUserTasks
 {
-    using System.Threading.Tasks;
-
-    public class UserTasks : IUserTasks
+    public async Task<string> GetUserAsync()
     {
-        public async Task<string> GetUserAsync()
-        {
-            await Task.Yield();
-            return "Gabbar";
-        }
+        await Task.Yield();
+        return "Gabbar";
+    }
 
-        public async Task<string> GreetUserAsync(string user)
-        {
-            await Task.Yield();
-            return "Hello " + user;
-        }
+    public async Task<string> GreetUserAsync(string user)
+    {
+        await Task.Yield();
+        return "Hello " + user;
     }
 }

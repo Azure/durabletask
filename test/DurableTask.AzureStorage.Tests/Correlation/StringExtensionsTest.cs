@@ -15,37 +15,35 @@ using System;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace DurableTask.AzureStorage.Tests.Correlation
+namespace DurableTask.AzureStorage.Tests.Correlation;
+
+[TestClass]
+public class StringExtensionsTest
 {
-
-    [TestClass]
-    public class StringExtensionsTest
+    [TestMethod]
+    public void TestParseTraceParent()
     {
-        [TestMethod]
-        public void TestParseTraceParent()
-        {
-            string traceparentString = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
-            TraceParent traceparent = traceparentString.ToTraceParent();
-            Assert.AreEqual("00", traceparent.Version);
-            Assert.AreEqual("4bf92f3577b34da6a3ce929d0e0e4736", traceparent.TraceId);
-            Assert.AreEqual("00f067aa0ba902b7", traceparent.SpanId);
-            Assert.AreEqual("01", traceparent.TraceFlags);
-        }
+        string traceparentString = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+        TraceParent traceparent = traceparentString.ToTraceParent();
+        Assert.AreEqual("00", traceparent.Version);
+        Assert.AreEqual("4bf92f3577b34da6a3ce929d0e0e4736", traceparent.TraceId);
+        Assert.AreEqual("00f067aa0ba902b7", traceparent.SpanId);
+        Assert.AreEqual("01", traceparent.TraceFlags);
+    }
 
-        [TestMethod]
-        public void TestParseTraceParentThrowsException()
-        {
-            string wrongTraceparentString = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7";
-            Assert.ThrowsException<ArgumentException>(
-                () => { wrongTraceparentString.ToTraceParent(); });
-        }
+    [TestMethod]
+    public void TestParseTraceParentThrowsException()
+    {
+        string wrongTraceparentString = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7";
+        Assert.ThrowsException<ArgumentException>(
+            () => { wrongTraceparentString.ToTraceParent(); });
+    }
 
-        [TestMethod]
-        public void TestParseTraceParenWithNull()
-        {
-            string someString = null;
-            TraceParent result = someString.ToTraceParent();
-            Assert.IsNull(result);
-        }
+    [TestMethod]
+    public void TestParseTraceParenWithNull()
+    {
+        string someString = null;
+        TraceParent result = someString.ToTraceParent();
+        Assert.IsNull(result);
     }
 }

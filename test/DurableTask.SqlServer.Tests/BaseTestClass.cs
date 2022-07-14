@@ -11,33 +11,32 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.SqlServer.Tests
+namespace DurableTask.SqlServer.Tests;
+
+using DurableTask.SqlServer.Tracking;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Data.Common;
+using System.Threading.Tasks;
+
+public abstract class BaseTestClass
 {
-    using DurableTask.SqlServer.Tracking;
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using System.Data.Common;
-    using System.Threading.Tasks;
+    protected SqlServerInstanceStore InstanceStore { get; private set; }
+    protected SqlServerInstanceStoreSettings Settings { get; private set; }
 
-    public abstract class BaseTestClass
+    [TestInitialize]
+    public void Initialize()
     {
-        protected SqlServerInstanceStore InstanceStore { get; private set; }
-        protected SqlServerInstanceStoreSettings Settings { get; private set; }
-
-        [TestInitialize]
-        public void Initialize()
+        Settings = new SqlServerInstanceStoreSettings
         {
-            Settings = new SqlServerInstanceStoreSettings
-            {
-                GetDatabaseConnection = () => Task.FromResult<DbConnection>(DatabaseInitialization.GetDatabaseConnection()),
-                HubName = "UnitTests",
-                SchemaName = "durabletask"
-            };
+            GetDatabaseConnection = () => Task.FromResult<DbConnection>(DatabaseInitialization.GetDatabaseConnection()),
+            HubName = "UnitTests",
+            SchemaName = "durabletask"
+        };
 
-            InstanceStore = new SqlServerInstanceStore(Settings);
+        InstanceStore = new SqlServerInstanceStore(Settings);
 
-            InstanceStore.InitializeStoreAsync(true).Wait();
-        }
-
-        public DbConnection GetConnection() => Settings.GetDatabaseConnection().Result;
+        InstanceStore.InitializeStoreAsync(true).Wait();
     }
+
+    public DbConnection GetConnection() => Settings.GetDatabaseConnection().Result;
 }

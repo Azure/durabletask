@@ -11,118 +11,117 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.SqlServer.Tests
+namespace DurableTask.SqlServer.Tests;
+
+using DurableTask.Core;
+using DurableTask.Core.Tracking;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+
+[TestClass]
+public class PurgeHistoryTests : BaseTestClass
 {
-    using DurableTask.Core;
-    using DurableTask.Core.Tracking;
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using System;
-    using System.Linq;
-    using System.Threading.Tasks;
-
-    [TestClass]
-    public class PurgeHistoryTests : BaseTestClass
+    [TestMethod]
+    public async Task PurgeByCreatedTimeTest()
     {
-        [TestMethod]
-        public async Task PurgeByCreatedTimeTest()
+        var orchestrations = Utils.InfiniteOrchestrationTestData().Take(3).ToArray();
+
+        var histories = orchestrations
+            .SelectMany(r => Utils.InfiniteWorkItemTestData(r.State.OrchestrationInstance.InstanceId, r.State.OrchestrationInstance.ExecutionId).Take(5))
+            .ToArray();
+
+        int secondsToAdd = 0;
+        foreach (var item in orchestrations)
         {
-            var orchestrations = Utils.InfiniteOrchestrationTestData().Take(3).ToArray();
-
-            var histories = orchestrations
-                .SelectMany(r => Utils.InfiniteWorkItemTestData(r.State.OrchestrationInstance.InstanceId, r.State.OrchestrationInstance.ExecutionId).Take(5))
-                .ToArray();
-
-            int secondsToAdd = 0;
-            foreach (var item in orchestrations)
-            {
-                item.State.CreatedTime = DateTime.UtcNow.AddSeconds(secondsToAdd++);
-                item.State.LastUpdatedTime = item.State.CompletedTime = DateTime.MaxValue;
-            }
-
-            await InstanceStore.WriteEntitiesAsync(orchestrations.Cast<InstanceEntityBase>().Concat(histories));
-
-            var historyEntriesDeleted = await InstanceStore.PurgeOrchestrationHistoryEventsAsync(orchestrations.ElementAt(1).State.CreatedTime, OrchestrationStateTimeRangeFilterType.OrchestrationCreatedTimeFilter);
-
-            Assert.AreEqual(10, historyEntriesDeleted);
-
-            var instance = orchestrations.Last().State.OrchestrationInstance;
-            var count = (await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)).Count();
-            Assert.AreEqual(5, count);
-
-            foreach (var item in orchestrations.Take(2))
-            {
-                instance = item.State.OrchestrationInstance;
-                count = (await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)).Count();
-                Assert.AreEqual(0, count);
-            }
+            item.State.CreatedTime = DateTime.UtcNow.AddSeconds(secondsToAdd++);
+            item.State.LastUpdatedTime = item.State.CompletedTime = DateTime.MaxValue;
         }
 
-        [TestMethod]
-        public async Task PurgeByLastUpdatedTimeTest()
+        await InstanceStore.WriteEntitiesAsync(orchestrations.Cast<InstanceEntityBase>().Concat(histories));
+
+        var historyEntriesDeleted = await InstanceStore.PurgeOrchestrationHistoryEventsAsync(orchestrations.ElementAt(1).State.CreatedTime, OrchestrationStateTimeRangeFilterType.OrchestrationCreatedTimeFilter);
+
+        Assert.AreEqual(10, historyEntriesDeleted);
+
+        var instance = orchestrations.Last().State.OrchestrationInstance;
+        var count = (await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)).Count();
+        Assert.AreEqual(5, count);
+
+        foreach (var item in orchestrations.Take(2))
         {
-            var orchestrations = Utils.InfiniteOrchestrationTestData().Take(3).ToArray();
+            instance = item.State.OrchestrationInstance;
+            count = (await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)).Count();
+            Assert.AreEqual(0, count);
+        }
+    }
 
-            var histories = orchestrations
-                .SelectMany(r => Utils.InfiniteWorkItemTestData(r.State.OrchestrationInstance.InstanceId, r.State.OrchestrationInstance.ExecutionId).Take(5))
-                .ToArray();
+    [TestMethod]
+    public async Task PurgeByLastUpdatedTimeTest()
+    {
+        var orchestrations = Utils.InfiniteOrchestrationTestData().Take(3).ToArray();
 
-            int secondsToAdd = 0;
-            foreach (var item in orchestrations)
-            {
-                item.State.LastUpdatedTime = DateTime.UtcNow.AddSeconds(secondsToAdd++);
-                item.State.CreatedTime = item.State.CompletedTime = DateTime.MaxValue;
-            }
+        var histories = orchestrations
+            .SelectMany(r => Utils.InfiniteWorkItemTestData(r.State.OrchestrationInstance.InstanceId, r.State.OrchestrationInstance.ExecutionId).Take(5))
+            .ToArray();
 
-            await InstanceStore.WriteEntitiesAsync(orchestrations.Cast<InstanceEntityBase>().Concat(histories));
-
-            var historyEntriesDeleted = await InstanceStore.PurgeOrchestrationHistoryEventsAsync(orchestrations.ElementAt(1).State.LastUpdatedTime, OrchestrationStateTimeRangeFilterType.OrchestrationLastUpdatedTimeFilter);
-
-            Assert.AreEqual(10, historyEntriesDeleted);
-
-            var instance = orchestrations.Last().State.OrchestrationInstance;
-            var count = (await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)).Count();
-            Assert.AreEqual(5, count);
-
-            foreach (var item in orchestrations.Take(2))
-            {
-                instance = item.State.OrchestrationInstance;
-                count = (await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)).Count();
-                Assert.AreEqual(0, count);
-            }
+        int secondsToAdd = 0;
+        foreach (var item in orchestrations)
+        {
+            item.State.LastUpdatedTime = DateTime.UtcNow.AddSeconds(secondsToAdd++);
+            item.State.CreatedTime = item.State.CompletedTime = DateTime.MaxValue;
         }
 
-        [TestMethod]
-        public async Task PurgeByCompletedTimeTest()
+        await InstanceStore.WriteEntitiesAsync(orchestrations.Cast<InstanceEntityBase>().Concat(histories));
+
+        var historyEntriesDeleted = await InstanceStore.PurgeOrchestrationHistoryEventsAsync(orchestrations.ElementAt(1).State.LastUpdatedTime, OrchestrationStateTimeRangeFilterType.OrchestrationLastUpdatedTimeFilter);
+
+        Assert.AreEqual(10, historyEntriesDeleted);
+
+        var instance = orchestrations.Last().State.OrchestrationInstance;
+        var count = (await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)).Count();
+        Assert.AreEqual(5, count);
+
+        foreach (var item in orchestrations.Take(2))
         {
-            var orchestrations = Utils.InfiniteOrchestrationTestData().Take(3).ToArray();
+            instance = item.State.OrchestrationInstance;
+            count = (await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)).Count();
+            Assert.AreEqual(0, count);
+        }
+    }
 
-            var histories = orchestrations
-                .SelectMany(r => Utils.InfiniteWorkItemTestData(r.State.OrchestrationInstance.InstanceId, r.State.OrchestrationInstance.ExecutionId).Take(5))
-                .ToArray();
+    [TestMethod]
+    public async Task PurgeByCompletedTimeTest()
+    {
+        var orchestrations = Utils.InfiniteOrchestrationTestData().Take(3).ToArray();
 
-            int secondsToAdd = 0;
-            foreach (var item in orchestrations)
-            {
-                item.State.CompletedTime = DateTime.UtcNow.AddSeconds(secondsToAdd++);
-                item.State.CreatedTime = item.State.LastUpdatedTime = DateTime.MaxValue;
-            }
+        var histories = orchestrations
+            .SelectMany(r => Utils.InfiniteWorkItemTestData(r.State.OrchestrationInstance.InstanceId, r.State.OrchestrationInstance.ExecutionId).Take(5))
+            .ToArray();
 
-            await InstanceStore.WriteEntitiesAsync(orchestrations.Cast<InstanceEntityBase>().Concat(histories));
+        int secondsToAdd = 0;
+        foreach (var item in orchestrations)
+        {
+            item.State.CompletedTime = DateTime.UtcNow.AddSeconds(secondsToAdd++);
+            item.State.CreatedTime = item.State.LastUpdatedTime = DateTime.MaxValue;
+        }
 
-            var historyEntriesDeleted = await InstanceStore.PurgeOrchestrationHistoryEventsAsync(orchestrations.ElementAt(1).State.CompletedTime, OrchestrationStateTimeRangeFilterType.OrchestrationCompletedTimeFilter);
+        await InstanceStore.WriteEntitiesAsync(orchestrations.Cast<InstanceEntityBase>().Concat(histories));
 
-            Assert.AreEqual(10, historyEntriesDeleted);
+        var historyEntriesDeleted = await InstanceStore.PurgeOrchestrationHistoryEventsAsync(orchestrations.ElementAt(1).State.CompletedTime, OrchestrationStateTimeRangeFilterType.OrchestrationCompletedTimeFilter);
 
-            var instance = orchestrations.Last().State.OrchestrationInstance;
-            var count = (await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)).Count();
-            Assert.AreEqual(5, count);
+        Assert.AreEqual(10, historyEntriesDeleted);
 
-            foreach (var item in orchestrations.Take(2))
-            {
-                instance = item.State.OrchestrationInstance;
-                count = (await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)).Count();
-                Assert.AreEqual(0, count);
-            }
+        var instance = orchestrations.Last().State.OrchestrationInstance;
+        var count = (await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)).Count();
+        Assert.AreEqual(5, count);
+
+        foreach (var item in orchestrations.Take(2))
+        {
+            instance = item.State.OrchestrationInstance;
+            count = (await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)).Count();
+            Assert.AreEqual(0, count);
         }
     }
 }

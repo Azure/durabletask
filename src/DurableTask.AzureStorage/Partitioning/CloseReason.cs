@@ -11,15 +11,14 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Partitioning
-{
-    /// <summary>Enumerates the reason for closing of session.</summary>
-    enum CloseReason
-    {
-        /// <summary>Specifies that the server is shutting down.</summary>
-        Shutdown,
+namespace DurableTask.AzureStorage.Partitioning;
 
-        /// <summary>Specifies that the current lease has been lost.</summary>
-        LeaseLost
-    }
+/// <summary>Enumerates the reason for closing of session.</summary>
+enum CloseReason
+{
+    /// <summary>Specifies that the server is shutting down.</summary>
+    Shutdown,
+
+    /// <summary>Specifies that the current lease has been lost.</summary>
+    LeaseLost
 }

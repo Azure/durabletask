@@ -11,47 +11,46 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace Correlation.Samples
-{
+namespace Correlation.Samples;
+
 #pragma warning disable CA1812 // Internal classes instantiated indirectly
-    using System;
-    using System.Runtime.Serialization;
-    using System.Threading.Tasks;
+using System;
+using System.Runtime.Serialization;
+using System.Threading.Tasks;
 
-    using DurableTask.Core;
+using DurableTask.Core;
 
-    [KnownType(typeof(RetryActivity))]
-    [KnownType(typeof(NonRetryActivity))]
-    internal class RetryOrchestration : TaskOrchestration<string, string>
+[KnownType(typeof(RetryActivity))]
+[KnownType(typeof(NonRetryActivity))]
+internal class RetryOrchestration : TaskOrchestration<string, string>
+{
+    public override async Task<string> RunTask(OrchestrationContext context, string input)
     {
-        public override async Task<string> RunTask(OrchestrationContext context, string input)
-        {
-            await context.ScheduleTask<string>(typeof(NonRetryActivity), input);
-            var retryOption = new RetryOptions(TimeSpan.FromMilliseconds(10), 3);
-            return await context.ScheduleWithRetry<string>(typeof(RetryActivity), retryOption, input);
-        }
+        await context.ScheduleTask<string>(typeof(NonRetryActivity), input);
+        var retryOption = new RetryOptions(TimeSpan.FromMilliseconds(10), 3);
+        return await context.ScheduleWithRetry<string>(typeof(RetryActivity), retryOption, input);
     }
+}
 
-    internal class RetryActivity : TaskActivity<string, string>
+internal class RetryActivity : TaskActivity<string, string>
+{
+    private static int counter = 0;
+
+    protected override string Execute(TaskContext context, string input)
     {
-        private static int counter = 0;
+        counter++;
+        if (counter == 1) throw new InvalidOperationException($"Counter = {counter}");
 
-        protected override string Execute(TaskContext context, string input)
-        {
-            counter++;
-            if (counter == 1) throw new InvalidOperationException($"Counter = {counter}");
-
-            Console.WriteLine($"Retry with Activity: Hello {input}");
-            return $"Retry Hello, {input}!";
-        }
+        Console.WriteLine($"Retry with Activity: Hello {input}");
+        return $"Retry Hello, {input}!";
     }
+}
 
-    internal class NonRetryActivity : TaskActivity<string, string>
+internal class NonRetryActivity : TaskActivity<string, string>
+{
+    protected override string Execute(TaskContext context, string input)
     {
-        protected override string Execute(TaskContext context, string input)
-        {
-            Console.WriteLine($"Non-Retry with Activity: Hello {input}");
-            return $"Works well. Hello, {input}!";
-        }
+        Console.WriteLine($"Non-Retry with Activity: Hello {input}");
+        return $"Works well. Hello, {input}!";
     }
 }

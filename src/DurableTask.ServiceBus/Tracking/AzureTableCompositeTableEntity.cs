@@ -11,71 +11,70 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceBus.Tracking
-{
-    using System;
-    using System.Collections.Generic;
+namespace DurableTask.ServiceBus.Tracking;
 
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Table;
+using System;
+using System.Collections.Generic;
+
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Table;
+
+/// <summary>
+/// Abstract class for composite entities for Azure table
+/// </summary>
+public abstract class AzureTableCompositeTableEntity : ITableEntity
+{
+    /// <summary>
+    /// Gets or sets the task timestamp on the entity
+    /// </summary>
+    public DateTime TaskTimeStamp { get; set; } = DateTime.UtcNow;
 
     /// <summary>
-    /// Abstract class for composite entities for Azure table
+    /// Gets or sets the entity partition key
     /// </summary>
-    public abstract class AzureTableCompositeTableEntity : ITableEntity
+    public string PartitionKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets the entity row key
+    /// </summary>
+    public string RowKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets the row timestamp
+    /// </summary>
+    public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.Now;
+
+    /// <summary>
+    /// Gets or sets the entity etag
+    /// </summary>
+    public string ETag { get; set; }
+
+    /// <summary>
+    /// Read an entity properties based on the supplied dictionary or entity properties
+    /// </summary>
+    /// <param name="properties">Dictionary of properties to read for the entity</param>
+    /// <param name="operationContext">The operation context</param>
+    public abstract void ReadEntity(IDictionary<string, EntityProperty> properties, OperationContext operationContext);
+
+    /// <summary>
+    /// Write an entity to a dictionary of entity properties
+    /// </summary>
+    /// <param name="operationContext">The operation context</param>
+    public abstract IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext);
+
+    internal abstract IEnumerable<ITableEntity> BuildDenormalizedEntities();
+
+    /// <summary>
+    /// Gets entity property by its name
+    /// </summary>
+    protected T GetValue<T>(string key, IDictionary<string, EntityProperty> properties,
+        Func<EntityProperty, T> extract)
     {
-        /// <summary>
-        /// Gets or sets the task timestamp on the entity
-        /// </summary>
-        public DateTime TaskTimeStamp { get; set; } = DateTime.UtcNow;
-
-        /// <summary>
-        /// Gets or sets the entity partition key
-        /// </summary>
-        public string PartitionKey { get; set; }
-
-        /// <summary>
-        /// Gets or sets the entity row key
-        /// </summary>
-        public string RowKey { get; set; }
-
-        /// <summary>
-        /// Gets or sets the row timestamp
-        /// </summary>
-        public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.Now;
-
-        /// <summary>
-        /// Gets or sets the entity etag
-        /// </summary>
-        public string ETag { get; set; }
-
-        /// <summary>
-        /// Read an entity properties based on the supplied dictionary or entity properties
-        /// </summary>
-        /// <param name="properties">Dictionary of properties to read for the entity</param>
-        /// <param name="operationContext">The operation context</param>
-        public abstract void ReadEntity(IDictionary<string, EntityProperty> properties, OperationContext operationContext);
-
-        /// <summary>
-        /// Write an entity to a dictionary of entity properties
-        /// </summary>
-        /// <param name="operationContext">The operation context</param>
-        public abstract IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext);
-
-        internal abstract IEnumerable<ITableEntity> BuildDenormalizedEntities();
-
-        /// <summary>
-        /// Gets entity property by its name
-        /// </summary>
-        protected T GetValue<T>(string key, IDictionary<string, EntityProperty> properties,
-            Func<EntityProperty, T> extract)
+        if (!properties.TryGetValue(key, out EntityProperty ep))
         {
-            if (!properties.TryGetValue(key, out EntityProperty ep))
-            {
-                return default(T);
-            }
-
-            return extract(ep);
+            return default(T);
         }
+
+        return extract(ep);
     }
 }

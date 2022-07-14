@@ -11,46 +11,45 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+/// <summary>
+/// Enum describing the status of the orchestration
+/// </summary>
+public enum OrchestrationStatus
 {
     /// <summary>
-    /// Enum describing the status of the orchestration
+    /// Orchestration state of running
     /// </summary>
-    public enum OrchestrationStatus
-    {
-        /// <summary>
-        /// Orchestration state of running
-        /// </summary>
-        Running,
+    Running,
 
-        /// <summary>
-        /// Orchestration state of complete
-        /// </summary>
-        Completed,
+    /// <summary>
+    /// Orchestration state of complete
+    /// </summary>
+    Completed,
 
-        /// <summary>
-        /// Orchestration state of continued as new (this instance complete, continued in a new instance)
-        /// </summary>
-        ContinuedAsNew,
+    /// <summary>
+    /// Orchestration state of continued as new (this instance complete, continued in a new instance)
+    /// </summary>
+    ContinuedAsNew,
 
-        /// <summary>
-        /// Orchestration state of failed
-        /// </summary>
-        Failed,
+    /// <summary>
+    /// Orchestration state of failed
+    /// </summary>
+    Failed,
 
-        /// <summary>
-        /// Orchestration state of gracefully canceled
-        /// </summary>
-        Canceled,
+    /// <summary>
+    /// Orchestration state of gracefully canceled
+    /// </summary>
+    Canceled,
 
-        /// <summary>
-        /// Orchestration state of abruptly shut down
-        /// </summary>
-        Terminated,
+    /// <summary>
+    /// Orchestration state of abruptly shut down
+    /// </summary>
+    Terminated,
 
-        /// <summary>
-        /// Orchestration state of pending (not yet running)
-        /// </summary>
-        Pending
-    }
+    /// <summary>
+    /// Orchestration state of pending (not yet running)
+    /// </summary>
+    Pending
 }

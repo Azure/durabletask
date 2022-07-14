@@ -11,50 +11,49 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric
+namespace DurableTask.AzureServiceFabric;
+
+using DurableTask.Core;
+using DurableTask.Core.Settings;
+using Microsoft.Extensions.Logging;
+
+/// <summary>
+/// Provides settings for service fabric based custom provider implementations
+/// for <see cref="IOrchestrationService"/> and <see cref="IOrchestrationServiceClient"/>
+/// to be used in constructing <see cref="TaskHubWorker"/> and <see cref="TaskHubClient"/>.
+/// </summary>
+public sealed class FabricOrchestrationProviderSettings
 {
-    using DurableTask.Core;
-    using DurableTask.Core.Settings;
-    using Microsoft.Extensions.Logging;
+    /// <summary>
+    /// Constructor. Initializes all settings to their default values.
+    /// </summary>
+    public FabricOrchestrationProviderSettings()
+    {
+        TaskOrchestrationDispatcherSettings = new TaskOrchestrationDispatcherSettings()
+        {
+            MaxConcurrentOrchestrations = 1000,
+            DispatcherCount = 10
+        };
+
+        TaskActivityDispatcherSettings = new TaskActivityDispatcherSettings()
+        {
+            MaxConcurrentActivities = 1000,
+            DispatcherCount = 10
+        };
+    }
 
     /// <summary>
-    /// Provides settings for service fabric based custom provider implementations
-    /// for <see cref="IOrchestrationService"/> and <see cref="IOrchestrationServiceClient"/>
-    /// to be used in constructing <see cref="TaskHubWorker"/> and <see cref="TaskHubClient"/>.
+    ///     Settings to configure the Task Orchestration Dispatcher
     /// </summary>
-    public sealed class FabricOrchestrationProviderSettings
-    {
-        /// <summary>
-        /// Constructor. Initializes all settings to their default values.
-        /// </summary>
-        public FabricOrchestrationProviderSettings()
-        {
-            TaskOrchestrationDispatcherSettings = new TaskOrchestrationDispatcherSettings()
-            {
-                MaxConcurrentOrchestrations = 1000,
-                DispatcherCount = 10
-            };
+    public TaskOrchestrationDispatcherSettings TaskOrchestrationDispatcherSettings { get; set; }
 
-            TaskActivityDispatcherSettings = new TaskActivityDispatcherSettings()
-            {
-                MaxConcurrentActivities = 1000,
-                DispatcherCount = 10
-            };
-        }
+    /// <summary>
+    ///     Settings to configure the Task Activity Dispatcher
+    /// </summary>
+    public TaskActivityDispatcherSettings TaskActivityDispatcherSettings { get; set; }
 
-        /// <summary>
-        ///     Settings to configure the Task Orchestration Dispatcher
-        /// </summary>
-        public TaskOrchestrationDispatcherSettings TaskOrchestrationDispatcherSettings { get; set; }
-
-        /// <summary>
-        ///     Settings to configure the Task Activity Dispatcher
-        /// </summary>
-        public TaskActivityDispatcherSettings TaskActivityDispatcherSettings { get; set; }
-
-        /// <summary>
-        /// Gets or sets the optional <see cref="ILoggerFactory"/> to use for diagnostic logging.
-        /// </summary>
-        public ILoggerFactory LoggerFactory { get; set; }
-    }
+    /// <summary>
+    /// Gets or sets the optional <see cref="ILoggerFactory"/> to use for diagnostic logging.
+    /// </summary>
+    public ILoggerFactory LoggerFactory { get; set; }
 }

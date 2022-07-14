@@ -11,29 +11,28 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Test.Orchestrations.Performance
+namespace DurableTask.Test.Orchestrations.Performance;
+
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using DurableTask.Core;
+
+public class DriverOrchestration : TaskOrchestration<int, DriverOrchestrationData>
 {
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Threading.Tasks;
-    using DurableTask.Core;
-
-    public class DriverOrchestration : TaskOrchestration<int, DriverOrchestrationData>
+    public override async Task<int> RunTask(OrchestrationContext context, DriverOrchestrationData data)
     {
-        public override async Task<int> RunTask(OrchestrationContext context, DriverOrchestrationData data)
+        int result = 0;
+        List<Task<int>> results = new List<Task<int>>();
+        int i = 0;
+        for (; i < data.NumberOfParallelOrchestrations; i++)
         {
-            int result = 0;
-            List<Task<int>> results = new List<Task<int>>();
-            int i = 0;
-            for (; i < data.NumberOfParallelOrchestrations; i++)
-            {
-                results.Add(context.CreateSubOrchestrationInstance<int>(typeof(TestOrchestration), data.SubOrchestrationData));
-            }
-
-            int[] counters = await Task.WhenAll(results.ToArray());
-            result = counters.Sum();
-
-            return result;
+            results.Add(context.CreateSubOrchestrationInstance<int>(typeof(TestOrchestration), data.SubOrchestrationData));
         }
+
+        int[] counters = await Task.WhenAll(results.ToArray());
+        result = counters.Sum();
+
+        return result;
     }
 }

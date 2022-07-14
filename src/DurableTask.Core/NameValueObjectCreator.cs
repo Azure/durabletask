@@ -11,40 +11,39 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+using System;
+
+/// <summary>
+/// Object instance creator for a type using name and version mapping
+/// </summary>
+/// <typeparam name="T"></typeparam>
+public class NameValueObjectCreator<T> : DefaultObjectCreator<T>
 {
-    using System;
+    /// <summary>
+    /// Creates a new DefaultObjectCreator of supplied type with supplied name and version for mapping
+    /// </summary>
+    /// <param name="name">Lookup name for the type</param>
+    /// <param name="version">Lookup version for the type</param>
+    /// <param name="type">Type to use for the creator</param>
+    public NameValueObjectCreator(string name, string version, Type type)
+        : base(type)
+    {
+        Name = name;
+        Version = version;
+    }
 
     /// <summary>
-    /// Object instance creator for a type using name and version mapping
+    /// Creates a new DefaultObjectCreator of supplied object instance's type with supplied name and version for mapping
     /// </summary>
-    /// <typeparam name="T"></typeparam>
-    public class NameValueObjectCreator<T> : DefaultObjectCreator<T>
+    /// <param name="name">Lookup name for the type</param>
+    /// <param name="version">Lookup version for the type</param>
+    /// <param name="instance">Object instances to infer the type from</param>
+    public NameValueObjectCreator(string name, string version, T instance)
+        : base(instance)
     {
-        /// <summary>
-        /// Creates a new DefaultObjectCreator of supplied type with supplied name and version for mapping
-        /// </summary>
-        /// <param name="name">Lookup name for the type</param>
-        /// <param name="version">Lookup version for the type</param>
-        /// <param name="type">Type to use for the creator</param>
-        public NameValueObjectCreator(string name, string version, Type type)
-            : base(type)
-        {
-            Name = name;
-            Version = version;
-        }
-
-        /// <summary>
-        /// Creates a new DefaultObjectCreator of supplied object instance's type with supplied name and version for mapping
-        /// </summary>
-        /// <param name="name">Lookup name for the type</param>
-        /// <param name="version">Lookup version for the type</param>
-        /// <param name="instance">Object instances to infer the type from</param>
-        public NameValueObjectCreator(string name, string version, T instance)
-            : base(instance)
-        {
-            Name = name;
-            Version = version;
-        }
+        Name = name;
+        Version = version;
     }
 }

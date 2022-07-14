@@ -11,53 +11,52 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Redis.Tests
+namespace DurableTask.Redis.Tests;
+
+using System.Threading.Tasks;
+
+using Microsoft.Extensions.Configuration;
+
+using StackExchange.Redis;
+
+public static class TestHelpers
 {
-    using System.Threading.Tasks;
+    private static RedisTestConfig config;
 
-    using Microsoft.Extensions.Configuration;
-
-    using StackExchange.Redis;
-
-    public static class TestHelpers
+    public static RedisOrchestrationService GetTestOrchestrationService(string taskHub = null)
     {
-        private static RedisTestConfig config;
-
-        public static RedisOrchestrationService GetTestOrchestrationService(string taskHub = null)
+        RedisTestConfig testConfig = GetRedisTestConfig();
+        var settings = new RedisOrchestrationServiceSettings
         {
-            RedisTestConfig testConfig = GetRedisTestConfig();
-            var settings = new RedisOrchestrationServiceSettings
-            {
-                RedisConnectionString = testConfig.RedisConnectionString,
-                TaskHubName = taskHub ?? "TaskHub"
-            };
+            RedisConnectionString = testConfig.RedisConnectionString,
+            TaskHubName = taskHub ?? "TaskHub"
+        };
 
-            return new RedisOrchestrationService(settings);
-        }
+        return new RedisOrchestrationService(settings);
+    }
 
-        public static async Task<ConnectionMultiplexer> GetRedisConnection()
+    public static async Task<ConnectionMultiplexer> GetRedisConnection()
+    {
+        RedisTestConfig testConfig = GetRedisTestConfig();
+        return await ConnectionMultiplexer.ConnectAsync(testConfig.RedisConnectionString);
+    }
+
+    private static RedisTestConfig GetRedisTestConfig()
+    {
+        if (config is null)
         {
-            RedisTestConfig testConfig = GetRedisTestConfig();
-            return await ConnectionMultiplexer.ConnectAsync(testConfig.RedisConnectionString);
+            config = new RedisTestConfig();
+            IConfigurationRoot root = new ConfigurationBuilder()
+                .SetBasePath(System.IO.Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json", optional: true)
+                .Build();
+            root.Bind(config);
         }
+        return config;
+    }
 
-        private static RedisTestConfig GetRedisTestConfig()
-        {
-            if (config is null)
-            {
-                config = new RedisTestConfig();
-                IConfigurationRoot root = new ConfigurationBuilder()
-                    .SetBasePath(System.IO.Directory.GetCurrentDirectory())
-                    .AddJsonFile("appsettings.json", optional: true)
-                    .Build();
-                root.Bind(config);
-            }
-            return config;
-        }
-
-        public class RedisTestConfig
-        {
-            public string RedisConnectionString { get; set; }
-        }
+    public class RedisTestConfig
+    {
+        public string RedisConnectionString { get; set; }
     }
 }

@@ -11,18 +11,17 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Test.Orchestrations.Performance
+namespace DurableTask.Test.Orchestrations.Performance;
+
+using System;
+
+public class RandomTimeWaitingTaskInput
 {
-    using System;
+    public string TaskId { get; set; }
 
-    public class RandomTimeWaitingTaskInput
-    {
-        public string TaskId { get; set; }
+    public int MaxDelay { get; set; }
 
-        public int MaxDelay { get; set; }
+    public int MinDelay { get; set; }
 
-        public int MinDelay { get; set; }
-
-        public TimeSpan DelayUnit { get; set; }
-    }
+    public TimeSpan DelayUnit { get; set; }
 }

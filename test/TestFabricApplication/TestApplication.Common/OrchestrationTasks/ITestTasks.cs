@@ -11,29 +11,28 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace TestApplication.Common.OrchestrationTasks
+namespace TestApplication.Common.OrchestrationTasks;
+
+using System.Threading.Tasks;
+
+public interface ITestTasks
 {
-    using System.Threading.Tasks;
+    /// <summary>
+    /// Throws exception when remainingAttempts > 0. Otherwise succeeds.
+    /// </summary>
+    /// <param name="remainingAttempts">remaining number of attempts</param>
+    /// <returns>bool indicating whether task completed successfully or not.</returns>
+    Task<bool> ThrowExceptionAsync(int remainingAttempts);
 
-    public interface ITestTasks
-    {
-        /// <summary>
-        /// Throws exception when remainingAttempts > 0. Otherwise succeeds.
-        /// </summary>
-        /// <param name="remainingAttempts">remaining number of attempts</param>
-        /// <returns>bool indicating whether task completed successfully or not.</returns>
-        Task<bool> ThrowExceptionAsync(int remainingAttempts);
+    /// <summary>
+    /// Increments Generation Count variable.
+    /// </summary>
+    /// <returns>Generation count</returns>
+    Task<int> IncrementGenerationCount();
 
-        /// <summary>
-        /// Increments Generation Count variable.
-        /// </summary>
-        /// <returns>Generation count</returns>
-        Task<int> IncrementGenerationCount();
-
-        /// <summary>
-        /// Utility method to reset counter at the beginning of test.
-        /// </summary>
-        /// <returns>Generation coutner value</returns>
-        Task<int> ResetGenerationCounter();
-    }
+    /// <summary>
+    /// Utility method to reset counter at the beginning of test.
+    /// </summary>
+    /// <returns>Generation coutner value</returns>
+    Task<int> ResetGenerationCounter();
 }

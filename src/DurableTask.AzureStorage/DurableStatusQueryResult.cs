@@ -16,21 +16,20 @@ using System.Collections.Generic;
 using System.Text;
 using DurableTask.Core;
 
-namespace DurableTask.AzureStorage
+namespace DurableTask.AzureStorage;
+
+/// <summary>
+/// DurableStatusQueryResult is a result object for OrchestrationInstanceStatusQuery
+/// </summary>
+public class DurableStatusQueryResult
 {
     /// <summary>
-    /// DurableStatusQueryResult is a result object for OrchestrationInstanceStatusQuery
+    /// OrchestrationInstances
     /// </summary>
-    public class DurableStatusQueryResult
-    {
-        /// <summary>
-        /// OrchestrationInstances
-        /// </summary>
-        public IEnumerable<OrchestrationState> OrchestrationState { get; set; }
+    public IEnumerable<OrchestrationState> OrchestrationState { get; set; }
 
-        /// <summary>
-        /// ContinuationToken
-        /// </summary>
-        public string ContinuationToken { get; set; }
-    }
+    /// <summary>
+    /// ContinuationToken
+    /// </summary>
+    public string ContinuationToken { get; set; }
 }

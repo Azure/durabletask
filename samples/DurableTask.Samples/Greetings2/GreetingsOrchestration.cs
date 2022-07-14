@@ -11,22 +11,21 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Samples.Greetings2
+namespace DurableTask.Samples.Greetings2;
+
+using System.Threading.Tasks;
+using DurableTask.Core;
+
+public class GreetingsOrchestration2 : TaskOrchestration<string,int>
 {
-    using System.Threading.Tasks;
-    using DurableTask.Core;
-
-    public class GreetingsOrchestration2 : TaskOrchestration<string,int>
+    public override async Task<string> RunTask(OrchestrationContext context, int secondsToWait)
     {
-        public override async Task<string> RunTask(OrchestrationContext context, int secondsToWait)
-        {
-            Task<string> user = context.ScheduleTask<string>("DurableTaskSamples.Greetings.GetUserTask", string.Empty);
-            Task<string> timer = context.CreateTimer(context.CurrentUtcDateTime.AddSeconds(secondsToWait), "TimedOut");
+        Task<string> user = context.ScheduleTask<string>("DurableTaskSamples.Greetings.GetUserTask", string.Empty);
+        Task<string> timer = context.CreateTimer(context.CurrentUtcDateTime.AddSeconds(secondsToWait), "TimedOut");
 
-            Task<string> u = await Task.WhenAny(user, timer);
-            string greeting = await context.ScheduleTask<string>("DurableTaskSamples.Greetings.SendGreetingTask", string.Empty, u.Result);
+        Task<string> u = await Task.WhenAny(user, timer);
+        string greeting = await context.ScheduleTask<string>("DurableTaskSamples.Greetings.SendGreetingTask", string.Empty, u.Result);
 
-            return greeting;
-        }
+        return greeting;
     }
 }

@@ -11,141 +11,140 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.SqlServer.Tests
+namespace DurableTask.SqlServer.Tests;
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+
+using DurableTask.Core;
+using DurableTask.Core.Tracking;
+
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class QueryEntitiesTests : BaseTestClass
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Threading.Tasks;
-
-    using DurableTask.Core;
-    using DurableTask.Core.Tracking;
-
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
-
-    [TestClass]
-    public class QueryEntitiesTests : BaseTestClass
+    [TestMethod]
+    public async Task VerifyOrchestrationStateQueryTest()
     {
-        [TestMethod]
-        public async Task VerifyOrchestrationStateQueryTest()
-        {
-            var expectedOrchestrationState = Utils.InfiniteOrchestrationTestData().First();
+        var expectedOrchestrationState = Utils.InfiniteOrchestrationTestData().First();
 
-            //additional data to ensure query doesn't return back more data than it should
-            var extraOrchestrationState = Utils.InfiniteOrchestrationTestData().First();
+        //additional data to ensure query doesn't return back more data than it should
+        var extraOrchestrationState = Utils.InfiniteOrchestrationTestData().First();
 
 
-            await InstanceStore.WriteEntitiesAsync(new InstanceEntityBase[] { expectedOrchestrationState, extraOrchestrationState });
+        await InstanceStore.WriteEntitiesAsync(new InstanceEntityBase[] { expectedOrchestrationState, extraOrchestrationState });
 
-            var actual = await InstanceStore.GetOrchestrationStateAsync(expectedOrchestrationState.State.OrchestrationInstance.InstanceId, expectedOrchestrationState.State.OrchestrationInstance.ExecutionId);
+        var actual = await InstanceStore.GetOrchestrationStateAsync(expectedOrchestrationState.State.OrchestrationInstance.InstanceId, expectedOrchestrationState.State.OrchestrationInstance.ExecutionId);
 
-            Assert.AreEqual(expectedOrchestrationState.State.OrchestrationInstance.InstanceId, actual.State.OrchestrationInstance.InstanceId);
-            Assert.AreEqual(expectedOrchestrationState.State.OrchestrationInstance.ExecutionId, actual.State.OrchestrationInstance.ExecutionId);
-        }
+        Assert.AreEqual(expectedOrchestrationState.State.OrchestrationInstance.InstanceId, actual.State.OrchestrationInstance.InstanceId);
+        Assert.AreEqual(expectedOrchestrationState.State.OrchestrationInstance.ExecutionId, actual.State.OrchestrationInstance.ExecutionId);
+    }
 
-        public async Task VerifyOrchestrationStateQueryEntitiesTest()
-        {
-            var expectedOrchestrationState = Utils.InfiniteOrchestrationTestData().First();
+    public async Task VerifyOrchestrationStateQueryEntitiesTest()
+    {
+        var expectedOrchestrationState = Utils.InfiniteOrchestrationTestData().First();
 
-            //additional data to ensure query doesn't return back more data than it should
-            var extraOrchestrationState = Utils.InfiniteOrchestrationTestData().First();
+        //additional data to ensure query doesn't return back more data than it should
+        var extraOrchestrationState = Utils.InfiniteOrchestrationTestData().First();
 
 
-            await InstanceStore.WriteEntitiesAsync(new InstanceEntityBase[] { expectedOrchestrationState, extraOrchestrationState });
+        await InstanceStore.WriteEntitiesAsync(new InstanceEntityBase[] { expectedOrchestrationState, extraOrchestrationState });
 
-            var actual = (await InstanceStore.GetEntitiesAsync(expectedOrchestrationState.State.OrchestrationInstance.InstanceId, expectedOrchestrationState.State.OrchestrationInstance.ExecutionId)).ToList();
+        var actual = (await InstanceStore.GetEntitiesAsync(expectedOrchestrationState.State.OrchestrationInstance.InstanceId, expectedOrchestrationState.State.OrchestrationInstance.ExecutionId)).ToList();
 
-            Assert.AreEqual(1, actual.Count);
+        Assert.AreEqual(1, actual.Count);
 
-            var actualOrchestration = actual.First();
-            Assert.AreEqual(expectedOrchestrationState.State.OrchestrationInstance.InstanceId, actualOrchestration.State.OrchestrationInstance.InstanceId);
-            Assert.AreEqual(expectedOrchestrationState.State.OrchestrationInstance.ExecutionId, actualOrchestration.State.OrchestrationInstance.ExecutionId);
-        }
+        var actualOrchestration = actual.First();
+        Assert.AreEqual(expectedOrchestrationState.State.OrchestrationInstance.InstanceId, actualOrchestration.State.OrchestrationInstance.InstanceId);
+        Assert.AreEqual(expectedOrchestrationState.State.OrchestrationInstance.ExecutionId, actualOrchestration.State.OrchestrationInstance.ExecutionId);
+    }
 
-        [TestMethod]
-        public async Task VerifyWorkItemQueryTest()
-        {
-            var expectedInstanceId = Guid.NewGuid().ToString("N");
-            var expectedExecutionId = Guid.NewGuid().ToString("N");
+    [TestMethod]
+    public async Task VerifyWorkItemQueryTest()
+    {
+        var expectedInstanceId = Guid.NewGuid().ToString("N");
+        var expectedExecutionId = Guid.NewGuid().ToString("N");
 
-            var expectedWorkItemState = Utils.InfiniteWorkItemTestData(expectedInstanceId, expectedExecutionId).First();
+        var expectedWorkItemState = Utils.InfiniteWorkItemTestData(expectedInstanceId, expectedExecutionId).First();
 
-            //additional data to ensure query doesn't return back more data than it should
-            var extraWorkItemState = Utils.InfiniteWorkItemTestData(Guid.NewGuid().ToString("N"), Guid.NewGuid().ToString("N")).First();
+        //additional data to ensure query doesn't return back more data than it should
+        var extraWorkItemState = Utils.InfiniteWorkItemTestData(Guid.NewGuid().ToString("N"), Guid.NewGuid().ToString("N")).First();
 
-            await InstanceStore.WriteEntitiesAsync(new InstanceEntityBase[] { expectedWorkItemState, extraWorkItemState });
+        await InstanceStore.WriteEntitiesAsync(new InstanceEntityBase[] { expectedWorkItemState, extraWorkItemState });
 
-            var actual = (await InstanceStore.GetOrchestrationHistoryEventsAsync(expectedInstanceId, expectedExecutionId)).ToList();
+        var actual = (await InstanceStore.GetOrchestrationHistoryEventsAsync(expectedInstanceId, expectedExecutionId)).ToList();
 
-            Assert.AreEqual(1, actual.Count);
+        Assert.AreEqual(1, actual.Count);
 
-            var actualWorkItem = actual.First();
+        var actualWorkItem = actual.First();
 
-            Assert.AreEqual(expectedInstanceId, actualWorkItem.InstanceId);
-            Assert.AreEqual(expectedExecutionId, actualWorkItem.ExecutionId);
-        }
+        Assert.AreEqual(expectedInstanceId, actualWorkItem.InstanceId);
+        Assert.AreEqual(expectedExecutionId, actualWorkItem.ExecutionId);
+    }
 
-        [TestMethod]
-        public async Task VerifyOrchestrationStateQueryByInstanceIdAllInstancesTest()
-        {
-            var instanceId = Guid.NewGuid().ToString("N");
+    [TestMethod]
+    public async Task VerifyOrchestrationStateQueryByInstanceIdAllInstancesTest()
+    {
+        var instanceId = Guid.NewGuid().ToString("N");
 
-            var values = Enum.GetValues(typeof(OrchestrationStatus)).Cast<OrchestrationStatus>().ToArray();
+        var values = Enum.GetValues(typeof(OrchestrationStatus)).Cast<OrchestrationStatus>().ToArray();
 
-            var entities = new List<OrchestrationStateInstanceEntity>();
-            entities.AddRange(Utils.InfiniteOrchestrationTestData().Take(values.Length));
+        var entities = new List<OrchestrationStateInstanceEntity>();
+        entities.AddRange(Utils.InfiniteOrchestrationTestData().Take(values.Length));
 
 #pragma warning disable CA1806 // Do not ignore method results
-            //ensure each status exists in the collection and they all have the same InstanceId
-            entities.Select((e, i) =>
-                     {
-                         e.State.OrchestrationStatus = values[i];
-                         e.State.OrchestrationInstance.InstanceId = instanceId;
-                         return e;
-                     }).ToList();
+        //ensure each status exists in the collection and they all have the same InstanceId
+        entities.Select((e, i) =>
+                 {
+                     e.State.OrchestrationStatus = values[i];
+                     e.State.OrchestrationInstance.InstanceId = instanceId;
+                     return e;
+                 }).ToList();
 #pragma warning restore CA1806 // Do not ignore method results
 
-            await InstanceStore.WriteEntitiesAsync(entities);
+        await InstanceStore.WriteEntitiesAsync(entities);
 
-            var actual = (await InstanceStore.GetOrchestrationStateAsync(instanceId, true)).ToList();
+        var actual = (await InstanceStore.GetOrchestrationStateAsync(instanceId, true)).ToList();
 
-            Assert.AreEqual(entities.Count, actual.Count);
-        }
+        Assert.AreEqual(entities.Count, actual.Count);
+    }
 
-        [TestMethod]
-        public async Task VerifyOrchestrationStateQueryByInstanceIdTest()
-        {
-            var instanceId = Guid.NewGuid().ToString("N");
+    [TestMethod]
+    public async Task VerifyOrchestrationStateQueryByInstanceIdTest()
+    {
+        var instanceId = Guid.NewGuid().ToString("N");
 
-            var values = Enum.GetValues(typeof(OrchestrationStatus)).Cast<OrchestrationStatus>().ToArray();
+        var values = Enum.GetValues(typeof(OrchestrationStatus)).Cast<OrchestrationStatus>().ToArray();
 
-            var entities = new List<OrchestrationStateInstanceEntity>();
-            entities.AddRange(Utils.InfiniteOrchestrationTestData().Take(values.Length));
+        var entities = new List<OrchestrationStateInstanceEntity>();
+        entities.AddRange(Utils.InfiniteOrchestrationTestData().Take(values.Length));
 
 #pragma warning disable CA1806 // Do not ignore method results
-            //ensure each status exists in the collection and they all have the same InstanceId
-            entities.Select((e, i) =>
-                     {
-                         e.State.OrchestrationStatus = values[i];
-                         e.State.OrchestrationInstance.InstanceId = instanceId;
-                         return e;
-                     }).ToList();
+        //ensure each status exists in the collection and they all have the same InstanceId
+        entities.Select((e, i) =>
+                 {
+                     e.State.OrchestrationStatus = values[i];
+                     e.State.OrchestrationInstance.InstanceId = instanceId;
+                     return e;
+                 }).ToList();
 #pragma warning restore CA1806 // Do not ignore method results
 
-            await InstanceStore.WriteEntitiesAsync(entities);
+        await InstanceStore.WriteEntitiesAsync(entities);
 
-            var actual = (await InstanceStore.GetOrchestrationStateAsync(instanceId, false)).ToList();
+        var actual = (await InstanceStore.GetOrchestrationStateAsync(instanceId, false)).ToList();
 
-            Assert.AreEqual(1, actual.Count);
+        Assert.AreEqual(1, actual.Count);
 
-            var expectedState = entities
-                .Where(e => e.State.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew)
-                .OrderBy(e => e.State.LastUpdatedTime)
-                .First();
+        var expectedState = entities
+            .Where(e => e.State.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew)
+            .OrderBy(e => e.State.LastUpdatedTime)
+            .First();
 
-            var actualState = actual.First();
+        var actualState = actual.First();
 
-            Assert.AreEqual(expectedState.State.OrchestrationInstance.ExecutionId, actualState.State.OrchestrationInstance.ExecutionId);
-        }
+        Assert.AreEqual(expectedState.State.OrchestrationInstance.ExecutionId, actualState.State.OrchestrationInstance.ExecutionId);
     }
 }

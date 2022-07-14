@@ -11,23 +11,22 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Partitioning
+namespace DurableTask.AzureStorage.Partitioning;
+
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
+interface IPartitionManager
 {
-    using System.Collections.Generic;
-    using System.Threading.Tasks;
+    Task StartAsync();
 
-    interface IPartitionManager
-    {
-        Task StartAsync();
+    Task StopAsync();
 
-        Task StopAsync();
+    Task CreateLeaseStore();
 
-        Task CreateLeaseStore();
+    Task CreateLease(string leaseName);
 
-        Task CreateLease(string leaseName);
+    Task DeleteLeases();
 
-        Task DeleteLeases();
-
-        Task<IEnumerable<BlobLease>> GetOwnershipBlobLeases();
-    }
+    Task<IEnumerable<BlobLease>> GetOwnershipBlobLeases();
 }

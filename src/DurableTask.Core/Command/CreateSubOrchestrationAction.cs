@@ -11,44 +11,43 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.Core.Command
+namespace DurableTask.Core.Command;
+
+using System.Collections.Generic;
+
+/// <summary>
+/// Orchestrator action for creating sub-orchestrations.
+/// </summary>
+public class CreateSubOrchestrationAction : OrchestratorAction
 {
-    using System.Collections.Generic;
+    // NOTE: Actions must be serializable by a variety of different serializer types to support out-of-process execution.
+    //       To ensure maximum compatibility, all properties should be public and settable by default.
+
+    /// <inheritdoc/>
+    public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.CreateSubOrchestration;
 
     /// <summary>
-    /// Orchestrator action for creating sub-orchestrations.
+    /// The name of the sub-orchestrator to start.
     /// </summary>
-    public class CreateSubOrchestrationAction : OrchestratorAction
-    {
-        // NOTE: Actions must be serializable by a variety of different serializer types to support out-of-process execution.
-        //       To ensure maximum compatibility, all properties should be public and settable by default.
+    public string? Name { get; set; }
 
-        /// <inheritdoc/>
-        public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.CreateSubOrchestration;
+    /// <summary>
+    /// The version of the sub-orchestrator to start.
+    /// </summary>
+    public string? Version { get; set; }
 
-        /// <summary>
-        /// The name of the sub-orchestrator to start.
-        /// </summary>
-        public string? Name { get; set; }
+    /// <summary>
+    /// The instance ID of the created sub-orchestration.
+    /// </summary>
+    public string? InstanceId { get; set; }
 
-        /// <summary>
-        /// The version of the sub-orchestrator to start.
-        /// </summary>
-        public string? Version { get; set; }
+    /// <summary>
+    /// The input of the sub-orchestration.
+    /// </summary>
+    public string? Input { get; set; }
 
-        /// <summary>
-        /// The instance ID of the created sub-orchestration.
-        /// </summary>
-        public string? InstanceId { get; set; }
-
-        /// <summary>
-        /// The input of the sub-orchestration.
-        /// </summary>
-        public string? Input { get; set; }
-
-        /// <summary>
-        /// Tags to be applied to the sub-orchestration.
-        /// </summary>
-        public IDictionary<string, string>? Tags { get; set; }
-    }
+    /// <summary>
+    /// Tags to be applied to the sub-orchestration.
+    /// </summary>
+    public IDictionary<string, string>? Tags { get; set; }
 }

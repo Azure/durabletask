@@ -16,20 +16,19 @@ using System.Threading.Tasks;
 
 using StackExchange.Redis;
 
-namespace DurableTask.Redis
+namespace DurableTask.Redis;
+
+internal class RedisLogger
 {
-    internal class RedisLogger
+    private readonly ConnectionMultiplexer redisConnection;
+    private readonly string logKey;
+
+    public RedisLogger(ConnectionMultiplexer connection, string taskHub)
     {
-        private readonly ConnectionMultiplexer redisConnection;
-        private readonly string logKey;
-
-        public RedisLogger(ConnectionMultiplexer connection, string taskHub)
-        {
-            this.redisConnection = connection;
-            this.logKey = RedisKeyNameResolver.GetTraceLogsKey(taskHub);
-        }
-
-        public async Task LogAsync(string logMessage)
-         => await this.redisConnection.GetDatabase().ListRightPushAsync(this.logKey, $"{DateTime.Now} {logMessage}");
+        this.redisConnection = connection;
+        this.logKey = RedisKeyNameResolver.GetTraceLogsKey(taskHub);
     }
+
+    public async Task LogAsync(string logMessage)
+     => await this.redisConnection.GetDatabase().ListRightPushAsync(this.logKey, $"{DateTime.Now} {logMessage}");
 }

@@ -11,55 +11,54 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Tests
+namespace DurableTask.AzureStorage.Tests;
+
+using DurableTask.Core;
+using System;
+
+/// <summary>
+/// Autostart-Orchestration instance creator for a type, prefixes type name with '@'
+/// </summary>
+/// <typeparam name="T">Type of Orchestration</typeparam>
+public class AutoStartOrchestrationCreator : ObjectCreator<TaskOrchestration>
 {
-    using DurableTask.Core;
-    using System;
+    private readonly TaskOrchestration instance;
+    private readonly Type prototype;
 
     /// <summary>
-    /// Autostart-Orchestration instance creator for a type, prefixes type name with '@'
+    /// Creates a new AutoStartOrchestrationCreator of supplied type
     /// </summary>
-    /// <typeparam name="T">Type of Orchestration</typeparam>
-    public class AutoStartOrchestrationCreator : ObjectCreator<TaskOrchestration>
+    /// <param name="type">Type to use for the creator</param>
+    public AutoStartOrchestrationCreator(Type type)
     {
-        private readonly TaskOrchestration instance;
-        private readonly Type prototype;
+        this.prototype = type;
+        Initialize(type);
+    }
 
-        /// <summary>
-        /// Creates a new AutoStartOrchestrationCreator of supplied type
-        /// </summary>
-        /// <param name="type">Type to use for the creator</param>
-        public AutoStartOrchestrationCreator(Type type)
+    /// <summary>
+    /// Creates a new AutoStartOrchestrationCreator using type of supplied object instance
+    /// </summary>
+    /// <param name="instance">Object instances to infer the type from</param>
+    public AutoStartOrchestrationCreator(TaskOrchestration instance)
+    {
+        this.instance = instance;
+        Initialize(instance);
+    }
+
+    ///<inheritdoc/>
+    public override TaskOrchestration Create()
+    {
+        if (this.prototype is not null)
         {
-            this.prototype = type;
-            Initialize(type);
+            return (TaskOrchestration)Activator.CreateInstance(this.prototype);
         }
 
-        /// <summary>
-        /// Creates a new AutoStartOrchestrationCreator using type of supplied object instance
-        /// </summary>
-        /// <param name="instance">Object instances to infer the type from</param>
-        public AutoStartOrchestrationCreator(TaskOrchestration instance)
-        {
-            this.instance = instance;
-            Initialize(instance);
-        }
+        return this.instance;
+    }
 
-        ///<inheritdoc/>
-        public override TaskOrchestration Create()
-        {
-            if (this.prototype is not null)
-            {
-                return (TaskOrchestration)Activator.CreateInstance(this.prototype);
-            }
-
-            return this.instance;
-        }
-
-        private void Initialize(object obj)
-        {
-            Name = $"@{NameVersionHelper.GetDefaultName(obj)}";
-            Version = NameVersionHelper.GetDefaultVersion(obj);
-        }
+    private void Initialize(object obj)
+    {
+        Name = $"@{NameVersionHelper.GetDefaultName(obj)}";
+        Version = NameVersionHelper.GetDefaultVersion(obj);
     }
 }

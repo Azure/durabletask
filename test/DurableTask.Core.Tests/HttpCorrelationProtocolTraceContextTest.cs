@@ -11,56 +11,55 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Tests
+namespace DurableTask.Core.Tests;
+
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Net;
+using System.Text;
+using System.Threading.Tasks;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class HttpCorrelationProtocolTraceContextTest
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Diagnostics;
-    using System.Linq;
-    using System.Net;
-    using System.Text;
-    using System.Threading.Tasks;
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
-
-    [TestClass]
-    public class HttpCorrelationProtocolTraceContextTest
+    [TestMethod]
+    public void GetRootIdNormalCase()
     {
-        [TestMethod]
-        public void GetRootIdNormalCase()
-        {
-            var id = "|ea55fd0a-45699198bc3873c3.ea55fd0b_";
-            var childId = "|ea55fd0a-45699198bc3873c3.ea55fd0b_ea55fd0c_";
-            var expected = "ea55fd0a-45699198bc3873c3";
+        var id = "|ea55fd0a-45699198bc3873c3.ea55fd0b_";
+        var childId = "|ea55fd0a-45699198bc3873c3.ea55fd0b_ea55fd0c_";
+        var expected = "ea55fd0a-45699198bc3873c3";
 
-            var traceContext = new HttpCorrelationProtocolTraceContext();
-            Assert.AreEqual(expected, traceContext.GetRootId(id));
-            Assert.AreEqual(expected,traceContext.GetRootId(childId));
-        }
+        var traceContext = new HttpCorrelationProtocolTraceContext();
+        Assert.AreEqual(expected, traceContext.GetRootId(id));
+        Assert.AreEqual(expected,traceContext.GetRootId(childId));
+    }
 
-        [TestMethod]
-        public void GetRootIdWithNull()
-        {
-            string id = null;
-            var traceContext = new HttpCorrelationProtocolTraceContext();
-            Assert.IsNull(traceContext.GetRootId(id));
-        }
+    [TestMethod]
+    public void GetRootIdWithNull()
+    {
+        string id = null;
+        var traceContext = new HttpCorrelationProtocolTraceContext();
+        Assert.IsNull(traceContext.GetRootId(id));
+    }
 
-        [TestMethod]
-        public void GetRootIdWithMalformed()
-        {
-            // Currently it doesn't fail and doesn't throw exception.
-            string id = "ea55fd0a-45699198bc3873c3";
-            var traceContext = new HttpCorrelationProtocolTraceContext();
-            Assert.AreEqual("ea55fd0a-45699198bc3873c3", traceContext.GetRootId(id));
-        }
+    [TestMethod]
+    public void GetRootIdWithMalformed()
+    {
+        // Currently it doesn't fail and doesn't throw exception.
+        string id = "ea55fd0a-45699198bc3873c3";
+        var traceContext = new HttpCorrelationProtocolTraceContext();
+        Assert.AreEqual("ea55fd0a-45699198bc3873c3", traceContext.GetRootId(id));
+    }
 
-        [TestMethod]
-        public void SetParentAndStartWithNullObject()
-        {
-            var traceContext = new HttpCorrelationProtocolTraceContext();
-            var parentTraceContext = new NullObjectTraceContext();
-            traceContext.SetParentAndStart(parentTraceContext);
-            Assert.AreEqual(traceContext.StartTime, traceContext.CurrentActivity.StartTimeUtc);
-        }
+    [TestMethod]
+    public void SetParentAndStartWithNullObject()
+    {
+        var traceContext = new HttpCorrelationProtocolTraceContext();
+        var parentTraceContext = new NullObjectTraceContext();
+        traceContext.SetParentAndStart(parentTraceContext);
+        Assert.AreEqual(traceContext.StartTime, traceContext.CurrentActivity.StartTimeUtc);
     }
 }

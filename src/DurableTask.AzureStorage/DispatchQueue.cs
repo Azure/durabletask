@@ -11,55 +11,54 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage
+namespace DurableTask.AzureStorage;
+
+using System;
+using System.Collections.Concurrent;
+using System.Threading;
+using System.Threading.Tasks;
+
+sealed class DispatchQueue : IDisposable
 {
-    using System;
-    using System.Collections.Concurrent;
-    using System.Threading;
-    using System.Threading.Tasks;
+    readonly SemaphoreSlim messagesSemaphore = new SemaphoreSlim(0);
+    readonly ConcurrentQueue<Func<Task>> tasks = new ConcurrentQueue<Func<Task>>();
+    readonly int dispatcherCount;
+    int initialized;
 
-    sealed class DispatchQueue : IDisposable
+    public DispatchQueue(int dispatcherCount)
     {
-        readonly SemaphoreSlim messagesSemaphore = new SemaphoreSlim(0);
-        readonly ConcurrentQueue<Func<Task>> tasks = new ConcurrentQueue<Func<Task>>();
-        readonly int dispatcherCount;
-        int initialized;
+        this.dispatcherCount = dispatcherCount;
+    }
 
-        public DispatchQueue(int dispatcherCount)
+    public void EnqueueAndDispatch(Func<Task> task)
+    {
+        this.tasks.Enqueue(task);
+        this.messagesSemaphore.Release();
+
+        if (Interlocked.CompareExchange(ref this.initialized, 1, 0) == 0)
         {
-            this.dispatcherCount = dispatcherCount;
-        }
-
-        public void EnqueueAndDispatch(Func<Task> task)
-        {
-            this.tasks.Enqueue(task);
-            this.messagesSemaphore.Release();
-
-            if (Interlocked.CompareExchange(ref this.initialized, 1, 0) == 0)
+            for (int i = 0; i < this.dispatcherCount; i++)
             {
-                for (int i = 0; i < this.dispatcherCount; i++)
-                {
-                    Task.Run(this.DispatchLoop);
-                }
+                Task.Run(this.DispatchLoop);
             }
         }
+    }
 
-        async Task DispatchLoop()
+    async Task DispatchLoop()
+    {
+        while (true)
         {
-            while (true)
-            {
-                await this.messagesSemaphore.WaitAsync();
+            await this.messagesSemaphore.WaitAsync();
 
-                if (this.tasks.TryDequeue(out Func<Task> task))
-                {
-                    await task();
-                }
+            if (this.tasks.TryDequeue(out Func<Task> task))
+            {
+                await task();
             }
         }
+    }
 
-        public void Dispose()
-        {
-            this.messagesSemaphore.Dispose();
-        }
+    public void Dispose()
+    {
+        this.messagesSemaphore.Dispose();
     }
 }

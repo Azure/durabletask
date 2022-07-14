@@ -11,40 +11,39 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Tests
+namespace DurableTask.AzureStorage.Tests;
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+/// <summary>
+/// Extension methods for String Test
+/// </summary>
+[TestClass]
+public class StringExtensionsTest
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Text;
-    using System.Threading.Tasks;
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
-
-    /// <summary>
-    /// Extension methods for String Test
-    /// </summary>
-    [TestClass]
-    public class StringExtensionsTest
+    [TestMethod]
+    public void GetTargetClassName()
     {
-        [TestMethod]
-        public void GetTargetClassName()
-        {
-            var input = "DurableTask.AzureStorage.Tests.Correlation.CorrelationScenarioTest+SayHelloActivity";
-            Assert.AreEqual("SayHelloActivity", input.GetTargetClassName());
-        }
+        var input = "DurableTask.AzureStorage.Tests.Correlation.CorrelationScenarioTest+SayHelloActivity";
+        Assert.AreEqual("SayHelloActivity", input.GetTargetClassName());
+    }
 
-        [TestMethod]
-        public void GetTargetClassNamePlusNotIncluded()
-        {
-            var input = "foo";
-            Assert.AreEqual("foo", input.GetTargetClassName());
-        }
+    [TestMethod]
+    public void GetTargetClassNamePlusNotIncluded()
+    {
+        var input = "foo";
+        Assert.AreEqual("foo", input.GetTargetClassName());
+    }
 
-        [TestMethod]
-        public void GetTargetClassNameEmptyString()
-        {
-            var input = "";
-            Assert.AreEqual("", input.GetTargetClassName());
-        }
+    [TestMethod]
+    public void GetTargetClassNameEmptyString()
+    {
+        var input = "";
+        Assert.AreEqual("", input.GetTargetClassName());
     }
 }

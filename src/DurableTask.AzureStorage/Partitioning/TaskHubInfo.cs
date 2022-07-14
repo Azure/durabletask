@@ -11,21 +11,20 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Partitioning
+namespace DurableTask.AzureStorage.Partitioning;
+
+using System;
+
+class TaskHubInfo
 {
-    using System;
-
-    class TaskHubInfo
+    public TaskHubInfo(string taskHubName, DateTime createdAt, int partitionCount)
     {
-        public TaskHubInfo(string taskHubName, DateTime createdAt, int partitionCount)
-        {
-            this.TaskHubName = taskHubName;
-            this.CreatedAt = createdAt;
-            this.PartitionCount = partitionCount;
-        }
-
-        public string TaskHubName { get; private set; }
-        public DateTime CreatedAt { get; private set; }
-        public int PartitionCount { get; private set; }
+        this.TaskHubName = taskHubName;
+        this.CreatedAt = createdAt;
+        this.PartitionCount = partitionCount;
     }
+
+    public string TaskHubName { get; private set; }
+    public DateTime CreatedAt { get; private set; }
+    public int PartitionCount { get; private set; }
 }

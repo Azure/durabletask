@@ -11,151 +11,150 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+using System;
+using System.Runtime.Serialization;
+
+using DurableTask.Core.Exceptions;
+
+using Newtonsoft.Json;
+
+/// <summary>
+/// Details of an activity or orchestration failure.
+/// </summary>
+[Serializable]
+public class FailureDetails : IEquatable<FailureDetails>
 {
-    using System;
-    using System.Runtime.Serialization;
-
-    using DurableTask.Core.Exceptions;
-
-    using Newtonsoft.Json;
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FailureDetails"/> class.
+    /// </summary>
+    /// <param name="errorType">The name of the error, which is expected to the the namespace-qualified name of the exception type.</param>
+    /// <param name="errorMessage">The message associated with the error, which is expected to be the exception's <see cref="Exception.Message"/> property.</param>
+    /// <param name="stackTrace">The exception stack trace.</param>
+    /// <param name="innerFailure">The inner cause of the failure.</param>
+    /// <param name="isNonRetriable">Whether the failure is non-retriable.</param>
+    [JsonConstructor]
+    public FailureDetails(string errorType, string errorMessage, string? stackTrace, FailureDetails? innerFailure, bool isNonRetriable)
+    {
+        this.ErrorType = errorType;
+        this.ErrorMessage = errorMessage;
+        this.StackTrace = stackTrace;
+        this.InnerFailure = innerFailure;
+        this.IsNonRetriable = isNonRetriable;
+    }
 
     /// <summary>
-    /// Details of an activity or orchestration failure.
+    /// Initializes a new instance of the <see cref="FailureDetails"/> class from an exception object.
     /// </summary>
-    [Serializable]
-    public class FailureDetails : IEquatable<FailureDetails>
+    /// <param name="e">The exception used to generate the failure details.</param>
+    public FailureDetails(Exception e)
+        : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, FromException(e.InnerException), false)
     {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="FailureDetails"/> class.
-        /// </summary>
-        /// <param name="errorType">The name of the error, which is expected to the the namespace-qualified name of the exception type.</param>
-        /// <param name="errorMessage">The message associated with the error, which is expected to be the exception's <see cref="Exception.Message"/> property.</param>
-        /// <param name="stackTrace">The exception stack trace.</param>
-        /// <param name="innerFailure">The inner cause of the failure.</param>
-        /// <param name="isNonRetriable">Whether the failure is non-retriable.</param>
-        [JsonConstructor]
-        public FailureDetails(string errorType, string errorMessage, string? stackTrace, FailureDetails? innerFailure, bool isNonRetriable)
-        {
-            this.ErrorType = errorType;
-            this.ErrorMessage = errorMessage;
-            this.StackTrace = stackTrace;
-            this.InnerFailure = innerFailure;
-            this.IsNonRetriable = isNonRetriable;
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="FailureDetails"/> class from an exception object.
-        /// </summary>
-        /// <param name="e">The exception used to generate the failure details.</param>
-        public FailureDetails(Exception e)
-            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, FromException(e.InnerException), false)
-        {
-        }
-
-        /// <summary>
-        /// For testing purposes only: Initializes a new, empty instance of the <see cref="FailureDetails"/> class.
-        /// </summary>
-        public FailureDetails()
-        {
-            this.ErrorType = "None";
-            this.ErrorMessage = string.Empty;
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="FailureDetails"/> class from a serialization context.
-        /// </summary>
-        protected FailureDetails(SerializationInfo info, StreamingContext context)
-        {
-            this.ErrorType = info.GetString(nameof(this.ErrorType));
-            this.ErrorMessage = info.GetString(nameof(this.ErrorMessage));
-            this.StackTrace = info.GetString(nameof(this.StackTrace));
-            this.InnerFailure = (FailureDetails)info.GetValue(nameof(this.InnerFailure), typeof(FailureDetails));
-        }
-
-        /// <summary>
-        /// Gets the type of the error, which is expected to the exception type's <see cref="Type.FullName"/> value.
-        /// </summary>
-        public string ErrorType { get; }
-
-        /// <summary>
-        /// Gets the message associated with the error, which is expected to be the exception's <see cref="Exception.Message"/> property.
-        /// </summary>
-        public string ErrorMessage { get; }
-
-        /// <summary>
-        /// Gets the exception stack trace.
-        /// </summary>
-        public string? StackTrace { get; }
-
-        /// <summary>
-        /// Gets the inner cause of this failure.
-        /// </summary>
-        public FailureDetails? InnerFailure { get; }
-
-        /// <summary>
-        /// Gets a value indicating whether this failure is non-retriable, meaning it should not be retried.
-        /// </summary>
-        public bool IsNonRetriable { get; }
-
-        /// <summary>
-        /// Gets a debug-friendly description of the failure information.
-        /// </summary>
-        public override string ToString() => $"{this.ErrorType}: {this.ErrorMessage}";
-
-        /// <summary>
-        /// Returns <c>true</c> if the task failure was provided by the specified exception type.
-        /// </summary>
-        /// <remarks>
-        /// This method allows checking if a task failed due to an exception of a specific type by attempting
-        /// to load the type specified in <see cref="ErrorType"/>. If the exception type cannot be loaded
-        /// for any reason, this method will return <c>false</c>. Base types are supported.
-        /// </remarks>
-        /// <typeparam name="T">The type of exception to test against.</typeparam>
-        /// <returns>Returns <c>true</c> if the <see cref="ErrorType"/> value matches <typeparamref name="T"/>; <c>false</c> otherwise.</returns>
-        public bool IsCausedBy<T>() where T : Exception
-        {
-            Type? exceptionType = Type.GetType(this.ErrorType, throwOnError: false);
-            return exceptionType is not null && typeof(T).IsAssignableFrom(exceptionType);
-        }
-
-        /// <summary>
-        /// Gets whether two <see cref="FailureDetails"/> objects are equivalent using value semantics.
-        /// </summary>
-        public override bool Equals(object other) => Equals(other as FailureDetails);
-
-        /// <summary>
-        /// Gets whether two <see cref="FailureDetails"/> objects are equivalent using value semantics.
-        /// </summary>
-        public bool Equals(FailureDetails? other)
-        {
-            if (ReferenceEquals(other, null))
-            {
-                return false;
-            }
-
-            return
-                this.ErrorType == other.ErrorType &&
-                this.ErrorMessage == other.ErrorMessage &&
-                this.StackTrace == other.StackTrace &&
-                this.InnerFailure == other.InnerFailure;
-        }
-
-        /// <inheritdoc/>
-        public override int GetHashCode() => (ErrorType, ErrorMessage, StackTrace, InnerFailure).GetHashCode();
-
-        private static string GetErrorMessage(Exception e)
-        {
-            if (e is TaskFailedException tfe)
-            {
-                return $"Task '{tfe.Name}' (#{tfe.ScheduleId}) failed with an unhandled exception: {tfe.Message}";
-            }
-            else
-            {
-                return e.Message;
-            }
-        }
-
-        private static FailureDetails? FromException(Exception? e) => e is null ? null : new FailureDetails(e);
     }
+
+    /// <summary>
+    /// For testing purposes only: Initializes a new, empty instance of the <see cref="FailureDetails"/> class.
+    /// </summary>
+    public FailureDetails()
+    {
+        this.ErrorType = "None";
+        this.ErrorMessage = string.Empty;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FailureDetails"/> class from a serialization context.
+    /// </summary>
+    protected FailureDetails(SerializationInfo info, StreamingContext context)
+    {
+        this.ErrorType = info.GetString(nameof(this.ErrorType));
+        this.ErrorMessage = info.GetString(nameof(this.ErrorMessage));
+        this.StackTrace = info.GetString(nameof(this.StackTrace));
+        this.InnerFailure = (FailureDetails)info.GetValue(nameof(this.InnerFailure), typeof(FailureDetails));
+    }
+
+    /// <summary>
+    /// Gets the type of the error, which is expected to the exception type's <see cref="Type.FullName"/> value.
+    /// </summary>
+    public string ErrorType { get; }
+
+    /// <summary>
+    /// Gets the message associated with the error, which is expected to be the exception's <see cref="Exception.Message"/> property.
+    /// </summary>
+    public string ErrorMessage { get; }
+
+    /// <summary>
+    /// Gets the exception stack trace.
+    /// </summary>
+    public string? StackTrace { get; }
+
+    /// <summary>
+    /// Gets the inner cause of this failure.
+    /// </summary>
+    public FailureDetails? InnerFailure { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether this failure is non-retriable, meaning it should not be retried.
+    /// </summary>
+    public bool IsNonRetriable { get; }
+
+    /// <summary>
+    /// Gets a debug-friendly description of the failure information.
+    /// </summary>
+    public override string ToString() => $"{this.ErrorType}: {this.ErrorMessage}";
+
+    /// <summary>
+    /// Returns <c>true</c> if the task failure was provided by the specified exception type.
+    /// </summary>
+    /// <remarks>
+    /// This method allows checking if a task failed due to an exception of a specific type by attempting
+    /// to load the type specified in <see cref="ErrorType"/>. If the exception type cannot be loaded
+    /// for any reason, this method will return <c>false</c>. Base types are supported.
+    /// </remarks>
+    /// <typeparam name="T">The type of exception to test against.</typeparam>
+    /// <returns>Returns <c>true</c> if the <see cref="ErrorType"/> value matches <typeparamref name="T"/>; <c>false</c> otherwise.</returns>
+    public bool IsCausedBy<T>() where T : Exception
+    {
+        Type? exceptionType = Type.GetType(this.ErrorType, throwOnError: false);
+        return exceptionType is not null && typeof(T).IsAssignableFrom(exceptionType);
+    }
+
+    /// <summary>
+    /// Gets whether two <see cref="FailureDetails"/> objects are equivalent using value semantics.
+    /// </summary>
+    public override bool Equals(object other) => Equals(other as FailureDetails);
+
+    /// <summary>
+    /// Gets whether two <see cref="FailureDetails"/> objects are equivalent using value semantics.
+    /// </summary>
+    public bool Equals(FailureDetails? other)
+    {
+        if (ReferenceEquals(other, null))
+        {
+            return false;
+        }
+
+        return
+            this.ErrorType == other.ErrorType &&
+            this.ErrorMessage == other.ErrorMessage &&
+            this.StackTrace == other.StackTrace &&
+            this.InnerFailure == other.InnerFailure;
+    }
+
+    /// <inheritdoc/>
+    public override int GetHashCode() => (ErrorType, ErrorMessage, StackTrace, InnerFailure).GetHashCode();
+
+    private static string GetErrorMessage(Exception e)
+    {
+        if (e is TaskFailedException tfe)
+        {
+            return $"Task '{tfe.Name}' (#{tfe.ScheduleId}) failed with an unhandled exception: {tfe.Message}";
+        }
+        else
+        {
+            return e.Message;
+        }
+    }
+
+    private static FailureDetails? FromException(Exception? e) => e is null ? null : new FailureDetails(e);
 }

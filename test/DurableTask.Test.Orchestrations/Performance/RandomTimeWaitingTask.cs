@@ -11,37 +11,36 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Test.Orchestrations.Performance
+namespace DurableTask.Test.Orchestrations.Performance;
+
+using System;
+using System.Threading.Tasks;
+using DurableTask.Core;
+
+public sealed class RandomTimeWaitingTask : AsyncTaskActivity<RandomTimeWaitingTaskInput, int>
 {
-    using System;
-    using System.Threading.Tasks;
-    using DurableTask.Core;
-
-    public sealed class RandomTimeWaitingTask : AsyncTaskActivity<RandomTimeWaitingTaskInput, int>
+    protected override async Task<int> ExecuteAsync(TaskContext context, RandomTimeWaitingTaskInput input)
     {
-        protected override async Task<int> ExecuteAsync(TaskContext context, RandomTimeWaitingTaskInput input)
+        int delayTime;
+
+        if (input.MaxDelay == input.MinDelay)
         {
-            int delayTime;
-
-            if (input.MaxDelay == input.MinDelay)
-            {
-                delayTime = input.MaxDelay;
-            }
-            else
-            {
-                Random random = new Random();
-                delayTime = random.Next(input.MinDelay, input.MaxDelay);
-            }
-
-            // Uncomment this block to force some failures.
-            //if (new Random().NextDouble() < 0.1)
-            //{
-            //    throw new Exception();
-            //}
-
-            await Task.Delay(TimeSpan.FromMilliseconds(input.DelayUnit.TotalMilliseconds * delayTime));
-
-            return 1;
+            delayTime = input.MaxDelay;
         }
+        else
+        {
+            Random random = new Random();
+            delayTime = random.Next(input.MinDelay, input.MaxDelay);
+        }
+
+        // Uncomment this block to force some failures.
+        //if (new Random().NextDouble() < 0.1)
+        //{
+        //    throw new Exception();
+        //}
+
+        await Task.Delay(TimeSpan.FromMilliseconds(input.DelayUnit.TotalMilliseconds * delayTime));
+
+        return 1;
     }
 }

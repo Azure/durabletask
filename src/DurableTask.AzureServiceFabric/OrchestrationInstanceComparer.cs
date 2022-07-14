@@ -11,31 +11,30 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric
+namespace DurableTask.AzureServiceFabric;
+
+using System.Collections.Generic;
+
+using DurableTask.Core;
+
+internal class OrchestrationInstanceComparer : IEqualityComparer<OrchestrationInstance>
 {
-    using System.Collections.Generic;
+    public static readonly OrchestrationInstanceComparer Default = new OrchestrationInstanceComparer();
 
-    using DurableTask.Core;
-
-    internal class OrchestrationInstanceComparer : IEqualityComparer<OrchestrationInstance>
+    public bool Equals(OrchestrationInstance first, OrchestrationInstance second)
     {
-        public static readonly OrchestrationInstanceComparer Default = new OrchestrationInstanceComparer();
-
-        public bool Equals(OrchestrationInstance first, OrchestrationInstance second)
+        if (first is null || second is null)
         {
-            if (first is null || second is null)
-            {
-                return first == second;
-            }
-
-            if (string.Equals(first.InstanceId, second.InstanceId) && string.Equals(first.ExecutionId, second.ExecutionId))
-            {
-                return true;
-            }
-
-            return false;
+            return first == second;
         }
 
-        public int GetHashCode(OrchestrationInstance instance) => instance.GetHashCode();
+        if (string.Equals(first.InstanceId, second.InstanceId) && string.Equals(first.ExecutionId, second.ExecutionId))
+        {
+            return true;
+        }
+
+        return false;
     }
+
+    public int GetHashCode(OrchestrationInstance instance) => instance.GetHashCode();
 }

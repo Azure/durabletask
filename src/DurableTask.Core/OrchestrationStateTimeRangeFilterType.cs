@@ -11,26 +11,25 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+/// <summary>
+/// Enumeration of the types of time filters for orchestration state queries
+/// </summary>
+public enum OrchestrationStateTimeRangeFilterType
 {
     /// <summary>
-    /// Enumeration of the types of time filters for orchestration state queries
+    /// Filter based on creation time
     /// </summary>
-    public enum OrchestrationStateTimeRangeFilterType
-    {
-        /// <summary>
-        /// Filter based on creation time
-        /// </summary>
-        OrchestrationCreatedTimeFilter,
+    OrchestrationCreatedTimeFilter,
 
-        /// <summary>
-        /// Filter based on completion time
-        /// </summary>
-        OrchestrationCompletedTimeFilter,
+    /// <summary>
+    /// Filter based on completion time
+    /// </summary>
+    OrchestrationCompletedTimeFilter,
 
-        /// <summary>
-        /// Filter based on last update time
-        /// </summary>
-        OrchestrationLastUpdatedTimeFilter,
-    }
+    /// <summary>
+    /// Filter based on last update time
+    /// </summary>
+    OrchestrationLastUpdatedTimeFilter,
 }

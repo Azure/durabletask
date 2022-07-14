@@ -11,14 +11,13 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace TestApplication.Common.Orchestrations
+namespace TestApplication.Common.Orchestrations;
+
+public class RecurringOrchestrationInput
 {
-    public class RecurringOrchestrationInput
-    {
-        public string TargetOrchestrationType { get; set; }
+    public string TargetOrchestrationType { get; set; }
 
-        public int TargetOrchestrationInput { get; set; }
+    public int TargetOrchestrationInput { get; set; }
 
-        public string TargetOrchestrationInstanceId { get; set; }
-    }
+    public string TargetOrchestrationInstanceId { get; set; }
 }

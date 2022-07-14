@@ -11,30 +11,29 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Logging
+namespace DurableTask.Core.Logging;
+
+using Microsoft.Extensions.Logging;
+
+/// <summary>
+/// Basic interface that defines the basic requirements for all DurableTask
+/// log messages for <see cref="ILogger"/> compatibility.
+/// </summary>
+public interface ILogEvent
 {
-    using Microsoft.Extensions.Logging;
+    /// <summary>
+    /// The ID of the log event. This must match one of the values in <see cref="EventIds"/>.
+    /// </summary>
+    EventId EventId { get; }
 
     /// <summary>
-    /// Basic interface that defines the basic requirements for all DurableTask
-    /// log messages for <see cref="ILogger"/> compatibility.
+    /// The level of the log event.
     /// </summary>
-    public interface ILogEvent
-    {
-        /// <summary>
-        /// The ID of the log event. This must match one of the values in <see cref="EventIds"/>.
-        /// </summary>
-        EventId EventId { get; }
+    LogLevel Level { get; }
 
-        /// <summary>
-        /// The level of the log event.
-        /// </summary>
-        LogLevel Level { get; }
-
-        /// <summary>
-        /// Gets the message to write to the <see cref="ILogger"/> infrastructure.
-        /// This method will not be called if the corresponding event is filtered out.
-        /// </summary>
-        string FormattedMessage { get; }
-    }
+    /// <summary>
+    /// Gets the message to write to the <see cref="ILogger"/> infrastructure.
+    /// This method will not be called if the corresponding event is filtered out.
+    /// </summary>
+    string FormattedMessage { get; }
 }

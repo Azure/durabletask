@@ -11,58 +11,57 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.Serialization;
+
+// TODO: Consider declaring as a record
+/// <summary>
+/// Represents the state of an orchestration instance
+/// </summary>
+[DataContract]
+public class OrchestrationInstance : IExtensibleDataObject
 {
-    using System.Diagnostics.CodeAnalysis;
-    using System.Runtime.Serialization;
-
-    // TODO: Consider declaring as a record
     /// <summary>
-    /// Represents the state of an orchestration instance
+    /// The instance id, assigned as unique to the orchestration
     /// </summary>
-    [DataContract]
-    public class OrchestrationInstance : IExtensibleDataObject
-    {
-        /// <summary>
-        /// The instance id, assigned as unique to the orchestration
-        /// </summary>
-        [DataMember]
-        public string InstanceId { get; set; }
+    [DataMember]
+    public string InstanceId { get; set; }
 
-        /// <summary>
-        /// The execution id, unique to the execution of this instance
-        /// </summary>
-        [DataMember]
-        public string ExecutionId { get; set; }
+    /// <summary>
+    /// The execution id, unique to the execution of this instance
+    /// </summary>
+    [DataMember]
+    public string ExecutionId { get; set; }
 
-        internal OrchestrationInstance Clone()
-         => new OrchestrationInstance
-         {
-             ExecutionId = ExecutionId,
-             InstanceId = InstanceId
-         };
+    internal OrchestrationInstance Clone()
+     => new OrchestrationInstance
+     {
+         ExecutionId = ExecutionId,
+         InstanceId = InstanceId
+     };
 
-        /// <summary>
-        /// Serves as a hash function for an OrchestrationInstance.
-        /// </summary>
-        /// <returns>
-        /// A hash code for the current object.
-        /// </returns>
-        [SuppressMessage("ReSharper", "NonReadonlyMemberInGetHashCode")]
-        public override int GetHashCode()
-         => (this.InstanceId ?? string.Empty).GetHashCode() ^ (this.ExecutionId ?? string.Empty).GetHashCode();
+    /// <summary>
+    /// Serves as a hash function for an OrchestrationInstance.
+    /// </summary>
+    /// <returns>
+    /// A hash code for the current object.
+    /// </returns>
+    [SuppressMessage("ReSharper", "NonReadonlyMemberInGetHashCode")]
+    public override int GetHashCode()
+     => (this.InstanceId ?? string.Empty).GetHashCode() ^ (this.ExecutionId ?? string.Empty).GetHashCode();
 
-        /// <summary>
-        /// Returns a string that represents the OrchestrationInstance.
-        /// </summary>
-        /// <returns>
-        /// A string that represents the current object.
-        /// </returns>
-        public override string ToString() => $"[InstanceId: {this.InstanceId}, ExecutionId: {this.ExecutionId}]";
+    /// <summary>
+    /// Returns a string that represents the OrchestrationInstance.
+    /// </summary>
+    /// <returns>
+    /// A string that represents the current object.
+    /// </returns>
+    public override string ToString() => $"[InstanceId: {this.InstanceId}, ExecutionId: {this.ExecutionId}]";
 
-        /// <summary>
-        /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
-        /// </summary>
-        public ExtensionDataObject ExtensionData { get; set; }
-    }
+    /// <summary>
+    /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
+    /// </summary>
+    public ExtensionDataObject ExtensionData { get; set; }
 }

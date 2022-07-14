@@ -16,74 +16,73 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Auth;
 
-namespace DurableTask.AzureStorage.Tests
+namespace DurableTask.AzureStorage.Tests;
+
+[TestClass]
+public class StorageAccountDetailsTests
 {
-    [TestClass]
-    public class StorageAccountDetailsTests
+    [TestMethod]
+    public void ToCloudStorageAccount_ConnectionString()
     {
-        [TestMethod]
-        public void ToCloudStorageAccount_ConnectionString()
+        var details = new StorageAccountDetails { ConnectionString = "UseDevelopmentStorage=true" };
+
+        CloudStorageAccount actual = details.ToCloudStorageAccount();
+        Assert.AreEqual(new Uri("http://127.0.0.1:10000/devstoreaccount1", UriKind.Absolute), actual.BlobEndpoint);
+        Assert.AreEqual(new Uri("http://127.0.0.1:10001/devstoreaccount1", UriKind.Absolute), actual.QueueEndpoint);
+        Assert.AreEqual(new Uri("http://127.0.0.1:10002/devstoreaccount1", UriKind.Absolute), actual.TableEndpoint);
+    }
+
+    [TestMethod]
+    public void ToCloudStorageAccount_Endpoints()
+    {
+        var expected = new StorageAccountDetails
         {
-            var details = new StorageAccountDetails { ConnectionString = "UseDevelopmentStorage=true" };
+            StorageCredentials = new StorageCredentials(),
+            BlobServiceUri = new Uri("https://blobs", UriKind.Absolute),
+            QueueServiceUri = new Uri("https://queues", UriKind.Absolute),
+            TableServiceUri = new Uri("https://tables", UriKind.Absolute),
+        };
 
-            CloudStorageAccount actual = details.ToCloudStorageAccount();
-            Assert.AreEqual(new Uri("http://127.0.0.1:10000/devstoreaccount1", UriKind.Absolute), actual.BlobEndpoint);
-            Assert.AreEqual(new Uri("http://127.0.0.1:10001/devstoreaccount1", UriKind.Absolute), actual.QueueEndpoint);
-            Assert.AreEqual(new Uri("http://127.0.0.1:10002/devstoreaccount1", UriKind.Absolute), actual.TableEndpoint);
-        }
+        CloudStorageAccount actual = expected.ToCloudStorageAccount();
+        Assert.AreSame(expected.StorageCredentials, actual.Credentials);
+        Assert.AreEqual(expected.BlobServiceUri, actual.BlobEndpoint);
+        Assert.AreEqual(expected.QueueServiceUri, actual.QueueEndpoint);
+        Assert.AreEqual(expected.TableServiceUri, actual.TableEndpoint);
+    }
 
-        [TestMethod]
-        public void ToCloudStorageAccount_Endpoints()
+    [DataTestMethod]
+    [DataRow(true, false, false)]
+    [DataRow(false, true, false)]
+    [DataRow(false, false, true)]
+    [DataRow(true, true, false)]
+    [DataRow(false, true, true)]
+    [DataRow(true, false, true)]
+    public void ToCloudStorageAccount_EndpointSubset(bool hasBlob, bool hasQueue, bool hasTable)
+    {
+        var expected = new StorageAccountDetails
         {
-            var expected = new StorageAccountDetails
-            {
-                StorageCredentials = new StorageCredentials(),
-                BlobServiceUri = new Uri("https://blobs", UriKind.Absolute),
-                QueueServiceUri = new Uri("https://queues", UriKind.Absolute),
-                TableServiceUri = new Uri("https://tables", UriKind.Absolute),
-            };
+            StorageCredentials = new StorageCredentials(),
+            BlobServiceUri = hasBlob ? new Uri("https://blobs", UriKind.Absolute) : null,
+            QueueServiceUri = hasQueue ? new Uri("https://queues", UriKind.Absolute) : null,
+            TableServiceUri = hasTable ? new Uri("https://tables", UriKind.Absolute) : null,
+        };
 
-            CloudStorageAccount actual = expected.ToCloudStorageAccount();
-            Assert.AreSame(expected.StorageCredentials, actual.Credentials);
-            Assert.AreEqual(expected.BlobServiceUri, actual.BlobEndpoint);
-            Assert.AreEqual(expected.QueueServiceUri, actual.QueueEndpoint);
-            Assert.AreEqual(expected.TableServiceUri, actual.TableEndpoint);
-        }
+        Assert.ThrowsException<InvalidOperationException>(() => expected.ToCloudStorageAccount());
+    }
 
-        [DataTestMethod]
-        [DataRow(true, false, false)]
-        [DataRow(false, true, false)]
-        [DataRow(false, false, true)]
-        [DataRow(true, true, false)]
-        [DataRow(false, true, true)]
-        [DataRow(true, false, true)]
-        public void ToCloudStorageAccount_EndpointSubset(bool hasBlob, bool hasQueue, bool hasTable)
+    [TestMethod]
+    public void ToCloudStorageAccount_AccountName()
+    {
+        var expected = new StorageAccountDetails
         {
-            var expected = new StorageAccountDetails
-            {
-                StorageCredentials = new StorageCredentials(),
-                BlobServiceUri = hasBlob ? new Uri("https://blobs", UriKind.Absolute) : null,
-                QueueServiceUri = hasQueue ? new Uri("https://queues", UriKind.Absolute) : null,
-                TableServiceUri = hasTable ? new Uri("https://tables", UriKind.Absolute) : null,
-            };
+            AccountName = "dev",
+            StorageCredentials = new StorageCredentials(),
+        };
 
-            Assert.ThrowsException<InvalidOperationException>(() => expected.ToCloudStorageAccount());
-        }
-
-        [TestMethod]
-        public void ToCloudStorageAccount_AccountName()
-        {
-            var expected = new StorageAccountDetails
-            {
-                AccountName = "dev",
-                StorageCredentials = new StorageCredentials(),
-            };
-
-            CloudStorageAccount actual = expected.ToCloudStorageAccount();
-            Assert.AreSame(expected.StorageCredentials, actual.Credentials);
-            Assert.AreEqual(new Uri("https://dev.blob.core.windows.net", UriKind.Absolute), actual.BlobEndpoint);
-            Assert.AreEqual(new Uri("https://dev.queue.core.windows.net", UriKind.Absolute), actual.QueueEndpoint);
-            Assert.AreEqual(new Uri("https://dev.table.core.windows.net", UriKind.Absolute), actual.TableEndpoint);
-        }
+        CloudStorageAccount actual = expected.ToCloudStorageAccount();
+        Assert.AreSame(expected.StorageCredentials, actual.Credentials);
+        Assert.AreEqual(new Uri("https://dev.blob.core.windows.net", UriKind.Absolute), actual.BlobEndpoint);
+        Assert.AreEqual(new Uri("https://dev.queue.core.windows.net", UriKind.Absolute), actual.QueueEndpoint);
+        Assert.AreEqual(new Uri("https://dev.table.core.windows.net", UriKind.Absolute), actual.TableEndpoint);
     }
 }

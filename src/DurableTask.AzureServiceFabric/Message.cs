@@ -11,30 +11,29 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric
+namespace DurableTask.AzureServiceFabric;
+
+using System;
+
+internal sealed class Message<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
 {
-    using System;
-
-    internal sealed class Message<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
+    public Message(TKey key, TValue value)
     {
-        public Message(TKey key, TValue value)
+        if (key is null)
         {
-            if (key is null)
-            {
-                throw new ArgumentNullException(nameof(key));
-            }
-
-            if (value is null)
-            {
-                throw new ArgumentNullException(nameof(value));
-            }
-
-            Key = key;
-            Value = value;
+            throw new ArgumentNullException(nameof(key));
         }
 
-        public TKey Key { get; private set; }
+        if (value is null)
+        {
+            throw new ArgumentNullException(nameof(value));
+        }
 
-        public TValue Value { get; private set; }
+        Key = key;
+        Value = value;
     }
+
+    public TKey Key { get; private set; }
+
+    public TValue Value { get; private set; }
 }

@@ -11,74 +11,73 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace TestApplication.StatefulService
+namespace TestApplication.StatefulService;
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+using DurableTask.Core;
+using DurableTask.AzureServiceFabric;
+using DurableTask.Test.Orchestrations.Performance;
+
+using TestApplication.Common.Orchestrations;
+using TestApplication.Common.OrchestrationTasks;
+
+
+/// <inheritdoc/>
+public class TestOrchestrationsProvider
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-
-    using DurableTask.Core;
-    using DurableTask.AzureServiceFabric;
-    using DurableTask.Test.Orchestrations.Performance;
-
-    using TestApplication.Common.Orchestrations;
-    using TestApplication.Common.OrchestrationTasks;
-
+    /// <inheritdoc/>
+    public FabricOrchestrationProviderSettings GetFabricOrchestrationProviderSettings()
+    {
+        var settings = new FabricOrchestrationProviderSettings();
+        settings.TaskOrchestrationDispatcherSettings.DispatcherCount = 10;
+        settings.TaskActivityDispatcherSettings.DispatcherCount = 10;
+        return settings;
+    }
 
     /// <inheritdoc/>
-    public class TestOrchestrationsProvider
+    public void RegisterOrchestrations(TaskHubWorker taskHubWorker)
     {
-        /// <inheritdoc/>
-        public FabricOrchestrationProviderSettings GetFabricOrchestrationProviderSettings()
-        {
-            var settings = new FabricOrchestrationProviderSettings();
-            settings.TaskOrchestrationDispatcherSettings.DispatcherCount = 10;
-            settings.TaskActivityDispatcherSettings.DispatcherCount = 10;
-            return settings;
-        }
+        taskHubWorker
+            .AddTaskOrchestrations(this.GetOrchestrationTypes().ToArray())
+            .AddTaskOrchestrations(this.GetTaskOrchestrations().Select(instance => new DefaultObjectCreator<TaskOrchestration>(instance.Value)).ToArray())
+            .AddTaskActivitiesFromInterface<IUserTasks>(new UserTasks())
+            .AddTaskActivitiesFromInterface<ITestTasks>(new TestTasks())
+            .AddTaskActivities(GetActivityTypes().ToArray());
+    }
 
-        /// <inheritdoc/>
-        public void RegisterOrchestrations(TaskHubWorker taskHubWorker)
+    /// <inheritdoc/>
+    private IEnumerable<Type> GetActivityTypes()
+    {
+        return new Type[]
         {
-            taskHubWorker
-                .AddTaskOrchestrations(this.GetOrchestrationTypes().ToArray())
-                .AddTaskOrchestrations(this.GetTaskOrchestrations().Select(instance => new DefaultObjectCreator<TaskOrchestration>(instance.Value)).ToArray())
-                .AddTaskActivitiesFromInterface<IUserTasks>(new UserTasks())
-                .AddTaskActivitiesFromInterface<ITestTasks>(new TestTasks())
-                .AddTaskActivities(GetActivityTypes().ToArray());
-        }
+            typeof(RandomTimeWaitingTask),
+            typeof(ExecutionCountingActivity)
+        };
+    }
 
-        /// <inheritdoc/>
-        private IEnumerable<Type> GetActivityTypes()
+    /// <inheritdoc/>
+    private IEnumerable<Type> GetOrchestrationTypes()
+    {
+        return new Type[]
         {
-            return new Type[]
-            {
-                typeof(RandomTimeWaitingTask),
-                typeof(ExecutionCountingActivity)
-            };
-        }
+            typeof(SimpleOrchestrationWithTasks),
+            typeof(SimpleOrchestrationWithTimer),
+            typeof(SimpleOrchestrationWithSubOrchestration),
+            typeof(GenerationBasicOrchestration),
+            typeof(RecurringOrchestration),
+            typeof(RecurringTargetOrchestration),
+            typeof(DriverOrchestration),
+            typeof(TestOrchestration),
+            typeof(ExecutionCountingOrchestration)
+        };
+    }
 
-        /// <inheritdoc/>
-        private IEnumerable<Type> GetOrchestrationTypes()
-        {
-            return new Type[]
-            {
-                typeof(SimpleOrchestrationWithTasks),
-                typeof(SimpleOrchestrationWithTimer),
-                typeof(SimpleOrchestrationWithSubOrchestration),
-                typeof(GenerationBasicOrchestration),
-                typeof(RecurringOrchestration),
-                typeof(RecurringTargetOrchestration),
-                typeof(DriverOrchestration),
-                typeof(TestOrchestration),
-                typeof(ExecutionCountingOrchestration)
-            };
-        }
-
-        /// <inheritdoc/>
-        private IEnumerable<KeyValuePair<string, TaskOrchestration>> GetTaskOrchestrations()
-        {
-            yield return new KeyValuePair<string, TaskOrchestration>(typeof(OrchestrationRunningIntoRetry).Name, new OrchestrationRunningIntoRetry());
-        }
+    /// <inheritdoc/>
+    private IEnumerable<KeyValuePair<string, TaskOrchestration>> GetTaskOrchestrations()
+    {
+        yield return new KeyValuePair<string, TaskOrchestration>(typeof(OrchestrationRunningIntoRetry).Name, new OrchestrationRunningIntoRetry());
     }
 }

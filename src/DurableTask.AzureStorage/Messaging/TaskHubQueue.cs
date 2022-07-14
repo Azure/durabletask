@@ -11,259 +11,247 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.AzureStorage.Messaging
+namespace DurableTask.AzureStorage.Messaging;
+
+using System;
+using System.Reflection;
+using System.Runtime.ExceptionServices;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using DurableTask.AzureStorage.Storage;
+using DurableTask.Core;
+using DurableTask.Core.History;
+
+abstract class TaskHubQueue
 {
-    using System;
-    using System.Reflection;
-    using System.Runtime.ExceptionServices;
-    using System.Text;
-    using System.Threading;
-    using System.Threading.Tasks;
-    using DurableTask.AzureStorage.Storage;
-    using DurableTask.Core;
-    using DurableTask.Core.History;
+    static long messageSequenceNumber;
 
-    abstract class TaskHubQueue
+    protected readonly AzureStorageClient azureStorageClient;
+    protected readonly Queue storageQueue;
+    protected readonly MessageManager messageManager;
+    protected readonly string storageAccountName;
+    protected readonly AzureStorageOrchestrationServiceSettings settings;
+    protected readonly BackoffPollingHelper backoffHelper;
+
+    public TaskHubQueue(
+        AzureStorageClient azureStorageClient,
+        string queueName,
+        MessageManager messageManager)
     {
-        static long messageSequenceNumber;
+        this.azureStorageClient = azureStorageClient;
+        this.messageManager = messageManager;
+        this.storageAccountName = azureStorageClient.QueueAccountName;
+        this.settings = azureStorageClient.Settings;
 
-        protected readonly AzureStorageClient azureStorageClient;
-        protected readonly Queue storageQueue;
-        protected readonly MessageManager messageManager;
-        protected readonly string storageAccountName;
-        protected readonly AzureStorageOrchestrationServiceSettings settings;
-        protected readonly BackoffPollingHelper backoffHelper;
 
-        public TaskHubQueue(
-            AzureStorageClient azureStorageClient,
-            string queueName,
-            MessageManager messageManager)
+        this.storageQueue = this.azureStorageClient.GetQueueReference(queueName);
+
+        TimeSpan minPollingDelay = TimeSpan.FromMilliseconds(50);
+        TimeSpan maxPollingDelay = this.settings.MaxQueuePollingInterval;
+        if (maxPollingDelay < minPollingDelay)
         {
-            this.azureStorageClient = azureStorageClient;
-            this.messageManager = messageManager;
-            this.storageAccountName = azureStorageClient.QueueAccountName;
-            this.settings = azureStorageClient.Settings;
-
-
-            this.storageQueue = this.azureStorageClient.GetQueueReference(queueName);
-
-            TimeSpan minPollingDelay = TimeSpan.FromMilliseconds(50);
-            TimeSpan maxPollingDelay = this.settings.MaxQueuePollingInterval;
-            if (maxPollingDelay < minPollingDelay)
-            {
-                maxPollingDelay = minPollingDelay;
-            }
-
-            this.backoffHelper = new BackoffPollingHelper(minPollingDelay, maxPollingDelay);
+            maxPollingDelay = minPollingDelay;
         }
 
-        public string Name => this.storageQueue.Name;
+        this.backoffHelper = new BackoffPollingHelper(minPollingDelay, maxPollingDelay);
+    }
 
-        public Uri Uri => this.storageQueue.Uri;
+    public string Name => this.storageQueue.Name;
 
-        protected abstract TimeSpan MessageVisibilityTimeout { get; }
+    public Uri Uri => this.storageQueue.Uri;
 
-        // Intended only for use by unit tests
-        internal Queue InnerQueue => this.storageQueue;
+    protected abstract TimeSpan MessageVisibilityTimeout { get; }
 
-        /// <summary>
-        /// Adds message to a queue
-        /// </summary>
-        /// <param name="message">Instance of <see cref="TaskMessage"/></param>
-        /// <param name="sourceSession">Instance of <see cref="SessionBase"/></param>
-        /// <returns></returns>
-        public Task AddMessageAsync(TaskMessage message, SessionBase sourceSession)
+    // Intended only for use by unit tests
+    internal Queue InnerQueue => this.storageQueue;
+
+    /// <summary>
+    /// Adds message to a queue
+    /// </summary>
+    /// <param name="message">Instance of <see cref="TaskMessage"/></param>
+    /// <param name="sourceSession">Instance of <see cref="SessionBase"/></param>
+    /// <returns></returns>
+    public Task AddMessageAsync(TaskMessage message, SessionBase sourceSession)
+    {
+        return this.AddMessageAsync(message, sourceSession.Instance, sourceSession);
+    }
+
+    /// <summary>
+    /// Adds message to a queue
+    /// </summary>
+    /// <param name="message">Instance of <see cref="TaskMessage"/></param>
+    /// <param name="sourceInstance">Instnace of <see cref="OrchestrationInstance"/></param>
+    /// <returns></returns>
+    public Task<MessageData> AddMessageAsync(TaskMessage message, OrchestrationInstance sourceInstance)
+    {
+        return this.AddMessageAsync(message, sourceInstance, session: null);
+    }
+
+    async Task<MessageData> AddMessageAsync(TaskMessage taskMessage, OrchestrationInstance sourceInstance, SessionBase? session)
+    {
+        MessageData data;
+        try
         {
-            return this.AddMessageAsync(message, sourceSession.Instance, sourceSession);
-        }
-
-        /// <summary>
-        /// Adds message to a queue
-        /// </summary>
-        /// <param name="message">Instance of <see cref="TaskMessage"/></param>
-        /// <param name="sourceInstance">Instnace of <see cref="OrchestrationInstance"/></param>
-        /// <returns></returns>
-        public Task<MessageData> AddMessageAsync(TaskMessage message, OrchestrationInstance sourceInstance)
-        {
-            return this.AddMessageAsync(message, sourceInstance, session: null);
-        }
-
-        async Task<MessageData> AddMessageAsync(TaskMessage taskMessage, OrchestrationInstance sourceInstance, SessionBase? session)
-        {
-            MessageData data;
-            try
-            {
-                // We transfer to a new trace activity ID every time a new outbound queue message is created.
-                Guid outboundTraceActivityId = Guid.NewGuid();
-                data = new MessageData(
-                    taskMessage,
-                    outboundTraceActivityId,
-                    this.storageQueue.Name,
-                    session?.GetCurrentEpisode(),
-                    sourceInstance)
-                {
-                    SequenceNumber = Interlocked.Increment(ref messageSequenceNumber)
-                };
-
-                // Inject Correlation TraceContext on a queue.
-                CorrelationTraceClient.Propagate(
-                    () => { data.SerializableTraceContext = GetSerializableTraceContext(taskMessage); });
-                
-                string rawContent = await this.messageManager.SerializeMessageDataAsync(data);
-
-                QueueMessage queueMessage = new QueueMessage(rawContent);
-
-                this.settings.Logger.SendingMessage(
-                    outboundTraceActivityId,
-                    this.storageAccountName,
-                    this.settings.TaskHubName,
-                    taskMessage.Event.EventType.ToString(),
-                    Utils.GetTaskEventId(taskMessage.Event),
-                    sourceInstance.InstanceId,
-                    sourceInstance.ExecutionId,
-                    Encoding.UTF8.GetByteCount(rawContent),
-                    data.QueueName /* PartitionId */,
-                    taskMessage.OrchestrationInstance.InstanceId,
-                    taskMessage.OrchestrationInstance.ExecutionId,
-                    data.SequenceNumber,
-                    data.Episode.GetValueOrDefault(-1));
-
-                await this.storageQueue.AddMessageAsync(
-                    queueMessage,
-                    GetVisibilityDelay(taskMessage),
-                    session?.TraceActivityId);
-
-                // Wake up the queue polling thread
-                this.backoffHelper.Reset();
-            }
-            catch (DurableTaskStorageException e)
-            {
-                this.settings.Logger.MessageFailure(
-                    this.storageAccountName,
-                    this.settings.TaskHubName,
-                    string.Empty /* MessageId */,
-                    sourceInstance.InstanceId,
-                    sourceInstance.ExecutionId,
-                    this.storageQueue.Name,
-                    taskMessage.Event.EventType.ToString(),
-                    Utils.GetTaskEventId(taskMessage.Event),
-                    e.ToString());
-                throw;
-            }
-
-            return data;
-        }
-
-        static string? GetSerializableTraceContext(TaskMessage taskMessage)
-        {
-            TraceContextBase traceContext = CorrelationTraceContext.Current;
-            if (traceContext is not null)
-            {
-                if (CorrelationTraceContext.GenerateDependencyTracking)
-                {
-                    PropertyInfo nameProperty = taskMessage.Event.GetType().GetProperty("Name");
-                    string name = (nameProperty is null) ? TraceConstants.DependencyDefault : (string)nameProperty.GetValue(taskMessage.Event);
-
-                    var dependencyTraceContext = TraceContextFactory.Create($"{TraceConstants.Orchestrator} {name}");
-                    dependencyTraceContext.TelemetryType = TelemetryType.Dependency;
-                    dependencyTraceContext.SetParentAndStart(traceContext);
-                    dependencyTraceContext.OrchestrationTraceContexts.Push(dependencyTraceContext);
-                    return dependencyTraceContext.SerializableTraceContext;
-                }
-                else
-                {
-                    return traceContext.SerializableTraceContext;
-                }
-            }
-
-            // TODO this might not happen, however, in case happen, introduce NullObjectTraceContext.
-            return null; 
-        }
-
-        static TimeSpan? GetVisibilityDelay(TaskMessage taskMessage)
-        {
-            TimeSpan? initialVisibilityDelay = null;
-            if (taskMessage.Event is TimerFiredEvent timerEvent)
-            {
-                initialVisibilityDelay = timerEvent.FireAt.Subtract(DateTime.UtcNow);
-                if (initialVisibilityDelay < TimeSpan.Zero)
-                {
-                    initialVisibilityDelay = TimeSpan.Zero;
-                }
-            }
-            else if (taskMessage.Event is ExecutionStartedEvent executionStartedEvent)
-            {
-                if (executionStartedEvent.ScheduledStartTime.HasValue)
-                {
-                    initialVisibilityDelay = executionStartedEvent.ScheduledStartTime.Value.Subtract(DateTime.UtcNow);
-                    if (initialVisibilityDelay < TimeSpan.Zero)
-                    {
-                        initialVisibilityDelay = TimeSpan.Zero;
-                    }
-                }
-            }
-
-            // Special functionality for entity messages with a delivery delay 
-            if (DurableTask.Core.Common.Entities.IsDelayedEntityMessage(taskMessage, out DateTime due))
-            {
-                initialVisibilityDelay = due - DateTime.UtcNow;
-                if (initialVisibilityDelay < TimeSpan.Zero)
-                {
-                    initialVisibilityDelay = TimeSpan.Zero;
-                }
-            }
-
-            return initialVisibilityDelay;
-        }
-
-        public virtual Task AbandonMessageAsync(MessageData message, SessionBase? session = null)
-        {
-            QueueMessage queueMessage = message.OriginalQueueMessage;
-            TaskMessage taskMessage = message.TaskMessage;
-            OrchestrationInstance instance = taskMessage.OrchestrationInstance;
-            long sequenceNumber = message.SequenceNumber;
-
-            return this.AbandonMessageAsync(
-                queueMessage,
+            // We transfer to a new trace activity ID every time a new outbound queue message is created.
+            Guid outboundTraceActivityId = Guid.NewGuid();
+            data = new MessageData(
                 taskMessage,
-                instance,
-                session?.TraceActivityId,
-                sequenceNumber);
+                outboundTraceActivityId,
+                this.storageQueue.Name,
+                session?.GetCurrentEpisode(),
+                sourceInstance)
+            {
+                SequenceNumber = Interlocked.Increment(ref messageSequenceNumber)
+            };
+
+            // Inject Correlation TraceContext on a queue.
+            CorrelationTraceClient.Propagate(
+                () => { data.SerializableTraceContext = GetSerializableTraceContext(taskMessage); });
+            
+            string rawContent = await this.messageManager.SerializeMessageDataAsync(data);
+
+            QueueMessage queueMessage = new QueueMessage(rawContent);
+
+            this.settings.Logger.SendingMessage(
+                outboundTraceActivityId,
+                this.storageAccountName,
+                this.settings.TaskHubName,
+                taskMessage.Event.EventType.ToString(),
+                Utils.GetTaskEventId(taskMessage.Event),
+                sourceInstance.InstanceId,
+                sourceInstance.ExecutionId,
+                Encoding.UTF8.GetByteCount(rawContent),
+                data.QueueName /* PartitionId */,
+                taskMessage.OrchestrationInstance.InstanceId,
+                taskMessage.OrchestrationInstance.ExecutionId,
+                data.SequenceNumber,
+                data.Episode.GetValueOrDefault(-1));
+
+            await this.storageQueue.AddMessageAsync(
+                queueMessage,
+                GetVisibilityDelay(taskMessage),
+                session?.TraceActivityId);
+
+            // Wake up the queue polling thread
+            this.backoffHelper.Reset();
+        }
+        catch (DurableTaskStorageException e)
+        {
+            this.settings.Logger.MessageFailure(
+                this.storageAccountName,
+                this.settings.TaskHubName,
+                string.Empty /* MessageId */,
+                sourceInstance.InstanceId,
+                sourceInstance.ExecutionId,
+                this.storageQueue.Name,
+                taskMessage.Event.EventType.ToString(),
+                Utils.GetTaskEventId(taskMessage.Event),
+                e.ToString());
+            throw;
         }
 
-        protected async Task AbandonMessageAsync(
-            QueueMessage queueMessage,
-            TaskMessage? taskMessage,
-            OrchestrationInstance? instance,
-            Guid? traceActivityId,
-            long sequenceNumber)
+        return data;
+    }
+
+    static string? GetSerializableTraceContext(TaskMessage taskMessage)
+    {
+        TraceContextBase traceContext = CorrelationTraceContext.Current;
+        if (traceContext is not null)
         {
-            string instanceId = instance?.InstanceId ?? string.Empty;
-            string executionId = instance?.ExecutionId ?? string.Empty;
-            string eventType = taskMessage?.Event.EventType.ToString() ?? string.Empty;
-            int taskEventId = taskMessage is not null ? Utils.GetTaskEventId(taskMessage.Event) : -1;
-
-            // Exponentially backoff a given queue message until a maximum visibility delay of 10 minutes.
-            // Once it hits the maximum, log the message as a poison message.
-            const int maxSecondsToWait = 600;
-            int numSecondsToWait = queueMessage.DequeueCount <= 30 ? 
-                Math.Min((int)Math.Pow(2, queueMessage.DequeueCount), maxSecondsToWait) :
-                maxSecondsToWait;
-            if (numSecondsToWait == maxSecondsToWait)
+            if (CorrelationTraceContext.GenerateDependencyTracking)
             {
-                this.settings.Logger.PoisonMessageDetected(
-                    this.storageAccountName,
-                    this.settings.TaskHubName,
-                    eventType,
-                    taskEventId,
-                    queueMessage.Id,
-                    instanceId,
-                    executionId,
-                    this.storageQueue.Name,
-                    queueMessage.DequeueCount);
-            }
+                PropertyInfo nameProperty = taskMessage.Event.GetType().GetProperty("Name");
+                string name = (nameProperty is null) ? TraceConstants.DependencyDefault : (string)nameProperty.GetValue(taskMessage.Event);
 
-            this.settings.Logger.AbandoningMessage(
+                var dependencyTraceContext = TraceContextFactory.Create($"{TraceConstants.Orchestrator} {name}");
+                dependencyTraceContext.TelemetryType = TelemetryType.Dependency;
+                dependencyTraceContext.SetParentAndStart(traceContext);
+                dependencyTraceContext.OrchestrationTraceContexts.Push(dependencyTraceContext);
+                return dependencyTraceContext.SerializableTraceContext;
+            }
+            else
+            {
+                return traceContext.SerializableTraceContext;
+            }
+        }
+
+        // TODO this might not happen, however, in case happen, introduce NullObjectTraceContext.
+        return null; 
+    }
+
+    static TimeSpan? GetVisibilityDelay(TaskMessage taskMessage)
+    {
+        TimeSpan? initialVisibilityDelay = null;
+        if (taskMessage.Event is TimerFiredEvent timerEvent)
+        {
+            initialVisibilityDelay = timerEvent.FireAt.Subtract(DateTime.UtcNow);
+            if (initialVisibilityDelay < TimeSpan.Zero)
+            {
+                initialVisibilityDelay = TimeSpan.Zero;
+            }
+        }
+        else if (taskMessage.Event is ExecutionStartedEvent executionStartedEvent)
+        {
+            if (executionStartedEvent.ScheduledStartTime.HasValue)
+            {
+                initialVisibilityDelay = executionStartedEvent.ScheduledStartTime.Value.Subtract(DateTime.UtcNow);
+                if (initialVisibilityDelay < TimeSpan.Zero)
+                {
+                    initialVisibilityDelay = TimeSpan.Zero;
+                }
+            }
+        }
+
+        // Special functionality for entity messages with a delivery delay 
+        if (DurableTask.Core.Common.Entities.IsDelayedEntityMessage(taskMessage, out DateTime due))
+        {
+            initialVisibilityDelay = due - DateTime.UtcNow;
+            if (initialVisibilityDelay < TimeSpan.Zero)
+            {
+                initialVisibilityDelay = TimeSpan.Zero;
+            }
+        }
+
+        return initialVisibilityDelay;
+    }
+
+    public virtual Task AbandonMessageAsync(MessageData message, SessionBase? session = null)
+    {
+        QueueMessage queueMessage = message.OriginalQueueMessage;
+        TaskMessage taskMessage = message.TaskMessage;
+        OrchestrationInstance instance = taskMessage.OrchestrationInstance;
+        long sequenceNumber = message.SequenceNumber;
+
+        return this.AbandonMessageAsync(
+            queueMessage,
+            taskMessage,
+            instance,
+            session?.TraceActivityId,
+            sequenceNumber);
+    }
+
+    protected async Task AbandonMessageAsync(
+        QueueMessage queueMessage,
+        TaskMessage? taskMessage,
+        OrchestrationInstance? instance,
+        Guid? traceActivityId,
+        long sequenceNumber)
+    {
+        string instanceId = instance?.InstanceId ?? string.Empty;
+        string executionId = instance?.ExecutionId ?? string.Empty;
+        string eventType = taskMessage?.Event.EventType.ToString() ?? string.Empty;
+        int taskEventId = taskMessage is not null ? Utils.GetTaskEventId(taskMessage.Event) : -1;
+
+        // Exponentially backoff a given queue message until a maximum visibility delay of 10 minutes.
+        // Once it hits the maximum, log the message as a poison message.
+        const int maxSecondsToWait = 600;
+        int numSecondsToWait = queueMessage.DequeueCount <= 30 ? 
+            Math.Min((int)Math.Pow(2, queueMessage.DequeueCount), maxSecondsToWait) :
+            maxSecondsToWait;
+        if (numSecondsToWait == maxSecondsToWait)
+        {
+            this.settings.Logger.PoisonMessageDetected(
                 this.storageAccountName,
                 this.settings.TaskHubName,
                 eventType,
@@ -272,217 +260,228 @@ namespace DurableTask.AzureStorage.Messaging
                 instanceId,
                 executionId,
                 this.storageQueue.Name,
-                sequenceNumber,
-                numSecondsToWait);
+                queueMessage.DequeueCount);
+        }
 
+        this.settings.Logger.AbandoningMessage(
+            this.storageAccountName,
+            this.settings.TaskHubName,
+            eventType,
+            taskEventId,
+            queueMessage.Id,
+            instanceId,
+            executionId,
+            this.storageQueue.Name,
+            sequenceNumber,
+            numSecondsToWait);
+
+        try
+        {
+            // We "abandon" the message by settings its visibility timeout using an exponential backoff algorithm.
+            // This allows it to be reprocessed on this node or another node at a later time, hopefully successfully.
+            await this.storageQueue.UpdateMessageAsync(
+                queueMessage,
+                TimeSpan.FromSeconds(numSecondsToWait),
+                traceActivityId);
+        }
+        catch (Exception e)
+        {
+            // Message may have been processed and deleted already.
+            this.HandleMessagingExceptions(
+                e,
+                queueMessage.Id,
+                instanceId,
+                executionId,
+                eventType,
+                taskEventId,
+                details: $"Caller: {nameof(AbandonMessageAsync)}");
+        }
+    }
+
+    public async Task RenewMessageAsync(MessageData message, SessionBase session)
+    {
+        QueueMessage queueMessage = message.OriginalQueueMessage;
+        TaskMessage taskMessage = message.TaskMessage;
+        OrchestrationInstance instance = taskMessage.OrchestrationInstance;
+
+        this.settings.Logger.RenewingMessage(
+            this.storageAccountName,
+            this.settings.TaskHubName,
+            instance.InstanceId,
+            instance.ExecutionId,
+            this.storageQueue.Name,
+            message.TaskMessage.Event.EventType.ToString(),
+            Utils.GetTaskEventId(message.TaskMessage.Event),
+            queueMessage.Id,
+            (int)this.MessageVisibilityTimeout.TotalSeconds);
+
+        try
+        {
+            await this.storageQueue.UpdateMessageAsync(
+                queueMessage,
+                this.MessageVisibilityTimeout,
+                session?.TraceActivityId);
+        }
+        catch (Exception e)
+        {
+            // Message may have been processed and deleted already.
+            this.HandleMessagingExceptions(e, message, $"Caller: {nameof(RenewMessageAsync)}");
+        }
+    }
+
+    public virtual async Task DeleteMessageAsync(MessageData message, SessionBase? session = null)
+    {
+        QueueMessage queueMessage = message.OriginalQueueMessage;
+        TaskMessage taskMessage = message.TaskMessage;
+
+        this.settings.Logger.DeletingMessage(
+            this.storageAccountName,
+            this.settings.TaskHubName,
+            taskMessage.Event.EventType.ToString(),
+            Utils.GetTaskEventId(taskMessage.Event),
+            queueMessage.Id,
+            taskMessage.OrchestrationInstance.InstanceId,
+            taskMessage.OrchestrationInstance.ExecutionId,
+            this.storageQueue.Name,
+            message.SequenceNumber);
+
+        bool haveRetried = false;
+        while (true)
+        {
             try
             {
-                // We "abandon" the message by settings its visibility timeout using an exponential backoff algorithm.
-                // This allows it to be reprocessed on this node or another node at a later time, hopefully successfully.
-                await this.storageQueue.UpdateMessageAsync(
-                    queueMessage,
-                    TimeSpan.FromSeconds(numSecondsToWait),
-                    traceActivityId);
+                await this.storageQueue.DeleteMessageAsync(queueMessage, session?.TraceActivityId);
             }
             catch (Exception e)
             {
-                // Message may have been processed and deleted already.
-                this.HandleMessagingExceptions(
-                    e,
-                    queueMessage.Id,
-                    instanceId,
-                    executionId,
-                    eventType,
-                    taskEventId,
-                    details: $"Caller: {nameof(AbandonMessageAsync)}");
+                if (!haveRetried && this.IsMessageGoneException(e))
+                {
+                    haveRetried = true;
+                    continue;
+                }
+
+                this.HandleMessagingExceptions(e, message, $"Caller: {nameof(DeleteMessageAsync)}");
             }
+
+            break;
         }
+    }
 
-        public async Task RenewMessageAsync(MessageData message, SessionBase session)
+    bool IsMessageGoneException(Exception e)
+    {
+        DurableTaskStorageException? storageException = e as DurableTaskStorageException;
+        return storageException?.HttpStatusCode == 404;
+    }
+
+    void HandleMessagingExceptions(Exception e, MessageData message, string details)
+    {
+        string messageId = message.OriginalQueueMessage.Id;
+        string instanceId = message.TaskMessage.OrchestrationInstance.InstanceId;
+        string executionId = message.TaskMessage.OrchestrationInstance.ExecutionId;
+        string eventType = message.TaskMessage.Event.EventType.ToString() ?? string.Empty;
+        int taskEventId = Utils.GetTaskEventId(message.TaskMessage.Event);
+
+        this.HandleMessagingExceptions(e, messageId, instanceId, executionId, eventType, taskEventId, details);
+    }
+
+    void HandleMessagingExceptions(
+        Exception e,
+        string messageId,
+        string instanceId,
+        string executionId,
+        string eventType,
+        int taskEventId,
+        string details)
+    {
+        if (this.IsMessageGoneException(e))
         {
-            QueueMessage queueMessage = message.OriginalQueueMessage;
-            TaskMessage taskMessage = message.TaskMessage;
-            OrchestrationInstance instance = taskMessage.OrchestrationInstance;
-
-            this.settings.Logger.RenewingMessage(
+            // Message may have been processed and deleted already.
+            this.settings.Logger.MessageGone(
                 this.storageAccountName,
                 this.settings.TaskHubName,
-                instance.InstanceId,
-                instance.ExecutionId,
+                messageId,
+                instanceId,
+                executionId,
                 this.storageQueue.Name,
-                message.TaskMessage.Event.EventType.ToString(),
-                Utils.GetTaskEventId(message.TaskMessage.Event),
-                queueMessage.Id,
-                (int)this.MessageVisibilityTimeout.TotalSeconds);
-
-            try
-            {
-                await this.storageQueue.UpdateMessageAsync(
-                    queueMessage,
-                    this.MessageVisibilityTimeout,
-                    session?.TraceActivityId);
-            }
-            catch (Exception e)
-            {
-                // Message may have been processed and deleted already.
-                this.HandleMessagingExceptions(e, message, $"Caller: {nameof(RenewMessageAsync)}");
-            }
+                eventType,
+                taskEventId,
+                details);
         }
-
-        public virtual async Task DeleteMessageAsync(MessageData message, SessionBase? session = null)
+        else
         {
-            QueueMessage queueMessage = message.OriginalQueueMessage;
-            TaskMessage taskMessage = message.TaskMessage;
-
-            this.settings.Logger.DeletingMessage(
+            this.settings.Logger.MessageFailure(
                 this.storageAccountName,
                 this.settings.TaskHubName,
-                taskMessage.Event.EventType.ToString(),
-                Utils.GetTaskEventId(taskMessage.Event),
-                queueMessage.Id,
-                taskMessage.OrchestrationInstance.InstanceId,
-                taskMessage.OrchestrationInstance.ExecutionId,
+                messageId,
+                instanceId,
+                executionId,
                 this.storageQueue.Name,
-                message.SequenceNumber);
+                eventType,
+                taskEventId,
+                e.ToString());
 
-            bool haveRetried = false;
-            while (true)
+            // Rethrow the original exception, preserving the callstack.
+            ExceptionDispatchInfo.Capture(e).Throw();
+        }
+    }
+
+    public async Task CreateIfNotExistsAsync()
+    {
+        try
+        {
+            if (await this.storageQueue.CreateIfNotExistsAsync())
             {
-                try
-                {
-                    await this.storageQueue.DeleteMessageAsync(queueMessage, session?.TraceActivityId);
-                }
-                catch (Exception e)
-                {
-                    if (!haveRetried && this.IsMessageGoneException(e))
-                    {
-                        haveRetried = true;
-                        continue;
-                    }
-
-                    this.HandleMessagingExceptions(e, message, $"Caller: {nameof(DeleteMessageAsync)}");
-                }
-
-                break;
-            }
-        }
-
-        bool IsMessageGoneException(Exception e)
-        {
-            DurableTaskStorageException? storageException = e as DurableTaskStorageException;
-            return storageException?.HttpStatusCode == 404;
-        }
-
-        void HandleMessagingExceptions(Exception e, MessageData message, string details)
-        {
-            string messageId = message.OriginalQueueMessage.Id;
-            string instanceId = message.TaskMessage.OrchestrationInstance.InstanceId;
-            string executionId = message.TaskMessage.OrchestrationInstance.ExecutionId;
-            string eventType = message.TaskMessage.Event.EventType.ToString() ?? string.Empty;
-            int taskEventId = Utils.GetTaskEventId(message.TaskMessage.Event);
-
-            this.HandleMessagingExceptions(e, messageId, instanceId, executionId, eventType, taskEventId, details);
-        }
-
-        void HandleMessagingExceptions(
-            Exception e,
-            string messageId,
-            string instanceId,
-            string executionId,
-            string eventType,
-            int taskEventId,
-            string details)
-        {
-            if (this.IsMessageGoneException(e))
-            {
-                // Message may have been processed and deleted already.
-                this.settings.Logger.MessageGone(
+                this.settings.Logger.PartitionManagerInfo(
                     this.storageAccountName,
                     this.settings.TaskHubName,
-                    messageId,
-                    instanceId,
-                    executionId,
+                    this.settings.WorkerId,
                     this.storageQueue.Name,
-                    eventType,
-                    taskEventId,
-                    details);
-            }
-            else
-            {
-                this.settings.Logger.MessageFailure(
-                    this.storageAccountName,
-                    this.settings.TaskHubName,
-                    messageId,
-                    instanceId,
-                    executionId,
-                    this.storageQueue.Name,
-                    eventType,
-                    taskEventId,
-                    e.ToString());
-
-                // Rethrow the original exception, preserving the callstack.
-                ExceptionDispatchInfo.Capture(e).Throw();
+                    $"Created {this.GetType().Name} named {this.Name}.");
             }
         }
-
-        public async Task CreateIfNotExistsAsync()
+        catch (Exception e)
         {
-            try
+            this.settings.Logger.MessageFailure(
+                this.storageAccountName,
+                this.settings.TaskHubName,
+                string.Empty /* MessageId */,
+                string.Empty /* InstanceId */,
+                string.Empty /* ExecutionId */,
+                this.storageQueue.Name,
+                string.Empty /* EventType */,
+                0 /* TaskEventId */,
+                e.ToString());
+            throw;
+        }
+    }
+
+    public async Task DeleteIfExistsAsync()
+    {
+        try
+        {
+            if (await this.storageQueue.DeleteIfExistsAsync())
             {
-                if (await this.storageQueue.CreateIfNotExistsAsync())
-                {
-                    this.settings.Logger.PartitionManagerInfo(
-                        this.storageAccountName,
-                        this.settings.TaskHubName,
-                        this.settings.WorkerId,
-                        this.storageQueue.Name,
-                        $"Created {this.GetType().Name} named {this.Name}.");
-                }
-            }
-            catch (Exception e)
-            {
-                this.settings.Logger.MessageFailure(
+                this.settings.Logger.PartitionManagerInfo(
                     this.storageAccountName,
                     this.settings.TaskHubName,
-                    string.Empty /* MessageId */,
-                    string.Empty /* InstanceId */,
-                    string.Empty /* ExecutionId */,
+                    this.settings.WorkerId,
                     this.storageQueue.Name,
-                    string.Empty /* EventType */,
-                    0 /* TaskEventId */,
-                    e.ToString());
-                throw;
+                    $"Deleted {this.GetType().Name} named {this.Name}.");
             }
         }
-
-        public async Task DeleteIfExistsAsync()
+        catch (Exception e)
         {
-            try
-            {
-                if (await this.storageQueue.DeleteIfExistsAsync())
-                {
-                    this.settings.Logger.PartitionManagerInfo(
-                        this.storageAccountName,
-                        this.settings.TaskHubName,
-                        this.settings.WorkerId,
-                        this.storageQueue.Name,
-                        $"Deleted {this.GetType().Name} named {this.Name}.");
-                }
-            }
-            catch (Exception e)
-            {
-                this.settings.Logger.MessageFailure(
-                    this.storageAccountName,
-                    this.settings.TaskHubName,
-                    string.Empty /* MessageId */,
-                    string.Empty /* InstanceId */,
-                    string.Empty /* ExecutionId */,
-                    this.storageQueue.Name,
-                    string.Empty /* EventType */,
-                    0 /* TaskEventId */,
-                    e.ToString());
-                throw;
-            }
+            this.settings.Logger.MessageFailure(
+                this.storageAccountName,
+                this.settings.TaskHubName,
+                string.Empty /* MessageId */,
+                string.Empty /* InstanceId */,
+                string.Empty /* ExecutionId */,
+                this.storageQueue.Name,
+                string.Empty /* EventType */,
+                0 /* TaskEventId */,
+                e.ToString());
+            throw;
         }
     }
 }

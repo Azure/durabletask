@@ -13,135 +13,134 @@
 
 // This class was copied wholesale from DurableTask.AzureStorage.Tests. Should
 // probably extract out to common project at some point.
-namespace DurableTask.Redis.Tests
-{
-    using System;
-    using System.Diagnostics;
-    using System.Threading.Tasks;
+namespace DurableTask.Redis.Tests;
 
-    using DurableTask.Core;
+using System;
+using System.Diagnostics;
+using System.Threading.Tasks;
 
-    using Xunit;
+using DurableTask.Core;
+
+using Xunit;
 
 #pragma warning disable CA1812 // Internal class instantiated indirectly
-    internal class TestOrchestrationClient
+internal class TestOrchestrationClient
+{
+    private readonly TaskHubClient client;
+    private readonly Type orchestrationType;
+    private readonly string instanceId;
+    private readonly DateTime instanceCreationTime;
+
+    public TestOrchestrationClient(
+        TaskHubClient client,
+        Type orchestrationType,
+        string instanceId,
+        DateTime instanceCreationTime)
     {
-        private readonly TaskHubClient client;
-        private readonly Type orchestrationType;
-        private readonly string instanceId;
-        private readonly DateTime instanceCreationTime;
+        this.client = client;
+        this.orchestrationType = orchestrationType;
+        this.instanceId = instanceId;
+        this.instanceCreationTime = instanceCreationTime;
+    }
 
-        public TestOrchestrationClient(
-            TaskHubClient client,
-            Type orchestrationType,
-            string instanceId,
-            DateTime instanceCreationTime)
+    public string InstanceId => this.instanceId;
+
+    public async Task<OrchestrationState> WaitForCompletionAsync(TimeSpan timeout)
+    {
+        timeout = AdjustTimeout(timeout);
+
+        var latestGeneration = new OrchestrationInstance { InstanceId = this.instanceId };
+        Stopwatch sw = Stopwatch.StartNew();
+        OrchestrationState state = await this.client.WaitForOrchestrationAsync(latestGeneration, timeout);
+        if (state is not null)
         {
-            this.client = client;
-            this.orchestrationType = orchestrationType;
-            this.instanceId = instanceId;
-            this.instanceCreationTime = instanceCreationTime;
+            Trace.TraceInformation(
+                "{0} (ID = {1}) completed after ~{2}ms. Status = {3}. Output = {4}.",
+                this.orchestrationType.Name,
+                state.OrchestrationInstance.InstanceId,
+                sw.ElapsedMilliseconds,
+                state.OrchestrationStatus,
+                state.Output);
+        }
+        else
+        {
+            Trace.TraceWarning(
+                "{0} (ID = {1}) failed to complete after {2}ms.",
+                this.orchestrationType.Name,
+                this.instanceId,
+                timeout.TotalMilliseconds);
         }
 
-        public string InstanceId => this.instanceId;
+        return state;
+    }
 
-        public async Task<OrchestrationState> WaitForCompletionAsync(TimeSpan timeout)
+    internal async Task<OrchestrationState> WaitForStartupAsync(TimeSpan timeout)
+    {
+        timeout = AdjustTimeout(timeout);
+
+        Stopwatch sw = Stopwatch.StartNew();
+        do
         {
-            timeout = AdjustTimeout(timeout);
-
-            var latestGeneration = new OrchestrationInstance { InstanceId = this.instanceId };
-            Stopwatch sw = Stopwatch.StartNew();
-            OrchestrationState state = await this.client.WaitForOrchestrationAsync(latestGeneration, timeout);
-            if (state is not null)
+            OrchestrationState state = await this.GetStatusAsync();
+            if (state is not null && state.OrchestrationStatus != OrchestrationStatus.Pending)
             {
-                Trace.TraceInformation(
-                    "{0} (ID = {1}) completed after ~{2}ms. Status = {3}. Output = {4}.",
-                    this.orchestrationType.Name,
-                    state.OrchestrationInstance.InstanceId,
-                    sw.ElapsedMilliseconds,
-                    state.OrchestrationStatus,
-                    state.Output);
-            }
-            else
-            {
-                Trace.TraceWarning(
-                    "{0} (ID = {1}) failed to complete after {2}ms.",
-                    this.orchestrationType.Name,
-                    this.instanceId,
-                    timeout.TotalMilliseconds);
-            }
-
-            return state;
-        }
-
-        internal async Task<OrchestrationState> WaitForStartupAsync(TimeSpan timeout)
-        {
-            timeout = AdjustTimeout(timeout);
-
-            Stopwatch sw = Stopwatch.StartNew();
-            do
-            {
-                OrchestrationState state = await this.GetStatusAsync();
-                if (state is not null && state.OrchestrationStatus != OrchestrationStatus.Pending)
-                {
-                    Trace.TraceInformation($"{state.Name} (ID = {state.OrchestrationInstance.InstanceId}) started successfully after ~{sw.ElapsedMilliseconds}ms. Status = {state.OrchestrationStatus}.");
-                    return state;
-                }
-
-                await Task.Delay(TimeSpan.FromSeconds(1));
-
-            } while (sw.Elapsed < timeout);
-
-            throw new TimeoutException($"Orchestration '{this.orchestrationType.Name}' with instance ID '{this.instanceId}' failed to start.");
-        }
-
-        public async Task<OrchestrationState> GetStatusAsync()
-        {
-            OrchestrationState state = await this.client.GetOrchestrationStateAsync(this.instanceId);
-
-            if (state is not null)
-            {
-                // Validate the status before returning
-                Assert.Equal(this.orchestrationType.FullName, state.Name);
-                Assert.Equal(this.instanceId, state.OrchestrationInstance.InstanceId);
-                Assert.True(state.CreatedTime >= this.instanceCreationTime);
-                Assert.True(state.CreatedTime <= DateTime.UtcNow);
-                Assert.True(state.LastUpdatedTime >= state.CreatedTime);
-                Assert.True(state.LastUpdatedTime <= DateTime.UtcNow);
+                Trace.TraceInformation($"{state.Name} (ID = {state.OrchestrationInstance.InstanceId}) started successfully after ~{sw.ElapsedMilliseconds}ms. Status = {state.OrchestrationStatus}.");
+                return state;
             }
 
-            return state;
+            await Task.Delay(TimeSpan.FromSeconds(1));
+
+        } while (sw.Elapsed < timeout);
+
+        throw new TimeoutException($"Orchestration '{this.orchestrationType.Name}' with instance ID '{this.instanceId}' failed to start.");
+    }
+
+    public async Task<OrchestrationState> GetStatusAsync()
+    {
+        OrchestrationState state = await this.client.GetOrchestrationStateAsync(this.instanceId);
+
+        if (state is not null)
+        {
+            // Validate the status before returning
+            Assert.Equal(this.orchestrationType.FullName, state.Name);
+            Assert.Equal(this.instanceId, state.OrchestrationInstance.InstanceId);
+            Assert.True(state.CreatedTime >= this.instanceCreationTime);
+            Assert.True(state.CreatedTime <= DateTime.UtcNow);
+            Assert.True(state.LastUpdatedTime >= state.CreatedTime);
+            Assert.True(state.LastUpdatedTime <= DateTime.UtcNow);
         }
 
-        public Task RaiseEventAsync(string eventName, object eventData)
+        return state;
+    }
+
+    public Task RaiseEventAsync(string eventName, object eventData)
+    {
+        Trace.TraceInformation($"Raising event to instance {this.instanceId} with name = {eventName}.");
+
+        var instance = new OrchestrationInstance { InstanceId = this.instanceId };
+        return this.client.RaiseEventAsync(instance, eventName, eventData);
+    }
+
+    public Task TerminateAsync(string reason)
+    {
+        Trace.TraceInformation($"Terminating instance {this.instanceId} with reason = {reason}.");
+
+        var instance = new OrchestrationInstance { InstanceId = this.instanceId };
+        return this.client.TerminateInstanceAsync(instance, reason);
+    }
+
+    private static TimeSpan AdjustTimeout(TimeSpan requestedTimeout)
+    {
+        TimeSpan timeout = requestedTimeout;
+        if (Debugger.IsAttached)
         {
-            Trace.TraceInformation($"Raising event to instance {this.instanceId} with name = {eventName}.");
-
-            var instance = new OrchestrationInstance { InstanceId = this.instanceId };
-            return this.client.RaiseEventAsync(instance, eventName, eventData);
-        }
-
-        public Task TerminateAsync(string reason)
-        {
-            Trace.TraceInformation($"Terminating instance {this.instanceId} with reason = {reason}.");
-
-            var instance = new OrchestrationInstance { InstanceId = this.instanceId };
-            return this.client.TerminateInstanceAsync(instance, reason);
-        }
-
-        private static TimeSpan AdjustTimeout(TimeSpan requestedTimeout)
-        {
-            TimeSpan timeout = requestedTimeout;
-            if (Debugger.IsAttached)
+            TimeSpan debuggingTimeout = TimeSpan.FromMinutes(5);
+            if (debuggingTimeout > timeout)
             {
-                TimeSpan debuggingTimeout = TimeSpan.FromMinutes(5);
-                if (debuggingTimeout > timeout)
-                {
-                    timeout = debuggingTimeout;
-                }
+                timeout = debuggingTimeout;
             }
-
-            return timeout;
         }
+
+        return timeout;
     }
 }

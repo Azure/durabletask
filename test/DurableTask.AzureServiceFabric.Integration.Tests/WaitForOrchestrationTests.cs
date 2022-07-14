@@ -11,140 +11,139 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Integration.Tests
+namespace DurableTask.AzureServiceFabric.Integration.Tests;
+
+using System;
+using System.Threading.Tasks;
+
+using DurableTask.Core;
+using DurableTask.Test.Orchestrations.Performance;
+
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class WaitForOrchestrationTests
 {
-    using System;
-    using System.Threading.Tasks;
+    private TaskHubClient taskHubClient;
 
-    using DurableTask.Core;
-    using DurableTask.Test.Orchestrations.Performance;
-
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
-
-    [TestClass]
-    public class WaitForOrchestrationTests
+    [TestInitialize]
+    public void TestInitialize()
     {
-        private TaskHubClient taskHubClient;
+        this.taskHubClient = Utilities.CreateTaskHubClient();
+    }
 
-        [TestInitialize]
-        public void TestInitialize()
+    [TestMethod]
+    public async Task WaitForOrchestration_Returns_Null_When_Orchestration_Not_Started()
+    {
+        var instance = new OrchestrationInstance() { InstanceId = "NonExisting", ExecutionId = "NonExisting" };
+        OrchestrationState result = null;
+        var waitTime = TimeSpan.FromMinutes(1);
+        var time = await Utilities.MeasureAsync(async () =>
         {
-            this.taskHubClient = Utilities.CreateTaskHubClient();
-        }
+            result = await this.taskHubClient.WaitForOrchestrationAsync(instance, waitTime);
+        });
 
-        [TestMethod]
-        public async Task WaitForOrchestration_Returns_Null_When_Orchestration_Not_Started()
+        Assert.IsNull(result);
+        Assert.IsTrue(time < waitTime + waitTime);
+        Console.WriteLine($"Full WaitTime : {waitTime}, Actual time taken for Wait {time}");
+    }
+
+    [TestMethod]
+    public async Task WaitForOrchestration_Returns_State_When_Orchestration_Already_Finished()
+    {
+        var input = new TestOrchestrationData()
         {
-            var instance = new OrchestrationInstance() { InstanceId = "NonExisting", ExecutionId = "NonExisting" };
-            OrchestrationState result = null;
-            var waitTime = TimeSpan.FromMinutes(1);
-            var time = await Utilities.MeasureAsync(async () =>
-            {
-                result = await this.taskHubClient.WaitForOrchestrationAsync(instance, waitTime);
-            });
+            NumberOfParallelTasks = 0,
+            NumberOfSerialTasks = 1,
+            MaxDelay = 0,
+            MinDelay = 0,
+            DelayUnit = TimeSpan.FromMilliseconds(1),
+            UseTimeoutTask = false,
+        };
+        var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), input);
+        await this.taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(1)); //Wait till orchestration is finished
 
-            Assert.IsNull(result);
-            Assert.IsTrue(time < waitTime + waitTime);
-            Console.WriteLine($"Full WaitTime : {waitTime}, Actual time taken for Wait {time}");
-        }
-
-        [TestMethod]
-        public async Task WaitForOrchestration_Returns_State_When_Orchestration_Already_Finished()
+        var waitTime = TimeSpan.FromMilliseconds(100); //Let this be very low for the test to be effective.
+        OrchestrationState result = null;
+        var time = await Utilities.MeasureAsync(async () =>
         {
-            var input = new TestOrchestrationData()
-            {
-                NumberOfParallelTasks = 0,
-                NumberOfSerialTasks = 1,
-                MaxDelay = 0,
-                MinDelay = 0,
-                DelayUnit = TimeSpan.FromMilliseconds(1),
-                UseTimeoutTask = false,
-            };
-            var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), input);
-            await this.taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(1)); //Wait till orchestration is finished
+            result = await this.taskHubClient.WaitForOrchestrationAsync(instance, waitTime);
+        });
 
-            var waitTime = TimeSpan.FromMilliseconds(100); //Let this be very low for the test to be effective.
-            OrchestrationState result = null;
-            var time = await Utilities.MeasureAsync(async () =>
-            {
-                result = await this.taskHubClient.WaitForOrchestrationAsync(instance, waitTime);
-            });
+        Assert.IsNotNull(result);
+        Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+        Assert.IsTrue(time < waitTime);
+        Console.WriteLine($"Full WaitTime : {waitTime}, Actual time taken for Wait {time}, Actual Time taken for Orchestration : {result.CompletedTime - result.CreatedTime}");
+    }
 
-            Assert.IsNotNull(result);
-            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
-            Assert.IsTrue(time < waitTime);
-            Console.WriteLine($"Full WaitTime : {waitTime}, Actual time taken for Wait {time}, Actual Time taken for Orchestration : {result.CompletedTime - result.CreatedTime}");
-        }
-
-        [TestMethod]
-        public async Task WaitForOrchestration_Waits_And_Returns_State_When_Orchestration_IsRunning()
+    [TestMethod]
+    public async Task WaitForOrchestration_Waits_And_Returns_State_When_Orchestration_IsRunning()
+    {
+        var waitTime = TimeSpan.FromMinutes(1);
+        var orchestrationTimeInSeconds = 5;
+        var input = new TestOrchestrationData()
         {
-            var waitTime = TimeSpan.FromMinutes(1);
-            var orchestrationTimeInSeconds = 5;
-            var input = new TestOrchestrationData()
-            {
-                NumberOfParallelTasks = 0,
-                NumberOfSerialTasks = 1,
-                MaxDelay = orchestrationTimeInSeconds,
-                MinDelay = orchestrationTimeInSeconds,
-                DelayUnit = TimeSpan.FromSeconds(1),
-                UseTimeoutTask = false,
-            };
+            NumberOfParallelTasks = 0,
+            NumberOfSerialTasks = 1,
+            MaxDelay = orchestrationTimeInSeconds,
+            MinDelay = orchestrationTimeInSeconds,
+            DelayUnit = TimeSpan.FromSeconds(1),
+            UseTimeoutTask = false,
+        };
 
-            var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), input);
+        var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), input);
 
-            OrchestrationState result = null;
-            var time = await Utilities.MeasureAsync(async () =>
-            {
-                result = await this.taskHubClient.WaitForOrchestrationAsync(instance, waitTime);
-            });
-
-            Assert.IsNotNull(result);
-            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
-            Assert.IsTrue(time < waitTime);
-            Assert.IsTrue(time > TimeSpan.FromSeconds(orchestrationTimeInSeconds));
-            Console.WriteLine($"Full WaitTime : {waitTime}, Actual time taken for Wait : {time}, Expected Minimum time for orchestration : {orchestrationTimeInSeconds} seconds, Actual Time taken for Orchestration : {result.CompletedTime - result.CreatedTime}");
-        }
-
-        [TestMethod]
-        public async Task WaitForOrchestration_TimesOut_And_Returns_Null_When_Orchestration_DidNotFinishYet()
+        OrchestrationState result = null;
+        var time = await Utilities.MeasureAsync(async () =>
         {
-            var initialwaitTimeInSeconds = 2;
-            var orchestrationTimeInSeconds = 5;
-            var waitTime = TimeSpan.FromSeconds(initialwaitTimeInSeconds);
-            var input = new TestOrchestrationData()
-            {
-                NumberOfParallelTasks = 0,
-                NumberOfSerialTasks = 1,
-                MaxDelay = orchestrationTimeInSeconds,
-                MinDelay = orchestrationTimeInSeconds,
-                DelayUnit = TimeSpan.FromSeconds(1),
-                UseTimeoutTask = false,
-            };
+            result = await this.taskHubClient.WaitForOrchestrationAsync(instance, waitTime);
+        });
 
-            var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), input);
+        Assert.IsNotNull(result);
+        Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+        Assert.IsTrue(time < waitTime);
+        Assert.IsTrue(time > TimeSpan.FromSeconds(orchestrationTimeInSeconds));
+        Console.WriteLine($"Full WaitTime : {waitTime}, Actual time taken for Wait : {time}, Expected Minimum time for orchestration : {orchestrationTimeInSeconds} seconds, Actual Time taken for Orchestration : {result.CompletedTime - result.CreatedTime}");
+    }
 
-            OrchestrationState result = null;
-            var time = await Utilities.MeasureAsync(async () =>
-            {
-                result = await this.taskHubClient.WaitForOrchestrationAsync(instance, waitTime);
-            });
+    [TestMethod]
+    public async Task WaitForOrchestration_TimesOut_And_Returns_Null_When_Orchestration_DidNotFinishYet()
+    {
+        var initialwaitTimeInSeconds = 2;
+        var orchestrationTimeInSeconds = 5;
+        var waitTime = TimeSpan.FromSeconds(initialwaitTimeInSeconds);
+        var input = new TestOrchestrationData()
+        {
+            NumberOfParallelTasks = 0,
+            NumberOfSerialTasks = 1,
+            MaxDelay = orchestrationTimeInSeconds,
+            MinDelay = orchestrationTimeInSeconds,
+            DelayUnit = TimeSpan.FromSeconds(1),
+            UseTimeoutTask = false,
+        };
 
-            Assert.IsNotNull(result);
-            Assert.AreEqual(OrchestrationStatus.Running, result.OrchestrationStatus);
-            Assert.IsTrue(time > waitTime);
-            Console.WriteLine($"Full WaitTime : {waitTime}, Actual time taken for Wait : {time}, Expected Orchestration Running Time : {orchestrationTimeInSeconds} seconds");
+        var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), input);
 
-            var newWaitTime = TimeSpan.FromMinutes(1);
-            time = await Utilities.MeasureAsync(async () =>
-            {
-                result = await this.taskHubClient.WaitForOrchestrationAsync(instance, newWaitTime);
-            });
+        OrchestrationState result = null;
+        var time = await Utilities.MeasureAsync(async () =>
+        {
+            result = await this.taskHubClient.WaitForOrchestrationAsync(instance, waitTime);
+        });
 
-            Assert.IsNotNull(result);
-            Assert.IsTrue(time < newWaitTime);
-            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
-            Console.WriteLine($"Full WaitTime : {newWaitTime}, Actual time taken for Wait : {time}, Time taken for Orchestration : {result.CompletedTime - result.CreatedTime}");
-        }
+        Assert.IsNotNull(result);
+        Assert.AreEqual(OrchestrationStatus.Running, result.OrchestrationStatus);
+        Assert.IsTrue(time > waitTime);
+        Console.WriteLine($"Full WaitTime : {waitTime}, Actual time taken for Wait : {time}, Expected Orchestration Running Time : {orchestrationTimeInSeconds} seconds");
+
+        var newWaitTime = TimeSpan.FromMinutes(1);
+        time = await Utilities.MeasureAsync(async () =>
+        {
+            result = await this.taskHubClient.WaitForOrchestrationAsync(instance, newWaitTime);
+        });
+
+        Assert.IsNotNull(result);
+        Assert.IsTrue(time < newWaitTime);
+        Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+        Console.WriteLine($"Full WaitTime : {newWaitTime}, Actual time taken for Wait : {time}, Time taken for Orchestration : {result.CompletedTime - result.CreatedTime}");
     }
 }

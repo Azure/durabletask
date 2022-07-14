@@ -11,33 +11,32 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Test.Orchestrations.Stress
+namespace DurableTask.Test.Orchestrations.Stress;
+
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using DurableTask.Core;
+
+public sealed class TestTask : AsyncTaskActivity<TestTaskData, int>
 {
-    using System;
-    using System.Threading;
-    using System.Threading.Tasks;
-    using DurableTask.Core;
+    public int Counter;
 
-    public sealed class TestTask : AsyncTaskActivity<TestTaskData, int>
+    public TestTask()
     {
-        public int Counter;
+    }
 
-        public TestTask()
-        {
-        }
+    protected override async Task<int> ExecuteAsync(TaskContext context, TestTaskData input)
+    {
+        int c = Interlocked.Increment(ref this.Counter);
+        OrchestrationInstance instance = context.OrchestrationInstance;
+        var random = new Random();
+        int minutesToSleep = random.Next(0, input.MaxDelayInMinutes);
 
-        protected override async Task<int> ExecuteAsync(TaskContext context, TestTaskData input)
-        {
-            int c = Interlocked.Increment(ref this.Counter);
-            OrchestrationInstance instance = context.OrchestrationInstance;
-            var random = new Random();
-            int minutesToSleep = random.Next(0, input.MaxDelayInMinutes);
+        Console.WriteLine($"[InstanceId: {instance.InstanceId}, ExecutionId: {instance.ExecutionId}, TaskId: {input.TaskId}, Counter: {c}] ---> Sleeping for '{minutesToSleep}'");
 
-            Console.WriteLine($"[InstanceId: {instance.InstanceId}, ExecutionId: {instance.ExecutionId}, TaskId: {input.TaskId}, Counter: {c}] ---> Sleeping for '{minutesToSleep}'");
+        await Task.Delay(TimeSpan.FromMinutes(minutesToSleep));
 
-            await Task.Delay(TimeSpan.FromMinutes(minutesToSleep));
-
-            return c;
-        }
+        return c;
     }
 }

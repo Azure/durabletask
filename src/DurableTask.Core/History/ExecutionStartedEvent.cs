@@ -11,88 +11,87 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.History
+namespace DurableTask.Core.History;
+
+using System;
+using System.Collections.Generic;
+using System.Runtime.Serialization;
+
+/// <summary>
+/// A history event for orchestration execution starting
+/// </summary>
+[DataContract]
+public class ExecutionStartedEvent : HistoryEvent
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Runtime.Serialization;
+    /// <summary>
+    /// The orchestration instance for this event
+    /// </summary>
+    [DataMember] public OrchestrationInstance OrchestrationInstance;
 
     /// <summary>
-    /// A history event for orchestration execution starting
+    /// Creates a new ExecutionStartedEvent with the supplied parameters
     /// </summary>
-    [DataContract]
-    public class ExecutionStartedEvent : HistoryEvent
+    /// <param name="eventId">The event id of the history event</param>
+    /// <param name="input">The serialized orchestration input </param>
+    public ExecutionStartedEvent(int eventId, string input) : base(eventId) => Input = input;
+
+    /// <summary>
+    /// Creates a new ExecutionStartedEvent
+    /// </summary>
+    internal ExecutionStartedEvent()
     {
-        /// <summary>
-        /// The orchestration instance for this event
-        /// </summary>
-        [DataMember] public OrchestrationInstance OrchestrationInstance;
-
-        /// <summary>
-        /// Creates a new ExecutionStartedEvent with the supplied parameters
-        /// </summary>
-        /// <param name="eventId">The event id of the history event</param>
-        /// <param name="input">The serialized orchestration input </param>
-        public ExecutionStartedEvent(int eventId, string input) : base(eventId) => Input = input;
-
-        /// <summary>
-        /// Creates a new ExecutionStartedEvent
-        /// </summary>
-        internal ExecutionStartedEvent()
-        {
-        }
-
-        /// <summary>
-        /// Gets the event type
-        /// </summary>
-        public override EventType EventType => EventType.ExecutionStarted;
-
-        /// <summary>
-        /// Gets or sets the parent instance of the event
-        /// </summary>
-        [DataMember]
-        public ParentInstance ParentInstance { get; set; }
-
-        /// <summary>
-        /// Gets or sets the orchestration name
-        /// </summary>
-        [DataMember]
-        public string Name { get; set; }
-
-        /// <summary>
-        /// Gets or sets the orchestration version
-        /// </summary>
-        [DataMember]
-        public string Version { get; set; }
-
-        /// <summary>
-        /// Gets or sets the serialized input to the orchestration
-        /// </summary>
-        [DataMember]
-        public string Input { get; set; }
-
-        /// <summary>
-        /// Gets or sets a dictionary of tags of string, string
-        /// </summary>
-        [DataMember]
-        public IDictionary<string, string> Tags { get; set; }
-
-        /// <summary>
-        /// Gets or sets the serialized end-to-end correlation state.
-        /// </summary>
-        [DataMember]
-        public string Correlation { get; set; }
-
-        /// <summary>
-        /// Gets or sets date to start the orchestration
-        /// </summary>
-        [DataMember]
-        public DateTime? ScheduledStartTime { get; set; }
-
-        /// <summary>
-        /// Gets or sets the generation of the orchestration
-        /// </summary>
-        [DataMember]
-        public int? Generation { get; set; }
     }
+
+    /// <summary>
+    /// Gets the event type
+    /// </summary>
+    public override EventType EventType => EventType.ExecutionStarted;
+
+    /// <summary>
+    /// Gets or sets the parent instance of the event
+    /// </summary>
+    [DataMember]
+    public ParentInstance ParentInstance { get; set; }
+
+    /// <summary>
+    /// Gets or sets the orchestration name
+    /// </summary>
+    [DataMember]
+    public string Name { get; set; }
+
+    /// <summary>
+    /// Gets or sets the orchestration version
+    /// </summary>
+    [DataMember]
+    public string Version { get; set; }
+
+    /// <summary>
+    /// Gets or sets the serialized input to the orchestration
+    /// </summary>
+    [DataMember]
+    public string Input { get; set; }
+
+    /// <summary>
+    /// Gets or sets a dictionary of tags of string, string
+    /// </summary>
+    [DataMember]
+    public IDictionary<string, string> Tags { get; set; }
+
+    /// <summary>
+    /// Gets or sets the serialized end-to-end correlation state.
+    /// </summary>
+    [DataMember]
+    public string Correlation { get; set; }
+
+    /// <summary>
+    /// Gets or sets date to start the orchestration
+    /// </summary>
+    [DataMember]
+    public DateTime? ScheduledStartTime { get; set; }
+
+    /// <summary>
+    /// Gets or sets the generation of the orchestration
+    /// </summary>
+    [DataMember]
+    public int? Generation { get; set; }
 }

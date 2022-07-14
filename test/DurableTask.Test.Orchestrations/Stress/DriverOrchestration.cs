@@ -11,34 +11,33 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Test.Orchestrations.Stress
+namespace DurableTask.Test.Orchestrations.Stress;
+
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using DurableTask.Core;
+
+public class DriverOrchestration : TaskOrchestration<int, DriverOrchestrationData>
 {
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Threading.Tasks;
-    using DurableTask.Core;
-
-    public class DriverOrchestration : TaskOrchestration<int, DriverOrchestrationData>
+    public override async Task<int> RunTask(OrchestrationContext context, DriverOrchestrationData data)
     {
-        public override async Task<int> RunTask(OrchestrationContext context, DriverOrchestrationData data)
+        var results = new List<Task<int>>();
+        var i = 0;
+        for (; i < data.NumberOfParallelTasks; i++)
         {
-            var results = new List<Task<int>>();
-            var i = 0;
-            for (; i < data.NumberOfParallelTasks; i++)
-            {
-                results.Add(context.CreateSubOrchestrationInstance<int>(typeof(TestOrchestration), data.SubOrchestrationData));
-            }
-
-            int[] counters = await Task.WhenAll(results.ToArray());
-            int result = counters.Max();
-
-            if (data.NumberOfIteration > 1)
-            {
-                data.NumberOfIteration--;
-                context.ContinueAsNew(data);
-            }
-
-            return result;
+            results.Add(context.CreateSubOrchestrationInstance<int>(typeof(TestOrchestration), data.SubOrchestrationData));
         }
+
+        int[] counters = await Task.WhenAll(results.ToArray());
+        int result = counters.Max();
+
+        if (data.NumberOfIteration > 1)
+        {
+            data.NumberOfIteration--;
+            context.ContinueAsNew(data);
+        }
+
+        return result;
     }
 }

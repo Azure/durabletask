@@ -11,88 +11,87 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Redis.Tests
+namespace DurableTask.Redis.Tests;
+
+using System;
+
+using Xunit;
+
+public class ConfigurationTests
 {
-    using System;
-
-    using Xunit;
-
-    public class ConfigurationTests
+    /// <summary>
+    /// Ensures default settings are valid.
+    /// </summary>
+    [Fact]
+    public void ValidateDefaultSettings()
     {
-        /// <summary>
-        /// Ensures default settings are valid.
-        /// </summary>
-        [Fact]
-        public void ValidateDefaultSettings()
-        {
-            RedisOrchestrationServiceSettings.Validate(
-                new RedisOrchestrationServiceSettings());
-        }
+        RedisOrchestrationServiceSettings.Validate(
+            new RedisOrchestrationServiceSettings());
+    }
 
-        /// <summary>
-        /// Ensures null settings are invalid.
-        /// </summary>
-        [Fact]
-        public void ValidateNullSettings()
-        {
-            Assert.Throws<ArgumentNullException>(
-                () => RedisOrchestrationServiceSettings.Validate(null));
-        }
+    /// <summary>
+    /// Ensures null settings are invalid.
+    /// </summary>
+    [Fact]
+    public void ValidateNullSettings()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () => RedisOrchestrationServiceSettings.Validate(null));
+    }
 
-        /// <summary>
-        /// Ensures settings with null connection strings are invalid.
-        /// </summary>
-        [Fact]
-        public void ValidateNullConnectionString()
-        {
-            Assert.Throws<ArgumentNullException>(
-                () => RedisOrchestrationServiceSettings.Validate(
-                    new RedisOrchestrationServiceSettings
-                    {
-                        RedisConnectionString = null,
-                    }));
+    /// <summary>
+    /// Ensures settings with null connection strings are invalid.
+    /// </summary>
+    [Fact]
+    public void ValidateNullConnectionString()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () => RedisOrchestrationServiceSettings.Validate(
+                new RedisOrchestrationServiceSettings
+                {
+                    RedisConnectionString = null,
+                }));
 
-            Assert.Throws<ArgumentNullException>(
-                () => RedisOrchestrationServiceSettings.Validate(
-                    new RedisOrchestrationServiceSettings
-                    {
-                        RedisConnectionString = string.Empty,
-                    }));
-        }
+        Assert.Throws<ArgumentNullException>(
+            () => RedisOrchestrationServiceSettings.Validate(
+                new RedisOrchestrationServiceSettings
+                {
+                    RedisConnectionString = string.Empty,
+                }));
+    }
 
-        /// <summary>
-        /// Ensures settings with non-positive work item concurrencies are invalid.
-        /// </summary>
-        [Fact]
-        public void ValidateNonPositiveWorkItemConcurrency()
-        {
-            Assert.Throws<ArgumentOutOfRangeException>(
-                () => RedisOrchestrationServiceSettings.Validate(
-                    new RedisOrchestrationServiceSettings
-                    {
-                        MaxConcurrentTaskActivityWorkItems = 0,
-                    }));
+    /// <summary>
+    /// Ensures settings with non-positive work item concurrencies are invalid.
+    /// </summary>
+    [Fact]
+    public void ValidateNonPositiveWorkItemConcurrency()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => RedisOrchestrationServiceSettings.Validate(
+                new RedisOrchestrationServiceSettings
+                {
+                    MaxConcurrentTaskActivityWorkItems = 0,
+                }));
 
-            Assert.Throws<ArgumentOutOfRangeException>(
-                () => RedisOrchestrationServiceSettings.Validate(
-                    new RedisOrchestrationServiceSettings
-                    {
-                        MaxConcurrentTaskOrchestrationWorkItems = 0,
-                    }));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => RedisOrchestrationServiceSettings.Validate(
+                new RedisOrchestrationServiceSettings
+                {
+                    MaxConcurrentTaskOrchestrationWorkItems = 0,
+                }));
 
-            Assert.Throws<ArgumentOutOfRangeException>(
-                () => RedisOrchestrationServiceSettings.Validate(
-                    new RedisOrchestrationServiceSettings
-                    {
-                        MaxConcurrentTaskActivityWorkItems = -1,
-                    }));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => RedisOrchestrationServiceSettings.Validate(
+                new RedisOrchestrationServiceSettings
+                {
+                    MaxConcurrentTaskActivityWorkItems = -1,
+                }));
 
-            Assert.Throws<ArgumentOutOfRangeException>(
-                () => RedisOrchestrationServiceSettings.Validate(
-                    new RedisOrchestrationServiceSettings
-                    {
-                        MaxConcurrentTaskOrchestrationWorkItems = -1,
-                    }));
-        }
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => RedisOrchestrationServiceSettings.Validate(
+                new RedisOrchestrationServiceSettings
+                {
+                    MaxConcurrentTaskOrchestrationWorkItems = -1,
+                }));
     }
 }

@@ -11,34 +11,33 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core;
+
+using System;
+using System.Diagnostics;
+
+/// <summary>
+/// An active instance / work item of a task activity
+/// </summary>
+public class TaskActivityWorkItem
 {
-    using System;
-    using System.Diagnostics;
+    /// <summary>
+    /// The Id of the work work item, likely related to the task message
+    /// </summary>
+    public string Id;
 
     /// <summary>
-    /// An active instance / work item of a task activity
+    /// The datetime this work item is locked until
     /// </summary>
-    public class TaskActivityWorkItem
-    {
-        /// <summary>
-        /// The Id of the work work item, likely related to the task message
-        /// </summary>
-        public string Id;
+    public DateTime LockedUntilUtc;
 
-        /// <summary>
-        /// The datetime this work item is locked until
-        /// </summary>
-        public DateTime LockedUntilUtc;
+    /// <summary>
+    /// The task message associated with this work item
+    /// </summary>
+    public TaskMessage TaskMessage;
 
-        /// <summary>
-        /// The task message associated with this work item
-        /// </summary>
-        public TaskMessage TaskMessage;
-
-        /// <summary>
-        /// The TraceContext which is included on the queue.
-        /// </summary>
-        public TraceContextBase TraceContextBase;
-    }
+    /// <summary>
+    /// The TraceContext which is included on the queue.
+    /// </summary>
+    public TraceContextBase TraceContextBase;
 }

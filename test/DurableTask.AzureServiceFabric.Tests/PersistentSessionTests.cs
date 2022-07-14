@@ -11,50 +11,49 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureServiceFabric.Tests
+namespace DurableTask.AzureServiceFabric.Tests;
+
+using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+
+using DurableTask.Core;
+using DurableTask.Core.History;
+
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class PersistentSessionTests
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Collections.Immutable;
-
-    using DurableTask.Core;
-    using DurableTask.Core.History;
-
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
-
-    [TestClass]
-    public class PersistentSessionTests
+    [TestMethod]
+    public void PersistentSession_SerializationTest()
     {
-        [TestMethod]
-        public void PersistentSession_SerializationTest()
+        int numberOfHistoryEvents = 256;
+
+        var events = new List<HistoryEvent>
         {
-            int numberOfHistoryEvents = 256;
-
-            var events = new List<HistoryEvent>
-            {
-                new ExecutionStartedEvent(-1, "TestInput")
-            };
-            for (int i = 0; i < numberOfHistoryEvents; i++)
-            {
-                events.Add(new TaskScheduledEvent(-1));
-                events.Add(new TaskCompletedEvent(-1, -1, $"Task {i} Result"));
-            }
-            events.Add(new ExecutionCompletedEvent(-1, "FinalResult", OrchestrationStatus.Completed));
-
-            var instance = new OrchestrationInstance()
-            {
-                InstanceId = "testSession",
-                ExecutionId = Guid.NewGuid().ToString("N")
-            };
-
-            PersistentSession testSession = PersistentSession.Create(instance, events.ToImmutableList());
-
-            var actual = Measure.DataContractSerialization(testSession);
-
-            Assert.IsNotNull(actual);
-            Assert.AreEqual(instance.InstanceId, actual.SessionId.InstanceId);
-            Assert.AreEqual(instance.ExecutionId, actual.SessionId.ExecutionId);
-            Assert.AreEqual(numberOfHistoryEvents * 2 + 2, actual.SessionState.Count);
+            new ExecutionStartedEvent(-1, "TestInput")
+        };
+        for (int i = 0; i < numberOfHistoryEvents; i++)
+        {
+            events.Add(new TaskScheduledEvent(-1));
+            events.Add(new TaskCompletedEvent(-1, -1, $"Task {i} Result"));
         }
+        events.Add(new ExecutionCompletedEvent(-1, "FinalResult", OrchestrationStatus.Completed));
+
+        var instance = new OrchestrationInstance()
+        {
+            InstanceId = "testSession",
+            ExecutionId = Guid.NewGuid().ToString("N")
+        };
+
+        PersistentSession testSession = PersistentSession.Create(instance, events.ToImmutableList());
+
+        var actual = Measure.DataContractSerialization(testSession);
+
+        Assert.IsNotNull(actual);
+        Assert.AreEqual(instance.InstanceId, actual.SessionId.InstanceId);
+        Assert.AreEqual(instance.ExecutionId, actual.SessionId.ExecutionId);
+        Assert.AreEqual(numberOfHistoryEvents * 2 + 2, actual.SessionState.Count);
     }
 }

@@ -11,98 +11,97 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Serializing
-{
-    using System;
-    using System.Globalization;
-    using System.IO;
-    using System.Text;
+namespace DurableTask.Core.Serializing;
 
-    using Newtonsoft.Json;
+using System;
+using System.Globalization;
+using System.IO;
+using System.Text;
+
+using Newtonsoft.Json;
+
+/// <summary>
+/// Class for serializing and deserializing data to and from json
+/// </summary>
+public class JsonDataConverter : DataConverter
+{
+    /// <summary>
+    /// Default JsonDataConverter
+    /// </summary>
+    public static readonly JsonDataConverter Default = new JsonDataConverter();
+    private readonly JsonSerializer serializer;
 
     /// <summary>
-    /// Class for serializing and deserializing data to and from json
+    /// Creates a new instance of the JsonDataConverter with default settings
     /// </summary>
-    public class JsonDataConverter : DataConverter
-    {
-        /// <summary>
-        /// Default JsonDataConverter
-        /// </summary>
-        public static readonly JsonDataConverter Default = new JsonDataConverter();
-        private readonly JsonSerializer serializer;
-
-        /// <summary>
-        /// Creates a new instance of the JsonDataConverter with default settings
-        /// </summary>
-        public JsonDataConverter()
-            : this(new JsonSerializerSettings
-            {
-                TypeNameHandling = TypeNameHandling.Objects,
-                DateParseHandling = DateParseHandling.None,
-#if NETSTANDARD2_0
-                SerializationBinder = new PackageUpgradeSerializationBinder()
-#else
-                Binder = new PackageUpgradeSerializationBinder()
-#endif
-            })
-        { }
-
-        /// <summary>
-        /// Creates a new instance of the JsonDataConverter with supplied settings
-        /// </summary>
-        /// <param name="settings">Settings for the json serializer</param>
-        public JsonDataConverter(JsonSerializerSettings settings) => this.serializer = JsonSerializer.Create(settings);
-
-        /// <summary>
-        /// Serialize an Object to string with default formatting
-        /// </summary>
-        /// <param name="value">Object to serialize</param>
-        /// <returns>Object serialized to a string</returns>
-        public override string Serialize(object value) => Serialize(value, false);
-
-        /// <summary>
-        /// Serialize an Object to string with supplied formatting
-        /// </summary>
-        /// <param name="value">Object to serialize</param>
-        /// <param name="formatted">Boolean indicating whether to format the results or not</param>
-        /// <returns>Object serialized to a string</returns>
-        public override string Serialize(object value, bool formatted)
+    public JsonDataConverter()
+        : this(new JsonSerializerSettings
         {
-            if (value is null)
-            {
-                // This avoids serializing null into "null"
-                return null;
-            }
+            TypeNameHandling = TypeNameHandling.Objects,
+            DateParseHandling = DateParseHandling.None,
+#if NETSTANDARD2_0
+            SerializationBinder = new PackageUpgradeSerializationBinder()
+#else
+            Binder = new PackageUpgradeSerializationBinder()
+#endif
+        })
+    { }
 
-            var sb = new StringBuilder(0x100);
-            using (var textWriter = new StringWriter(sb, CultureInfo.InvariantCulture))
-            using (var writer = new JsonTextWriter(textWriter))
-            {
-                writer.Formatting = (formatted ? Formatting.Indented : Formatting.None);
-                this.serializer.Serialize(writer, value);
+    /// <summary>
+    /// Creates a new instance of the JsonDataConverter with supplied settings
+    /// </summary>
+    /// <param name="settings">Settings for the json serializer</param>
+    public JsonDataConverter(JsonSerializerSettings settings) => this.serializer = JsonSerializer.Create(settings);
 
-                return textWriter.ToString();
-            }
+    /// <summary>
+    /// Serialize an Object to string with default formatting
+    /// </summary>
+    /// <param name="value">Object to serialize</param>
+    /// <returns>Object serialized to a string</returns>
+    public override string Serialize(object value) => Serialize(value, false);
+
+    /// <summary>
+    /// Serialize an Object to string with supplied formatting
+    /// </summary>
+    /// <param name="value">Object to serialize</param>
+    /// <param name="formatted">Boolean indicating whether to format the results or not</param>
+    /// <returns>Object serialized to a string</returns>
+    public override string Serialize(object value, bool formatted)
+    {
+        if (value is null)
+        {
+            // This avoids serializing null into "null"
+            return null;
         }
 
-        /// <summary>
-        /// Deserialize a string to an Object of supplied type
-        /// </summary>
-        /// <param name="data">String data of the Object to deserialize</param>
-        /// <param name="objectType">Type to deserialize to</param>
-        /// <returns>Deserialized Object</returns>
-        public override object Deserialize(string data, Type objectType)
+        var sb = new StringBuilder(0x100);
+        using (var textWriter = new StringWriter(sb, CultureInfo.InvariantCulture))
+        using (var writer = new JsonTextWriter(textWriter))
         {
-            if (data is null)
-            {
-                return null;
-            }
+            writer.Formatting = (formatted ? Formatting.Indented : Formatting.None);
+            this.serializer.Serialize(writer, value);
 
-            using (var reader = new StringReader(data))
-            using (var jsonTextReader = new JsonTextReader(reader))
-            {
-                return this.serializer.Deserialize(jsonTextReader, objectType);
-            }
+            return textWriter.ToString();
+        }
+    }
+
+    /// <summary>
+    /// Deserialize a string to an Object of supplied type
+    /// </summary>
+    /// <param name="data">String data of the Object to deserialize</param>
+    /// <param name="objectType">Type to deserialize to</param>
+    /// <returns>Deserialized Object</returns>
+    public override object Deserialize(string data, Type objectType)
+    {
+        if (data is null)
+        {
+            return null;
+        }
+
+        using (var reader = new StringReader(data))
+        using (var jsonTextReader = new JsonTextReader(reader))
+        {
+            return this.serializer.Deserialize(jsonTextReader, objectType);
         }
     }
 }

@@ -11,51 +11,50 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage.Partitioning
+namespace DurableTask.AzureStorage.Partitioning;
+
+using System;
+
+/// <summary>
+/// Options to control various aspects of partition distribution happening within the host instance.
+/// </summary> 
+class LeaseCollectionBalancerOptions
 {
-    using System;
+    /// <summary>
+    /// Renew interval for all leases for partitions currently held by this instance.
+    /// </summary>
+    public TimeSpan RenewInterval { get; set; } = TimeSpan.FromSeconds(10);
 
     /// <summary>
-    /// Options to control various aspects of partition distribution happening within the host instance.
-    /// </summary> 
-    class LeaseCollectionBalancerOptions
+    /// Interval when this instance kicks off a task to compute if partitions are distributed evenly
+    /// among known host instances. 
+    /// </summary>
+    public TimeSpan AcquireInterval { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Interval for which the lease is taken on Azure Blob representing an EventHub partition.  If the lease is not renewed within this 
+    /// interval, it will cause it to expire and ownership of the partition will move to another instance.
+    /// </summary>
+    public TimeSpan LeaseInterval { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Determines whether or not this set of leases should utilize lease stealing logic for rebalancing
+    /// during scale-out operations.
+    /// </summary>
+    public bool ShouldStealLeases { get; set;} = true;
+
+    /// <summary>
+    /// Creates an instance of <see cref="LeaseCollectionBalancerOptions"/> with following default values:
+    ///     a) RenewInterval = 10 seconds
+    ///     b) AcquireInterval = 10 seconds
+    ///     c) DefaultLeaseInterval = 30 seconds
+    ///     d) MaxReceiveClients = 16,
+    /// </summary>
+    public static LeaseCollectionBalancerOptions DefaultOptions
     {
-        /// <summary>
-        /// Renew interval for all leases for partitions currently held by this instance.
-        /// </summary>
-        public TimeSpan RenewInterval { get; set; } = TimeSpan.FromSeconds(10);
-
-        /// <summary>
-        /// Interval when this instance kicks off a task to compute if partitions are distributed evenly
-        /// among known host instances. 
-        /// </summary>
-        public TimeSpan AcquireInterval { get; set; } = TimeSpan.FromSeconds(10);
-
-        /// <summary>
-        /// Interval for which the lease is taken on Azure Blob representing an EventHub partition.  If the lease is not renewed within this 
-        /// interval, it will cause it to expire and ownership of the partition will move to another instance.
-        /// </summary>
-        public TimeSpan LeaseInterval { get; set; } = TimeSpan.FromSeconds(30);
-
-        /// <summary>
-        /// Determines whether or not this set of leases should utilize lease stealing logic for rebalancing
-        /// during scale-out operations.
-        /// </summary>
-        public bool ShouldStealLeases { get; set;} = true;
-
-        /// <summary>
-        /// Creates an instance of <see cref="LeaseCollectionBalancerOptions"/> with following default values:
-        ///     a) RenewInterval = 10 seconds
-        ///     b) AcquireInterval = 10 seconds
-        ///     c) DefaultLeaseInterval = 30 seconds
-        ///     d) MaxReceiveClients = 16,
-        /// </summary>
-        public static LeaseCollectionBalancerOptions DefaultOptions
+        get
         {
-            get
-            {
-                return new LeaseCollectionBalancerOptions();
-            }
+            return new LeaseCollectionBalancerOptions();
         }
     }
 }

@@ -11,44 +11,43 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
-{
-    using System.Collections.Generic;
+namespace DurableTask.Core;
 
-    using DurableTask.Core.History;
+using System.Collections.Generic;
+
+using DurableTask.Core.History;
+
+/// <summary>
+/// The object that represents the serialized session state.
+/// It holds a list of history events (when blob key is empty),
+/// or a key for external storage if the serialized stream is too large to fit into the the session state.
+/// </summary>
+internal class OrchestrationSessionState
+{
+    /// <summary>
+    /// A constructor for deserialization.
+    /// </summary>
+    public OrchestrationSessionState() { }
 
     /// <summary>
-    /// The object that represents the serialized session state.
-    /// It holds a list of history events (when blob key is empty),
-    /// or a key for external storage if the serialized stream is too large to fit into the the session state.
+    /// Wrap a list of history events into an OrchestrationSessionState instance, which will be later serialized as a stream saved in session state.
     /// </summary>
-    internal class OrchestrationSessionState
-    {
-        /// <summary>
-        /// A constructor for deserialization.
-        /// </summary>
-        public OrchestrationSessionState() { }
+    /// /// <param name="events">A list of history events.</param>
+    public OrchestrationSessionState(IList<HistoryEvent> events) => Events = events;
 
-        /// <summary>
-        /// Wrap a list of history events into an OrchestrationSessionState instance, which will be later serialized as a stream saved in session state.
-        /// </summary>
-        /// /// <param name="events">A list of history events.</param>
-        public OrchestrationSessionState(IList<HistoryEvent> events) => Events = events;
+    /// <summary>
+    /// Construct an OrchestrationSessionState instance with a blob key as the blob reference in the external blob storage.
+    /// </summary>
+    /// /// <param name="blobKey">The blob key to access the blob</param>
+    public OrchestrationSessionState(string blobKey) => BlobKey = blobKey;
 
-        /// <summary>
-        /// Construct an OrchestrationSessionState instance with a blob key as the blob reference in the external blob storage.
-        /// </summary>
-        /// /// <param name="blobKey">The blob key to access the blob</param>
-        public OrchestrationSessionState(string blobKey) => BlobKey = blobKey;
+    /// <summary>
+    /// List of all history events for runtime state
+    /// </summary>
+    public IList<HistoryEvent> Events { get; set; }
 
-        /// <summary>
-        /// List of all history events for runtime state
-        /// </summary>
-        public IList<HistoryEvent> Events { get; set; }
-
-        /// <summary>
-        /// The blob key for external storage. Could be null or empty if not externally stored.
-        /// </summary>
-        public string BlobKey { get; set; }
-    }
+    /// <summary>
+    /// The blob key for external storage. Could be null or empty if not externally stored.
+    /// </summary>
+    public string BlobKey { get; set; }
 }

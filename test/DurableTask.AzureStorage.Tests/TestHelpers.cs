@@ -11,88 +11,87 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.AzureStorage.Tests
+namespace DurableTask.AzureStorage.Tests;
+
+using System;
+using System.Configuration;
+using System.Diagnostics;
+using System.Diagnostics.Tracing;
+using System.Threading.Tasks;
+using DurableTask.Core.Logging;
+using Microsoft.Extensions.Logging;
+
+internal static class TestHelpers
 {
-    using System;
-    using System.Configuration;
-    using System.Diagnostics;
-    using System.Diagnostics.Tracing;
-    using System.Threading.Tasks;
-    using DurableTask.Core.Logging;
-    using Microsoft.Extensions.Logging;
 
-    internal static class TestHelpers
+    public static TestOrchestrationHost GetTestOrchestrationHost(
+        bool enableExtendedSessions,
+        int extendedSessionTimeoutInSeconds = 30,
+        bool fetchLargeMessages = true,
+        Action<AzureStorageOrchestrationServiceSettings>? modifySettingsAction = null)
     {
+        string storageConnectionString = GetTestStorageAccountConnectionString();
 
-        public static TestOrchestrationHost GetTestOrchestrationHost(
-            bool enableExtendedSessions,
-            int extendedSessionTimeoutInSeconds = 30,
-            bool fetchLargeMessages = true,
-            Action<AzureStorageOrchestrationServiceSettings>? modifySettingsAction = null)
+        var settings = new AzureStorageOrchestrationServiceSettings
         {
-            string storageConnectionString = GetTestStorageAccountConnectionString();
+            StorageConnectionString = storageConnectionString,
+            TaskHubName = GetTestTaskHubName(),
+            ExtendedSessionsEnabled = enableExtendedSessions,
+            ExtendedSessionIdleTimeout = TimeSpan.FromSeconds(extendedSessionTimeoutInSeconds),
+            FetchLargeMessageDataEnabled = fetchLargeMessages,
 
-            var settings = new AzureStorageOrchestrationServiceSettings
-            {
-                StorageConnectionString = storageConnectionString,
-                TaskHubName = GetTestTaskHubName(),
-                ExtendedSessionsEnabled = enableExtendedSessions,
-                ExtendedSessionIdleTimeout = TimeSpan.FromSeconds(extendedSessionTimeoutInSeconds),
-                FetchLargeMessageDataEnabled = fetchLargeMessages,
+            // Setting up a logger factory to enable the new DurableTask.Core logs
+            // TODO: Add a logger provider so we can collect these logs in memory.
+            LoggerFactory = new LoggerFactory(),
+        };
 
-                // Setting up a logger factory to enable the new DurableTask.Core logs
-                // TODO: Add a logger provider so we can collect these logs in memory.
-                LoggerFactory = new LoggerFactory(),
-            };
+        // Give the caller a chance to make test-specific changes to the settings
+        modifySettingsAction?.Invoke(settings);
 
-            // Give the caller a chance to make test-specific changes to the settings
-            modifySettingsAction?.Invoke(settings);
+        return new TestOrchestrationHost(settings);
+    }
 
-            return new TestOrchestrationHost(settings);
+    public static string GetTestStorageAccountConnectionString()
+    {
+        string? storageConnectionString = GetTestSetting("StorageConnectionString");
+        if (string.IsNullOrEmpty(storageConnectionString))
+        {
+            storageConnectionString = "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://127.0.0.1:10002/";
         }
 
-        public static string GetTestStorageAccountConnectionString()
+        return storageConnectionString!;
+    }
+
+    public static string GetTestTaskHubName()
+    {
+        string? taskHubName = GetTestSetting("TaskHubName");
+        return taskHubName ?? "test";
+    }
+
+    private static string? GetTestSetting(string name)
+    {
+        return Environment.GetEnvironmentVariable("DurableTaskTest" + name);
+    }
+
+    public static async Task WaitFor(Func<bool> condition, TimeSpan timeout)
+    {
+        Stopwatch timer = Stopwatch.StartNew();
+        do
         {
-            string? storageConnectionString = GetTestSetting("StorageConnectionString");
-            if (string.IsNullOrEmpty(storageConnectionString))
+            bool result = condition();
+            if (result)
             {
-                storageConnectionString = "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://127.0.0.1:10002/";
+                return;
             }
 
-            return storageConnectionString!;
-        }
+            await Task.Delay(TimeSpan.FromMilliseconds(100));
 
-        public static string GetTestTaskHubName()
-        {
-            string? taskHubName = GetTestSetting("TaskHubName");
-            return taskHubName ?? "test";
-        }
+        } while (timer.Elapsed < timeout);
 
-        private static string? GetTestSetting(string name)
-        {
-            return Environment.GetEnvironmentVariable("DurableTaskTest" + name);
-        }
-
-        public static async Task WaitFor(Func<bool> condition, TimeSpan timeout)
-        {
-            Stopwatch timer = Stopwatch.StartNew();
-            do
-            {
-                bool result = condition();
-                if (result)
-                {
-                    return;
-                }
-
-                await Task.Delay(TimeSpan.FromMilliseconds(100));
-
-            } while (timer.Elapsed < timeout);
-
-            throw new TimeoutException("Timed out waiting for condition to be true.");
-        }
-
-        public static void Await(this Task task) => task.GetAwaiter().GetResult();
-
-        public static T Await<T>(this Task<T> task) => task.GetAwaiter().GetResult();
+        throw new TimeoutException("Timed out waiting for condition to be true.");
     }
+
+    public static void Await(this Task task) => task.GetAwaiter().GetResult();
+
+    public static T Await<T>(this Task<T> task) => task.GetAwaiter().GetResult();
 }

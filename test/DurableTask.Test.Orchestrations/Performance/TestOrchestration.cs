@@ -11,83 +11,82 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Test.Orchestrations.Performance
+namespace DurableTask.Test.Orchestrations.Performance;
+
+using DurableTask.Core;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+
+public class TestOrchestration : TaskOrchestration<int, TestOrchestrationData>
 {
-    using DurableTask.Core;
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Threading;
-    using System.Threading.Tasks;
-
-    public class TestOrchestration : TaskOrchestration<int, TestOrchestrationData>
+    public override async Task<int> RunTask(OrchestrationContext context, TestOrchestrationData data)
     {
-        public override async Task<int> RunTask(OrchestrationContext context, TestOrchestrationData data)
+        if (data.UseTimeoutTask)
         {
-            if (data.UseTimeoutTask)
-            {
-                return await RunTaskWithTimeout(context, data);
-            }
-            else
-            {
-                return await RunTaskCore(context, data);
-            }
+            return await RunTaskWithTimeout(context, data);
+        }
+        else
+        {
+            return await RunTaskCore(context, data);
+        }
+    }
+
+    private async Task<int> RunTaskCore(OrchestrationContext context, TestOrchestrationData data)
+    {
+        int result = 0;
+        List<Task<int>> results = new List<Task<int>>();
+        int i = 0;
+        int j = 0;
+        for (; i < data.NumberOfParallelTasks; i++)
+        {
+            results.Add(context.ScheduleTask<int>(
+                typeof(RandomTimeWaitingTask),
+                new RandomTimeWaitingTaskInput
+                {
+                    TaskId = "ParallelTask: " + i.ToString(),
+                    MaxDelay = data.MaxDelay,
+                    MinDelay = data.MinDelay,
+                    DelayUnit = data.DelayUnit
+                }));
         }
 
-        private async Task<int> RunTaskCore(OrchestrationContext context, TestOrchestrationData data)
+        int[] counters = await Task.WhenAll(results.ToArray());
+        result = counters.Sum();
+
+        for (; j < data.NumberOfSerialTasks; j++)
         {
-            int result = 0;
-            List<Task<int>> results = new List<Task<int>>();
-            int i = 0;
-            int j = 0;
-            for (; i < data.NumberOfParallelTasks; i++)
-            {
-                results.Add(context.ScheduleTask<int>(
-                    typeof(RandomTimeWaitingTask),
-                    new RandomTimeWaitingTaskInput
-                    {
-                        TaskId = "ParallelTask: " + i.ToString(),
-                        MaxDelay = data.MaxDelay,
-                        MinDelay = data.MinDelay,
-                        DelayUnit = data.DelayUnit
-                    }));
-            }
-
-            int[] counters = await Task.WhenAll(results.ToArray());
-            result = counters.Sum();
-
-            for (; j < data.NumberOfSerialTasks; j++)
-            {
-                int c = await context.ScheduleTask<int>(typeof(RandomTimeWaitingTask),
-                    new RandomTimeWaitingTaskInput
-                    {
-                        TaskId = "SerialTask" + (i + j),
-                        MaxDelay = data.MaxDelay,
-                        MinDelay = data.MinDelay,
-                        DelayUnit = data.DelayUnit
-                    });
-                result += c;
-            }
-
-            return result;
+            int c = await context.ScheduleTask<int>(typeof(RandomTimeWaitingTask),
+                new RandomTimeWaitingTaskInput
+                {
+                    TaskId = "SerialTask" + (i + j),
+                    MaxDelay = data.MaxDelay,
+                    MinDelay = data.MinDelay,
+                    DelayUnit = data.DelayUnit
+                });
+            result += c;
         }
 
-        private async Task<int> RunTaskWithTimeout(OrchestrationContext context, TestOrchestrationData data)
+        return result;
+    }
+
+    private async Task<int> RunTaskWithTimeout(OrchestrationContext context, TestOrchestrationData data)
+    {
+        var timerCts = new CancellationTokenSource();
+
+        var timer = context.CreateTimer(context.CurrentUtcDateTime.Add(data.ExecutionTimeout), -1, timerCts.Token);
+        var mainTask = RunTaskCore(context, data);
+
+        var resultTask = await Task.WhenAny(mainTask, timer);
+
+        if (resultTask == timer)
         {
-            var timerCts = new CancellationTokenSource();
-
-            var timer = context.CreateTimer(context.CurrentUtcDateTime.Add(data.ExecutionTimeout), -1, timerCts.Token);
-            var mainTask = RunTaskCore(context, data);
-
-            var resultTask = await Task.WhenAny(mainTask, timer);
-
-            if (resultTask == timer)
-            {
-                throw new TimeoutException("Orchestration timed out");
-            }
-
-            timerCts.Cancel();
-            return mainTask.Result;
+            throw new TimeoutException("Orchestration timed out");
         }
+
+        timerCts.Cancel();
+        return mainTask.Result;
     }
 }

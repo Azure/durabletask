@@ -18,30 +18,29 @@ using DurableTask.Core.History;
 
 using Newtonsoft.Json;
 
-namespace DurableTask.Redis
+namespace DurableTask.Redis;
+
+/// <summary>
+/// Serializes objects in a consistent matter so data can be stored and retrieved from Redis
+/// </summary>
+internal class RedisSerializer
 {
-    /// <summary>
-    /// Serializes objects in a consistent matter so data can be stored and retrieved from Redis
-    /// </summary>
-    internal class RedisSerializer
+    private static readonly JsonSerializerSettings SerializerSettings = new JsonSerializerSettings
     {
-        private static readonly JsonSerializerSettings SerializerSettings = new JsonSerializerSettings
-        {
-            TypeNameHandling = TypeNameHandling.All
-        };
+        TypeNameHandling = TypeNameHandling.All
+    };
 
-        public static string SerializeObject(object obj)
-         => JsonConvert.SerializeObject(obj, SerializerSettings);
+    public static string SerializeObject(object obj)
+     => JsonConvert.SerializeObject(obj, SerializerSettings);
 
-        public static T DeserializeObject<T>(string serializedObj)
-         => JsonConvert.DeserializeObject<T>(serializedObj, SerializerSettings);
+    public static T DeserializeObject<T>(string serializedObj)
+     => JsonConvert.DeserializeObject<T>(serializedObj, SerializerSettings);
 
-        public static OrchestrationRuntimeState DeserializeRuntimeState(string serializedRuntimeState)
-        {
-            // OrchestrationRuntimeEvent builds its internal state with it's constructor and the AddEvent() method.
-            // Must emulate that when deserializing
-            IList<HistoryEvent> events = JsonConvert.DeserializeObject<IList<HistoryEvent>>(serializedRuntimeState, SerializerSettings);
-            return new OrchestrationRuntimeState(events);
-        }
+    public static OrchestrationRuntimeState DeserializeRuntimeState(string serializedRuntimeState)
+    {
+        // OrchestrationRuntimeEvent builds its internal state with it's constructor and the AddEvent() method.
+        // Must emulate that when deserializing
+        IList<HistoryEvent> events = JsonConvert.DeserializeObject<IList<HistoryEvent>>(serializedRuntimeState, SerializerSettings);
+        return new OrchestrationRuntimeState(events);
     }
 }

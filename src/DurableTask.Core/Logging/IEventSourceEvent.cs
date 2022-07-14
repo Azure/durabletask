@@ -11,16 +11,15 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Logging
+namespace DurableTask.Core.Logging;
+
+/// <summary>
+/// Interface for all log messages that are written to the an event source tracer.
+/// </summary>
+public interface IEventSourceEvent
 {
     /// <summary>
-    /// Interface for all log messages that are written to the an event source tracer.
+    /// Writes the event to the event source log.
     /// </summary>
-    public interface IEventSourceEvent
-    {
-        /// <summary>
-        /// Writes the event to the event source log.
-        /// </summary>
-        void WriteEventSource();
-    }
+    void WriteEventSource();
 }
