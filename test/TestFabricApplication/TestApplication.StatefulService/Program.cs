@@ -80,8 +80,10 @@ namespace TestApplication.StatefulService
 
             sslEndpointPort = $"0.0.0.0:{endpoint.Port}";
             UnBindSslPort();
+#pragma warning disable IDE1006 // Naming Styles
             // Register unbind when ctrl+c, ctrl+break happens.
             Console.CancelKeyPress += (_, __) => UnBindSslPort();
+#pragma warning restore IDE1006 // Naming Styles
             var appid = "\"{C60263BE-E2BC-45E0-80B4-896D8A11C64C}\"";
             RunNetShCommand($"http add sslcert ipport={sslEndpointPort} certHash={certificate.Thumbprint} appid={appid}");
         }

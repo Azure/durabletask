@@ -32,12 +32,11 @@ namespace DurableTask.AzureServiceFabric
     using Newtonsoft.Json;
     using DurableTask.Core.Serializing;
 
-    class FabricOrchestrationServiceClient : IOrchestrationServiceClient, IFabricProviderClient
+    class FabricOrchestrationServiceClient : IOrchestrationServiceClient
     {
         readonly IReliableStateManager stateManager;
         readonly IFabricOrchestrationServiceInstanceStore instanceStore;
         readonly SessionProvider orchestrationProvider;
-        readonly JsonDataConverter formattingConverter = new JsonDataConverter(new JsonSerializerSettings() { Formatting = Formatting.Indented });
 
         public FabricOrchestrationServiceClient(IReliableStateManager stateManager, SessionProvider orchestrationProvider, IFabricOrchestrationServiceInstanceStore instanceStore)
         {
@@ -56,7 +55,7 @@ namespace DurableTask.AzureServiceFabric
 
             creationMessage.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
             ExecutionStartedEvent startEvent = creationMessage.Event as ExecutionStartedEvent;
-            if (startEvent == null)
+            if (startEvent is null)
             {
                 await this.SendTaskOrchestrationMessageAsync(creationMessage);
                 return;
@@ -94,7 +93,7 @@ namespace DurableTask.AzureServiceFabric
         public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
         {
             // Todo: Support for dedupeStatuses?
-            if (dedupeStatuses != null)
+            if (dedupeStatuses is not null)
             {
                 throw new NotSupportedException($"DedupeStatuses are not supported yet with service fabric provider");
             }
@@ -122,7 +121,7 @@ namespace DurableTask.AzureServiceFabric
             instanceId.EnsureValidInstanceId();
             var latestExecutionId = (await this.instanceStore.GetExecutionIds(instanceId)).Last();
 
-            if (latestExecutionId == null)
+            if (latestExecutionId is null)
             {
                 throw new ArgumentException($"No execution id found for given instanceId {instanceId}, can only terminate the latest execution of a given orchestration");
             }
@@ -161,7 +160,7 @@ namespace DurableTask.AzureServiceFabric
             var result = new List<OrchestrationState>();
             foreach (var stateInstance in stateInstances)
             {
-                if (stateInstance != null)
+                if (stateInstance is not null)
                 {
                     result.Add(stateInstance.State);
                 }
@@ -223,7 +222,7 @@ namespace DurableTask.AzureServiceFabric
 
         #endregion
 
-        Task WriteExecutionStartedEventToInstanceStore(ITransaction tx, ExecutionStartedEvent startEvent)
+        private Task WriteExecutionStartedEventToInstanceStore(ITransaction tx, ExecutionStartedEvent startEvent)
         {
             var createdTime = DateTime.UtcNow;
             var initialState = new OrchestrationState()

@@ -33,11 +33,7 @@ namespace DurableTask.Core.History
         /// </summary>
         /// <param name="eventId">The event id of the history event</param>
         /// <param name="input">The serialized orchestration input </param>
-        public ExecutionStartedEvent(int eventId, string input)
-            : base(eventId)
-        {
-            Input = input;
-        }
+        public ExecutionStartedEvent(int eventId, string input) : base(eventId) => Input = input;
 
         /// <summary>
         /// Creates a new ExecutionStartedEvent
@@ -52,7 +48,7 @@ namespace DurableTask.Core.History
         public override EventType EventType => EventType.ExecutionStarted;
 
         /// <summary>
-        /// Gets or sets the parent instance of the event 
+        /// Gets or sets the parent instance of the event
         /// </summary>
         [DataMember]
         public ParentInstance ParentInstance { get; set; }

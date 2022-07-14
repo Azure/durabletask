@@ -19,17 +19,23 @@ namespace TestApplication.Common.Orchestrations
     [Serializable]
     public class CounterException : Exception
     {
-        readonly string CounterPropName = "Counter";
+        private static readonly string CounterPropName = "Counter";
 
-        public CounterException(int counter)
-        {
-            this.Counter = counter;
-        }
+        public CounterException(int counter) => this.Counter = counter;
 
-        protected CounterException(SerializationInfo info, StreamingContext context)
-        {
-            this.Counter = info.GetInt32(CounterPropName);
-        }
+        protected CounterException(SerializationInfo info, StreamingContext context) => this.Counter = info.GetInt32(CounterPropName);
+
+        /// <summary>Initializes a new instance of the <see cref="CounterException" /> class.</summary>
+        private CounterException() { }
+
+        /// <summary>Initializes a new instance of the <see cref="CounterException" /> class with a specified error message.</summary>
+        /// <param name="message">The message that describes the error.</param>
+        private CounterException(string message) : base(message) { }
+
+        /// <summary>Initializes a new instance of the <see cref="CounterException" /> class with a specified error message and a reference to the inner exception that is the cause of this exception.</summary>
+        /// <param name="message">The error message that explains the reason for the exception.</param>
+        /// <param name="innerException">The exception that is the cause of the current exception, or a null reference (<see langword="Nothing" /> in Visual Basic) if no inner exception is specified.</param>
+        private CounterException(string message, Exception innerException) : base(message, innerException) { }
 
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {

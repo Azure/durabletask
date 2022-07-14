@@ -25,8 +25,8 @@ namespace DurableTask.ServiceBus.Tests
     [TestClass]
     public class ServiceBusOrchestrationServiceTests
     {
-        TaskHubClient client;
-        TaskHubWorker taskHub;
+        private TaskHubClient client;
+        private TaskHubWorker taskHub;
 
         public TestContext TestContext { get; set; }
 
@@ -38,7 +38,7 @@ namespace DurableTask.ServiceBus.Tests
                 this.client = TestHelpers.CreateTaskHubClient();
 
                 this.taskHub = TestHelpers.CreateTaskHub(TimeSpan.FromSeconds(30));
-                this.taskHub.orchestrationService.CreateAsync(true).Wait();
+                this.taskHub.OrchestrationService.CreateAsync(true).Wait();
             }
         }
 
@@ -48,14 +48,14 @@ namespace DurableTask.ServiceBus.Tests
             if (!TestContext.TestName.Contains("TestHost"))
             {
                 this.taskHub.StopAsync(true).Wait();
-                this.taskHub.orchestrationService.DeleteAsync(true).Wait();
+                this.taskHub.OrchestrationService.DeleteAsync(true).Wait();
             }
         }
 
         [TestMethod]
         public async Task SimplestGreetingsJumpStartTest()
         {
-            var sbService = (ServiceBusOrchestrationService)this.taskHub.orchestrationService;
+            var sbService = (ServiceBusOrchestrationService)this.taskHub.OrchestrationService;
             string name = NameVersionHelper.GetDefaultName(typeof(SimplestGreetingsOrchestration));
             string version = NameVersionHelper.GetDefaultVersion(typeof(SimplestGreetingsOrchestration));
 
@@ -74,7 +74,7 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task ActorOrchestrationTest()
         {
-            var sbService = (ServiceBusOrchestrationService)this.taskHub.orchestrationService;
+            var sbService = (ServiceBusOrchestrationService)this.taskHub.OrchestrationService;
             string name = NameVersionHelper.GetDefaultName(typeof(CounterOrchestration));
             string version = NameVersionHelper.GetDefaultVersion(typeof(CounterOrchestration));
 
@@ -119,7 +119,7 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task SimplestGreetingsJumpStartDelayTest()
         {
-            var sbService = (ServiceBusOrchestrationService)this.taskHub.orchestrationService;
+            var sbService = (ServiceBusOrchestrationService)this.taskHub.OrchestrationService;
             string name = NameVersionHelper.GetDefaultName(typeof(SimplestGreetingsOrchestration));
             string version = NameVersionHelper.GetDefaultVersion(typeof(SimplestGreetingsOrchestration));
 
@@ -137,7 +137,7 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task DupeDetectionByInstanceStoreTest()
         {
-            var sbService = (ServiceBusOrchestrationService)this.taskHub.orchestrationService;
+            var sbService = (ServiceBusOrchestrationService)this.taskHub.OrchestrationService;
             string name = NameVersionHelper.GetDefaultName(typeof(SimplestGreetingsOrchestration));
             string version = NameVersionHelper.GetDefaultVersion(typeof(SimplestGreetingsOrchestration));
 
@@ -156,7 +156,7 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task DupeDetectionByServiceBusQueueTest()
         {
-            var sbService = (ServiceBusOrchestrationService)this.taskHub.orchestrationService;
+            var sbService = (ServiceBusOrchestrationService)this.taskHub.OrchestrationService;
             string name = NameVersionHelper.GetDefaultName(typeof(SimplestGreetingsOrchestration));
             string version = NameVersionHelper.GetDefaultVersion(typeof(SimplestGreetingsOrchestration));
 

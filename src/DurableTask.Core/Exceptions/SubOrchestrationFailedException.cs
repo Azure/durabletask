@@ -25,18 +25,14 @@ namespace DurableTask.Core.Exceptions
         /// <summary>
         /// Initializes an new instance of the SubOrchestrationFailedException class
         /// </summary>
-        public SubOrchestrationFailedException()
-        {
-        }
+        public SubOrchestrationFailedException() { }
 
         /// <summary>
         /// Initializes an new instance of the SubOrchestrationFailedException class with a specified error message
         /// </summary>
         /// <param name="reason">The message that describes the error.</param>
         public SubOrchestrationFailedException(string reason)
-            : base(reason)
-        {
-        }
+            : base(reason) { }
 
         /// <summary>
         /// Initializes an new instance of the SubOrchestrationFailedException class with a specified error message
@@ -45,9 +41,7 @@ namespace DurableTask.Core.Exceptions
         /// <param name="reason">The message that describes the error.</param>
         /// <param name="innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
         public SubOrchestrationFailedException(string reason, Exception innerException)
-            : base(reason, innerException)
-        {
-        }
+            : base(reason, innerException) { }
 
         /// <summary>
         /// Initializes an new instance of the SubOrchestrationFailedException class with a specified event id, schedule id, name, version and error message
@@ -80,6 +74,16 @@ namespace DurableTask.Core.Exceptions
             Name = info.GetString(nameof(Name));
             Version = info.GetString(nameof(Version));
         }
+
+        /// <summary>
+        /// Initializes an new instance of the SubOrchestrationFailedException class with a specified event id and error message
+        /// and a reference to the inner exception that is the cause of this exception.
+        /// </summary>
+        /// <param name="eventId">EventId of the error.</param>
+        /// <param name="message">The message that describes the error.</param>
+        /// <param name="innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
+        private SubOrchestrationFailedException(int eventId, string message, Exception innerException)
+            : base(eventId, message, innerException) { }
 
         /// <inheritdoc />
         public override void GetObjectData(SerializationInfo info, StreamingContext context)

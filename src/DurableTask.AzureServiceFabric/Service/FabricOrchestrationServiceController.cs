@@ -18,6 +18,7 @@ namespace DurableTask.AzureServiceFabric.Service
     using System.Threading.Tasks;
     using System.Web.Http;
     using System.Web.Http.Results;
+
     using DurableTask.AzureServiceFabric.Models;
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
@@ -34,9 +35,7 @@ namespace DurableTask.AzureServiceFabric.Service
         /// </summary>
         /// <param name="orchestrationServiceClient">IOrchestrationServiceClient instance</param>
         public FabricOrchestrationServiceController(IOrchestrationServiceClient orchestrationServiceClient)
-        {
-            this.orchestrationServiceClient = orchestrationServiceClient;
-        }
+         => this.orchestrationServiceClient = orchestrationServiceClient;
 
         /// <summary>
         /// Creates a task orchestration.
@@ -58,7 +57,7 @@ namespace DurableTask.AzureServiceFabric.Service
 
             try
             {
-                if (parameters.DedupeStatuses == null)
+                if (parameters.DedupeStatuses is null)
                 {
                     await this.orchestrationServiceClient.CreateTaskOrchestrationAsync(parameters.TaskMessage);
                 }
@@ -87,7 +86,7 @@ namespace DurableTask.AzureServiceFabric.Service
         /// <returns> <see cref="IHttpActionResult"/> object. </returns>
         [HttpPost]
         [Route("messages/{messageId}")]
-        public async Task<IHttpActionResult> SendTaskOrchestrationMessage([FromUri]long messageId, [FromBody] TaskMessage message)
+        public async Task<IHttpActionResult> SendTaskOrchestrationMessage([FromUri] long messageId, [FromBody] TaskMessage message)
         {
             if (messageId != message.SequenceNumber)
             {
@@ -120,7 +119,7 @@ namespace DurableTask.AzureServiceFabric.Service
         /// <returns> <see cref="OrchestrationState" /> object. </returns>
         [HttpGet]
         [Route("orchestrations/{orchestrationId}")]
-        public async Task<OrchestrationState> GetOrchestrationState([FromUri]string orchestrationId, string executionId)
+        public async Task<OrchestrationState> GetOrchestrationState([FromUri] string orchestrationId, string executionId)
         {
             orchestrationId.EnsureValidInstanceId();
             var state = await this.orchestrationServiceClient.GetOrchestrationStateAsync(orchestrationId, executionId);
@@ -135,7 +134,7 @@ namespace DurableTask.AzureServiceFabric.Service
         /// <returns>List of <see cref="OrchestrationState"/>. </returns>
         [HttpGet]
         [Route("orchestrations/{orchestrationId}")]
-        public async Task<IList<OrchestrationState>> GetOrchestrationState([FromUri]string orchestrationId, bool allExecutions)
+        public async Task<IList<OrchestrationState>> GetOrchestrationState([FromUri] string orchestrationId, bool allExecutions)
         {
             orchestrationId.EnsureValidInstanceId();
             var state = await this.orchestrationServiceClient.GetOrchestrationStateAsync(orchestrationId, allExecutions);
@@ -150,7 +149,7 @@ namespace DurableTask.AzureServiceFabric.Service
         /// <returns> <see cref="IHttpActionResult"/> object. </returns>
         [HttpDelete]
         [Route("orchestrations/{orchestrationId}")]
-        public async Task<IHttpActionResult> ForceTerminateTaskOrchestration([FromUri]string orchestrationId, string reason)
+        public async Task<IHttpActionResult> ForceTerminateTaskOrchestration([FromUri] string orchestrationId, string reason)
         {
             orchestrationId.EnsureValidInstanceId();
             await this.orchestrationServiceClient.ForceTerminateTaskOrchestrationAsync(orchestrationId, reason);
@@ -165,7 +164,7 @@ namespace DurableTask.AzureServiceFabric.Service
         /// <returns>Orchestration history</returns>
         [HttpGet]
         [Route("history/{orchestrationId}")]
-        public async Task<string> GetOrchestrationHistory([FromUri]string orchestrationId, string executionId)
+        public async Task<string> GetOrchestrationHistory([FromUri] string orchestrationId, string executionId)
         {
             orchestrationId.EnsureValidInstanceId();
             var result = await this.orchestrationServiceClient.GetOrchestrationHistoryAsync(orchestrationId, executionId);
@@ -179,7 +178,7 @@ namespace DurableTask.AzureServiceFabric.Service
         /// <returns> <see cref="IHttpActionResult"/> object. </returns>
         [HttpPost]
         [Route("history")]
-        public async Task<IHttpActionResult> PurgeOrchestrationHistory([FromBody]PurgeOrchestrationHistoryParameters purgeParameters)
+        public async Task<IHttpActionResult> PurgeOrchestrationHistory([FromBody] PurgeOrchestrationHistoryParameters purgeParameters)
         {
             await this.orchestrationServiceClient.PurgeOrchestrationHistoryAsync(purgeParameters.ThresholdDateTimeUtc, purgeParameters.TimeRangeFilterType);
             return new OkResult(this);

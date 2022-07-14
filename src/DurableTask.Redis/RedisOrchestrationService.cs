@@ -19,8 +19,10 @@ namespace DurableTask.Redis
     using System.Net;
     using System.Threading;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
     using DurableTask.Core.History;
+
     using StackExchange.Redis;
 
     /// <summary>
@@ -45,9 +47,7 @@ namespace DurableTask.Redis
         /// </summary>
         /// <param name="settings">The settings used to configure the orchestration service.</param>
         public RedisOrchestrationService(RedisOrchestrationServiceSettings settings)
-        {
-            this.settings = RedisOrchestrationServiceSettings.Validate(settings);
-        }
+         => this.settings = RedisOrchestrationServiceSettings.Validate(settings);
 
         /// <inheritdoc />
         public int TaskOrchestrationDispatcherCount => 1;
@@ -71,7 +71,7 @@ namespace DurableTask.Redis
             TimeSpan receiveTimeout,
             CancellationToken cancellationToken)
         {
-            if (this.partitionOrchestrationManager == null)
+            if (this.partitionOrchestrationManager is null)
             {
                 await StartAsync();
             }
@@ -80,9 +80,7 @@ namespace DurableTask.Redis
 
         /// <inheritdoc />
         public bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState)
-        {
-            return currentMessageCount > MaxConcurrentTaskOrchestrationWorkItems;
-        }
+         => currentMessageCount > MaxConcurrentTaskOrchestrationWorkItems;
 
         /// <inheritdoc />
         public async Task CompleteTaskOrchestrationWorkItemAsync(
@@ -94,7 +92,7 @@ namespace DurableTask.Redis
             TaskMessage continuedAsNewMessage,
             OrchestrationState orchestrationState)
         {
-            if (this.partitionOrchestrationManager == null || this.redisConnection == null)
+            if (this.partitionOrchestrationManager is null || this.redisConnection is null)
             {
                 await StartAsync();
             }
@@ -102,9 +100,9 @@ namespace DurableTask.Redis
             RedisTransactionBuilder transaction = this.partitionOrchestrationManager.CreateExistingOrchestrationTransaction(orchestrationId);
 
             List<string> events = newOrchestrationRuntimeState.Events.Select(histEvent => histEvent as TaskCompletedEvent)
-                .Where(taskCompletedEvent => taskCompletedEvent != null)
+                .Where(taskCompletedEvent => taskCompletedEvent is not null)
                 .OrderBy(task => task.TaskScheduledId)
-                .Select(TaskCompletedEvent => $"{{\"id\": {TaskCompletedEvent.TaskScheduledId}, \"Result\": {TaskCompletedEvent.Result}}}")
+                .Select(taskCompletedEvent => $"{{\"id\": {taskCompletedEvent.TaskScheduledId}, \"Result\": {taskCompletedEvent.Result}}}")
                 .ToList();
             string logMessage = "Current events processed: " + string.Join(",", events);
             await this.logger.LogAsync(logMessage);
@@ -116,15 +114,15 @@ namespace DurableTask.Redis
                 transaction.SendActivityMessage(outboundMessage);
             }
 
-            foreach(TaskMessage message in orchestratorMessages)
+            foreach (TaskMessage message in orchestratorMessages)
             {
                 transaction.SendControlQueueMessage(message);
             }
 
-            if (continuedAsNewMessage != null)
+            if (continuedAsNewMessage is not null)
             {
                 transaction.SendControlQueueMessage(continuedAsNewMessage);
-            } 
+            }
 
             // TODO send timer messages in transaction
 
@@ -146,17 +144,14 @@ namespace DurableTask.Redis
             await this.logger.LogAsync(logMessage);
         }
 
+        // No need to renew, as current lock implementation lasts as long as process holds it.
         /// <inheritdoc />
-        public Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem)
-        {
-            // No need to renew, as current lock implementation lasts as long as process holds it.
-            return Task.CompletedTask;
-        }
+        public Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem) => Task.CompletedTask;
 
         /// <inheritdoc />
         public async Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            if (this.partitionOrchestrationManager == null || this.redisConnection == null)
+            if (this.partitionOrchestrationManager is null || this.redisConnection is null)
             {
                 await StartAsync();
             }
@@ -167,7 +162,7 @@ namespace DurableTask.Redis
         /// <inheritdoc />
         public async Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            if (this.partitionOrchestrationManager == null || this.redisConnection == null)
+            if (this.partitionOrchestrationManager is null || this.redisConnection is null)
             {
                 await StartAsync();
             }
@@ -182,7 +177,7 @@ namespace DurableTask.Redis
             TimeSpan receiveTimeout,
             CancellationToken cancellationToken)
         {
-            if (this.activityTaskManager == null)
+            if (this.activityTaskManager is null)
             {
                 await StartAsync();
             }
@@ -194,7 +189,7 @@ namespace DurableTask.Redis
             TaskActivityWorkItem workItem,
             TaskMessage responseMessage)
         {
-            if (this.activityTaskManager == null || this.partitionOrchestrationManager == null)
+            if (this.activityTaskManager is null || this.partitionOrchestrationManager is null)
             {
                 await StartAsync();
             }
@@ -216,17 +211,15 @@ namespace DurableTask.Redis
             await this.logger.LogAsync(logMessage);
         }
 
+        // TODO: At this time this is sufficient, as locks last indefinitely
         /// <inheritdoc />
         public Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem)
-        {
-            // TODO: At this time this is sufficient, as locks last indefinitely
-            return Task.FromResult(workItem);
-        }
+         => Task.FromResult(workItem);
 
         /// <inheritdoc />
         public async Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem)
         {
-            if (this.activityTaskManager == null)
+            if (this.activityTaskManager is null)
             {
                 await StartAsync();
             }
@@ -238,31 +231,22 @@ namespace DurableTask.Redis
         #endregion
 
         #region Task Hub Methods
+        // No operation needed, Redis objects are created on the fly if necessary.
         /// <inheritdoc />
-        public Task CreateAsync()
-        {
-            // No operation needed, Redis objects are created on the fly if necessary.
-            return Task.CompletedTask;
-        }
+        public Task CreateAsync() => Task.CompletedTask;
 
+        // No operation needed, Redis objects are created on the fly if necessary.
         /// <inheritdoc />
-        public Task CreateAsync(bool recreateInstanceStore)
-        {
-            // No operation needed, Redis objects are created on the fly if necessary.
-            return Task.CompletedTask;
-        }
+        public Task CreateAsync(bool recreateInstanceStore) => Task.CompletedTask;
 
+        // No operation needed, Redis objects are created on the fly if necessary.
         /// <inheritdoc />
-        public Task CreateIfNotExistsAsync()
-        {
-            // No operation needed, Redis objects are created on the fly if necessary.
-            return Task.CompletedTask;
-        }
+        public Task CreateIfNotExistsAsync() => Task.CompletedTask;
 
         /// <inheritdoc />
         public async Task DeleteAsync()
         {
-            if (this.redisConnection == null || !this.redisConnection.IsConnected)
+            if (this.redisConnection is null || !this.redisConnection.IsConnected)
             {
                 this.redisConnection = await ConnectionMultiplexer.ConnectAsync(this.settings.RedisConnectionString);
             }
@@ -289,17 +273,14 @@ namespace DurableTask.Redis
         }
 
         /// <inheritdoc />
-        public async Task DeleteAsync(bool deleteInstanceStore)
-        {
-            await this.DeleteAsync();
-        }
+        public async Task DeleteAsync(bool deleteInstanceStore) => await this.DeleteAsync();
 
         /// <inheritdoc />
         public async Task StartAsync()
         {
             await this.startLock.WaitAsync();
 
-            if (this.workerGuid == null)
+            if (this.workerGuid is null)
             {
                 this.redisConnection = await ConnectionMultiplexer.ConnectAsync(this.settings.RedisConnectionString);
                 this.workerRecycler = new WorkerRecycler(this.settings.TaskHubName, this.redisConnection);
@@ -326,38 +307,29 @@ namespace DurableTask.Redis
         /// <inheritdoc />
         public async Task StopAsync()
         {
-            if (this.redisConnection != null)
+            if (this.redisConnection is not null)
             {
                 await this.redisConnection.CloseAsync();
             }
         }
 
         /// <inheritdoc />
-        public async Task StopAsync(bool isForced)
-        {
-            await this.StopAsync();
-        }
+        public async Task StopAsync(bool isForced) => await this.StopAsync();
         #endregion
 
         #region Dispatcher Methods
         /// <inheritdoc />
-        public int GetDelayInSecondsAfterOnFetchException(Exception exception)
-        {
-            return 0;
-        }
+        public int GetDelayInSecondsAfterOnFetchException(Exception exception) => 0;
 
         /// <inheritdoc />
-        public int GetDelayInSecondsAfterOnProcessException(Exception exception)
-        {
-            return 0;
-        }
+        public int GetDelayInSecondsAfterOnProcessException(Exception exception) => 0;
         #endregion
 
         #region Client Methods
         /// <inheritdoc />
         public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
         {
-            if (this.partitionOrchestrationManager == null)
+            if (this.partitionOrchestrationManager is null)
             {
                 await StartAsync();
             }
@@ -367,7 +339,7 @@ namespace DurableTask.Redis
         /// <inheritdoc />
         public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
         {
-            if (this.partitionOrchestrationManager == null)
+            if (this.partitionOrchestrationManager is null)
             {
                 await StartAsync();
             }
@@ -384,7 +356,7 @@ namespace DurableTask.Redis
         /// <inheritdoc />
         public async Task SendTaskOrchestrationMessageAsync(TaskMessage message)
         {
-            if (this.partitionOrchestrationManager == null)
+            if (this.partitionOrchestrationManager is null)
             {
                 await StartAsync();
             }
@@ -394,7 +366,7 @@ namespace DurableTask.Redis
         /// <inheritdoc />
         public async Task SendTaskOrchestrationMessageBatchAsync(params TaskMessage[] messages)
         {
-            if (this.partitionOrchestrationManager == null)
+            if (this.partitionOrchestrationManager is null)
             {
                 await StartAsync();
             }
@@ -408,7 +380,7 @@ namespace DurableTask.Redis
             TimeSpan timeout,
             CancellationToken cancellationToken)
         {
-            if (this.partitionOrchestrationManager == null)
+            if (this.partitionOrchestrationManager is null)
             {
                 await StartAsync();
             }
@@ -426,7 +398,7 @@ namespace DurableTask.Redis
             while (!globalCancellationToken.IsCancellationRequested)
             {
                 OrchestrationState state = await this.GetOrchestrationStateAsync(instanceId, executionId);
-                if (state == null ||
+                if (state is null ||
                     state.OrchestrationStatus == OrchestrationStatus.Running ||
                     state.OrchestrationStatus == OrchestrationStatus.Pending ||
                     state.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)
@@ -444,20 +416,16 @@ namespace DurableTask.Redis
 
         /// <inheritdoc />
         public Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
-        {
-            throw new NotImplementedException();
-        }
+         => throw new NotImplementedException();
 
         /// <inheritdoc />
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
-        {
-            return new OrchestrationState[] { await this.GetOrchestrationStateAsync(instanceId, "") };
-        }
+         => new OrchestrationState[] { await this.GetOrchestrationStateAsync(instanceId, "") };
 
         /// <inheritdoc />
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
-            if (this.partitionOrchestrationManager == null)
+            if (this.partitionOrchestrationManager is null)
             {
                 await StartAsync();
             }
@@ -466,17 +434,12 @@ namespace DurableTask.Redis
 
         /// <inheritdoc />
         public Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId)
-        {
-            throw new NotImplementedException();
-        }
+         => throw new NotImplementedException();
 
         /// <inheritdoc />
         public Task PurgeOrchestrationHistoryAsync(
             DateTime thresholdDateTimeUtc,
-            OrchestrationStateTimeRangeFilterType timeRangeFilterType)
-        {
-            throw new NotImplementedException();
-        }
+            OrchestrationStateTimeRangeFilterType timeRangeFilterType) => throw new NotImplementedException();
         #endregion
     }
 }

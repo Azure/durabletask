@@ -27,16 +27,16 @@ namespace DurableTask.AzureStorage
     /// meaning reading via the regular <see cref="DataContractSerializer"/> will not correctly hydrate extra fields
     /// from ExtensionData. However, it can still be done by using <see cref="DataContractJsonSerializer"/> instead.
     /// </summary>
-    internal class DataContractJsonConverter : JsonConverter
+    class DataContractJsonConverter : JsonConverter
     {
         public override bool CanConvert(Type objectType)
         {
-            if (objectType == null)
+            if (objectType is null)
             {
                 throw new ArgumentNullException(nameof(objectType));
             }
 
-            return objectType.GetCustomAttribute<DataContractAttribute>() != null
+            return objectType.GetCustomAttribute<DataContractAttribute>() is not null
                 && typeof(IExtensibleDataObject).IsAssignableFrom(objectType);
         }
 
@@ -44,17 +44,17 @@ namespace DurableTask.AzureStorage
         public override object ReadJson(
             JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
         {
-            if (reader == null)
+            if (reader is null)
             {
                 throw new ArgumentNullException(nameof(reader));
             }
 
-            if (objectType == null)
+            if (objectType is null)
             {
                 throw new ArgumentNullException(nameof(objectType));
             }
 
-            if (serializer == null)
+            if (serializer is null)
             {
                 throw new ArgumentNullException(nameof(serializer));
             }
@@ -75,18 +75,18 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
         {
-            if (writer == null)
+            if (writer is null)
             {
                 throw new ArgumentNullException(nameof(writer));
             }
 
-            if (value == null)
+            if (value is null)
             {
                 writer.WriteNull();
                 return;
             }
 
-            if (serializer == null)
+            if (serializer is null)
             {
                 throw new ArgumentNullException(nameof(serializer));
             }
@@ -105,7 +105,7 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        private static DataContractJsonSerializer CreateSerializer(Type type, JsonSerializer serializer)
+        static DataContractJsonSerializer CreateSerializer(Type type, JsonSerializer serializer)
         {
             return new DataContractJsonSerializer(
                 type,

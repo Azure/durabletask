@@ -19,14 +19,12 @@ namespace DurableTask.AzureServiceFabric.TaskHelpers
 
     using DurableTask.AzureServiceFabric.Tracing;
 
-    static class RetryHelper
+    internal static class RetryHelper
     {
         public static Task ExecuteWithRetryOnTransient(Func<Task> action, string uniqueActionIdentifier)
-        {
-            return ExecuteWithRetryOnTransient(action, CountBasedFixedDelayRetryPolicy.GetNewDefaultPolicy(), uniqueActionIdentifier);
-        }
+         => ExecuteWithRetryOnTransient(action, CountBasedFixedDelayRetryPolicy.GetNewDefaultPolicy(), uniqueActionIdentifier);
 
-        static async Task ExecuteWithRetryOnTransient(Func<Task> action, IRetryPolicy retryPolicy, string uniqueActionIdentifier)
+        private static async Task ExecuteWithRetryOnTransient(Func<Task> action, IRetryPolicy retryPolicy, string uniqueActionIdentifier)
         {
             Exception lastException = null;
 
@@ -67,11 +65,9 @@ namespace DurableTask.AzureServiceFabric.TaskHelpers
         }
 
         public static Task<TResult> ExecuteWithRetryOnTransient<TResult>(Func<Task<TResult>> action, string uniqueActionIdentifier)
-        {
-            return ExecuteWithRetryOnTransient(action, CountBasedFixedDelayRetryPolicy.GetNewDefaultPolicy(), uniqueActionIdentifier);
-        }
+         => ExecuteWithRetryOnTransient(action, CountBasedFixedDelayRetryPolicy.GetNewDefaultPolicy(), uniqueActionIdentifier);
 
-        static async Task<TResult> ExecuteWithRetryOnTransient<TResult>(Func<Task<TResult>> action, IRetryPolicy retryPolicy, string uniqueActionIdentifier)
+        private static async Task<TResult> ExecuteWithRetryOnTransient<TResult>(Func<Task<TResult>> action, IRetryPolicy retryPolicy, string uniqueActionIdentifier)
         {
             Exception lastException = null;
 

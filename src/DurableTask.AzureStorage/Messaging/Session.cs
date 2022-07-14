@@ -47,7 +47,7 @@ namespace DurableTask.AzureStorage.Messaging
 
         public void TraceProcessingMessage(MessageData data, bool isExtendedSession)
         {
-            if (data == null)
+            if (data is null)
             {
                 throw new ArgumentNullException(nameof(data));
             }

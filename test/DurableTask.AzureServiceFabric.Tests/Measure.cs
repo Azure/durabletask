@@ -18,7 +18,7 @@ namespace DurableTask.AzureServiceFabric.Tests
     using System.IO;
     using System.Runtime.Serialization;
 
-    class Measure
+    internal class Measure
     {
         public static T DataContractSerialization<T>(T testObject)
         {

@@ -81,6 +81,16 @@ namespace DurableTask.Core.Exceptions
             Version = info.GetString(nameof(Version));
         }
 
+        /// <summary>
+        /// Initializes an new instance of the TaskFailedException class with a specified event id and error message
+        /// and a reference to the inner exception that is the cause of this exception.
+        /// </summary>
+        /// <param name="eventId">EventId of the error.</param>
+        /// <param name="message">The message that describes the error.</param>
+        /// <param name="innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
+        private TaskFailedException(int eventId, string message, Exception innerException)
+            : base(eventId, message, innerException) { }
+
         /// <inheritdoc />
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {

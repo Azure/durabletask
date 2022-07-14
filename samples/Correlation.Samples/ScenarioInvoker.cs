@@ -15,23 +15,23 @@ namespace Correlation.Samples
 {
     using System;
     using System.Diagnostics;
-    using System.Runtime.Serialization;
+    using System.Diagnostics.Contracts;
     using System.Threading.Tasks;
-    using DurableTask.Core;
+
     using DurableTask.Core.Settings;
-    using Microsoft.ApplicationInsights.W3C;
 
     public class ScenarioInvoker
     {
         public async Task ExecuteAsync(Type orchestratorType, object orchestratorInput, int timeoutSec)
         {
+            Contract.Assume(orchestratorType is not null);
             new TelemetryActivator().Initialize();
 
             using (
                 TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(false))
             {
                 await host.StartAsync();
-                var activity = new Activity("Start Orchestration");
+                using var activity = new Activity("Start Orchestration");
                 SetupActivity(activity);
                 activity.Start();
                 var client = await host.StartOrchestrationAsync(orchestratorType, orchestratorInput); // TODO The parameter null will throw exception. (for the experiment)
@@ -41,7 +41,7 @@ namespace Correlation.Samples
             }
         }
 
-        void SetupActivity(Activity activity)
+        private void SetupActivity(Activity activity)
         {
             var protocol = Environment.GetEnvironmentVariable("CorrelationProtocol");
             switch (protocol)

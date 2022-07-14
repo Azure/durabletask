@@ -15,10 +15,13 @@ namespace DurableTask.ServiceBus.Tracking
 {
     using System;
     using System.Collections.Generic;
+
     using DurableTask.Core.History;
     using DurableTask.Core.Serializing;
+
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Table;
+
     using Newtonsoft.Json;
 
     /// <summary>
@@ -43,7 +46,7 @@ namespace DurableTask.ServiceBus.Tracking
         };
 
         /// <summary>
-        /// Creates a new AzureTableOrchestrationHistoryEventEntity 
+        /// Creates a new AzureTableOrchestrationHistoryEventEntity
         /// </summary>
         public AzureTableOrchestrationHistoryEventEntity()
         {
@@ -100,12 +103,14 @@ namespace DurableTask.ServiceBus.Tracking
             var entity = new AzureTableOrchestrationHistoryEventEntity(InstanceId,
                 ExecutionId,
                 SequenceNumber,
-                TaskTimeStamp, HistoryEvent);
-            entity.PartitionKey = AzureTableConstants.InstanceHistoryEventPrefix +
-                                  AzureTableConstants.JoinDelimiter + InstanceId;
-            entity.RowKey = AzureTableConstants.InstanceHistoryEventRowPrefix +
+                TaskTimeStamp, HistoryEvent)
+            {
+                PartitionKey = AzureTableConstants.InstanceHistoryEventPrefix +
+                                  AzureTableConstants.JoinDelimiter + InstanceId,
+                RowKey = AzureTableConstants.InstanceHistoryEventRowPrefix +
                             AzureTableConstants.JoinDelimiter +
-                            ExecutionId + AzureTableConstants.JoinDelimiter + SequenceNumber;
+                            ExecutionId + AzureTableConstants.JoinDelimiter + SequenceNumber
+            };
 
             return new[] { entity };
         }
@@ -129,12 +134,14 @@ namespace DurableTask.ServiceBus.Tracking
                     WriteJsonSettings);
             }
 
-            var returnValues = new Dictionary<string, EntityProperty>();
-            returnValues.Add("InstanceId", new EntityProperty(InstanceId));
-            returnValues.Add("ExecutionId", new EntityProperty(ExecutionId));
-            returnValues.Add("TaskTimeStamp", new EntityProperty(TaskTimeStamp));
-            returnValues.Add("SequenceNumber", new EntityProperty(SequenceNumber));
-            returnValues.Add("HistoryEvent", new EntityProperty(serializedHistoryEvent));
+            var returnValues = new Dictionary<string, EntityProperty>
+            {
+                { "InstanceId", new EntityProperty(InstanceId) },
+                { "ExecutionId", new EntityProperty(ExecutionId) },
+                { "TaskTimeStamp", new EntityProperty(TaskTimeStamp) },
+                { "SequenceNumber", new EntityProperty(SequenceNumber) },
+                { "HistoryEvent", new EntityProperty(serializedHistoryEvent) }
+            };
 
             return returnValues;
         }
@@ -166,8 +173,6 @@ namespace DurableTask.ServiceBus.Tracking
         /// A string that represents the current object.
         /// </returns>
         public override string ToString()
-        {
-            return $"Instance Id: {InstanceId} Execution Id: {ExecutionId} Seq: {SequenceNumber.ToString()} Time: {TaskTimeStamp} HistoryEvent: {HistoryEvent.EventType.ToString()}";
-        }
+        => $"Instance Id: {InstanceId} Execution Id: {ExecutionId} Seq: {SequenceNumber.ToString()} Time: {TaskTimeStamp} HistoryEvent: {HistoryEvent.EventType.ToString()}";
     }
 }

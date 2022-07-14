@@ -19,28 +19,28 @@ namespace DurableTask.AzureStorage.Tests
     using System.Linq;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
-    using Microsoft.Extensions.Logging;
+
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     internal sealed class TestOrchestrationHost : IDisposable
     {
-        internal readonly AzureStorageOrchestrationService service;
-
-        readonly AzureStorageOrchestrationServiceSettings settings;
-        readonly TaskHubWorker worker;
-        readonly TaskHubClient client;
-        readonly HashSet<Type> addedOrchestrationTypes;
-        readonly HashSet<Type> addedActivityTypes;
+        internal readonly AzureStorageOrchestrationService Service;
+        private readonly AzureStorageOrchestrationServiceSettings settings;
+        private readonly TaskHubWorker worker;
+        private readonly TaskHubClient client;
+        private readonly HashSet<Type> addedOrchestrationTypes;
+        private readonly HashSet<Type> addedActivityTypes;
 
         public TestOrchestrationHost(AzureStorageOrchestrationServiceSettings settings)
         {
-            this.service = new AzureStorageOrchestrationService(settings);
-            this.service.CreateAsync().GetAwaiter().GetResult();
+            this.Service = new AzureStorageOrchestrationService(settings);
+            this.Service.CreateAsync().GetAwaiter().GetResult();
 
             this.settings = settings;
-            this.worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
-            this.client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
+            this.worker = new TaskHubWorker(Service, loggerFactory: settings.LoggerFactory);
+            this.client = new TaskHubClient(Service, loggerFactory: settings.LoggerFactory);
             this.addedOrchestrationTypes = new HashSet<Type>();
             this.addedActivityTypes = new HashSet<Type>();
         }
@@ -49,6 +49,7 @@ namespace DurableTask.AzureStorage.Tests
 
         public void Dispose()
         {
+            this.Service.Dispose();
             this.worker.Dispose();
         }
 
@@ -109,7 +110,7 @@ namespace DurableTask.AzureStorage.Tests
                     instanceId,
                     input,
                     startAt.Value)
-                    : 
+                    :
                 await this.client.CreateOrchestrationInstanceAsync(
                     orchestrationType,
                     instanceId,
@@ -213,7 +214,7 @@ namespace DurableTask.AzureStorage.Tests
             return new OrchestrationShim<TOutput, TInput>(implementation, onEvent);
         }
 
-        // This is just a wrapper around the constructor for convenience. It allows us to write 
+        // This is just a wrapper around the constructor for convenience. It allows us to write
         // less code because generic arguments for methods can be implied, unlike constructors.
         public static TaskActivity MakeActivity<TInput, TOutput>(
             Func<TaskContext, TInput, TOutput> implementation)
@@ -221,7 +222,7 @@ namespace DurableTask.AzureStorage.Tests
             return new ActivityShim<TInput, TOutput>(implementation);
         }
 
-        static string GetFriendlyTypeName(Type type)
+        private static string GetFriendlyTypeName(Type type)
         {
             string friendlyName = type.Name;
             if (type.IsGenericType)
@@ -255,7 +256,7 @@ namespace DurableTask.AzureStorage.Tests
             return instances;
         }
 
-        class ActivityShim<TInput, TOutput> : TaskActivity<TInput, TOutput>
+        private class ActivityShim<TInput, TOutput> : TaskActivity<TInput, TOutput>
         {
             public ActivityShim(Func<TaskContext, TInput, TOutput> implementation)
             {
@@ -270,7 +271,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        class OrchestrationShim<TOutput, TInput> : TaskOrchestration<TOutput, TInput>
+        private class OrchestrationShim<TOutput, TInput> : TaskOrchestration<TOutput, TInput>
         {
             public OrchestrationShim(
                 Func<OrchestrationContext, TInput, Task<TOutput>> implementation,
@@ -291,11 +292,11 @@ namespace DurableTask.AzureStorage.Tests
                 => this.OnEventRaised(context, name, input);
         }
 
-        class TestObjectCreator<T> : ObjectCreator<T>
+        private class TestObjectCreator<T> : ObjectCreator<T>
         {
-            readonly T obj;
+            private readonly T obj;
 
-            public TestObjectCreator(string name, T obj) 
+            public TestObjectCreator(string name, T obj)
                 : this(name, string.Empty, obj)
             {
             }

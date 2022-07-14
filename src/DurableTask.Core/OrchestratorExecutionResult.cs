@@ -15,7 +15,9 @@ namespace DurableTask.Core
 {
     using System;
     using System.Collections.Generic;
+
     using DurableTask.Core.Command;
+
     using Newtonsoft.Json;
 
     /// <summary>
@@ -41,10 +43,7 @@ namespace DurableTask.Core
         /// <param name="message">The simple failure message.</param>
         /// <param name="e">The exception that triggered the failure.</param>
         /// <returns>The orchestrator failure result.</returns>
-        public static OrchestratorExecutionResult ForFailure(string message, Exception e)
-        {
-            return ForFailure(message, e.ToString());
-        }
+        public static OrchestratorExecutionResult ForFailure(string message, Exception e) => ForFailure(message, e.ToString());
 
         /// <summary>
         /// Creates an orchestrator failure result with a specified message and details.
@@ -53,10 +52,9 @@ namespace DurableTask.Core
         /// <param name="details">The failure details that give more information about what triggered the failure.</param>
         /// <returns>The orchestrator failure result.</returns>
         public static OrchestratorExecutionResult ForFailure(string message, string? details)
-        {
-            return new OrchestratorExecutionResult
-            {
-                Actions = new List<OrchestratorAction>
+         => new OrchestratorExecutionResult
+         {
+             Actions = new List<OrchestratorAction>
                 {
                     new OrchestrationCompleteOrchestratorAction
                     {
@@ -64,7 +62,6 @@ namespace DurableTask.Core
                         Result = JsonConvert.SerializeObject(new { message, details }),
                     },
                 },
-            };
-        }
+         };
     }
 }

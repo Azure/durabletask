@@ -13,7 +13,9 @@
 
 using System;
 using System.Threading.Tasks;
+
 using DurableTask.Core;
+
 using StackExchange.Redis;
 
 namespace DurableTask.Redis
@@ -38,18 +40,14 @@ namespace DurableTask.Redis
         }
 
         public static RedisTransactionBuilder BuildTransactionInPartition(string taskHub, string partition, ConnectionMultiplexer connection, Condition condition)
-        {
-            return new RedisTransactionBuilder(taskHub, partition, connection, condition);
-        }
+         => new RedisTransactionBuilder(taskHub, partition, connection, condition);
 
         public static RedisTransactionBuilder BuildTransaction(string taskHub, ConnectionMultiplexer connection, Condition condition)
-        {
-            return new RedisTransactionBuilder(taskHub, null, connection, condition);
-        }
+         => new RedisTransactionBuilder(taskHub, null, connection, condition);
 
         public RedisTransactionBuilder SendControlQueueMessage(TaskMessage message)
         {
-            if (this.partition == null)
+            if (this.partition is null)
             {
                 throw new ArgumentNullException($"Cannot call {nameof(SendControlQueueMessage)} without a partition set.");
             }
@@ -63,7 +61,7 @@ namespace DurableTask.Redis
 
         public RedisTransactionBuilder SetOrchestrationRuntimeState(string orchestrationId, OrchestrationRuntimeState state)
         {
-            if (this.partition == null)
+            if (this.partition is null)
             {
                 throw new ArgumentNullException($"Cannot call {nameof(SetOrchestrationRuntimeState)} without a partition set.");
             }
@@ -77,7 +75,7 @@ namespace DurableTask.Redis
 
         public RedisTransactionBuilder AddOrchestrationToSet(string orchestrationId)
         {
-            if (this.partition == null)
+            if (this.partition is null)
             {
                 throw new ArgumentNullException($"Cannot call {nameof(AddOrchestrationToSet)} without a partition set.");
             }
@@ -88,7 +86,7 @@ namespace DurableTask.Redis
 
         public RedisTransactionBuilder AddOrchestrationStateToHistory(string orchestrationId, OrchestrationState state)
         {
-            if (this.partition == null)
+            if (this.partition is null)
             {
                 throw new ArgumentNullException($"Cannot call {nameof(AddOrchestrationStateToHistory)} without a partition set.");
             }
@@ -117,7 +115,7 @@ namespace DurableTask.Redis
 
         public RedisTransactionBuilder RemoveItemsFromOrchestrationQueue(string orchestrationId, int numberOfItemsToRemove)
         {
-            if (this.partition == null)
+            if (this.partition is null)
             {
                 throw new ArgumentNullException($"Cannot call {nameof(RemoveItemsFromOrchestrationQueue)} without a partition set.");
             }
@@ -126,13 +124,10 @@ namespace DurableTask.Redis
             {
                 transaction.ListRightPopAsync(orchestrationQueueKey);
             }
-            
+
             return this;
         }
 
-        public async Task<bool> CommitTransactionAsync()
-        {
-            return await transaction.ExecuteAsync();
-        }
+        public async Task<bool> CommitTransactionAsync() => await transaction.ExecuteAsync();
     }
 }

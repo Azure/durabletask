@@ -15,10 +15,10 @@ namespace DurableTask.AzureServiceFabric.TaskHelpers
 {
     using System;
 
-    class CountBasedFixedDelayRetryPolicy : IRetryPolicy
+    internal class CountBasedFixedDelayRetryPolicy : IRetryPolicy
     {
-        readonly TimeSpan delay;
-        int pendingAttempts;
+        private readonly TimeSpan delay;
+        private int pendingAttempts;
 
         public CountBasedFixedDelayRetryPolicy(int maxNumberOfAttempts, TimeSpan delay)
         {
@@ -26,19 +26,11 @@ namespace DurableTask.AzureServiceFabric.TaskHelpers
             this.pendingAttempts = maxNumberOfAttempts;
         }
 
-        public bool ShouldExecute()
-        {
-            return this.pendingAttempts-- > 0;
-        }
+        public bool ShouldExecute() => this.pendingAttempts-- > 0;
 
-        public TimeSpan GetNextDelay()
-        {
-            return this.pendingAttempts < 1 ? TimeSpan.Zero : this.delay;
-        }
+        public TimeSpan GetNextDelay() => this.pendingAttempts < 1 ? TimeSpan.Zero : this.delay;
 
         public static IRetryPolicy GetNewDefaultPolicy()
-        {
-            return new CountBasedFixedDelayRetryPolicy(3, TimeSpan.FromMilliseconds(100));
-        }
+         => new CountBasedFixedDelayRetryPolicy(3, TimeSpan.FromMilliseconds(100));
     }
 }

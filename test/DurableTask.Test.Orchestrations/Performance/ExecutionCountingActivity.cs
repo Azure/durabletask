@@ -16,6 +16,7 @@ namespace DurableTask.Test.Orchestrations.Performance
     using System;
     using System.Threading;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
 
     public sealed class ExecutionCountingActivity : AsyncTaskActivity<int, int>
@@ -28,8 +29,7 @@ namespace DurableTask.Test.Orchestrations.Performance
         protected override async Task<int> ExecuteAsync(TaskContext context, int taskId)
         {
             await Task.Delay(new Random().Next(5, 10));
-            Interlocked.Increment(ref Counter);
-            return Counter;
+            return Interlocked.Increment(ref Counter);
         }
     }
 }

@@ -22,9 +22,9 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests.DeploymentUtil
     using System.Threading.Tasks;
     using System.Xml;
 
-    static class DeploymentHelper
+    internal static class DeploymentHelper
     {
-        static readonly FabricClient client = new FabricClient();
+        private static readonly FabricClient client = new FabricClient();
 
         public static async Task DeployAsync(string applicationRootPath)
         {
@@ -66,7 +66,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests.DeploymentUtil
             }
         }
 
-        static async Task DeployAsync(string applicationPackagePath, ApplicationDescription applicationDescription)
+        private static async Task DeployAsync(string applicationPackagePath, ApplicationDescription applicationDescription)
         {
             var clusterManifest = new XmlDocument();
             var clusterManifestXml = await client.ClusterManager.GetClusterManifestAsync();
@@ -87,7 +87,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests.DeploymentUtil
             await client.ApplicationManager.CreateApplicationAsync(applicationDescription);
         }
 
-        static async Task WaitForHealthStatusAsync(ApplicationDescription applicationDescription, Uri serviceName)
+        private static async Task WaitForHealthStatusAsync(ApplicationDescription applicationDescription, Uri serviceName)
         {
             while (true)
             {

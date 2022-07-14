@@ -26,11 +26,7 @@ namespace DurableTask.Core.History
         /// </summary>
         /// <param name="eventId">The ID of the event.</param>
         /// <param name="input">The serialized event payload.</param>
-        public EventRaisedEvent(int eventId, string input)
-            : base(eventId)
-        {
-            Input = input;
-        }
+        public EventRaisedEvent(int eventId, string input) : base(eventId) => Input = input;
 
         /// <summary>
         /// Gets the event type

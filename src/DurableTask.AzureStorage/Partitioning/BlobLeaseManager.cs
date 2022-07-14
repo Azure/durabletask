@@ -37,7 +37,7 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly TimeSpan leaseInterval;
 
         BlobContainer taskHubContainer;
-        string blobDirectoryName;
+        readonly string blobDirectoryName;
         Blob taskHubInfoBlob;
 
         public BlobLeaseManager(
@@ -195,9 +195,11 @@ namespace DurableTask.AzureStorage.Partitioning
             {
                 string leaseId = lease.Token;
 
-                BlobLease copy = new BlobLease(lease);
-                copy.Token = null;
-                copy.Owner = null;
+                BlobLease copy = new BlobLease(lease)
+                {
+                    Token = null,
+                    Owner = null
+                };
                 await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(copy), leaseId);
                 await leaseBlob.ReleaseLeaseAsync(leaseId);
             }
@@ -221,7 +223,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         public async Task<bool> UpdateAsync(BlobLease lease)
         {
-            if (lease == null || string.IsNullOrWhiteSpace(lease.Token))
+            if (lease is null || string.IsNullOrWhiteSpace(lease.Token))
             {
                 return false;
             }
@@ -266,7 +268,7 @@ namespace DurableTask.AzureStorage.Partitioning
         internal async Task<TaskHubInfo> GetOrCreateTaskHubInfoAsync(TaskHubInfo newTaskHubInfo, bool checkIfStale)
         {
             TaskHubInfo currentTaskHubInfo = await this.GetTaskHubInfoAsync();
-            if (currentTaskHubInfo != null)
+            if (currentTaskHubInfo is not null)
             {
                 if (checkIfStale && IsStale(currentTaskHubInfo, newTaskHubInfo))
                 {
@@ -296,7 +298,7 @@ namespace DurableTask.AzureStorage.Partitioning
             return newTaskHubInfo;
         }
 
-        private bool IsStale(TaskHubInfo currentTaskHubInfo, TaskHubInfo newTaskHubInfo)
+        bool IsStale(TaskHubInfo currentTaskHubInfo, TaskHubInfo newTaskHubInfo)
         {
             return !currentTaskHubInfo.TaskHubName.Equals(newTaskHubInfo.TaskHubName, StringComparison.OrdinalIgnoreCase)
                     || !currentTaskHubInfo.PartitionCount.Equals(newTaskHubInfo.PartitionCount);

@@ -18,21 +18,21 @@ namespace DurableTask.AzureStorage.Storage
     using System.Net;
     using Microsoft.WindowsAzure.Storage;
 
-    internal static class StorageUriExtensions
+    static class StorageUriExtensions
     {
         // Note that much of this class is based on internal logic from the Azure Storage SDK
         // Ports: https://github.com/Azure/azure-sdk-for-net/blob/c1c61f10b855ccdd97c790d92f26765e99fd15a8/sdk/storage/Azure.Storage.Common/src/Shared/Constants.cs#L599
         // Account Name Parse: https://github.com/Azure/azure-sdk-for-net/blob/4162f6fa2445b2127468b9cfd080f01c9da88eba/sdk/storage/Azure.Storage.Blobs/src/BlobUriBuilder.cs#L166
         // Utilities: https://github.com/Azure/azure-sdk-for-net/blob/4162f6fa2445b2127468b9cfd080f01c9da88eba/sdk/storage/Azure.Storage.Common/src/Shared/UriExtensions.cs#L16
 
-        private static readonly HashSet<int> SasPorts = new HashSet<int> { 10000, 10001, 10002, 10003, 10004, 10100, 10101, 10102, 10103, 10104, 11000, 11001, 11002, 11003, 11004, 11100, 11101, 11102, 11103, 11104 };
+        static readonly HashSet<int> SasPorts = new HashSet<int> { 10000, 10001, 10002, 10003, 10004, 10100, 10101, 10102, 10103, 10104, 11000, 11001, 11002, 11003, 11004, 11100, 11101, 11102, 11103, 11104 };
 
         public static string GetAccountName(this StorageUri storageUri, string service)
         {
-            if (storageUri == null)
+            if (storageUri is null)
                 throw new ArgumentNullException(nameof(storageUri));
 
-            if (service == null)
+            if (service is null)
                 throw new ArgumentNullException(nameof(service));
 
             // Note that the primary and secondary endpoints must share the same resource
@@ -49,14 +49,14 @@ namespace DurableTask.AzureStorage.Storage
             return GetAccountNameFromDomain(uri.Host, service);
         }
 
-        private static string GetPath(Uri uri) =>
+        static string GetPath(Uri uri) =>
             uri.AbsolutePath[0] == '/' ? uri.AbsolutePath.Substring(1) : uri.AbsolutePath;
 
-        private static bool IsHostIPEndPointStyle(Uri uri) =>
+        static bool IsHostIPEndPointStyle(Uri uri) =>
             (!string.IsNullOrEmpty(uri.Host) && uri.Host.IndexOf(".", StringComparison.InvariantCulture) >= 0 && IPAddress.TryParse(uri.Host, out _))
             || SasPorts.Contains(uri.Port);
 
-        private static string GetAccountNameFromDomain(string host, string serviceSubDomain)
+        static string GetAccountNameFromDomain(string host, string serviceSubDomain)
         {
             // Typically, Azure Storage Service URIs are formatted as <protocol>://<account>.<service>.<suffix>
             int accountEndIndex = host.IndexOf(".", StringComparison.InvariantCulture);

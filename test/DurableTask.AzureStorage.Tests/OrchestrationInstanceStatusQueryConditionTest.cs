@@ -144,8 +144,10 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public void OrchestrationInstanceQuery_Parse()
         {
-            var runtimeStatus = new List<OrchestrationStatus>();
-            runtimeStatus.Add(OrchestrationStatus.Running);
+            var runtimeStatus = new List<OrchestrationStatus>
+            {
+                OrchestrationStatus.Running
+            };
             var condition = OrchestrationInstanceStatusQueryCondition.Parse(
                 new DateTime(2018, 1, 10, 10, 10, 10, DateTimeKind.Utc),
                 new DateTime(2018, 1, 10, 10, 10, 50, DateTimeKind.Utc),
@@ -159,8 +161,10 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public void OrchestrationInstanceQuery_ParseOptional()
         {
-            var runtimeStatus = new List<OrchestrationStatus>();
-            runtimeStatus.Add(OrchestrationStatus.Running);
+            var runtimeStatus = new List<OrchestrationStatus>
+            {
+                OrchestrationStatus.Running
+            };
             var condition = OrchestrationInstanceStatusQueryCondition.Parse(default(DateTime), null, runtimeStatus);
             var query = condition.ToTableQuery<OrchestrationInstanceStatus>();
             Assert.AreEqual("RuntimeStatus eq 'Running'", query.FilterString);

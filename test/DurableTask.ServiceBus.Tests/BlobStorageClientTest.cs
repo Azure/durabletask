@@ -20,9 +20,11 @@ namespace DurableTask.ServiceBus.Tests
     using System.Linq;
     using System.Text;
     using System.Threading.Tasks;
+
+    using DurableTask.ServiceBus.Tracking;
+
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.WindowsAzure.Storage.Blob;
-    using DurableTask.ServiceBus.Tracking;
 
     [TestClass]
     public class BlobStorageClientTest
@@ -56,12 +58,12 @@ namespace DurableTask.ServiceBus.Tests
         {
             var testContent = "test stream content";
             var key = "message-20101003|testBlobName";
-            Stream stream = new MemoryStream(Encoding.UTF8.GetBytes(testContent));
+            using Stream stream = new MemoryStream(Encoding.UTF8.GetBytes(testContent));
             await this.blobStorageClient.UploadStreamBlobAsync(key, stream);
 
             var result = await this.blobStorageClient.DownloadStreamAsync(key) as MemoryStream;
 
-            Debug.Assert(result != null);
+            Debug.Assert(result is not null);
 
             string resultString = Encoding.UTF8.GetString(result.ToArray());
             Assert.AreEqual(resultString, testContent);
@@ -75,7 +77,7 @@ namespace DurableTask.ServiceBus.Tests
             var key2 = "message-20150517|b";
             var key3 = "message-20150518|c";
 
-            Stream stream = new MemoryStream(Encoding.UTF8.GetBytes(testContent));
+            using Stream stream = new MemoryStream(Encoding.UTF8.GetBytes(testContent));
             await this.blobStorageClient.UploadStreamBlobAsync(key1, stream);
             await this.blobStorageClient.UploadStreamBlobAsync(key2, stream);
             await this.blobStorageClient.UploadStreamBlobAsync(key3, stream);
@@ -85,7 +87,7 @@ namespace DurableTask.ServiceBus.Tests
 
             List<CloudBlobContainer> containers = (await this.blobStorageClient.ListContainers()).ToList();
             Assert.AreEqual(2, containers.Count);
-            var sortedList = new List<string> {containers[0].Name, containers[1].Name};
+            var sortedList = new List<string> { containers[0].Name, containers[1].Name };
             sortedList.Sort();
 
             Assert.IsTrue(sortedList[0].EndsWith("20150517"));

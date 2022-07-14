@@ -14,6 +14,7 @@
 namespace DurableTask.Core
 {
     using System.Collections.Generic;
+
     using DurableTask.Core.History;
 
     /// <summary>
@@ -26,27 +27,19 @@ namespace DurableTask.Core
         /// <summary>
         /// A constructor for deserialization.
         /// </summary>
-        public OrchestrationSessionState()
-        {
-        }
+        public OrchestrationSessionState() { }
 
         /// <summary>
         /// Wrap a list of history events into an OrchestrationSessionState instance, which will be later serialized as a stream saved in session state.
         /// </summary>
         /// /// <param name="events">A list of history events.</param>
-        public OrchestrationSessionState(IList<HistoryEvent> events)
-        {
-            Events = events;
-        }
+        public OrchestrationSessionState(IList<HistoryEvent> events) => Events = events;
 
         /// <summary>
         /// Construct an OrchestrationSessionState instance with a blob key as the blob reference in the external blob storage.
         /// </summary>
         /// /// <param name="blobKey">The blob key to access the blob</param>
-        public OrchestrationSessionState(string blobKey)
-        {
-            BlobKey = blobKey;
-        }
+        public OrchestrationSessionState(string blobKey) => BlobKey = blobKey;
 
         /// <summary>
         /// List of all history events for runtime state

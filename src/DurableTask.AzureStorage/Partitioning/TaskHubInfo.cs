@@ -17,9 +17,9 @@ namespace DurableTask.AzureStorage.Partitioning
 
     class TaskHubInfo
     {
-        public TaskHubInfo(string TaskHubName, DateTime createdAt, int partitionCount)
+        public TaskHubInfo(string taskHubName, DateTime createdAt, int partitionCount)
         {
-            this.TaskHubName = TaskHubName;
+            this.TaskHubName = taskHubName;
             this.CreatedAt = createdAt;
             this.PartitionCount = partitionCount;
         }

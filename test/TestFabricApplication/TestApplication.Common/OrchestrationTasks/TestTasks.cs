@@ -19,7 +19,7 @@ namespace TestApplication.Common.OrchestrationTasks
 
     public class TestTasks : ITestTasks
     {
-        static int generationCount = 0;
+        private static int generationCount = 0;
 
         /// <summary>
         /// Increments Generation Count variable.

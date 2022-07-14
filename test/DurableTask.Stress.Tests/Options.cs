@@ -13,6 +13,7 @@
 
 namespace DurableTask.Stress.Tests
 {
+#pragma warning disable CA1812 // Internal class instantiated indirectly
     using CommandLine;
     using CommandLine.Text;
 

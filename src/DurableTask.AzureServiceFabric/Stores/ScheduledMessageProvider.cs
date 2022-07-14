@@ -20,24 +20,23 @@ namespace DurableTask.AzureServiceFabric.Stores
     using System.Threading;
     using System.Threading.Tasks;
 
-    using DurableTask.Core;
-    using DurableTask.Core.History;
     using DurableTask.AzureServiceFabric.TaskHelpers;
     using DurableTask.AzureServiceFabric.Tracing;
+    using DurableTask.Core;
+    using DurableTask.Core.History;
+
     using Microsoft.ServiceFabric.Data;
 
-    class ScheduledMessageProvider : MessageProviderBase<Guid, TaskMessageItem>
+    internal class ScheduledMessageProvider : MessageProviderBase<Guid, TaskMessageItem>
     {
-        readonly SessionProvider sessionProvider;
-        readonly object @lock = new object();
+        private readonly SessionProvider sessionProvider;
+        private readonly object @lock = new object();
+        private ImmutableSortedSet<Message<Guid, TaskMessageItem>> inMemorySet = ImmutableSortedSet<Message<Guid, TaskMessageItem>>.Empty.WithComparer(TimerFiredEventComparer.Instance);
+        private DateTime nextActivationCheck;
 
-        ImmutableSortedSet<Message<Guid, TaskMessageItem>> inMemorySet = ImmutableSortedSet<Message<Guid, TaskMessageItem>>.Empty.WithComparer(TimerFiredEventComparer.Instance);
-        DateTime nextActivationCheck;
-
-        public ScheduledMessageProvider(IReliableStateManager stateManager, string storeName, SessionProvider sessionProvider, CancellationToken token) : base(stateManager, storeName, token)
-        {
-            this.sessionProvider = sessionProvider;
-        }
+        public ScheduledMessageProvider(IReliableStateManager stateManager, string storeName, SessionProvider sessionProvider, CancellationToken token)
+            : base(stateManager, storeName, token)
+         => this.sessionProvider = sessionProvider;
 
         public override async Task StartAsync()
         {
@@ -48,7 +47,7 @@ namespace DurableTask.AzureServiceFabric.Stores
             await this.EnumerateItems(kvp =>
             {
                 var timerEvent = kvp.Value?.TaskMessage?.Event as TimerFiredEvent;
-                if (timerEvent == null)
+                if (timerEvent is null)
                 {
                     ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition($"{nameof(ScheduledMessageProvider)}.{nameof(StartAsync)} : Seeing a non timer event in scheduled messages while filling the pending items collection in role start");
                 }
@@ -79,7 +78,7 @@ namespace DurableTask.AzureServiceFabric.Stores
             }
 
             var timerEvent = value.TaskMessage.Event as TimerFiredEvent;
-            if (timerEvent != null && timerEvent.FireAt < this.nextActivationCheck)
+            if (timerEvent is not null && timerEvent.FireAt < this.nextActivationCheck)
             {
                 SetWaiterForNewItems();
             }
@@ -88,7 +87,7 @@ namespace DurableTask.AzureServiceFabric.Stores
         // Since this method is started as part of StartAsync, the other stores maynot be immediately initialized
         // by the time this invokes operations on those stores. But that would be a transient error and the next
         // iteration of processing should take care of making things right.
-        async Task ProcessScheduledMessages()
+        private async Task ProcessScheduledMessages()
         {
             while (!IsStopped())
             {
@@ -105,7 +104,7 @@ namespace DurableTask.AzureServiceFabric.Stores
                         var firstPendingMessage = builder.Min;
                         var timerEvent = firstPendingMessage.Value.TaskMessage.Event as TimerFiredEvent;
 
-                        if (timerEvent == null)
+                        if (timerEvent is null)
                         {
                             throw new Exception("Internal Server Error : Ended up adding non TimerFiredEvent TaskMessage as scheduled message");
                         }
@@ -149,7 +148,7 @@ namespace DurableTask.AzureServiceFabric.Stores
                             this.inMemorySet = this.inMemorySet.Except(activatedMessages);
                         }
 
-                        if (modifiedSessions != null)
+                        if (modifiedSessions is not null)
                         {
                             foreach (var sessionId in modifiedSessions)
                             {

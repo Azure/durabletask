@@ -11,17 +11,20 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
-using DurableTask.Core;
-using DurableTask.Test.Orchestrations;
-using StackExchange.Redis;
-using Xunit;
-
 namespace DurableTask.Redis.Tests
 {
+    using System;
+    using System.Diagnostics;
+    using System.Threading;
+    using System.Threading.Tasks;
+
+    using DurableTask.Core;
+    using DurableTask.Test.Orchestrations;
+
+    using StackExchange.Redis;
+
+    using Xunit;
+
     public class EndToEndServiceScenarioTests
     {
         [Fact]
@@ -69,7 +72,7 @@ namespace DurableTask.Redis.Tests
         {
             int numStops = 3;
             RedisOrchestrationService service = TestHelpers.GetTestOrchestrationService();
-            for (int i =0; i < numStops; i++)
+            for (int i = 0; i < numStops; i++)
             {
                 await service.StopAsync();
             }
@@ -87,7 +90,7 @@ namespace DurableTask.Redis.Tests
         {
             var orchestrationService = TestHelpers.GetTestOrchestrationService(nameof(SimpleGreetingOrchestration));
 
-            var worker = new TaskHubWorker(orchestrationService);
+            using var worker = new TaskHubWorker(orchestrationService);
 
             try
             {
@@ -118,7 +121,7 @@ namespace DurableTask.Redis.Tests
             int numToIterateTo = 101;
             var orchestrationService = TestHelpers.GetTestOrchestrationService(nameof(SimpleFanOutOrchestration));
 
-            var worker = new TaskHubWorker(orchestrationService);
+            using var worker = new TaskHubWorker(orchestrationService);
 
             try
             {
@@ -129,7 +132,7 @@ namespace DurableTask.Redis.Tests
                 var client = new TaskHubClient(orchestrationService);
 
                 int[] numsToSum = new int[numToIterateTo];
-                for(int i = 0; i < numToIterateTo; i++)
+                for (int i = 0; i < numToIterateTo; i++)
                 {
                     numsToSum[i] = i + 1;
                 }
@@ -183,6 +186,7 @@ namespace DurableTask.Redis.Tests
 
                 // Resume orchestration on "new" client
                 orchestrationService = TestHelpers.GetTestOrchestrationService(nameof(SimpleFanOutOrchestration_DurabilityTest));
+                worker.Dispose();
                 worker = new TaskHubWorker(orchestrationService);
                 await worker.AddTaskOrchestrations(typeof(FanOutOrchestration))
                     .AddTaskActivities(typeof(SquareIntTask), typeof(SumIntTask))
@@ -200,6 +204,7 @@ namespace DurableTask.Redis.Tests
             {
                 await worker.StopAsync(true);
                 await orchestrationService.DeleteAsync();
+                worker.Dispose();
             }
         }
 
@@ -211,7 +216,7 @@ namespace DurableTask.Redis.Tests
         public async Task ScheduledStart_NotSupported()
         {
             var orchestrationService = TestHelpers.GetTestOrchestrationService(nameof(ScheduledStart_NotSupported));
-            var worker = new TaskHubWorker(orchestrationService);
+            using var worker = new TaskHubWorker(orchestrationService);
 
             try
             {

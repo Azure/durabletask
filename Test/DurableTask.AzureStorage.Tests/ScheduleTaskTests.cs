@@ -14,7 +14,9 @@
 namespace DurableTask.AzureStorage.Tests
 {
     using System.Threading.Tasks;
+
     using DurableTask.Core;
+
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
@@ -34,7 +36,7 @@ namespace DurableTask.AzureStorage.Tests
                 TaskActivity activity = TestOrchestrationHost.MakeActivity<int, Task>(
                     delegate (TaskContext ctx, int input)
                     {
-                        return null;
+                        return Task.CompletedTask;
                     });
 
                 TestInstance<int> instance = await host.StartInlineOrchestration(

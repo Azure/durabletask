@@ -170,7 +170,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
             await RunTestOrchestrationsHelper(200, testOrchestratorInput, delayGeneratorFunction: (totalRequestsSoFar) => TimeSpan.FromSeconds(1));
         }
 
-        async Task RunDriverOrchestrationHelper(DriverOrchestrationData driverConfig)
+        private async Task RunDriverOrchestrationHelper(DriverOrchestrationData driverConfig)
         {
             var taskHubClient = Utilities.CreateTaskHubClient();
             Console.WriteLine($"Orchestration getting scheduled: {DateTime.Now}");
@@ -195,7 +195,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
             Assert.AreEqual(expectedResult.ToString(), state.Output);
         }
 
-        async Task RunTestOrchestrationsHelper(int numberOfInstances, TestOrchestrationData orchestrationInput, Func<int, TimeSpan> delayGeneratorFunction = null)
+        private async Task RunTestOrchestrationsHelper(int numberOfInstances, TestOrchestrationData orchestrationInput, Func<int, TimeSpan> delayGeneratorFunction = null)
         {
             var taskHubClient = Utilities.CreateTaskHubClient();
 
@@ -213,7 +213,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
                         results.Add(Tuple.Create(instance, state));
                     }
                 }));
-                if (delayGeneratorFunction != null)
+                if (delayGeneratorFunction is not null)
                 {
                     await Task.Delay(delayGeneratorFunction(i));
                 }
@@ -232,7 +232,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
             int failedOrchestrations = 0;
             foreach (var kvp in results)
             {
-                if (kvp.Item2 == null)
+                if (kvp.Item2 is null)
                 {
                     failedOrchestrations++;
                     var state = await taskHubClient.GetOrchestrationStateAsync(kvp.Item1);

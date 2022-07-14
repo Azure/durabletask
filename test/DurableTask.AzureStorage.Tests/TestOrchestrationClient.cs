@@ -24,12 +24,12 @@ namespace DurableTask.AzureStorage.Tests
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Newtonsoft.Json;
 
-    class TestOrchestrationClient
+    internal class TestOrchestrationClient
     {
-        readonly TaskHubClient client;
-        readonly Type orchestrationType;
-        readonly string instanceId;
-        readonly DateTime instanceCreationTime;
+        private readonly TaskHubClient client;
+        private readonly Type orchestrationType;
+        private readonly string instanceId;
+        private readonly DateTime instanceCreationTime;
 
         public TestOrchestrationClient(
             TaskHubClient client,
@@ -52,7 +52,7 @@ namespace DurableTask.AzureStorage.Tests
             var latestGeneration = new OrchestrationInstance { InstanceId = this.instanceId };
             Stopwatch sw = Stopwatch.StartNew();
             OrchestrationState state = await this.client.WaitForOrchestrationAsync(latestGeneration, timeout);
-            if (state != null)
+            if (state is not null)
             {
                 Trace.TraceInformation(
                     "{0} (ID = {1}) completed after ~{2}ms. Status = {3}. Output = {4}.",
@@ -82,7 +82,7 @@ namespace DurableTask.AzureStorage.Tests
             do
             {
                 OrchestrationState state = await this.GetStatusAsync();
-                if (state != null && state.OrchestrationStatus != OrchestrationStatus.Pending)
+                if (state is not null && state.OrchestrationStatus != OrchestrationStatus.Pending)
                 {
                     Trace.TraceInformation($"{state.Name} (ID = {state.OrchestrationInstance.InstanceId}) started successfully after ~{sw.ElapsedMilliseconds}ms. Status = {state.OrchestrationStatus}.");
                     return state;
@@ -99,7 +99,7 @@ namespace DurableTask.AzureStorage.Tests
         {
             OrchestrationState state = await this.client.GetOrchestrationStateAsync(this.instanceId);
 
-            if (state != null)
+            if (state is not null)
             {
                 // Validate the status before returning
                 Assert.AreEqual(this.orchestrationType.FullName, state.Name);
@@ -182,7 +182,7 @@ namespace DurableTask.AzureStorage.Tests
             return await service.GetOrchestrationStateAsync(instanceId, true);
         }
 
-        static TimeSpan AdjustTimeout(TimeSpan requestedTimeout)
+        private static TimeSpan AdjustTimeout(TimeSpan requestedTimeout)
         {
             TimeSpan timeout = requestedTimeout;
             if (Debugger.IsAttached)

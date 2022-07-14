@@ -23,11 +23,11 @@ namespace DurableTask.Core
     /// </summary>
     public class OrchestrationStateQuery
     {
-        // if we get multiple filters in a state query, we will pick one as the primary filter to pass on in the 
+        // if we get multiple filters in a state query, we will pick one as the primary filter to pass on in the
         // azure table store query. the remaining filters will be used to trim the results in-memory
         // this table gives the precedence of the filters. higher number will be selected over the lower one.
         //
-        static readonly Dictionary<Type, int> FilterPrecedenceMap = new Dictionary<Type, int>
+        private static readonly Dictionary<Type, int> FilterPrecedenceMap = new Dictionary<Type, int>
         {
             {typeof (OrchestrationStateTimeRangeFilter), 10},
             {typeof (OrchestrationStateInstanceFilter), 5},
@@ -39,10 +39,7 @@ namespace DurableTask.Core
         ///     Query class that can be used to filter results from the Orchestration instance store.
         ///     Instance methods are not thread safe.
         /// </summary>
-        public OrchestrationStateQuery()
-        {
-            FilterMap = new Dictionary<Type, OrchestrationStateQueryFilter>();
-        }
+        public OrchestrationStateQuery() => FilterMap = new Dictionary<Type, OrchestrationStateQueryFilter>();
 
         /// <summary>
         /// Gets the FilterMap for the query
@@ -52,12 +49,12 @@ namespace DurableTask.Core
         /// <summary>
         /// Gets the primary_filter, collection_of(secondary_filters) for the query
         /// </summary>
-        public Tuple<OrchestrationStateQueryFilter, IEnumerable<OrchestrationStateQueryFilter>> GetFilters()
+        public (OrchestrationStateQueryFilter Primary, IEnumerable<OrchestrationStateQueryFilter> Secondary) GetFilters()
         {
             ICollection<OrchestrationStateQueryFilter> filters = FilterMap.Values;
             if (filters.Count == 0)
             {
-                return null;
+                return default;
             }
 
             var secondaryFilters = new List<OrchestrationStateQueryFilter>();
@@ -84,11 +81,10 @@ namespace DurableTask.Core
                 }
             }
 
-            return new Tuple<OrchestrationStateQueryFilter, IEnumerable<OrchestrationStateQueryFilter>>(
-                primaryFilter, secondaryFilters);
+            return (primaryFilter, secondaryFilters);
         }
 
-        int SafeGetFilterPrecedence(OrchestrationStateQueryFilter filter)
+        private int SafeGetFilterPrecedence(OrchestrationStateQueryFilter filter)
         {
             if (!FilterPrecedenceMap.ContainsKey(filter.GetType()))
             {
@@ -103,10 +99,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="instanceId">Instance Id to filter by</param>
         /// <returns></returns>
-        public OrchestrationStateQuery AddInstanceFilter(string instanceId)
-        {
-            return AddInstanceFilter(instanceId, false);
-        }
+        public OrchestrationStateQuery AddInstanceFilter(string instanceId) => AddInstanceFilter(instanceId, false);
 
         /// <summary>
         ///     Adds an exact match instance id filter on the returned orchestrations
@@ -156,10 +149,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="name">The name of the orchestration to filter by</param>
         /// <returns></returns>
-        public OrchestrationStateQuery AddNameVersionFilter(string name)
-        {
-            return AddNameVersionFilter(name, null);
-        }
+        public OrchestrationStateQuery AddNameVersionFilter(string name) => AddNameVersionFilter(name, null);
 
         /// <summary>
         ///     Adds a name/version filter on the returned orchestrations
@@ -186,9 +176,7 @@ namespace DurableTask.Core
         /// <param name="status">The status to filter by</param>
         /// <returns></returns>
         public OrchestrationStateQuery AddStatusFilter(OrchestrationStatus status)
-        {
-            return AddStatusFilter(status, FilterComparisonType.Equals);
-        }
+         => AddStatusFilter(status, FilterComparisonType.Equals);
 
         /// <summary>
         ///     Adds a status filter on the returned orchestrations

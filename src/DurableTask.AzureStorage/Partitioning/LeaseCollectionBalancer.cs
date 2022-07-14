@@ -47,7 +47,7 @@ namespace DurableTask.AzureStorage.Partitioning
             string leaseType,
             AzureStorageOrchestrationServiceSettings settings,
             string blobAccountName,
-            ILeaseManager<T> leaseManager, 
+            ILeaseManager<T> leaseManager,
             LeaseCollectionBalancerOptions options,
             Func<string, bool> shouldAquireLeaseDelegate = null,
             Func<string, bool> shouldRenewLeaseDelegate = null)
@@ -69,7 +69,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.leaseObserverManager = new LeaseObserverManager(this);
         }
 
-        private static bool DefaultLeaseDecisionDelegate(string leaseId)
+        static bool DefaultLeaseDecisionDelegate(string leaseId)
         {
             return true;
         }
@@ -133,7 +133,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 return;
             }
 
-            if (this.takerTask != null)
+            if (this.takerTask is not null)
             {
                 this.leaseTakerCancellationTokenSource.Cancel();
                 await this.takerTask;
@@ -142,7 +142,7 @@ namespace DurableTask.AzureStorage.Partitioning
             await this.ShutdownAsync();
             this.shutdownComplete = true;
 
-            if (this.renewTask != null)
+            if (this.renewTask is not null)
             {
                 this.leaseRenewerCancellationTokenSource.Cancel();
                 await this.renewTask;
@@ -199,8 +199,8 @@ namespace DurableTask.AzureStorage.Partitioning
                                     nonRenewedLeases.Add(lease);
                                 }
                             }));
-                        } 
-                        else 
+                        }
+                        else
                         {
                             nonRenewedLeases.Add(lease);
                         }
@@ -294,7 +294,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 catch (Exception ex)
                 {
                     this.settings.Logger.PartitionManagerError(
-                        this.accountName, 
+                        this.accountName,
                         this.taskHub,
                         this.workerName,
                         string.Empty,
@@ -678,7 +678,7 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             CloseReason reason = hasOwnership ? CloseReason.Shutdown : CloseReason.LeaseLost;
 
-            if (lease != null && this.currentlyOwnedShards != null && this.currentlyOwnedShards.TryRemove(lease.PartitionId, out lease))
+            if (lease is not null && this.currentlyOwnedShards is not null && this.currentlyOwnedShards.TryRemove(lease.PartitionId, out lease))
             {
                 this.settings.Logger.PartitionRemoved(
                     this.accountName,
@@ -804,19 +804,19 @@ namespace DurableTask.AzureStorage.Partitioning
 
         sealed class Unsubscriber : IDisposable
         {
-            readonly List<LeaseObserver<T>> _observers;
-            readonly LeaseObserver<T> _observer;
+            readonly List<LeaseObserver<T>> observers;
+            readonly LeaseObserver<T> observer;
 
             internal Unsubscriber(List<LeaseObserver<T>> observers, LeaseObserver<T> observer)
             {
-                this._observers = observers;
-                this._observer = observer;
+                this.observers = observers;
+                this.observer = observer;
             }
 
             public void Dispose()
             {
-                if (_observers.Contains(_observer))
-                    _observers.Remove(_observer);
+                if (observers.Contains(observer))
+                    observers.Remove(observer);
             }
         }
     }

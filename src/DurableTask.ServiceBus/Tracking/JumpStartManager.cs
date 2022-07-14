@@ -27,11 +27,11 @@ namespace DurableTask.ServiceBus.Tracking
 
     internal class JumpStartManager
     {
-        readonly ServiceBusOrchestrationService service;
-        readonly TimeSpan interval;
-        readonly TimeSpan intervalOnTimeout = TimeSpan.Zero;
-        readonly TimeSpan ignoreWindow;
-        volatile int isStarted;
+        private readonly ServiceBusOrchestrationService service;
+        private readonly TimeSpan interval;
+        private readonly TimeSpan intervalOnTimeout = TimeSpan.Zero;
+        private readonly TimeSpan ignoreWindow;
+        private volatile int isStarted;
 
         public JumpStartManager(
             ServiceBusOrchestrationService service,
@@ -130,7 +130,7 @@ namespace DurableTask.ServiceBus.Tracking
         {
             OrchestrationInstance instance = jumpStartEntity.State.OrchestrationInstance;
             OrchestrationStateInstanceEntity stateEntity = (await this.service.InstanceStore.GetEntitiesAsync(instance.InstanceId, instance.ExecutionId))?.FirstOrDefault();
-            if (stateEntity != null)
+            if (stateEntity is not null)
             {
                 // It seems orchestration started, delete entity from JumpStart table
                 await this.service.InstanceStore.DeleteJumpStartEntitiesAsync(new[] { jumpStartEntity });

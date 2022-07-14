@@ -18,9 +18,11 @@ namespace DurableTask.Core
     using System.Linq;
     using System.Reflection;
     using System.Threading.Tasks;
+
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.Serializing;
+
     using Newtonsoft.Json.Linq;
 
     /// <summary>
@@ -63,15 +65,12 @@ namespace DurableTask.Core
         /// </summary>
         public MethodInfo MethodInfo { get; private set; }
 
+        // will never run
         /// <summary>
         /// Synchronous execute method, blocked for AsyncTaskActivity
         /// </summary>
         /// <returns>string.Empty</returns>
-        public override string Run(TaskContext context, string input)
-        {
-            // will never run
-            return string.Empty;
-        }
+        public override string Run(TaskContext context, string input) => string.Empty;
 
         /// <summary>
         /// Method for executing a task activity asynchronously
@@ -130,7 +129,7 @@ namespace DurableTask.Core
                 exception = e;
             }
 
-            if (exception != null)
+            if (exception is not null)
             {
                 string details = null;
                 FailureDetails failureDetails = null;
@@ -156,10 +155,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="inputParameters"></param>
         /// <returns></returns>
-        public virtual object InvokeActivity(object[] inputParameters)
-        {
-            return MethodInfo.Invoke(ActivityObject, inputParameters);
-        }
+        public virtual object InvokeActivity(object[] inputParameters) => MethodInfo.Invoke(ActivityObject, inputParameters);
 
         private object InvokeActivity(object[] inputParameters, Type[] genericTypeParameters)
         {
@@ -171,10 +167,7 @@ namespace DurableTask.Core
             return MethodInfo.Invoke(ActivityObject, inputParameters);
         }
 
-        string MethodInfoString()
-        {
-            return $"{MethodInfo.ReflectedType?.FullName}.{MethodInfo.Name}";
-        }
+        private string MethodInfoString() => $"{MethodInfo.ReflectedType?.FullName}.{MethodInfo.Name}";
 
         private Type[] GetGenericTypeArguments(JArray jArray)
         {

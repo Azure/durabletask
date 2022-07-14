@@ -22,7 +22,7 @@ namespace DurableTask.Samples.AverageCalculator
     {
         public override async Task<double> RunTask(OrchestrationContext context, int[] input)
         {
-            if (input == null || input.Length != 3)
+            if (input is null || input.Length != 3)
             {
                 throw new ArgumentException("input");
             }

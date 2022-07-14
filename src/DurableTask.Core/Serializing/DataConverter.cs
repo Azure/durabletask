@@ -52,7 +52,7 @@ namespace DurableTask.Core.Serializing
         public T Deserialize<T>(string data)
         {
             object result = this.Deserialize(data, typeof(T));
-            if (result == null)
+            if (result is null)
             {
                 return default(T);
             }

@@ -21,9 +21,11 @@ namespace DurableTask.Core
     using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
+
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.Logging;
     using DurableTask.Core.Middleware;
+
     using Microsoft.Extensions.Logging;
 
     /// <summary>
@@ -32,25 +34,22 @@ namespace DurableTask.Core
     /// </summary>
     public sealed class TaskHubWorker : IDisposable
     {
-        readonly INameVersionObjectManager<TaskActivity> activityManager;
-        readonly INameVersionObjectManager<TaskOrchestration> orchestrationManager;
-
-        readonly DispatchMiddlewarePipeline orchestrationDispatchPipeline = new DispatchMiddlewarePipeline();
-        readonly DispatchMiddlewarePipeline activityDispatchPipeline = new DispatchMiddlewarePipeline();
-
-        readonly SemaphoreSlim slimLock = new SemaphoreSlim(1, 1);
-        readonly LogHelper logHelper;
+        private readonly INameVersionObjectManager<TaskActivity> activityManager;
+        private readonly INameVersionObjectManager<TaskOrchestration> orchestrationManager;
+        private readonly DispatchMiddlewarePipeline orchestrationDispatchPipeline = new DispatchMiddlewarePipeline();
+        private readonly DispatchMiddlewarePipeline activityDispatchPipeline = new DispatchMiddlewarePipeline();
+        private readonly SemaphoreSlim slimLock = new SemaphoreSlim(1, 1);
+        private readonly LogHelper logHelper;
 
         /// <summary>
         /// Reference to the orchestration service used by the task hub worker
         /// </summary>
         // ReSharper disable once InconsistentNaming (avoid breaking change)
-        public IOrchestrationService orchestrationService { get; }
+        public IOrchestrationService OrchestrationService { get; }
 
-        volatile bool isStarted;
-
-        TaskActivityDispatcher activityDispatcher;
-        TaskOrchestrationDispatcher orchestrationDispatcher;
+        private volatile bool isStarted;
+        private TaskActivityDispatcher activityDispatcher;
+        private TaskOrchestrationDispatcher orchestrationDispatcher;
 
         /// <summary>
         ///     Create a new TaskHubWorker with given OrchestrationService
@@ -113,7 +112,7 @@ namespace DurableTask.Core
         {
             this.orchestrationManager = orchestrationObjectManager ?? throw new ArgumentException("orchestrationObjectManager");
             this.activityManager = activityObjectManager ?? throw new ArgumentException("activityObjectManager");
-            this.orchestrationService = orchestrationService ?? throw new ArgumentException("orchestrationService");
+            this.OrchestrationService = orchestrationService ?? throw new ArgumentException("orchestrationService");
             this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
         }
 
@@ -136,7 +135,7 @@ namespace DurableTask.Core
         /// could fail unexpectedly if there is any logic that depends on a particular behavior of exception propagation.
         /// For example, setting <see cref="ErrorPropagationMode.UseFailureDetails"/> causes
         /// <see cref="OrchestrationException.FailureDetails"/> to be populated in <see cref="TaskFailedException"/> and
-        /// <see cref="SubOrchestrationFailedException"/> but also causes the <see cref="Exception.InnerException"/> 
+        /// <see cref="SubOrchestrationFailedException"/> but also causes the <see cref="Exception.InnerException"/>
         /// property to be <c>null</c> for these exception types.
         /// </para><para>
         /// This property must be set before the worker is started. Otherwise it will have no effect.
@@ -149,18 +148,14 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="middleware">Delegate to invoke whenever a message is dispatched to an orchestration.</param>
         public void AddOrchestrationDispatcherMiddleware(Func<DispatchMiddlewareContext, Func<Task>, Task> middleware)
-        {
-            this.orchestrationDispatchPipeline.Add(middleware ?? throw new ArgumentNullException(nameof(middleware)));
-        }
+         => this.orchestrationDispatchPipeline.Add(middleware ?? throw new ArgumentNullException(nameof(middleware)));
 
         /// <summary>
         /// Adds a middleware delegate to the activity dispatch pipeline.
         /// </summary>
         /// <param name="middleware">Delegate to invoke whenever a message is dispatched to an activity.</param>
         public void AddActivityDispatcherMiddleware(Func<DispatchMiddlewareContext, Func<Task>, Task> middleware)
-        {
-            this.activityDispatchPipeline.Add(middleware ?? throw new ArgumentNullException(nameof(middleware)));
-        }
+         => this.activityDispatchPipeline.Add(middleware ?? throw new ArgumentNullException(nameof(middleware)));
 
         /// <summary>
         ///     Starts the TaskHubWorker so it begins processing orchestrations and activities
@@ -180,19 +175,19 @@ namespace DurableTask.Core
                 var sw = Stopwatch.StartNew();
 
                 this.orchestrationDispatcher = new TaskOrchestrationDispatcher(
-                    this.orchestrationService,
+                    this.OrchestrationService,
                     this.orchestrationManager,
                     this.orchestrationDispatchPipeline,
                     this.logHelper,
                     this.ErrorPropagationMode);
                 this.activityDispatcher = new TaskActivityDispatcher(
-                    this.orchestrationService,
+                    this.OrchestrationService,
                     this.activityManager,
                     this.activityDispatchPipeline,
                     this.logHelper,
                     this.ErrorPropagationMode);
 
-                await this.orchestrationService.StartAsync();
+                await this.OrchestrationService.StartAsync();
                 await this.orchestrationDispatcher.StartAsync();
                 await this.activityDispatcher.StartAsync();
 
@@ -210,10 +205,7 @@ namespace DurableTask.Core
         /// <summary>
         ///     Gracefully stops the TaskHubWorker
         /// </summary>
-        public async Task StopAsync()
-        {
-            await this.StopAsync(false);
-        }
+        public async Task StopAsync() => await this.StopAsync(false);
 
         /// <summary>
         ///     Stops the TaskHubWorker
@@ -237,7 +229,7 @@ namespace DurableTask.Core
 
                     await Task.WhenAll(dispatcherShutdowns);
 
-                    await this.orchestrationService.StopAsync(isForced);
+                    await this.OrchestrationService.StopAsync(isForced);
 
                     this.logHelper.TaskHubWorkerStopped(sw.Elapsed);
                     this.isStarted = false;
@@ -338,9 +330,7 @@ namespace DurableTask.Core
         /// <typeparam name="T">Interface</typeparam>
         /// <param name="activities">Object that implements this interface</param>
         public TaskHubWorker AddTaskActivitiesFromInterface<T>(T activities)
-        {
-            return this.AddTaskActivitiesFromInterface(activities, false);
-        }
+         => this.AddTaskActivitiesFromInterface(activities, false);
 
         /// <summary>
         ///     Infers and adds every method in the specified interface T on the
@@ -355,9 +345,7 @@ namespace DurableTask.Core
         ///     the interface name, if false then only the method name is used
         /// </param>
         public TaskHubWorker AddTaskActivitiesFromInterface<T>(T activities, bool useFullyQualifiedMethodNames)
-        {
-            return this.AddTaskActivitiesFromInterface(typeof(T), activities, useFullyQualifiedMethodNames);
-        }
+         => this.AddTaskActivitiesFromInterface(typeof(T), activities, useFullyQualifiedMethodNames);
 
         /// <summary>
         ///     Infers and adds every method in the specified interface T on the
@@ -415,9 +403,7 @@ namespace DurableTask.Core
         ///  the <typeparamref name="T"/> for 'DynamicProxyGenAssembly2' assembly.
         /// </remarks>
         public TaskHubWorker AddTaskActivitiesFromInterfaceOrClass<T>(object activities, bool useFullyQualifiedMethodNames = false, bool includeInternalMethods = false)
-        {
-            return this.AddTaskActivitiesFromInterfaceOrClass(typeof(T), activities, useFullyQualifiedMethodNames, includeInternalMethods);
-        }
+         => this.AddTaskActivitiesFromInterfaceOrClass(typeof(T), activities, useFullyQualifiedMethodNames, includeInternalMethods);
 
         /// <summary>
         ///     Infers and adds every method in the specified interface or class T on the
@@ -482,9 +468,6 @@ namespace DurableTask.Core
         }
 
         /// <inheritdoc />
-        public void Dispose()
-        {
-            ((IDisposable)this.slimLock).Dispose();
-        }
+        public void Dispose() => ((IDisposable)this.slimLock).Dispose();
     }
 }

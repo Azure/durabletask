@@ -69,16 +69,14 @@ namespace DurableTask.ServiceBus.Stats
         /// Returns a string that represents the Queue Stats.
         /// </summary>
         public override string ToString()
-        {
-            return $"MessagesSent: {MessagesSent}"
-                   + $", MessagesReceived: {MessagesReceived}"
-                   + $", MessageBatchesSent: {MessageBatchesSent}"
-                   + $", MessageBatchesReceived: {MessageBatchesReceived}"
-                   + $", SessionsRenewed: {SessionsRenewed}"
-                   + $", SessionsReceived: {SessionsReceived}"
-                   + $", SessionBatchesCompleted: {SessionBatchesCompleted}"
-                   + $", SessionSets: {SessionSets}"
-                   + $", SessionGets: {SessionGets}";
-        }
+         => $"MessagesSent: {MessagesSent}"
+          + $", MessagesReceived: {MessagesReceived}"
+          + $", MessageBatchesSent: {MessageBatchesSent}"
+          + $", MessageBatchesReceived: {MessageBatchesReceived}"
+          + $", SessionsRenewed: {SessionsRenewed}"
+          + $", SessionsReceived: {SessionsReceived}"
+          + $", SessionBatchesCompleted: {SessionBatchesCompleted}"
+          + $", SessionSets: {SessionSets}"
+          + $", SessionGets: {SessionGets}";
     }
 }

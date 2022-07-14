@@ -13,19 +13,22 @@
 
 namespace DurableTask.ServiceBus.Tests
 {
+#pragma warning disable CA1812 // Private classes instantiated indirectly
     using System;
     using System.Collections.Generic;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.Tests;
+
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
     public class DynamicProxyTests
     {
-        TaskHubClient client;
-        TaskHubWorker taskHub;
+        private TaskHubClient client;
+        private TaskHubWorker taskHub;
 
         [TestInitialize]
         public void TestInitialize()
@@ -33,22 +36,24 @@ namespace DurableTask.ServiceBus.Tests
             this.client = TestHelpers.CreateTaskHubClient();
 
             this.taskHub = TestHelpers.CreateTaskHub();
-            this.taskHub.orchestrationService.CreateAsync(true).Wait();
+            this.taskHub.OrchestrationService.CreateAsync(true).Wait();
         }
 
         [TestCleanup]
         public void TestCleanup()
         {
             this.taskHub.StopAsync(true).Wait();
-            this.taskHub.orchestrationService.DeleteAsync(true).Wait();
+            this.taskHub.OrchestrationService.DeleteAsync(true).Wait();
         }
 
         #region Common TaskActivities
 
-        static readonly string SendGreetingName = "SendGreeting";
-        static readonly string SendGreetingVersion = string.Empty;
+#pragma warning disable CA1802 // Use literals where appropriate
+        private static readonly string SendGreetingName = "SendGreeting";
+#pragma warning restore CA1802 // Use literals where appropriate
+        private static readonly string SendGreetingVersion = string.Empty;
 
-        sealed class SendGreetingTask : TaskActivity<string, string>
+        private sealed class SendGreetingTask : TaskActivity<string, string>
         {
             protected override string Execute(TaskContext context, string user)
             {
@@ -60,8 +65,10 @@ namespace DurableTask.ServiceBus.Tests
 
         #region Greetings Test
 
-        static readonly string GetUserName = "GetUser";
-        static readonly string GetUserVersion = string.Empty;
+#pragma warning disable CA1802 // Use literals where appropriate
+        private static readonly string GetUserName = "GetUser";
+#pragma warning restore CA1802 // Use literals where appropriate
+        private static readonly string GetUserVersion = string.Empty;
 
         [TestMethod]
         public async Task GreetingsDynamicProxyTest()
@@ -80,7 +87,7 @@ namespace DurableTask.ServiceBus.Tests
             Assert.AreEqual("Greeting send to Gabbar", GreetingsOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
-        sealed class GetUserTask : TaskActivity<string, string>
+        private sealed class GetUserTask : TaskActivity<string, string>
         {
             protected override string Execute(TaskContext context, string input)
             {
@@ -95,7 +102,7 @@ namespace DurableTask.ServiceBus.Tests
             Task<string> SendGreeting(string user);
         }
 
-        class GreetingsOrchestration : TaskOrchestration<string, string>
+        private class GreetingsOrchestration : TaskOrchestration<string, string>
         {
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string Result;
@@ -116,8 +123,10 @@ namespace DurableTask.ServiceBus.Tests
 
         #region AverageCalculator Test
 
-        static readonly string ComputeSumName = "ComputeSum";
-        static readonly string ComputeSumVersion = string.Empty;
+#pragma warning disable CA1802 // Use literals where appropriate
+        private static readonly string ComputeSumName = "ComputeSum";
+#pragma warning restore CA1802 // Use literals where appropriate
+        private static readonly string ComputeSumVersion = string.Empty;
 
         [TestMethod]
         public async Task AverageCalculatorDynamicProxyTest()
@@ -140,16 +149,16 @@ namespace DurableTask.ServiceBus.Tests
             Task<int> ComputeSum(int[] chunk);
         }
 
-        class AverageCalculatorOrchestration : TaskOrchestration<double, int[]>
+        private class AverageCalculatorOrchestration : TaskOrchestration<double, int[]>
         {
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static double Result;
 
             public override async Task<double> RunTask(OrchestrationContext context, int[] input)
             {
-                if (input == null || input.Length != 3)
+                if (input is null || input.Length != 3)
                 {
-                    throw new ArgumentException("input");
+                    throw new ArgumentException("input Length cannot be other than 3", nameof(input));
                 }
 
                 int start = input[0];
@@ -180,19 +189,19 @@ namespace DurableTask.ServiceBus.Tests
                     sum += result;
                 }
 
-                double r = sum / (double) total;
+                double r = sum / (double)total;
                 Result = r;
                 return r;
             }
         }
 
-        sealed class ComputeSumTask : TaskActivity<int[], int>
+        private sealed class ComputeSumTask : TaskActivity<int[], int>
         {
             protected override int Execute(TaskContext context, int[] chunk)
             {
-                if (chunk == null || chunk.Length != 2)
+                if (chunk is null || chunk.Length != 2)
                 {
-                    throw new ArgumentException("chunk");
+                    throw new ArgumentException("Chunk cannot have Length other than 2", nameof(chunk));
                 }
 
                 Console.WriteLine("Compute Sum for " + chunk[0] + "," + chunk[1]);
@@ -214,8 +223,10 @@ namespace DurableTask.ServiceBus.Tests
 
         #region Retry Proxy Tests
 
-        static readonly string RETRY_NAME = "RetryOrchestration";
-        static readonly string RETRY_VERSION = "1.0";
+#pragma warning disable CA1802 // Use literals where appropriate
+        private static readonly string RETRY_NAME = "RetryOrchestration";
+        private static readonly string RETRY_VERSION = "1.0";
+#pragma warning restore CA1802 // Use literals where appropriate
 
         [TestMethod]
         public async Task RetryProxyTest()
@@ -264,11 +275,11 @@ namespace DurableTask.ServiceBus.Tests
             Task<string> DoWork();
         }
 
-        sealed class RetryOrchestration : TaskOrchestration<string, string>
+        private sealed class RetryOrchestration : TaskOrchestration<string, string>
         {
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string Result;
-            readonly RetryOptions retryPolicy;
+            private readonly RetryOptions retryPolicy;
 
             public RetryOrchestration(RetryOptions retryOptions)
             {
@@ -293,7 +304,7 @@ namespace DurableTask.ServiceBus.Tests
             }
         }
 
-        sealed class RetryTask : IRetryTask
+        private sealed class RetryTask : IRetryTask
         {
             public RetryTask(int failAttempts)
             {

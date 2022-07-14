@@ -20,7 +20,7 @@ namespace DurableTask.Core.Stats
     /// </summary>
     public class Counter
     {
-        long counterValue;
+        private long counterValue;
 
         /// <summary>
         /// Gets the current counter value
@@ -30,43 +30,28 @@ namespace DurableTask.Core.Stats
         /// <summary>
         /// Increments the counter by 1
         /// </summary>
-        public void Increment()
-        {
-            Interlocked.Increment(ref this.counterValue);
-        }
+        public void Increment() => Interlocked.Increment(ref this.counterValue);
 
         /// <summary>
         /// Increments the counter by the supplied value
         /// </summary>
         /// <param name="value">The value to increment the counter by</param>
-        public void Increment(long value)
-        {
-            Interlocked.Add(ref this.counterValue, value);
-        }
+        public void Increment(long value) => Interlocked.Add(ref this.counterValue, value);
 
         /// <summary>
         /// Decrements the counter by 1
         /// </summary>
-        public void Decrement()
-        {
-            Interlocked.Decrement(ref this.counterValue);
-        }
+        public void Decrement() => Interlocked.Decrement(ref this.counterValue);
 
         /// <summary>
         /// Resets the counter back to zero
         /// </summary>
         /// <returns>The value of the counter before it was reset</returns>
-        public long Reset()
-        {
-            return Interlocked.Exchange(ref this.counterValue, 0);
-        }
+        public long Reset() => Interlocked.Exchange(ref this.counterValue, 0);
 
         /// <summary>
         /// Returns a string that represents the Counter.
         /// </summary>
-        public override string ToString()
-        {
-            return this.counterValue.ToString();
-        }
+        public override string ToString() => this.counterValue.ToString();
     }
 }

@@ -22,8 +22,8 @@ namespace DurableTask.AzureStorage.Tests
     /// <typeparam name="T">Type of Orchestration</typeparam>
     public class AutoStartOrchestrationCreator : ObjectCreator<TaskOrchestration>
     {
-        readonly TaskOrchestration instance;
-        readonly Type prototype;
+        private readonly TaskOrchestration instance;
+        private readonly Type prototype;
 
         /// <summary>
         /// Creates a new AutoStartOrchestrationCreator of supplied type
@@ -48,7 +48,7 @@ namespace DurableTask.AzureStorage.Tests
         ///<inheritdoc/>
         public override TaskOrchestration Create()
         {
-            if (this.prototype != null)
+            if (this.prototype is not null)
             {
                 return (TaskOrchestration)Activator.CreateInstance(this.prototype);
             }
@@ -56,7 +56,7 @@ namespace DurableTask.AzureStorage.Tests
             return this.instance;
         }
 
-        void Initialize(object obj)
+        private void Initialize(object obj)
         {
             Name = $"@{NameVersionHelper.GetDefaultName(obj)}";
             Version = NameVersionHelper.GetDefaultVersion(obj);

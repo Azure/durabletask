@@ -13,14 +13,17 @@
 
 namespace DurableTask.Emulator.Tests
 {
+#pragma warning disable CA2000 // Dispose
     using System;
     using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
     using DurableTask.Emulator;
     using DurableTask.Test.Orchestrations;
+
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     /// <summary>
@@ -33,7 +36,7 @@ namespace DurableTask.Emulator.Tests
 
         // Disabled while investigating CI timeout issues
         ////[TestMethod]
-        public async Task MockOrchestrationTest()
+        public static async Task MockOrchestrationTest()
         {
             var orchestrationService = new LocalOrchestrationService();
 
@@ -57,7 +60,7 @@ namespace DurableTask.Emulator.Tests
 
         // Disabled while investigating CI timeout issues
         ////[TestMethod]
-        public async Task MockRecreateOrchestrationTest()
+        public static async Task MockRecreateOrchestrationTest()
         {
             var orchestrationService = new LocalOrchestrationService();
 
@@ -80,7 +83,7 @@ namespace DurableTask.Emulator.Tests
 
             SimplestGreetingsOrchestration.Result = String.Empty;
 
-            OrchestrationInstance id2 = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, new OrchestrationStatus[] { });
+            OrchestrationInstance id2 = await client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, Array.Empty<OrchestrationStatus>());
             result = await client.WaitForOrchestrationAsync(id2, TimeSpan.FromSeconds(30), new CancellationToken());
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
 
@@ -146,7 +149,7 @@ namespace DurableTask.Emulator.Tests
 
         // Disabled while investigating CI timeout issues
         ////[TestMethod]
-        public async Task MockGenerationTest()
+        public static async Task MockGenerationTest()
         {
             GenerationBasicOrchestration.Result = 0;
             GenerationBasicTask.GenerationCount = 0;
@@ -177,7 +180,7 @@ namespace DurableTask.Emulator.Tests
 
         // Disabled while investigating CI timeout issues
         ////[TestMethod]
-        public async Task MockSubOrchestrationTest()
+        public static async Task MockSubOrchestrationTest()
         {
             var orchestrationService = new LocalOrchestrationService();
 

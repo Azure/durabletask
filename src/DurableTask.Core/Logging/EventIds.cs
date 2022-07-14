@@ -14,7 +14,7 @@
 namespace DurableTask.Core.Logging
 {
     // WARNING: Changing the *name* OR the *value* of any of these constants is a breaking change!!
-    static class EventIds
+    internal static class EventIds
     {
         public const int TaskHubWorkerStarting = 10;
         public const int TaskHubWorkerStarted = 11;

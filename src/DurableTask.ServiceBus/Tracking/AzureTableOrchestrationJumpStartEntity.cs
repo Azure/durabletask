@@ -16,9 +16,11 @@ namespace DurableTask.ServiceBus.Tracking
     using System;
     using System.Collections.Generic;
     using System.Globalization;
+
+    using DurableTask.Core.Tracking;
+
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Table;
-    using DurableTask.Core.Tracking;
 
     /// <summary>
     /// History Tracking Entity for orchestration jump start event
@@ -43,9 +45,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// <param name="jumpStartEvent"></param>
         public AzureTableOrchestrationJumpStartEntity(OrchestrationJumpStartInstanceEntity jumpStartEvent)
             : base(jumpStartEvent.State)
-        {
-            JumpStartTime = jumpStartEvent.JumpStartTime;
-        }
+         => JumpStartTime = jumpStartEvent.JumpStartTime;
 
         /// <summary>
         /// Gets a OrchestrationJumpStartInstanceEntity
@@ -58,13 +58,15 @@ namespace DurableTask.ServiceBus.Tracking
 
         internal override IEnumerable<ITableEntity> BuildDenormalizedEntities()
         {
-            var entity1 = new AzureTableOrchestrationJumpStartEntity(OrchestrationJumpStartInstanceEntity);
-            entity1.TaskTimeStamp = TaskTimeStamp;
+            var entity1 = new AzureTableOrchestrationJumpStartEntity(OrchestrationJumpStartInstanceEntity)
+            {
+                TaskTimeStamp = TaskTimeStamp
+            };
             entity1.PartitionKey = GetPartitionKey(entity1.State.CreatedTime);
             entity1.RowKey = AzureTableConstants.InstanceStateExactRowPrefix +
                              AzureTableConstants.JoinDelimiter + State.OrchestrationInstance.InstanceId +
                              AzureTableConstants.JoinDelimiter + State.OrchestrationInstance.ExecutionId;
-            return new [] { entity1 };
+            return new[] { entity1 };
         }
 
         /// <summary>
@@ -99,8 +101,6 @@ namespace DurableTask.ServiceBus.Tracking
         /// <param name="dateTime">The datetime to use for the partition key</param>
         /// <returns>A string partition key</returns>
         public static string GetPartitionKey(DateTime dateTime)
-        {
-            return string.Format(CultureInfo.InvariantCulture, "{0:D19}", dateTime.Ticks);
-        }
+         => string.Format(CultureInfo.InvariantCulture, "{0:D19}", dateTime.Ticks);
     }
 }

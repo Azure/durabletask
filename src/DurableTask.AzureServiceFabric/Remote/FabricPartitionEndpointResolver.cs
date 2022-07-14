@@ -31,7 +31,7 @@ namespace DurableTask.AzureServiceFabric.Remote
         private readonly IPartitionHashing<string> instanceIdHasher;
 
         private TaskCompletionSource<Int64RangePartitionInformation[]> servicePartitionsTaskCompletionSource;
-        private object tcsLockObject = new object();
+        private readonly object tcsLockObject = new object();
 
         /// <summary>
         /// Creates instance of <see cref="FabricPartitionEndpointResolver"/>.
@@ -96,12 +96,12 @@ namespace DurableTask.AzureServiceFabric.Remote
 
         private async Task<Int64RangePartitionInformation[]> GetServicePartitionsListAsync()
         {
-            if (this.servicePartitionsTaskCompletionSource == null)
+            if (this.servicePartitionsTaskCompletionSource is null)
             {
                 bool isNewTaskCompletionSourceCreated = false;
                 lock (tcsLockObject)
                 {
-                    if (this.servicePartitionsTaskCompletionSource == null)
+                    if (this.servicePartitionsTaskCompletionSource is null)
                     {
                         this.servicePartitionsTaskCompletionSource = new TaskCompletionSource<Int64RangePartitionInformation[]>();
                         isNewTaskCompletionSourceCreated = true;

@@ -31,12 +31,11 @@ namespace DurableTask.ServiceBus.Tracking
         // the container full name is in the format of {hubName}-dtfx-{streamType}-{DateTime};
         // the streamType is the type of the stream, either 'message' or 'session';
         // the date time is in the format of yyyyMMdd.
-        readonly string containerNamePrefix;
-        readonly CloudBlobClient blobClient;
-
-        const int MaxRetries = 3;
-        static readonly TimeSpan MaximumExecutionTime = TimeSpan.FromSeconds(30);
-        static readonly TimeSpan DeltaBackOff = TimeSpan.FromSeconds(5);
+        private readonly string containerNamePrefix;
+        private readonly CloudBlobClient blobClient;
+        private const int MaxRetries = 3;
+        private static readonly TimeSpan MaximumExecutionTime = TimeSpan.FromSeconds(30);
+        private static readonly TimeSpan DeltaBackOff = TimeSpan.FromSeconds(5);
 
         /// <summary>
         /// Construct a blob storage client instance with hub name and connection string
@@ -74,7 +73,7 @@ namespace DurableTask.ServiceBus.Tracking
                 throw new ArgumentException("Invalid hub name", nameof(hubName));
             }
 
-            if (cloudStorageAccount == null)
+            if (cloudStorageAccount is null)
             {
                 throw new ArgumentException("Invalid cloud storage acount", nameof(cloudStorageAccount));
             }
@@ -128,7 +127,7 @@ namespace DurableTask.ServiceBus.Tracking
             return targetStream;
         }
 
-        async Task<ICloudBlob> GetCloudBlockBlobReferenceAsync(string containerNameSuffix, string blobName)
+        private async Task<ICloudBlob> GetCloudBlockBlobReferenceAsync(string containerNameSuffix, string blobName)
         {
             string containerName = BlobStorageClientHelper.BuildContainerName(this.containerNamePrefix, containerNameSuffix);
             CloudBlobContainer cloudBlobContainer = this.blobClient.GetContainerReference(containerName);
@@ -150,7 +149,7 @@ namespace DurableTask.ServiceBus.Tracking
                 continuationToken = response.ContinuationToken;
                 results.AddRange(response.Results);
             }
-            while (continuationToken != null);
+            while (continuationToken is not null);
             return results;
         }
         

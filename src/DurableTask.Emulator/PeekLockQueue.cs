@@ -22,10 +22,9 @@ namespace DurableTask.Emulator
 
     internal class PeekLockQueue
     {
-        readonly List<TaskMessage> messages;
-        readonly HashSet<TaskMessage> lockTable;
-
-        readonly object thisLock = new object();
+        private readonly List<TaskMessage> messages;
+        private readonly HashSet<TaskMessage> lockTable;
+        private readonly object thisLock = new object();
 
         public PeekLockQueue()
         {

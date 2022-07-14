@@ -14,6 +14,7 @@
 namespace DurableTask.AzureServiceFabric
 {
     using System.Collections.Generic;
+
     using DurableTask.Core;
 
     internal class OrchestrationInstanceComparer : IEqualityComparer<OrchestrationInstance>
@@ -22,7 +23,7 @@ namespace DurableTask.AzureServiceFabric
 
         public bool Equals(OrchestrationInstance first, OrchestrationInstance second)
         {
-            if (first == null || second == null)
+            if (first is null || second is null)
             {
                 return first == second;
             }
@@ -35,9 +36,6 @@ namespace DurableTask.AzureServiceFabric
             return false;
         }
 
-        public int GetHashCode(OrchestrationInstance instance)
-        {
-            return instance.GetHashCode();
-        }
+        public int GetHashCode(OrchestrationInstance instance) => instance.GetHashCode();
     }
 }

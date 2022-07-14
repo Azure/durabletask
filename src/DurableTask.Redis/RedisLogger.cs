@@ -13,6 +13,7 @@
 
 using System;
 using System.Threading.Tasks;
+
 using StackExchange.Redis;
 
 namespace DurableTask.Redis
@@ -29,8 +30,6 @@ namespace DurableTask.Redis
         }
 
         public async Task LogAsync(string logMessage)
-        {
-            await this.redisConnection.GetDatabase().ListRightPushAsync(this.logKey, $"{DateTime.Now} {logMessage}");
-        }
+         => await this.redisConnection.GetDatabase().ListRightPushAsync(this.logKey, $"{DateTime.Now} {logMessage}");
     }
 }

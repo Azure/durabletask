@@ -39,11 +39,11 @@ namespace DurableTask.Samples
 
     internal class Program
     {
-        static readonly Options ArgumentOptions = new Options();
-        static ObservableEventListener eventListener;
+        private static readonly Options ArgumentOptions = new Options();
+        private static ObservableEventListener eventListener;
 
         [STAThread]
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
             eventListener = new ObservableEventListener();
             eventListener.LogToConsole();
@@ -80,7 +80,7 @@ namespace DurableTask.Samples
                             instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(GreetingsOrchestration), instanceId, null).Result;
                             break;
                         case "Greetings2":
-                            if (ArgumentOptions.Parameters == null || ArgumentOptions.Parameters.Length != 1)
+                            if (ArgumentOptions.Parameters is null || ArgumentOptions.Parameters.Length != 1)
                             {
                                 throw new ArgumentException("parameters");
                             }
@@ -91,11 +91,11 @@ namespace DurableTask.Samples
                         case "Cron":
                             // Sample Input: "0 12 * */2 Mon"
                             instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(CronOrchestration), instanceId, 
-                                (ArgumentOptions.Parameters != null && ArgumentOptions.Parameters.Length > 0) ? ArgumentOptions.Parameters[0] : null).Result;
+                                (ArgumentOptions.Parameters is not null && ArgumentOptions.Parameters.Length > 0) ? ArgumentOptions.Parameters[0] : null).Result;
                             break;
                         case "Average":
                             // Sample Input: "1 50 10"
-                            if (ArgumentOptions.Parameters == null || ArgumentOptions.Parameters.Length != 3)
+                            if (ArgumentOptions.Parameters is null || ArgumentOptions.Parameters.Length != 3)
                             {
                                 throw new ArgumentException("parameters");
                             }
@@ -118,7 +118,7 @@ namespace DurableTask.Samples
                             instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(SignalOrchestration), instanceId, null).Result;
                             break;
                         case "SignalAndRaise":
-                            if (ArgumentOptions.Parameters == null || ArgumentOptions.Parameters.Length != 1)
+                            if (ArgumentOptions.Parameters is null || ArgumentOptions.Parameters.Length != 1)
                             {
                                 throw new ArgumentException("parameters");
                             }
@@ -144,7 +144,7 @@ namespace DurableTask.Samples
                         throw new ArgumentException("instanceId");
                     }
 
-                    if (ArgumentOptions.Parameters == null || ArgumentOptions.Parameters.Length != 1)
+                    if (ArgumentOptions.Parameters is null || ArgumentOptions.Parameters.Length != 1)
                     {
                         throw new ArgumentException("parameters");
                     }

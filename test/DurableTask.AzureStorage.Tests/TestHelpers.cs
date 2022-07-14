@@ -21,7 +21,7 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.Core.Logging;
     using Microsoft.Extensions.Logging;
 
-    static class TestHelpers
+    internal static class TestHelpers
     {
 
         public static TestOrchestrationHost GetTestOrchestrationHost(
@@ -68,7 +68,7 @@ namespace DurableTask.AzureStorage.Tests
             return taskHubName ?? "test";
         }
 
-        static string? GetTestSetting(string name)
+        private static string? GetTestSetting(string name)
         {
             return Environment.GetEnvironmentVariable("DurableTaskTest" + name);
         }

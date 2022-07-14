@@ -27,11 +27,11 @@ namespace DurableTask.AzureServiceFabric.Stores
     using Microsoft.ServiceFabric.Data.Collections;
 
     [SuppressMessage("Microsoft.Design", "CA1001", Justification = "Disposing is done through StartAsync and StopAsync")]
-    abstract class MessageProviderBase<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
+    internal abstract class MessageProviderBase<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
     {
-        readonly string storeName;
-        readonly AsyncManualResetEvent waitEvent = new AsyncManualResetEvent();
-        readonly TimeSpan metricsInterval = TimeSpan.FromMinutes(1);
+        private readonly string storeName;
+        private readonly AsyncManualResetEvent waitEvent = new AsyncManualResetEvent();
+        private readonly TimeSpan metricsInterval = TimeSpan.FromMinutes(1);
 
         protected MessageProviderBase(IReliableStateManager stateManager, string storeName, CancellationToken token)
         {
@@ -54,14 +54,9 @@ namespace DurableTask.AzureServiceFabric.Stores
         }
 
         protected async Task InitializeStore()
-        {
-            this.Store = await this.StateManager.GetOrAddAsync<IReliableDictionary<TKey, TValue>>(this.storeName);
-        }
+         => this.Store = await this.StateManager.GetOrAddAsync<IReliableDictionary<TKey, TValue>>(this.storeName);
 
-        public Task CompleteAsync(ITransaction tx, TKey key)
-        {
-            return this.Store.TryRemoveAsync(tx, key);
-        }
+        public Task CompleteAsync(ITransaction tx, TKey key) => this.Store.TryRemoveAsync(tx, key);
 
         public async Task CompleteBatchAsync(ITransaction tx, IEnumerable<TKey> keys)
         {
@@ -76,9 +71,7 @@ namespace DurableTask.AzureServiceFabric.Stores
         /// after the transaction commit succeeded.
         /// </summary>
         public Task SendBeginAsync(ITransaction tx, Message<TKey, TValue> item)
-        {
-            return this.Store.TryAddAsync(tx, item.Key, item.Value);
-        }
+         => this.Store.TryAddAsync(tx, item.Key, item.Value);
 
         public void SendComplete(Message<TKey, TValue> item)
         {
@@ -108,8 +101,7 @@ namespace DurableTask.AzureServiceFabric.Stores
         }
 
         protected Task<Message<TKey, TValue>> GetValueAsync(TKey key)
-        {
-            return RetryHelper.ExecuteWithRetryOnTransient(async () =>
+         => RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
                 using (var tx = this.StateManager.CreateTransaction())
                 {
@@ -123,11 +115,9 @@ namespace DurableTask.AzureServiceFabric.Stores
                     throw new Exception(errorMessage);
                 }
             }, uniqueActionIdentifier: $"Key = {key}, Action = MessageProviderBase.GetValueAsync, StoreName : {this.storeName}");
-        }
 
         protected Task EnumerateItems(Action<KeyValuePair<TKey, TValue>> itemAction)
-        {
-            return RetryHelper.ExecuteWithRetryOnTransient(async () =>
+         => RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
                 using (var tx = this.StateManager.CreateTransaction())
                 {
@@ -146,11 +136,10 @@ namespace DurableTask.AzureServiceFabric.Stores
                     }
                 }
             }, uniqueActionIdentifier: $"Action = MessageProviderBase.EnumerateItems, StoreName : {this.storeName}");
-        }
 
         public Task EnsureStoreInitialized()
         {
-            if (this.Store == null)
+            if (this.Store is null)
             {
                 return this.InitializeStore();
             }
@@ -164,35 +153,26 @@ namespace DurableTask.AzureServiceFabric.Stores
             return this.waitEvent.WaitAsync(timeout, this.CancellationToken);
         }
 
-        protected void SetWaiterForNewItems()
-        {
-            this.waitEvent.Set();
-        }
+        protected void SetWaiterForNewItems() => this.waitEvent.Set();
 
         protected abstract void AddItemInMemory(TKey key, TValue value);
 
-        protected bool IsStopped()
-        {
-            return this.CancellationToken.IsCancellationRequested;
-        }
+        protected bool IsStopped() => this.CancellationToken.IsCancellationRequested;
 
-        protected Task LogMetrics()
+        protected Task LogMetrics() => Utils.RunBackgroundJob(async () =>
         {
-            return Utils.RunBackgroundJob(async () =>
+            try
             {
-                try
+                using (ITransaction tx = this.StateManager.CreateTransaction())
                 {
-                    using (ITransaction tx = this.StateManager.CreateTransaction())
-                    {
-                        long count = await this.Store.GetCountAsync(tx);
-                        ServiceFabricProviderEventSource.Tracing.LogStoreCount(this.storeName, count);
-                    }
+                    long count = await this.Store.GetCountAsync(tx);
+                    ServiceFabricProviderEventSource.Tracing.LogStoreCount(this.storeName, count);
                 }
-                catch (FabricObjectClosedException)
-                {
-                    ServiceFabricProviderEventSource.Tracing.ExceptionWhileRunningBackgroundJob("LogMetrics", "Fabric object is closed while running the loop action");
-                }
-            }, initialDelay: this.metricsInterval, delayOnSuccess: this.metricsInterval, delayOnException: this.metricsInterval, actionName: $"Log Store Count of {this.storeName}", token: this.CancellationToken);
-        }
+            }
+            catch (FabricObjectClosedException)
+            {
+                ServiceFabricProviderEventSource.Tracing.ExceptionWhileRunningBackgroundJob("LogMetrics", "Fabric object is closed while running the loop action");
+            }
+        }, initialDelay: this.metricsInterval, delayOnSuccess: this.metricsInterval, delayOnException: this.metricsInterval, actionName: $"Log Store Count of {this.storeName}", token: this.CancellationToken);
     }
 }

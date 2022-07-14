@@ -64,7 +64,7 @@ namespace DurableTask.Redis
             while (!cancellationToken.IsCancellationRequested)
             {
                 string messageJson = await redisDb.ListRightPopLeftPushAsync(this.incomingTaskQueueKey, this.processingTaskQueueKey);
-                if (messageJson == null)
+                if (messageJson is null)
                 {
                     numTries += 1;
                     await Task.Delay(50);

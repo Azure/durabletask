@@ -40,7 +40,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
             DeploymentHelper.CleanAsync().Wait();
         }
 
-        static string TestApplicationRootPath
+        private static string TestApplicationRootPath
         {
             get
             {

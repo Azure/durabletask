@@ -14,60 +14,37 @@
 namespace DurableTask.Redis
 {
     /// <summary>
-    /// Helper methods to make getting the corresponding Redis Key for the various Redis data 
+    /// Helper methods to make getting the corresponding Redis Key for the various Redis data
     /// structures easier.
     /// </summary>
     internal static class RedisKeyNameResolver
     {
         public static string GetPartitionControlQueueKey(string taskHubName, string partition)
-        {
-            return $"{taskHubName}.{partition}.ControlQueue";
-        }
+         => $"{taskHubName}.{partition}.ControlQueue";
 
         public static string GetPartitionControlNotificationChannelKey(string taskHubName, string partition)
-        {
-            return $"{taskHubName}.{partition}.ControlQueue.Notifications";
-        }
+         => $"{taskHubName}.{partition}.ControlQueue.Notifications";
 
         public static string GetOrchestrationQueueKey(string taskHubName, string partition, string orchestrationId)
-        {
-            return $"{taskHubName}.{partition}.ControlQueue.{orchestrationId}";
-        }
+         => $"{taskHubName}.{partition}.ControlQueue.{orchestrationId}";
 
         public static string GetOrchestrationRuntimeStateHashKey(string taskHubName, string partition)
-        {
-            return $"{taskHubName}.{partition}.OrchestrationsRuntimeState";
-        }
+         => $"{taskHubName}.{partition}.OrchestrationsRuntimeState";
 
         public static string GetOrchestrationsSetKey(string taskHubName, string partition)
-        {
-            return $"{taskHubName}.{partition}.Orchestrations";
-        }
+         => $"{taskHubName}.{partition}.Orchestrations";
 
         public static string GetOrchestrationStateKey(string taskHubName, string partition, string orchestrationId)
-        {
-            return $"{taskHubName}.{partition}.OrchestrationsState.{orchestrationId}";
-        }
+         => $"{taskHubName}.{partition}.OrchestrationsState.{orchestrationId}";
 
-        public static string GetTaskActivityIncomingQueueKey(string taskHubName)
-        {
-            return $"{taskHubName}.IncomingActivityMessages";
-        }
+        public static string GetTaskActivityIncomingQueueKey(string taskHubName) => $"{taskHubName}.IncomingActivityMessages";
 
 
         public static string GetTaskActivityProcessingQueueKey(string taskHubName, string workerId)
-        {
-            return $"{taskHubName}.ProcessingActivityMessages.{workerId}";
-        }
+         => $"{taskHubName}.ProcessingActivityMessages.{workerId}";
 
-        public static string GetWorkerSetKey(string taskHubName)
-        {
-            return $"{taskHubName}.Workers";
-        }
+        public static string GetWorkerSetKey(string taskHubName) => $"{taskHubName}.Workers";
 
-        public static string GetTraceLogsKey(string taskHubName)
-        {
-            return $"{taskHubName}.TraceLogs";
-        }
+        public static string GetTraceLogsKey(string taskHubName) => $"{taskHubName}.TraceLogs";
     }
 }

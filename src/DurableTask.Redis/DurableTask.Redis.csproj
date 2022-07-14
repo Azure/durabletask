@@ -17,7 +17,6 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>embedded</DebugType>
     <IncludeSymbols>false</IncludeSymbols>
-    <LangVersion>7.3</LangVersion>
     <!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
     <NoWarn>NU5125;NU5048</NoWarn>
   </PropertyGroup>
@@ -29,9 +28,9 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0-*" PrivateAssets="All" />
   </ItemGroup>
-  
+
   <ItemGroup>
     <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
   </ItemGroup>
-  
+
 </Project>

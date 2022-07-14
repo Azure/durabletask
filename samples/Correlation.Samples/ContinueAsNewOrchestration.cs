@@ -13,15 +13,17 @@
 
 namespace Correlation.Samples
 {
+#pragma warning disable CA1812 // Internal classes instantiated indirectly
     using System;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
 
     [KnownType(typeof(HelloActivity))]
     internal class ContinueAsNewOrchestration : TaskOrchestration<string, string>
     {
-        static int counter = 0;
+        private static int counter = 0;
 
         public override async Task<string> RunTask(OrchestrationContext context, string input)
         {

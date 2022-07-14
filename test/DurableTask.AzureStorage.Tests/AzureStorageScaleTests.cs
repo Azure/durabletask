@@ -13,12 +13,15 @@
 
 namespace DurableTask.AzureStorage.Tests
 {
+#pragma warning disable CA1812 // Private classes instantiated indirectly
+#pragma warning disable CA2000 // Dispose objects before losing scope
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
@@ -26,6 +29,7 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using DurableTask.Core.History;
+
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
@@ -42,22 +46,16 @@ namespace DurableTask.AzureStorage.Tests
         /// Basic validation of task hub creation.
         /// </summary>
         [TestMethod]
-        public async Task CreateTaskHub()
-        {
-            await this.EnsureTaskHubAsync(nameof(CreateTaskHub), testDeletion: false);
-        }
+        public async Task CreateTaskHub() => await this.EnsureTaskHubAsync(nameof(CreateTaskHub), testDeletion: false);
 
         /// <summary>
         /// Basic validation of task hub deletion.
         /// </summary>
         [TestMethod]
-        public async Task DeleteTaskHub()
-        {
-            await this.EnsureTaskHubAsync(nameof(DeleteTaskHub), testDeletion: true);
-        }
+        public async Task DeleteTaskHub() => await this.EnsureTaskHubAsync(nameof(DeleteTaskHub), testDeletion: true);
 
-        async Task<AzureStorageOrchestrationService> EnsureTaskHubAsync(
-            string testName, 
+        private async Task<AzureStorageOrchestrationService> EnsureTaskHubAsync(
+            string testName,
             bool testDeletion,
             bool deleteBeforeCreate = true,
             string workerId = "test",
@@ -196,7 +194,7 @@ namespace DurableTask.AzureStorage.Tests
                 continuationToken = response.ContinuationToken;
                 results.AddRange(response.Results);
             }
-            while (continuationToken != null);
+            while (continuationToken is not null);
             return results;
         }
 
@@ -264,7 +262,7 @@ namespace DurableTask.AzureStorage.Tests
 
                     isBalanced = false;
                     var workersWithLeases = leases.GroupBy(l => l.Owner).ToArray();
-                    if (workersWithLeases.Count() == currentWorkerCount)
+                    if (workersWithLeases.Length == currentWorkerCount)
                     {
                         int maxLeaseCount = workersWithLeases.Max(owned => owned.Count());
                         int minLeaseCount = workersWithLeases.Min(owned => owned.Count());
@@ -281,7 +279,7 @@ namespace DurableTask.AzureStorage.Tests
                             for (int j = 0; j < services.Length; j++)
                             {
                                 AzureStorageOrchestrationService service = services[j];
-                                if (service == null)
+                                if (service is null)
                                 {
                                     continue;
                                 }
@@ -290,7 +288,7 @@ namespace DurableTask.AzureStorage.Tests
                                 {
                                     Assert.IsTrue(allQueueNames.Add(controlQueue.Name));
                                 }
-                                
+
                                 Trace.TraceInformation(
                                     "Queues owned by {0}: {1}",
                                     service.WorkerId,
@@ -299,7 +297,7 @@ namespace DurableTask.AzureStorage.Tests
                                 var ownedLeases = leases.Where(l => l.Owner == service.WorkerId);
                                 Assert.AreEqual(
                                     ownedLeases.Count(),
-                                    service.OwnedControlQueues.Where(queue=> !queue.IsReleased).Count(),
+                                    service.OwnedControlQueues.Where(queue => !queue.IsReleased).Count(),
                                     $"Mismatch between control queue count and lease count for {service.WorkerId}");
                                 Assert.IsTrue(
                                     service.OwnedControlQueues.All(q => ownedLeases.Any(l => l.Name.Contains(q.Name))),
@@ -387,7 +385,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 var tableTrackingStore = service.TrackingStore as AzureTableTrackingStore;
 
-                if (tableTrackingStore != null)
+                if (tableTrackingStore is not null)
                 {
                     DynamicTableEntity[] entities = (await tableTrackingStore.HistoryTable.ExecuteQueryAsync(new TableQuery<DynamicTableEntity>())).ReturnedEntities.ToArray();
                     int uniquePartitions = entities.GroupBy(e => e.PartitionKey).Count();
@@ -1819,12 +1817,12 @@ namespace DurableTask.AzureStorage.Tests
         }
         #endregion
 
-        static FakePerformanceMonitor GetFakePerformanceMonitor()
+        private static FakePerformanceMonitor GetFakePerformanceMonitor()
         {
             return new FakePerformanceMonitor(TestHelpers.GetTestStorageAccountConnectionString(), "taskHub");
         }
 
-        class NoOpOrchestration : TaskOrchestration<string, string>
+        private class NoOpOrchestration : TaskOrchestration<string, string>
         {
             public override Task<string> RunTask(OrchestrationContext context, string input)
             {
@@ -1832,12 +1830,12 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        class FakePerformanceMonitor : DisconnectedPerformanceMonitor
+        private class FakePerformanceMonitor : DisconnectedPerformanceMonitor
         {
             public FakePerformanceMonitor(
                 string storageConnectionString,
                 string taskHub,
-                int partitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount) 
+                int partitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount)
                 : base(storageConnectionString, taskHub)
             {
                 this.PartitionCount = partitionCount;

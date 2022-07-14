@@ -17,6 +17,7 @@ namespace DurableTask.Core
     using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
+
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
@@ -29,12 +30,12 @@ namespace DurableTask.Core
     /// </summary>
     public sealed class TaskActivityDispatcher
     {
-        readonly INameVersionObjectManager<TaskActivity> objectManager;
-        readonly WorkItemDispatcher<TaskActivityWorkItem> dispatcher;
-        readonly IOrchestrationService orchestrationService;
-        readonly DispatchMiddlewarePipeline dispatchPipeline;
-        readonly LogHelper logHelper;
-        readonly ErrorPropagationMode errorPropagationMode;
+        private readonly INameVersionObjectManager<TaskActivity> objectManager;
+        private readonly WorkItemDispatcher<TaskActivityWorkItem> dispatcher;
+        private readonly IOrchestrationService orchestrationService;
+        private readonly DispatchMiddlewarePipeline dispatchPipeline;
+        private readonly LogHelper logHelper;
+        private readonly ErrorPropagationMode errorPropagationMode;
 
         internal TaskActivityDispatcher(
             IOrchestrationService orchestrationService,
@@ -72,26 +73,18 @@ namespace DurableTask.Core
         /// <summary>
         /// Starts the dispatcher to start getting and processing task activities
         /// </summary>
-        public async Task StartAsync()
-        {
-            await this.dispatcher.StartAsync();
-        }
+        public Task StartAsync() => this.dispatcher.StartAsync();
 
         /// <summary>
         /// Stops the dispatcher to stop getting and processing task activities
         /// </summary>
         /// <param name="forced">Flag indicating whether to stop gracefully or immediately</param>
-        public async Task StopAsync(bool forced)
-        {
-            await this.dispatcher.StopAsync(forced);
-        }
+        public Task StopAsync(bool forced) => this.dispatcher.StopAsync(forced);
 
-        Task<TaskActivityWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
-        {
-            return this.orchestrationService.LockNextTaskActivityWorkItem(receiveTimeout, cancellationToken);
-        }
+        private Task<TaskActivityWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
+         => this.orchestrationService.LockNextTaskActivityWorkItem(receiveTimeout, cancellationToken);
 
-        async Task OnProcessWorkItemAsync(TaskActivityWorkItem workItem)
+        private async Task OnProcessWorkItemAsync(TaskActivityWorkItem workItem)
         {
             Task? renewTask = null;
             using var renewCancellationTokenSource = new CancellationTokenSource();
@@ -116,7 +109,7 @@ namespace DurableTask.Core
                 if (taskMessage.Event.EventType != EventType.TaskScheduled)
                 {
                     this.logHelper.TaskActivityDispatcherError(
-                        workItem, 
+                        workItem,
                         $"The activity worker received an event of type '{taskMessage.Event.EventType}' but only '{EventType.TaskScheduled}' is supported.");
                     throw TraceHelper.TraceException(
                         TraceEventType.Critical,
@@ -126,7 +119,7 @@ namespace DurableTask.Core
                 }
 
                 scheduledEvent = (TaskScheduledEvent)taskMessage.Event;
-                if (scheduledEvent.Name == null)
+                if (scheduledEvent.Name is null)
                 {
                     string message = $"The activity worker received a {nameof(EventType.TaskScheduled)} event that does not specify an activity name.";
                     this.logHelper.TaskActivityDispatcherError(workItem, message);
@@ -164,7 +157,7 @@ namespace DurableTask.Core
                 {
                     await this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
                     {
-                        if (taskActivity == null)
+                        if (taskActivity is null)
                         {
                             // This likely indicates a deployment error of some kind. Because these unhandled exceptions are
                             // automatically retried, resolving this may require redeploying the app code so that the activity exists again.
@@ -173,8 +166,10 @@ namespace DurableTask.Core
                             throw new TypeMissingException($"TaskActivity {scheduledEvent.Name} version {scheduledEvent.Version} was not found");
                         }
 
-                        var context = new TaskContext(taskMessage.OrchestrationInstance);
-                        context.ErrorPropagationMode = this.errorPropagationMode;
+                        var context = new TaskContext(taskMessage.OrchestrationInstance)
+                        {
+                            ErrorPropagationMode = this.errorPropagationMode
+                        };
 
                         HistoryEvent? responseEvent;
 
@@ -185,7 +180,7 @@ namespace DurableTask.Core
                         }
                         catch (Exception e) when (e is not TaskFailureException && !Utils.IsFatal(e) && !Utils.IsExecutionAborting(e))
                         {
-                            // These are unexpected exceptions that occur in the task activity abstraction. Normal exceptions from 
+                            // These are unexpected exceptions that occur in the task activity abstraction. Normal exceptions from
                             // activities are expected to be translated into TaskFailureException and handled outside the middleware
                             // context (see further below).
                             TraceHelper.TraceExceptionInstance(TraceEventType.Error, "TaskActivityDispatcher-ProcessException", taskMessage.OrchestrationInstance, e);
@@ -249,7 +244,7 @@ namespace DurableTask.Core
             finally
             {
                 diagnosticActivity?.Stop(); // Ensure the activity is stopped here to prevent it from leaking out.
-                if (renewTask != null)
+                if (renewTask is not null)
                 {
                     renewCancellationTokenSource.Cancel();
                     try
@@ -265,7 +260,7 @@ namespace DurableTask.Core
             }
         }
 
-        async Task RenewUntil(TaskActivityWorkItem workItem, CancellationToken cancellationToken)
+        private async Task RenewUntil(TaskActivityWorkItem workItem, CancellationToken cancellationToken)
         {
             try
             {
@@ -276,7 +271,7 @@ namespace DurableTask.Core
 
                 DateTime renewAt = workItem.LockedUntilUtc.Subtract(TimeSpan.FromSeconds(30));
 
-                // service bus clock sku can really mess us up so just always renew every 30 secs regardless of 
+                // service bus clock sku can really mess us up so just always renew every 30 secs regardless of
                 // what the message.LockedUntilUtc says. if the sku is negative then in the worst case we will be
                 // renewing every 5 secs
                 //
@@ -316,12 +311,12 @@ namespace DurableTask.Core
             }
             catch (ObjectDisposedException)
             {
-                // brokered message is already disposed probably through 
+                // brokered message is already disposed probably through
                 // a complete call in the main dispatcher thread
             }
         }
 
-        DateTime AdjustRenewAt(DateTime renewAt)
+        private DateTime AdjustRenewAt(DateTime renewAt)
         {
             DateTime maxRenewAt = DateTime.UtcNow.Add(TimeSpan.FromSeconds(30));
             return renewAt > maxRenewAt ? maxRenewAt : renewAt;

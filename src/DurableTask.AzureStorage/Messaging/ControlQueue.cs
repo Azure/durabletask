@@ -29,7 +29,7 @@ namespace DurableTask.AzureStorage.Messaging
 
         readonly CancellationTokenSource releaseTokenSource;
         readonly CancellationToken releaseCancellationToken;
-        private readonly AzureStorageOrchestrationServiceStats stats;
+        readonly AzureStorageOrchestrationServiceStats stats;
 
         public ControlQueue(
             AzureStorageClient azureStorageClient,

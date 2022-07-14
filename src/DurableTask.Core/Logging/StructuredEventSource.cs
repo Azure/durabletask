@@ -13,6 +13,7 @@
 
 namespace DurableTask.Core.Logging
 {
+#pragma warning disable IDE1006 // Naming Styles
     using System;
     using System.Diagnostics.Tracing;
     using System.Threading;
@@ -22,11 +23,10 @@ namespace DurableTask.Core.Logging
     /// Event source logger for DurableTask.Core that uses structured events rather than log messages.
     /// </summary>
     [EventSource(Name = "DurableTask-Core")]
-    class StructuredEventSource : EventSource
+    internal class StructuredEventSource : EventSource
     {
         internal static readonly StructuredEventSource Log = new StructuredEventSource();
-
-        static readonly AsyncLocal<Guid> ActivityIdState = new AsyncLocal<Guid>();
+        private static readonly AsyncLocal<Guid> ActivityIdState = new AsyncLocal<Guid>();
 
         [NonEvent]
         public static void SetLogicalTraceActivityId(Guid activityId)
@@ -46,7 +46,7 @@ namespace DurableTask.Core.Logging
             }
         }
 
-        bool IsEnabled(EventLevel level) => this.IsEnabled(level, EventKeywords.None);
+        private bool IsEnabled(EventLevel level) => this.IsEnabled(level, EventKeywords.None);
 
         [Event(EventIds.TaskHubWorkerStarting, Level = EventLevel.Informational, Version = 1)]
         internal void TaskHubWorkerStarting(string AppName, string ExtensionVersion)

@@ -26,12 +26,12 @@ namespace DurableTask.Core.Tracing
     [System.Runtime.InteropServices.ComVisible(false)]
     public class DefaultEventSource : EventSource
     {
-        const int TraceEventId = 1;
-        const int DebugEventId = 2;
-        const int InfoEventId = 3;
-        const int WarningEventId = 4;
-        const int ErrorEventId = 5;
-        const int CriticalEventId = 6;
+        private const int TraceEventId = 1;
+        private const int DebugEventId = 2;
+        private const int InfoEventId = 3;
+        private const int WarningEventId = 4;
+        private const int ErrorEventId = 5;
+        private const int CriticalEventId = 6;
 
         /// <summary>
         ///     EventKeywords for the event source
@@ -48,13 +48,12 @@ namespace DurableTask.Core.Tracing
         /// Gets the static instance of the DefaultEventSource
         /// </summary>
         public static readonly DefaultEventSource Log = new DefaultEventSource();
-
-        readonly string processName;
+        private readonly string processName;
 
         /// <summary>
         ///     Creates a new instance of the DefaultEventSource
         /// </summary>
-        DefaultEventSource()
+        private DefaultEventSource()
         {
             using (Process process = Process.GetCurrentProcess())
             {
@@ -282,7 +281,7 @@ namespace DurableTask.Core.Tracing
         }
 
         [NonEvent]
-        unsafe void WriteEventInternal(int eventId, string source, string instanceId, string executionId, string sessionId, string message, string info, string eventType)
+        private unsafe void WriteEventInternal(int eventId, string source, string instanceId, string executionId, string sessionId, string message, string info, string eventType)
         {
             source = string.Concat(source, '-', this.processName);
 
@@ -324,7 +323,7 @@ namespace DurableTask.Core.Tracing
             }
         }
 
-        static void MakeSafe(ref string value)
+        private static void MakeSafe(ref string value)
         {
             const int MaxLength = 0x7C00; // max event size is 64k, truncating to roughly 31k chars
             value = value ?? string.Empty;

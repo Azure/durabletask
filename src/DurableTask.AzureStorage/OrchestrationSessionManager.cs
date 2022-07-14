@@ -205,14 +205,14 @@ namespace DurableTask.AzureStorage
                 // We do de-duplication when creating top-level orchestrations but not for sub-orchestrations.
                 // De-dupe protection for sub-orchestrations is not implemented and will require a bit more work.
                 if (message.TaskMessage.Event is ExecutionStartedEvent startEvent &&
-                    startEvent.ParentInstance == null)
+                    startEvent.ParentInstance is null)
                 {
                     executionStartedMessages ??= new List<MessageData>(messages.Count);
                     executionStartedMessages.Add(message);
                 }
             }
 
-            if (executionStartedMessages == null)
+            if (executionStartedMessages is null)
             {
                 // Nothing to filter
                 return messages;
@@ -237,7 +237,7 @@ namespace DurableTask.AzureStorage
                 OrchestrationInstance localInstance = message.TaskMessage.OrchestrationInstance;
                 var expectedGeneration = ((ExecutionStartedEvent)message.TaskMessage.Event).Generation;
                 if (remoteOrchestrationsById.TryGetValue(localInstance.InstanceId, out OrchestrationState remoteInstance) &&
-                    (remoteInstance.OrchestrationInstance.ExecutionId == null || string.Equals(localInstance.ExecutionId, remoteInstance.OrchestrationInstance.ExecutionId, StringComparison.OrdinalIgnoreCase)))
+                    (remoteInstance.OrchestrationInstance.ExecutionId is null || string.Equals(localInstance.ExecutionId, remoteInstance.OrchestrationInstance.ExecutionId, StringComparison.OrdinalIgnoreCase)))
                 {
                     // Happy path: The message matches the table status. Alternatively, if the table doesn't have an ExecutionId field (older clients, pre-v1.8.5),
                     // then we have no way of knowing if it's a duplicate. Either way, allow it to run.
@@ -310,7 +310,7 @@ namespace DurableTask.AzureStorage
         /// </summary>
         bool IsScheduledAfterInstanceUpdate(MessageData msg, OrchestrationState? remoteInstance)
         {
-            if (remoteInstance == null)
+            if (remoteInstance is null)
             {
                 // This is a new instance and we don't yet have a status record for it.
                 // We can't make a call for it yet.
@@ -380,7 +380,7 @@ namespace DurableTask.AzureStorage
                     {
                         // A null executionId value means that this is a management operation, like RaiseEvent or Terminate, which
                         // should be delivered to the current session.
-                        if (executionId == null || session.Instance.ExecutionId == executionId)
+                        if (executionId is null || session.Instance.ExecutionId == executionId)
                         {
                             List<MessageData> pendingMessages;
                             if (!existingSessionMessages.TryGetValue(session, out pendingMessages))
@@ -406,18 +406,18 @@ namespace DurableTask.AzureStorage
                     // existing batch by walking backwards through the list of batches until we find one with a matching InstanceID.
                     // This is assumed to be more efficient than walking forward if most messages arrive in the queue in groups.
                     LinkedListNode<PendingMessageBatch> node = this.pendingOrchestrationMessageBatches.Last;
-                    while (node != null && data.TaskMessage.Event.EventType != EventType.ExecutionStarted)
+                    while (node is not null && data.TaskMessage.Event.EventType != EventType.ExecutionStarted)
                     {
                         PendingMessageBatch batch = node.Value;
 
                         if (batch.OrchestrationInstanceId == instanceId)
                         {
-                            if (executionId == null || batch.OrchestrationExecutionId == executionId)
+                            if (executionId is null || batch.OrchestrationExecutionId == executionId)
                             {
                                 targetBatch = batch;
                                 break;
                             }
-                            else if (batch.OrchestrationExecutionId == null)
+                            else if (batch.OrchestrationExecutionId is null)
                             {
                                 targetBatch = batch;
                                 batch.OrchestrationExecutionId = executionId;
@@ -429,7 +429,7 @@ namespace DurableTask.AzureStorage
                     }
 
                     // If there is no batch for this instanceID-executionID pair, create one
-                    if (targetBatch == null)
+                    if (targetBatch is null)
                     {
                         targetBatch = new PendingMessageBatch(controlQueue, instanceId, executionId);
                         node = this.pendingOrchestrationMessageBatches.AddLast(targetBatch);
@@ -467,7 +467,7 @@ namespace DurableTask.AzureStorage
             
             try
             {
-                if (batch.OrchestrationState == null)
+                if (batch.OrchestrationState is null)
                 {
                     OrchestrationHistory history = await this.trackingStore.GetHistoryEventsAsync(
                        batch.OrchestrationInstanceId,
@@ -656,7 +656,7 @@ namespace DurableTask.AzureStorage
                 get => this.executionId;
                 set
                 {
-                    if (this.executionId != null)
+                    if (this.executionId is not null)
                     {
                         throw new InvalidOperationException($"This batch already has an ExecutionId '{this.executionId}' assigned.");
                     }
@@ -671,7 +671,7 @@ namespace DurableTask.AzureStorage
                 get => this.runtimeState;
                 set
                 {
-                    if (this.runtimeState != null)
+                    if (this.runtimeState is not null)
                     {
                         throw new InvalidOperationException($"This batch already has a runtime state assigned.");
                     }

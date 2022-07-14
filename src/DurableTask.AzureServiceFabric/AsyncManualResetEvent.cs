@@ -17,9 +17,9 @@ namespace DurableTask.AzureServiceFabric
     using System.Threading;
     using System.Threading.Tasks;
 
-    sealed class AsyncManualResetEvent
+    internal sealed class AsyncManualResetEvent
     {
-        TaskCompletionSource<bool> taskCompletionSource = new TaskCompletionSource<bool>();
+        private TaskCompletionSource<bool> taskCompletionSource = new TaskCompletionSource<bool>();
 
         public async Task<bool> WaitAsync(TimeSpan timeout, CancellationToken cancellationToken)
         {
@@ -33,18 +33,17 @@ namespace DurableTask.AzureServiceFabric
             return delayTask != resultTask;
         }
 
-        public void Set()
-        {
-            this.taskCompletionSource.TrySetResult(true);
-        }
+        public void Set() => this.taskCompletionSource.TrySetResult(true);
 
         public void Reset()
         {
             while (true)
             {
-                var thisTcs = this.taskCompletionSource;
+                TaskCompletionSource<bool> thisTcs;
+                thisTcs = this.taskCompletionSource;
 
-                if (!thisTcs.Task.IsCompleted || Interlocked.CompareExchange(ref this.taskCompletionSource, new TaskCompletionSource<bool>(), thisTcs) == thisTcs)
+                if (!thisTcs.Task.IsCompleted
+                 || Interlocked.CompareExchange(ref this.taskCompletionSource, new TaskCompletionSource<bool>(), thisTcs) == thisTcs)
                 {
                     return;
                 }

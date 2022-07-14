@@ -42,15 +42,13 @@ namespace DurableTask.Core
         [DataMember] public string Version;
 
         internal ParentInstance Clone()
-        {
-            return new ParentInstance
-            {
-                Name = this.Name,
-                Version = this.Version,
-                TaskScheduleId = this.TaskScheduleId,
-                OrchestrationInstance = this.OrchestrationInstance.Clone()
-            };
-        }
+         => new ParentInstance
+         {
+             Name = this.Name,
+             Version = this.Version,
+             TaskScheduleId = this.TaskScheduleId,
+             OrchestrationInstance = this.OrchestrationInstance.Clone()
+         };
 
         /// <summary>
         /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.

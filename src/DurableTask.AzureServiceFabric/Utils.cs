@@ -18,31 +18,29 @@ namespace DurableTask.AzureServiceFabric
     using System.Threading;
     using System.Threading.Tasks;
 
-    using DurableTask.Core;
     using DurableTask.AzureServiceFabric.Tracing;
+    using DurableTask.Core;
 
     internal static class Utils
     {
         public static OrchestrationState BuildOrchestrationState(OrchestrationRuntimeState runtimeState)
-        {
-            return new OrchestrationState
-            {
-                OrchestrationInstance = runtimeState.OrchestrationInstance,
-                ParentInstance = runtimeState.ParentInstance,
-                Name = runtimeState.Name,
-                Version = runtimeState.Version,
-                Status = runtimeState.Status,
-                Tags = runtimeState.Tags,
-                OrchestrationStatus = runtimeState.OrchestrationStatus,
-                CreatedTime = runtimeState.CreatedTime,
-                CompletedTime = runtimeState.CompletedTime,
-                LastUpdatedTime = DateTime.UtcNow,
-                Size = runtimeState.Size,
-                CompressedSize = runtimeState.CompressedSize,
-                Input = runtimeState.Input,
-                Output = runtimeState.Output
-            };
-        }
+         => new OrchestrationState
+         {
+             OrchestrationInstance = runtimeState.OrchestrationInstance,
+             ParentInstance = runtimeState.ParentInstance,
+             Name = runtimeState.Name,
+             Version = runtimeState.Version,
+             Status = runtimeState.Status,
+             Tags = runtimeState.Tags,
+             OrchestrationStatus = runtimeState.OrchestrationStatus,
+             CreatedTime = runtimeState.CreatedTime,
+             CompletedTime = runtimeState.CompletedTime,
+             LastUpdatedTime = DateTime.UtcNow,
+             Size = runtimeState.Size,
+             CompressedSize = runtimeState.CompressedSize,
+             Input = runtimeState.Input,
+             Output = runtimeState.Output
+         };
 
         public static TimeSpan Measure(Action action)
         {

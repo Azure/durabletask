@@ -33,7 +33,7 @@ namespace DurableTask.Core.History
         /// <returns>An enumerable of all known types that implement <see cref="HistoryEvent"/>.</returns>
         public static IEnumerable<Type> KnownTypes()
         {
-            if (knownTypes != null)
+            if (knownTypes is not null)
             {
                 return knownTypes;
             }
@@ -50,10 +50,7 @@ namespace DurableTask.Core.History
         /// <summary>
         /// Creates a new history event
         /// </summary>
-        internal HistoryEvent()
-        {
-            Timestamp = DateTime.UtcNow;
-        }
+        internal HistoryEvent() => Timestamp = DateTime.UtcNow;
 
         /// <summary>
         /// Creates a new history event with the supplied event id

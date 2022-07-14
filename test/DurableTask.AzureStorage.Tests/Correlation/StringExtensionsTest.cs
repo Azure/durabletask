@@ -12,6 +12,7 @@
 //  ----------------------------------------------------------------------------------
 
 using System;
+
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace DurableTask.AzureStorage.Tests.Correlation
@@ -43,7 +44,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         public void TestParseTraceParenWithNull()
         {
             string someString = null;
-            TraceParent result = someString?.ToTraceParent();
+            TraceParent result = someString.ToTraceParent();
             Assert.IsNull(result);
         }
     }

@@ -15,13 +15,15 @@ namespace TestApplication.Common.Orchestrations
 {
     using System;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
+
     using TestApplication.Common.OrchestrationTasks;
 
     public class OrchestrationRunningIntoRetry : TaskOrchestration<int, int>
     {
-        CounterException LatestException;
+        private CounterException latestException;
 
         public override async Task<int> RunTask(OrchestrationContext context, int numberOfRetriesToEnforce)
         {
@@ -32,7 +34,7 @@ namespace TestApplication.Common.Orchestrations
                 Handle = RetryExceptionHandler
             };
             ITestTasks testTasks = context.CreateRetryableClient<ITestTasks>(retryOptions);
-            var result = await testTasks.ThrowExceptionAsync(this.LatestException?.Counter - 1 ?? numberOfRetriesToEnforce);
+            var result = await testTasks.ThrowExceptionAsync(this.latestException?.Counter - 1 ?? numberOfRetriesToEnforce);
 
             if (result)
             {
@@ -42,19 +44,19 @@ namespace TestApplication.Common.Orchestrations
             throw new Exception($"Unexpected exception thrown from {nameof(OrchestrationRunningIntoRetry)}.");
         }
 
-        bool RetryExceptionHandler(Exception e)
+        private bool RetryExceptionHandler(Exception e)
         {
             TaskFailedException tfe = e as TaskFailedException;
 
-            if (tfe != null && tfe.InnerException != null)
+            if (tfe is not null && tfe.InnerException is not null)
             {
                 e = tfe.InnerException;
             }
 
             CounterException ce = e as CounterException;
-            if (ce != null)
+            if (ce is not null)
             {
-                LatestException = ce;
+                latestException = ce;
                 return true;
             }
 

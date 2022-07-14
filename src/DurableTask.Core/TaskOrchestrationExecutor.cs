@@ -20,6 +20,7 @@ namespace DurableTask.Core
     using System.Runtime.ExceptionServices;
     using System.Threading;
     using System.Threading.Tasks;
+
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
@@ -29,12 +30,12 @@ namespace DurableTask.Core
     /// </summary>
     public class TaskOrchestrationExecutor
     {
-        readonly TaskOrchestrationContext context;
-        readonly TaskScheduler decisionScheduler;
-        readonly OrchestrationRuntimeState orchestrationRuntimeState;
-        readonly TaskOrchestration taskOrchestration;
-        readonly bool skipCarryOverEvents;
-        Task<string>? result;
+        private readonly TaskOrchestrationContext context;
+        private readonly TaskScheduler decisionScheduler;
+        private readonly OrchestrationRuntimeState orchestrationRuntimeState;
+        private readonly TaskOrchestration taskOrchestration;
+        private readonly bool skipCarryOverEvents;
+        private Task<string>? result;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TaskOrchestrationExecutor"/> class.
@@ -59,7 +60,7 @@ namespace DurableTask.Core
             this.skipCarryOverEvents = eventBehaviourForContinueAsNew == BehaviorOnContinueAsNew.Ignore;
         }
 
-        internal bool IsCompleted => this.result != null && (this.result.IsCompleted || this.result.IsFaulted);
+        internal bool IsCompleted => this.result is not null && (this.result.IsCompleted || this.result.IsFaulted);
 
         /// <summary>
         /// Executes an orchestration from the beginning.
@@ -68,11 +69,9 @@ namespace DurableTask.Core
         /// The result of the orchestration execution, including any actions scheduled by the orchestrator.
         /// </returns>
         public OrchestratorExecutionResult Execute()
-        {
-            return this.ExecuteCore(
+         => this.ExecuteCore(
                 pastEvents: this.orchestrationRuntimeState.PastEvents,
                 newEvents: this.orchestrationRuntimeState.NewEvents);
-        }
 
         /// <summary>
         /// Resumes an orchestration
@@ -88,7 +87,7 @@ namespace DurableTask.Core
                 newEvents: this.orchestrationRuntimeState.NewEvents);
         }
 
-        OrchestratorExecutionResult ExecuteCore(IEnumerable<HistoryEvent> pastEvents, IEnumerable<HistoryEvent> newEvents)
+        private OrchestratorExecutionResult ExecuteCore(IEnumerable<HistoryEvent> pastEvents, IEnumerable<HistoryEvent> newEvents)
         {
             SynchronizationContext prevCtx = SynchronizationContext.Current;
 
@@ -136,14 +135,14 @@ namespace DurableTask.Core
                             if (this.result.IsFaulted)
                             {
                                 Exception? exception = this.result.Exception?.InnerExceptions.FirstOrDefault();
-                                Debug.Assert(exception != null);
+                                Debug.Assert(exception is not null);
 
                                 if (Utils.IsExecutionAborting(exception))
                                 {
                                     // Let this exception propagate out to be handled by the dispatcher
                                     ExceptionDispatchInfo.Capture(exception).Throw();
                                 }
-                                
+
                                 this.context.FailOrchestration(exception);
                             }
                             else
@@ -174,7 +173,7 @@ namespace DurableTask.Core
             }
         }
 
-        void ProcessEvent(HistoryEvent historyEvent)
+        private void ProcessEvent(HistoryEvent historyEvent)
         {
             switch (historyEvent.EventType)
             {
@@ -227,22 +226,16 @@ namespace DurableTask.Core
             }
         }
 
-        class TaskOrchestrationSynchronizationContext : SynchronizationContext
+        private class TaskOrchestrationSynchronizationContext : SynchronizationContext
         {
-            readonly TaskScheduler scheduler;
+            private readonly TaskScheduler scheduler;
 
-            public TaskOrchestrationSynchronizationContext(TaskScheduler scheduler)
-            {
-                this.scheduler = scheduler;
-            }
+            public TaskOrchestrationSynchronizationContext(TaskScheduler scheduler) => this.scheduler = scheduler;
 
-            public override void Post(SendOrPostCallback sendOrPostCallback, object state)
-            {
-                Task.Factory.StartNew(() => sendOrPostCallback(state),
+            public override void Post(SendOrPostCallback sendOrPostCallback, object state) => Task.Factory.StartNew(() => sendOrPostCallback(state),
                     CancellationToken.None,
                     TaskCreationOptions.None,
                     this.scheduler);
-            }
 
             public override void Send(SendOrPostCallback sendOrPostCallback, object state)
             {

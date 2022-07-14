@@ -70,12 +70,11 @@ namespace DurableTask.AzureServiceFabric.Stores
     /// can handle no messages scenario, it's simpler to ignore the difference between the above and new messages being sent
     /// after consumer reads messages but before the session is unlocked.
     /// </summary>
-    class SessionProvider : MessageProviderBase<string, PersistentSession>
+    internal class SessionProvider : MessageProviderBase<string, PersistentSession>
     {
-        ConcurrentQueue<string> fetchQueue = new ConcurrentQueue<string>();
-        ConcurrentDictionary<string, LockState> lockedSessions = new ConcurrentDictionary<string, LockState>();
-
-        ConcurrentDictionary<OrchestrationInstance, SessionMessageProvider> sessionMessageProviders
+        private readonly ConcurrentQueue<string> fetchQueue = new ConcurrentQueue<string>();
+        private readonly ConcurrentDictionary<string, LockState> lockedSessions = new ConcurrentDictionary<string, LockState>();
+        private readonly ConcurrentDictionary<OrchestrationInstance, SessionMessageProvider> sessionMessageProviders
             = new ConcurrentDictionary<OrchestrationInstance, SessionMessageProvider>(OrchestrationInstanceComparer.Default);
 
         public SessionProvider(IReliableStateManager stateManager, CancellationToken token) : base(stateManager, Constants.OrchestrationDictionaryName, token)
@@ -295,7 +294,7 @@ namespace DurableTask.AzureServiceFabric.Stores
             }
         }
 
-        void TryEnqueueSessionInternal(string instanceId)
+        private void TryEnqueueSessionInternal(string instanceId)
         {
             if (this.lockedSessions.TryAdd(instanceId, LockState.InFetchQueue))
             {
@@ -331,7 +330,7 @@ namespace DurableTask.AzureServiceFabric.Stores
 
         public async Task DropSession(ITransaction txn, OrchestrationInstance instance)
         {
-            if (instance == null)
+            if (instance is null)
             {
                 throw new ArgumentNullException(nameof(instance));
             }
@@ -344,7 +343,7 @@ namespace DurableTask.AzureServiceFabric.Stores
                 uniqueActionIdentifier: $"Orchestration = '{instance}', Action = 'DropSessionMessagesDictionaryBackgroundTask'");
         }
 
-        async Task<SessionMessageProvider> GetOrAddSessionMessagesInstance(OrchestrationInstance instance)
+        private async Task<SessionMessageProvider> GetOrAddSessionMessagesInstance(OrchestrationInstance instance)
         {
             var newInstance = new SessionMessageProvider(this.StateManager, GetSessionMessagesDictionaryName(instance), this.CancellationToken);
             var sessionMessageProvider = this.sessionMessageProviders.GetOrAdd(instance, newInstance);
@@ -352,13 +351,13 @@ namespace DurableTask.AzureServiceFabric.Stores
             return sessionMessageProvider;
         }
 
-        string GetSessionMessagesDictionaryName(OrchestrationInstance instance)
+        private string GetSessionMessagesDictionaryName(OrchestrationInstance instance)
         {
             var sessionKey = $"{instance.InstanceId}_{instance.ExecutionId}";
             return Constants.SessionMessagesDictionaryPrefix + sessionKey;
         }
 
-        enum LockState
+        private enum LockState
         {
             InFetchQueue = 0,
 

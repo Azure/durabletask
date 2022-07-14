@@ -15,9 +15,9 @@ namespace DurableTask.AzureServiceFabric
 {
     using System;
     using System.Threading;
+    using DurableTask.Core;
     using DurableTask.AzureServiceFabric.Stores;
     using DurableTask.Core;
-    using DurableTask.Core.Query;
     using Microsoft.ServiceFabric.Data;
 
     /// <summary>
@@ -34,6 +34,7 @@ namespace DurableTask.AzureServiceFabric
     {
         readonly FabricOrchestrationService orchestrationService;
         readonly FabricOrchestrationServiceClient orchestrationClient;
+        readonly FabricProviderClient fabricProviderClient;
         readonly CancellationTokenSource cancellationTokenSource;
 
         internal FabricOrchestrationProvider(IReliableStateManager stateManager, FabricOrchestrationProviderSettings settings)
@@ -85,12 +86,9 @@ namespace DurableTask.AzureServiceFabric
         /// Disposes the object. The object should be disposed after <see cref="TaskHubWorker.StopAsync()"/>
         /// is invoked on the <see cref="TaskHubWorker" /> created with the <see cref="OrchestrationService"/>.
         /// </summary>
-        public void Dispose()
-        {
-            this.cancellationTokenSource.Dispose();
-        }
+        public void Dispose() => this.cancellationTokenSource.Dispose();
 
-        void EnsureValidInstance()
+        private void EnsureValidInstance()
         {
             if (this.cancellationTokenSource.IsCancellationRequested)
             {

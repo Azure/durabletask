@@ -106,7 +106,7 @@ namespace DurableTask.AzureStorage.Storage
                 },
                 "Queue GetMessage");
 
-            if (cloudQueueMessage == null)
+            if (cloudQueueMessage is null)
             {
                 return null;
             }
@@ -189,7 +189,7 @@ namespace DurableTask.AzureStorage.Storage
         public async Task<QueueMessage?> PeekMessageAsync()
         {
             var queueMessage = await this.cloudQueue.PeekMessageAsync();
-            return queueMessage == null ? null : new QueueMessage(queueMessage);
+            return queueMessage is null ? null : new QueueMessage(queueMessage);
         }
     }
 }

@@ -1,4 +1,4 @@
-//  ----------------------------------------------------------------------------------
+﻿//  ----------------------------------------------------------------------------------
 //  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 namespace DurableTask.Redis.Tests
 {
     using System;
+
     using Xunit;
 
     public class ConfigurationTests
@@ -69,7 +70,7 @@ namespace DurableTask.Redis.Tests
                 () => RedisOrchestrationServiceSettings.Validate(
                     new RedisOrchestrationServiceSettings
                     {
-                         MaxConcurrentTaskActivityWorkItems = 0,
+                        MaxConcurrentTaskActivityWorkItems = 0,
                     }));
 
             Assert.Throws<ArgumentOutOfRangeException>(

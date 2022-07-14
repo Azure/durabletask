@@ -14,6 +14,7 @@
 namespace DurableTask.Core.Logging
 {
     using System;
+
     using Microsoft.Extensions.Logging;
 
     /// <summary>
@@ -22,14 +23,14 @@ namespace DurableTask.Core.Logging
     public static class LoggingExtensions
     {
         /// <summary>
-        /// Writes an <see cref="ILogEvent"/> to the provider <see cref="ILogger"/> and 
+        /// Writes an <see cref="ILogEvent"/> to the provider <see cref="ILogger"/> and
         /// </summary>
         /// <param name="logger">The logger to write to.</param>
         /// <param name="logEvent">The event to be logged.</param>
         /// <param name="exception">Optional exception parameter for logging.</param>
         public static void LogDurableEvent(this ILogger logger, ILogEvent logEvent, Exception exception = null)
         {
-            if (logEvent == null)
+            if (logEvent is null)
             {
                 throw new ArgumentNullException(nameof(logEvent));
             }
@@ -53,8 +54,6 @@ namespace DurableTask.Core.Logging
         /// </summary>
         /// <param name="traceActivityId">The trace activity ID to set.</param>
         public static void SetLogicalTraceActivityId(Guid traceActivityId)
-        {
-            StructuredEventSource.SetLogicalTraceActivityId(traceActivityId);
-        }
+         => StructuredEventSource.SetLogicalTraceActivityId(traceActivityId);
     }
 }

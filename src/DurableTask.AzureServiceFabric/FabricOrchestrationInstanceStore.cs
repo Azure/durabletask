@@ -22,10 +22,11 @@ namespace DurableTask.AzureServiceFabric
     using System.Threading;
     using System.Threading.Tasks;
 
-    using DurableTask.Core;
-    using DurableTask.Core.Tracking;
     using DurableTask.AzureServiceFabric.TaskHelpers;
     using DurableTask.AzureServiceFabric.Tracing;
+    using DurableTask.Core;
+    using DurableTask.Core.Tracking;
+
     using Microsoft.ServiceFabric.Data;
     using Microsoft.ServiceFabric.Data.Collections;
 
@@ -33,17 +34,16 @@ namespace DurableTask.AzureServiceFabric
     //   - Support for querying state across executions (makes sense only after ContinuedAsNew is supported)
     //   - Support writing multiple state events for a given orchestration instance/execution (?)
     //   - Support writing/querying/purging history events
-    class FabricOrchestrationInstanceStore : IFabricOrchestrationServiceInstanceStore
+    internal class FabricOrchestrationInstanceStore : IFabricOrchestrationServiceInstanceStore
     {
-        const string InstanceStoreCollectionNamePrefix = Constants.CollectionNameUniquenessPrefix + "InstSt_";
-        const string TimeFormatString = "yyyy-MM-dd-HH";
-        const string TimeFormatStringPrefix = "yyyy-MM-dd-";
-        readonly IReliableStateManager stateManager;
-        readonly CancellationToken cancellationToken;
-        readonly ConcurrentDictionary<string, AsyncManualResetEvent> orchestrationWaiters = new ConcurrentDictionary<string, AsyncManualResetEvent>(StringComparer.Ordinal);
-
-        IReliableDictionary<string, OrchestrationState> instanceStore;
-        IReliableDictionary<string, List<string>> executionIdStore;
+        private const string InstanceStoreCollectionNamePrefix = Constants.CollectionNameUniquenessPrefix + "InstSt_";
+        private const string TimeFormatString = "yyyy-MM-dd-HH";
+        private const string TimeFormatStringPrefix = "yyyy-MM-dd-";
+        private readonly IReliableStateManager stateManager;
+        private readonly CancellationToken cancellationToken;
+        private readonly ConcurrentDictionary<string, AsyncManualResetEvent> orchestrationWaiters = new ConcurrentDictionary<string, AsyncManualResetEvent>(StringComparer.Ordinal);
+        private IReliableDictionary<string, OrchestrationState> instanceStore;
+        private IReliableDictionary<string, List<string>> executionIdStore;
 
         public FabricOrchestrationInstanceStore(IReliableStateManager stateManager, CancellationToken token)
         {
@@ -81,7 +81,7 @@ namespace DurableTask.AzureServiceFabric
             foreach (var entity in entities)
             {
                 var state = entity as OrchestrationStateInstanceEntity;
-                if (state != null && state.State != null)
+                if (state is not null && state.State is not null)
                 {
                     var instance = state.State.OrchestrationInstance;
                     string key = GetKey(instance.InstanceId, instance.ExecutionId);
@@ -133,10 +133,10 @@ namespace DurableTask.AzureServiceFabric
 
             string latestExecutionId = (await GetExecutionIds(instanceId))?.Last();
 
-            if (latestExecutionId != null)
+            if (latestExecutionId is not null)
             {
                 var state = await GetOrchestrationStateAsync(instanceId, latestExecutionId);
-                if (state != null)
+                if (state is not null)
                 {
                     return new List<OrchestrationStateInstanceEntity>() { state };
                 }
@@ -184,7 +184,7 @@ namespace DurableTask.AzureServiceFabric
                 return null;
             }, uniqueActionIdentifier: $"Orchestration Instance Id = {instanceId}, ExecutionId = {executionId}, Action = {nameof(FabricOrchestrationInstanceStore)}.{nameof(GetOrchestrationStateAsync)}:QueryInstanceStore");
 
-            if (result != null)
+            if (result is not null)
             {
                 return result;
             }
@@ -215,7 +215,7 @@ namespace DurableTask.AzureServiceFabric
                         return null;
                     }, uniqueActionIdentifier: $"Orchestration Instance Id = {instanceId}, ExecutionId = {executionId}, Action = {nameof(FabricOrchestrationInstanceStore)}.{nameof(GetOrchestrationStateAsync)}:QueryBackupInstanceStore {backupDictionaryName}");
 
-                    if (result != null)
+                    if (result is not null)
                     {
                         return result;
                     }
@@ -226,9 +226,7 @@ namespace DurableTask.AzureServiceFabric
         }
 
         public Task<IEnumerable<OrchestrationWorkItemInstanceEntity>> GetOrchestrationHistoryEventsAsync(string instanceId, string executionId)
-        {
-            throw new NotImplementedException();
-        }
+         => throw new NotImplementedException();
 
         // Todo: This is incomplete and inaccurate implementation done for testing purposes.
         // The method will cleanup state for every orchestration happening in the hour time window of given time,
@@ -246,92 +244,76 @@ namespace DurableTask.AzureServiceFabric
             }
         }
 
-        string GetKey(string instanceId, string executionId)
-        {
-            return string.Concat(instanceId, "_", executionId);
-        }
+        private string GetKey(string instanceId, string executionId) => string.Concat(instanceId, "_", executionId);
 
-        string GetDictionaryKeyFromTimeFormat(DateTime time)
-        {
-            return GetInstanceStoreBackupDictionaryKey(time, TimeFormatString);
-        }
+        private string GetDictionaryKeyFromTimeFormat(DateTime time)
+         => GetInstanceStoreBackupDictionaryKey(time, TimeFormatString);
 
-        string GetDictionaryKeyFromTimePrefixFormat(DateTime time)
-        {
-            return GetInstanceStoreBackupDictionaryKey(time, TimeFormatStringPrefix);
-        }
+        private string GetDictionaryKeyFromTimePrefixFormat(DateTime time)
+         => GetInstanceStoreBackupDictionaryKey(time, TimeFormatStringPrefix);
 
-        string GetInstanceStoreBackupDictionaryKey(DateTime time, string formatString)
-        {
-            return InstanceStoreCollectionNamePrefix + time.ToString(formatString);
-        }
+        private string GetInstanceStoreBackupDictionaryKey(DateTime time, string formatString)
+         => InstanceStoreCollectionNamePrefix + time.ToString(formatString);
 
-        Task CleanupDayOldDictionariesAsync()
+        private Task CleanupDayOldDictionariesAsync() => Utils.RunBackgroundJob(async () =>
         {
-            return Utils.RunBackgroundJob(async () =>
+            var purgeTime = GetDictionaryKeyFromTimePrefixFormat(DateTime.UtcNow - TimeSpan.FromDays(1));
+
+            for (int i = 0; i < 24; i++)
             {
-                var purgeTime = GetDictionaryKeyFromTimePrefixFormat(DateTime.UtcNow - TimeSpan.FromDays(1));
+                await this.stateManager.RemoveAsync($"{purgeTime}{i:D2}");
+            }
+        }, initialDelay: TimeSpan.FromMinutes(5), delayOnSuccess: TimeSpan.FromHours(12), delayOnException: TimeSpan.FromHours(1), actionName: $"{nameof(CleanupDayOldDictionariesAsync)}", token: this.cancellationToken);
 
-                for (int i = 0; i < 24; i++)
-                {
-                    await this.stateManager.RemoveAsync($"{purgeTime}{i:D2}");
-                }
-            }, initialDelay: TimeSpan.FromMinutes(5), delayOnSuccess: TimeSpan.FromHours(12), delayOnException: TimeSpan.FromHours(1), actionName: $"{nameof(CleanupDayOldDictionariesAsync)}", token: this.cancellationToken);
-        }
-
-        Task CleanupOldDictionariesAsync()
+        private Task CleanupOldDictionariesAsync() => Utils.RunBackgroundJob(async () =>
         {
-            return Utils.RunBackgroundJob(async () =>
-            {
-                List<string> toDelete = new List<string>();
-                List<string> toKeep = new List<string>();
-                var currentTime = DateTime.UtcNow;
-                var ttl = TimeSpan.FromDays(1);
+            List<string> toDelete = new List<string>();
+            List<string> toKeep = new List<string>();
+            var currentTime = DateTime.UtcNow;
+            var ttl = TimeSpan.FromDays(1);
 
-                var enumerationTime = await Utils.MeasureAsync(async () =>
+            var enumerationTime = await Utils.MeasureAsync(async () =>
+            {
+                var enumerator = this.stateManager.GetAsyncEnumerator();
+                while (await enumerator.MoveNextAsync(this.cancellationToken))
                 {
-                    var enumerator = this.stateManager.GetAsyncEnumerator();
-                    while (await enumerator.MoveNextAsync(this.cancellationToken))
+                    var storeName = enumerator.Current.Name.AbsolutePath.Trim('/');
+                    if (storeName.StartsWith(InstanceStoreCollectionNamePrefix))
                     {
-                        var storeName = enumerator.Current.Name.AbsolutePath.Trim('/');
-                        if (storeName.StartsWith(InstanceStoreCollectionNamePrefix))
+                        var stringDate = storeName.Substring(InstanceStoreCollectionNamePrefix.Length);
+                        if (DateTime.TryParseExact(stringDate, TimeFormatString, CultureInfo.InvariantCulture, DateTimeStyles.None, out var storeTime)
+                            && (currentTime - storeTime > ttl))
                         {
-                            DateTime storeTime;
-                            var stringDate = storeName.Substring(InstanceStoreCollectionNamePrefix.Length);
-                            if (DateTime.TryParseExact(stringDate, TimeFormatString, CultureInfo.InvariantCulture, DateTimeStyles.None, out storeTime)
-                                && (currentTime - storeTime > ttl))
-                            {
-                                toDelete.Add(storeName);
-                                continue;
-                            }
+                            toDelete.Add(storeName);
+                            continue;
                         }
-
-                        toKeep.Add(storeName);
                     }
-                });
-                ServiceFabricProviderEventSource.Tracing.LogTimeTaken($"Enumerating all reliable states (count: {toDelete.Count + toKeep.Count})", enumerationTime.TotalMilliseconds);
 
-                ServiceFabricProviderEventSource.Tracing.ReliableStateManagement($"Deleting {toDelete.Count} stores", String.Join(",", toDelete));
-                ServiceFabricProviderEventSource.Tracing.ReliableStateManagement($"All remaining {toKeep.Count} stores", String.Join(",", toKeep));
-
-                foreach (var storeName in toDelete)
-                {
-                    var deleteTime = await Utils.MeasureAsync(async () =>
-                    {
-                        await this.stateManager.RemoveAsync(storeName);
-                    });
-                    ServiceFabricProviderEventSource.Tracing.LogTimeTaken($"Deleting reliable state {storeName}", deleteTime.TotalMilliseconds);
+                    toKeep.Add(storeName);
                 }
-            }, initialDelay: TimeSpan.FromMinutes(5), delayOnSuccess: TimeSpan.FromHours(1), delayOnException: TimeSpan.FromMinutes(10), actionName: $"{nameof(CleanupOldDictionariesAsync)}", token: this.cancellationToken);
-        }
+            });
+            ServiceFabricProviderEventSource.Tracing.LogTimeTaken($"Enumerating all reliable states (count: {toDelete.Count + toKeep.Count})", enumerationTime.TotalMilliseconds);
 
-        async Task EnsureStoreInitializedAsync()
+            ServiceFabricProviderEventSource.Tracing.ReliableStateManagement($"Deleting {toDelete.Count} stores", String.Join(",", toDelete));
+            ServiceFabricProviderEventSource.Tracing.ReliableStateManagement($"All remaining {toKeep.Count} stores", String.Join(",", toKeep));
+
+            foreach (var storeName in toDelete)
+            {
+                var deleteTime = await Utils.MeasureAsync(async () =>
+                {
+                    await this.stateManager.RemoveAsync(storeName);
+                });
+                ServiceFabricProviderEventSource.Tracing.LogTimeTaken($"Deleting reliable state {storeName}", deleteTime.TotalMilliseconds);
+            }
+        }, initialDelay: TimeSpan.FromMinutes(5), delayOnSuccess: TimeSpan.FromHours(1), delayOnException: TimeSpan.FromMinutes(10), actionName: $"{nameof(CleanupOldDictionariesAsync)}", token: this.cancellationToken);
+
+        private async Task EnsureStoreInitializedAsync()
         {
-            if (this.instanceStore == null)
+            if (this.instanceStore is null)
             {
                 this.instanceStore = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, OrchestrationState>>(Constants.InstanceStoreDictionaryName);
             }
-            if (this.executionIdStore == null)
+            if (this.executionIdStore is null)
             {
                 this.executionIdStore = await this.stateManager.GetOrAddAsync<IReliableDictionary<string, List<string>>>(Constants.ExecutionStoreDictionaryName);
             }
@@ -340,7 +322,7 @@ namespace DurableTask.AzureServiceFabric
         public async Task<OrchestrationStateInstanceEntity> WaitForOrchestrationAsync(string instanceId, TimeSpan timeout)
         {
             var executionId = (await this.GetExecutionIds(instanceId)).Last();
-            if (executionId == null)
+            if (executionId is null)
             {
                 return null;
             }
@@ -348,7 +330,7 @@ namespace DurableTask.AzureServiceFabric
             var currentState = await this.GetOrchestrationStateAsync(instanceId, executionId);
 
             // If querying state for an orchestration that's not started or completed and state cleaned up, we will immediately return null.
-            if (currentState?.State == null)
+            if (currentState?.State is null)
             {
                 return null;
             }
@@ -367,7 +349,7 @@ namespace DurableTask.AzureServiceFabric
             }
 
             currentState = (await this.GetOrchestrationStateAsync(instanceId, allInstances: false)).FirstOrDefault();
-            if (currentState?.State != null && currentState.State.OrchestrationStatus.IsTerminalState())
+            if (currentState?.State is not null && currentState.State.OrchestrationStatus.IsTerminalState())
             {
                 return currentState;
             }

@@ -22,10 +22,7 @@ namespace DurableTask.Core
         /// Creates a new TaskContext with the supplied OrchestrationInstance
         /// </summary>
         /// <param name="orchestrationInstance"></param>
-        public TaskContext(OrchestrationInstance orchestrationInstance)
-        {
-            OrchestrationInstance = orchestrationInstance;
-        }
+        public TaskContext(OrchestrationInstance orchestrationInstance) => OrchestrationInstance = orchestrationInstance;
 
         /// <summary>
         /// Gets the OrchestrationInstance for this task context

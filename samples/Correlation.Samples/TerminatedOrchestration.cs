@@ -13,29 +13,27 @@
 
 namespace Correlation.Samples
 {
+#pragma warning disable CA1812 // Internal classes instantiated indirectly
     using System;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
 
     [KnownType(typeof(WaitActivity))]
     internal class TerminatedOrchestration : TaskOrchestration<string, string>
     {
         public override async Task<string> RunTask(OrchestrationContext context, string input)
-        {
-            return await context.ScheduleTask<string>(typeof(WaitActivity), "");
-        }
+         => await context.ScheduleTask<string>(typeof(WaitActivity), "");
     }
 
     internal class WaitActivity : TaskActivity<string, string>
     {
-        protected override string Execute(TaskContext context, string input)
-        {
-            return input;
-        }
+        protected override string Execute(TaskContext context, string input) => input;
 
-        protected override async Task<string> ExecuteAsync(TaskContext context, string input) {
-            // Wait for 5 min for terminate. 
+        protected override async Task<string> ExecuteAsync(TaskContext context, string input)
+        {
+            // Wait for 5 min for terminate.
             await Task.Delay(TimeSpan.FromMinutes(2));
 
             Console.WriteLine($"Activity: Hello {input}");

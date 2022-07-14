@@ -13,10 +13,12 @@
 
 namespace Correlation.Samples
 {
+#pragma warning disable CA1812 // Internal classes instantiated indirectly
+    using System;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
-    using System;
 
     [KnownType(typeof(MultiLayeredOrchestrationChildWithRetry))]
     [KnownType(typeof(NeedToExecuteTwice01))]
@@ -44,13 +46,13 @@ namespace Correlation.Samples
 
     internal class NeedToExecuteTwice01 : TaskActivity<string, string>
     {
-        static int Counter = 0;
+        private static int counter = 0;
 
         protected override string Execute(TaskContext context, string input)
         {
-            if (Counter == 0)
+            if (counter == 0)
             {
-                Counter++;
+                counter++;
                 throw new Exception("Something happens");
             }
 
@@ -60,13 +62,13 @@ namespace Correlation.Samples
 
     internal class NeedToExecuteTwice02 : TaskActivity<string, string>
     {
-        static int Counter = 0;
+        private static int counter = 0;
 
         protected override string Execute(TaskContext context, string input)
         {
-            if (Counter == 0)
+            if (counter == 0)
             {
-                Counter++;
+                counter++;
                 throw new Exception("Something happens");
             }
 
