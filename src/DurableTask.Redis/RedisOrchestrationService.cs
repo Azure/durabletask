@@ -449,13 +449,13 @@ namespace DurableTask.Redis
         }
 
         /// <inheritdoc />
-        public Task ForceSuspendTaskOrchestrationAsync(string instanceId, string reason)
+        public Task SuspendTaskOrchestrationAsync(string instanceId, string reason)
         {
             throw new NotImplementedException();
         }
 
         /// <inheritdoc />
-        public Task ForceResumeTaskOrchestrationAsync(string instanceId, string reason)
+        public Task ResumeTaskOrchestrationAsync(string instanceId, string reason)
         {
             throw new NotImplementedException();
         }

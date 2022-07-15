@@ -1216,21 +1216,21 @@ namespace DurableTask.ServiceBus
         }
 
         /// <summary>
-        ///    Force suspends an orchestration by sending a execution suspended event
+        ///    Suspends an orchestration by sending a execution suspended event
         /// </summary>
         /// <param name="instanceId">The instance id to suspend</param>
         /// <param name="reason">The string reason for suspending</param>
-        public Task ForceSuspendTaskOrchestrationAsync(string instanceId, string reason)
+        public Task SuspendTaskOrchestrationAsync(string instanceId, string reason)
         {
             throw new NotImplementedException();
         }
 
         /// <summary>
-        ///    Force resumes an orchestration by sending a execution resumed event
+        ///    Resumes an orchestration by sending a execution resumed event
         /// </summary>
         /// <param name="instanceId">The instance id to resume </param>
         /// <param name="reason">The string reason for resuming </param>
-        public Task ForceResumeTaskOrchestrationAsync(string instanceId, string reason)
+        public Task ResumeTaskOrchestrationAsync(string instanceId, string reason)
         {
             throw new NotImplementedException();
         }

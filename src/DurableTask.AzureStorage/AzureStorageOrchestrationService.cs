@@ -1735,11 +1735,11 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Force suspends an orchestration by sending a execution suspended event
+        /// Suspends an orchestration by sending a execution suspended event
         /// </summary>
-        /// <param name="instanceId">Instance ID of the orchestration to terminate.</param>
-        /// <param name="reason">The user-friendly reason for terminating.</param>
-        public Task ForceSuspendTaskOrchestrationAsync(string instanceId, string reason)
+        /// <param name="instanceId">Instance ID of the orchestration to suspend.</param>
+        /// <param name="reason">The user-friendly reason for suspending.</param>
+        public Task SuspendTaskOrchestrationAsync(string instanceId, string reason)
         {
             var taskMessage = new TaskMessage
             {
@@ -1751,12 +1751,12 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Force resumes a suspended orchestration (sets it to Running state) by sending an
+        /// Resumes a suspended orchestration (sets it to Running state) by sending an
         /// execution resumed event
         /// </summary>
-        /// <param name="instanceId">Instance ID of the orchestration to terminate.</param>
-        /// <param name="reason">The user-friendly reason for terminating.</param>
-        public Task ForceResumeTaskOrchestrationAsync(string instanceId, string reason)
+        /// <param name="instanceId">Instance ID of the orchestration to resume.</param>
+        /// <param name="reason">The user-friendly reason for resuming.</param>
+        public Task ResumeTaskOrchestrationAsync(string instanceId, string reason)
         {
             var taskMessage = new TaskMessage
             {
