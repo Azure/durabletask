@@ -480,14 +480,6 @@ namespace DurableTask.AzureStorage
                     batch.LastCheckpointTime = history.LastCheckpointTime;
                 }
 
-                // query instances table to determine if the orchestration is suspended
-                IList<OrchestrationState> instances = await this.trackingStore.GetStateAsync(batch.OrchestrationInstanceId, false, fetchInput: true);
-                OrchestrationState instanceState = instances.FirstOrDefault();
-                if (instanceState.OrchestrationStatus == OrchestrationStatus.Suspended)
-                {
-                    batch.OrchestrationState.OrchestrationStatus = OrchestrationStatus.Suspended;
-                }
-
                 this.readyForProcessingQueue.Enqueue(node);
             }
             catch (OperationCanceledException)

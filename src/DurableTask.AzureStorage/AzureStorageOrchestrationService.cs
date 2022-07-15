@@ -1735,7 +1735,7 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Suspends an orchestration by sending a execution suspended event
+        /// Suspends an orchestration by sending an execution suspended event.
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration to suspend.</param>
         /// <param name="reason">The user-friendly reason for suspending.</param>
