@@ -17,9 +17,9 @@ namespace DurableTask.Core.Middleware
     using System.Collections.Concurrent;
     using System.Threading.Tasks;
 
-    internal class DispatchMiddlewarePipeline
+    class DispatchMiddlewarePipeline
     {
-        private readonly ConcurrentStack<Func<DispatchMiddlewareDelegate, DispatchMiddlewareDelegate>> components =
+        readonly ConcurrentStack<Func<DispatchMiddlewareDelegate, DispatchMiddlewareDelegate>> components =
             new ConcurrentStack<Func<DispatchMiddlewareDelegate, DispatchMiddlewareDelegate>>();
 
         public Task RunAsync(DispatchMiddlewareContext context, DispatchMiddlewareDelegate handler)

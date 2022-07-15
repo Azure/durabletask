@@ -23,7 +23,7 @@ namespace Correlation.Samples
 
     public class TelemetryActivator
     {
-        private TelemetryClient telemetryClient;
+        TelemetryClient telemetryClient;
 
         public void Initialize()
         {
@@ -31,7 +31,7 @@ namespace Correlation.Samples
             SetUpTelemetryCallbacks();
         }
 
-        private void SetUpTelemetryCallbacks()
+        void SetUpTelemetryCallbacks()
         {
             CorrelationTraceClient.SetUp(
                 (TraceContextBase requestTraceContext) =>
@@ -54,7 +54,7 @@ namespace Correlation.Samples
             );
         }
 
-        private void SetUpTelemetryClient()
+        void SetUpTelemetryClient()
         {
             using var module = new DependencyTrackingTelemetryModule();
             // Currently it seems have a problem https://github.com/microsoft/ApplicationInsights-dotnet-server/issues/536

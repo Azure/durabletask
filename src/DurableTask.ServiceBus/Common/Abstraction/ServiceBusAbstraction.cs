@@ -23,9 +23,9 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     /// ReadObject(Stream) and WriteObject(Stream, object) pick Binary Xml Reader/Writer
     /// instead of text.
     /// </summary>
-    internal sealed class DataContractBinarySerializer : XmlObjectSerializer
+    sealed class DataContractBinarySerializer : XmlObjectSerializer
     {
-        private readonly DataContractSerializer dataContractSerializer;
+        readonly DataContractSerializer dataContractSerializer;
 
         /// <summary>
         /// Initializes a new DataContractBinarySerializer instance
@@ -46,7 +46,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
         /// <remarks>Override the default (Text) and use Binary Xml Reader instead</remarks>
         public override void WriteObject(Stream stream, object graph)
         {
-            if (stream is null)
+            if (stream == null)
             {
                 throw new ArgumentNullException(nameof(stream));
             }
@@ -61,7 +61,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
         /// </summary>
         public override void WriteObject(XmlDictionaryWriter writer, object graph)
         {
-            if (writer is null)
+            if (writer == null)
             {
                 throw new ArgumentNullException(nameof(writer));
             }
@@ -105,7 +105,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     /// <inheritdoc />
     public class IMessageSession
     {
-        private readonly Microsoft.Azure.ServiceBus.IMessageSession session;
+        readonly Microsoft.Azure.ServiceBus.IMessageSession session;
 
         public IMessageSession(Microsoft.Azure.ServiceBus.IMessageSession session) => this.session = session;
 
@@ -130,7 +130,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #else
     public class IMessageSession
     {
-        private readonly MessageSession session;
+        readonly MessageSession session;
 
         public IMessageSession(MessageSession session) => this.session = session;
 
@@ -143,7 +143,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
         public async Task<byte[]> GetStateAsync()
         {
             Stream state = await this.session.GetStateAsync();
-            if (state is null)
+            if (state == null)
                 return null;
             using (var ms = new MemoryStream())
             {
@@ -154,7 +154,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
         public async Task SetStateAsync(byte[] sessionState)
         {
-            if (sessionState is null)
+            if (sessionState == null)
             {
                 await this.session.SetStateAsync(null);
                 return;
@@ -184,7 +184,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     /// <inheritdoc />
     public class Message
     {
-        private readonly Microsoft.Azure.ServiceBus.Message msg;
+        readonly Microsoft.Azure.ServiceBus.Message msg;
 
         public Message(Microsoft.Azure.ServiceBus.Message msg) => this.msg = msg;
 
@@ -225,7 +225,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
     public class Message : IDisposable
     {
-        private BrokeredMessage brokered;
+        BrokeredMessage brokered;
 
         public Message(BrokeredMessage brokered)
         {
@@ -289,7 +289,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
     public class SystemPropertiesCollection
     {
-        private readonly BrokeredMessage brokered;
+        readonly BrokeredMessage brokered;
 
         /// <inheritdoc />
         public SystemPropertiesCollection(BrokeredMessage brokered) => this.brokered = brokered;
@@ -349,7 +349,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
     public class RetryPolicy
     {
-        private readonly Microsoft.ServiceBus.RetryPolicy policy;
+        readonly Microsoft.ServiceBus.RetryPolicy policy;
 
         public RetryPolicy(Microsoft.ServiceBus.RetryPolicy policy) => this.policy = policy;
 
@@ -431,7 +431,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     /// <inheritdoc />
     public class TokenProvider : Microsoft.Azure.ServiceBus.Primitives.ITokenProvider
     {
-        private readonly Microsoft.Azure.ServiceBus.Primitives.TokenProvider tokenProvider;
+        readonly Microsoft.Azure.ServiceBus.Primitives.TokenProvider tokenProvider;
 
         public TokenProvider(Microsoft.Azure.ServiceBus.Primitives.TokenProvider t) => this.tokenProvider = t;
 
@@ -448,7 +448,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #else
     public class TokenProvider
     {
-        private readonly Microsoft.ServiceBus.TokenProvider tokenProvider;
+        readonly Microsoft.ServiceBus.TokenProvider tokenProvider;
 
         public TokenProvider(Microsoft.ServiceBus.TokenProvider t) => this.tokenProvider = t;
 
@@ -490,7 +490,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #else
     public class MessageSender
     {
-        private readonly Microsoft.ServiceBus.Messaging.MessageSender msgSender;
+        readonly Microsoft.ServiceBus.Messaging.MessageSender msgSender;
 
         public MessageSender(ServiceBusConnection serviceBusConnection, string transferDestinationEntityPath, string viaEntityPath)
          => this.msgSender = BuildMessagingFactory(serviceBusConnection)
@@ -500,7 +500,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
          => this.msgSender = BuildMessagingFactory(serviceBusConnection)
                              .CreateMessageSender(entityPath);
 
-        private static MessagingFactory BuildMessagingFactory(ServiceBusConnection serviceBusConnection)
+        static MessagingFactory BuildMessagingFactory(ServiceBusConnection serviceBusConnection)
         {
             var namespaceManager = Microsoft.ServiceBus.NamespaceManager.CreateFromConnectionString(serviceBusConnection.ConnectionString);
             var factory = Microsoft.ServiceBus.Messaging.MessagingFactory.Create(
@@ -551,12 +551,12 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #else
     public class MessageReceiver
     {
-        private readonly Microsoft.ServiceBus.Messaging.MessageReceiver msgReceiver;
+        readonly Microsoft.ServiceBus.Messaging.MessageReceiver msgReceiver;
 
         public MessageReceiver(ServiceBusConnection serviceBusConnection, string entityPath)
          => this.msgReceiver = BuildMessagingFactory(serviceBusConnection).CreateMessageReceiver(entityPath);
 
-        private static MessagingFactory BuildMessagingFactory(ServiceBusConnection serviceBusConnection)
+        static MessagingFactory BuildMessagingFactory(ServiceBusConnection serviceBusConnection)
         {
             var namespaceManager = Microsoft.ServiceBus.NamespaceManager.CreateFromConnectionString(serviceBusConnection.ConnectionString);
             var factory = Microsoft.ServiceBus.Messaging.MessagingFactory.Create(
@@ -615,7 +615,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #else
     public class QueueClient
     {
-        private readonly Microsoft.ServiceBus.Messaging.QueueClient queueClient;
+        readonly Microsoft.ServiceBus.Messaging.QueueClient queueClient;
 
         public QueueClient(ServiceBusConnection serviceBusConnection, string entityPath, ReceiveMode receiveMode, RetryPolicy retryPolicy)
         {
@@ -624,7 +624,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             this.queueClient = factory.CreateQueueClient(entityPath, receiveMode);
         }
 
-        private static MessagingFactory BuildMessagingFactory(ServiceBusConnection serviceBusConnection)
+        static MessagingFactory BuildMessagingFactory(ServiceBusConnection serviceBusConnection)
         {
             var namespaceManager = Microsoft.ServiceBus.NamespaceManager.CreateFromConnectionString(serviceBusConnection.ConnectionString);
             var factory = Microsoft.ServiceBus.Messaging.MessagingFactory.Create(
@@ -674,7 +674,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #else
     public class ManagementClient
     {
-        private readonly Microsoft.ServiceBus.NamespaceManager manager;
+        readonly Microsoft.ServiceBus.NamespaceManager manager;
 
         public ManagementClient(string connectionString)
          => this.manager = Microsoft.ServiceBus.NamespaceManager.CreateFromConnectionString(connectionString);
@@ -696,7 +696,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #if NETSTANDARD2_0
     public class SessionClient
     {
-        private readonly Microsoft.Azure.ServiceBus.SessionClient sessionClient;
+        readonly Microsoft.Azure.ServiceBus.SessionClient sessionClient;
 
         public SessionClient(ServiceBusConnection serviceBusConnection, string entityPath, Microsoft.Azure.ServiceBus.ReceiveMode receiveMode)
          => this.sessionClient = new Microsoft.Azure.ServiceBus.SessionClient(serviceBusConnection, entityPath, receiveMode);

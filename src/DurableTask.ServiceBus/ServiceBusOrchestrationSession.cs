@@ -18,7 +18,7 @@ namespace DurableTask.ServiceBus
     using DurableTask.Core;
     using DurableTask.ServiceBus.Common.Abstraction;
 
-    internal class ServiceBusOrchestrationSession
+    class ServiceBusOrchestrationSession
     {
         public IMessageSession Session;
         public Dictionary<string, Message> LockTokens;

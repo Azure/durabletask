@@ -38,21 +38,22 @@ namespace DurableTask.Core.Common
     /// </summary>
     public static class Utils
     {
-        private const int FullGzipHeaderLength = 10;
+        const int FullGzipHeaderLength = 10;
 
         /// <summary>
         /// Gets a safe maximum datetime value that accounts for timezone
         /// </summary>
         public static readonly DateTime DateTimeSafeMaxValue =
             DateTime.MaxValue.Subtract(TimeSpan.FromDays(1)).ToUniversalTime();
-        private static readonly byte[] GzipHeader = { 0x1f, 0x8b };
+
+        static readonly byte[] GzipHeader = { 0x1f, 0x8b };
 
         /// <summary>
         /// Gets the version of the DurableTask.Core nuget package, which by convension is the same as the assembly file version.
         /// </summary>
         internal static readonly string PackageVersion = FileVersionInfo.GetVersionInfo(typeof(TaskOrchestration).Assembly.Location).FileVersion;
 
-        private static readonly JsonSerializerSettings ObjectJsonSettings = new JsonSerializerSettings
+        static readonly JsonSerializerSettings ObjectJsonSettings = new JsonSerializerSettings
         {
             TypeNameHandling = TypeNameHandling.All,
 
@@ -113,7 +114,7 @@ namespace DurableTask.Core.Common
         /// </summary>
         public static void WriteObjectToStream(Stream objectStream, object obj)
         {
-            if (objectStream is null || !objectStream.CanWrite || !objectStream.CanSeek)
+            if (objectStream == null || !objectStream.CanWrite || !objectStream.CanSeek)
             {
                 throw new ArgumentException("stream is not seekable or writable", nameof(objectStream));
             }
@@ -158,7 +159,7 @@ namespace DurableTask.Core.Common
         /// </summary>
         public static byte[] ReadBytesFromStream(Stream objectStream)
         {
-            if (objectStream is null || !objectStream.CanRead || !objectStream.CanSeek)
+            if (objectStream == null || !objectStream.CanRead || !objectStream.CanSeek)
             {
                 throw new ArgumentException("stream is not seekable or readable", nameof(objectStream));
             }
@@ -185,7 +186,7 @@ namespace DurableTask.Core.Common
         /// </summary>
         public static bool IsGzipStream(Stream stream)
         {
-            if (stream is null || !stream.CanRead || !stream.CanSeek || stream.Length < FullGzipHeaderLength)
+            if (stream == null || !stream.CanRead || !stream.CanSeek || stream.Length < FullGzipHeaderLength)
             {
                 return false;
             }
@@ -210,7 +211,7 @@ namespace DurableTask.Core.Common
         /// <returns></returns>
         public static Stream GetCompressedStream(Stream input)
         {
-            if (input is null)
+            if (input == null)
             {
                 return null;
             }
@@ -234,7 +235,7 @@ namespace DurableTask.Core.Common
         /// <returns></returns>
         public static async Task<Stream> GetDecompressedStreamAsync(Stream input)
         {
-            if (input is null)
+            if (input == null)
             {
                 return null;
             }
@@ -362,12 +363,12 @@ namespace DurableTask.Core.Common
         /// </summary>
         public static string SerializeCause(Exception originalException, DataConverter converter)
         {
-            if (originalException is null)
+            if (originalException == null)
             {
                 throw new ArgumentNullException(nameof(originalException));
             }
 
-            if (converter is null)
+            if (converter == null)
             {
                 throw new ArgumentNullException(nameof(converter));
             }
@@ -392,7 +393,7 @@ namespace DurableTask.Core.Common
         /// </summary>
         public static Exception RetrieveCause(string details, DataConverter converter)
         {
-            if (converter is null)
+            if (converter == null)
             {
                 throw new ArgumentNullException(nameof(converter));
             }

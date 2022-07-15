@@ -13,7 +13,7 @@
 
 namespace DurableTask.ServiceBus
 {
-    internal class ServiceBusConstants
+    class ServiceBusConstants
     {
         // name format constants
         public const string OrchestratorEndpointFormat = "{0}/orchestrator";

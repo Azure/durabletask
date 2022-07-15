@@ -20,9 +20,9 @@ namespace DurableTask.AzureServiceFabric.Stores
 
     using Microsoft.ServiceFabric.Data;
 
-    internal class ActivityProvider : MessageProviderBase<string, TaskMessageItem>
+    class ActivityProvider : MessageProviderBase<string, TaskMessageItem>
     {
-        private readonly ConcurrentQueue<string> inMemoryQueue = new ConcurrentQueue<string>();
+        readonly ConcurrentQueue<string> inMemoryQueue = new ConcurrentQueue<string>();
 
         public ActivityProvider(IReliableStateManager stateManager, string storeName, CancellationToken token)
             : base(stateManager, storeName, token) { }

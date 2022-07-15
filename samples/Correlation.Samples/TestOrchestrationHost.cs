@@ -22,13 +22,13 @@ namespace Correlation.Samples
     using DurableTask.AzureStorage;
     using DurableTask.Core;
 
-    internal sealed class TestOrchestrationHost : IDisposable
+    sealed class TestOrchestrationHost : IDisposable
     {
-        private readonly AzureStorageOrchestrationServiceSettings settings;
-        private readonly TaskHubWorker worker;
-        private readonly TaskHubClient client;
-        private readonly HashSet<Type> addedOrchestrationTypes;
-        private readonly HashSet<Type> addedActivityTypes;
+        readonly AzureStorageOrchestrationServiceSettings settings;
+        readonly TaskHubWorker worker;
+        readonly TaskHubClient client;
+        readonly HashSet<Type> addedOrchestrationTypes;
+        readonly HashSet<Type> addedActivityTypes;
 
         public TestOrchestrationHost(AzureStorageOrchestrationServiceSettings settings)
         {
@@ -54,20 +54,11 @@ namespace Correlation.Samples
 
         public string TaskHub => this.settings.TaskHubName;
 
-        public void Dispose()
-        {
-            this.worker.Dispose();
-        }
+        public void Dispose() => this.worker.Dispose();
 
-        public Task StartAsync()
-        {
-            return this.worker.StartAsync();
-        }
+        public Task StartAsync() => this.worker.StartAsync();
 
-        public Task StopAsync()
-        {
-            return this.worker.StopAsync(isForced: true);
-        }
+        public Task StopAsync() => this.worker.StopAsync(isForced: true);
 
         public async Task<TestOrchestrationClient> StartOrchestrationAsync(
             Type orchestrationType,

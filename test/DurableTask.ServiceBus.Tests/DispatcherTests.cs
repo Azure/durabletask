@@ -13,6 +13,8 @@
 
 namespace DurableTask.ServiceBus.Tests
 {
+#pragma warning disable CA1725 // Parameter names should match base declaration
+#pragma warning disable CA2211 // Non-constant fields should not be visible
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
@@ -33,13 +35,13 @@ namespace DurableTask.ServiceBus.Tests
     [TestClass]
     public class DispatcherTests
     {
-        private TaskHubClient client;
-        private TaskHubClient clientNoCompression;
-        private TaskHubWorker fakeTaskHub;
-        private TaskHubWorker taskHub;
-        private TaskHubWorker taskHubAlwaysCompression;
-        private TaskHubWorker taskHubLegacyCompression;
-        private TaskHubWorker taskHubNoCompression;
+        TaskHubClient client;
+        TaskHubClient clientNoCompression;
+        TaskHubWorker fakeTaskHub;
+        TaskHubWorker taskHub;
+        TaskHubWorker taskHubAlwaysCompression;
+        TaskHubWorker taskHubLegacyCompression;
+        TaskHubWorker taskHubNoCompression;
 
         public TestContext TestContext { get; set; }
 
@@ -58,7 +60,7 @@ namespace DurableTask.ServiceBus.Tests
                 this.taskHubAlwaysCompression = TestHelpers.CreateTaskHubAlwaysCompression();
                 this.clientNoCompression = TestHelpers.CreateTaskHubClientNoCompression();
 
-                this.taskHub.OrchestrationService.CreateAsync(true).Wait();
+                this.taskHub.orchestrationService.CreateAsync(true).Wait();
             }
         }
 
@@ -72,7 +74,7 @@ namespace DurableTask.ServiceBus.Tests
                 this.taskHubAlwaysCompression.StopAsync(true).Wait();
                 this.taskHubLegacyCompression.StopAsync(true).Wait();
                 this.fakeTaskHub.StopAsync(true).Wait();
-                this.taskHub.OrchestrationService.DeleteAsync(true).Wait();
+                this.taskHub.orchestrationService.DeleteAsync(true).Wait();
             }
         }
 
@@ -404,10 +406,9 @@ namespace DurableTask.ServiceBus.Tests
 
         public sealed class ComputeSumTask : TaskActivity<int[], int>
         {
-#pragma warning disable CA1725 // Parameter names should match base declaration
             protected override int Execute(TaskContext context, int[] chunk)
             {
-                if (chunk is null || chunk.Length != 2)
+                if (chunk == null || chunk.Length != 2)
                 {
                     throw new ArgumentException("Chunk cannot have Length other than 2", nameof(chunk));
                 }
@@ -426,15 +427,12 @@ namespace DurableTask.ServiceBus.Tests
 
                 return sum;
             }
-#pragma warning restore CA1725 // Parameter names should match base declaration
         }
 
         public class TypeMissingOrchestration : TaskOrchestration<string, string>
         {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string Result;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
 
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
@@ -476,11 +474,9 @@ namespace DurableTask.ServiceBus.Tests
 
         public class MaxMessagesLimitOrchestration : TaskOrchestration<long, string>
         {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static long Result;
             public static long Sum;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
 
             public override async Task<long> RunTask(OrchestrationContext context, string input)
             {
@@ -506,9 +502,7 @@ namespace DurableTask.ServiceBus.Tests
 
         public sealed class MaxMessagesLimitTask : TaskActivity<long, long>
         {
-#pragma warning disable CA1725 // Parameter names should match base declaration
             protected override long Execute(TaskContext context, long num) => num;
-#pragma warning restore CA1725 // Parameter names should match base declaration
         }
 
         #endregion
@@ -546,10 +540,8 @@ namespace DurableTask.ServiceBus.Tests
 
         public class AsyncGreetingsOrchestration : TaskOrchestration<string, string>
         {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string Result;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
 
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
@@ -565,12 +557,14 @@ namespace DurableTask.ServiceBus.Tests
 
         public sealed class AsyncSendGreetingTask : AsyncTaskActivity<string, string>
         {
-            protected override Task<string> ExecuteAsync(TaskContext context, string input)
-                => Task.Factory.StartNew(() =>
+            protected override async Task<string> ExecuteAsync(TaskContext context, string input)
+            {
+                return await Task.Factory.StartNew(() =>
                 {
                     Thread.Sleep(4000);
                     return "Greeting send to " + input;
                 });
+            }
         }
 
         #endregion
@@ -601,11 +595,9 @@ namespace DurableTask.ServiceBus.Tests
 
         public class AsyncDynamicGreetingsOrchestration : TaskOrchestration<string, string>
         {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string Result;
             public static string Result2;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
 
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
@@ -710,7 +702,7 @@ namespace DurableTask.ServiceBus.Tests
             await SessionExceededLimitSubTestWithInputSize(1000 * 1024);
         }
 
-        private async Task SessionExceededLimitSubTestWithInputSize(int inputSize)
+        async Task SessionExceededLimitSubTestWithInputSize(int inputSize)
         {
             string input = TestUtils.GenerateRandomString(inputSize);
             OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(LargeSessionOrchestration), new Tuple<string, int>(input, 2));
@@ -750,9 +742,9 @@ namespace DurableTask.ServiceBus.Tests
         {
             string input = TestUtils.GenerateRandomString(150 * 1024);
 
-            var serviceBusOrchestrationService = this.taskHub.OrchestrationService as ServiceBusOrchestrationService;
+            var serviceBusOrchestrationService = this.taskHub.orchestrationService as ServiceBusOrchestrationService;
 
-            Debug.Assert(serviceBusOrchestrationService is not null);
+            Debug.Assert(serviceBusOrchestrationService != null);
 
             serviceBusOrchestrationService.Settings.TaskOrchestrationDispatcherSettings.CompressOrchestrationState = false;
 
@@ -779,7 +771,7 @@ namespace DurableTask.ServiceBus.Tests
 
             var serviceBusOrchestrationService = this.client.ServiceClient as ServiceBusOrchestrationService;
 
-            Debug.Assert(serviceBusOrchestrationService is not null);
+            Debug.Assert(serviceBusOrchestrationService != null);
 
             serviceBusOrchestrationService.Settings.MessageCompressionSettings = new CompressionSettings
             {
@@ -812,9 +804,9 @@ namespace DurableTask.ServiceBus.Tests
                 .AddTaskActivities(typeof(LargeSessionTaskActivity))
                 .StartAsync();
 
-            var serviceBusOrchestrationService = this.taskHub.OrchestrationService as ServiceBusOrchestrationService;
+            var serviceBusOrchestrationService = this.taskHub.orchestrationService as ServiceBusOrchestrationService;
 
-            Debug.Assert(serviceBusOrchestrationService is not null);
+            Debug.Assert(serviceBusOrchestrationService != null);
 
             serviceBusOrchestrationService.Settings.SessionSettings = new ServiceBusSessionSettings(230 * 1024, 1024 * 1024);
 
@@ -830,10 +822,8 @@ namespace DurableTask.ServiceBus.Tests
 
         public class LargeSessionOrchestration : TaskOrchestration<string, Tuple<string, int>>
         {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string Result;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
 
             public override async Task<string> RunTask(OrchestrationContext context, Tuple<string, int> input)
             {
@@ -886,7 +876,6 @@ namespace DurableTask.ServiceBus.Tests
 
         public sealed class AlternatingPayloadTask : TaskActivity<bool, byte[]>
         {
-#pragma warning disable CA1725 // Parameter names should match base declaration
             protected override byte[] Execute(TaskContext context, bool largeOutput)
             {
                 byte[] arr = { 1, 2, 3, 4 };
@@ -903,7 +892,6 @@ namespace DurableTask.ServiceBus.Tests
 
                 return arr;
             }
-#pragma warning restore CA1725 // Parameter names should match base declaration
         }
 
         public class CompressionCompatTest : TaskOrchestration<string, string>

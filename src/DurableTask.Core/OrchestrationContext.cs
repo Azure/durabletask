@@ -17,9 +17,7 @@ namespace DurableTask.Core
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
-
     using Castle.DynamicProxy;
-
     using DurableTask.Core.Serializing;
 
     /// <summary>
@@ -30,7 +28,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Used in generating proxy interfaces and classes.
         /// </summary>
-        private static readonly ProxyGenerator ProxyGenerator = new ProxyGenerator();
+        static readonly ProxyGenerator ProxyGenerator = new ProxyGenerator();
 
         /// <summary>
         /// Thread-static variable used to signal whether the calling thread is the orchestrator thread.

@@ -16,7 +16,6 @@ namespace DurableTask.Core
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
-
     using DurableTask.Core.Common;
     using DurableTask.Core.History;
     using DurableTask.Core.Tracing;
@@ -44,7 +43,7 @@ namespace DurableTask.Core
         /// </summary>
         public IList<HistoryEvent> PastEvents { get; }
 
-        private readonly ISet<int> completedEventIds;
+        readonly ISet<int> completedEventIds;
 
         /// <summary>
         /// Compressed size of the serialized state
@@ -80,12 +79,12 @@ namespace DurableTask.Core
         /// <param name="events">List of events for this runtime state</param>
         public OrchestrationRuntimeState(IList<HistoryEvent>? events)
         {
-            Events = events is not null ? new List<HistoryEvent>(events.Count) : new List<HistoryEvent>();
-            PastEvents = events is not null ? new List<HistoryEvent>(events.Count) : new List<HistoryEvent>();
+            Events = events != null ? new List<HistoryEvent>(events.Count) : new List<HistoryEvent>();
+            PastEvents = events != null ? new List<HistoryEvent>(events.Count) : new List<HistoryEvent>();
             NewEvents = new List<HistoryEvent>();
             completedEventIds = new HashSet<int>();
 
-            if (events is not null && events.Count > 0)
+            if (events != null && events.Count > 0)
             {
                 foreach (HistoryEvent ev in events)
                 {
@@ -157,7 +156,7 @@ namespace DurableTask.Core
             {
                 GetExecutionStartedEventOrThrow();
 
-                if (ExecutionCompletedEvent is not null)
+                if (ExecutionCompletedEvent != null)
                 {
                     return ExecutionCompletedEvent.OrchestrationStatus;
                 }
@@ -182,10 +181,10 @@ namespace DurableTask.Core
         /// <param name="historyEvent">The new history event to add</param>
         public void AddEvent(HistoryEvent historyEvent) => AddEvent(historyEvent, true);
 
-        private ExecutionStartedEvent GetExecutionStartedEventOrThrow()
+        ExecutionStartedEvent GetExecutionStartedEventOrThrow()
         {
             ExecutionStartedEvent? executionStartedEvent = this.ExecutionStartedEvent;
-            if (executionStartedEvent is null)
+            if (executionStartedEvent == null)
             {
                 throw new InvalidOperationException("An ExecutionStarted event is required.");
             }
@@ -198,7 +197,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="historyEvent">The history event to add</param>
         /// <param name="isNewEvent">Flag indicating whether this is a new event or not</param>
-        private void AddEvent(HistoryEvent historyEvent, bool isNewEvent)
+        void AddEvent(HistoryEvent historyEvent, bool isNewEvent)
         {
             if (IsDuplicateEvent(historyEvent))
             {
@@ -219,14 +218,14 @@ namespace DurableTask.Core
             SetMarkerEvents(historyEvent);
         }
 
-        private bool IsDuplicateEvent(HistoryEvent historyEvent)
+        bool IsDuplicateEvent(HistoryEvent historyEvent)
         {
             if (historyEvent.EventId >= 0 &&
                 historyEvent.EventType == EventType.TaskCompleted &&
                 !completedEventIds.Add(historyEvent.EventId))
             {
-                TraceHelper.Trace(TraceEventType.Warning,
-                    "OrchestrationRuntimeState-DuplicateEvent",
+                TraceHelper.Trace(TraceEventType.Warning, 
+                    "OrchestrationRuntimeState-DuplicateEvent", 
                     "The orchestration '{0}' has already seen a completed task with id {1}.",
                     this.OrchestrationInstance?.InstanceId,
                     historyEvent.EventId);
@@ -235,11 +234,11 @@ namespace DurableTask.Core
             return false;
         }
 
-        private void SetMarkerEvents(HistoryEvent historyEvent)
+        void SetMarkerEvents(HistoryEvent historyEvent)
         {
             if (historyEvent is ExecutionStartedEvent startedEvent)
             {
-                if (ExecutionStartedEvent is not null)
+                if (ExecutionStartedEvent != null)
                 {
                     throw new InvalidOperationException(
                         "Multiple ExecutionStartedEvent found, potential corruption in state storage");
@@ -249,7 +248,7 @@ namespace DurableTask.Core
             }
             else if (historyEvent is ExecutionCompletedEvent completedEvent)
             {
-                if (ExecutionCompletedEvent is not null)
+                if (ExecutionCompletedEvent != null)
                 {
                     throw new InvalidOperationException(
                         "Multiple ExecutionCompletedEvent found, potential corruption in state storage");
@@ -298,7 +297,7 @@ namespace DurableTask.Core
 #endif
         }
 
-        private HistoryEvent GenerateAbridgedEvent(HistoryEvent evt)
+        HistoryEvent GenerateAbridgedEvent(HistoryEvent evt)
         {
             HistoryEvent returnedEvent = evt;
 

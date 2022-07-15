@@ -27,9 +27,9 @@ namespace DurableTask.Core.Tests
     [TestClass]
     public class ExceptionHandlingIntegrationTests
     {
-        private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 300 : 10);
-        private readonly TaskHubWorker worker;
-        private readonly TaskHubClient client;
+        static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 300 : 10);
+        readonly TaskHubWorker worker;
+        readonly TaskHubClient client;
 
         public ExceptionHandlingIntegrationTests()
         {
@@ -152,7 +152,7 @@ namespace DurableTask.Core.Tests
             }
         }
 
-        private class ExceptionHandlingOrchestration : TaskOrchestration<object, string>
+        class ExceptionHandlingOrchestration : TaskOrchestration<object, string>
         {
             public override async Task<object> RunTask(OrchestrationContext context, string input)
             {
@@ -168,7 +168,7 @@ namespace DurableTask.Core.Tests
             }
         }
 
-        private class ExceptionHandlingWithRetryOrchestration : TaskOrchestration<int, string>
+        class ExceptionHandlingWithRetryOrchestration : TaskOrchestration<int, string>
         {
             public override async Task<int> RunTask(OrchestrationContext context, string input)
             {
@@ -186,7 +186,7 @@ namespace DurableTask.Core.Tests
                                 // Users should be able to examine the structured exception details when
                                 // ErrorPropagationMode is set to UseFailureDetails
                                 if (e is TaskFailedException tfe &&
-                                    tfe.FailureDetails is not null &&
+                                    tfe.FailureDetails != null &&
                                     tfe.FailureDetails.ErrorType == typeof(InvalidOperationException).FullName &&
                                     tfe.FailureDetails.ErrorMessage == "This is a test exception" &&
                                     tfe.FailureDetails.StackTrace!.Contains(typeof(ThrowInvalidOperationException).Name) &&
@@ -210,7 +210,7 @@ namespace DurableTask.Core.Tests
             }
         }
 
-        private class NoExceptionHandlingOrchestration : TaskOrchestration<object, string>
+        class NoExceptionHandlingOrchestration : TaskOrchestration<object, string>
         {
             public override Task<object> RunTask(OrchestrationContext context, string input)
             {
@@ -219,7 +219,7 @@ namespace DurableTask.Core.Tests
             }
         }
 
-        private class ThrowInvalidOperationException : TaskActivity<string, string>
+        class ThrowInvalidOperationException : TaskActivity<string, string>
         {
             protected override string Execute(TaskContext context, string input)
             {

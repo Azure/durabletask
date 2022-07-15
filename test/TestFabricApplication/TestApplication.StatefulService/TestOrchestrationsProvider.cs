@@ -49,7 +49,7 @@ namespace TestApplication.StatefulService
         }
 
         /// <inheritdoc/>
-        private IEnumerable<Type> GetActivityTypes()
+        IEnumerable<Type> GetActivityTypes()
         {
             return new Type[]
             {
@@ -59,7 +59,7 @@ namespace TestApplication.StatefulService
         }
 
         /// <inheritdoc/>
-        private IEnumerable<Type> GetOrchestrationTypes()
+        IEnumerable<Type> GetOrchestrationTypes()
         {
             return new Type[]
             {
@@ -76,7 +76,7 @@ namespace TestApplication.StatefulService
         }
 
         /// <inheritdoc/>
-        private IEnumerable<KeyValuePair<string, TaskOrchestration>> GetTaskOrchestrations()
+        IEnumerable<KeyValuePair<string, TaskOrchestration>> GetTaskOrchestrations()
         {
             yield return new KeyValuePair<string, TaskOrchestration>(typeof(OrchestrationRunningIntoRetry).Name, new OrchestrationRunningIntoRetry());
         }

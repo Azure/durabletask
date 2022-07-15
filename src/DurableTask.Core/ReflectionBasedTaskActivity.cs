@@ -18,11 +18,9 @@ namespace DurableTask.Core
     using System.Linq;
     using System.Reflection;
     using System.Threading.Tasks;
-
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.Serializing;
-
     using Newtonsoft.Json.Linq;
 
     /// <summary>
@@ -30,8 +28,8 @@ namespace DurableTask.Core
     /// </summary>
     public class ReflectionBasedTaskActivity : TaskActivity
     {
-        private DataConverter dataConverter;
-        private readonly Type[] genericArguments;
+        DataConverter dataConverter;
+        readonly Type[] genericArguments;
 
         /// <summary>
         /// Creates a new ReflectionBasedTaskActivity based on an activity object and method info
@@ -129,7 +127,7 @@ namespace DurableTask.Core
                 exception = e;
             }
 
-            if (exception is not null)
+            if (exception != null)
             {
                 string details = null;
                 FailureDetails failureDetails = null;
@@ -157,7 +155,7 @@ namespace DurableTask.Core
         /// <returns></returns>
         public virtual object InvokeActivity(object[] inputParameters) => MethodInfo.Invoke(ActivityObject, inputParameters);
 
-        private object InvokeActivity(object[] inputParameters, Type[] genericTypeParameters)
+        object InvokeActivity(object[] inputParameters, Type[] genericTypeParameters)
         {
             if (genericTypeParameters.Any())
             {
@@ -167,9 +165,9 @@ namespace DurableTask.Core
             return MethodInfo.Invoke(ActivityObject, inputParameters);
         }
 
-        private string MethodInfoString() => $"{MethodInfo.ReflectedType?.FullName}.{MethodInfo.Name}";
+        string MethodInfoString() => $"{MethodInfo.ReflectedType?.FullName}.{MethodInfo.Name}";
 
-        private Type[] GetGenericTypeArguments(JArray jArray)
+        Type[] GetGenericTypeArguments(JArray jArray)
         {
             List<Type> genericParameters = new List<Type>(this.genericArguments.Length);
 
@@ -182,7 +180,7 @@ namespace DurableTask.Core
             return genericParameters.ToArray();
         }
 
-        private object[] GetInputParameters(JArray jArray, int parameterCount, ParameterInfo[] methodParameters, Type[] genericArguments)
+        object[] GetInputParameters(JArray jArray, int parameterCount, ParameterInfo[] methodParameters, Type[] genericArguments)
         {
             var inputParameters = new object[methodParameters.Length];
             for (var i = 0; i < methodParameters.Length; i++)

@@ -13,7 +13,6 @@
 
 namespace Correlation.Samples
 {
-#pragma warning disable CA1812 // Internal classes instantiated indirectly
     using System;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
@@ -22,7 +21,7 @@ namespace Correlation.Samples
 
     [KnownType(typeof(RetryActivity))]
     [KnownType(typeof(NonRetryActivity))]
-    internal class RetryOrchestration : TaskOrchestration<string, string>
+class RetryOrchestration : TaskOrchestration<string, string>
     {
         public override async Task<string> RunTask(OrchestrationContext context, string input)
         {
@@ -32,21 +31,21 @@ namespace Correlation.Samples
         }
     }
 
-    internal class RetryActivity : TaskActivity<string, string>
+    class RetryActivity : TaskActivity<string, string>
     {
-        private static int counter = 0;
+        static int Counter = 0;
 
         protected override string Execute(TaskContext context, string input)
         {
-            counter++;
-            if (counter == 1) throw new InvalidOperationException($"Counter = {counter}");
+            Counter++;
+            if (Counter == 1) throw new InvalidOperationException($"Counter = {Counter}");
 
             Console.WriteLine($"Retry with Activity: Hello {input}");
             return $"Retry Hello, {input}!";
         }
     }
 
-    internal class NonRetryActivity : TaskActivity<string, string>
+    class NonRetryActivity : TaskActivity<string, string>
     {
         protected override string Execute(TaskContext context, string input)
         {

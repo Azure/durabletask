@@ -28,13 +28,13 @@ namespace DurableTask.Redis
     /// workers will have to constantly compete to be the "cleaner", and this class will be performing
     /// several background cleanup jobs to see if any workers have died recently and cleaning them up if necessary.
     /// </summary>
-    internal class WorkerRecycler
+    class WorkerRecycler
     {
-        private readonly string taskHub;
-        private readonly ConnectionMultiplexer redisConnection;
-        private readonly string workerSetKey;
-        private readonly string incomingActivityQueueKey;
-        private readonly RedisLogger logger;
+        readonly string taskHub;
+        readonly ConnectionMultiplexer redisConnection;
+        readonly string workerSetKey;
+        readonly string incomingActivityQueueKey;
+        readonly RedisLogger logger;
 
         public WorkerRecycler(string taskHub,  ConnectionMultiplexer connection)
         {
@@ -62,7 +62,7 @@ namespace DurableTask.Redis
                 long itemsToRestore = await redisDatabase.ListLengthAsync(processingQueueKey);
                 await this.logger.LogAsync($"Moving {itemsToRestore} from processing queue back to incoming queue");
                 string restoredMessage = await redisDatabase.ListRightPopLeftPushAsync(processingQueueKey, incomingActivityQueueKey);
-                while (restoredMessage is not null)
+                while (restoredMessage != null)
                 {
                     TaskMessage message = RedisSerializer.DeserializeObject<TaskMessage>(restoredMessage);
                     await this.logger.LogAsync($"Moved activity with id {message.Event.EventId} from processing queue back to incoming queue");

@@ -26,9 +26,9 @@ namespace DurableTask.AzureStorage
     // The TimeoutHandler class is based off of the similar Azure Functions fix seen here: https://github.com/Azure/azure-webjobs-sdk/pull/2291
     static class TimeoutHandler
     {
-        static int numTimeoutsHit = 0;
+        static int NumTimeoutsHit = 0;
 
-        static DateTime lastTimeoutHit = DateTime.MinValue;
+        static DateTime LastTimeoutHit = DateTime.MinValue;
 
         /// <summary>
         /// Process kill action. This is exposed here to allow override from tests.
@@ -57,7 +57,7 @@ namespace DurableTask.AzureStorage
                     Task timeoutTask = Task.Delay(settings.StorageRequestsTimeout, cts.Token);
                     Task<T> operationTask = operation(context, cts.Token);
 
-                    if (stats is not null)
+                    if (stats != null)
                     {
                         stats.StorageRequests.Increment();
                     }
@@ -68,21 +68,21 @@ namespace DurableTask.AzureStorage
                         // If more less than DefaultTimeoutCooldown passed, increase timeouts count
                         // otherwise, reset the count to 1, since this is the first timeout we receive
                         // after a long (enough) while
-                        if (lastTimeoutHit + settings.StorageRequestsTimeoutCooldown > DateTime.UtcNow)
+                        if (LastTimeoutHit + settings.StorageRequestsTimeoutCooldown > DateTime.UtcNow)
                         {
-                            numTimeoutsHit++;
+                            NumTimeoutsHit++;
                         }
                         else
                         {
-                            numTimeoutsHit = 1;
+                            NumTimeoutsHit = 1;
                         }
 
-                        lastTimeoutHit = DateTime.UtcNow;
+                        LastTimeoutHit = DateTime.UtcNow;
 
                         string taskHubName = settings?.TaskHubName;
-                        if (numTimeoutsHit < settings.MaxNumberOfTimeoutsBeforeRecycle)
+                        if (NumTimeoutsHit < settings.MaxNumberOfTimeoutsBeforeRecycle)
                         {
-                            string message = $"The operation '{operationName}' with id '{context.ClientRequestID}' did not complete in '{settings.StorageRequestsTimeout}'. Hit {numTimeoutsHit} out of {settings.MaxNumberOfTimeoutsBeforeRecycle} allowed timeouts. Retrying the operation.";
+                            string message = $"The operation '{operationName}' with id '{context.ClientRequestID}' did not complete in '{settings.StorageRequestsTimeout}'. Hit {NumTimeoutsHit} out of {settings.MaxNumberOfTimeoutsBeforeRecycle} allowed timeouts. Retrying the operation.";
                             settings.Logger.GeneralWarning(account ?? "", taskHubName ?? "", message);
 
                             cts.Cancel();

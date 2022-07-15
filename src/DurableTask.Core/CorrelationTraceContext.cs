@@ -22,8 +22,8 @@ namespace DurableTask.Core
     public class CorrelationTraceContext
     {
 #pragma warning disable IDE1006 // Naming Styles
-        private static readonly AsyncLocal<TraceContextBase> current = new AsyncLocal<TraceContextBase>();
-        private static readonly AsyncLocal<bool> generateDependencyTracking = new AsyncLocal<bool>();
+        static readonly AsyncLocal<TraceContextBase> current = new AsyncLocal<TraceContextBase>();
+        static readonly AsyncLocal<bool> generateDependencyTracking = new AsyncLocal<bool>();
 #pragma warning restore IDE1006 // Naming Styles
 
         /// <summary>

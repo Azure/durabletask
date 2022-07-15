@@ -18,20 +18,20 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests.DeploymentUtil
     using System.Linq;
     using System.Xml;
 
-    internal class ApplicationInfoReader
+    class ApplicationInfoReader
     {
-        private readonly string applicationRootPath;
-        private readonly string applicationPackagePath;
-        private readonly XmlElement applicationManifestRoot;
-        private readonly XmlNamespaceManager applicationManifestNamespaceManager;
-        private readonly XmlElement serviceManifestRoot;
-        private readonly XmlNamespaceManager serviceManifestNamespaceManager;
-        private const string ApplicationManifestNodePath = "/sf:ApplicationManifest";
-        private const string ApplicationNameAttribute = "ApplicationTypeName";
-        private const string ApplicationVersionAttribute = "ApplicationTypeVersion";
-        private const string StatefulServiceNodePath = "/sf:ServiceManifest/sf:ServiceTypes/sf:StatefulServiceType";
-        private const string StatelessServiceNodePath = "/sf:ServiceManifest/sf:ServiceTypes/sf:StatelessServiceType";
-        private const string ServiceTypeNameAttribute = "ServiceTypeName";
+        readonly string applicationRootPath;
+        readonly string applicationPackagePath;
+        readonly XmlElement applicationManifestRoot;
+        readonly XmlNamespaceManager applicationManifestNamespaceManager;
+        readonly XmlElement serviceManifestRoot;
+        readonly XmlNamespaceManager serviceManifestNamespaceManager;
+        const string ApplicationManifestNodePath = "/sf:ApplicationManifest";
+        const string ApplicationNameAttribute = "ApplicationTypeName";
+        const string ApplicationVersionAttribute = "ApplicationTypeVersion";
+        const string StatefulServiceNodePath = "/sf:ServiceManifest/sf:ServiceTypes/sf:StatefulServiceType";
+        const string StatelessServiceNodePath = "/sf:ServiceManifest/sf:ServiceTypes/sf:StatelessServiceType";
+        const string ServiceTypeNameAttribute = "ServiceTypeName";
 
         public ApplicationInfoReader(string applicationRootPath)
         {
@@ -92,13 +92,13 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests.DeploymentUtil
 
         public string ApplicationPackagePath => this.applicationPackagePath;
 
-        private string GetSingleNodeAttributeValue(XmlElement root, XmlNamespaceManager namespaceManager, string queryPath, string attributeName)
+        string GetSingleNodeAttributeValue(XmlElement root, XmlNamespaceManager namespaceManager, string queryPath, string attributeName)
         {
             var node = root.SelectSingleNode(queryPath, namespaceManager);
             return node?.Attributes?[attributeName].Value;
         }
 
-        private XmlNamespaceManager GetXmlNamespaceManager(XmlNameTable nameTable)
+        XmlNamespaceManager GetXmlNamespaceManager(XmlNameTable nameTable)
         {
             var result = new XmlNamespaceManager(nameTable);
             result.AddNamespace("sf", "http://schemas.microsoft.com/2011/01/fabric");

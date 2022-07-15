@@ -17,7 +17,6 @@ namespace DurableTask.Core.Serializing
     using System.Globalization;
     using System.IO;
     using System.Text;
-
     using Newtonsoft.Json;
 
     /// <summary>
@@ -29,7 +28,8 @@ namespace DurableTask.Core.Serializing
         /// Default JsonDataConverter
         /// </summary>
         public static readonly JsonDataConverter Default = new JsonDataConverter();
-        private readonly JsonSerializer serializer;
+
+        readonly JsonSerializer serializer;
 
         /// <summary>
         /// Creates a new instance of the JsonDataConverter with default settings
@@ -68,7 +68,7 @@ namespace DurableTask.Core.Serializing
         /// <returns>Object serialized to a string</returns>
         public override string Serialize(object value, bool formatted)
         {
-            if (value is null)
+            if (value == null)
             {
                 // This avoids serializing null into "null"
                 return null;
@@ -80,7 +80,7 @@ namespace DurableTask.Core.Serializing
             {
                 writer.Formatting = (formatted ? Formatting.Indented : Formatting.None);
                 this.serializer.Serialize(writer, value);
-
+            
                 return textWriter.ToString();
             }
         }
@@ -93,7 +93,7 @@ namespace DurableTask.Core.Serializing
         /// <returns>Deserialized Object</returns>
         public override object Deserialize(string data, Type objectType)
         {
-            if (data is null)
+            if (data == null)
             {
                 return null;
             }

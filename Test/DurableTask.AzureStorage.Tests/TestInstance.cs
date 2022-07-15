@@ -17,17 +17,20 @@ namespace DurableTask.AzureStorage.Tests
     using System.Diagnostics;
     using System.Text.RegularExpressions;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
+
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
 
-    internal class TestInstance<T>
+    class TestInstance<T>
     {
-        private readonly TaskHubClient client;
-        private readonly OrchestrationInstance instance;
-        private readonly DateTime startTime;
-        private readonly T input;
+        readonly TaskHubClient client;
+        readonly OrchestrationInstance instance;
+        readonly DateTime startTime;
+        readonly T input;
 
         public TestInstance(
             TaskHubClient client,
@@ -45,7 +48,7 @@ namespace DurableTask.AzureStorage.Tests
 
         public string ExecutionId => this.instance?.ExecutionId;
 
-        private OrchestrationInstance GetInstanceForAnyExecution() => new OrchestrationInstance
+        OrchestrationInstance GetInstanceForAnyExecution() => new OrchestrationInstance
         {
             InstanceId = this.instance.InstanceId,
         };
@@ -58,7 +61,7 @@ namespace DurableTask.AzureStorage.Tests
             do
             {
                 OrchestrationState state = await this.GetStateAsync();
-                if (state is not null && state.OrchestrationStatus != OrchestrationStatus.Pending)
+                if (state != null && state.OrchestrationStatus != OrchestrationStatus.Pending)
                 {
                     return state;
                 }
@@ -81,14 +84,14 @@ namespace DurableTask.AzureStorage.Tests
 
             OrchestrationState state = await this.client.WaitForOrchestrationAsync(this.GetInstanceForAnyExecution(), timeout);
             Assert.IsNotNull(state);
-            if (expectedStatus is not null)
+            if (expectedStatus != null)
             {
                 Assert.AreEqual(expectedStatus, state.OrchestrationStatus);
             }
 
             if (!continuedAsNew)
             {
-                if (this.input is not null)
+                if (this.input != null)
                 {
                     Assert.AreEqual(JToken.FromObject(this.input).ToString(), JToken.Parse(state.Input).ToString());
                 }
@@ -108,7 +111,7 @@ namespace DurableTask.AzureStorage.Tests
             // Make sure there is an ExecutionId, but don't require it to match any particular value
             Assert.IsNotNull(state.OrchestrationInstance.ExecutionId);
 
-            if (expectedOutput is not null)
+            if (expectedOutput != null)
             {
                 Assert.IsNotNull(state.Output);
                 try
@@ -124,7 +127,7 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
-            if (expectedOutputRegex is not null)
+            if (expectedOutputRegex != null)
             {
                 Assert.IsTrue(
                     Regex.IsMatch(state.Output, expectedOutputRegex),
@@ -149,7 +152,7 @@ namespace DurableTask.AzureStorage.Tests
             return this.client.TerminateInstanceAsync(this.instance, reason);
         }
 
-        private static void AdjustTimeout(ref TimeSpan timeout)
+        static void AdjustTimeout(ref TimeSpan timeout)
         {
             if (timeout == default)
             {

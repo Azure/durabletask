@@ -27,7 +27,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
     [TestClass]
     public class FunctionalTests
     {
-        private TaskHubClient taskHubClient;
+        TaskHubClient taskHubClient;
 
         [TestInitialize]
         public void TestInitialize()
@@ -218,9 +218,9 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
             for (int i = 0; i < allResults.Length; i++)
             {
                 var result = allResults[i];
-                if (result.Item1 is not null)
+                if (result.Item1 != null)
                 {
-                    if (createdInstance is not null)
+                    if (createdInstance != null)
                     {
                         Assert.Fail($"Multiple orchestrations were started with the instance id {instanceId} at the same time");
                     }

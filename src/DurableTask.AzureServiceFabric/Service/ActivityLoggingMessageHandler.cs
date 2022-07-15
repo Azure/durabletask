@@ -21,7 +21,7 @@ namespace DurableTask.AzureServiceFabric.Service
 
     using DurableTask.AzureServiceFabric.Tracing;
 
-    internal class ActivityLoggingMessageHandler : DelegatingHandler
+    class ActivityLoggingMessageHandler : DelegatingHandler
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {

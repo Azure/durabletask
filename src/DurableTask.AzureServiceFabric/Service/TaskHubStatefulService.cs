@@ -30,8 +30,8 @@ namespace DurableTask.AzureServiceFabric.Service
     /// </summary>
     public sealed class TaskHubStatefulService : StatefulService
     {
-        private readonly IList<IServiceListener> serviceListeners;
-        private ReplicaRole currentRole;
+        readonly IList<IServiceListener> serviceListeners;
+        ReplicaRole currentRole;
 
         /// <summary>
         /// Creates instance of <see cref="TaskHubProxyListener"/>

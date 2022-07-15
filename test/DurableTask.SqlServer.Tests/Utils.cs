@@ -13,16 +13,17 @@
 
 namespace DurableTask.SqlServer.Tests
 {
-    using DurableTask.Core;
-    using DurableTask.Core.History;
-    using DurableTask.Core.Tracking;
     using System;
     using System.Collections.Generic;
     using System.Linq;
 
+    using DurableTask.Core;
+    using DurableTask.Core.History;
+    using DurableTask.Core.Tracking;
+
     public static class Utils
     {
-        private static readonly Random random = new Random();
+        static readonly Random Random = new Random();
 
         public static IEnumerable<OrchestrationStateInstanceEntity> InfiniteOrchestrationTestData()
         {
@@ -43,7 +44,7 @@ namespace DurableTask.SqlServer.Tests
                             ExecutionId = Guid.NewGuid().ToString("N"),
                             InstanceId = Guid.NewGuid().ToString("N")
                         },
-                        OrchestrationStatus = statusValues[random.Next(statusValues.Length)],
+                        OrchestrationStatus = statusValues[Random.Next(statusValues.Length)],
                         Version = string.Empty,
                     }
                 };
@@ -59,17 +60,17 @@ namespace DurableTask.SqlServer.Tests
                     ExecutionId = executionId,
                     InstanceId = instanceId,
                     SequenceNumber = sequenceNumber++,
-                    HistoryEvent = new GenericEvent(random.Next(100), GetRandomStringValue())
+                    HistoryEvent = new GenericEvent(Random.Next(100), GetRandomStringValue())
                 };
         }
 
-        private static string GetRandomStringValue(int minimumLength = 5, int maximumLength = 15)
+        static string GetRandomStringValue(int minimumLength = 5, int maximumLength = 15)
         {
-            var length = random.Next(maximumLength - minimumLength) + minimumLength;
+            var length = Random.Next(maximumLength - minimumLength) + minimumLength;
 
             const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
             return new string(Enumerable.Repeat(chars, length)
-              .Select(s => s[random.Next(s.Length)]).ToArray());
+              .Select(s => s[Random.Next(s.Length)]).ToArray());
         }
     }
 }

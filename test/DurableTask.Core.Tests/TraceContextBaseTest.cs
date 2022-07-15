@@ -124,7 +124,7 @@ namespace DurableTask.Core.Tests
             Assert.ThrowsException<InvalidOperationException>(() => currentContext.GetCurrentOrchestrationRequestTraceContext());
         }
 
-        private static Foo GetNewRequestContext(string comment)
+        static Foo GetNewRequestContext(string comment)
         {
             var requestContext = new Foo
             {
@@ -134,7 +134,7 @@ namespace DurableTask.Core.Tests
             return requestContext;
         }
 
-        private static Foo GetNewDependencyContext(string comment)
+        static Foo GetNewDependencyContext(string comment)
         {
             var dependencyContext = new Foo
             {
@@ -144,7 +144,7 @@ namespace DurableTask.Core.Tests
             return dependencyContext;
         }
 
-        private class Foo : TraceContextBase
+        class Foo : TraceContextBase
         {
             public Foo() : base() { }
 

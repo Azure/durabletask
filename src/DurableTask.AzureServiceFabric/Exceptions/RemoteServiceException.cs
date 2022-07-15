@@ -27,7 +27,7 @@ namespace DurableTask.AzureServiceFabric.Exceptions
     /// </summary>
     public class RemoteServiceException : Exception
     {
-        private readonly HttpStatusCode statusCode;
+        readonly HttpStatusCode statusCode;
 
         /// <summary>
         /// Creates an instance of <see cref="RemoteServiceException"/>.
@@ -38,11 +38,11 @@ namespace DurableTask.AzureServiceFabric.Exceptions
          => this.statusCode = statusCode;
 
         /// <summary>Initializes a new instance of the <see cref="RemoteServiceException" /> class.</summary>
-        private RemoteServiceException() { }
+        RemoteServiceException() { }
 
         /// <summary>Initializes a new instance of the <see cref="RemoteServiceException" /> class with a specified error message.</summary>
         /// <param name="message">The message that describes the error.</param>
-        private RemoteServiceException(string message) : base(message) { }
+        RemoteServiceException(string message) : base(message) { }
 
         /// <summary>Initializes a new instance of the <see cref="RemoteServiceException" /> class with serialized data.</summary>
         /// <param name="info">The <see cref="System.Runtime.Serialization.SerializationInfo" /> that holds the serialized object data about the exception being thrown.</param>
@@ -53,7 +53,7 @@ namespace DurableTask.AzureServiceFabric.Exceptions
         [SecuritySafeCritical]
         protected RemoteServiceException(SerializationInfo info, StreamingContext context) : base(info, context) { }
 
-        private RemoteServiceException(string message, Exception innerException) : base(message, innerException) { }
+        RemoteServiceException(string message, Exception innerException) : base(message, innerException) { }
 
         /// <summary>
         /// Instace of <see cref="HttpStatusCode"/> sent by proxy service.

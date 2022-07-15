@@ -20,7 +20,6 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     using System.Runtime.ExceptionServices;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
     using DurableTask.Core.Common;
     using DurableTask.Core.History;
@@ -28,13 +27,12 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     using DurableTask.Core.Tracing;
     using DurableTask.Core.Tracking;
     using DurableTask.ServiceBus.Settings;
-
     using Newtonsoft.Json;
 #if NETSTANDARD2_0
     using Microsoft.Azure.ServiceBus.InteropExtensions;
 #endif
 
-    internal static class ServiceBusUtils
+    static class ServiceBusUtils
     {
         internal static readonly TimeSpan TokenTimeToLive = TimeSpan.FromDays(30);
 
@@ -50,7 +48,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             IOrchestrationServiceBlobStore orchestrationServiceBlobStore,
             DateTime messageFireTime)
         {
-            if (serializableObject is null)
+            if (serializableObject == null)
             {
                 throw new ArgumentNullException(nameof(serializableObject));
             }
@@ -68,11 +66,11 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                     return new Message(ms.ToArray()) { SessionId = instance?.InstanceId };
                 }
 #else
-                return new Message(serializableObject) { SessionId = instance?.InstanceId };
+                return new Message(serializableObject) { SessionId = instance?.InstanceId};
 #endif
             }
 
-            if (messageSettings is null)
+            if (messageSettings == null)
             {
                 messageSettings = new ServiceBusMessageSettings();
             }
@@ -138,7 +136,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             }
         }
 
-        private static Message GenerateBrokeredMessageWithCompressionTypeProperty(Stream stream, string compressionType)
+        static Message GenerateBrokeredMessageWithCompressionTypeProperty(Stream stream, string compressionType)
         {
 #if NETSTANDARD2_0
             Message brokeredMessage;
@@ -155,7 +153,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             return brokeredMessage;
         }
 
-        private static async Task<Message> GenerateBrokeredMessageWithBlobKeyPropertyAsync(
+        static async Task<Message> GenerateBrokeredMessageWithBlobKeyPropertyAsync(
             Stream stream,
             IOrchestrationServiceBlobStore orchestrationServiceBlobStore,
             OrchestrationInstance instance,
@@ -170,7 +168,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                     nameof(stream));
             }
 
-            if (orchestrationServiceBlobStore is null)
+            if (orchestrationServiceBlobStore == null)
             {
                 throw new ArgumentException(
                     "Please provide an implementation of IOrchestrationServiceBlobStore for external storage.",
@@ -198,7 +196,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
         public static async Task<T> GetObjectFromBrokeredMessageAsync<T>(Message message, IOrchestrationServiceBlobStore orchestrationServiceBlobStore)
         {
-            if (message is null)
+            if (message == null)
             {
                 throw new ArgumentNullException(nameof(message));
             }
@@ -258,7 +256,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             return deserializedObject;
         }
 
-        private static T SafeReadFromStream<T>(Stream objectStream)
+        static T SafeReadFromStream<T>(Stream objectStream)
         {
             byte[] serializedBytes = Utils.ReadBytesFromStream(objectStream);
             try
@@ -289,7 +287,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             }
         }
 
-        private static Task<Stream> LoadMessageStreamAsync(Message message, IOrchestrationServiceBlobStore orchestrationServiceBlobStore)
+        static Task<Stream> LoadMessageStreamAsync(Message message, IOrchestrationServiceBlobStore orchestrationServiceBlobStore)
         {
             string blobKey = string.Empty;
 
@@ -311,7 +309,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
             // if the blob key is set in the message property,
             // load the stream message from the service bus message store.
-            if (orchestrationServiceBlobStore is null)
+            if (orchestrationServiceBlobStore == null)
             {
                 throw new ArgumentException($"Failed to load compressed message from external storage with key: {blobKey}. Please provide an implementation of IServiceBusMessageStore for external storage.", nameof(orchestrationServiceBlobStore));
             }
@@ -358,7 +356,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                         TraceEventType.Critical,
                         "MaxDeliveryCountApproaching",
                         "Delivery count for message with id {0} is {1}. Message will be deadlettered if processing continues to fail.",
-                        message.MessageId,
+                        message.MessageId, 
                         message.SystemProperties.DeliveryCount);
                 }
             }

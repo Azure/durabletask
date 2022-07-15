@@ -15,11 +15,9 @@ namespace DurableTask.ServiceBus.Tracking
 {
     using System;
     using System.Collections.Generic;
-
     using DurableTask.Core;
     using DurableTask.Core.Common;
     using DurableTask.Core.Serializing;
-
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Table;
 
@@ -28,7 +26,7 @@ namespace DurableTask.ServiceBus.Tracking
     /// </summary>
     public class AzureTableOrchestrationStateEntity : AzureTableCompositeTableEntity
     {
-        private readonly DataConverter dataConverter;
+        readonly DataConverter dataConverter;
 
         /// <summary>
         /// Creates a new AzureTableOrchestrationStateEntity
@@ -77,7 +75,7 @@ namespace DurableTask.ServiceBus.Tracking
                 { "ExecutionId", new EntityProperty(State.OrchestrationInstance.ExecutionId) }
             };
 
-            if (State.ParentInstance is not null)
+            if (State.ParentInstance != null)
             {
                 returnValues.Add("ParentInstanceId", new EntityProperty(State.ParentInstance.OrchestrationInstance.InstanceId));
                 returnValues.Add("ParentExecutionId", new EntityProperty(State.ParentInstance.OrchestrationInstance.ExecutionId));
@@ -87,7 +85,7 @@ namespace DurableTask.ServiceBus.Tracking
             returnValues.Add("Name", new EntityProperty(State.Name));
             returnValues.Add("Version", new EntityProperty(State.Version));
             returnValues.Add("Status", new EntityProperty(State.Status));
-            returnValues.Add("Tags", new EntityProperty(State.Tags is not null ? this.dataConverter.Serialize(State.Tags) : null));
+            returnValues.Add("Tags", new EntityProperty(State.Tags != null ? this.dataConverter.Serialize(State.Tags) : null));
             returnValues.Add("OrchestrationStatus", new EntityProperty(State.OrchestrationStatus.ToString()));
             returnValues.Add("CreatedTime", new EntityProperty(State.CreatedTime));
             returnValues.Add("CompletedTime", new EntityProperty(State.CompletedTime));
@@ -165,7 +163,7 @@ namespace DurableTask.ServiceBus.Tracking
             }
         }
 
-        private IDictionary<string, string> GetTagsFromString(IDictionary<string, EntityProperty> properties)
+        IDictionary<string, string> GetTagsFromString(IDictionary<string, EntityProperty> properties)
         {
             string strTags = GetValue("Tags", properties, property => property.StringValue);
             if (string.IsNullOrWhiteSpace(strTags))

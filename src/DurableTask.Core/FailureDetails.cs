@@ -116,7 +116,7 @@ namespace DurableTask.Core
         public bool IsCausedBy<T>() where T : Exception
         {
             Type? exceptionType = Type.GetType(this.ErrorType, throwOnError: false);
-            return exceptionType is not null && typeof(T).IsAssignableFrom(exceptionType);
+            return exceptionType != null && typeof(T).IsAssignableFrom(exceptionType);
         }
 
         /// <summary>
@@ -144,7 +144,7 @@ namespace DurableTask.Core
         /// <inheritdoc/>
         public override int GetHashCode() => (ErrorType, ErrorMessage, StackTrace, InnerFailure).GetHashCode();
 
-        private static string GetErrorMessage(Exception e)
+        static string GetErrorMessage(Exception e)
         {
             if (e is TaskFailedException tfe)
             {
@@ -156,6 +156,6 @@ namespace DurableTask.Core
             }
         }
 
-        private static FailureDetails? FromException(Exception? e) => e is null ? null : new FailureDetails(e);
+        static FailureDetails? FromException(Exception? e) => e is null ? null : new FailureDetails(e);
     }
 }

@@ -29,10 +29,10 @@ namespace DurableTask.AzureStorage.Storage
 
         public static string GetAccountName(this StorageUri storageUri, string service)
         {
-            if (storageUri is null)
+            if (storageUri == null)
                 throw new ArgumentNullException(nameof(storageUri));
 
-            if (service is null)
+            if (service == null)
                 throw new ArgumentNullException(nameof(service));
 
             // Note that the primary and secondary endpoints must share the same resource

@@ -15,21 +15,19 @@ namespace DurableTask.Core.Logging
 {
     using System;
     using System.Collections.Generic;
-
     using DurableTask.Core.Command;
     using DurableTask.Core.History;
-
     using Microsoft.Extensions.Logging;
 
-    internal class LogHelper
+    class LogHelper
     {
-        private readonly ILogger log;
+        readonly ILogger log;
 
         public LogHelper(ILogger log)
          // null is okay
          => this.log = log;
 
-        private bool IsStructuredLoggingEnabled => this.log is not null;
+        bool IsStructuredLoggingEnabled => this.log != null;
 
         #region TaskHubWorker
         /// <summary>
@@ -613,7 +611,7 @@ namespace DurableTask.Core.Logging
         }
         #endregion
 
-        private void WriteStructuredLog(ILogEvent logEvent, Exception exception = null)
+        void WriteStructuredLog(ILogEvent logEvent, Exception exception = null)
          => this.log?.LogDurableEvent(logEvent, exception);
     }
 }

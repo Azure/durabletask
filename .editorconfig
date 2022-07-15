@@ -38,22 +38,22 @@ dotnet_style_parentheses_in_other_binary_operators               = always_for_cl
 dotnet_style_parentheses_in_other_operators                      = never_if_unnecessary : suggestion
 # Modifier preferences
 dotnet_style_readonly_field                                      = true : warning
-dotnet_style_require_accessibility_modifiers                     = always : warning
-roslynator_accessibility_modifiers                               = explicit
+dotnet_style_require_accessibility_modifiers                     = omit_if_default : warning
+roslynator_accessibility_modifiers                               = implicit
 roslynator_enum_has_flag_style                                   = method
 roslynator_object_creation_type_style                            = implicit
 # Expression-level preferences
-dotnet_style_object_initializer                                  = true : warning
-dotnet_style_collection_initializer                              = true : warning
-dotnet_style_explicit_tuple_names                                = true : suggestion
-dotnet_style_null_propagation                                    = true : suggestion
-dotnet_style_coalesce_expression                                 = true : suggestion
-dotnet_style_prefer_is_null_check_over_reference_equality_method = true : silent
+dotnet_style_object_initializer                                  = true:warning
+dotnet_style_collection_initializer                              = true:warning
+dotnet_style_explicit_tuple_names                                = true:suggestion
+dotnet_style_null_propagation                                    = true:suggestion
+dotnet_style_coalesce_expression                                 = true:suggestion
+dotnet_style_prefer_is_null_check_over_reference_equality_method = true:silent
 dotnet_prefer_inferred_tuple_names                               = true : suggestion
 dotnet_prefer_inferred_anonymous_type_member_names               = true : suggestion
-dotnet_style_prefer_auto_properties                              = true : silent
-dotnet_style_prefer_conditional_expression_over_assignment       = true : silent
-dotnet_style_prefer_conditional_expression_over_return           = true : silent
+dotnet_style_prefer_auto_properties                              = true:silent
+dotnet_style_prefer_conditional_expression_over_assignment       = true:silent
+dotnet_style_prefer_conditional_expression_over_return           = true:silent
 ###############################
 # Naming Conventions          #
 ###############################
@@ -66,9 +66,14 @@ dotnet_naming_symbols.constant_fields.required_modifiers                     = c
 dotnet_naming_symbols.non_private_readonly_fields.applicable_accessibilities = public, internal, protected
 dotnet_naming_symbols.non_private_readonly_fields.applicable_kinds           = field
 dotnet_naming_symbols.non_private_readonly_fields.required_modifiers         = readonly
-# static_readonly_fields - Define static and readonly fields
-dotnet_naming_symbols.static_readonly_fields.applicable_kinds                = field
-dotnet_naming_symbols.static_readonly_fields.required_modifiers              = static, readonly
+# static_fields - Define static fields
+dotnet_naming_symbols.static_fields.applicable_accessibilities               = *
+dotnet_naming_symbols.static_fields.applicable_kinds                         = field
+dotnet_naming_symbols.static_fields.required_modifiers                       = static
+# private_static_readonly_fields - Define private static readonly fields
+dotnet_naming_symbols.private_static_readonly_fields.applicable_accessibilities       = private
+dotnet_naming_symbols.private_static_readonly_fields.applicable_kinds                 = field
+dotnet_naming_symbols.private_static_readonly_fields.required_modifiers               = static, readonly
 # private_readonly_fields - Define private readonly fields
 dotnet_naming_symbols.private_readonly_fields.applicable_accessibilities     = private
 dotnet_naming_symbols.private_readonly_fields.applicable_kinds               = field
@@ -111,18 +116,21 @@ dotnet_naming_rule.constant_fields_must_be_pascal_case.style = pascal_case
 dotnet_naming_rule.non_private_readonly_fields_must_be_pascal_case.severity = warning
 dotnet_naming_rule.non_private_readonly_fields_must_be_pascal_case.symbols   = public_internal_fields
 dotnet_naming_rule.non_private_readonly_fields_must_be_pascal_case.style = pascal_case
-# Static readonly fields must be PascalCase
+# Static fields must be PascalCase
+dotnet_naming_rule.static_fields_must_be_pascal_case.severity = warning
+dotnet_naming_rule.static_fields_must_be_pascal_case.symbols                 = static_fields
+dotnet_naming_rule.static_fields_must_be_pascal_case.style = pascal_case
 dotnet_naming_rule.static_readonly_fields_must_be_pascal_case.severity = warning
-dotnet_naming_rule.static_readonly_fields_must_be_pascal_case.symbols        = static_readonly_fields
+dotnet_naming_rule.static_readonly_fields_must_be_pascal_case.symbols                 = private_static_readonly_fields
 dotnet_naming_rule.static_readonly_fields_must_be_pascal_case.style = pascal_case
 # Private readonly fields must be camelCase
 dotnet_naming_rule.private_readonly_fields_must_be_camel_case.severity = warning
 dotnet_naming_rule.private_readonly_fields_must_be_camel_case.symbols        = private_readonly_fields
 dotnet_naming_rule.private_readonly_fields_must_be_camel_case.style = camel_case
 # Public and internal fields must be PascalCase
-dotnet_naming_rule.public_internal_fields_must_be_pascal_case.severity = warning
+dotnet_naming_rule.public_internal_fields_must_be_pascal_case.severity       = warning
 dotnet_naming_rule.public_internal_fields_must_be_pascal_case.symbols        = public_internal_fields
-dotnet_naming_rule.public_internal_fields_must_be_pascal_case.style = pascal_case
+dotnet_naming_rule.public_internal_fields_must_be_pascal_case.style          = pascal_case
 # Private and protected fields must be camelCase
 dotnet_naming_rule.private_protected_fields_must_be_camel_case.severity = warning
 dotnet_naming_rule.private_protected_fields_must_be_camel_case.symbols       = private_protected_fields
@@ -314,7 +322,7 @@ dotnet_diagnostic.CA1028.severity = warning
 dotnet_diagnostic.CA1030.severity = warning
 
 # CA1031: Do not catch general exception types
-dotnet_diagnostic.CA1031.severity = warning
+dotnet_diagnostic.CA1031.severity = suggestion
 
 # CA1032: Implement standard exception constructors
 dotnet_diagnostic.CA1032.severity = warning
@@ -884,6 +892,9 @@ dotnet_diagnostic.CA5403.severity = warning
 dotnet_diagnostic.CA9999.severity = warning
 dotnet_style_operator_placement_when_wrapping = beginning_of_line
 tab_width = 4
+dotnet_style_prefer_simplified_boolean_expressions = true:suggestion
+dotnet_style_prefer_inferred_tuple_names = true:suggestion
+dotnet_style_prefer_inferred_anonymous_type_member_names = true:suggestion
 
 ###############################
 # Code Analysis Exceptions    #
@@ -891,7 +902,6 @@ tab_width = 4
 [{samples,test}/**.{cs,vb}]
 
 dotnet_style_require_accessibility_modifiers                             = always : suggession
-dotnet_naming_rule.static_readonly_fields_must_be_pascal_case.severity   = suggestion
 
 # Expression-bodied members
 csharp_style_expression_bodied_methods                                   = true : suggestion
@@ -943,6 +953,12 @@ dotnet_diagnostic.CA1716.severity = none
 
 # CA1720: Identifier contains type name
 dotnet_diagnostic.CA1720.severity = none
+
+# CA1802: Use literals where appropriate
+dotnet_diagnostic.CA1802.severity = suggestion
+
+# CA1812: Avoid uninstantiated internal classes
+dotnet_diagnostic.CA1812.severity = none
 
 # CA1822: Mark members as static
 dotnet_diagnostic.CA1822.severity = suggestion

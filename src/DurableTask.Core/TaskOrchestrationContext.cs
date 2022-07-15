@@ -19,7 +19,6 @@ namespace DurableTask.Core
     using System.Globalization;
     using System.Threading;
     using System.Threading.Tasks;
-
     using DurableTask.Core.Command;
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
@@ -27,13 +26,13 @@ namespace DurableTask.Core
     using DurableTask.Core.Serializing;
     using DurableTask.Core.Tracing;
 
-    internal class TaskOrchestrationContext : OrchestrationContext
+    class TaskOrchestrationContext : OrchestrationContext
     {
-        private readonly IDictionary<int, OpenTaskInfo> openTasks;
-        private readonly IDictionary<int, OrchestratorAction> orchestratorActionsMap;
-        private OrchestrationCompleteOrchestratorAction continueAsNew;
-        private bool executionCompletedOrTerminated;
-        private int idCounter;
+        readonly IDictionary<int, OpenTaskInfo> openTasks;
+        readonly IDictionary<int, OrchestratorAction> orchestratorActionsMap;
+        OrchestrationCompleteOrchestratorAction continueAsNew;
+        bool executionCompletedOrTerminated;
+        int idCounter;
 
         public bool HasContinueAsNew => continueAsNew is not null;
 
@@ -79,7 +78,7 @@ namespace DurableTask.Core
         {
             object result = await ScheduleTaskInternal(name, version, taskList, typeof(TResult), parameters);
 
-            if (result is null)
+            if (result == null)
             {
                 return default(TResult);
             }
@@ -132,7 +131,7 @@ namespace DurableTask.Core
             object input)
          => CreateSubOrchestrationInstanceCore<T>(name, version, null, input, null);
 
-        private async Task<T> CreateSubOrchestrationInstanceCore<T>(
+        async Task<T> CreateSubOrchestrationInstanceCore<T>(
             string name,
             string version,
             string instanceId,
@@ -201,7 +200,7 @@ namespace DurableTask.Core
 
         public override void ContinueAsNew(string newVersion, object input) => ContinueAsNewCore(newVersion, input);
 
-        private void ContinueAsNewCore(string newVersion, object input)
+        void ContinueAsNewCore(string newVersion, object input)
         {
             string serializedInput = this.MessageDataConverter.Serialize(input);
 
@@ -501,7 +500,7 @@ namespace DurableTask.Core
             }
         }
 
-        private void LogDuplicateEvent(string source, HistoryEvent historyEvent, int taskId)
+        void LogDuplicateEvent(string source, HistoryEvent historyEvent, int taskId)
          => TraceHelper.TraceSession(
                 TraceEventType.Warning,
                 "TaskOrchestrationContext-DuplicateEvent",
@@ -519,7 +518,7 @@ namespace DurableTask.Core
 
         public void FailOrchestration(Exception failure)
         {
-            if (failure is null)
+            if (failure == null)
             {
                 throw new ArgumentNullException(nameof(failure));
             }
@@ -530,7 +529,7 @@ namespace DurableTask.Core
             string details = null;
             FailureDetails failureDetails = null;
 
-            // correlation
+            // correlation 
             CorrelationTraceClient.Propagate(
                 () =>
                 {
@@ -549,7 +548,7 @@ namespace DurableTask.Core
                     details = orchestrationFailureException.Details;
                 }
             }
-            else
+            else 
             {
                 if (this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
                 {
@@ -568,7 +567,7 @@ namespace DurableTask.Core
         {
             int id = this.idCounter++;
             OrchestrationCompleteOrchestratorAction completedOrchestratorAction;
-            if (orchestrationStatus == OrchestrationStatus.Completed && this.continueAsNew is not null)
+            if (orchestrationStatus == OrchestrationStatus.Completed && this.continueAsNew != null)
             {
                 completedOrchestratorAction = this.continueAsNew;
             }
@@ -594,7 +593,7 @@ namespace DurableTask.Core
             this.orchestratorActionsMap.Add(id, completedOrchestratorAction);
         }
 
-        private class OpenTaskInfo
+        class OpenTaskInfo
         {
             public string Name { get; set; }
 

@@ -12,7 +12,6 @@
 //  ----------------------------------------------------------------------------------
 
 using System;
-
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace DurableTask.AzureStorage.Tests.Correlation

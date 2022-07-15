@@ -14,10 +14,9 @@
 namespace Correlation.Samples
 {
     using System;
-    using System.IO;
-
     using DurableTask.AzureStorage;
-
+    using System.Configuration;
+    using System.IO;
     using Microsoft.Extensions.Configuration;
 
     public static class TestHelpers
@@ -60,7 +59,7 @@ namespace Correlation.Samples
             return storageConnectionString;
         }
 
-        private static string GetTestSetting(string name)
+        static string GetTestSetting(string name)
         {
             string value = Environment.GetEnvironmentVariable("DurableTaskTest" + name);
             if (string.IsNullOrEmpty(value))

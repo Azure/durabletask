@@ -25,7 +25,7 @@ namespace DurableTask.Core.History
     [KnownType(nameof(KnownTypes))]
     public abstract class HistoryEvent : IExtensibleDataObject
     {
-        private static IReadOnlyCollection<Type>? knownTypes;
+        static IReadOnlyCollection<Type>? KnownTypesCollection;
 
         /// <summary>
         /// List of all event classes, for use by the DataContractSerializer
@@ -33,18 +33,18 @@ namespace DurableTask.Core.History
         /// <returns>An enumerable of all known types that implement <see cref="HistoryEvent"/>.</returns>
         public static IEnumerable<Type> KnownTypes()
         {
-            if (knownTypes is not null)
+            if (KnownTypesCollection != null)
             {
-                return knownTypes;
+                return KnownTypesCollection;
             }
 
-            knownTypes = typeof(HistoryEvent).Assembly
+            KnownTypesCollection = typeof(HistoryEvent).Assembly
                 .GetTypes()
                 .Where(x => !x.IsAbstract && typeof(HistoryEvent).IsAssignableFrom(x))
                 .ToList()
                 .AsReadOnly();
 
-            return knownTypes;
+            return KnownTypesCollection;
         }
 
         /// <summary>

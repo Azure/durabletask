@@ -28,7 +28,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <returns>The modified string.</returns>
         public static string EscapePartitionKey(string key)
         {
-            if (key is null)
+            if (key == null)
             {
                 return null;
             }
@@ -48,17 +48,17 @@ namespace DurableTask.AzureStorage.Tracking
                         b.Append('0');
                         break;
 
-                    case '\\':
+                    case '\\': 
                         b.Append(EscapeChar);
-                        b.Append('1');
+                        b.Append('1'); 
                         break;
 
-                    case '#':
+                    case '#': 
                         b.Append(EscapeChar);
-                        b.Append('2');
+                        b.Append('2'); 
                         break;
 
-                    case '?':
+                    case '?': 
                         b.Append(EscapeChar);
                         b.Append('3');
                         break;
@@ -93,7 +93,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <returns>The original string.</returns>
         public static string UnescapePartitionKey(string key)
         {
-            if (key is null)
+            if (key == null)
             {
                 return null;
             }
@@ -117,16 +117,16 @@ namespace DurableTask.AzureStorage.Tracking
                             b.Append('/');
                             break;
 
-                        case '1':
+                        case '1': 
                             b.Append('\\');
                             break;
 
-                        case '2':
+                        case '2': 
                             b.Append('#');
                             break;
 
-                        case '3':
-                            b.Append('?');
+                        case '3': 
+                            b.Append('?'); 
                             break;
 
                         default:

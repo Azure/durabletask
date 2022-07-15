@@ -22,13 +22,13 @@ namespace DurableTask.SqlServer.Internal
     /// <summary>
     /// Intended for internal use only; not all edge cases are handled, but these extension methods will work correctly for the queries defined in this assembly and results in more readable code.
     /// </summary>
-    internal static class DbCommandHelper
+    static class DbCommandHelper
     {
         internal readonly static IDictionary<string, object> EmptyParameters = new Dictionary<string, object>();
 
         internal static void AddStatement(this DbCommand source, string sql, IDictionary<string, object> parameters = null)
         {
-            if (source is null) throw new ArgumentNullException(nameof(source));
+            if (source == null) throw new ArgumentNullException(nameof(source));
 
             //replace each parameter in the sql statement with auto-generated names
             //add parameters using new auto-generated names
@@ -49,7 +49,7 @@ namespace DurableTask.SqlServer.Internal
 
         internal static void AddStatement(this DbCommand source, string sql, object parameters)
         {
-            if (source is null) throw new ArgumentNullException(nameof(source));
+            if (source == null) throw new ArgumentNullException(nameof(source));
 
             var dictionary = new Dictionary<string, object>();
 
@@ -64,7 +64,7 @@ namespace DurableTask.SqlServer.Internal
 
         internal static DbCommand AddParameter(this DbCommand source, string name, object value)
         {
-            if (source is null) throw new ArgumentNullException(nameof(source));
+            if (source == null) throw new ArgumentNullException(nameof(source));
 
             var parameter = source.CreateParameter();
             parameter.ParameterName = name;

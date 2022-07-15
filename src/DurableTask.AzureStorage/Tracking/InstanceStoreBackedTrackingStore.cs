@@ -48,14 +48,14 @@ namespace DurableTask.AzureStorage.Tracking
         public override async Task<OrchestrationHistory> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default(CancellationToken))
         {
             //If no execution Id is provided get the latest executionId by getting the latest state
-            if (expectedExecutionId is null)
+            if (expectedExecutionId == null)
             {
                 expectedExecutionId = (await this.instanceStore.GetOrchestrationStateAsync(instanceId, false)).FirstOrDefault()?.State.OrchestrationInstance.ExecutionId;
             }
 
             var events = await this.instanceStore.GetOrchestrationHistoryEventsAsync(instanceId, expectedExecutionId);
 
-            if (events is null || !events.Any())
+            if (events == null || !events.Any())
             {
                 return new OrchestrationHistory(EmptyHistoryEventList);
             }
@@ -69,7 +69,7 @@ namespace DurableTask.AzureStorage.Tracking
         public override async Task<InstanceStatus> FetchInstanceStatusAsync(string instanceId)
         {
             OrchestrationState state = await this.GetStateAsync(instanceId, executionId: null);
-            return state is not null ? new InstanceStatus(state) : null;
+            return state != null ? new InstanceStatus(state) : null;
         }
 
         /// <inheritdoc />
@@ -82,7 +82,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task<OrchestrationState> GetStateAsync(string instanceId, string executionId, bool fetchInput = true)
         {
-            if (executionId is null)
+            if (executionId == null)
             {
                 return (await this.GetStateAsync(instanceId, false)).FirstOrDefault();
             }

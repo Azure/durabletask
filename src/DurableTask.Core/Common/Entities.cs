@@ -11,10 +11,10 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using DurableTask.Core.History;
 using System;
 using System.Collections.Generic;
-
-using DurableTask.Core.History;
+using System.Text;
 
 namespace DurableTask.Core.Common
 {
@@ -38,17 +38,17 @@ namespace DurableTask.Core.Common
         /// <returns>true if this is an entity message with a time delay</returns>
         /// <remarks>
         /// We assume that auto-started orchestrations (i.e. instance ids starting with '@') are
-        /// used exclusively by durable entities; so we can follow
+        /// used exclusively by durable entities; so we can follow 
         /// a custom naming convention to pass a time parameter.
         /// </remarks>
         public static bool IsDelayedEntityMessage(TaskMessage taskMessage, out DateTime due)
         {
-            // Special functionality for entity messages with a delivery delay
+            // Special functionality for entity messages with a delivery delay 
             if (taskMessage.Event is EventRaisedEvent eventRaisedEvent
                 && IsEntityInstance(taskMessage.OrchestrationInstance.InstanceId))
             {
                 string eventName = eventRaisedEvent.Name;
-                if (eventName is not null && eventName.Length >= 3 && eventName[2] == '@'
+                if (eventName != null && eventName.Length >= 3 && eventName[2] == '@'
                     && DateTime.TryParse(eventName.Substring(3), out DateTime scheduledTime))
                 {
                     due = scheduledTime.ToUniversalTime();
@@ -71,7 +71,7 @@ namespace DurableTask.Core.Common
         {
             if (IsEntityInstance(instanceId)
                  && newMessages[0].Event.EventType == EventType.EventRaised
-                 && newMessages[0].OrchestrationInstance.ExecutionId is null)
+                 && newMessages[0].OrchestrationInstance.ExecutionId == null)
             {
                 // automatically start this instance
                 var orchestrationInstance = new OrchestrationInstance

@@ -24,7 +24,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
 
     public class TelemetryActivator
     {
-        private TelemetryClient telemetryClient;
+        TelemetryClient telemetryClient;
 
         public void Initialize()
         {
@@ -38,7 +38,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             SetUpTelemetryCallbacks();
         }
 
-        private void SetUpTelemetryCallbacks()
+        void SetUpTelemetryCallbacks()
         {
             CorrelationTraceClient.SetUp(
                 (TraceContextBase requestTraceContext) =>
@@ -61,7 +61,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             );
         }
 
-        private void SetUpTelemetryClient(Action<ITelemetry> onSend, string instrumentationKey)
+        void SetUpTelemetryClient(Action<ITelemetry> onSend, string instrumentationKey)
         {
             using var module = new DependencyTrackingTelemetryModule();
             // Currently it seems have a problem https://github.com/microsoft/ApplicationInsights-dotnet-server/issues/536

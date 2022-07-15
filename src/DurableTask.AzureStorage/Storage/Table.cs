@@ -219,7 +219,7 @@ namespace DurableTask.AzureStorage.Storage
                 }
 
                 tableContinuationToken = segment.ContinuationToken;
-                if (tableContinuationToken is null || callerCancellationToken.IsCancellationRequested)
+                if (tableContinuationToken == null || callerCancellationToken.IsCancellationRequested)
                 {
                     break;
                 }
@@ -275,7 +275,7 @@ namespace DurableTask.AzureStorage.Storage
             results.AddRange(segment);
 
             string? newContinuationToken = null;
-            if (segment.ContinuationToken is not null)
+            if (segment.ContinuationToken != null)
             {
                 string tokenJson = JsonConvert.SerializeObject(segment.ContinuationToken);
                 newContinuationToken = Convert.ToBase64String(Encoding.UTF8.GetBytes(tokenJson));

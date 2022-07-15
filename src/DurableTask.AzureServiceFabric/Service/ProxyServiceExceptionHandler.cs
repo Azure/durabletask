@@ -21,7 +21,7 @@ namespace DurableTask.AzureServiceFabric.Service
 
     using DurableTask.AzureServiceFabric.Tracing;
 
-    internal class ProxyServiceExceptionHandler : ExceptionHandler
+    class ProxyServiceExceptionHandler : ExceptionHandler
     {
         public override void Handle(ExceptionHandlerContext context)
         {

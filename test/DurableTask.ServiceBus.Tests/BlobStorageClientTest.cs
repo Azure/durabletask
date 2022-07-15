@@ -20,16 +20,14 @@ namespace DurableTask.ServiceBus.Tests
     using System.Linq;
     using System.Text;
     using System.Threading.Tasks;
-
-    using DurableTask.ServiceBus.Tracking;
-
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.WindowsAzure.Storage.Blob;
+    using DurableTask.ServiceBus.Tracking;
 
     [TestClass]
     public class BlobStorageClientTest
     {
-        private BlobStorageClient blobStorageClient;
+        BlobStorageClient blobStorageClient;
 
         [TestInitialize]
         public void TestInitialize()
@@ -63,7 +61,7 @@ namespace DurableTask.ServiceBus.Tests
 
             var result = await this.blobStorageClient.DownloadStreamAsync(key) as MemoryStream;
 
-            Debug.Assert(result is not null);
+            Debug.Assert(result != null);
 
             string resultString = Encoding.UTF8.GetString(result.ToArray());
             Assert.AreEqual(resultString, testContent);

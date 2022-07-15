@@ -45,13 +45,13 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
             catch (Exception ex)
             {
                 AggregateException aggregate = ex as AggregateException;
-                if (aggregate is not null)
+                if (aggregate != null)
                 {
                     ex = aggregate.InnerException;
                 }
 
                 TException expected = ex as TException;
-                if (expected is null)
+                if (expected == null)
                 {
                     Assert.Fail($"Method {action.Method} is expected to throw exception of type {typeof(TException).Name} but has thrown {ex.GetType().Name} instead.");
                 }

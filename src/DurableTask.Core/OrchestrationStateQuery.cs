@@ -23,11 +23,11 @@ namespace DurableTask.Core
     /// </summary>
     public class OrchestrationStateQuery
     {
-        // if we get multiple filters in a state query, we will pick one as the primary filter to pass on in the
+        // if we get multiple filters in a state query, we will pick one as the primary filter to pass on in the 
         // azure table store query. the remaining filters will be used to trim the results in-memory
         // this table gives the precedence of the filters. higher number will be selected over the lower one.
         //
-        private static readonly Dictionary<Type, int> FilterPrecedenceMap = new Dictionary<Type, int>
+        static readonly Dictionary<Type, int> FilterPrecedenceMap = new Dictionary<Type, int>
         {
             {typeof (OrchestrationStateTimeRangeFilter), 10},
             {typeof (OrchestrationStateInstanceFilter), 5},
@@ -84,7 +84,7 @@ namespace DurableTask.Core
             return (primaryFilter, secondaryFilters);
         }
 
-        private int SafeGetFilterPrecedence(OrchestrationStateQueryFilter filter)
+        int SafeGetFilterPrecedence(OrchestrationStateQueryFilter filter)
         {
             if (!FilterPrecedenceMap.ContainsKey(filter.GetType()))
             {

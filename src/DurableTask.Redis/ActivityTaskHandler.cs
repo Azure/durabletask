@@ -25,21 +25,21 @@ namespace DurableTask.Redis
     /// Right now only one is alive, but when multiple are alive, they will have to have a background task to constantly
     /// add some Redis state to prove they are still alive
     /// </summary>
-    internal class ActivityTaskHandler
+    class ActivityTaskHandler
     {
         //TODO: Eventually these will need to be Redis locks once we have a multiple worker scenario
-        private readonly SemaphoreSlim incomingQueueLock = new SemaphoreSlim(1);
+        readonly SemaphoreSlim incomingQueueLock = new SemaphoreSlim(1);
 
         //TODO: This locking approach currently has a race condition that allows an activity task to be called multiple
         // times. Will likely require a somewhat substantial redesign to fix.
-        private readonly ConcurrentDictionary<int, SemaphoreSlim> taskLocks;
+        readonly ConcurrentDictionary<int, SemaphoreSlim> taskLocks;
 
-        private readonly string workerId;
-        private readonly string taskHub;
-        private readonly ConnectionMultiplexer redisConnection;
-        private readonly string processingTaskQueueKey;
-        private readonly string incomingTaskQueueKey;
-        private readonly RedisLogger redisLogger;
+        readonly string workerId;
+        readonly string taskHub;
+        readonly ConnectionMultiplexer redisConnection;
+        readonly string processingTaskQueueKey;
+        readonly string incomingTaskQueueKey;
+        readonly RedisLogger redisLogger;
 
         public ActivityTaskHandler(string taskHub, string workerId, ConnectionMultiplexer connection)
         {
@@ -64,7 +64,7 @@ namespace DurableTask.Redis
             while (!cancellationToken.IsCancellationRequested)
             {
                 string messageJson = await redisDb.ListRightPopLeftPushAsync(this.incomingTaskQueueKey, this.processingTaskQueueKey);
-                if (messageJson is null)
+                if (messageJson == null)
                 {
                     numTries += 1;
                     await Task.Delay(50);

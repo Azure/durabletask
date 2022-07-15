@@ -15,7 +15,7 @@ namespace DurableTask.Core.Tests
     [TestClass]
     public class RetryInterceptorTests
     {
-        private MockOrchestrationContext context;
+        MockOrchestrationContext context;
 
         [TestInitialize]
         public void Initialize()
@@ -48,7 +48,6 @@ namespace DurableTask.Core.Tests
                     callCount++;
                     throw new Exception();
                 });
-#pragma warning disable CA1031 // Do not catch general exception types
             try
             {
                 await interceptor.Invoke();
@@ -57,7 +56,6 @@ namespace DurableTask.Core.Tests
             {
                 // ignored
             }
-#pragma warning restore CA1031 // Do not catch general exception types
 
             Assert.AreEqual(maxAttempts, callCount, 0, $"There should be {maxAttempts} function calls for {maxAttempts} max attempts.");
         }
@@ -70,7 +68,6 @@ namespace DurableTask.Core.Tests
         public async Task Invoke_WithFailingRetryCall_ShouldHaveCorrectNumberOfSleeps(int maxAttempts)
         {
             var interceptor = new RetryInterceptor<object>(this.context, new RetryOptions(TimeSpan.FromMilliseconds(1), maxAttempts), () => throw new Exception());
-#pragma warning disable CA1031 // Do not catch general exception types
             try
             {
                 await interceptor.Invoke();
@@ -79,7 +76,6 @@ namespace DurableTask.Core.Tests
             {
                 // ignored
             }
-#pragma warning restore CA1031 // Do not catch general exception types
 
             // Ideally there would be maxAttempts - 1 sleeps. However, a bug in an earlier version of the retryInterceptor
             // resulted in an extra sleep. Unfortunately, "fixing" this bug by removing the extra sleep is a breaking change
@@ -89,9 +85,9 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual(maxAttempts - 1, this.context.Delays.Sum(time => time.Milliseconds), $"The total sleep time should be {maxAttempts} millisecond(s).");
         }
 
-        private sealed class MockOrchestrationContext : TaskOrchestrationContext
+        sealed class MockOrchestrationContext : TaskOrchestrationContext
         {
-            private readonly List<TimeSpan> delays = new List<TimeSpan>();
+            readonly List<TimeSpan> delays = new List<TimeSpan>();
 
             public MockOrchestrationContext(OrchestrationInstance orchestrationInstance, TaskScheduler taskScheduler)
                 : base(orchestrationInstance, taskScheduler)

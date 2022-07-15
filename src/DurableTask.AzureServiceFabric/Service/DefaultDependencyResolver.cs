@@ -22,7 +22,7 @@ namespace DurableTask.AzureServiceFabric.Service
     /// <inheritdoc/>
     public sealed class DefaultDependencyResolver : IDependencyResolver
     {
-        private readonly IServiceProvider provider;
+        readonly IServiceProvider provider;
 
         /// <summary>
         /// Creates an instance of <see cref="DefaultDependencyResolver"/>.

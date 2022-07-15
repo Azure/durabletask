@@ -23,7 +23,7 @@ namespace DurableTask.Core.History
     public class TimerCreatedEvent : HistoryEvent
     {
         // Private ctor for JSON deserialization (required by some storage providers and out-of-proc executors)
-        private TimerCreatedEvent() : base(-1) { }
+        TimerCreatedEvent() : base(-1) { }
 
         /// <summary>
         /// Creates a new <see cref="TimerCreatedEvent"/> with the supplied event ID

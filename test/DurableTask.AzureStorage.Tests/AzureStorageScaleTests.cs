@@ -13,8 +13,6 @@
 
 namespace DurableTask.AzureStorage.Tests
 {
-#pragma warning disable CA1812 // Private classes instantiated indirectly
-#pragma warning disable CA2000 // Dispose objects before losing scope
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
@@ -42,6 +40,7 @@ namespace DurableTask.AzureStorage.Tests
     [TestClass]
     public class AzureStorageScaleTests
     {
+#pragma warning disable CA2000 // Dispose objects before losing scope
         /// <summary>
         /// Basic validation of task hub creation.
         /// </summary>
@@ -53,8 +52,9 @@ namespace DurableTask.AzureStorage.Tests
         /// </summary>
         [TestMethod]
         public async Task DeleteTaskHub() => await this.EnsureTaskHubAsync(nameof(DeleteTaskHub), testDeletion: true);
+#pragma warning restore CA2000 // Dispose objects before losing scope
 
-        private async Task<AzureStorageOrchestrationService> EnsureTaskHubAsync(
+        async Task<AzureStorageOrchestrationService> EnsureTaskHubAsync(
             string testName,
             bool testDeletion,
             bool deleteBeforeCreate = true,
@@ -155,7 +155,7 @@ namespace DurableTask.AzureStorage.Tests
             return service;
         }
 
-        private async Task EnsureLeasesMatchControlQueue(string directoryReference, CloudBlobContainer taskHubContainer, ControlQueue[] controlQueues)
+        async Task EnsureLeasesMatchControlQueue(string directoryReference, CloudBlobContainer taskHubContainer, ControlQueue[] controlQueues)
         {
             CloudBlobDirectory leaseDirectory = taskHubContainer.GetDirectoryReference(directoryReference);
             IListBlobItem[] leaseBlobs = (await this.ListBlobsAsync(leaseDirectory)).ToArray();
@@ -194,7 +194,7 @@ namespace DurableTask.AzureStorage.Tests
                 continuationToken = response.ContinuationToken;
                 results.AddRange(response.Results);
             }
-            while (continuationToken is not null);
+            while (continuationToken != null);
             return results;
         }
 
@@ -279,7 +279,7 @@ namespace DurableTask.AzureStorage.Tests
                             for (int j = 0; j < services.Length; j++)
                             {
                                 AzureStorageOrchestrationService service = services[j];
-                                if (service is null)
+                                if (service == null)
                                 {
                                     continue;
                                 }
@@ -338,7 +338,7 @@ namespace DurableTask.AzureStorage.Tests
                 PartitionCount = 4,
             };
 
-            var service = new AzureStorageOrchestrationService(settings);
+            using var service = new AzureStorageOrchestrationService(settings);
             await service.CreateAsync();
 
             var client = new TaskHubClient(service);
@@ -370,7 +370,7 @@ namespace DurableTask.AzureStorage.Tests
             // Start the service and let it process the previously enqueued messages.
             // Check that there are exactly N unique partition keys in the table
             Trace.TraceInformation("Starting the worker to consume the messages and run the orchestrations...");
-            var worker = new TaskHubWorker(service);
+            using var worker = new TaskHubWorker(service);
             worker.AddTaskOrchestrations(typeof(NoOpOrchestration));
             await worker.StartAsync();
 
@@ -385,7 +385,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 var tableTrackingStore = service.TrackingStore as AzureTableTrackingStore;
 
-                if (tableTrackingStore is not null)
+                if (tableTrackingStore != null)
                 {
                     DynamicTableEntity[] entities = (await tableTrackingStore.HistoryTable.ExecuteQueryAsync(new TableQuery<DynamicTableEntity>())).ReturnedEntities.ToArray();
                     int uniquePartitions = entities.GroupBy(e => e.PartitionKey).Count();
@@ -416,7 +416,7 @@ namespace DurableTask.AzureStorage.Tests
             };
 
             // STEP 1: Start up the service and queue up a large number of messages
-            var service = new AzureStorageOrchestrationService(settings);
+            using var service = new AzureStorageOrchestrationService(settings);
             await service.CreateAsync();
             await service.StartAsync();
 
@@ -480,7 +480,7 @@ namespace DurableTask.AzureStorage.Tests
                 UseAppLease = false,
             };
 
-            var service = new AzureStorageOrchestrationService(settings);
+            using var service = new AzureStorageOrchestrationService(settings);
             var monitor = new DisconnectedPerformanceMonitor(settings.StorageConnectionString, settings.TaskHubName);
 
             await service.DeleteAsync();
@@ -570,8 +570,9 @@ namespace DurableTask.AzureStorage.Tests
 
             // Change the default partition count, and start and stop the worker to try and update taskhub.json.
             settings.PartitionCount = 8;
+            service.Dispose();
             service = new AzureStorageOrchestrationService(settings);
-            var worker = new TaskHubWorker(service);
+            using var worker = new TaskHubWorker(service);
             worker.AddTaskOrchestrations(typeof(NoOpOrchestration));
             await worker.StartAsync();
             await worker.StopAsync();
@@ -596,6 +597,7 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(false, recommendation.KeepWorkersAlive);
                 Assert.IsNotNull(recommendation.Reason);
             }
+            service.Dispose();
         }
 
         [TestMethod]
@@ -609,7 +611,7 @@ namespace DurableTask.AzureStorage.Tests
                 UseAppLease = false,
             };
 
-            var service = new AzureStorageOrchestrationService(settings);
+            using var service = new AzureStorageOrchestrationService(settings);
 
             var monitor = new DisconnectedPerformanceMonitor(settings.StorageConnectionString, settings.TaskHubName);
             int simulatedWorkerCount = 0;
@@ -1817,12 +1819,12 @@ namespace DurableTask.AzureStorage.Tests
         }
         #endregion
 
-        private static FakePerformanceMonitor GetFakePerformanceMonitor()
+        static FakePerformanceMonitor GetFakePerformanceMonitor()
         {
             return new FakePerformanceMonitor(TestHelpers.GetTestStorageAccountConnectionString(), "taskHub");
         }
 
-        private class NoOpOrchestration : TaskOrchestration<string, string>
+        class NoOpOrchestration : TaskOrchestration<string, string>
         {
             public override Task<string> RunTask(OrchestrationContext context, string input)
             {
@@ -1830,7 +1832,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        private class FakePerformanceMonitor : DisconnectedPerformanceMonitor
+        class FakePerformanceMonitor : DisconnectedPerformanceMonitor
         {
             public FakePerformanceMonitor(
                 string storageConnectionString,

@@ -223,7 +223,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         public async Task<bool> UpdateAsync(BlobLease lease)
         {
-            if (lease is null || string.IsNullOrWhiteSpace(lease.Token))
+            if (lease == null || string.IsNullOrWhiteSpace(lease.Token))
             {
                 return false;
             }
@@ -268,7 +268,7 @@ namespace DurableTask.AzureStorage.Partitioning
         internal async Task<TaskHubInfo> GetOrCreateTaskHubInfoAsync(TaskHubInfo newTaskHubInfo, bool checkIfStale)
         {
             TaskHubInfo currentTaskHubInfo = await this.GetTaskHubInfoAsync();
-            if (currentTaskHubInfo is not null)
+            if (currentTaskHubInfo != null)
             {
                 if (checkIfStale && IsStale(currentTaskHubInfo, newTaskHubInfo))
                 {

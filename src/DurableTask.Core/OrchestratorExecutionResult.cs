@@ -15,9 +15,7 @@ namespace DurableTask.Core
 {
     using System;
     using System.Collections.Generic;
-
     using DurableTask.Core.Command;
-
     using Newtonsoft.Json;
 
     /// <summary>

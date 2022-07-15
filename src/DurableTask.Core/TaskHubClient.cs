@@ -19,11 +19,9 @@ namespace DurableTask.Core
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-
     using DurableTask.Core.History;
     using DurableTask.Core.Logging;
     using DurableTask.Core.Serializing;
-
     using Microsoft.Extensions.Logging;
 
     /// <summary>
@@ -31,8 +29,8 @@ namespace DurableTask.Core
     /// </summary>
     public sealed class TaskHubClient
     {
-        private readonly DataConverter defaultConverter;
-        private readonly LogHelper logHelper;
+        readonly DataConverter defaultConverter;
+        readonly LogHelper logHelper;
 
         /// <summary>
         /// The orchestration service client for this task hub client
@@ -523,7 +521,7 @@ namespace DurableTask.Core
                 eventName,
                 eventData);
 
-        private async Task<OrchestrationInstance> InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+        async Task<OrchestrationInstance> InternalCreateOrchestrationInstanceWithRaisedEventAsync(
             string orchestrationName,
             string orchestrationVersion,
             string orchestrationInstanceId,
@@ -536,7 +534,7 @@ namespace DurableTask.Core
         {
             TraceContextBase requestTraceContext = null;
 
-            // correlation
+            // correlation 
             CorrelationTraceClient.Propagate(() => { requestTraceContext = CreateOrExtractRequestTraceContext(eventName); });
 
             if (string.IsNullOrWhiteSpace(orchestrationInstanceId))
@@ -567,18 +565,18 @@ namespace DurableTask.Core
             };
 
             this.logHelper.SchedulingOrchestration(startedEvent);
-
+            
             CorrelationTraceClient.Propagate(() => CreateAndTrackDependencyTelemetry(requestTraceContext));
 
             // Raised events and create orchestration calls use different methods so get handled separately
             await this.ServiceClient.CreateTaskOrchestrationAsync(startMessage, dedupeStatuses);
 
-            if (eventData is not null)
+            if (eventData != null)
             {
                 string serializedEventData = this.defaultConverter.Serialize(eventData);
                 var eventRaisedEvent = new EventRaisedEvent(-1, serializedEventData) { Name = eventName };
                 this.logHelper.RaisingEvent(orchestrationInstance, eventRaisedEvent);
-
+                
                 var eventMessage = new TaskMessage
                 {
                     OrchestrationInstance = new OrchestrationInstance
@@ -601,10 +599,10 @@ namespace DurableTask.Core
             return orchestrationInstance;
         }
 
-        private TraceContextBase CreateOrExtractRequestTraceContext(string eventName)
+        TraceContextBase CreateOrExtractRequestTraceContext(string eventName)
         {
             TraceContextBase requestTraceContext = null;
-            if (Activity.Current is null) // It is possible that the caller already has an activity.
+            if (Activity.Current == null) // It is possible that the caller already has an activity.
             {
                 requestTraceContext = TraceContextFactory.Create($"{TraceConstants.Client}: {eventName}");
                 requestTraceContext.StartAsNew();
@@ -617,7 +615,7 @@ namespace DurableTask.Core
             return requestTraceContext;
         }
 
-        private void CreateAndTrackDependencyTelemetry(TraceContextBase requestTraceContext)
+        void CreateAndTrackDependencyTelemetry(TraceContextBase requestTraceContext)
         {
             TraceContextBase dependencyTraceContext = TraceContextFactory.Create(TraceConstants.Client);
             dependencyTraceContext.TelemetryType = TelemetryType.Dependency;

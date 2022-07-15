@@ -13,25 +13,22 @@
 
 namespace DurableTask.ServiceBus.Tests
 {
-#pragma warning disable CA1812 // Private classes instantiated indirectly
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.Tests;
-
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
     public class ErrorHandlingTests
     {
-        private TaskHubClient client;
-        private TaskHubWorker taskHub;
-        private TaskHubWorker taskHubNoCompression;
+        TaskHubClient client;
+        TaskHubWorker taskHub;
+        TaskHubWorker taskHubNoCompression;
 
         [TestInitialize]
         public void TestInitialize()
@@ -40,7 +37,7 @@ namespace DurableTask.ServiceBus.Tests
 
             this.taskHub = TestHelpers.CreateTaskHub();
 
-            this.taskHub.OrchestrationService.CreateAsync(true).Wait();
+            this.taskHub.orchestrationService.CreateAsync(true).Wait();
 
             this.taskHubNoCompression = TestHelpers.CreateTaskHubNoCompression();
         }
@@ -50,19 +47,17 @@ namespace DurableTask.ServiceBus.Tests
         {
             this.taskHub.StopAsync(true).Wait();
             this.taskHubNoCompression.StopAsync(true).Wait();
-            this.taskHub.OrchestrationService.DeleteAsync(true).Wait();
+            this.taskHub.orchestrationService.DeleteAsync(true).Wait();
         }
 
         #region Retry Interceptor Tests
 
-#pragma warning disable CA1802 // Use literals where appropriate
-        private static readonly string RetryParentName = "ParentOrchestration";
-        private static readonly string RetryParentVersion = string.Empty;
-        private static readonly string RetryName = "RetryOrchestration";
-        private static readonly string RetryVersion = string.Empty;
-        private static readonly string DoWorkName = "DoWork";
-        private static readonly string DoWorkVersion = string.Empty;
-#pragma warning restore CA1802 // Use literals where appropriate
+        static readonly string RetryParentName = "ParentOrchestration";
+        static readonly string RetryParentVersion = string.Empty;
+        static readonly string RetryName = "RetryOrchestration";
+        static readonly string RetryVersion = string.Empty;
+        static readonly string DoWorkName = "DoWork";
+        static readonly string DoWorkVersion = string.Empty;
 
         [TestMethod]
         public async Task BasicRetryTest()
@@ -556,7 +551,7 @@ namespace DurableTask.ServiceBus.Tests
             }
         }
 
-        private class FailureClientOrchestration : TaskOrchestration<string, string>
+        class FailureClientOrchestration : TaskOrchestration<string, string>
         {
             public override async Task<string> RunTask(OrchestrationContext context, string value)
             {
@@ -591,11 +586,11 @@ namespace DurableTask.ServiceBus.Tests
             Task<string> DoWork();
         }
 
-        private sealed class ParentOrchestration : TaskOrchestration<string, bool>
+        sealed class ParentOrchestration : TaskOrchestration<string, bool>
         {
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string Result;
-            private readonly RetryOptions retryPolicy;
+            readonly RetryOptions retryPolicy;
 
             public ParentOrchestration(RetryOptions retryOptions)
             {
@@ -622,12 +617,12 @@ namespace DurableTask.ServiceBus.Tests
             }
         }
 
-        private sealed class RetryOrchestration : TaskOrchestration<string, bool>
+        sealed class RetryOrchestration : TaskOrchestration<string, bool>
         {
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string Result;
             public static bool RethrowException;
-            private readonly RetryOptions retryPolicy;
+            readonly RetryOptions retryPolicy;
 
             public RetryOrchestration(RetryOptions retryOptions)
             {
@@ -663,7 +658,7 @@ namespace DurableTask.ServiceBus.Tests
             }
         }
 
-        private sealed class RetryTask : IRetryTask
+        sealed class RetryTask : IRetryTask
         {
             public RetryTask(int failAttempts)
             {

@@ -111,7 +111,7 @@ namespace DurableTask.Core.Exceptions
             return this;
         }
 
-        private bool ExistPropertyInfo(SerializationInfo info, string propertyName)
+        bool ExistPropertyInfo(SerializationInfo info, string propertyName)
         {
             SerializationInfoEnumerator enumerator = info.GetEnumerator();
             while (enumerator.MoveNext())

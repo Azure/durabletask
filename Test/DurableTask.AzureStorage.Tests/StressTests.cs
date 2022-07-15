@@ -19,15 +19,18 @@ namespace DurableTask.AzureStorage.Tests
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+
     using DurableTask.Core;
+
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+
     using Newtonsoft.Json;
 
     [TestClass]
     public class StressTests
     {
-        private int originalMinWorkerThreads;
-        private int originalMinIoThreads;
+        int originalMinWorkerThreads;
+        int originalMinIoThreads;
 
         [TestInitialize()]
         public void Startup()
@@ -66,7 +69,7 @@ namespace DurableTask.AzureStorage.Tests
             const int MaxConcurrency = 40;
 
             TaskActivity activity = TestOrchestrationHost.MakeActivity(
-                delegate(TaskContext ctx, string input)
+                delegate (TaskContext ctx, string input)
                 {
                     string result = $"Hello, {input}!";
                     results.Add(result);

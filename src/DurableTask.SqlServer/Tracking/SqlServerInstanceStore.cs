@@ -30,7 +30,7 @@ namespace DurableTask.SqlServer.Tracking
     /// </summary>
     public class SqlServerInstanceStore : IOrchestrationServiceInstanceStore
     {
-        private readonly SqlServerInstanceStoreSettings settings;
+        readonly SqlServerInstanceStoreSettings settings;
 
         /// <summary>
         /// Creates a new SqlServerInstanceStore using the supplied settings
@@ -341,11 +341,11 @@ namespace DurableTask.SqlServer.Tracking
         /// </summary>
         public Task<object> WriteJumpStartEntitiesAsync(IEnumerable<OrchestrationJumpStartInstanceEntity> entities) => throw new NotSupportedException("JumpStart Entities not supported.");
 
-        private void ValidateSettings(SqlServerInstanceStoreSettings settings)
+        void ValidateSettings(SqlServerInstanceStoreSettings settings)
         {
-            if (settings.GetDatabaseConnection is null) throw new ArgumentException($"{nameof(settings.GetDatabaseConnection)} cannot be null.");
-            if (settings.HubName is null) throw new ArgumentException($"{nameof(settings.HubName)} cannot be null.");
-            if (settings.SchemaName is null) throw new ArgumentException($"{nameof(settings.SchemaName)} cannot be null.");
+            if (settings.GetDatabaseConnection == null) throw new ArgumentException($"{nameof(settings.GetDatabaseConnection)} cannot be null.");
+            if (settings.HubName == null) throw new ArgumentException($"{nameof(settings.HubName)} cannot be null.");
+            if (settings.SchemaName == null) throw new ArgumentException($"{nameof(settings.SchemaName)} cannot be null.");
 
             //Validate schema and hubnames are valid SQL Identifiers
             var sqlIdentifierRegex = new Regex(@"^[\p{L}_][\p{L}\p{N}@$#_]{0,127}$");
@@ -354,13 +354,13 @@ namespace DurableTask.SqlServer.Tracking
         }
 
 
-        private const string MergeOrchestrationStateInstanceEntityQuery =
+        const string MergeOrchestrationStateInstanceEntityQuery =
             @"MERGE {0} [Target] USING (VALUES (@instanceId,@executionId,@name,@version,@orchestrationStatus,@createdTime,@completedTime,@lastUpdatedTime,@stateData)) as [Source](InstanceId,ExecutionId,[Name],[Version],OrchestrationStatus,CreatedTime,CompletedTime,LastUpdatedTime,StateData)
                 ON [Target].InstanceId = [Source].InstanceId AND [Target].ExecutionId = [Source].ExecutionId
               WHEN NOT MATCHED THEN INSERT (InstanceId,ExecutionId,[Name],[Version],OrchestrationStatus,CreatedTime,CompletedTime,LastUpdatedTime,StateData) VALUES (InstanceId,ExecutionId,[Name],[Version],OrchestrationStatus,CreatedTime,CompletedTime,LastUpdatedTime,StateData)
               WHEN MATCHED THEN UPDATE SET InstanceId = [Source].InstanceId,ExecutionId = [Source].ExecutionId,[Name] = [Source].[Name],[Version] = [Source].[Version],OrchestrationStatus = [Source].OrchestrationStatus,CreatedTime = [Source].CreatedTime,CompletedTime = [Source].CompletedTime,LastUpdatedTime = [Source].LastUpdatedTime,StateData = [Source].StateData;";
 
-        private const string MergeOrchestrationWorkItemInstanceEntityQuery =
+        const string MergeOrchestrationWorkItemInstanceEntityQuery =
             @"MERGE {0} [Target] USING (VALUES (@instanceId,@executionId,@sequenceNumber,@eventTimestamp,@historyEvent)) as [Source](InstanceId,ExecutionId,SequenceNumber,EventTimestamp,HistoryEvent)
                 ON [Target].InstanceId = [Source].InstanceId AND [Target].ExecutionId = [Source].ExecutionId AND [Target].SequenceNumber = [Source].SequenceNumber
               WHEN NOT MATCHED THEN INSERT (InstanceId, ExecutionId, SequenceNumber, EventTimestamp, HistoryEvent) VALUES (InstanceId, ExecutionId, SequenceNumber, EventTimestamp, HistoryEvent)

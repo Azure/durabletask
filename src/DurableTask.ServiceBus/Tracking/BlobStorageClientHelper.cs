@@ -17,7 +17,6 @@ namespace DurableTask.ServiceBus.Tracking
     using System.Diagnostics;
     using System.Globalization;
     using System.Text.RegularExpressions;
-
     using DurableTask.Core.Common;
     using DurableTask.Core.Tracing;
 
@@ -26,8 +25,8 @@ namespace DurableTask.ServiceBus.Tracking
     /// </summary>
     public class BlobStorageClientHelper
     {
-        private static readonly string DateFormat = "yyyyMMdd";
-        private static readonly char ContainerNameDelimiter = '-';
+        static readonly string DateFormat = "yyyyMMdd";
+        static readonly char ContainerNameDelimiter = '-';
 
         /// <summary>
         /// the blob storage access key is in the format of {DateTime}|{blobName}
@@ -59,7 +58,7 @@ namespace DurableTask.ServiceBus.Tracking
                 id);
         }
 
-        private static string BuildContainerNameSuffix(string containerType, DateTime blobCreationTime)
+        static string BuildContainerNameSuffix(string containerType, DateTime blobCreationTime)
          => $"{containerType.ToLower()}{ContainerNameDelimiter}{GetDateStringForContainerName(blobCreationTime)}";
 
         /// <summary>
@@ -84,7 +83,7 @@ namespace DurableTask.ServiceBus.Tracking
 
         // use the message fire time if it is set;
         // otherwise, use the current utc time as the date string as part of the container name
-        private static string GetDateStringForContainerName(DateTime messageFireTime)
+        static string GetDateStringForContainerName(DateTime messageFireTime)
          => messageFireTime.IsSet() ?
                 messageFireTime.ToString(DateFormat) :
                 DateTime.UtcNow.ToString(DateFormat);
@@ -121,7 +120,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// </summary>
         /// <param name="containerNameSuffix"></param>
         /// <returns>True if the container name suffix is valid.</returns>
-        private static bool IsValidContainerNameSuffix(string containerNameSuffix)
+        static bool IsValidContainerNameSuffix(string containerNameSuffix)
         {
             var regex = new Regex(@"^[a-z0-9\\-]+$");
             return regex.Match(containerNameSuffix).Success;

@@ -15,7 +15,7 @@ namespace DurableTask.AzureServiceFabric.TaskHelpers
 {
     using System;
 
-    internal interface IRetryPolicy
+    interface IRetryPolicy
     {
         bool ShouldExecute();
 

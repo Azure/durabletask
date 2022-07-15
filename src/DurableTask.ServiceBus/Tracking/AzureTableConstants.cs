@@ -13,7 +13,7 @@
 
 namespace DurableTask.ServiceBus.Tracking
 {
-    internal class AzureTableConstants
+    class AzureTableConstants
     {
         // Table name: InstanceHistory00<hub_name>
         public const string InstanceHistoryTableNamePrefix = "InstanceHistory";

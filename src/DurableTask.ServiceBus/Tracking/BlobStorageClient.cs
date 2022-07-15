@@ -31,11 +31,12 @@ namespace DurableTask.ServiceBus.Tracking
         // the container full name is in the format of {hubName}-dtfx-{streamType}-{DateTime};
         // the streamType is the type of the stream, either 'message' or 'session';
         // the date time is in the format of yyyyMMdd.
-        private readonly string containerNamePrefix;
-        private readonly CloudBlobClient blobClient;
-        private const int MaxRetries = 3;
-        private static readonly TimeSpan MaximumExecutionTime = TimeSpan.FromSeconds(30);
-        private static readonly TimeSpan DeltaBackOff = TimeSpan.FromSeconds(5);
+        readonly string containerNamePrefix;
+        readonly CloudBlobClient blobClient;
+
+        const int MaxRetries = 3;
+        static readonly TimeSpan MaximumExecutionTime = TimeSpan.FromSeconds(30);
+        static readonly TimeSpan DeltaBackOff = TimeSpan.FromSeconds(5);
 
         /// <summary>
         /// Construct a blob storage client instance with hub name and connection string
@@ -73,7 +74,7 @@ namespace DurableTask.ServiceBus.Tracking
                 throw new ArgumentException("Invalid hub name", nameof(hubName));
             }
 
-            if (cloudStorageAccount is null)
+            if (cloudStorageAccount == null)
             {
                 throw new ArgumentException("Invalid cloud storage acount", nameof(cloudStorageAccount));
             }
@@ -89,7 +90,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// Creates a blob storage client with cloudStorageAccount
         /// </summary>
         /// <param name="cloudStorageAccount">The Cloud Storage Account</param>
-        private static CloudBlobClient CreateBlobClient(CloudStorageAccount cloudStorageAccount)
+        static CloudBlobClient CreateBlobClient(CloudStorageAccount cloudStorageAccount)
         {
             CloudBlobClient blobClient = cloudStorageAccount.CreateCloudBlobClient();
             blobClient.DefaultRequestOptions.RetryPolicy = new ExponentialRetry(DeltaBackOff, MaxRetries);
@@ -127,7 +128,7 @@ namespace DurableTask.ServiceBus.Tracking
             return targetStream;
         }
 
-        private async Task<ICloudBlob> GetCloudBlockBlobReferenceAsync(string containerNameSuffix, string blobName)
+        async Task<ICloudBlob> GetCloudBlockBlobReferenceAsync(string containerNameSuffix, string blobName)
         {
             string containerName = BlobStorageClientHelper.BuildContainerName(this.containerNamePrefix, containerNameSuffix);
             CloudBlobContainer cloudBlobContainer = this.blobClient.GetContainerReference(containerName);
@@ -149,7 +150,7 @@ namespace DurableTask.ServiceBus.Tracking
                 continuationToken = response.ContinuationToken;
                 results.AddRange(response.Results);
             }
-            while (continuationToken is not null);
+            while (continuationToken != null);
             return results;
         }
         

@@ -18,11 +18,11 @@ namespace DurableTask.AzureStorage.Tests.Correlation
     using System.ComponentModel;
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
-
+    using System.Linq;
     using DurableTask.Core;
     using DurableTask.Core.Settings;
-
     using Microsoft.ApplicationInsights.Channel;
+    using Microsoft.ApplicationInsights.Common;
     using Microsoft.ApplicationInsights.DataContracts;
     using Microsoft.ApplicationInsights.Extensibility;
     using Microsoft.ApplicationInsights.Extensibility.Implementation;
@@ -43,8 +43,8 @@ namespace DurableTask.AzureStorage.Tests.Correlation
 #endif
         class DurableTaskCorrelationTelemetryInitializer : ITelemetryInitializer
     {
-        private const string RddDiagnosticSourcePrefix = "rdddsc";
-        private const string SqlRemoteDependencyType = "SQL";
+        const string RddDiagnosticSourcePrefix = "rdddsc";
+        const string SqlRemoteDependencyType = "SQL";
 
         /// These internal property is copied from W3CConstants
         /// <summary>Trace-Id tag name.</summary>
@@ -91,7 +91,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         public HashSet<string> ExcludeComponentCorrelationHttpHeadersOnDomains { get; set; }
 
         /// <summary>
-        /// Constructor
+        /// Constructor 
         /// </summary>
         public DurableTaskCorrelationTelemetryInitializer()
         {
@@ -118,16 +118,16 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                     Console.WriteLine("exception!");
                 }
 
-                if (currentActivity is null)
+                if (currentActivity == null)
                 {
-                    if (CorrelationTraceContext.Current is not null)
+                    if (CorrelationTraceContext.Current != null)
                     {
                         UpdateTelemetry(telemetry, CorrelationTraceContext.Current);
                     }
                 }
                 else
                 {
-                    if (CorrelationTraceContext.Current is not null)
+                    if (CorrelationTraceContext.Current != null)
                     {
                         UpdateTelemetry(telemetry, CorrelationTraceContext.Current);
                     }
@@ -165,7 +165,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         {
             OperationTelemetry opTelemetry = telemetry as OperationTelemetry;
 
-            bool initializeFromCurrent = opTelemetry is not null;
+            bool initializeFromCurrent = opTelemetry != null;
 
             if (initializeFromCurrent)
             {
@@ -198,7 +198,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         {
             OperationTelemetry opTelemetry = telemetry as OperationTelemetry;
 
-            bool initializeFromCurrent = opTelemetry is not null;
+            bool initializeFromCurrent = opTelemetry != null;
 
             if (initializeFromCurrent)
             {
@@ -227,12 +227,12 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             }
             else
             {
-                if (telemetry.Context.Operation.Id is null)
+                if (telemetry.Context.Operation.Id == null)
                 {
                     telemetry.Context.Operation.Id = traceParent.TraceId;
                 }
 
-                if (telemetry.Context.Operation.ParentId is null)
+                if (telemetry.Context.Operation.ParentId == null) 
                 {
                     telemetry.Context.Operation.ParentId = traceParent.SpanId;
                 }
@@ -283,19 +283,19 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         [SuppressMessage("Microsoft.Usage", "CA1801:ReviewUnusedParameters", Justification = "This method has different code for Net45/NetCore")]
         internal static void UpdateTelemetry(ITelemetry telemetry, Activity activity, bool forceUpdate)
         {
-            if (activity is null)
+            if (activity == null)
             {
                 return;
             }
 
-            // Requests and dependnecies are initialized from the current Activity
+            // Requests and dependnecies are initialized from the current Activity 
             // (i.e. telemetry.Id = current.Id). Activity is created for such requests specifically
             // Traces, exceptions, events on the other side are children of current activity
             // There is one exception - SQL DiagnosticSource where current Activity is a parent
             // for dependency calls.
 
             OperationTelemetry opTelemetry = telemetry as OperationTelemetry;
-            bool initializeFromCurrent = opTelemetry is not null;
+            bool initializeFromCurrent = opTelemetry != null;
 
             if (initializeFromCurrent)
             {

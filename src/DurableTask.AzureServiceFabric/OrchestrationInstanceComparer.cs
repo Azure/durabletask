@@ -14,16 +14,15 @@
 namespace DurableTask.AzureServiceFabric
 {
     using System.Collections.Generic;
-
     using DurableTask.Core;
 
-    internal class OrchestrationInstanceComparer : IEqualityComparer<OrchestrationInstance>
+    class OrchestrationInstanceComparer : IEqualityComparer<OrchestrationInstance>
     {
         public static readonly OrchestrationInstanceComparer Default = new OrchestrationInstanceComparer();
 
         public bool Equals(OrchestrationInstance first, OrchestrationInstance second)
         {
-            if (first is null || second is null)
+            if (first == null || second == null)
             {
                 return first == second;
             }

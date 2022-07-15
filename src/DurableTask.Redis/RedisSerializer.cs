@@ -12,10 +12,9 @@
 //  ----------------------------------------------------------------------------------
 
 using System.Collections.Generic;
-
+using System.Linq;
 using DurableTask.Core;
 using DurableTask.Core.History;
-
 using Newtonsoft.Json;
 
 namespace DurableTask.Redis
@@ -23,9 +22,9 @@ namespace DurableTask.Redis
     /// <summary>
     /// Serializes objects in a consistent matter so data can be stored and retrieved from Redis
     /// </summary>
-    internal class RedisSerializer
+    class RedisSerializer
     {
-        private static readonly JsonSerializerSettings SerializerSettings = new JsonSerializerSettings
+        static readonly JsonSerializerSettings SerializerSettings = new JsonSerializerSettings
         {
             TypeNameHandling = TypeNameHandling.All
         };

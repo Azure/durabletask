@@ -21,8 +21,8 @@ namespace DurableTask.Core
     /// <typeparam name="T">Type of Object</typeparam>
     public class DefaultObjectCreator<T> : ObjectCreator<T>
     {
-        private readonly T instance;
-        private readonly Type prototype;
+        readonly T instance;
+        readonly Type prototype;
 
         /// <summary>
         /// Creates a new DefaultObjectCreator of supplied type
@@ -50,7 +50,7 @@ namespace DurableTask.Core
         /// <returns>An instance of the type T</returns>
         public override T Create()
         {
-            if (this.prototype is not null)
+            if (this.prototype != null)
             {
                 return (T)Activator.CreateInstance(this.prototype);
             }
@@ -58,7 +58,7 @@ namespace DurableTask.Core
             return this.instance;
         }
 
-        private void Initialize(object obj)
+        void Initialize(object obj)
         {
             Name = NameVersionHelper.GetDefaultName(obj);
             Version = NameVersionHelper.GetDefaultVersion(obj);

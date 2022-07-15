@@ -16,7 +16,8 @@ namespace DurableTask.Core
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
-
+    using System.Linq;
+    using System.Reflection;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
 
@@ -26,7 +27,7 @@ namespace DurableTask.Core
     public abstract class TraceContextBase
     {
         /// <summary>
-        /// Default constructor
+        /// Default constructor 
         /// </summary>
         protected TraceContextBase() => OrchestrationTraceContexts = new Stack<TraceContextBase>();
 
@@ -37,7 +38,7 @@ namespace DurableTask.Core
              PreserveReferencesHandling = PreserveReferencesHandling.Objects,
              ReferenceLoopHandling = ReferenceLoopHandling.Serialize,
          };
-
+       
         /// <summary>
         /// Start time of this telemetry
         /// </summary>
@@ -47,12 +48,12 @@ namespace DurableTask.Core
         /// Type of this telemetry.
         /// Request Telemetry or Dependency Telemetry.
         /// Use
-        /// <see cref="TelemetryType"/>
+        /// <see cref="TelemetryType"/> 
         /// </summary>
         public TelemetryType TelemetryType { get; set; }
 
         /// <summary>
-        /// OrchestrationState save the state of the
+        /// OrchestrationState save the state of the 
         /// </summary>
         public Stack<TraceContextBase> OrchestrationTraceContexts { get; set; }
 
@@ -82,13 +83,13 @@ namespace DurableTask.Core
         public abstract TimeSpan Duration { get; }
 
         [JsonIgnore]
-        private static JsonSerializerSettings CustomJsonSerializerSettings { get; }
+        static JsonSerializerSettings CustomJsonSerializerSettings { get; }
 
         /// <summary>
         /// Serializable Json string of TraceContext
         /// </summary>
         [JsonIgnore]
-        public string SerializableTraceContext =>
+        public string SerializableTraceContext => 
             JsonConvert.SerializeObject(this, CustomJsonSerializerSettings);
 
         /// <summary>

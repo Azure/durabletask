@@ -17,7 +17,6 @@ namespace DurableTask.AzureStorage.Tests.Correlation
     using System.Collections.Generic;
     using System.Diagnostics.Contracts;
     using System.Linq;
-
     using Microsoft.ApplicationInsights.Extensibility.Implementation;
 
     public static class ListExtensions
@@ -66,7 +65,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             return true;
         }
 
-        private static List<OperationTelemetry> GetCorrelationSortedList(OperationTelemetry parent, List<OperationTelemetry> current)
+        static List<OperationTelemetry> GetCorrelationSortedList(OperationTelemetry parent, List<OperationTelemetry> current)
         {
             var result = new List<OperationTelemetry>();
             if (current.Count != 0)

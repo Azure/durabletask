@@ -31,20 +31,23 @@ namespace DurableTask.ServiceBus.Tracking
     using Microsoft.WindowsAzure.Storage.RetryPolicies;
     using Microsoft.WindowsAzure.Storage.Table;
 
-    internal class AzureTableClient
+    class AzureTableClient
     {
         public const int JumpStartTableScanIntervalInDays = 1;
-        private const int MaxRetries = 3;
-        private static readonly TimeSpan MaximumExecutionTime = TimeSpan.FromSeconds(30);
-        private static readonly TimeSpan DeltaBackOff = TimeSpan.FromSeconds(5);
-        private readonly string hubName;
-        private readonly CloudTableClient tableClient;
-        private static readonly IDictionary<FilterComparisonType, string> ComparisonOperatorMap
+        const int MaxRetries = 3;
+        static readonly TimeSpan MaximumExecutionTime = TimeSpan.FromSeconds(30);
+        static readonly TimeSpan DeltaBackOff = TimeSpan.FromSeconds(5);
+
+        readonly string hubName;
+        readonly CloudTableClient tableClient;
+
+        static readonly IDictionary<FilterComparisonType, string> ComparisonOperatorMap
             = new Dictionary<FilterComparisonType, string>
             {{ FilterComparisonType.Equals, AzureTableConstants.EqualityOperator},
             { FilterComparisonType.NotEquals, AzureTableConstants.InEqualityOperator}};
-        private volatile CloudTable historyTable;
-        private volatile CloudTable jumpStartTable;
+
+        volatile CloudTable historyTable;
+        volatile CloudTable jumpStartTable;
 
         public AzureTableClient(string hubName, string tableConnectionString)
             : this(hubName, CloudStorageAccount.Parse(tableConnectionString))
@@ -59,7 +62,7 @@ namespace DurableTask.ServiceBus.Tracking
                 throw new ArgumentException("Invalid hub name", nameof(hubName));
             }
 
-            if (cloudStorageAccount is null)
+            if (cloudStorageAccount == null)
             {
                 throw new ArgumentException("Invalid Cloud Storage Account", nameof(cloudStorageAccount));
             }
@@ -70,7 +73,7 @@ namespace DurableTask.ServiceBus.Tracking
             this.jumpStartTable = this.tableClient.GetTableReference(JumpStartTableName);
         }
 
-        private static CloudTableClient CreateAzureTableClient(CloudStorageAccount cloudStorageAccount)
+        static CloudTableClient CreateAzureTableClient(CloudStorageAccount cloudStorageAccount)
         {
             CloudTableClient tableClient = cloudStorageAccount.CreateCloudTableClient();
             tableClient.DefaultRequestOptions.RetryPolicy = new ExponentialRetry(DeltaBackOff, MaxRetries);
@@ -96,7 +99,7 @@ namespace DurableTask.ServiceBus.Tracking
 
         internal async Task DeleteTableIfExistsAsync()
         {
-            if (this.historyTable is not null)
+            if (this.historyTable != null)
             {
                 await this.historyTable.DeleteIfExistsAsync();
             }
@@ -104,7 +107,7 @@ namespace DurableTask.ServiceBus.Tracking
 
         internal async Task DeleteJumpStartTableIfExistsAsync()
         {
-            if (this.jumpStartTable is not null)
+            if (this.jumpStartTable != null)
             {
                 await this.jumpStartTable.DeleteIfExistsAsync();
             }
@@ -144,7 +147,7 @@ namespace DurableTask.ServiceBus.Tracking
             return ReadAllEntitiesAsync(query, this.jumpStartTable);
         }
 
-        private TableQuery<AzureTableOrchestrationJumpStartEntity> CreateJumpStartQuery(DateTime startTime, DateTime endTime, int count)
+        TableQuery<AzureTableOrchestrationJumpStartEntity> CreateJumpStartQuery(DateTime startTime, DateTime endTime, int count)
         {
             string filterExpression = string.Format(
                 CultureInfo.InvariantCulture,
@@ -172,7 +175,7 @@ namespace DurableTask.ServiceBus.Tracking
                 throw new InvalidOperationException("Invalid primary filter");
             }
 
-            if (secondaryFilters is not null)
+            if (secondaryFilters != null)
             {
                 filterExpression = secondaryFilters.Aggregate(filterExpression,
                     (current, filter) =>
@@ -199,7 +202,7 @@ namespace DurableTask.ServiceBus.Tracking
             return query;
         }
 
-        private string GetPrimaryFilterExpression(OrchestrationStateQueryFilter filter, bool isJumpStartTable)
+        string GetPrimaryFilterExpression(OrchestrationStateQueryFilter filter, bool isJumpStartTable)
         {
             string basicPrimaryFilter;
             if (!isJumpStartTable)
@@ -216,7 +219,7 @@ namespace DurableTask.ServiceBus.Tracking
             }
 
             string filterExpression = string.Empty;
-            if (filter is not null)
+            if (filter != null)
             {
                 if (filter is OrchestrationStateInstanceFilter typedFilter)
                 {
@@ -255,7 +258,7 @@ namespace DurableTask.ServiceBus.Tracking
                 string.Empty : " and " + filterExpression);
         }
 
-        private string GetSecondaryFilterExpression(OrchestrationStateQueryFilter filter)
+        string GetSecondaryFilterExpression(OrchestrationStateQueryFilter filter)
         {
             string filterExpression;
 
@@ -284,7 +287,7 @@ namespace DurableTask.ServiceBus.Tracking
             }
             else if (filter is OrchestrationStateNameVersionFilter orchestrationStateNameVersionFilter)
             {
-                if (orchestrationStateNameVersionFilter.Version is null)
+                if (orchestrationStateNameVersionFilter.Version == null)
                 {
                     filterExpression = string.Format(CultureInfo.InvariantCulture,
                         AzureTableConstants.NameVersionQuerySecondaryFilterTemplate, orchestrationStateNameVersionFilter.Name);
@@ -336,9 +339,8 @@ namespace DurableTask.ServiceBus.Tracking
             return filterExpression;
         }
 
-        private static readonly DateTimeOffset MinDateTime = new DateTimeOffset(1601, 1, 1, 0, 0, 0, TimeSpan.Zero);
-
-        private DateTime ClipStartTime(DateTime startTime)
+        static readonly DateTimeOffset MinDateTime = new DateTimeOffset(1601, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        DateTime ClipStartTime(DateTime startTime)
         {
             DateTimeOffset offsetStartTime = startTime;
             if (offsetStartTime < MinDateTime)
@@ -349,7 +351,7 @@ namespace DurableTask.ServiceBus.Tracking
             return startTime;
         }
 
-        private DateTime ClipEndTime(DateTime endTime)
+        DateTime ClipEndTime(DateTime endTime)
         {
             if (endTime > Utils.DateTimeSafeMaxValue)
             {
@@ -381,20 +383,20 @@ namespace DurableTask.ServiceBus.Tracking
             return ReadAllEntitiesAsync(query, this.historyTable);
         }
 
-        private async Task<IEnumerable<T>> ReadAllEntitiesAsync<T>(TableQuery<T> query, CloudTable table)
+        async Task<IEnumerable<T>> ReadAllEntitiesAsync<T>(TableQuery<T> query, CloudTable table)
             where T : ITableEntity, new()
         {
             var results = new List<T>();
             TableQuerySegment<T> resultSegment = await table.ExecuteQuerySegmentedAsync(query, null);
-            if (resultSegment.Results is not null)
+            if (resultSegment.Results != null)
             {
                 results.AddRange(resultSegment.Results);
             }
 
-            while (resultSegment.ContinuationToken is not null)
+            while (resultSegment.ContinuationToken != null)
             {
                 resultSegment = await table.ExecuteQuerySegmentedAsync(query, resultSegment.ContinuationToken);
-                if (resultSegment.Results is not null)
+                if (resultSegment.Results != null)
                 {
                     results.AddRange(resultSegment.Results);
                 }
@@ -403,7 +405,7 @@ namespace DurableTask.ServiceBus.Tracking
             return results;
         }
 
-        private string ComputeNextKeyInRange(string key)
+        string ComputeNextKeyInRange(string key)
         {
             char newChar = key[key.Length - 1];
             newChar++;
@@ -419,7 +421,7 @@ namespace DurableTask.ServiceBus.Tracking
             IEnumerable<AzureTableCompositeTableEntity> entities,
             Action<TableBatchOperation, ITableEntity> batchOperationFunc)
         {
-            if (entities is null)
+            if (entities == null)
             {
                 throw new ArgumentNullException(nameof(entities));
             }
@@ -449,7 +451,7 @@ namespace DurableTask.ServiceBus.Tracking
             return null;
         }
 
-        private async Task ExecuteBatchOperationAsync(string operationTag, CloudTable table, TableBatchOperation batchOperation)
+        async Task ExecuteBatchOperationAsync(string operationTag, CloudTable table, TableBatchOperation batchOperation)
         {
             if (batchOperation.Count == 0)
             {

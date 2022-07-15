@@ -14,7 +14,6 @@
 namespace DurableTask.Core
 {
     using System.Collections.Generic;
-
     using DurableTask.Core.History;
 
     /// <summary>
@@ -22,7 +21,7 @@ namespace DurableTask.Core
     /// It holds a list of history events (when blob key is empty),
     /// or a key for external storage if the serialized stream is too large to fit into the the session state.
     /// </summary>
-    internal class OrchestrationSessionState
+    class OrchestrationSessionState
     {
         /// <summary>
         /// A constructor for deserialization.

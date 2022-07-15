@@ -26,13 +26,13 @@ namespace DurableTask.Core
     /// </summary>
     public static class CorrelationTraceClient
     {
-        private const string DiagnosticSourceName = "DurableTask.Core";
-        private const string RequestTrackEvent = "RequestEvent";
-        private const string DependencyTrackEvent = "DependencyEvent";
-        private const string ExceptionEvent = "ExceptionEvent";
-        private static readonly DiagnosticSource Logger = new DiagnosticListener(DiagnosticSourceName);
-        private static IDisposable applicationInsightsSubscription = null;
-        private static IDisposable listenerSubscription = null;
+        const string DiagnosticSourceName = "DurableTask.Core";
+        const string RequestTrackEvent = "RequestEvent";
+        const string DependencyTrackEvent = "DependencyEvent";
+        const string ExceptionEvent = "ExceptionEvent";
+        static readonly DiagnosticSource Logger = new DiagnosticListener(DiagnosticSourceName);
+        static IDisposable ApplicationInsightsSubscription = null;
+        static IDisposable ListenerSubscription = null;
 
         /// <summary>
         /// Setup this class uses callbacks to enable send telemetry to the Application Insights.
@@ -45,14 +45,14 @@ namespace DurableTask.Core
             Action<TraceContextBase> trackRequestTelemetryAction,
             Action<TraceContextBase> trackDependencyTelemetryAction,
             Action<Exception> trackExceptionAction)
-         => listenerSubscription = DiagnosticListener.AllListeners.Subscribe(
+         => ListenerSubscription = DiagnosticListener.AllListeners.Subscribe(
                     delegate (DiagnosticListener listener)
                     {
                         if (listener.Name == DiagnosticSourceName)
                         {
-                            applicationInsightsSubscription?.Dispose();
+                            ApplicationInsightsSubscription?.Dispose();
 
-                            applicationInsightsSubscription = listener.Subscribe((KeyValuePair<string, object> evt) =>
+                            ApplicationInsightsSubscription = listener.Subscribe((KeyValuePair<string, object> evt) =>
                             {
                                 if (evt.Key == RequestTrackEvent)
                                 {
@@ -122,9 +122,9 @@ namespace DurableTask.Core
             }
         }
 
-        private static void Tracking(Action tracking) => Execute(tracking);
+        static void Tracking(Action tracking) => Execute(tracking);
 
-        private static void Execute(Action action)
+        static void Execute(Action action)
         {
             if (CorrelationSettings.Current.EnableDistributedTracing)
             {

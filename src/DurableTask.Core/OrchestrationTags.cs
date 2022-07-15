@@ -11,13 +11,15 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 
 namespace DurableTask.Core
 {
     /// <summary>
-    /// Common code for dealing with orchestration tags. Orchestration tags are string-typed
+    /// Common code for dealing with orchestration tags. Orchestration tags are string-typed 
     /// properties that can be explicitly assigned when orchestrations or suborchestrations
     /// are created. A suborchestration automatically inherits the tags of its parent orchestration.
     /// </summary>
@@ -29,7 +31,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <remarks>
         /// Tags are generally intended for application-specific purposes and ignored by the runtime,
-        /// except for this special tag. Unlike general application-defined tags, this tag is not
+        /// except for this special tag. Unlike general application-defined tags, this tag is not 
         /// automatically inherited by sub-orchestrations.
         /// </remarks>
         public const string FireAndForget = "FireAndForget";
@@ -46,11 +48,11 @@ namespace DurableTask.Core
             IDictionary<string, string> newTags,
             IDictionary<string, string> existingTags)
         {
-            if (existingTags is null)
+            if (existingTags == null)
             {
                 return newTags;
             }
-            else if (newTags is not null)
+            else if (newTags != null)
             {
                 // We merge the two dictionaries of tags, with new tags overriding existing tags
                 return newTags.Concat(

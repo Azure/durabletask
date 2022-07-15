@@ -115,7 +115,7 @@ namespace DurableTask.Test.Orchestrations
         // HACK: This is just a hack to communicate result of orchestration back to test
         public static string Result;
         public static ManualResetEvent Signal = new ManualResetEvent(false);
-        private TaskCompletionSource<string> resumeHandle;
+        TaskCompletionSource<string> resumeHandle;
 
         public override async Task<int> RunTask(OrchestrationContext context, int numberOfGenerations)
         {
@@ -132,7 +132,7 @@ namespace DurableTask.Test.Orchestrations
             return count;
         }
 
-        private async Task<int> WaitForSignal()
+        async Task<int> WaitForSignal()
         {
             this.resumeHandle = new TaskCompletionSource<string>();
             string data = await this.resumeHandle.Task;
@@ -218,7 +218,7 @@ namespace DurableTask.Test.Orchestrations
 
     public sealed class CounterOrchestration : TaskOrchestration<int, int>
     {
-        private TaskCompletionSource<string> waitForOperationHandle;
+        TaskCompletionSource<string> waitForOperationHandle;
 
         public override async Task<int> RunTask(OrchestrationContext context, int currentValue)
         {
@@ -247,7 +247,7 @@ namespace DurableTask.Test.Orchestrations
 
         }
 
-        private async Task<string> WaitForOperation()
+        async Task<string> WaitForOperation()
         {
             this.waitForOperationHandle = new TaskCompletionSource<string>();
             string operation = await this.waitForOperationHandle.Task;
@@ -257,7 +257,7 @@ namespace DurableTask.Test.Orchestrations
 
         public override void OnEvent(OrchestrationContext context, string name, string input)
         {
-            if (this.waitForOperationHandle is not null && !this.waitForOperationHandle.Task.IsCompleted)
+            if (this.waitForOperationHandle != null && !this.waitForOperationHandle.Task.IsCompleted)
             {
                 this.waitForOperationHandle.SetResult(input);
             }
@@ -289,10 +289,10 @@ namespace DurableTask.Test.Orchestrations
 
     public sealed class ChangeStatusOrchestration : TaskOrchestration<string, string[]>
     {
-        private bool hasSetCustomStatus = false;
-        private string customStatus = null;
+        bool hasSetCustomStatus = false;
+        string customStatus = null;
 
-        private async Task SetCustomStatus(OrchestrationContext context, string status)
+        async Task SetCustomStatus(OrchestrationContext context, string status)
         {
             this.hasSetCustomStatus = true;
             this.customStatus = status;
@@ -324,7 +324,7 @@ namespace DurableTask.Test.Orchestrations
     [KnownType(typeof(EventConversationOrchestration.Responder))]
     public sealed class EventConversationOrchestration : TaskOrchestration<string, bool>
     {
-        private readonly TaskCompletionSource<string> tcs
+        readonly TaskCompletionSource<string> tcs
             = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
 
         // HACK: This is just a hack to communicate result of orchestration back to test
@@ -384,11 +384,11 @@ namespace DurableTask.Test.Orchestrations
             }
         }
 
-        private const string ChannelName = "conversation";
+        const string ChannelName = "conversation";
 
         public class Responder : TaskOrchestration<string, string>
         {
-            private readonly TaskCompletionSource<string> tcs
+            readonly TaskCompletionSource<string> tcs
                 = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
 
             public async override Task<string> RunTask(OrchestrationContext context, string input)

@@ -50,7 +50,7 @@ namespace DurableTask.AzureStorage.Tests
 
             Assert.AreEqual(original, roundtrip);
 
-            if (sanitized is not null)
+            if (sanitized != null)
             {
                 Assert.IsTrue(sanitized.All(c => IsValid(c)));
             }

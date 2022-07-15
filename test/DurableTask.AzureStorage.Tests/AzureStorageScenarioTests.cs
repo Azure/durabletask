@@ -13,7 +13,6 @@
 
 namespace DurableTask.AzureStorage.Tests
 {
-#pragma warning disable CA1812 // Internal classes instantiated indirectly
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
@@ -546,7 +545,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        private async Task<int> GetBlobCount(string containerName, string directoryName)
+        async Task<int> GetBlobCount(string containerName, string directoryName)
         {
             string storageConnectionString = TestHelpers.GetTestStorageAccountConnectionString();
             if (!CloudStorageAccount.TryParse(storageConnectionString, out var storageAccount))
@@ -578,7 +577,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 blobContinuationToken = results.ContinuationToken;
                 blobCount += results.Results.Count();
-            } while (blobContinuationToken is not null);
+            } while (blobContinuationToken != null);
 
             return blobCount;
         }
@@ -825,7 +824,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(0, blobCount);
         }
 
-        private async Task<Tuple<string, TestOrchestrationClient>> ValidateCharacterCounterIntegrationTest(bool enableExtendedSessions)
+        async Task<Tuple<string, TestOrchestrationClient>> ValidateCharacterCounterIntegrationTest(bool enableExtendedSessions)
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
@@ -1625,7 +1624,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        private StringBuilder GenerateMediumRandomStringPayload(int numChars = 128 * 1024, short utf8ByteSize = 1, short utf16ByteSize = 2)
+        StringBuilder GenerateMediumRandomStringPayload(int numChars = 128 * 1024, short utf8ByteSize = 1, short utf16ByteSize = 2)
         {
             string Chars;
             if (utf16ByteSize != 2 && utf16ByteSize != 4)
@@ -1959,7 +1958,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        private static async Task ValidateBlobUrlAsync(string taskHubName, string instanceId, string value, int originalPayloadSize = 0)
+        static async Task ValidateBlobUrlAsync(string taskHubName, string instanceId, string value, int originalPayloadSize = 0)
         {
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
 
@@ -2126,7 +2125,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        private static class Orchestrations
+        static class Orchestrations
         {
             internal class SayHelloInline : TaskOrchestration<string, string>
             {
@@ -2293,8 +2292,8 @@ namespace DurableTask.AzureStorage.Tests
             [KnownType(typeof(Activities.Echo))]
             internal class SemiLargePayloadFanOutFanIn : TaskOrchestration<string, int>
             {
-                private static readonly string Some50KBPayload = new string('x', 25 * 1024); // Assumes UTF-16 encoding
-                private static readonly string Some16KBPayload = new string('x', 8 * 1024); // Assumes UTF-16 encoding
+                static readonly string Some50KBPayload = new string('x', 25 * 1024); // Assumes UTF-16 encoding
+                static readonly string Some16KBPayload = new string('x', 8 * 1024); // Assumes UTF-16 encoding
 
                 public override async Task<string> RunTask(OrchestrationContext context, int parallelTasks)
                 {
@@ -2456,7 +2455,7 @@ namespace DurableTask.AzureStorage.Tests
 
             internal class Counter : TaskOrchestration<int, int>
             {
-                private TaskCompletionSource<string> waitForOperationHandle;
+                TaskCompletionSource<string> waitForOperationHandle;
 
                 public override async Task<int> RunTask(OrchestrationContext context, int currentValue)
                 {
@@ -2485,7 +2484,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 }
 
-                private async Task<string> WaitForOperation()
+                async Task<string> WaitForOperation()
                 {
                     this.waitForOperationHandle = new TaskCompletionSource<string>();
                     string operation = await this.waitForOperationHandle.Task;
@@ -2496,7 +2495,7 @@ namespace DurableTask.AzureStorage.Tests
                 public override void OnEvent(OrchestrationContext context, string name, string input)
                 {
                     Assert.AreEqual("operation", name, true, "Unknown signal recieved...");
-                    if (this.waitForOperationHandle is not null)
+                    if (this.waitForOperationHandle != null)
                     {
                         this.waitForOperationHandle.SetResult(input);
                     }
@@ -2505,7 +2504,7 @@ namespace DurableTask.AzureStorage.Tests
 
             internal class CharacterCounter : TaskOrchestration<Tuple<string, int>, Tuple<string, int>>
             {
-                private TaskCompletionSource<string> waitForOperationHandle;
+                TaskCompletionSource<string> waitForOperationHandle;
 
                 public override async Task<Tuple<string, int>> RunTask(OrchestrationContext context, Tuple<string, int> inputData)
                 {
@@ -2531,7 +2530,7 @@ namespace DurableTask.AzureStorage.Tests
                     return inputData;
                 }
 
-                private async Task<string> WaitForOperation()
+                async Task<string> WaitForOperation()
                 {
                     this.waitForOperationHandle = new TaskCompletionSource<string>();
                     string operation = await this.waitForOperationHandle.Task;
@@ -2542,7 +2541,7 @@ namespace DurableTask.AzureStorage.Tests
                 public override void OnEvent(OrchestrationContext context, string name, string input)
                 {
                     Assert.AreEqual("operation", name, true, "Unknown signal recieved...");
-                    if (this.waitForOperationHandle is not null)
+                    if (this.waitForOperationHandle != null)
                     {
                         this.waitForOperationHandle.SetResult(input);
                     }
@@ -2551,7 +2550,7 @@ namespace DurableTask.AzureStorage.Tests
 
             internal class Approval : TaskOrchestration<string, TimeSpan, bool, string>
             {
-                private TaskCompletionSource<bool> waitForApprovalHandle;
+                TaskCompletionSource<bool> waitForApprovalHandle;
                 public static bool ShouldFail = false;
 
                 public override async Task<string> RunTask(OrchestrationContext context, TimeSpan timeout)
@@ -2583,7 +2582,7 @@ namespace DurableTask.AzureStorage.Tests
                     }
                 }
 
-                private async Task<bool> GetWaitForApprovalTask()
+                async Task<bool> GetWaitForApprovalTask()
                 {
                     this.waitForApprovalHandle = new TaskCompletionSource<bool>();
                     bool approvalResult = await this.waitForApprovalHandle.Task;
@@ -2594,7 +2593,7 @@ namespace DurableTask.AzureStorage.Tests
                 public override void OnEvent(OrchestrationContext context, string name, bool approvalResult)
                 {
                     Assert.AreEqual("approval", name, true, "Unknown signal recieved...");
-                    if (this.waitForApprovalHandle is not null)
+                    if (this.waitForApprovalHandle != null)
                     {
                         this.waitForApprovalHandle.SetResult(approvalResult);
                     }
@@ -2723,14 +2722,14 @@ namespace DurableTask.AzureStorage.Tests
             internal class AutoStartOrchestration : TaskOrchestration<string, string>
             {
 #pragma warning disable CA2247 // Argument passed to TaskCompletionSource constructor should be TaskCreationOptions enum instead of TaskContinuationOptions enum
-                private readonly TaskCompletionSource<string> tcs
+                readonly TaskCompletionSource<string> tcs
                     = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
 #pragma warning restore CA2247 // Argument passed to TaskCompletionSource constructor should be TaskCreationOptions enum instead of TaskContinuationOptions enum
 
                 // HACK: This is just a hack to communicate result of orchestration back to test
                 public static bool OkResult;
 
-                private static readonly string ChannelName = Guid.NewGuid().ToString();
+                static readonly string ChannelName = Guid.NewGuid().ToString();
 
                 public async override Task<string> RunTask(OrchestrationContext context, string input)
                 {
@@ -2769,7 +2768,7 @@ namespace DurableTask.AzureStorage.Tests
                 public class Responder : TaskOrchestration<string, string, RequestInformation, string>
                 {
 #pragma warning disable CA2247 // Argument passed to TaskCompletionSource constructor should be TaskCreationOptions enum instead of TaskContinuationOptions enum
-                    private readonly TaskCompletionSource<string> tcs
+                    readonly TaskCompletionSource<string> tcs
                         = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
 #pragma warning restore CA2247 // Argument passed to TaskCompletionSource constructor should be TaskCreationOptions enum instead of TaskContinuationOptions enum
 
@@ -2779,7 +2778,7 @@ namespace DurableTask.AzureStorage.Tests
                         string responseString;
 
                         // send a message back to the sender
-                        if (input is not null)
+                        if (input != null)
                         {
                             responseString = "expected null input for autostarted orchestration";
                         }
@@ -2807,21 +2806,21 @@ namespace DurableTask.AzureStorage.Tests
             internal class AbortSessionOrchestration : TaskOrchestration<string, string>
             {
                 // This is a hacky way of keeping track of global state
-                private static bool abortedOrchestration = false;
-                private static bool abortedActivity = false;
+                static bool AbortedOrchestration = false;
+                static bool AbortedActivity = false;
 
                 public async override Task<string> RunTask(OrchestrationContext context, string input)
                 {
-                    if (!abortedOrchestration)
+                    if (!AbortedOrchestration)
                     {
-                        abortedOrchestration = true;
+                        AbortedOrchestration = true;
                         throw new SessionAbortedException();
                     }
 
                     try
                     {
                         await context.ScheduleTask<string>(typeof(Activity), input);
-                        return (abortedOrchestration && abortedActivity).ToString();
+                        return (AbortedOrchestration && AbortedActivity).ToString();
                     }
                     catch
                     {
@@ -2830,8 +2829,8 @@ namespace DurableTask.AzureStorage.Tests
                     finally
                     {
                         // reset to ensure future executions work correctly
-                        abortedOrchestration = false;
-                        abortedActivity = false;
+                        AbortedOrchestration = false;
+                        AbortedActivity = false;
                     }
                 }
 
@@ -2839,9 +2838,9 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     protected override string Execute(TaskContext context, string input)
                     {
-                        if (!abortedActivity)
+                        if (!AbortedActivity)
                         {
-                            abortedActivity = true;
+                            AbortedActivity = true;
                             throw new SessionAbortedException();
                         }
 
@@ -2886,7 +2885,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        private static class Activities
+        static class Activities
         {
             internal class HelloFailActivity : TaskActivity<string, string>
             {
@@ -3064,21 +3063,21 @@ namespace DurableTask.AzureStorage.Tests
 
             internal class WriteTableRow : TaskActivity<Tuple<string, string>, string>
             {
-                private static CloudTable cachedTable;
+                static CloudTable CachedTable;
 
                 internal static CloudTable TestCloudTable
                 {
                     get
                     {
-                        if (cachedTable is null)
+                        if (CachedTable == null)
                         {
                             string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
                             CloudTable table = CloudStorageAccount.Parse(connectionString).CreateCloudTableClient().GetTableReference("TestTable");
                             table.CreateIfNotExistsAsync().Wait();
-                            cachedTable = table;
+                            CachedTable = table;
                         }
 
-                        return cachedTable;
+                        return CachedTable;
                     }
                 }
 

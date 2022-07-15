@@ -17,7 +17,6 @@ namespace DurableTask.AzureStorage
     using System;
     using System.Diagnostics.Tracing;
     using System.Runtime.CompilerServices;
-
     using DurableTask.AzureStorage.Logging;
 
     /// <summary>

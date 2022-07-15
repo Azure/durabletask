@@ -102,7 +102,7 @@ namespace DurableTask.AzureStorage.Monitoring
             int? maxPollingIntervalMilliseconds = null)
         {
             var settings = new AzureStorageOrchestrationServiceSettings { TaskHubName = taskHub };
-            if (maxPollingIntervalMilliseconds is not null)
+            if (maxPollingIntervalMilliseconds != null)
             {
                 settings.MaxQueuePollingInterval = TimeSpan.FromMilliseconds(maxPollingIntervalMilliseconds.Value);
             }
@@ -120,7 +120,7 @@ namespace DurableTask.AzureStorage.Monitoring
         {
             var heartbeatPayload = await this.PulseAsync();
 
-            if (heartbeatPayload is not null)
+            if (heartbeatPayload != null)
             {
                 heartbeatPayload.ScaleRecommendation = MakeScaleRecommendation(currentWorkerCount);
             }
@@ -234,7 +234,7 @@ namespace DurableTask.AzureStorage.Monitoring
         {
             DateTimeOffset now = DateTimeOffset.UtcNow;
             QueueMessage firstMessage = await queue.PeekMessageAsync();
-            if (firstMessage is null)
+            if (firstMessage == null)
             {
                 return TimeSpan.MinValue;
             }
@@ -329,7 +329,7 @@ namespace DurableTask.AzureStorage.Monitoring
         /// <returns>Returns a scale recommendation</returns>
         public virtual ScaleRecommendation MakeScaleRecommendation(int workerCount, PerformanceHeartbeat[] performanceHeartbeats)
         {
-            if (performanceHeartbeats is null || performanceHeartbeats.Length == 0)
+            if (performanceHeartbeats == null || performanceHeartbeats.Length == 0)
             {
                 return new ScaleRecommendation(ScaleAction.None, keepWorkersAlive: true, reason: "No heartbeat metrics");
             }

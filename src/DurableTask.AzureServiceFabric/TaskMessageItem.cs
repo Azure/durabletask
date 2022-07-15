@@ -15,11 +15,10 @@ namespace DurableTask.AzureServiceFabric
 {
     using System;
     using System.Runtime.Serialization;
-
     using DurableTask.Core;
 
     [DataContract]
-    internal sealed class TaskMessageItem : IExtensibleDataObject
+    sealed class TaskMessageItem : IExtensibleDataObject
     {
         public TaskMessageItem(TaskMessage taskMessage)
          => this.TaskMessage = taskMessage ?? throw new ArgumentNullException(nameof(taskMessage));

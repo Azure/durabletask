@@ -74,7 +74,7 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         public void ReturnBuffer(byte[] buffer)
         {
-            if (buffer is null)
+            if (buffer == null)
             {
                 throw new ArgumentNullException(nameof(buffer));
             }

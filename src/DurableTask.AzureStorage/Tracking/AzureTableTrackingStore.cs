@@ -23,10 +23,12 @@ namespace DurableTask.AzureStorage.Tracking
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
     using DurableTask.Core.History;
+
     using Microsoft.WindowsAzure.Storage.Table;
 
     /// <summary>
@@ -142,7 +144,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task<bool> ExistsAsync()
         {
-            return this.HistoryTable is not null && this.InstancesTable is not null && await this.HistoryTable.ExistsAsync() && await this.InstancesTable.ExistsAsync();
+            return this.HistoryTable != null && this.InstancesTable != null && await this.HistoryTable.ExistsAsync() && await this.InstancesTable.ExistsAsync();
         }
 
         /// <inheritdoc />
@@ -203,7 +205,7 @@ namespace DurableTask.AzureStorage.Tracking
             DateTime checkpointCompletionTime = DateTime.MinValue;
             sentinel = sentinel ?? tableEntities.LastOrDefault(e => e.RowKey == SentinelRowKey);
             string eTagValue = sentinel?.ETag;
-            if (sentinel is not null &&
+            if (sentinel != null &&
                 sentinel.Properties.TryGetValue(CheckpointCompletedTimestampProperty, out EntityProperty timestampProperty))
             {
                 checkpointCompletionTime = timestampProperty.DateTime ?? DateTime.MinValue;
@@ -226,7 +228,7 @@ namespace DurableTask.AzureStorage.Tracking
             return new OrchestrationHistory(historyEvents, checkpointCompletionTime, eTagValue);
         }
 
-        async Task<TableEntitiesResponseInfo<DynamicTableEntity>> GetHistoryEntitiesResponseInfoAsync(string instanceId, string expectedExecutionId, IList<string> projectionColumns,  CancellationToken cancellationToken = default(CancellationToken))
+        async Task<TableEntitiesResponseInfo<DynamicTableEntity>> GetHistoryEntitiesResponseInfoAsync(string instanceId, string expectedExecutionId, IList<string> projectionColumns, CancellationToken cancellationToken = default(CancellationToken))
         {
             var sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
             string filterCondition = TableQuery.GenerateFilterCondition(PartitionKeyProperty, QueryComparisons.Equal, sanitizedInstanceId);
@@ -243,7 +245,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             TableQuery<DynamicTableEntity> query = new TableQuery<DynamicTableEntity>().Where(filterCondition);
 
-            if (projectionColumns is not null)
+            if (projectionColumns != null)
             {
                 query.Select(projectionColumns);
             }
@@ -275,7 +277,7 @@ namespace DurableTask.AzureStorage.Tracking
                 eTag: string.Empty,
                 DateTime.MinValue);
 
-            return entities; 
+            return entities;
         }
 
         public override async Task<IList<string>> RewindHistoryAsync(string instanceId, IList<string> failedLeaves, CancellationToken cancellationToken)
@@ -358,7 +360,7 @@ namespace DurableTask.AzureStorage.Tracking
 
                     taskScheduledEntities[0].Properties["Reason"] = new EntityProperty("Rewound: " + taskScheduledEntities[0].Properties["EventType"].StringValue);
                     taskScheduledEntities[0].Properties["EventType"] = new EntityProperty(nameof(EventType.GenericEvent));
-                    
+
                     await this.HistoryTable.ReplaceAsync(taskScheduledEntities[0]);
                 }
 
@@ -431,7 +433,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         async Task<InstanceStatus?> FetchInstanceStatusInternalAsync(string instanceId, bool fetchInput)
         {
-            if (instanceId is null)
+            if (instanceId == null)
             {
                 throw new ArgumentNullException(nameof(instanceId));
             }
@@ -447,7 +449,7 @@ namespace DurableTask.AzureStorage.Tracking
             var tableEntity = tableEntitiesResponseInfo.ReturnedEntities.FirstOrDefault();
 
             OrchestrationState? orchestrationState = null;
-            if (tableEntity is not null)
+            if (tableEntity != null)
             {
                 orchestrationState = await this.ConvertFromAsync(tableEntity);
             }
@@ -460,7 +462,7 @@ namespace DurableTask.AzureStorage.Tracking
                 orchestrationState?.OrchestrationStatus.ToString() ?? "NotFound",
                 tableEntitiesResponseInfo.ElapsedMilliseconds);
 
-            if (tableEntity is null || orchestrationState is null)
+            if (tableEntity == null || orchestrationState == null)
             {
                 return null;
             }
@@ -484,10 +486,10 @@ namespace DurableTask.AzureStorage.Tracking
             foreach (var pair in properties)
             {
                 var property = type.GetProperty(pair.Key);
-                if (property is not null)
+                if (property != null)
                 {
                     var value = pair.Value;
-                    if (value is not null)
+                    if (value != null)
                     {
                         if (property.PropertyType == typeof(DateTime) || property.PropertyType == typeof(DateTime?))
                         {
@@ -546,7 +548,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task<IList<OrchestrationState>> GetStateAsync(IEnumerable<string> instanceIds)
         {
-            if (instanceIds is null || !instanceIds.Any())
+            if (instanceIds == null || !instanceIds.Any())
             {
                 return Array.Empty<OrchestrationState>();
             }
@@ -556,7 +558,7 @@ namespace DurableTask.AzureStorage.Tracking
             // to only be a small handful of parallel requests, so keeping the code simple until the storage refactor adds global throttling.
             var instanceQueries = instanceIds.Select(instance => this.GetStateAsync(instance, allExecutions: true, fetchInput: false));
             IEnumerable<IList<OrchestrationState>> instanceQueriesResults = await Task.WhenAll(instanceQueries);
-            return instanceQueriesResults.SelectMany(result => result).Where(orchestrationState => orchestrationState is not null).ToList();
+            return instanceQueriesResults.SelectMany(result => result).Where(orchestrationState => orchestrationState != null).ToList();
         }
 
         /// <inheritdoc />
@@ -599,7 +601,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             var tableEntitiesResponseInfo = await this.InstancesTable.ExecuteQuerySegmentAsync(query, cancellationToken, continuationToken);
 
-            IEnumerable<OrchestrationState> result = await Task.WhenAll(tableEntitiesResponseInfo.ReturnedEntities.Select( status => this.ConvertFromAsync(status, KeySanitation.UnescapePartitionKey(status.PartitionKey))));
+            IEnumerable<OrchestrationState> result = await Task.WhenAll(tableEntitiesResponseInfo.ReturnedEntities.Select(status => this.ConvertFromAsync(status, KeySanitation.UnescapePartitionKey(status.PartitionKey))));
             orchestrationStates.AddRange(result);
 
             var queryResult = new DurableStatusQueryResult()
@@ -615,7 +617,7 @@ namespace DurableTask.AzureStorage.Tracking
         {
             var orchestrationStates = new List<OrchestrationState>(100);
 
-            var tableEntitiesResponseInfo = await this.InstancesTable.ExecuteQueryAsync(query, cancellationToken);   
+            var tableEntitiesResponseInfo = await this.InstancesTable.ExecuteQueryAsync(query, cancellationToken);
 
             IEnumerable<OrchestrationState> result = await Task.WhenAll(tableEntitiesResponseInfo.ReturnedEntities.Select(
                 status => this.ConvertFromAsync(status, KeySanitation.UnescapePartitionKey(status.PartitionKey))));
@@ -648,7 +650,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             while (true)
             {
-                TableEntitiesResponseInfo<OrchestrationInstanceStatus> tableEntitiesResponseInfo = 
+                TableEntitiesResponseInfo<OrchestrationInstanceStatus> tableEntitiesResponseInfo =
                     await this.InstancesTable.ExecuteQueryAsync(query);
                 IList<OrchestrationInstanceStatus> results = tableEntitiesResponseInfo.ReturnedEntities;
                 if (results.Count == 0)
@@ -738,7 +740,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             OrchestrationInstanceStatus orchestrationInstanceStatus = tableEntitiesResponseInfo.ReturnedEntities.FirstOrDefault();
 
-            if (orchestrationInstanceStatus is not null)
+            if (orchestrationInstanceStatus != null)
             {
                 PurgeHistoryResult result = await this.DeleteAllDataForOrchestrationInstance(orchestrationInstanceStatus);
 
@@ -766,7 +768,7 @@ namespace DurableTask.AzureStorage.Tracking
             IEnumerable<OrchestrationStatus> runtimeStatus)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
-            List<OrchestrationStatus> runtimeStatusList =  runtimeStatus?.Where(
+            List<OrchestrationStatus> runtimeStatusList = runtimeStatus?.Where(
                status => status == OrchestrationStatus.Completed ||
                     status == OrchestrationStatus.Terminated ||
                     status == OrchestrationStatus.Canceled ||
@@ -780,7 +782,7 @@ namespace DurableTask.AzureStorage.Tracking
                 string.Empty,
                 createdTimeFrom.ToString(),
                 createdTimeTo.ToString() ?? DateTime.MinValue.ToString(),
-                runtimeStatus is not null ?
+                runtimeStatus != null ?
                     string.Join(",", runtimeStatus.Select(x => x.ToString())) :
                     string.Empty,
                 result.StorageRequests,
@@ -822,7 +824,7 @@ namespace DurableTask.AzureStorage.Tracking
             Stopwatch stopwatch = Stopwatch.StartNew();
             try
             {
-                if (eTag is null)
+                if (eTag == null)
                 {
                     // This is the case for creating a new instance.
                     await this.InstancesTable.InsertAsync(entity);
@@ -927,7 +929,7 @@ namespace DurableTask.AzureStorage.Tracking
                     ["LastUpdatedTime"] = new EntityProperty(newEvents.Last().Timestamp),
                 }
             };
-           
+
             for (int i = 0; i < newEvents.Count; i++)
             {
                 bool isFinalEvent = i == newEvents.Count - 1;

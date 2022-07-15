@@ -16,10 +16,8 @@ namespace DurableTask.ServiceBus.Tracking
     using System;
     using System.IO;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
     using DurableTask.Core.Tracking;
-
     using Microsoft.WindowsAzure.Storage;
 
     /// <summary>
@@ -30,7 +28,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// <summary>
         /// The client to access and manage the blob store
         /// </summary>
-        private readonly BlobStorageClient blobClient;
+        readonly BlobStorageClient blobClient;
 
         /// <summary>
         /// Creates a new AzureStorageBlobStore using the supplied hub name and connection string

@@ -17,7 +17,6 @@ namespace DurableTask.Test.Orchestrations
     using System;
     using System.Diagnostics.Contracts;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
 
     public sealed class SimplestGetUserTask : TaskActivity<string, string>

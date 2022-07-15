@@ -22,11 +22,12 @@ namespace DurableTask.Emulator
     using System.Threading;
     using System.Threading.Tasks;
 
-    internal class PeekLockSessionQueue
+    class PeekLockSessionQueue
     {
-        private readonly List<TaskSession> sessionQueue;
-        private readonly List<TaskSession> lockedSessionQueue;
-        private readonly object thisLock = new object();
+        readonly List<TaskSession> sessionQueue;
+        readonly List<TaskSession> lockedSessionQueue;
+
+        readonly object thisLock = new object();
 
         public PeekLockSessionQueue()
         {
@@ -40,7 +41,7 @@ namespace DurableTask.Emulator
             {
                 TaskSession taskSession = this.lockedSessionQueue.Find((ts) => string.Equals(ts.Id, id, StringComparison.InvariantCultureIgnoreCase));
 
-                if (taskSession is null)
+                if (taskSession == null)
                 {
                     return;
                 }
@@ -98,7 +99,7 @@ namespace DurableTask.Emulator
             {
                 TaskSession taskSession = this.lockedSessionQueue.Find((ts) => string.Equals(ts.Id, id, StringComparison.InvariantCultureIgnoreCase));
 
-                if (taskSession is null)
+                if (taskSession == null)
                 {
                     // TODO : throw proper lock lost exception (AFFANDAR)
                     throw new InvalidOperationException("Lock lost");
@@ -116,7 +117,7 @@ namespace DurableTask.Emulator
 
                 taskSession.SessionState = newState;
 
-                if (newState is not null)
+                if (newState != null)
                 {
                     this.sessionQueue.Add(taskSession);
                 }
@@ -126,7 +127,7 @@ namespace DurableTask.Emulator
                     SendMessage(m);
                 }
 
-                if (continuedAsNewMessage is not null)
+                if (continuedAsNewMessage != null)
                 {
                     SendMessage(continuedAsNewMessage);
                 }
@@ -139,7 +140,7 @@ namespace DurableTask.Emulator
             {
                 TaskSession taskSession = this.lockedSessionQueue.Find((ts) => string.Equals(ts.Id, id, StringComparison.InvariantCultureIgnoreCase));
 
-                if (taskSession is null)
+                if (taskSession == null)
                 {
                     // TODO : throw proper lock lost exception (AFFANDAR)
                     throw new InvalidOperationException("Lock lost");

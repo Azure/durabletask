@@ -14,10 +14,12 @@
 namespace DurableTask.Core.Command
 {
     using System;
-    using Newtonsoft.Json.Linq;
+
     using DurableTask.Core.Serializing;
 
-    internal class OrchestrationActionConverter : JsonCreationConverter<OrchestratorAction>
+    using Newtonsoft.Json.Linq;
+
+    class OrchestrationActionConverter : JsonCreationConverter<OrchestratorAction>
     {
         protected override OrchestratorAction CreateObject(Type objectType, JObject jObject)
         {

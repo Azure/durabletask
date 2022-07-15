@@ -15,13 +15,10 @@ namespace DurableTask.ServiceBus.Tracking
 {
     using System;
     using System.Collections.Generic;
-
     using DurableTask.Core.History;
     using DurableTask.Core.Serializing;
-
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Table;
-
     using Newtonsoft.Json;
 
     /// <summary>
@@ -29,13 +26,13 @@ namespace DurableTask.ServiceBus.Tracking
     /// </summary>
     public class AzureTableOrchestrationHistoryEventEntity : AzureTableCompositeTableEntity
     {
-        private static readonly JsonSerializerSettings WriteJsonSettings = new JsonSerializerSettings
+        static readonly JsonSerializerSettings WriteJsonSettings = new JsonSerializerSettings
         {
             Formatting = Formatting.Indented,
             TypeNameHandling = TypeNameHandling.Objects
         };
 
-        private static readonly JsonSerializerSettings ReadJsonSettings = new JsonSerializerSettings
+        static readonly JsonSerializerSettings ReadJsonSettings = new JsonSerializerSettings
         {
             TypeNameHandling = TypeNameHandling.Objects,
 #if NETSTANDARD2_0
@@ -46,7 +43,7 @@ namespace DurableTask.ServiceBus.Tracking
         };
 
         /// <summary>
-        /// Creates a new AzureTableOrchestrationHistoryEventEntity
+        /// Creates a new AzureTableOrchestrationHistoryEventEntity 
         /// </summary>
         public AzureTableOrchestrationHistoryEventEntity()
         {

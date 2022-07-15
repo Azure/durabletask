@@ -16,7 +16,7 @@ namespace DurableTask.Samples
     using CommandLine;
     using CommandLine.Text;
 
-    internal class Options
+    class Options
     {
         [Option('c', "create-hub", DefaultValue = false,
             HelpText = "Create Orchestration Hub.")]

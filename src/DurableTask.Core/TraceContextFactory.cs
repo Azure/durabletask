@@ -14,8 +14,10 @@
 namespace DurableTask.Core
 {
     using System;
+    using System.Collections.Generic;
     using System.Diagnostics;
-
+    using System.Dynamic;
+    using System.Text;
     using DurableTask.Core.Settings;
 
     /// <summary>
@@ -43,12 +45,12 @@ namespace DurableTask.Core
         /// </summary>
         public static TraceContextBase Empty { get; } = new NullObjectTraceContext();
 
-        private static ITraceContextFactory CreateFactory()
+        static ITraceContextFactory CreateFactory()
         {
             switch (CorrelationSettings.Current.Protocol)
             {
                 case Protocol.W3CTraceContext:
-                    return new W3CTraceContextFactory();
+                    return new W3CTraceContextFactory();                
                 case Protocol.HttpCorrelationProtocol:
                     return new HttpCorrelationProtocolTraceContextFactory();
                 default:
@@ -56,14 +58,14 @@ namespace DurableTask.Core
             }
         }
 
-        private interface ITraceContextFactory
+        interface ITraceContextFactory
         {
             TraceContextBase Create(Activity activity);
 
             TraceContextBase Create(string operationName);
         }
 
-        private class W3CTraceContextFactory : ITraceContextFactory
+        class W3CTraceContextFactory : ITraceContextFactory
         {
             public TraceContextBase Create(Activity activity)
              => new W3CTraceContext()
@@ -84,7 +86,7 @@ namespace DurableTask.Core
              };
         }
 
-        private class HttpCorrelationProtocolTraceContextFactory : ITraceContextFactory
+        class HttpCorrelationProtocolTraceContextFactory : ITraceContextFactory
         {
             public TraceContextBase Create(Activity activity)
              => new HttpCorrelationProtocolTraceContext()

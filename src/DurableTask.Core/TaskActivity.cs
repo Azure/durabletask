@@ -15,11 +15,9 @@ namespace DurableTask.Core
 {
     using System;
     using System.Threading.Tasks;
-
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.Serializing;
-
     using Newtonsoft.Json.Linq;
 
     /// <summary>
@@ -102,7 +100,7 @@ namespace DurableTask.Core
                 throw new TaskFailureException(
                     "TaskActivity implementation cannot be invoked due to more than expected input parameters.  Signature mismatch.");
             }
-
+            
             if (parameterCount == 1)
             {
                 JToken jToken = jArray[0];

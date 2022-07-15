@@ -100,7 +100,7 @@ namespace DurableTask.AzureStorage
 
                     if (this.backoffExponent > 0)
                     {
-                        if (this.random is null)
+                        if (this.random == null)
                         {
                             this.random = new Random();
                         }

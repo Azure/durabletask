@@ -24,7 +24,7 @@ namespace DurableTask.AzureServiceFabric
     /// <summary>
     /// A store for supporting orchestration service in service fabric world.
     /// </summary>
-    internal interface IFabricOrchestrationServiceInstanceStore
+    interface IFabricOrchestrationServiceInstanceStore
     {
         /// <summary>
         /// Runs initialization to prepare the instance store for use

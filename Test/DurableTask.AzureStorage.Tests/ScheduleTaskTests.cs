@@ -14,9 +14,7 @@
 namespace DurableTask.AzureStorage.Tests
 {
     using System.Threading.Tasks;
-
     using DurableTask.Core;
-
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]

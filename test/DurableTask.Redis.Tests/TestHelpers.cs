@@ -21,7 +21,7 @@ namespace DurableTask.Redis.Tests
 
     public static class TestHelpers
     {
-        private static RedisTestConfig config;
+        static RedisTestConfig Config;
 
         public static RedisOrchestrationService GetTestOrchestrationService(string taskHub = null)
         {
@@ -41,18 +41,18 @@ namespace DurableTask.Redis.Tests
             return await ConnectionMultiplexer.ConnectAsync(testConfig.RedisConnectionString);
         }
 
-        private static RedisTestConfig GetRedisTestConfig()
+        static RedisTestConfig GetRedisTestConfig()
         {
-            if (config is null)
+            if (Config == null)
             {
-                config = new RedisTestConfig();
+                Config = new RedisTestConfig();
                 IConfigurationRoot root = new ConfigurationBuilder()
                     .SetBasePath(System.IO.Directory.GetCurrentDirectory())
                     .AddJsonFile("appsettings.json", optional: true)
                     .Build();
-                root.Bind(config);
+                root.Bind(Config);
             }
-            return config;
+            return Config;
         }
 
         public class RedisTestConfig

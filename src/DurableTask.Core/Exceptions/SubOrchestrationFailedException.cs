@@ -82,7 +82,7 @@ namespace DurableTask.Core.Exceptions
         /// <param name="eventId">EventId of the error.</param>
         /// <param name="message">The message that describes the error.</param>
         /// <param name="innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
-        private SubOrchestrationFailedException(int eventId, string message, Exception innerException)
+        SubOrchestrationFailedException(int eventId, string message, Exception innerException)
             : base(eventId, message, innerException) { }
 
         /// <inheritdoc />

@@ -23,7 +23,7 @@ namespace TestApplication.Common.Orchestrations
 
     public class OrchestrationRunningIntoRetry : TaskOrchestration<int, int>
     {
-        private CounterException latestException;
+        CounterException latestException;
 
         public override async Task<int> RunTask(OrchestrationContext context, int numberOfRetriesToEnforce)
         {
@@ -44,17 +44,17 @@ namespace TestApplication.Common.Orchestrations
             throw new Exception($"Unexpected exception thrown from {nameof(OrchestrationRunningIntoRetry)}.");
         }
 
-        private bool RetryExceptionHandler(Exception e)
+        bool RetryExceptionHandler(Exception e)
         {
             TaskFailedException tfe = e as TaskFailedException;
 
-            if (tfe is not null && tfe.InnerException is not null)
+            if (tfe != null && tfe.InnerException != null)
             {
                 e = tfe.InnerException;
             }
 
             CounterException ce = e as CounterException;
-            if (ce is not null)
+            if (ce != null)
             {
                 latestException = ce;
                 return true;

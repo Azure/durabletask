@@ -88,7 +88,7 @@ namespace DurableTask.AzureServiceFabric
         /// </summary>
         public void Dispose() => this.cancellationTokenSource.Dispose();
 
-        private void EnsureValidInstance()
+        void EnsureValidInstance()
         {
             if (this.cancellationTokenSource.IsCancellationRequested)
             {

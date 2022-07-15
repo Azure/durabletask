@@ -26,12 +26,12 @@ namespace DurableTask.AzureServiceFabric.Remote
     /// <inheritdoc/>
     public class FabricPartitionEndpointResolver : IPartitionEndpointResolver
     {
-        private readonly Uri serviceUri;
-        private readonly ServicePartitionResolver partitionResolver;
-        private readonly IPartitionHashing<string> instanceIdHasher;
+        readonly Uri serviceUri;
+        readonly ServicePartitionResolver partitionResolver;
+        readonly IPartitionHashing<string> instanceIdHasher;
 
-        private TaskCompletionSource<Int64RangePartitionInformation[]> servicePartitionsTaskCompletionSource;
-        private readonly object tcsLockObject = new object();
+        TaskCompletionSource<Int64RangePartitionInformation[]> servicePartitionsTaskCompletionSource;
+        readonly object tcsLockObject = new object();
 
         /// <summary>
         /// Creates instance of <see cref="FabricPartitionEndpointResolver"/>.
@@ -84,7 +84,7 @@ namespace DurableTask.AzureServiceFabric.Remote
              * Service Fabric also states in their documentation that the notification mechanism cannot be completely relied upon since it is an
              * internal network call which is prone to failures. This is the one of the reasons for the existence of complaint based resolution.
              * In our current implementation, we were only relying on notifications and thus occasionally ran into failures due to non-existent/bad endpoints.
-             * 
+             *
              * Retrieve the current ResolvedServicePartition object from the cache and then pass in the same object
              * to the ResolveAsync() API call. This operation notifies the ServicePartitionResolver that the current
              * object is most likely stale and that it needs to refresh its own cache.
@@ -94,14 +94,14 @@ namespace DurableTask.AzureServiceFabric.Remote
             await this.partitionResolver.ResolveAsync(previousRsp, cancellationToken);
         }
 
-        private async Task<Int64RangePartitionInformation[]> GetServicePartitionsListAsync()
+        async Task<Int64RangePartitionInformation[]> GetServicePartitionsListAsync()
         {
-            if (this.servicePartitionsTaskCompletionSource is null)
+            if (this.servicePartitionsTaskCompletionSource == null)
             {
                 bool isNewTaskCompletionSourceCreated = false;
                 lock (tcsLockObject)
                 {
-                    if (this.servicePartitionsTaskCompletionSource is null)
+                    if (this.servicePartitionsTaskCompletionSource == null)
                     {
                         this.servicePartitionsTaskCompletionSource = new TaskCompletionSource<Int64RangePartitionInformation[]>();
                         isNewTaskCompletionSourceCreated = true;

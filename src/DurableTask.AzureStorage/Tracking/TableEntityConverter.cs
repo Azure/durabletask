@@ -43,12 +43,12 @@ namespace DurableTask.AzureStorage.Tracking
         /// </summary>
         public DynamicTableEntity ConvertToTableEntity(object obj)
         {
-            if (obj is null)
+            if (obj == null)
             {
                 throw new ArgumentNullException(nameof(obj));
             }
 
-            Debug.Assert(obj.GetType().GetCustomAttribute<DataContractAttribute>() is not null);
+            Debug.Assert(obj.GetType().GetCustomAttribute<DataContractAttribute>() != null);
 
             IReadOnlyList<PropertyConverter> propertyConverters = this.converterCache.GetOrAdd(
                 obj.GetType(),
@@ -65,12 +65,12 @@ namespace DurableTask.AzureStorage.Tracking
 
         public object ConvertFromTableEntity(DynamicTableEntity tableEntity, Func<DynamicTableEntity, Type> typeFactory)
         {
-            if (tableEntity is null)
+            if (tableEntity == null)
             {
                 throw new ArgumentNullException(nameof(tableEntity));
             }
 
-            if (typeFactory is null)
+            if (typeFactory == null)
             {
                 throw new ArgumentNullException(nameof(typeFactory));
             }
@@ -101,23 +101,23 @@ namespace DurableTask.AzureStorage.Tracking
             BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly;
 
             // Loop through the type hierarchy to find all [DataMember] attributes which belong to [DataContract] classes.
-            while (type is not null && type.GetCustomAttribute<DataContractAttribute>() is not null)
+            while (type != null && type.GetCustomAttribute<DataContractAttribute>() != null)
             {
                 foreach (MemberInfo member in type.GetMembers(flags))
                 {
                     DataMemberAttribute dataMember = member.GetCustomAttribute<DataMemberAttribute>();
-                    if (dataMember is null)
+                    if (dataMember == null)
                     {
                         continue;
                     }
 
                     PropertyInfo property = member as PropertyInfo;
                     FieldInfo field = member as FieldInfo;
-                    if (property is null && field is null)
+                    if (property == null && field == null)
                     {
                         throw new InvalidDataContractException("Only fields and properties can be marked as [DataMember].");
                     }
-                    else if (property is not null && (!property.CanWrite || !property.CanRead))
+                    else if (property != null && (!property.CanWrite || !property.CanRead))
                     {
                         throw new InvalidDataContractException("[DataMember] properties must be both readable and writeable.");
                     }
@@ -132,10 +132,10 @@ namespace DurableTask.AzureStorage.Tracking
                     Func<object, EntityProperty> getEntityPropertyFunc;
                     Action<object, EntityProperty> setObjectPropertyFunc;
 
-                    Type memberValueType = property is not null ? property.PropertyType : field.FieldType;
+                    Type memberValueType = property != null ? property.PropertyType : field.FieldType;
                     if (typeof(string).IsAssignableFrom(memberValueType))
                     {
-                        if (property is not null)
+                        if (property != null)
                         {
                             getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForString((string)property.GetValue(o));
                             setObjectPropertyFunc = (o, e) => property.SetValue(o, e.StringValue);
@@ -149,7 +149,7 @@ namespace DurableTask.AzureStorage.Tracking
                     else if (memberValueType.IsEnum)
                     {
                         // Enums are serialized as strings for readability.
-                        if (property is not null)
+                        if (property != null)
                         {
                             getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForString(property.GetValue(o).ToString());
                             setObjectPropertyFunc = (o, e) => property.SetValue(o, Enum.Parse(memberValueType, e.StringValue));
@@ -162,7 +162,7 @@ namespace DurableTask.AzureStorage.Tracking
                     }
                     else if (typeof(int?).IsAssignableFrom(memberValueType))
                     {
-                        if (property is not null)
+                        if (property != null)
                         {
                             getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForInt((int?)property.GetValue(o));
                             setObjectPropertyFunc = (o, e) => property.SetValue(o, e.Int32Value);
@@ -175,7 +175,7 @@ namespace DurableTask.AzureStorage.Tracking
                     }
                     else if (typeof(long?).IsAssignableFrom(memberValueType))
                     {
-                        if (property is not null)
+                        if (property != null)
                         {
                             getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForLong((long?)property.GetValue(o));
                             setObjectPropertyFunc = (o, e) => property.SetValue(o, e.Int64Value);
@@ -188,7 +188,7 @@ namespace DurableTask.AzureStorage.Tracking
                     }
                     else if (typeof(bool?).IsAssignableFrom(memberValueType))
                     {
-                        if (property is not null)
+                        if (property != null)
                         {
                             getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForBool((bool?)property.GetValue(o));
                             setObjectPropertyFunc = (o, e) => property.SetValue(o, e.BooleanValue);
@@ -201,7 +201,7 @@ namespace DurableTask.AzureStorage.Tracking
                     }
                     else if (typeof(DateTime?).IsAssignableFrom(memberValueType))
                     {
-                        if (property is not null)
+                        if (property != null)
                         {
                             getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForDateTimeOffset((DateTime?)property.GetValue(o));
                             setObjectPropertyFunc = (o, e) => property.SetValue(o, e.DateTime);
@@ -214,7 +214,7 @@ namespace DurableTask.AzureStorage.Tracking
                     }
                     else if (typeof(DateTimeOffset?).IsAssignableFrom(memberValueType))
                     {
-                        if (property is not null)
+                        if (property != null)
                         {
                             getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForDateTimeOffset((DateTimeOffset?)property.GetValue(o));
                             setObjectPropertyFunc = (o, e) => property.SetValue(o, e.DateTimeOffsetValue);
@@ -227,7 +227,7 @@ namespace DurableTask.AzureStorage.Tracking
                     }
                     else if (typeof(Guid?).IsAssignableFrom(memberValueType))
                     {
-                        if (property is not null)
+                        if (property != null)
                         {
                             getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForGuid((Guid?)property.GetValue(o));
                             setObjectPropertyFunc = (o, e) => property.SetValue(o, e.GuidValue);
@@ -240,7 +240,7 @@ namespace DurableTask.AzureStorage.Tracking
                     }
                     else if (typeof(double?).IsAssignableFrom(memberValueType))
                     {
-                        if (property is not null)
+                        if (property != null)
                         {
                             getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForDouble((double?)property.GetValue(o));
                             setObjectPropertyFunc = (o, e) => property.SetValue(o, e.DoubleValue);
@@ -253,7 +253,7 @@ namespace DurableTask.AzureStorage.Tracking
                     }
                     else if (typeof(byte[]).IsAssignableFrom(memberValueType))
                     {
-                        if (property is not null)
+                        if (property != null)
                         {
                             getEntityPropertyFunc = o => EntityProperty.GeneratePropertyForByteArray((byte[])property.GetValue(o));
                             setObjectPropertyFunc = (o, e) => property.SetValue(o, e.BinaryValue);
@@ -268,16 +268,16 @@ namespace DurableTask.AzureStorage.Tracking
                     {
                         getEntityPropertyFunc = o =>
                         {
-                            object value = property is not null ? property.GetValue(o) : field.GetValue(o);
-                            string json = value is not null ? JsonConvert.SerializeObject(value) : null;
+                            object value = property != null ? property.GetValue(o) : field.GetValue(o);
+                            string json = value != null ? JsonConvert.SerializeObject(value) : null;
                             return EntityProperty.GeneratePropertyForString(json);
                         };
 
                         setObjectPropertyFunc = (o, e) =>
                         {
                             string json = e.StringValue;
-                            object value = json is not null ? JsonConvert.DeserializeObject(json, memberValueType) : null;
-                            if (property is not null)
+                            object value = json != null ? JsonConvert.DeserializeObject(json, memberValueType) : null;
+                            if (property != null)
                             {
                                 property.SetValue(o, value);
                             }

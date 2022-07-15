@@ -16,10 +16,10 @@ namespace DurableTask.Core
     using System;
     using System.Collections.Generic;
 
-    internal class NameVersionObjectManager<T> : INameVersionObjectManager<T>
+    class NameVersionObjectManager<T> : INameVersionObjectManager<T>
     {
-        private readonly IDictionary<string, ObjectCreator<T>> creators;
-        private readonly object thisLock = new object();
+        readonly IDictionary<string, ObjectCreator<T>> creators;
+        readonly object thisLock = new object();
 
         public NameVersionObjectManager() => this.creators = new Dictionary<string, ObjectCreator<T>>();
 
@@ -54,6 +54,6 @@ namespace DurableTask.Core
             }
         }
 
-        private string GetKey(string name, string version) => $"{name}_{version}";
+        string GetKey(string name, string version) => $"{name}_{version}";
     }
 }

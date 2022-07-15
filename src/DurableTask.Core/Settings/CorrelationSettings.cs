@@ -13,6 +13,11 @@
 
 namespace DurableTask.Core.Settings
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Net.Sockets;
+    using System.Text;
+
     /// <summary>
     /// Settings for Distributed Tracing
     /// </summary>

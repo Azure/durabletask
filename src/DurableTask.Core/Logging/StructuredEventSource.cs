@@ -23,10 +23,11 @@ namespace DurableTask.Core.Logging
     /// Event source logger for DurableTask.Core that uses structured events rather than log messages.
     /// </summary>
     [EventSource(Name = "DurableTask-Core")]
-    internal class StructuredEventSource : EventSource
+    class StructuredEventSource : EventSource
     {
         internal static readonly StructuredEventSource Log = new StructuredEventSource();
-        private static readonly AsyncLocal<Guid> ActivityIdState = new AsyncLocal<Guid>();
+
+        static readonly AsyncLocal<Guid> ActivityIdState = new AsyncLocal<Guid>();
 
         [NonEvent]
         public static void SetLogicalTraceActivityId(Guid activityId)
@@ -46,7 +47,7 @@ namespace DurableTask.Core.Logging
             }
         }
 
-        private bool IsEnabled(EventLevel level) => this.IsEnabled(level, EventKeywords.None);
+        bool IsEnabled(EventLevel level) => this.IsEnabled(level, EventKeywords.None);
 
         [Event(EventIds.TaskHubWorkerStarting, Level = EventLevel.Informational, Version = 1)]
         internal void TaskHubWorkerStarting(string AppName, string ExtensionVersion)

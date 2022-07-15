@@ -65,7 +65,7 @@ namespace DurableTask.AzureStorage.Monitoring
         {
             var sb = new StringBuilder(1024);
             sb.Append(nameof(this.PartitionCount)).Append(": ").Append(this.PartitionCount).Append(", ");
-            if (this.ControlQueueLengths is not null)
+            if (this.ControlQueueLengths != null)
             {
                 sb.Append(nameof(this.ControlQueueLengths)).Append(": ").Append(string.Join(",", this.ControlQueueLengths)).Append(", ");
             }

@@ -24,12 +24,12 @@ namespace Correlation.Samples
     //using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Newtonsoft.Json;
 
-    internal class TestOrchestrationClient
+    class TestOrchestrationClient
     {
-        private readonly TaskHubClient client;
-        private readonly Type orchestrationType;
-        private readonly string instanceId;
-        private readonly DateTime instanceCreationTime;
+        readonly TaskHubClient client;
+        readonly Type orchestrationType;
+        readonly string instanceId;
+        readonly DateTime instanceCreationTime;
 
         public TestOrchestrationClient(
             TaskHubClient client,
@@ -52,7 +52,7 @@ namespace Correlation.Samples
             var latestGeneration = new OrchestrationInstance { InstanceId = this.instanceId };
             Stopwatch sw = Stopwatch.StartNew();
             OrchestrationState state = await this.client.WaitForOrchestrationAsync(latestGeneration, timeout);
-            if (state is not null)
+            if (state != null)
             {
                 Trace.TraceInformation(
                     "{0} (ID = {1}) completed after ~{2}ms. Status = {3}. Output = {4}.",
@@ -82,7 +82,7 @@ namespace Correlation.Samples
             do
             {
                 OrchestrationState state = await this.GetStatusAsync();
-                if (state is not null && state.OrchestrationStatus != OrchestrationStatus.Pending)
+                if (state != null && state.OrchestrationStatus != OrchestrationStatus.Pending)
                 {
                     Trace.TraceInformation($"{state.Name} (ID = {state.OrchestrationInstance.InstanceId}) started successfully after ~{sw.ElapsedMilliseconds}ms. Status = {state.OrchestrationStatus}.");
                     return state;
@@ -98,7 +98,7 @@ namespace Correlation.Samples
         {
             OrchestrationState state = await this.client.GetOrchestrationStateAsync(this.instanceId);
 
-            if (state is not null)
+            if (state != null)
             {
                 // Validate the status before returning
                 //Assert.AreEqual(this.orchestrationType.FullName, state.Name);
@@ -174,7 +174,7 @@ namespace Correlation.Samples
             return await service.GetOrchestrationStateAsync(instanceId, true);
         }
 
-        private static TimeSpan AdjustTimeout(TimeSpan requestedTimeout)
+        static TimeSpan AdjustTimeout(TimeSpan requestedTimeout)
         {
             TimeSpan timeout = requestedTimeout;
             if (Debugger.IsAttached)

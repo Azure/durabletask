@@ -21,7 +21,7 @@ namespace DurableTask.AzureServiceFabric
     using DurableTask.AzureServiceFabric.Tracing;
     using DurableTask.Core;
 
-    internal static class Utils
+    static class Utils
     {
         public static OrchestrationState BuildOrchestrationState(OrchestrationRuntimeState runtimeState)
          => new OrchestrationState

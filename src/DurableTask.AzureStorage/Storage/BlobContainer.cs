@@ -39,7 +39,7 @@ namespace DurableTask.AzureStorage.Storage
 
         public Blob GetBlobReference(string blobName, string? blobPrefix = null)
         {
-            var fullBlobName = blobPrefix is not null ? Path.Combine(blobPrefix, blobName) : blobName;
+            var fullBlobName = blobPrefix != null ? Path.Combine(blobPrefix, blobName) : blobName;
             return this.azureStorageClient.GetBlobReference(this.containerName, fullBlobName);
         }
 
@@ -60,7 +60,7 @@ namespace DurableTask.AzureStorage.Storage
         public async Task<bool> DeleteIfExistsAsync(string? appLeaseId = null)
         {
             AccessCondition? accessCondition = null;
-            if (appLeaseId is not null)
+            if (appLeaseId != null)
             {
                 accessCondition = new AccessCondition() { LeaseId = appLeaseId };
             }
@@ -74,7 +74,7 @@ namespace DurableTask.AzureStorage.Storage
         {
             BlobContinuationToken? continuationToken = null;
             Func<OperationContext, CancellationToken, Task<BlobResultSegment>> listBlobsFunction;
-            if (blobDirectory is not null)
+            if (blobDirectory != null)
             {
                 var cloudBlobDirectory = this.cloudBlobContainer.GetDirectoryReference(blobDirectory);
 
@@ -115,7 +115,7 @@ namespace DurableTask.AzureStorage.Storage
                     blobList.Add(blob);
                 }
             }
-            while (continuationToken is not null);
+            while (continuationToken != null);
 
             return blobList;
         }

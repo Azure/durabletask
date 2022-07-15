@@ -14,12 +14,11 @@
 namespace Correlation.Samples
 {
     using System;
-
     using DurableTask.Core.Settings;
 
     public class Program
     {
-        private static void Main(string[] args)
+        static void Main(string[] args)
         {
             CorrelationSettings.Current.EnableDistributedTracing = true;
             // InvokeScenario(typeof(HelloOrchestrator), "50", 50); // HelloWorldScenario.cs;
@@ -34,7 +33,7 @@ namespace Correlation.Samples
             Console.ReadLine();
         }
 
-        private static void InvokeScenario(Type orchestratorType, object orchestratorInput, int timeoutSec)
+        static void InvokeScenario(Type orchestratorType, object orchestratorInput, int timeoutSec)
         {
             new ScenarioInvoker().ExecuteAsync(orchestratorType, orchestratorInput, timeoutSec).GetAwaiter().GetResult();
         }

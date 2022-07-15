@@ -18,7 +18,6 @@ namespace DurableTask.AzureServiceFabric.Service
     using System.Threading.Tasks;
     using System.Web.Http;
     using System.Web.Http.Results;
-
     using DurableTask.AzureServiceFabric.Models;
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
@@ -28,7 +27,7 @@ namespace DurableTask.AzureServiceFabric.Service
     /// </summary>
     public class FabricOrchestrationServiceController : ApiController
     {
-        private readonly IOrchestrationServiceClient orchestrationServiceClient;
+        readonly IOrchestrationServiceClient orchestrationServiceClient;
 
         /// <summary>
         /// Creates an instance of FabricOrchestrationServiceController for given OrchestrationServiceClient
@@ -57,7 +56,7 @@ namespace DurableTask.AzureServiceFabric.Service
 
             try
             {
-                if (parameters.DedupeStatuses is null)
+                if (parameters.DedupeStatuses == null)
                 {
                     await this.orchestrationServiceClient.CreateTaskOrchestrationAsync(parameters.TaskMessage);
                 }

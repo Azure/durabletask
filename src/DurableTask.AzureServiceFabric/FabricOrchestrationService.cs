@@ -30,16 +30,17 @@ namespace DurableTask.AzureServiceFabric
 
     using Microsoft.ServiceFabric.Data;
 
-    internal class FabricOrchestrationService : IOrchestrationService
+    class FabricOrchestrationService : IOrchestrationService
     {
-        private readonly IReliableStateManager stateManager;
-        private readonly IFabricOrchestrationServiceInstanceStore instanceStore;
-        private readonly SessionProvider orchestrationProvider;
-        private readonly ActivityProvider activitiesProvider;
-        private readonly ScheduledMessageProvider scheduledMessagesProvider;
-        private readonly FabricOrchestrationProviderSettings settings;
-        private readonly CancellationTokenSource cancellationTokenSource;
-        private readonly ConcurrentDictionary<string, SessionInformation> sessionInfos = new ConcurrentDictionary<string, SessionInformation>();
+        readonly IReliableStateManager stateManager;
+        readonly IFabricOrchestrationServiceInstanceStore instanceStore;
+        readonly SessionProvider orchestrationProvider;
+        readonly ActivityProvider activitiesProvider;
+        readonly ScheduledMessageProvider scheduledMessagesProvider;
+        readonly FabricOrchestrationProviderSettings settings;
+        readonly CancellationTokenSource cancellationTokenSource;
+
+        readonly ConcurrentDictionary<string, SessionInformation> sessionInfos = new ConcurrentDictionary<string, SessionInformation>();
 
         public FabricOrchestrationService(IReliableStateManager stateManager,
             SessionProvider orchestrationProvider,
@@ -117,7 +118,7 @@ namespace DurableTask.AzureServiceFabric
         {
             var currentSession = await this.orchestrationProvider.AcceptSessionAsync(receiveTimeout);
 
-            if (currentSession is null)
+            if (currentSession == null)
             {
                 return null;
             }
@@ -137,7 +138,7 @@ namespace DurableTask.AzureServiceFabric
 
                 if (newMessages.Count == 0)
                 {
-                    if (currentRuntimeState.ExecutionStartedEvent is null)
+                    if (currentRuntimeState.ExecutionStartedEvent == null)
                     {
                         ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition($"Orchestration with no execution started event found: {currentSession.SessionId}");
                         return null;
@@ -222,7 +223,7 @@ namespace DurableTask.AzureServiceFabric
 
                             if (orchestratorMessages?.Count > 0)
                             {
-                                if (workItem.OrchestrationRuntimeState?.ParentInstance is not null)
+                                if (workItem.OrchestrationRuntimeState?.ParentInstance != null)
                                 {
                                     sessionsToEnqueue = await this.orchestrationProvider.TryAppendMessageBatchAsync(txn, orchestratorMessages.Select(tm => new TaskMessageItem(tm)));
                                 }
@@ -233,7 +234,7 @@ namespace DurableTask.AzureServiceFabric
                                 }
                             }
 
-                            if (continuedAsNewMessage is not null)
+                            if (continuedAsNewMessage != null)
                             {
                                 await this.orchestrationProvider.AppendMessageAsync(txn, new TaskMessageItem(continuedAsNewMessage));
                                 sessionsToEnqueue = new List<OrchestrationInstance>() { continuedAsNewMessage.OrchestrationInstance };
@@ -266,7 +267,7 @@ namespace DurableTask.AzureServiceFabric
                             // wait for an orchestration completes but another orchestration with the same name cannot be started immediately
                             // because the session is still in store. We update the instance store on orchestration completion and drop the
                             // session as part of the next atomic transaction.
-                            if (this.instanceStore is not null && orchestrationState is not null && !isComplete)
+                            if (this.instanceStore != null && orchestrationState != null && !isComplete)
                             {
                                 await this.instanceStore.WriteEntitiesAsync(txn, new InstanceEntityBase[]
                                 {
@@ -287,7 +288,7 @@ namespace DurableTask.AzureServiceFabric
                         outboundMessages = null;
                         timerMessages = null;
                         orchestratorMessages = null;
-                        if (orchestrationState is not null)
+                        if (orchestrationState != null)
                         {
                             orchestrationState.OrchestrationStatus = OrchestrationStatus.Failed;
                             orchestrationState.Output = $"Fabric exception when trying to process orchestration: {ex}. Investigate and consider reducing the serialization size of orchestration inputs/outputs/overall length to avoid the issue.";
@@ -296,15 +297,15 @@ namespace DurableTask.AzureServiceFabric
                 } while (retryOnException);
             }, uniqueActionIdentifier: $"OrchestrationId = '{workItem.InstanceId}', Action = '{nameof(CompleteTaskOrchestrationWorkItemAsync)}'");
 
-            if (activityMessages is not null)
+            if (activityMessages != null)
             {
                 this.activitiesProvider.SendBatchComplete(activityMessages);
             }
-            if (scheduledMessages is not null)
+            if (scheduledMessages != null)
             {
                 this.scheduledMessagesProvider.SendBatchComplete(scheduledMessages);
             }
-            if (sessionsToEnqueue is not null)
+            if (sessionsToEnqueue != null)
             {
                 foreach (var instance in sessionsToEnqueue)
                 {
@@ -319,7 +320,7 @@ namespace DurableTask.AzureServiceFabric
         }
 
         // Caller should ensure the workItem has reached terminal state.
-        private async Task HandleCompletedOrchestration(TaskOrchestrationWorkItem workItem)
+        async Task HandleCompletedOrchestration(TaskOrchestrationWorkItem workItem)
         {
             await RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
@@ -358,7 +359,7 @@ namespace DurableTask.AzureServiceFabric
         public Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
             SessionInformation sessionInfo = TryRemoveSessionInfo(workItem.InstanceId);
-            if (sessionInfo is null)
+            if (sessionInfo == null)
             {
                 ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition($"{nameof(AbandonTaskOrchestrationWorkItemAsync)} : Could not get a session info object while trying to abandon session {workItem.InstanceId}");
             }
@@ -374,7 +375,7 @@ namespace DurableTask.AzureServiceFabric
             bool isComplete = this.IsOrchestrationComplete(workItem.OrchestrationRuntimeState.OrchestrationStatus);
 
             SessionInformation sessionInfo = TryRemoveSessionInfo(workItem.InstanceId);
-            if (sessionInfo is not null)
+            if (sessionInfo != null)
             {
                 this.orchestrationProvider.TryUnlockSession(sessionInfo.Instance, isComplete: isComplete);
             }
@@ -393,7 +394,7 @@ namespace DurableTask.AzureServiceFabric
         {
             var message = await this.activitiesProvider.ReceiveAsync(receiveTimeout);
 
-            if (message is not null)
+            if (message != null)
             {
                 return new TaskActivityWorkItem()
                 {
@@ -453,16 +454,16 @@ namespace DurableTask.AzureServiceFabric
         public Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem)
          => Task.FromResult(workItem);
 
-        private int GetTaskScheduledId(HistoryEvent historyEvent)
+        int GetTaskScheduledId(HistoryEvent historyEvent)
         {
             TaskCompletedEvent tce = historyEvent as TaskCompletedEvent;
-            if (tce is not null)
+            if (tce != null)
             {
                 return tce.TaskScheduledId;
             }
 
             TaskFailedEvent tfe = historyEvent as TaskFailedEvent;
-            if (tfe is not null)
+            if (tfe != null)
             {
                 return tfe.TaskScheduledId;
             }
@@ -470,7 +471,7 @@ namespace DurableTask.AzureServiceFabric
             return -1;
         }
 
-        private int GetDelayForFetchOrProcessException(Exception exception)
+        int GetDelayForFetchOrProcessException(Exception exception)
         {
             //Todo: Need to fine tune
             if (exception is TimeoutException)
@@ -486,10 +487,10 @@ namespace DurableTask.AzureServiceFabric
             return 0;
         }
 
-        private bool IsOrchestrationComplete(OrchestrationStatus status)
+        bool IsOrchestrationComplete(OrchestrationStatus status)
          => !(status.IsRunningOrPending() || status == OrchestrationStatus.ContinuedAsNew);
 
-        private SessionInformation GetSessionInfo(string sessionId)
+        SessionInformation GetSessionInfo(string sessionId)
         {
             ServiceFabricProviderEventSource.Tracing.TraceMessage(sessionId, $"{nameof(GetSessionInfo)} - Getting session info");
             if (!this.sessionInfos.TryGetValue(sessionId, out SessionInformation sessionInfo))
@@ -502,14 +503,14 @@ namespace DurableTask.AzureServiceFabric
             return sessionInfo;
         }
 
-        private SessionInformation TryRemoveSessionInfo(string sessionId)
+        SessionInformation TryRemoveSessionInfo(string sessionId)
         {
             var removed = this.sessionInfos.TryRemove(sessionId, out SessionInformation sessionInfo);
             ServiceFabricProviderEventSource.Tracing.TraceMessage(sessionId, $"{nameof(TryRemoveSessionInfo)}: Removed = {removed}");
             return sessionInfo;
         }
 
-        private class SessionInformation
+        class SessionInformation
         {
             public OrchestrationInstance Instance { get; set; }
 

@@ -24,7 +24,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
     [TestClass]
     public class WaitForOrchestrationTests
     {
-        private TaskHubClient taskHubClient;
+        TaskHubClient taskHubClient;
 
         [TestInitialize]
         public void TestInitialize()

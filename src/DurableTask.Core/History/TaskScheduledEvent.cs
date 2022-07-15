@@ -23,7 +23,7 @@ namespace DurableTask.Core.History
     public class TaskScheduledEvent : HistoryEvent
     {
         // Private ctor for JSON deserialization (required by some storage providers and out-of-proc executors)
-        private TaskScheduledEvent() : base(-1) { }
+        TaskScheduledEvent() : base(-1) { }
 
         /// <summary>
         /// Creates a new <see cref="TaskScheduledEvent"/> with the supplied event ID.

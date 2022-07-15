@@ -21,10 +21,10 @@ namespace DurableTask.Core
     using Castle.DynamicProxy;
     using DurableTask.Core.Common;
 
-    internal class ScheduleProxy : IInterceptor
+    class ScheduleProxy : IInterceptor
     {
-        private readonly OrchestrationContext context;
-        private readonly bool useFullyQualifiedMethodNames;
+        readonly OrchestrationContext context;
+        readonly bool useFullyQualifiedMethodNames;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ScheduleProxy"/> class.

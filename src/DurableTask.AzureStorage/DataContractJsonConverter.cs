@@ -31,12 +31,12 @@ namespace DurableTask.AzureStorage
     {
         public override bool CanConvert(Type objectType)
         {
-            if (objectType is null)
+            if (objectType == null)
             {
                 throw new ArgumentNullException(nameof(objectType));
             }
 
-            return objectType.GetCustomAttribute<DataContractAttribute>() is not null
+            return objectType.GetCustomAttribute<DataContractAttribute>() != null
                 && typeof(IExtensibleDataObject).IsAssignableFrom(objectType);
         }
 
@@ -44,17 +44,17 @@ namespace DurableTask.AzureStorage
         public override object ReadJson(
             JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
         {
-            if (reader is null)
+            if (reader == null)
             {
                 throw new ArgumentNullException(nameof(reader));
             }
 
-            if (objectType is null)
+            if (objectType == null)
             {
                 throw new ArgumentNullException(nameof(objectType));
             }
 
-            if (serializer is null)
+            if (serializer == null)
             {
                 throw new ArgumentNullException(nameof(serializer));
             }
@@ -75,18 +75,18 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
         {
-            if (writer is null)
+            if (writer == null)
             {
                 throw new ArgumentNullException(nameof(writer));
             }
 
-            if (value is null)
+            if (value == null)
             {
                 writer.WriteNull();
                 return;
             }
 
-            if (serializer is null)
+            if (serializer == null)
             {
                 throw new ArgumentNullException(nameof(serializer));
             }

@@ -20,15 +20,13 @@ namespace DurableTask.AzureServiceFabric.Service
 
     using DurableTask.AzureServiceFabric;
     using DurableTask.Core;
-
     using Microsoft.Extensions.DependencyInjection;
-
     using Owin;
 
-    internal class Startup : IOwinAppBuilder
+    class Startup : IOwinAppBuilder
     {
-        private readonly FabricOrchestrationProvider fabricOrchestrationProvider;
-        private readonly string listeningAddress;
+        readonly FabricOrchestrationProvider fabricOrchestrationProvider;
+        readonly string listeningAddress;
 
         public Startup(string listeningAddress, FabricOrchestrationProvider fabricOrchestrationProvider)
         {
@@ -38,7 +36,7 @@ namespace DurableTask.AzureServiceFabric.Service
 
         public string GetListeningAddress() => this.listeningAddress;
 
-        private ServiceProvider GenerateServiceProvider()
+        ServiceProvider GenerateServiceProvider()
         {
             var services = new ServiceCollection();
             services.AddSingleton<IOrchestrationServiceClient>(this.fabricOrchestrationProvider.OrchestrationServiceClient);

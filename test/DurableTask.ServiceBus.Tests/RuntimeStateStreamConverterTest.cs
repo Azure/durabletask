@@ -16,27 +16,25 @@ namespace DurableTask.ServiceBus.Tests
     using System.Collections.Generic;
     using System.IO;
     using System.Threading.Tasks;
-
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
     using DurableTask.Core;
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using DurableTask.Core.Serializing;
-    using DurableTask.Core.Tests;
     using DurableTask.ServiceBus.Settings;
     using DurableTask.ServiceBus.Tracking;
-
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using DurableTask.Core.Tests;
 
     [TestClass]
     public class RuntimeStateStreamConverterTest
     {
-        private const int SessionOverflowThresholdInBytes = 2 * 1024;
-        private const int SessionMaxSizeInBytes = 10 * 1024;
-        private const string SessionId = "session123";
-        private readonly ServiceBusSessionSettings serviceBusSessionSettings = new ServiceBusSessionSettings(SessionOverflowThresholdInBytes, SessionMaxSizeInBytes);
-        private AzureTableInstanceStore azureTableInstanceStore;
-        private AzureStorageBlobStore azureStorageBlobStore;
+        const int SessionOverflowThresholdInBytes = 2 * 1024;
+        const int SessionMaxSizeInBytes = 10 * 1024;
+        const string SessionId = "session123";
+        readonly ServiceBusSessionSettings serviceBusSessionSettings = new ServiceBusSessionSettings(SessionOverflowThresholdInBytes, SessionMaxSizeInBytes);
+        AzureTableInstanceStore azureTableInstanceStore;
+        AzureStorageBlobStore azureStorageBlobStore;
 
         [TestInitialize]
         public void TestInitialize()
@@ -54,7 +52,7 @@ namespace DurableTask.ServiceBus.Tests
 
         [TestMethod]
         public async Task SmallRuntimeStateConverterTest()
-        {
+        {       
             var smallInput = "abc";
 
             OrchestrationRuntimeState newOrchestrationRuntimeStateSmall = generateOrchestrationRuntimeState(smallInput);
@@ -213,7 +211,7 @@ namespace DurableTask.ServiceBus.Tests
             verifyEventInput(smallInput, convertedRuntimeStateSmall2);
         }
 
-        private static Stream serializeToStream(DataConverter dataConverter, OrchestrationRuntimeState orchestrationRuntimeState, bool shouldCompress)
+        Stream serializeToStream(DataConverter dataConverter, OrchestrationRuntimeState orchestrationRuntimeState, bool shouldCompress)
         {
             string serializedState = dataConverter.Serialize(orchestrationRuntimeState);
             return Utils.WriteStringToStream(
@@ -222,7 +220,7 @@ namespace DurableTask.ServiceBus.Tests
                 out long _);
         }
 
-        private static Stream serializeToStream(DataConverter dataConverter, IList<HistoryEvent> events, bool shouldCompress)
+        Stream serializeToStream(DataConverter dataConverter, IList<HistoryEvent> events, bool shouldCompress)
         {
             string serializedState = dataConverter.Serialize(events);
             return Utils.WriteStringToStream(
@@ -231,7 +229,7 @@ namespace DurableTask.ServiceBus.Tests
                 out long _);
         }
 
-        private static OrchestrationRuntimeState generateOrchestrationRuntimeState(string input)
+        OrchestrationRuntimeState generateOrchestrationRuntimeState(string input)
         {
             IList<HistoryEvent> historyEvents = new List<HistoryEvent>();
             var historyEvent = new ExecutionStartedEvent(1, input);
@@ -241,7 +239,7 @@ namespace DurableTask.ServiceBus.Tests
             return newOrchestrationRuntimeState;
         }
 
-        private static void verifyEventInput(string expectedHistoryEventInput, OrchestrationRuntimeState runtimeState)
+        void verifyEventInput(string expectedHistoryEventInput, OrchestrationRuntimeState runtimeState)
         {
             var executionStartedEvent = runtimeState.Events[0] as ExecutionStartedEvent;
             Assert.AreEqual(expectedHistoryEventInput, executionStartedEvent?.Input);

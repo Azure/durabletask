@@ -17,7 +17,7 @@ namespace DurableTask.AzureServiceFabric.Tracing
 
     using Microsoft.ServiceFabric.Services.Runtime;
 
-    internal static class TracingExtensions
+    static class TracingExtensions
     {
         internal static void LogFabricServiceInformation(this ServiceFabricProviderEventSource eventSource, StatefulService service, string message, params object[] args)
         {

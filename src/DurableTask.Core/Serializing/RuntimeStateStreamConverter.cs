@@ -82,14 +82,14 @@ namespace DurableTask.Core.Serializing
             return compressedState;
         }
 
-        private static async Task<Stream> CreateStreamForExternalStorageAsync(
+        static async Task<Stream> CreateStreamForExternalStorageAsync(
             bool shouldCompress,
             IOrchestrationServiceBlobStore orchestrationServiceBlobStore,
             string sessionId,
             DataConverter dataConverter,
             Stream compressedState)
         {
-            if (orchestrationServiceBlobStore is null)
+            if (orchestrationServiceBlobStore == null)
             {
                 throw new OrchestrationException(
                     "The compressed session is larger than supported. " +
@@ -132,7 +132,7 @@ namespace DurableTask.Core.Serializing
             bool isEmptySession;
             Stream sessionStream = await Utils.GetDecompressedStreamAsync(rawSessionStream);
 
-            isEmptySession = sessionStream is null;
+            isEmptySession = sessionStream == null;
             long rawSessionStateSize = isEmptySession ? 0 : rawSessionStream.Length;
             long newSessionStateSize = isEmptySession ? 0 : sessionStream.Length;
 
@@ -148,7 +148,7 @@ namespace DurableTask.Core.Serializing
                 return runtimeState;
             }
 
-            if (orchestrationServiceBlobStore is null)
+            if (orchestrationServiceBlobStore == null)
             {
                 throw new OrchestrationException(
                     $"Please provide an implementation of {nameof(IOrchestrationServiceBlobStore)} for external storage to load the runtime state.");
@@ -164,11 +164,11 @@ namespace DurableTask.Core.Serializing
             return await RawStreamToRuntimeState(externalStream, sessionId, orchestrationServiceBlobStore, dataConverter);
         }
 
-        private static OrchestrationRuntimeState GetOrCreateInstanceState(Stream stateStream, string sessionId, DataConverter dataConverter, out string blobKey)
+        static OrchestrationRuntimeState GetOrCreateInstanceState(Stream stateStream, string sessionId, DataConverter dataConverter, out string blobKey)
         {
             OrchestrationRuntimeState runtimeState;
             blobKey = string.Empty;
-            if (stateStream is null)
+            if (stateStream == null)
             {
                 TraceHelper.TraceSession(
                     TraceEventType.Information,
@@ -216,7 +216,7 @@ namespace DurableTask.Core.Serializing
         /// <param name="sessionId">The session Id</param>
         /// <param name="blobKey">The blob key output. Will be set if the state is in external storage.</param>
         /// <returns>The converted orchestration runtime state.</returns>
-        private static OrchestrationRuntimeState DeserializeToRuntimeStateWithFallback(string serializedState, DataConverter dataConverter, string sessionId, out string blobKey)
+        static OrchestrationRuntimeState DeserializeToRuntimeStateWithFallback(string serializedState, DataConverter dataConverter, string sessionId, out string blobKey)
         {
             OrchestrationRuntimeState runtimeState;
             blobKey = string.Empty;

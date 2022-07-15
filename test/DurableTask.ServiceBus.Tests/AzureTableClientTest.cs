@@ -21,7 +21,7 @@ namespace DurableTask.ServiceBus.Tests
     [TestClass]
     public class AzureTableClientTest
     {
-        private const string ConnectionString = "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://myProxyUri";
+        const string ConnectionString = "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://myProxyUri";
 
         [TestMethod]
         public void CreateQueryWithoutFilter()

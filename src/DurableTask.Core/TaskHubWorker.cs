@@ -34,22 +34,27 @@ namespace DurableTask.Core
     /// </summary>
     public sealed class TaskHubWorker : IDisposable
     {
-        private readonly INameVersionObjectManager<TaskActivity> activityManager;
-        private readonly INameVersionObjectManager<TaskOrchestration> orchestrationManager;
-        private readonly DispatchMiddlewarePipeline orchestrationDispatchPipeline = new DispatchMiddlewarePipeline();
-        private readonly DispatchMiddlewarePipeline activityDispatchPipeline = new DispatchMiddlewarePipeline();
-        private readonly SemaphoreSlim slimLock = new SemaphoreSlim(1, 1);
-        private readonly LogHelper logHelper;
+        readonly INameVersionObjectManager<TaskActivity> activityManager;
+        readonly INameVersionObjectManager<TaskOrchestration> orchestrationManager;
 
+        readonly DispatchMiddlewarePipeline orchestrationDispatchPipeline = new DispatchMiddlewarePipeline();
+        readonly DispatchMiddlewarePipeline activityDispatchPipeline = new DispatchMiddlewarePipeline();
+
+        readonly SemaphoreSlim slimLock = new SemaphoreSlim(1, 1);
+        readonly LogHelper logHelper;
+
+#pragma warning disable IDE1006 // Naming Styles: avoid breaking change
         /// <summary>
         /// Reference to the orchestration service used by the task hub worker
         /// </summary>
         // ReSharper disable once InconsistentNaming (avoid breaking change)
-        public IOrchestrationService OrchestrationService { get; }
+        public IOrchestrationService orchestrationService { get; }
+#pragma warning restore IDE1006 // Naming Styles: avoid breaking change
 
-        private volatile bool isStarted;
-        private TaskActivityDispatcher activityDispatcher;
-        private TaskOrchestrationDispatcher orchestrationDispatcher;
+        volatile bool isStarted;
+
+        TaskActivityDispatcher activityDispatcher;
+        TaskOrchestrationDispatcher orchestrationDispatcher;
 
         /// <summary>
         ///     Create a new TaskHubWorker with given OrchestrationService
@@ -112,7 +117,7 @@ namespace DurableTask.Core
         {
             this.orchestrationManager = orchestrationObjectManager ?? throw new ArgumentException("orchestrationObjectManager");
             this.activityManager = activityObjectManager ?? throw new ArgumentException("activityObjectManager");
-            this.OrchestrationService = orchestrationService ?? throw new ArgumentException("orchestrationService");
+            this.orchestrationService = orchestrationService ?? throw new ArgumentException("orchestrationService");
             this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
         }
 
@@ -175,19 +180,19 @@ namespace DurableTask.Core
                 var sw = Stopwatch.StartNew();
 
                 this.orchestrationDispatcher = new TaskOrchestrationDispatcher(
-                    this.OrchestrationService,
+                    this.orchestrationService,
                     this.orchestrationManager,
                     this.orchestrationDispatchPipeline,
                     this.logHelper,
                     this.ErrorPropagationMode);
                 this.activityDispatcher = new TaskActivityDispatcher(
-                    this.OrchestrationService,
+                    this.orchestrationService,
                     this.activityManager,
                     this.activityDispatchPipeline,
                     this.logHelper,
                     this.ErrorPropagationMode);
 
-                await this.OrchestrationService.StartAsync();
+                await this.orchestrationService.StartAsync();
                 await this.orchestrationDispatcher.StartAsync();
                 await this.activityDispatcher.StartAsync();
 
@@ -229,7 +234,7 @@ namespace DurableTask.Core
 
                     await Task.WhenAll(dispatcherShutdowns);
 
-                    await this.OrchestrationService.StopAsync(isForced);
+                    await this.orchestrationService.StopAsync(isForced);
 
                     this.logHelper.TaskHubWorkerStopped(sw.Elapsed);
                     this.isStarted = false;

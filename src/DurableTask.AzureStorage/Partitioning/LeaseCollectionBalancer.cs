@@ -47,7 +47,7 @@ namespace DurableTask.AzureStorage.Partitioning
             string leaseType,
             AzureStorageOrchestrationServiceSettings settings,
             string blobAccountName,
-            ILeaseManager<T> leaseManager,
+            ILeaseManager<T> leaseManager, 
             LeaseCollectionBalancerOptions options,
             Func<string, bool> shouldAquireLeaseDelegate = null,
             Func<string, bool> shouldRenewLeaseDelegate = null)
@@ -133,7 +133,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 return;
             }
 
-            if (this.takerTask is not null)
+            if (this.takerTask != null)
             {
                 this.leaseTakerCancellationTokenSource.Cancel();
                 await this.takerTask;
@@ -142,7 +142,7 @@ namespace DurableTask.AzureStorage.Partitioning
             await this.ShutdownAsync();
             this.shutdownComplete = true;
 
-            if (this.renewTask is not null)
+            if (this.renewTask != null)
             {
                 this.leaseRenewerCancellationTokenSource.Cancel();
                 await this.renewTask;
@@ -199,8 +199,8 @@ namespace DurableTask.AzureStorage.Partitioning
                                     nonRenewedLeases.Add(lease);
                                 }
                             }));
-                        }
-                        else
+                        } 
+                        else 
                         {
                             nonRenewedLeases.Add(lease);
                         }
@@ -294,7 +294,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 catch (Exception ex)
                 {
                     this.settings.Logger.PartitionManagerError(
-                        this.accountName,
+                        this.accountName, 
                         this.taskHub,
                         this.workerName,
                         string.Empty,
@@ -678,7 +678,7 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             CloseReason reason = hasOwnership ? CloseReason.Shutdown : CloseReason.LeaseLost;
 
-            if (lease is not null && this.currentlyOwnedShards is not null && this.currentlyOwnedShards.TryRemove(lease.PartitionId, out lease))
+            if (lease != null && this.currentlyOwnedShards != null && this.currentlyOwnedShards.TryRemove(lease.PartitionId, out lease))
             {
                 this.settings.Logger.PartitionRemoved(
                     this.accountName,

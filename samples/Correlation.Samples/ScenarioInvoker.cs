@@ -41,7 +41,7 @@ namespace Correlation.Samples
             }
         }
 
-        private void SetupActivity(Activity activity)
+        void SetupActivity(Activity activity)
         {
             var protocol = Environment.GetEnvironmentVariable("CorrelationProtocol");
             switch (protocol)

@@ -13,7 +13,6 @@
 
 namespace DurableTask.AzureStorage.Tests.Correlation
 {
-#pragma warning disable CA1812 // Private classes instantiated indirectly
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
@@ -489,15 +488,15 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         [KnownType(typeof(Hello))]
         internal class ContinueAsNewOrchestration : TaskOrchestration<string, string>
         {
-            private static int counter = 0;
+            static int Counter = 0;
 
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
                 string result = await context.ScheduleTask<string>(typeof(Hello), input);
                 result = input + ":" + result;
-                if (counter < 3)
+                if (Counter < 3)
                 {
-                    counter++;
+                    Counter++;
                     context.ContinueAsNew(result);
                 }
 
@@ -506,7 +505,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
 
             internal static void Reset()
             {
-                counter = 0;
+                Counter = 0;
             }
         }
 
@@ -550,19 +549,22 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                 actual.Select(x => (x.GetType(), x.Name)).ToList());
         }
 
-        private static bool IsNotReadyForRaiseEvent(TestOrchestrationClient client)
+        bool IsNotReadyForRaiseEvent(TestOrchestrationClient client)
         {
-            return client is null || !MultiParentOrchestrator.IsWaitForExternalEvent;
+            return client == null || !MultiParentOrchestrator.IsWaitForExternalEvent;
         }
 
-        private static List<OperationTelemetry> Convert(Task task) => (task as Task<List<OperationTelemetry>>)?.Result;
+        List<OperationTelemetry> Convert(Task task)
+        {
+            return (task as Task<List<OperationTelemetry>>)?.Result;
+        }
 
         [KnownType(typeof(Hello))]
         internal class MultiParentOrchestrator : TaskOrchestration<string, string>
         {
             public static bool IsWaitForExternalEvent { get; set; } = false;
 
-            private readonly TaskCompletionSource<object> receiveEvent = new TaskCompletionSource<object>();
+            readonly TaskCompletionSource<object> receiveEvent = new TaskCompletionSource<object>();
 
             public async override Task<string> RunTask(OrchestrationContext context, string input)
             {
@@ -577,7 +579,10 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                 this.receiveEvent.SetResult(null);
             }
 
-            internal static void Reset() => IsWaitForExternalEvent = false;
+            internal static void Reset()
+            {
+                IsWaitForExternalEvent = false;
+            }
         }
 
         [DataTestMethod]
@@ -631,9 +636,9 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             MultiParentChildOrchestrator.Reset();
         }
 
-        private static bool IsNotReadyForTwoRaiseEvents(TestOrchestrationClient client)
+        bool IsNotReadyForTwoRaiseEvents(TestOrchestrationClient client)
         {
-            return client is null || !(MultiParentChildOrchestrator.ReadyForExternalEvent == 2);
+            return client == null || !(MultiParentChildOrchestrator.ReadyForExternalEvent == 2);
         }
 
         [KnownType(typeof(MultiParentChildOrchestrator))]
@@ -654,20 +659,20 @@ namespace DurableTask.AzureStorage.Tests.Correlation
         [KnownType(typeof(Hello))]
         internal class MultiParentChildOrchestrator : TaskOrchestration<string, string>
         {
-            private static readonly object lockExternalEvent = new object();
-            private static readonly object lockId = new object();
-            private static int readyCountForExternalEvent = 0;
-            private static List<string> orchestrationIds = new List<string>();
+            static readonly object LockExternalEvent = new object();
+            static readonly object LockId = new object();
+            static int ReadyCountForExternalEvent = 0;
+            static List<string> OrchestrationIds = new List<string>();
 
             public static int ReadyForExternalEvent
             {
-                get => readyCountForExternalEvent;
+                get => ReadyCountForExternalEvent;
 
                 set
                 {
-                    lock (lockExternalEvent)
+                    lock (LockExternalEvent)
                     {
-                        readyCountForExternalEvent = value;
+                        ReadyCountForExternalEvent = value;
                     }
                 }
             }
@@ -676,9 +681,9 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                 get
                 {
                     IEnumerable<string> result;
-                    lock (lockId)
+                    lock (LockId)
                     {
-                        result = orchestrationIds.ToList<string>();
+                        result = OrchestrationIds.ToList<string>();
                     }
                     return result;
                 }
@@ -686,21 +691,21 @@ namespace DurableTask.AzureStorage.Tests.Correlation
 
             public static void AddOrchestrationId(string orchestrationId)
             {
-                lock (lockId)
+                lock (LockId)
                 {
-                    orchestrationIds.Add(orchestrationId);
+                    OrchestrationIds.Add(orchestrationId);
                 }
             }
 
             public static void IncrementReadyForExternalEvent()
             {
-                lock (lockExternalEvent)
+                lock (LockExternalEvent)
                 {
-                    readyCountForExternalEvent++;
+                    ReadyCountForExternalEvent++;
                 }
             }
 
-            private readonly TaskCompletionSource<object> receiveEvent = new TaskCompletionSource<object>();
+            readonly TaskCompletionSource<object> receiveEvent = new TaskCompletionSource<object>();
 
             public async override Task<string> RunTask(OrchestrationContext context, string input)
             {
@@ -719,7 +724,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             internal static void Reset()
             {
                 ReadyForExternalEvent = 0;
-                orchestrationIds = new List<string>();
+                OrchestrationIds = new List<string>();
             }
         }
 
@@ -743,7 +748,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
 
         //[TestMethod] terminate
 
-        private class TestCorrelationOrchestrationHost
+        class TestCorrelationOrchestrationHost
         {
             internal TestOrchestrationClient Client { get; set; }
 
@@ -785,13 +790,13 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                 return result.CorrelationSort();
             }
 
-            private static IEnumerable<OperationTelemetry> FilterOperationTelemetry(IEnumerable<OperationTelemetry> operationTelemetries)
+            IEnumerable<OperationTelemetry> FilterOperationTelemetry(IEnumerable<OperationTelemetry> operationTelemetries)
             {
                 return operationTelemetries.Where(
                     p => p.Name.Contains(TraceConstants.Activity) || p.Name.Contains(TraceConstants.Orchestrator) || p.Name.Contains(TraceConstants.Client) || p.Name.Contains("Operation"));
             }
 
-            private async Task ExtractTelemetry(Type orchestrationType, string parameter, int timeout, ConcurrentQueue<ITelemetry> sendItems, bool enableExtendedSessions)
+            async Task ExtractTelemetry(Type orchestrationType, string parameter, int timeout, ConcurrentQueue<ITelemetry> sendItems, bool enableExtendedSessions)
             {
                 var sendAction = new Action<ITelemetry>(
                     delegate (ITelemetry telemetry) { sendItems.Enqueue(telemetry); });
@@ -800,7 +805,9 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                 using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
                 {
                     await host.StartAsync();
-                    using var activity = new Activity(TraceConstants.Client);
+#pragma warning disable CA2000 // Dispose objects before losing scope
+                    var activity = new Activity(TraceConstants.Client);
+#pragma warning restore CA2000 // Dispose objects before losing scope
 
                     var idFormat = CorrelationSettings.Current.Protocol == Protocol.W3CTraceContext ? ActivityIdFormat.W3C : ActivityIdFormat.Hierarchical;
                     activity.SetIdFormat(idFormat);
@@ -813,7 +820,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                 }
             }
 
-            private static List<ITelemetry> ConvertTo(ConcurrentQueue<ITelemetry> queue)
+            List<ITelemetry> ConvertTo(ConcurrentQueue<ITelemetry> queue)
             {
                 var converted = new List<ITelemetry>();
                 while (!queue.IsEmpty)

@@ -16,6 +16,9 @@ namespace DurableTask.AzureServiceFabric.Service
     using System;
     using System.Fabric;
     using System.Globalization;
+    using System.Linq;
+    using System.Net;
+    using System.Net.Sockets;
     using System.Threading;
     using System.Threading.Tasks;
 
@@ -52,16 +55,16 @@ namespace DurableTask.AzureServiceFabric.Service
     /// </summary>
     public sealed class TaskHubProxyListener : IServiceListener
     {
-        private readonly RegisterOrchestrations registerOrchestrations;
-        private readonly RegisterOrchestrations2 registerOrchestrations2;
-        private readonly FabricOrchestrationProviderSettings fabricOrchestrationProviderSettings;
-        private FabricOrchestrationProviderFactory fabricProviderFactory;
-        private FabricOrchestrationProvider fabricOrchestrationProvider;
-        private TaskHubWorker worker;
-        private TaskHubClient localClient;
-        private ReplicaRole currentRole;
-        private StatefulService statefulService;
-        private readonly bool enableHttps = true;
+        readonly RegisterOrchestrations registerOrchestrations;
+        readonly RegisterOrchestrations2 registerOrchestrations2;
+        readonly FabricOrchestrationProviderSettings fabricOrchestrationProviderSettings;
+        FabricOrchestrationProviderFactory fabricProviderFactory;
+        FabricOrchestrationProvider fabricOrchestrationProvider;
+        TaskHubWorker worker;
+        TaskHubClient localClient;
+        ReplicaRole currentRole;
+        StatefulService statefulService;
+        readonly bool enableHttps = true;
 
         /// <summary>
         /// Creates instance of <see cref="TaskHubProxyListener"/>
@@ -175,7 +178,7 @@ namespace DurableTask.AzureServiceFabric.Service
             return Task.CompletedTask;
         }
 
-        private async Task StartAsync()
+        async Task StartAsync()
         {
             try
             {
@@ -183,7 +186,7 @@ namespace DurableTask.AzureServiceFabric.Service
 
                 this.worker = new TaskHubWorker(this.fabricOrchestrationProvider.OrchestrationService, this.fabricOrchestrationProviderSettings.LoggerFactory);
 
-                if (this.registerOrchestrations2 is not null)
+                if (this.registerOrchestrations2 != null)
                 {
                     this.localClient = new TaskHubClient(this.fabricOrchestrationProvider.OrchestrationServiceClient, loggerFactory: this.fabricOrchestrationProviderSettings.LoggerFactory);
                     this.registerOrchestrations2(this.worker, this.localClient);
@@ -204,11 +207,11 @@ namespace DurableTask.AzureServiceFabric.Service
             }
         }
 
-        private async Task StopAsync()
+        async Task StopAsync()
         {
             try
             {
-                if (this.worker is not null)
+                if (this.worker != null)
                 {
                     ServiceFabricProviderEventSource.Tracing.LogFabricServiceInformation(this.statefulService, "Stopping Taskhub Worker");
                     await this.worker.StopAsync(isForced: true);
@@ -227,9 +230,9 @@ namespace DurableTask.AzureServiceFabric.Service
             }
         }
 
-        private void EnsureFabricOrchestrationProviderIsInitialized()
+        void EnsureFabricOrchestrationProviderIsInitialized()
         {
-            if (this.fabricOrchestrationProvider is null)
+            if (this.fabricOrchestrationProvider == null)
             {
                 this.fabricOrchestrationProvider = this.fabricProviderFactory.CreateProvider();
             }

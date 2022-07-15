@@ -16,9 +16,7 @@ namespace DurableTask.ServiceBus.Tracking
     using System;
     using System.Collections.Generic;
     using System.Globalization;
-
     using DurableTask.Core.Tracking;
-
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Table;
 

@@ -23,14 +23,14 @@ namespace DurableTask.Core.Tests
     [TestClass]
     public class CustomExceptionsTests
     {
-        private List<Type> customExceptions;
-        private const string DefaultExceptionsNamespace = "DurableTask.Core.Exceptions";
-        private const string DefaultExceptionMessage = "Test Message";
-        private const long TestInt64Type = 1234567890123456789;
-        private const int TestInt32Type = 1234567890;
-        private const short TestInt16Type = 12345;
-        private const string TestStringType = "This is a test string";
-        private static readonly Guid TestGuidType = Guid.NewGuid();
+        List<Type> customExceptions;
+        const string DefaultExceptionsNamespace = "DurableTask.Core.Exceptions";
+        const string DefaultExceptionMessage = "Test Message";
+        const long TestInt64Type = 1234567890123456789;
+        const int TestInt32Type = 1234567890;
+        const short TestInt16Type = 12345;
+        const string TestStringType = "This is a test string";
+        static readonly Guid TestGuidType = Guid.NewGuid();
 
         [TestInitialize]
         public void Initialize()
@@ -143,7 +143,7 @@ namespace DurableTask.Core.Tests
             });
         }
 
-        private void ForEachExceptionDisplayContext(Action<Type> exceptionType)
+        void ForEachExceptionDisplayContext(Action<Type> exceptionType)
         {
             foreach (Type type in this.customExceptions)
             {
@@ -152,7 +152,7 @@ namespace DurableTask.Core.Tests
             }
         }
 
-        private object GetValueFromType(Type type)
+        object GetValueFromType(Type type)
         {
             // Return a predefined value for each well known type
             if (type == typeof(long)) return TestInt64Type;

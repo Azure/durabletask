@@ -17,7 +17,6 @@ namespace DurableTask.Core.Tracing
     using System.Diagnostics;
     using System.Globalization;
     using System.Runtime.ExceptionServices;
-
     using DurableTask.Core.Common;
 
     /// <summary>
@@ -25,7 +24,7 @@ namespace DurableTask.Core.Tracing
     /// </summary>
     public class TraceHelper
     {
-        private const string Source = "DurableTask";
+        const string Source = "DurableTask";
 
         /// <summary>
         ///     Simple trace with no iid or eid
@@ -163,7 +162,7 @@ namespace DurableTask.Core.Tracing
          => TraceExceptionCore(eventLevel, eventType, sessionId, string.Empty, exceptionDispatchInfo, format, args);
 
         // helper methods
-        private static ExceptionDispatchInfo TraceExceptionCore(TraceEventType eventLevel, string eventType, string iid, string eid, ExceptionDispatchInfo exceptionDispatchInfo,
+        static ExceptionDispatchInfo TraceExceptionCore(TraceEventType eventLevel, string eventType, string iid, string eid, ExceptionDispatchInfo exceptionDispatchInfo,
             string format, params object[] args)
         {
             Exception exception = exceptionDispatchInfo.SourceException;
@@ -178,7 +177,7 @@ namespace DurableTask.Core.Tracing
             return exceptionDispatchInfo;
         }
 
-        private static Exception TraceExceptionCore(TraceEventType eventLevel, string eventType, string iid, string eid, Exception exception,
+        static Exception TraceExceptionCore(TraceEventType eventLevel, string eventType, string iid, string eid, Exception exception,
             Func<string> generateMessage)
         {
             string newFormat = generateMessage() + "\nException: " + exception.GetType() + " : " + exception.Message +
@@ -191,7 +190,7 @@ namespace DurableTask.Core.Tracing
             return exception;
         }
 
-        private static string FormatString(string formatted, params object[] args)
+        static string FormatString(string formatted, params object[] args)
         {
             if (args is null || args.Length == 0)
             {
@@ -211,7 +210,7 @@ namespace DurableTask.Core.Tracing
             }
         }
 
-        private static void ExceptionHandlingWrapper(Action innerFunc)
+        static void ExceptionHandlingWrapper(Action innerFunc)
         {
             try
             {

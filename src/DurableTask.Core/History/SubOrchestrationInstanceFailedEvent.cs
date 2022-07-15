@@ -40,14 +40,10 @@ namespace DurableTask.Core.History
 
         /// <inheritdoc cref="SubOrchestrationInstanceFailedEvent(int, int, string?, string?, FailureDetails?)"/>
         public SubOrchestrationInstanceFailedEvent(int eventId, int taskScheduledId, string? reason, string? details)
-            : this(eventId, taskScheduledId, reason, details, null)
-        {
-        }
+            : this(eventId, taskScheduledId, reason, details, null) { }
 
         // Needed for deserialization
-        private SubOrchestrationInstanceFailedEvent()
-            : base(-1)
-        { }
+        SubOrchestrationInstanceFailedEvent() : base(-1) { }
 
         /// <summary>
         /// Gets the event type

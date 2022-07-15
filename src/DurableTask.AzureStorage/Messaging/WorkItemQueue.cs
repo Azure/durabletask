@@ -38,7 +38,7 @@ namespace DurableTask.AzureStorage.Messaging
                 {
                     QueueMessage queueMessage = await  this.storageQueue.GetMessageAsync(this.settings.WorkItemQueueVisibilityTimeout, cancellationToken);
 
-                    if (queueMessage is null)
+                    if (queueMessage == null)
                     {
                         await this.backoffHelper.WaitAsync(cancellationToken);
                         continue;

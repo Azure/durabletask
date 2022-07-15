@@ -22,8 +22,8 @@ namespace DurableTask.AzureServiceFabric
     /// </summary>
     public class FabricOrchestrationProviderFactory
     {
-        private readonly IReliableStateManager stateManager;
-        private readonly FabricOrchestrationProviderSettings settings;
+        readonly IReliableStateManager stateManager;
+        readonly FabricOrchestrationProviderSettings settings;
 
         /// <summary>
         /// Constructor that uses default <see cref="FabricOrchestrationProviderSettings"/>.
@@ -41,12 +41,7 @@ namespace DurableTask.AzureServiceFabric
         /// <param name="settings">Settings to be used for the provider. Refer to <see cref="FabricOrchestrationProviderSettings"/> for documentation about specific settings.</param>
         public FabricOrchestrationProviderFactory(IReliableStateManager stateManager, FabricOrchestrationProviderSettings settings)
         {
-            if (stateManager is null)
-            {
-                throw new ArgumentNullException(nameof(stateManager));
-            }
-
-            this.stateManager = stateManager;
+            this.stateManager = stateManager ?? throw new ArgumentNullException(nameof(stateManager));
             this.settings = settings ?? new FabricOrchestrationProviderSettings();
         }
 

@@ -35,12 +35,12 @@ namespace DurableTask.ServiceBus.Tests
 
     public static class TestHelpers
     {
-        private static readonly string ServiceBusConnectionString;
-        private static readonly string StorageConnectionString;
-        private static readonly string TaskHubName;
+        static readonly string ServiceBusConnectionString;
+        static readonly string StorageConnectionString;
+        static readonly string TaskHubName;
 
         // ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
-        private static readonly ObservableEventListener EventListener;
+        static readonly ObservableEventListener EventListener;
 
 #pragma warning disable CA1065 // Do not raise exceptions in unexpected locations
 #pragma warning disable CA1810 // Initialize reference type static fields inline
@@ -94,7 +94,7 @@ namespace DurableTask.ServiceBus.Tests
         }
 
         // ReSharper disable once UnusedParameter.Local
-        private static IOrchestrationService CreateOrchestrationServiceWorker(
+        static IOrchestrationService CreateOrchestrationServiceWorker(
             ServiceBusOrchestrationServiceSettings settings,
             TimeSpan jumpStartAttemptInterval)
         {
@@ -107,7 +107,7 @@ namespace DurableTask.ServiceBus.Tests
             return service;
         }
 
-        private static IOrchestrationServiceClient CreateOrchestrationServiceClient(
+        static IOrchestrationServiceClient CreateOrchestrationServiceClient(
             ServiceBusOrchestrationServiceSettings settings)
         {
             var service = new ServiceBusOrchestrationService(
@@ -210,7 +210,7 @@ namespace DurableTask.ServiceBus.Tests
                     state = await taskHubClient.GetOrchestrationStateAsync(instance.InstanceId);
                 }
 
-                if (state is null)
+                if (state == null)
                 {
                     throw new ArgumentException("OrchestrationState is expected but NULL value returned");
                 }

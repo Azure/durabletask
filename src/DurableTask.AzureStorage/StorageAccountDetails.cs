@@ -70,9 +70,9 @@ namespace DurableTask.AzureStorage
             {
                 return CloudStorageAccount.Parse(this.ConnectionString);
             }
-            else if (this.BlobServiceUri is not null || this.QueueServiceUri is not null || this.TableServiceUri is not null)
+            else if (this.BlobServiceUri != null || this.QueueServiceUri != null || this.TableServiceUri != null)
             {
-                if (this.BlobServiceUri is null || this.QueueServiceUri is null || this.TableServiceUri is null)
+                if (this.BlobServiceUri == null || this.QueueServiceUri == null || this.TableServiceUri == null)
                 {
                     throw new InvalidOperationException(
                         $"If at least one Azure Storage service URI is specified, {nameof(BlobServiceUri)}, {nameof(QueueServiceUri)}, and {nameof(TableServiceUri)} must all be provided.");

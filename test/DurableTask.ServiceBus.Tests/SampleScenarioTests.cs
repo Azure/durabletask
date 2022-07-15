@@ -13,7 +13,8 @@
 
 namespace DurableTask.ServiceBus.Tests
 {
-#pragma warning disable CA1812 // Private classes instantiated indirectly
+#pragma warning disable CA1725 // Parameter names should match base declaration
+#pragma warning disable CA2211 // Non-constant fields should not be visible
     using System;
     using System.Collections.Generic;
     using System.Diagnostics.Contracts;
@@ -30,10 +31,10 @@ namespace DurableTask.ServiceBus.Tests
     [TestClass]
     public class SampleScenarioTests
     {
-        private TaskHubClient client;
-        private TaskHubWorker fakeTaskHub;
-        private TaskHubWorker taskHub;
-        private TaskHubWorker taskHubNoCompression;
+        TaskHubClient client;
+        TaskHubWorker fakeTaskHub;
+        TaskHubWorker taskHub;
+        TaskHubWorker taskHubNoCompression;
 
         public TestContext TestContext { get; set; }
 
@@ -48,7 +49,7 @@ namespace DurableTask.ServiceBus.Tests
                 this.fakeTaskHub = TestHelpers.CreateTaskHub();
 
                 this.taskHubNoCompression = TestHelpers.CreateTaskHubNoCompression();
-                this.taskHub.OrchestrationService.CreateAsync(true).Wait();
+                this.taskHub.orchestrationService.CreateAsync(true).Wait();
             }
         }
 
@@ -60,7 +61,7 @@ namespace DurableTask.ServiceBus.Tests
                 this.taskHub.StopAsync(true).Wait();
                 this.taskHubNoCompression.StopAsync().Wait();
                 this.fakeTaskHub.StopAsync(true).Wait();
-                this.taskHub.OrchestrationService.DeleteAsync(true).Wait();
+                this.taskHub.orchestrationService.DeleteAsync(true).Wait();
             }
         }
 
@@ -68,12 +69,10 @@ namespace DurableTask.ServiceBus.Tests
 
         public sealed class SendGreetingTask : TaskActivity<string, string>
         {
-#pragma warning disable CA1725 // Parameter names should match base declaration
             protected override string Execute(TaskContext context, string user)
             {
                 return "Greeting send to " + user;
             }
-#pragma warning restore CA1725 // Parameter names should match base declaration
         }
 
         #endregion
@@ -161,10 +160,8 @@ namespace DurableTask.ServiceBus.Tests
 
         public class SimplestGreetingsOrchestration : TaskOrchestration<string, string>
         {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string Result;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
 
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
@@ -180,9 +177,7 @@ namespace DurableTask.ServiceBus.Tests
 
         public sealed class SimplestSendGreetingTask : TaskActivity<string, string>
         {
-#pragma warning disable CA1725 // Parameter names should match base declaration
             protected override string Execute(TaskContext context, string user) => "Greeting send to " + user;
-#pragma warning restore CA1725 // Parameter names should match base declaration
         }
 
         #endregion
@@ -213,10 +208,8 @@ namespace DurableTask.ServiceBus.Tests
 
         public class GreetingsOrchestration : TaskOrchestration<string, string>
         {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string Result;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
 
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
@@ -267,12 +260,9 @@ namespace DurableTask.ServiceBus.Tests
 
         public class GreetingsOrchestration2 : TaskOrchestration<string, int>
         {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string Result;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
 
-#pragma warning disable CA1725 // Parameter names should match base declaration
             public override async Task<string> RunTask(OrchestrationContext context, int secondsToWait)
             {
                 Contract.Assume(context is not null);
@@ -287,7 +277,6 @@ namespace DurableTask.ServiceBus.Tests
 
                 return greeting;
             }
-#pragma warning restore CA1725 // Parameter names should match base declaration
         }
 
         #endregion
@@ -329,10 +318,8 @@ namespace DurableTask.ServiceBus.Tests
 
         public class LargeInputOutputOrchestration : TaskOrchestration<string, string>
         {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string Result;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
 
             public override Task<string> RunTask(OrchestrationContext context, string input)
             {
@@ -362,14 +349,14 @@ namespace DurableTask.ServiceBus.Tests
             Assert.AreEqual(25.5, AverageCalculatorOrchestration.Result, "Orchestration Result is wrong!!!");
         }
 
-        private class AverageCalculatorOrchestration : TaskOrchestration<double, int[]>
+        class AverageCalculatorOrchestration : TaskOrchestration<double, int[]>
         {
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static double Result;
 
             public override async Task<double> RunTask(OrchestrationContext context, int[] input)
             {
-                if (input is null || input.Length != 3)
+                if (input == null || input.Length != 3)
                 {
                     throw new ArgumentException("input Lenght cannot be other than 3", nameof(input));
                 }
@@ -409,10 +396,9 @@ namespace DurableTask.ServiceBus.Tests
 
         public sealed class ComputeSumTask : TaskActivity<int[], int>
         {
-#pragma warning disable CA1725 // Parameter names should match base declaration
             protected override int Execute(TaskContext context, int[] chunk)
             {
-                if (chunk is null || chunk.Length != 2)
+                if (chunk == null || chunk.Length != 2)
                 {
                     throw new ArgumentException("chunk length cannot be other than 2", nameof(chunk));
                 }
@@ -430,7 +416,6 @@ namespace DurableTask.ServiceBus.Tests
 
                 return sum;
             }
-#pragma warning restore CA1725 // Parameter names should match base declaration
         }
 
         #endregion
@@ -457,11 +442,9 @@ namespace DurableTask.ServiceBus.Tests
 
         public class SignalOrchestration : TaskOrchestration<string, string>
         {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string Result;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
-            private TaskCompletionSource<string> resumeHandle;
+            TaskCompletionSource<string> resumeHandle;
 
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
@@ -472,7 +455,7 @@ namespace DurableTask.ServiceBus.Tests
                 return greeting;
             }
 
-            private async Task<string> WaitForSignal()
+            async Task<string> WaitForSignal()
             {
                 this.resumeHandle = new TaskCompletionSource<string>();
                 string data = await this.resumeHandle.Task;
@@ -525,10 +508,8 @@ namespace DurableTask.ServiceBus.Tests
 
         public class ErrorHandlingOrchestration : TaskOrchestration<string, string>
         {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string Result;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
 
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
@@ -601,7 +582,7 @@ namespace DurableTask.ServiceBus.Tests
             Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 120));
             Assert.AreEqual(5, CronTask.Result, "Orchestration Result is wrong!!!");
             Assert.AreEqual(5, CronOrchestration.Result, "Orchestration Result is wrong!!!");
-            int taskExceptions = CronOrchestration.Tasks.Count(task => task.Exception is not null);
+            int taskExceptions = CronOrchestration.Tasks.Count(task => task.Exception != null);
             Assert.AreEqual(0, taskExceptions, $"Orchestration Result contains {taskExceptions} exceptions!!!");
         }
 
@@ -616,16 +597,14 @@ namespace DurableTask.ServiceBus.Tests
 
         public class CronOrchestration : TaskOrchestration<string, CronJob>
         {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
             public static int Result;
             public static List<Task<string>> Tasks = new List<Task<string>>();
-#pragma warning restore CA2211 // Non-constant fields should not be visible
 
-#pragma warning disable CA1725 // Parameter names should match base declaration
             public override async Task<string> RunTask(OrchestrationContext context, CronJob job)
             {
                 Contract.Assume(context is not null);
                 Contract.Assume(job is not null);
+
                 int runAfterEverySeconds;
                 if (job.Frequency == RecurrenceFrequency.Second)
                 {
@@ -650,10 +629,9 @@ namespace DurableTask.ServiceBus.Tests
                 Result = i - 1;
                 return "Done";
             }
-#pragma warning restore CA1725 // Parameter names should match base declaration
         }
 
-        private sealed class CronTask : TaskActivity<string, string>
+        sealed class CronTask : TaskActivity<string, string>
         {
             public static int Result;
 
@@ -703,12 +681,9 @@ namespace DurableTask.ServiceBus.Tests
 
         public class ParentWorkflow : TaskOrchestration<string, bool>
         {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string Result;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
 
-#pragma warning disable CA1725 // Parameter names should match base declaration
             public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
             {
                 Contract.Assume(context is not null);
@@ -728,7 +703,6 @@ namespace DurableTask.ServiceBus.Tests
                 Result = string.Concat(data);
                 return Result;
             }
-#pragma warning restore CA1725 // Parameter names should match base declaration
         }
 
         #endregion
@@ -764,9 +738,7 @@ namespace DurableTask.ServiceBus.Tests
 
         public class ChildWorkflow2 : TaskOrchestration<string, int>
         {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
             public static int Count;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
 
             public override Task<string> RunTask(OrchestrationContext context, int input)
             {
@@ -777,12 +749,9 @@ namespace DurableTask.ServiceBus.Tests
 
         public class ParentWorkflow2 : TaskOrchestration<string, bool>
         {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string Result;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
 
-#pragma warning disable CA1725 // Parameter names should match base declaration
             public override async Task<string> RunTask(OrchestrationContext context, bool waitForCompletion)
             {
                 Contract.Assume(context is not null);
@@ -812,7 +781,6 @@ namespace DurableTask.ServiceBus.Tests
 
                 return Result;
             }
-#pragma warning restore CA1725 // Parameter names should match base declaration
         }
 
         #endregion
@@ -861,10 +829,8 @@ namespace DurableTask.ServiceBus.Tests
 
         public class SimpleChildWorkflow : TaskOrchestration<string, object>
         {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string ChildInstanceId;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
 
             public override Task<string> RunTask(OrchestrationContext context, object input)
             {

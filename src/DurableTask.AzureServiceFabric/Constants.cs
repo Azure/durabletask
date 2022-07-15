@@ -13,7 +13,7 @@
 
 namespace DurableTask.AzureServiceFabric
 {
-    internal static class Constants
+    static class Constants
     {
         internal const string CollectionNameUniquenessPrefix = "DtfxSfp_";
         internal const string SessionMessagesDictionaryPrefix = CollectionNameUniquenessPrefix + "SessionMessages_";

@@ -18,19 +18,17 @@ namespace DurableTask.Core.Tests
     using System.Linq;
     using System.Text;
     using System.Threading.Tasks;
-
     using DurableTask.Core.Command;
     using DurableTask.Core.History;
     using DurableTask.Emulator;
     using DurableTask.Test.Orchestrations;
-
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
     public class DispatcherMiddlewareTests
     {
-        private TaskHubWorker worker = null!;
-        private TaskHubClient client = null!;
+        TaskHubWorker worker = null!;
+        TaskHubClient client = null!;
 
         [TestInitialize]
         public async Task Initialize()
@@ -108,14 +106,14 @@ namespace DurableTask.Core.Tests
                 this.worker.AddOrchestrationDispatcherMiddleware(async (context, next) =>
                 {
                     output = context.GetProperty<StringBuilder>("output");
-                    if (output is null)
+                    if (output == null)
                     {
                         output = new StringBuilder();
                         context.SetProperty("output", output);
                     }
 
                     // This is an async method and the output is out of the scope, output is used in closure
-                    Debug.Assert(output is not null);
+                    Debug.Assert(output != null);
 
                     output!.Append(value);
                     await next();
@@ -147,14 +145,14 @@ namespace DurableTask.Core.Tests
                 this.worker.AddActivityDispatcherMiddleware(async (context, next) =>
                 {
                     output = context.GetProperty<StringBuilder>("output");
-                    if (output is null)
+                    if (output == null)
                     {
                         output = new StringBuilder();
                         context.SetProperty("output", output);
                     }
 
                     // This is an async method and the output is out of the scope, output is used in closure
-                    Debug.Assert(output is not null);
+                    Debug.Assert(output != null);
 
                     output!.Append(value);
                     await next();

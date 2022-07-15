@@ -17,9 +17,9 @@ namespace DurableTask.AzureServiceFabric
     using System.Threading;
     using System.Threading.Tasks;
 
-    internal sealed class AsyncManualResetEvent
+    sealed class AsyncManualResetEvent
     {
-        private TaskCompletionSource<bool> taskCompletionSource = new TaskCompletionSource<bool>();
+        TaskCompletionSource<bool> taskCompletionSource = new TaskCompletionSource<bool>();
 
         public async Task<bool> WaitAsync(TimeSpan timeout, CancellationToken cancellationToken)
         {

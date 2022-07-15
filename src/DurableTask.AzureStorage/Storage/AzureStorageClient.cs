@@ -32,7 +32,7 @@ namespace DurableTask.AzureStorage.Storage
         readonly SemaphoreSlim requestThrottleSemaphore;
 
         public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings) : 
-            this(settings.StorageAccountDetails is null ?
+            this(settings.StorageAccountDetails == null ?
                 CloudStorageAccount.Parse(settings.StorageConnectionString) : settings.StorageAccountDetails.ToCloudStorageAccount(),
                 settings)
         { }

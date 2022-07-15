@@ -20,10 +20,10 @@ namespace DurableTask.Core
     using System.Threading.Tasks;
     using Castle.DynamicProxy;
 
-    internal class RetryProxy : IInterceptor
+    class RetryProxy : IInterceptor
     {
-        private readonly OrchestrationContext context;
-        private readonly RetryOptions retryOptions;
+        readonly OrchestrationContext context;
+        readonly RetryOptions retryOptions;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="RetryProxy"/> class.
@@ -55,7 +55,7 @@ namespace DurableTask.Core
 
             MethodInfo invokeMethod = this.GetType().GetMethod("InvokeWithRetry", BindingFlags.Instance | BindingFlags.NonPublic);
 
-            Debug.Assert(invokeMethod is not null);
+            Debug.Assert(invokeMethod != null);
 
             MethodInfo genericInvokeMethod = invokeMethod.MakeGenericMethod(returnType);
             invocation.ReturnValue = genericInvokeMethod.Invoke(this, new object[] { invocation });
@@ -63,7 +63,7 @@ namespace DurableTask.Core
             return;
         }
 
-        private async Task<TReturnType> InvokeWithRetry<TReturnType>(IInvocation invocation)
+        async Task<TReturnType> InvokeWithRetry<TReturnType>(IInvocation invocation)
         {
             Task<TReturnType> RetryCall()
             {

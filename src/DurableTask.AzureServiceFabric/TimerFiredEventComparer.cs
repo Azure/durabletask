@@ -17,18 +17,18 @@ namespace DurableTask.AzureServiceFabric
     using System.Collections.Generic;
     using DurableTask.Core.History;
 
-    internal sealed class TimerFiredEventComparer : IComparer<Message<Guid, TaskMessageItem>>
+    sealed class TimerFiredEventComparer : IComparer<Message<Guid, TaskMessageItem>>
     {
         public static readonly TimerFiredEventComparer Instance = new TimerFiredEventComparer();
 
         public int Compare(Message<Guid, TaskMessageItem> first, Message<Guid, TaskMessageItem> second)
         {
-            if (first is null)
+            if (first == null)
             {
                 throw new ArgumentNullException(nameof(first));
             }
 
-            if (second is null)
+            if (second == null)
             {
                 throw new ArgumentNullException(nameof(second));
             }
@@ -36,11 +36,11 @@ namespace DurableTask.AzureServiceFabric
             var firstTimer = first.Value.TaskMessage.Event as TimerFiredEvent;
             var secondTimer = second.Value.TaskMessage.Event as TimerFiredEvent;
 
-            if (firstTimer is null)
+            if (firstTimer == null)
             {
                 throw new ArgumentException(nameof(first));
             }
-            if (secondTimer is null)
+            if (secondTimer == null)
             {
                 throw new ArgumentException(nameof(second));
             }

@@ -25,7 +25,7 @@ namespace DurableTask.Core
         internal static string GetDefaultMethodName(MethodInfo methodInfo, bool useFullyQualifiedMethodNames)
         {
             string methodName = methodInfo.Name;
-            if (useFullyQualifiedMethodNames && methodInfo.DeclaringType is not null)
+            if (useFullyQualifiedMethodNames && methodInfo.DeclaringType != null)
             {
                 methodName = GetFullyQualifiedMethodName(methodInfo.DeclaringType.Name, methodInfo.Name);
             }
@@ -48,7 +48,7 @@ namespace DurableTask.Core
         /// <returns>Name of the object instance's type</returns>
         public static string GetDefaultName(object obj, bool useFullyQualifiedMethodNames)
         {
-            if (obj is null)
+            if (obj == null)
             {
                 throw new ArgumentNullException(nameof(obj));
             }
@@ -57,15 +57,15 @@ namespace DurableTask.Core
             Type type;
             MethodInfo methodInfo;
             InvokeMemberBinder binder;
-            if ((type = obj as Type) is not null)
+            if ((type = obj as Type) != null)
             {
                 name = type.ToString();
             }
-            else if ((methodInfo = obj as MethodInfo) is not null)
+            else if ((methodInfo = obj as MethodInfo) != null)
             {
                 name = GetDefaultMethodName(methodInfo, useFullyQualifiedMethodNames);
             }
-            else if ((binder = obj as InvokeMemberBinder) is not null)
+            else if ((binder = obj as InvokeMemberBinder) != null)
             {
                 name = binder.Name;
             }

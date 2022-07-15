@@ -45,7 +45,7 @@ namespace DurableTask.Core.History
         }
 
         // Needed for deserialization
-        private TaskFailedEvent()
+        TaskFailedEvent()
             : base(-1)
         { }
 

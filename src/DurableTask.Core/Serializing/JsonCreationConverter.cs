@@ -14,14 +14,13 @@
 namespace DurableTask.Core.Serializing
 {
     using System;
-
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
 
     /// <summary>
     ///     Helper class for supporting deserialization from JSON into a custom class hierarchy
     /// </summary>
-    internal abstract class JsonCreationConverter<T> : JsonConverter where T : class
+    abstract class JsonCreationConverter<T> : JsonConverter where T : class
     {
         public override bool CanWrite => false;
 
@@ -37,7 +36,7 @@ namespace DurableTask.Core.Serializing
 
             JObject value = JObject.Load(reader);
 
-            // Create target object based on JObject
+            // Create target object based on JObject 
             T target = CreateObject(objectType, value);
 
             serializer.Populate(value.CreateReader(), target);

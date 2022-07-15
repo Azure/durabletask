@@ -30,9 +30,9 @@ namespace DurableTask.AzureServiceFabric.Service
         /// <summary>
         /// OWIN server handle.
         /// </summary>
-        private IDisposable serverHandle;
+        IDisposable serverHandle;
 
-        private readonly IOwinAppBuilder owinAppBuilder;
+        readonly IOwinAppBuilder owinAppBuilder;
 
         /// <summary>
         /// Instantiates OwinCommunicationListener from IOwinAppBuilder
@@ -89,9 +89,9 @@ namespace DurableTask.AzureServiceFabric.Service
             this.StopWebServer();
         }
 
-        private void StopWebServer()
+        void StopWebServer()
         {
-            if (this.serverHandle is not null)
+            if (this.serverHandle != null)
             {
                 try
                 {

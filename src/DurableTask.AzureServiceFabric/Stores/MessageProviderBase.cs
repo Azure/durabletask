@@ -27,11 +27,11 @@ namespace DurableTask.AzureServiceFabric.Stores
     using Microsoft.ServiceFabric.Data.Collections;
 
     [SuppressMessage("Microsoft.Design", "CA1001", Justification = "Disposing is done through StartAsync and StopAsync")]
-    internal abstract class MessageProviderBase<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
+    abstract class MessageProviderBase<TKey, TValue> where TKey : IComparable<TKey>, IEquatable<TKey>
     {
-        private readonly string storeName;
-        private readonly AsyncManualResetEvent waitEvent = new AsyncManualResetEvent();
-        private readonly TimeSpan metricsInterval = TimeSpan.FromMinutes(1);
+        readonly string storeName;
+        readonly AsyncManualResetEvent waitEvent = new AsyncManualResetEvent();
+        readonly TimeSpan metricsInterval = TimeSpan.FromMinutes(1);
 
         protected MessageProviderBase(IReliableStateManager stateManager, string storeName, CancellationToken token)
         {
@@ -139,7 +139,7 @@ namespace DurableTask.AzureServiceFabric.Stores
 
         public Task EnsureStoreInitialized()
         {
-            if (this.Store is null)
+            if (this.Store == null)
             {
                 return this.InitializeStore();
             }

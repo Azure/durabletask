@@ -18,7 +18,7 @@ namespace DurableTask.AzureServiceFabric
 
     using DurableTask.AzureServiceFabric.Tracing;
 
-    internal static class ExceptionUtilities
+    static class ExceptionUtilities
     {
         public static bool IsRetryableFabricException(Exception e) => e is TimeoutException || e is FabricTransientException;
 

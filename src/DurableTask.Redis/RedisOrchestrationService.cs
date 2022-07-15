@@ -19,10 +19,8 @@ namespace DurableTask.Redis
     using System.Net;
     using System.Threading;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
     using DurableTask.Core.History;
-
     using StackExchange.Redis;
 
     /// <summary>
@@ -30,17 +28,17 @@ namespace DurableTask.Redis
     /// </summary>
     public class RedisOrchestrationService : IOrchestrationService, IOrchestrationServiceClient
     {
-        private readonly SemaphoreSlim startLock = new SemaphoreSlim(1);
+        readonly SemaphoreSlim startLock = new SemaphoreSlim(1);
 
-        private readonly RedisOrchestrationServiceSettings settings;
+        readonly RedisOrchestrationServiceSettings settings;
 
         // Initialized in StartAsync()
-        private ConnectionMultiplexer redisConnection;
-        private OrchestrationSessionPartitionHandler partitionOrchestrationManager;
-        private ActivityTaskHandler activityTaskManager;
-        private WorkerRecycler workerRecycler;
-        private RedisLogger logger;
-        private string workerGuid;
+        ConnectionMultiplexer redisConnection;
+        OrchestrationSessionPartitionHandler partitionOrchestrationManager;
+        ActivityTaskHandler activityTaskManager;
+        WorkerRecycler workerRecycler;
+        RedisLogger logger;
+        string workerGuid;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="RedisOrchestrationService"/> class.
@@ -71,7 +69,7 @@ namespace DurableTask.Redis
             TimeSpan receiveTimeout,
             CancellationToken cancellationToken)
         {
-            if (this.partitionOrchestrationManager is null)
+            if (this.partitionOrchestrationManager == null)
             {
                 await StartAsync();
             }
@@ -92,7 +90,7 @@ namespace DurableTask.Redis
             TaskMessage continuedAsNewMessage,
             OrchestrationState orchestrationState)
         {
-            if (this.partitionOrchestrationManager is null || this.redisConnection is null)
+            if (this.partitionOrchestrationManager == null || this.redisConnection == null)
             {
                 await StartAsync();
             }
@@ -100,7 +98,7 @@ namespace DurableTask.Redis
             RedisTransactionBuilder transaction = this.partitionOrchestrationManager.CreateExistingOrchestrationTransaction(orchestrationId);
 
             List<string> events = newOrchestrationRuntimeState.Events.Select(histEvent => histEvent as TaskCompletedEvent)
-                .Where(taskCompletedEvent => taskCompletedEvent is not null)
+                .Where(taskCompletedEvent => taskCompletedEvent != null)
                 .OrderBy(task => task.TaskScheduledId)
                 .Select(taskCompletedEvent => $"{{\"id\": {taskCompletedEvent.TaskScheduledId}, \"Result\": {taskCompletedEvent.Result}}}")
                 .ToList();
@@ -119,10 +117,10 @@ namespace DurableTask.Redis
                 transaction.SendControlQueueMessage(message);
             }
 
-            if (continuedAsNewMessage is not null)
+            if (continuedAsNewMessage != null)
             {
                 transaction.SendControlQueueMessage(continuedAsNewMessage);
-            }
+            } 
 
             // TODO send timer messages in transaction
 
@@ -151,7 +149,7 @@ namespace DurableTask.Redis
         /// <inheritdoc />
         public async Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            if (this.partitionOrchestrationManager is null || this.redisConnection is null)
+            if (this.partitionOrchestrationManager == null || this.redisConnection == null)
             {
                 await StartAsync();
             }
@@ -162,7 +160,7 @@ namespace DurableTask.Redis
         /// <inheritdoc />
         public async Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            if (this.partitionOrchestrationManager is null || this.redisConnection is null)
+            if (this.partitionOrchestrationManager == null || this.redisConnection == null)
             {
                 await StartAsync();
             }
@@ -177,7 +175,7 @@ namespace DurableTask.Redis
             TimeSpan receiveTimeout,
             CancellationToken cancellationToken)
         {
-            if (this.activityTaskManager is null)
+            if (this.activityTaskManager == null)
             {
                 await StartAsync();
             }
@@ -189,7 +187,7 @@ namespace DurableTask.Redis
             TaskActivityWorkItem workItem,
             TaskMessage responseMessage)
         {
-            if (this.activityTaskManager is null || this.partitionOrchestrationManager is null)
+            if (this.activityTaskManager == null || this.partitionOrchestrationManager == null)
             {
                 await StartAsync();
             }
@@ -219,7 +217,7 @@ namespace DurableTask.Redis
         /// <inheritdoc />
         public async Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem)
         {
-            if (this.activityTaskManager is null)
+            if (this.activityTaskManager == null)
             {
                 await StartAsync();
             }
@@ -246,7 +244,7 @@ namespace DurableTask.Redis
         /// <inheritdoc />
         public async Task DeleteAsync()
         {
-            if (this.redisConnection is null || !this.redisConnection.IsConnected)
+            if (this.redisConnection == null || !this.redisConnection.IsConnected)
             {
                 this.redisConnection = await ConnectionMultiplexer.ConnectAsync(this.settings.RedisConnectionString);
             }
@@ -280,7 +278,7 @@ namespace DurableTask.Redis
         {
             await this.startLock.WaitAsync();
 
-            if (this.workerGuid is null)
+            if (this.workerGuid == null)
             {
                 this.redisConnection = await ConnectionMultiplexer.ConnectAsync(this.settings.RedisConnectionString);
                 this.workerRecycler = new WorkerRecycler(this.settings.TaskHubName, this.redisConnection);
@@ -295,7 +293,7 @@ namespace DurableTask.Redis
             this.startLock.Release();
         }
 
-        private void RegisterWorker()
+        void RegisterWorker()
         {
             IDatabase database = this.redisConnection.GetDatabase();
             string workerSetKey = RedisKeyNameResolver.GetWorkerSetKey(this.settings.TaskHubName);
@@ -307,7 +305,7 @@ namespace DurableTask.Redis
         /// <inheritdoc />
         public async Task StopAsync()
         {
-            if (this.redisConnection is not null)
+            if (this.redisConnection != null)
             {
                 await this.redisConnection.CloseAsync();
             }
@@ -329,7 +327,7 @@ namespace DurableTask.Redis
         /// <inheritdoc />
         public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
         {
-            if (this.partitionOrchestrationManager is null)
+            if (this.partitionOrchestrationManager == null)
             {
                 await StartAsync();
             }
@@ -339,7 +337,7 @@ namespace DurableTask.Redis
         /// <inheritdoc />
         public async Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
         {
-            if (this.partitionOrchestrationManager is null)
+            if (this.partitionOrchestrationManager == null)
             {
                 await StartAsync();
             }
@@ -356,7 +354,7 @@ namespace DurableTask.Redis
         /// <inheritdoc />
         public async Task SendTaskOrchestrationMessageAsync(TaskMessage message)
         {
-            if (this.partitionOrchestrationManager is null)
+            if (this.partitionOrchestrationManager == null)
             {
                 await StartAsync();
             }
@@ -366,7 +364,7 @@ namespace DurableTask.Redis
         /// <inheritdoc />
         public async Task SendTaskOrchestrationMessageBatchAsync(params TaskMessage[] messages)
         {
-            if (this.partitionOrchestrationManager is null)
+            if (this.partitionOrchestrationManager == null)
             {
                 await StartAsync();
             }
@@ -380,7 +378,7 @@ namespace DurableTask.Redis
             TimeSpan timeout,
             CancellationToken cancellationToken)
         {
-            if (this.partitionOrchestrationManager is null)
+            if (this.partitionOrchestrationManager == null)
             {
                 await StartAsync();
             }
@@ -398,7 +396,7 @@ namespace DurableTask.Redis
             while (!globalCancellationToken.IsCancellationRequested)
             {
                 OrchestrationState state = await this.GetOrchestrationStateAsync(instanceId, executionId);
-                if (state is null ||
+                if (state == null ||
                     state.OrchestrationStatus == OrchestrationStatus.Running ||
                     state.OrchestrationStatus == OrchestrationStatus.Pending ||
                     state.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)
@@ -425,7 +423,7 @@ namespace DurableTask.Redis
         /// <inheritdoc />
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
-            if (this.partitionOrchestrationManager is null)
+            if (this.partitionOrchestrationManager == null)
             {
                 await StartAsync();
             }

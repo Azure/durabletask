@@ -18,7 +18,7 @@ namespace DurableTask.Samples.Signal
 
     public class SignalOrchestration : TaskOrchestration<string,string>
     {
-        private TaskCompletionSource<string> resumeHandle;
+        TaskCompletionSource<string> resumeHandle;
 
         public override async Task<string> RunTask(OrchestrationContext context, string input)
         {
@@ -27,7 +27,7 @@ namespace DurableTask.Samples.Signal
             return greeting;
         }
 
-        private async Task<string> WaitForSignal()
+        async Task<string> WaitForSignal()
         {
             this.resumeHandle = new TaskCompletionSource<string>();
             string data = await this.resumeHandle.Task;

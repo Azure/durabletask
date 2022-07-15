@@ -19,13 +19,14 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
     using DurableTask.Core.History;
 
     abstract class TaskHubQueue
     {
-        static long messageSequenceNumber;
+        static long MessageSequenceNumber;
 
         protected readonly AzureStorageClient azureStorageClient;
         protected readonly Queue storageQueue;
@@ -102,13 +103,13 @@ namespace DurableTask.AzureStorage.Messaging
                     session?.GetCurrentEpisode(),
                     sourceInstance)
                 {
-                    SequenceNumber = Interlocked.Increment(ref messageSequenceNumber)
+                    SequenceNumber = Interlocked.Increment(ref MessageSequenceNumber)
                 };
 
                 // Inject Correlation TraceContext on a queue.
                 CorrelationTraceClient.Propagate(
                     () => { data.SerializableTraceContext = GetSerializableTraceContext(taskMessage); });
-                
+
                 string rawContent = await this.messageManager.SerializeMessageDataAsync(data);
 
                 QueueMessage queueMessage = new QueueMessage(rawContent);
@@ -157,12 +158,12 @@ namespace DurableTask.AzureStorage.Messaging
         static string? GetSerializableTraceContext(TaskMessage taskMessage)
         {
             TraceContextBase traceContext = CorrelationTraceContext.Current;
-            if (traceContext is not null)
+            if (traceContext != null)
             {
                 if (CorrelationTraceContext.GenerateDependencyTracking)
                 {
                     PropertyInfo nameProperty = taskMessage.Event.GetType().GetProperty("Name");
-                    string name = (nameProperty is null) ? TraceConstants.DependencyDefault : (string)nameProperty.GetValue(taskMessage.Event);
+                    string name = (nameProperty == null) ? TraceConstants.DependencyDefault : (string)nameProperty.GetValue(taskMessage.Event);
 
                     var dependencyTraceContext = TraceContextFactory.Create($"{TraceConstants.Orchestrator} {name}");
                     dependencyTraceContext.TelemetryType = TelemetryType.Dependency;
@@ -177,7 +178,7 @@ namespace DurableTask.AzureStorage.Messaging
             }
 
             // TODO this might not happen, however, in case happen, introduce NullObjectTraceContext.
-            return null; 
+            return null;
         }
 
         static TimeSpan? GetVisibilityDelay(TaskMessage taskMessage)
@@ -203,7 +204,7 @@ namespace DurableTask.AzureStorage.Messaging
                 }
             }
 
-            // Special functionality for entity messages with a delivery delay 
+            // Special functionality for entity messages with a delivery delay
             if (DurableTask.Core.Common.Entities.IsDelayedEntityMessage(taskMessage, out DateTime due))
             {
                 initialVisibilityDelay = due - DateTime.UtcNow;
@@ -241,12 +242,12 @@ namespace DurableTask.AzureStorage.Messaging
             string instanceId = instance?.InstanceId ?? string.Empty;
             string executionId = instance?.ExecutionId ?? string.Empty;
             string eventType = taskMessage?.Event.EventType.ToString() ?? string.Empty;
-            int taskEventId = taskMessage is not null ? Utils.GetTaskEventId(taskMessage.Event) : -1;
+            int taskEventId = taskMessage != null ? Utils.GetTaskEventId(taskMessage.Event) : -1;
 
             // Exponentially backoff a given queue message until a maximum visibility delay of 10 minutes.
             // Once it hits the maximum, log the message as a poison message.
             const int maxSecondsToWait = 600;
-            int numSecondsToWait = queueMessage.DequeueCount <= 30 ? 
+            int numSecondsToWait = queueMessage.DequeueCount <= 30 ?
                 Math.Min((int)Math.Pow(2, queueMessage.DequeueCount), maxSecondsToWait) :
                 maxSecondsToWait;
             if (numSecondsToWait == maxSecondsToWait)

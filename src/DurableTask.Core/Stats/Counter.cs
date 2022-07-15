@@ -20,7 +20,7 @@ namespace DurableTask.Core.Stats
     /// </summary>
     public class Counter
     {
-        private long counterValue;
+        long counterValue;
 
         /// <summary>
         /// Gets the current counter value

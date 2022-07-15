@@ -13,16 +13,14 @@
 
 namespace Correlation.Samples
 {
-#pragma warning disable CA1812 // Internal classes instantiated indirectly
     using System;
     using System.Runtime.Serialization;
     using System.Text;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
 
     [KnownType(typeof(ParallelHello))]
-    internal class FanOutFanInOrchestrator : TaskOrchestration<string, string>
+class FanOutFanInOrchestrator : TaskOrchestration<string, string>
     {
         public override async Task<string> RunTask(OrchestrationContext context, string input)
         {
@@ -44,7 +42,7 @@ namespace Correlation.Samples
         }
     }
 
-    internal class ParallelHello : TaskActivity<string, string>
+    class ParallelHello : TaskActivity<string, string>
     {
         protected override string Execute(TaskContext context, string input)
         {

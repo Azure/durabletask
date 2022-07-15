@@ -15,7 +15,6 @@ namespace DurableTask.Core
 {
     using System;
     using System.Threading.Tasks;
-
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.Serializing;

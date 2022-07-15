@@ -54,7 +54,7 @@ namespace DurableTask.Redis
         /// <returns>Returns <paramref name="settings"/> if successfully validated.</returns>
         public static RedisOrchestrationServiceSettings Validate(RedisOrchestrationServiceSettings settings)
         {
-            if (settings is null)
+            if (settings == null)
             {
                 throw new ArgumentNullException(nameof(settings));
             }

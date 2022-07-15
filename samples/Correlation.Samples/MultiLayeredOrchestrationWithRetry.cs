@@ -13,7 +13,6 @@
 
 namespace Correlation.Samples
 {
-#pragma warning disable CA1812 // Internal classes instantiated indirectly
     using System;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
@@ -23,7 +22,7 @@ namespace Correlation.Samples
     [KnownType(typeof(MultiLayeredOrchestrationChildWithRetry))]
     [KnownType(typeof(NeedToExecuteTwice01))]
     [KnownType(typeof(NeedToExecuteTwice02))]
-    internal class MultiLayeredOrchestrationWithRetryOrchestrator : TaskOrchestration<string, string>
+class MultiLayeredOrchestrationWithRetryOrchestrator : TaskOrchestration<string, string>
     {
         public override Task<string> RunTask(OrchestrationContext context, string input)
         {
@@ -34,7 +33,7 @@ namespace Correlation.Samples
 
     [KnownType(typeof(NeedToExecuteTwice01))]
     [KnownType(typeof(NeedToExecuteTwice02))]
-    internal class MultiLayeredOrchestrationChildWithRetry : TaskOrchestration<string, string>
+class MultiLayeredOrchestrationChildWithRetry : TaskOrchestration<string, string>
     {
         public override async Task<string> RunTask(OrchestrationContext context, string input)
         {
@@ -44,15 +43,15 @@ namespace Correlation.Samples
         }
     }
 
-    internal class NeedToExecuteTwice01 : TaskActivity<string, string>
+    class NeedToExecuteTwice01 : TaskActivity<string, string>
     {
-        private static int counter = 0;
+        static int Counter = 0;
 
         protected override string Execute(TaskContext context, string input)
         {
-            if (counter == 0)
+            if (Counter == 0)
             {
-                counter++;
+                Counter++;
                 throw new Exception("Something happens");
             }
 
@@ -60,15 +59,15 @@ namespace Correlation.Samples
         }
     }
 
-    internal class NeedToExecuteTwice02 : TaskActivity<string, string>
+    class NeedToExecuteTwice02 : TaskActivity<string, string>
     {
-        private static int counter = 0;
+        static int Counter = 0;
 
         protected override string Execute(TaskContext context, string input)
         {
-            if (counter == 0)
+            if (Counter == 0)
             {
-                counter++;
+                Counter++;
                 throw new Exception("Something happens");
             }
 

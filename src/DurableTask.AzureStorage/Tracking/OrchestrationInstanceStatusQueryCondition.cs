@@ -77,12 +77,12 @@ namespace DurableTask.AzureStorage.Tracking
             where T : ITableEntity, new()
         {
             var query = new TableQuery<T>();
-            if (!((this.RuntimeStatus is null || !this.RuntimeStatus.Any()) && 
+            if (!((this.RuntimeStatus == null || !this.RuntimeStatus.Any()) && 
                 this.CreatedTimeFrom == default(DateTime) && 
                 this.CreatedTimeTo == default(DateTime) &&
-                this.TaskHubNames is null &&
-                this.InstanceIdPrefix is null &&
-                this.InstanceId is null))
+                this.TaskHubNames == null &&
+                this.InstanceIdPrefix == null &&
+                this.InstanceId == null))
             {
                 if (!this.FetchInput || !this.FetchOutput)
                 {
@@ -124,7 +124,7 @@ namespace DurableTask.AzureStorage.Tracking
                 conditions.Add(TableQuery.GenerateFilterConditionForDate("CreatedTime", QueryComparisons.LessThanOrEqual, new DateTimeOffset(this.CreatedTimeTo)));
             }
 
-            if (this.RuntimeStatus is not null && this.RuntimeStatus.Any())
+            if (this.RuntimeStatus != null && this.RuntimeStatus.Any())
             {
                 string runtimeCondition = this.RuntimeStatus
                     .Select(x => TableQuery.GenerateFilterCondition("RuntimeStatus", QueryComparisons.Equal, x.ToString()))
@@ -135,7 +135,7 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             }
 
-            if (this.TaskHubNames is not null)
+            if (this.TaskHubNames != null)
             {
                 string taskHubCondition = this.TaskHubNames
                     .Select(x => TableQuery.GenerateFilterCondition("TaskHubName", QueryComparisons.Equal, x.ToString()))
@@ -160,7 +160,7 @@ namespace DurableTask.AzureStorage.Tracking
                     TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.LessThan, greaterThanPrefix)));
             }
 
-            if (this.InstanceId is not null)
+            if (this.InstanceId != null)
             {
                 string sanitizedInstanceId = KeySanitation.EscapePartitionKey(this.InstanceId);
                 conditions.Add(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, sanitizedInstanceId));

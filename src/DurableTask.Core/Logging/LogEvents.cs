@@ -15,11 +15,9 @@ namespace DurableTask.Core.Logging
 {
     using System;
     using System.Text;
-
     using DurableTask.Core.Command;
     using DurableTask.Core.Common;
     using DurableTask.Core.History;
-
     using Microsoft.Extensions.Logging;
 
     /// <summary>
@@ -29,7 +27,7 @@ namespace DurableTask.Core.Logging
     /// Each inner-class represents a single log event that derives from <see cref="StructuredLogEvent"/> and
     /// optionally implements <see cref="IEventSourceEvent"/>.
     /// </remarks>
-    internal static class LogEvents
+    static class LogEvents
     {
         internal class TaskHubWorkerStarting : StructuredLogEvent, IEventSourceEvent
         {
@@ -41,7 +39,7 @@ namespace DurableTask.Core.Logging
 
             protected override string CreateLogMessage() => "Durable task hub worker is starting";
 
-            void IEventSourceEvent.WriteEventSource() =>
+            void IEventSourceEvent.WriteEventSource() => 
                 StructuredEventSource.Log.TaskHubWorkerStarting(Utils.AppName, Utils.PackageVersion);
         }
 
@@ -58,7 +56,7 @@ namespace DurableTask.Core.Logging
             [StructuredLogField]
             public long LatencyMs { get; }
 
-            protected override string CreateLogMessage() =>
+            protected override string CreateLogMessage() => 
                 $"Durable task hub worker started successfully after {this.LatencyMs}ms";
 
             void IEventSourceEvent.WriteEventSource() =>
@@ -98,7 +96,7 @@ namespace DurableTask.Core.Logging
             [StructuredLogField]
             public long LatencyMs { get; }
 
-            protected override string CreateLogMessage() =>
+            protected override string CreateLogMessage() => 
                 $"Durable task hub worker stopped successfully after {this.LatencyMs}ms";
 
             void IEventSourceEvent.WriteEventSource() =>
@@ -526,7 +524,7 @@ namespace DurableTask.Core.Logging
                 this.InstanceId = string.Empty;
                 this.ExecutionId = string.Empty;
                 this.TargetInstanceId = target.InstanceId;
-                this.SizeInBytes = raisedEvent.Input is not null ? Encoding.UTF8.GetByteCount(raisedEvent.Input) : 0;
+                this.SizeInBytes = raisedEvent.Input != null ? Encoding.UTF8.GetByteCount(raisedEvent.Input) : 0;
             }
 
             public RaisingEvent(OrchestrationInstance source, EventSentEvent sentEvent)
@@ -536,7 +534,7 @@ namespace DurableTask.Core.Logging
                 this.InstanceId = source.InstanceId;
                 this.ExecutionId = source.ExecutionId;
                 this.TargetInstanceId = sentEvent.InstanceId;
-                this.SizeInBytes = sentEvent.Input is not null ? Encoding.UTF8.GetByteCount(sentEvent.Input) : 0;
+                this.SizeInBytes = sentEvent.Input != null ? Encoding.UTF8.GetByteCount(sentEvent.Input) : 0;
             }
 
             [StructuredLogField]
@@ -827,7 +825,7 @@ namespace DurableTask.Core.Logging
 
             [StructuredLogField]
             public string Name { get; }
-
+            
             [StructuredLogField]
             public int ActionCount { get; }
 

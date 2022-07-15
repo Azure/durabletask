@@ -13,6 +13,7 @@
 
 namespace DurableTask.ServiceBus.Tests
 {
+#pragma warning disable CA2211 // Non-constant fields should not be visible
     using System;
     using System.Collections.Generic;
     using System.Diagnostics.CodeAnalysis;
@@ -30,10 +31,10 @@ namespace DurableTask.ServiceBus.Tests
     [SuppressMessage("ReSharper", "StringLiteralTypo")]
     public class InstanceStoreQueryTests
     {
-        private TaskHubClient client;
-        private TaskHubWorker taskHub;
-        private ServiceBusOrchestrationService orchestrationService;
-        private AzureTableInstanceStore queryClient;
+        TaskHubClient client;
+        TaskHubWorker taskHub;
+        ServiceBusOrchestrationService orchestrationService;
+        AzureTableInstanceStore queryClient;
 
         [TestInitialize]
         public void TestInitialize()
@@ -44,14 +45,14 @@ namespace DurableTask.ServiceBus.Tests
 
             this.taskHub = TestHelpers.CreateTaskHub();
 
-            this.taskHub.OrchestrationService.CreateAsync(true).Wait();
+            this.taskHub.orchestrationService.CreateAsync(true).Wait();
         }
 
         [TestCleanup]
         public void TestCleanup()
         {
             this.taskHub.StopAsync(true).Wait();
-            this.taskHub.OrchestrationService.DeleteAsync(true).Wait();
+            this.taskHub.orchestrationService.DeleteAsync(true).Wait();
         }
 
         [TestMethod]
@@ -277,7 +278,7 @@ namespace DurableTask.ServiceBus.Tests
             {
                 seg = await this.queryClient.QueryOrchestrationStatesSegmentedAsync(query, seg?.ContinuationToken, 2);
                 results.AddRange(seg.Results);
-            } while (seg.ContinuationToken is not null);
+            } while (seg.ContinuationToken != null);
 
             Assert.AreEqual(15, results.Count);
 
@@ -292,8 +293,7 @@ namespace DurableTask.ServiceBus.Tests
             {
                 seg = await this.queryClient.QueryOrchestrationStatesSegmentedAsync(query, seg?.ContinuationToken, 2);
                 results.AddRange(seg.Results);
-            } while (seg.ContinuationToken is not null);
-#pragma warning restore CA1508 // Avoid dead conditional code
+            } while (seg.ContinuationToken != null);
 
             Assert.AreEqual(8, results.Count);
 
@@ -301,14 +301,13 @@ namespace DurableTask.ServiceBus.Tests
                 .AddInstanceFilter("apiservice", true)
                 .AddNameVersionFilter("DurableTask.ServiceBus.Tests.InstanceStoreQueryTests+InstanceStoreTestOrchestration2");
 
-#pragma warning disable CA1508 // Avoid dead conditional code
             seg = null;
             results = new List<OrchestrationState>();
             do
             {
                 seg = await this.queryClient.QueryOrchestrationStatesSegmentedAsync(query, seg?.ContinuationToken, 2);
                 results.AddRange(seg.Results);
-            } while (seg.ContinuationToken is not null);
+            } while (seg.ContinuationToken != null);
 
             Assert.AreEqual(7, results.Count);
 
@@ -318,7 +317,7 @@ namespace DurableTask.ServiceBus.Tests
 
             seg = await this.queryClient.QueryOrchestrationStatesSegmentedAsync(query, null);
 
-            Assert.IsTrue(seg.ContinuationToken is null);
+            Assert.IsTrue(seg.ContinuationToken == null);
 #pragma warning restore CA1508 // Avoid dead conditional code
             Assert.AreEqual(7, seg.Results.Count());
         }
@@ -470,7 +469,7 @@ namespace DurableTask.ServiceBus.Tests
             AssertException<ArgumentException>(() => query.AddStatusFilter(OrchestrationStatus.Completed));
         }
 
-        private static void AssertException<T>(Action action)
+        static void AssertException<T>(Action action)
         {
             try
             {
@@ -674,10 +673,8 @@ namespace DurableTask.ServiceBus.Tests
 
         public class InstanceStoreTestOrchestration : TaskOrchestration<string, string>
         {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
             // HACK: This is just a hack to communicate result of orchestration back to test
             public static string Result;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
 
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {

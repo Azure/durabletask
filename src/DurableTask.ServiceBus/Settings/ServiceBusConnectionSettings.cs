@@ -70,7 +70,7 @@ namespace DurableTask.ServiceBus.Settings
 
 #endif
 
-        private ServiceBusConnectionSettings()
+        ServiceBusConnectionSettings()
         {
         }
 

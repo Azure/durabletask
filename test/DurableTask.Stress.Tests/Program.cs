@@ -16,7 +16,6 @@
 
 namespace DurableTask.Stress.Tests
 {
-#pragma warning disable CA1506 // Method is coupled with too many different types from too many different namespaces.Rewrite or refactor the code to decrease its class coupling.
     using System;
     using System.Configuration;
     using System.Diagnostics;
@@ -32,10 +31,11 @@ namespace DurableTask.Stress.Tests
 
     using Microsoft.Diagnostics.EventFlow;
 
-    internal class Program
+    class Program
     {
+#pragma warning disable CA1506 // Method is coupled with too many different types from too many different namespaces.Rewrite or refactor the code to decrease its class coupling.
         // ReSharper disable once UnusedMember.Local
-        private static void Main(string[] args)
+        static void Main(string[] args)
         {
             using (DiagnosticPipelineFactory.CreatePipeline("eventFlowConfig.json"))
             {
@@ -142,7 +142,7 @@ namespace DurableTask.Stress.Tests
                 try
                 {
                     OrchestrationState state = taskHubClient.GetOrchestrationStateAsync(instance.InstanceId).Result;
-                    if (state is not null) status = state.OrchestrationStatus;
+                    if (state != null) status = state.OrchestrationStatus;
                     if (status == OrchestrationStatus.Running || status == OrchestrationStatus.Pending)
                     {
                         System.Threading.Thread.Sleep(sleepForSeconds * 1000);
@@ -171,26 +171,28 @@ namespace DurableTask.Stress.Tests
     using System;
     using System.Configuration;
     using System.Diagnostics;
-    using DurableTask.Core;
-    using DurableTask.Core.Tracing;
-    using DurableTask.ServiceBus.Settings;
-    using DurableTask.ServiceBus;
-    using DurableTask.Test.Orchestrations.Stress;
-    using DurableTask.ServiceBus.Tracking;
-    using Microsoft.Practices.EnterpriseLibrary.SemanticLogging;
     using System.Diagnostics.Tracing;
 
-    internal class Program
+    using DurableTask.Core;
+    using DurableTask.Core.Tracing;
+    using DurableTask.ServiceBus;
+    using DurableTask.ServiceBus.Settings;
+    using DurableTask.ServiceBus.Tracking;
+    using DurableTask.Test.Orchestrations.Stress;
+
+    using Microsoft.Practices.EnterpriseLibrary.SemanticLogging;
+
+    class Program
     {
-        private static readonly Options ArgumentOptions = new Options();
-        private static ObservableEventListener eventListener;
+        static readonly Options ArgumentOptions = new Options();
+        static ObservableEventListener EventListener;
 
         // ReSharper disable once UnusedMember.Local
-        private static void Main(string[] args)
+        static void Main(string[] args)
         {
-            eventListener = new ObservableEventListener();
-            eventListener.LogToFlatFile("Trace.log");
-            eventListener.EnableEvents(DefaultEventSource.Log, EventLevel.Warning);
+            EventListener = new ObservableEventListener();
+            EventListener.LogToFlatFile("Trace.log");
+            EventListener.EnableEvents(DefaultEventSource.Log, EventLevel.Warning);
 
             string tableConnectionString = ConfigurationManager.AppSettings["StorageConnectionString"];
 
@@ -288,7 +290,7 @@ namespace DurableTask.Stress.Tests
                 try
                 {
                     OrchestrationState state = taskHubClient.GetOrchestrationStateAsync(instance.InstanceId).Result;
-                    if (state is not null) status = state.OrchestrationStatus;
+                    if (state != null) status = state.OrchestrationStatus;
                     if (status == OrchestrationStatus.Running || status == OrchestrationStatus.Pending)
                     {
                         System.Threading.Thread.Sleep(sleepForSeconds * 1000);
