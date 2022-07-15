@@ -961,11 +961,10 @@ namespace DurableTask.AzureStorage.Tracking
                         runtimeStatus = OrchestrationStatus.Suspended;
                         ExecutionSuspendedEvent executionSuspendedEvent = (ExecutionSuspendedEvent)historyEvent;
                         instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Suspended.ToString());
-                        instanceEntity.Properties["CompletedTime"] = new EntityProperty(DateTime.UtcNow);
                         this.SetInstancesTablePropertyFromHistoryProperty(
                             historyEntity,
                             instanceEntity,
-                            historyPropertyName: nameof(executionTerminatedEvent.Input),
+                            historyPropertyName: nameof(executionSuspendedEvent.Input),
                             instancePropertyName: OutputProperty,
                             data: executionSuspendedEvent.Input);
                         break;
@@ -973,11 +972,10 @@ namespace DurableTask.AzureStorage.Tracking
                         runtimeStatus = OrchestrationStatus.Running;
                         ExecutionResumedEvent executionResumedEvent = (ExecutionResumedEvent)historyEvent;
                         instanceEntity.Properties["RuntimeStatus"] = new EntityProperty(OrchestrationStatus.Running.ToString());
-                        instanceEntity.Properties["CompletedTime"] = new EntityProperty(DateTime.UtcNow);
                         this.SetInstancesTablePropertyFromHistoryProperty(
                             historyEntity,
                             instanceEntity,
-                            historyPropertyName: nameof(executionTerminatedEvent.Input),
+                            historyPropertyName: nameof(executionResumedEvent.Input),
                             instancePropertyName: OutputProperty,
                             data: executionResumedEvent.Input);
                         break;
