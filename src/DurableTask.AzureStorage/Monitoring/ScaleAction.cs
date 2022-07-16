@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace DurableTask.AzureStorage.Monitoring
+﻿namespace DurableTask.AzureStorage.Monitoring
 {
     /// <summary>
     /// Possible scale actions for durable task hub.

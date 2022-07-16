@@ -19,16 +19,13 @@ namespace DurableTask.Stress.Tests
     using System;
     using System.Configuration;
     using System.Diagnostics;
-
     using CommandLine;
-
     using DurableTask.Core;
     using DurableTask.Core.Tracing;
     using DurableTask.ServiceBus;
     using DurableTask.ServiceBus.Settings;
     using DurableTask.ServiceBus.Tracking;
     using DurableTask.Test.Orchestrations.Stress;
-
     using Microsoft.Diagnostics.EventFlow;
 
     class Program
@@ -172,14 +169,12 @@ namespace DurableTask.Stress.Tests
     using System.Configuration;
     using System.Diagnostics;
     using System.Diagnostics.Tracing;
-
     using DurableTask.Core;
     using DurableTask.Core.Tracing;
     using DurableTask.ServiceBus;
     using DurableTask.ServiceBus.Settings;
     using DurableTask.ServiceBus.Tracking;
     using DurableTask.Test.Orchestrations.Stress;
-
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging;
 
     class Program

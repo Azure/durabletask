@@ -9,7 +9,6 @@ namespace DurableTask.Core.Tests
     using System.IO;
     using System.Linq;
     using System.Threading.Tasks;
-
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]

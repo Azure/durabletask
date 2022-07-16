@@ -11,20 +11,20 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using DurableTask.Core;
-using DurableTask.Core.Exceptions;
-using DurableTask.Core.History;
-using StackExchange.Redis;
-
 namespace DurableTask.Redis
 {
+    using System;
+    using System.Collections.Concurrent;
+    using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.Linq;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using DurableTask.Core;
+    using DurableTask.Core.Exceptions;
+    using DurableTask.Core.History;
+    using StackExchange.Redis;
+
     /// <summary>
     /// Responsible for processing orchestration sessions for a given orchestration partition. At this time,
     /// there is only one orchestration partition due to only one worker existing at a time, but in the future
@@ -135,9 +135,9 @@ namespace DurableTask.Redis
             if (this.activeOrchestrationLocks.TryGetValue(orchestrationId, out SemaphoreSlim orchLock))
             {
                 this.activeOrchestrationLocks[orchestrationId].Release();
-            }    
+            }
         }
-        
+
         public async Task CreateTaskOrchestration(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
         {
             if (!(creationMessage.Event is ExecutionStartedEvent executionStartEvent))
@@ -150,9 +150,9 @@ namespace DurableTask.Redis
             await this.orchestrationCurrentStateLock.WaitAsync();
 
             IDatabase redisDB = this.redisConnection.GetDatabase();
-            string orchestrationHistoryKey = RedisKeyNameResolver.GetOrchestrationStateKey(this.taskHub, this.partition, orchestrationId); 
+            string orchestrationHistoryKey = RedisKeyNameResolver.GetOrchestrationStateKey(this.taskHub, this.partition, orchestrationId);
             string currentStateJson = await redisDB.StringGetAsync(orchestrationHistoryKey);
-            
+
             if (currentStateJson != null)
             {
                 OrchestrationState currentState = RedisSerializer.DeserializeObject<OrchestrationState>(currentStateJson);
@@ -216,7 +216,7 @@ namespace DurableTask.Redis
             return RedisTransactionBuilder.BuildTransactionInPartition(
                 taskHub: this.taskHub,
                 partition: this.partition,
-                connection: this.redisConnection, 
+                connection: this.redisConnection,
                 condition: Condition.SetContains(this.currentOrchestrationsSetKey, orchestrationId));
         }
 

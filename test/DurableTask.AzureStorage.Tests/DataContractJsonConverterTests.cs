@@ -1,15 +1,12 @@
-﻿using System;
-using System.Runtime.Serialization;
-
-using DurableTask.Core;
-using DurableTask.Core.History;
-
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-
-using Newtonsoft.Json;
-
-namespace DurableTask.AzureStorage.Tests
+﻿namespace DurableTask.AzureStorage.Tests
 {
+    using System;
+    using System.Runtime.Serialization;
+    using DurableTask.Core;
+    using DurableTask.Core.History;
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using Newtonsoft.Json;
+
     [TestClass]
     public class DataContractJsonConverterTests
     {
@@ -102,16 +99,14 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsNotNull(actual.ExtensionData);
         }
 
-        static string Serialize(object value)
-            => JsonConvert.SerializeObject(value, SerializerSettings);
+        static string Serialize(object value) => JsonConvert.SerializeObject(value, SerializerSettings);
 
-        static T Deserialize<T>(string json)
-            => JsonConvert.DeserializeObject<T>(json, SerializerSettings);
+        static T Deserialize<T>(string json) => JsonConvert.DeserializeObject<T>(json, SerializerSettings);
 
         [DataContract(
             Name = "OrchestrationInstance",
             Namespace = "http://schemas.datacontract.org/2004/07/DurableTask.Core")]
-class TestOrchestrationInstance : OrchestrationInstance
+        class TestOrchestrationInstance : OrchestrationInstance
         {
             [DataMember]
             public string Extra { get; set; }

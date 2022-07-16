@@ -20,11 +20,9 @@ namespace DurableTask.ServiceBus.Tests
     using System.Diagnostics.CodeAnalysis;
     using System.Diagnostics.Contracts;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
     using DurableTask.Core.History;
     using DurableTask.ServiceBus.Tracking;
-
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
@@ -280,24 +278,28 @@ namespace DurableTask.ServiceBus.Tests
 
         // TODO : history comparison!
         bool CompareHistoryEntity(AzureTableOrchestrationHistoryEventEntity expected, AzureTableOrchestrationHistoryEventEntity actual)
-         => expected.InstanceId.Equals(actual.InstanceId, StringComparison.Ordinal)
-         && expected.ExecutionId.Equals(actual.ExecutionId, StringComparison.Ordinal)
-         && expected.SequenceNumber == actual.SequenceNumber;
+        {
+            return expected.InstanceId.Equals(actual.InstanceId, StringComparison.Ordinal)
+                && expected.ExecutionId.Equals(actual.ExecutionId, StringComparison.Ordinal)
+                && expected.SequenceNumber == actual.SequenceNumber;
+        }
 
         static bool CompareStateEntity(AzureTableOrchestrationStateEntity expected, AzureTableOrchestrationStateEntity actual)
-         => expected.State.OrchestrationInstance.InstanceId.Equals(actual.State.OrchestrationInstance.InstanceId, StringComparison.Ordinal)
-         && expected.State.OrchestrationInstance.ExecutionId.Equals(actual.State.OrchestrationInstance.ExecutionId, StringComparison.Ordinal)
-         && expected.State.Name.Equals(actual.State.Name, StringComparison.Ordinal)
-         && expected.State.CreatedTime.Equals(actual.State.CreatedTime)
-         && expected.State.LastUpdatedTime.Equals(actual.State.LastUpdatedTime)
-         // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-         && (expected.State.CompletedTime == default && actual.State.CompletedTime == default
-          || expected.State.CompletedTime.Equals(actual.State.CompletedTime))
-         && expected.State.Status.Equals(actual.State.Status, StringComparison.Ordinal)
-         && expected.State.Input.Equals(actual.State.Input, StringComparison.Ordinal)
-         && (string.IsNullOrWhiteSpace(expected.State.Output)
-          && string.IsNullOrWhiteSpace(actual.State.Output)
-          || expected.State.Output.Equals(actual.State.Output, StringComparison.Ordinal));
+        {
+            return expected.State.OrchestrationInstance.InstanceId.Equals(actual.State.OrchestrationInstance.InstanceId, StringComparison.Ordinal)
+                && expected.State.OrchestrationInstance.ExecutionId.Equals(actual.State.OrchestrationInstance.ExecutionId, StringComparison.Ordinal)
+                && expected.State.Name.Equals(actual.State.Name, StringComparison.Ordinal)
+                && expected.State.CreatedTime.Equals(actual.State.CreatedTime)
+                && expected.State.LastUpdatedTime.Equals(actual.State.LastUpdatedTime)
+                // ReSharper disable once ConditionIsAlwaysTrueOrFalse
+                && (expected.State.CompletedTime == default && actual.State.CompletedTime == default
+                 || expected.State.CompletedTime.Equals(actual.State.CompletedTime))
+                && expected.State.Status.Equals(actual.State.Status, StringComparison.Ordinal)
+                && expected.State.Input.Equals(actual.State.Input, StringComparison.Ordinal)
+                && (string.IsNullOrWhiteSpace(expected.State.Output)
+                 && string.IsNullOrWhiteSpace(actual.State.Output)
+                 || expected.State.Output.Equals(actual.State.Output, StringComparison.Ordinal));
+        }
 
         IEnumerable<AzureTableOrchestrationHistoryEventEntity> CreateHistoryEntities(AzureTableClient azureTableClient, string instanceId,
             string genId, int count)
@@ -342,10 +344,7 @@ namespace DurableTask.ServiceBus.Tests
 
         public sealed class Activity1 : TaskActivity<string, string>
         {
-            protected override string Execute(TaskContext context, string input)
-            {
-                return "Spartacus";
-            }
+            protected override string Execute(TaskContext context, string input) => "Spartacus";
         }
 
         public class InstanceStoreTestOrchestration : TaskOrchestration<string, string>

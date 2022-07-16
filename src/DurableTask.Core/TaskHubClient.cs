@@ -76,7 +76,8 @@ namespace DurableTask.Core
             Type orchestrationType,
             object input,
             DateTime startAt)
-         => InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+        {
+            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
                 null,
@@ -86,6 +87,7 @@ namespace DurableTask.Core
                 null,
                 null,
                 startAt: startAt);
+        }
 
         /// <summary>
         ///     Create a new orchestration of the specified type with the specified instance id, scheduled to start at an specific time
@@ -100,7 +102,8 @@ namespace DurableTask.Core
             string instanceId,
             object input,
             DateTime startAt)
-         => InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+        {
+            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
                 instanceId,
@@ -110,6 +113,7 @@ namespace DurableTask.Core
                 null,
                 null,
                 startAt: startAt);
+        }
 
         /// <summary>
         ///     Create a new orchestration of the specified type with an automatically generated instance id
@@ -118,7 +122,8 @@ namespace DurableTask.Core
         /// <param name="input">Input parameter to the specified TaskOrchestration</param>
         /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
         public Task<OrchestrationInstance> CreateOrchestrationInstanceAsync(Type orchestrationType, object input)
-         => this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+        {
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
                 orchestrationInstanceId: null,
@@ -127,6 +132,7 @@ namespace DurableTask.Core
                 dedupeStatuses: null,
                 eventName: null,
                 eventData: null);
+        }
 
         /// <summary>
         ///     Create a new orchestration of the specified type with an automatically generated instance id
@@ -136,7 +142,8 @@ namespace DurableTask.Core
         /// <param name="startAt">Orchestration start time</param>
         /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
         public Task<OrchestrationInstance> CreateOrchestrationInstanceAsync(Type orchestrationType, object input, DateTime startAt)
-         => InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+        {
+            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
                 null,
@@ -145,6 +152,7 @@ namespace DurableTask.Core
                 null,
                 null,
                 startAt);
+        }
 
         /// <summary>
         ///     Create a new orchestration of the specified type with the specified instance id
@@ -157,7 +165,8 @@ namespace DurableTask.Core
             Type orchestrationType,
             string instanceId,
             object input)
-         => this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+        {
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
                 instanceId,
@@ -166,6 +175,7 @@ namespace DurableTask.Core
                 dedupeStatuses: null,
                 eventName: null,
                 eventData: null);
+        }
 
         /// <summary>
         ///     Create a new orchestration of the specified type with the specified instance id
@@ -180,7 +190,8 @@ namespace DurableTask.Core
             string instanceId,
             object input,
             OrchestrationStatus[] dedupeStatuses)
-         => this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+        {
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
                 instanceId,
@@ -189,6 +200,7 @@ namespace DurableTask.Core
                 dedupeStatuses,
                 eventName: null,
                 eventData: null);
+        }
 
         /// <summary>
         ///     Create a new orchestration of the specified name and version
@@ -198,7 +210,8 @@ namespace DurableTask.Core
         /// <param name="input">Input parameter to the specified TaskOrchestration</param>
         /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
         public Task<OrchestrationInstance> CreateOrchestrationInstanceAsync(string name, string version, object input)
-         => this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+        {
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 name,
                 version,
                 orchestrationInstanceId: null,
@@ -207,6 +220,7 @@ namespace DurableTask.Core
                 dedupeStatuses: null,
                 eventName: null,
                 eventData: null);
+        }
 
         /// <summary>
         ///     Create a new orchestration of the specified name and version
@@ -217,7 +231,8 @@ namespace DurableTask.Core
         /// <param name="input">Input parameter to the specified TaskOrchestration</param>
         /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
         public Task<OrchestrationInstance> CreateOrchestrationInstanceAsync(string name, string version, string instanceId, object input)
-         => this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+        {
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 name,
                 version,
                 instanceId,
@@ -226,6 +241,7 @@ namespace DurableTask.Core
                 dedupeStatuses: null,
                 eventName: null,
                 eventData: null);
+        }
 
         /// <summary>
         ///     Create a new orchestration of the specified name and version
@@ -242,7 +258,8 @@ namespace DurableTask.Core
             string instanceId,
             object input,
             IDictionary<string, string> tags)
-         => this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+        {
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 name,
                 version,
                 instanceId,
@@ -251,6 +268,7 @@ namespace DurableTask.Core
                 dedupeStatuses: null,
                 eventName: null,
                 eventData: null);
+        }
 
         /// <summary>
         ///     Create a new orchestration of the specified name and version
@@ -269,7 +287,8 @@ namespace DurableTask.Core
             object input,
             IDictionary<string, string> tags,
             OrchestrationStatus[] dedupeStatuses)
-         => this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+        {
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 name,
                 version,
                 instanceId,
@@ -278,6 +297,7 @@ namespace DurableTask.Core
                 dedupeStatuses,
                 eventName: null,
                 eventData: null);
+        }
 
         /// <summary>
         ///     Creates an orchestration instance, and raises an event for it, which eventually causes the OnEvent() method in the
@@ -293,7 +313,8 @@ namespace DurableTask.Core
             object orchestrationInput,
             string eventName,
             object eventData)
-         => this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+        {
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
                 orchestrationInstanceId: null,
@@ -302,6 +323,7 @@ namespace DurableTask.Core
                 dedupeStatuses: null,
                 eventName,
                 eventData);
+        }
 
         /// <summary>
         ///     Creates an orchestration instance, and raises an event for it, which eventually causes the OnEvent() method in the
@@ -319,7 +341,8 @@ namespace DurableTask.Core
             object orchestrationInput,
             string eventName,
             object eventData)
-         => this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+        {
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
                 instanceId,
@@ -328,6 +351,7 @@ namespace DurableTask.Core
                 dedupeStatuses: null,
                 eventName,
                 eventData);
+        }
 
         /// <summary>
         ///     Creates an orchestration instance, and raises an event for it, which eventually causes the OnEvent() method in the
@@ -347,7 +371,8 @@ namespace DurableTask.Core
             OrchestrationStatus[] dedupeStatuses,
             string eventName,
             object eventData)
-         => this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+        {
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
                 instanceId,
@@ -356,6 +381,7 @@ namespace DurableTask.Core
                 dedupeStatuses,
                 eventName,
                 eventData);
+        }
 
         /// <summary>
         ///     Creates an orchestration instance, and raises an event for it, which eventually causes the OnEvent() method in the
@@ -370,7 +396,8 @@ namespace DurableTask.Core
             string orchestrationVersion,
             string eventName,
             object eventData)
-         => this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+        {
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 orchestrationName,
                 orchestrationVersion,
                 orchestrationInstanceId: null,
@@ -379,6 +406,7 @@ namespace DurableTask.Core
                 dedupeStatuses: null,
                 eventName,
                 eventData);
+        }
 
         /// <summary>
         ///     Creates an orchestration instance, and raises an event for it, which eventually causes the OnEvent() method in the
@@ -396,7 +424,8 @@ namespace DurableTask.Core
             object orchestrationInput,
             string eventName,
             object eventData)
-         => this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+        {
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 orchestrationName,
                 orchestrationVersion,
                 orchestrationInstanceId: null,
@@ -405,6 +434,7 @@ namespace DurableTask.Core
                 dedupeStatuses: null,
                 eventName,
                 eventData);
+        }
 
         /// <summary>
         ///     Creates an orchestration instance, and raises an event for it, which eventually causes the OnEvent() method in the
@@ -424,7 +454,8 @@ namespace DurableTask.Core
             object orchestrationInput,
             string eventName,
             object eventData)
-         => this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+        {
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 orchestrationName,
                 orchestrationVersion,
                 instanceId,
@@ -433,6 +464,7 @@ namespace DurableTask.Core
                 dedupeStatuses: null,
                 eventName,
                 eventData);
+        }
 
         /// <summary>
         ///     Creates an orchestration instance, and raises an event for it, which eventually causes the OnEvent() method in the
@@ -454,7 +486,8 @@ namespace DurableTask.Core
             IDictionary<string, string> orchestrationTags,
             string eventName,
             object eventData)
-         => this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+        {
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 orchestrationName,
                 orchestrationVersion,
                 instanceId,
@@ -463,6 +496,7 @@ namespace DurableTask.Core
                 dedupeStatuses: null,
                 eventName,
                 eventData);
+        }
 
         /// <summary>
         ///     Creates an orchestration instance, and raises an event for it, which eventually causes the OnEvent() method in the
@@ -486,7 +520,8 @@ namespace DurableTask.Core
             OrchestrationStatus[] dedupeStatuses,
             string eventName,
             object eventData)
-         => this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+        {
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 orchestrationName,
                 orchestrationVersion,
                 instanceId,
@@ -495,6 +530,7 @@ namespace DurableTask.Core
                 dedupeStatuses,
                 eventName,
                 eventData);
+        }
 
         /// <summary>
         ///     Creates an orchestration instance, and raises an event for it, which eventually causes the OnEvent() method in the
@@ -511,7 +547,8 @@ namespace DurableTask.Core
             string instanceId,
             string eventName,
             object eventData)
-         => this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+        {
+            return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 orchestrationName,
                 orchestrationVersion,
                 instanceId,
@@ -520,6 +557,7 @@ namespace DurableTask.Core
                 dedupeStatuses: null,
                 eventName,
                 eventData);
+        }
 
         async Task<OrchestrationInstance> InternalCreateOrchestrationInstanceWithRaisedEventAsync(
             string orchestrationName,
@@ -534,7 +572,7 @@ namespace DurableTask.Core
         {
             TraceContextBase requestTraceContext = null;
 
-            // correlation 
+            // correlation
             CorrelationTraceClient.Propagate(() => { requestTraceContext = CreateOrExtractRequestTraceContext(eventName); });
 
             if (string.IsNullOrWhiteSpace(orchestrationInstanceId))
@@ -565,7 +603,7 @@ namespace DurableTask.Core
             };
 
             this.logHelper.SchedulingOrchestration(startedEvent);
-            
+
             CorrelationTraceClient.Propagate(() => CreateAndTrackDependencyTelemetry(requestTraceContext));
 
             // Raised events and create orchestration calls use different methods so get handled separately
@@ -576,7 +614,7 @@ namespace DurableTask.Core
                 string serializedEventData = this.defaultConverter.Serialize(eventData);
                 var eventRaisedEvent = new EventRaisedEvent(-1, serializedEventData) { Name = eventName };
                 this.logHelper.RaisingEvent(orchestrationInstance, eventRaisedEvent);
-                
+
                 var eventMessage = new TaskMessage
                 {
                     OrchestrationInstance = new OrchestrationInstance
@@ -658,7 +696,9 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="orchestrationInstance">Instance to terminate</param>
         public Task TerminateInstanceAsync(OrchestrationInstance orchestrationInstance)
-         => this.TerminateInstanceAsync(orchestrationInstance, string.Empty);
+        {
+            return this.TerminateInstanceAsync(orchestrationInstance, string.Empty);
+        }
 
         /// <summary>
         ///     Forcefully terminate the specified orchestration instance with a reason
@@ -765,7 +805,9 @@ namespace DurableTask.Core
         /// <returns>The OrchestrationState of the specified instanceId or null if not found</returns>
         /// <exception cref="InvalidOperationException">Thrown if instance store not configured</exception>
         public Task<OrchestrationState> GetOrchestrationStateAsync(OrchestrationInstance instance)
-         => this.GetOrchestrationStateAsync(instance.InstanceId, instance.ExecutionId);
+        {
+            return this.GetOrchestrationStateAsync(instance.InstanceId, instance.ExecutionId);
+        }
 
         /// <summary>
         ///     Get a list of orchestration states from the instance storage table for the
@@ -812,6 +854,8 @@ namespace DurableTask.Core
         public Task PurgeOrchestrationInstanceHistoryAsync(
             DateTime thresholdDateTimeUtc,
             OrchestrationStateTimeRangeFilterType timeRangeFilterType)
-         => this.ServiceClient.PurgeOrchestrationHistoryAsync(thresholdDateTimeUtc, timeRangeFilterType);
+        {
+            return this.ServiceClient.PurgeOrchestrationHistoryAsync(thresholdDateTimeUtc, timeRangeFilterType);
+        }
     }
 }

@@ -14,9 +14,7 @@
 namespace Correlation.Samples
 {
     using System;
-
     using DurableTask.Core;
-
     using Microsoft.ApplicationInsights;
     using Microsoft.ApplicationInsights.DependencyCollector;
     using Microsoft.ApplicationInsights.Extensibility;

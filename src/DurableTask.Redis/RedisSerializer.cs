@@ -11,14 +11,13 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Collections.Generic;
-using System.Linq;
-using DurableTask.Core;
-using DurableTask.Core.History;
-using Newtonsoft.Json;
-
 namespace DurableTask.Redis
 {
+    using System.Collections.Generic;
+    using DurableTask.Core;
+    using DurableTask.Core.History;
+    using Newtonsoft.Json;
+
     /// <summary>
     /// Serializes objects in a consistent matter so data can be stored and retrieved from Redis
     /// </summary>
@@ -29,11 +28,9 @@ namespace DurableTask.Redis
             TypeNameHandling = TypeNameHandling.All
         };
 
-        public static string SerializeObject(object obj)
-         => JsonConvert.SerializeObject(obj, SerializerSettings);
+        public static string SerializeObject(object obj) => JsonConvert.SerializeObject(obj, SerializerSettings);
 
-        public static T DeserializeObject<T>(string serializedObj)
-         => JsonConvert.DeserializeObject<T>(serializedObj, SerializerSettings);
+        public static T DeserializeObject<T>(string serializedObj) => JsonConvert.DeserializeObject<T>(serializedObj, SerializerSettings);
 
         public static OrchestrationRuntimeState DeserializeRuntimeState(string serializedRuntimeState)
         {

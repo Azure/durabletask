@@ -17,7 +17,6 @@ namespace DurableTask.Core
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Threading.Tasks;
-
     using DurableTask.Core.Settings;
 
     /// <summary>
@@ -45,57 +44,56 @@ namespace DurableTask.Core
             Action<TraceContextBase> trackRequestTelemetryAction,
             Action<TraceContextBase> trackDependencyTelemetryAction,
             Action<Exception> trackExceptionAction)
-         => ListenerSubscription = DiagnosticListener.AllListeners.Subscribe(
-                    delegate (DiagnosticListener listener)
+        {
+            ListenerSubscription = DiagnosticListener.AllListeners.Subscribe(
+                delegate (DiagnosticListener listener)
+                {
+                    if (listener.Name == DiagnosticSourceName)
                     {
-                        if (listener.Name == DiagnosticSourceName)
+                        ApplicationInsightsSubscription?.Dispose();
+
+                        ApplicationInsightsSubscription = listener.Subscribe((KeyValuePair<string, object> evt) =>
                         {
-                            ApplicationInsightsSubscription?.Dispose();
-
-                            ApplicationInsightsSubscription = listener.Subscribe((KeyValuePair<string, object> evt) =>
+                            if (evt.Key == RequestTrackEvent)
                             {
-                                if (evt.Key == RequestTrackEvent)
-                                {
-                                    var context = (TraceContextBase)evt.Value;
-                                    trackRequestTelemetryAction(context);
-                                }
+                                var context = (TraceContextBase)evt.Value;
+                                trackRequestTelemetryAction(context);
+                            }
 
-                                if (evt.Key == DependencyTrackEvent)
-                                {
-                                    // the parameter is DependencyTelemetry which is already stopped.
-                                    var context = (TraceContextBase)evt.Value;
-                                    trackDependencyTelemetryAction(context);
-                                }
+                            if (evt.Key == DependencyTrackEvent)
+                            {
+                                // the parameter is DependencyTelemetry which is already stopped.
+                                var context = (TraceContextBase)evt.Value;
+                                trackDependencyTelemetryAction(context);
+                            }
 
-                                if (evt.Key == ExceptionEvent)
-                                {
-                                    var e = (Exception)evt.Value;
-                                    trackExceptionAction(e);
-                                }
-                            });
-                        }
-                    });
+                            if (evt.Key == ExceptionEvent)
+                            {
+                                var e = (Exception)evt.Value;
+                                trackExceptionAction(e);
+                            }
+                        });
+                    }
+                });
+        }
 
         /// <summary>
         /// Track the RequestTelemetry
         /// </summary>
         /// <param name="context"></param>
-        public static void TrackRequestTelemetry(TraceContextBase context)
-         => Tracking(() => Logger.Write(RequestTrackEvent, context));
+        public static void TrackRequestTelemetry(TraceContextBase context) => Tracking(() => Logger.Write(RequestTrackEvent, context));
 
         /// <summary>
         /// Track the DependencyTelemetry
         /// </summary>
         /// <param name="context"></param>
-        public static void TrackDepencencyTelemetry(TraceContextBase context)
-         => Tracking(() => Logger.Write(DependencyTrackEvent, context));
+        public static void TrackDepencencyTelemetry(TraceContextBase context) => Tracking(() => Logger.Write(DependencyTrackEvent, context));
 
         /// <summary>
         /// Track the Exception
         /// </summary>
         /// <param name="e"></param>
-        public static void TrackException(Exception e)
-         => Tracking(() => Logger.Write(ExceptionEvent, e));
+        public static void TrackException(Exception e) => Tracking(() => Logger.Write(ExceptionEvent, e));
 
         /// <summary>
         /// Execute Action for Propagate correlation information.

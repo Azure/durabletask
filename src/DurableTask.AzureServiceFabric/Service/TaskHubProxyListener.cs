@@ -16,16 +16,11 @@ namespace DurableTask.AzureServiceFabric.Service
     using System;
     using System.Fabric;
     using System.Globalization;
-    using System.Linq;
-    using System.Net;
-    using System.Net.Sockets;
     using System.Threading;
     using System.Threading.Tasks;
-
     using DurableTask.AzureServiceFabric;
     using DurableTask.AzureServiceFabric.Tracing;
     using DurableTask.Core;
-
     using Microsoft.ServiceFabric.Services.Communication.Runtime;
     using Microsoft.ServiceFabric.Services.Runtime;
 
@@ -146,24 +141,23 @@ namespace DurableTask.AzureServiceFabric.Service
         }
 
         /// <inheritdoc />
-        public ServiceReplicaListener CreateServiceReplicaListener()
-         => new ServiceReplicaListener(context =>
-            {
-                var serviceEndpoint = context.CodePackageActivationContext.GetEndpoint(Constants.TaskHubProxyListenerEndpointName);
-                string ipAddress = context.NodeContext.IPAddressOrFQDN;
+        public ServiceReplicaListener CreateServiceReplicaListener() => new ServiceReplicaListener(context =>
+        {
+            var serviceEndpoint = context.CodePackageActivationContext.GetEndpoint(Constants.TaskHubProxyListenerEndpointName);
+            string ipAddress = context.NodeContext.IPAddressOrFQDN;
 #if DEBUG
-                IPHostEntry entry = Dns.GetHostEntry(ipAddress);
-                IPAddress ipv4Address = entry.AddressList.FirstOrDefault(
-                    address => (address.AddressFamily == AddressFamily.InterNetwork) && (!IPAddress.IsLoopback(address)));
-                ipAddress = ipv4Address.ToString();
+            IPHostEntry entry = Dns.GetHostEntry(ipAddress);
+            IPAddress ipv4Address = entry.AddressList.FirstOrDefault(
+                address => (address.AddressFamily == AddressFamily.InterNetwork) && (!IPAddress.IsLoopback(address)));
+            ipAddress = ipv4Address.ToString();
 #endif
 
-                EnsureFabricOrchestrationProviderIsInitialized();
-                string protocol = this.enableHttps ? "https" : "http";
-                string listeningAddress = string.Format(CultureInfo.InvariantCulture, "{0}://{1}:{2}/{3}/dtfx/", protocol, ipAddress, serviceEndpoint.Port, context.PartitionId);
+            EnsureFabricOrchestrationProviderIsInitialized();
+            string protocol = this.enableHttps ? "https" : "http";
+            string listeningAddress = string.Format(CultureInfo.InvariantCulture, "{0}://{1}:{2}/{3}/dtfx/", protocol, ipAddress, serviceEndpoint.Port, context.PartitionId);
 
-                return new OwinCommunicationListener(new Startup(listeningAddress, this.fabricOrchestrationProvider));
-            }, Constants.TaskHubProxyServiceName);
+            return new OwinCommunicationListener(new Startup(listeningAddress, this.fabricOrchestrationProvider));
+        }, Constants.TaskHubProxyServiceName);
 
         /// <inheritdoc />
         public async Task OnRunAsync(CancellationToken cancellationToken) => await StartAsync();

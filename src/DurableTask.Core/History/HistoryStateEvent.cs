@@ -26,7 +26,10 @@ namespace DurableTask.Core.History
         /// </summary>
         /// <param name="eventId">The integer event id</param>
         /// <param name="state">The event state</param>
-        public HistoryStateEvent(int eventId, OrchestrationState state) : base(eventId) => State = state;
+        public HistoryStateEvent(int eventId, OrchestrationState state) : base(eventId)
+        {
+            State = state;
+        }
 
         /// <summary>
         /// Gets the event type

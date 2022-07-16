@@ -18,16 +18,12 @@ namespace DurableTask.Test.Orchestrations
     using System.Runtime.Serialization;
     using System.Threading;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
 
     [System.Runtime.InteropServices.ComVisible(false)]
     public sealed class SimplestGetUserTask : TaskActivity<string, string>
     {
-        protected override string Execute(TaskContext context, string input)
-        {
-            return "Gabbar";
-        }
+        protected override string Execute(TaskContext context, string input) => "Gabbar";
     }
 
     public class SimpleGenerationOrchestration : TaskOrchestration<string, string>
@@ -104,10 +100,7 @@ namespace DurableTask.Test.Orchestrations
 
     public sealed class SimplestSendGreetingTask : TaskActivity<string, string>
     {
-        protected override string Execute(TaskContext context, string user)
-        {
-            return "Greeting send to " + user;
-        }
+        protected override string Execute(TaskContext context, string user) => "Greeting send to " + user;
     }
 
     public class GenerationSignalOrchestration : TaskOrchestration<int, int>

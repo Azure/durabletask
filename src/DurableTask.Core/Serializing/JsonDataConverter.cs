@@ -51,7 +51,10 @@ namespace DurableTask.Core.Serializing
         /// Creates a new instance of the JsonDataConverter with supplied settings
         /// </summary>
         /// <param name="settings">Settings for the json serializer</param>
-        public JsonDataConverter(JsonSerializerSettings settings) => this.serializer = JsonSerializer.Create(settings);
+        public JsonDataConverter(JsonSerializerSettings settings)
+        {
+            this.serializer = JsonSerializer.Create(settings);
+        }
 
         /// <summary>
         /// Serialize an Object to string with default formatting
@@ -80,7 +83,7 @@ namespace DurableTask.Core.Serializing
             {
                 writer.Formatting = (formatted ? Formatting.Indented : Formatting.None);
                 this.serializer.Serialize(writer, value);
-            
+
                 return textWriter.ToString();
             }
         }

@@ -31,34 +31,31 @@ namespace DurableTask.Core.Exceptions
         /// <summary>
         /// Initializes a new instance of the <see cref="TaskFailureException"/> class.
         /// </summary>
-        public TaskFailureException(string reason)
-            : base(reason) { }
+        public TaskFailureException(string reason) : base(reason) { }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TaskFailureException"/> class.
         /// </summary>
-        public TaskFailureException(string reason, Exception innerException)
-            : base(reason, innerException) { }
+        public TaskFailureException(string reason, Exception innerException) : base(reason, innerException) { }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TaskFailureException"/> class.
         /// </summary>
-        public TaskFailureException(string reason, Exception innerException, string details)
-            : base(reason, innerException)
-         => Details = details;
+        public TaskFailureException(string reason, Exception innerException, string details) : base(reason, innerException)
+
+        {
+            Details = details;
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TaskFailureException"/> class.
         /// </summary>
-        public TaskFailureException(string reason, string details)
-            : base(reason)
-         => Details = details;
+        public TaskFailureException(string reason, string details) : base(reason) => Details = details;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TaskFailureException"/> class.
         /// </summary>
-        protected TaskFailureException(SerializationInfo info, StreamingContext context)
-            : base(info, context)
+        protected TaskFailureException(SerializationInfo info, StreamingContext context) : base(info, context)
         {
             Details = info.GetString(nameof(Details));
 
@@ -83,12 +80,14 @@ namespace DurableTask.Core.Exceptions
         /// Returns a debug string representing the current exception object.
         /// </summary>
         public override string ToString()
-         => string.Format("FailureSource: {1}{0}Details: {2}{0}Message: {3}{0}Exception: {4}",
-                Environment.NewLine,
-                FailureSource,
-                Details,
-                Message,
-                base.ToString());
+        {
+            return string.Format("FailureSource: {1}{0}Details: {2}{0}Message: {3}{0}Exception: {4}",
+                                 Environment.NewLine,
+                                 FailureSource,
+                                 Details,
+                                 Message,
+                                 base.ToString());
+        }
 
         /// <summary>
         /// Details of the exception which will flow to the parent orchestration.

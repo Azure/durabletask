@@ -16,9 +16,7 @@ namespace TestApplication.Common.Orchestrations
     using System;
     using System.Threading;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
-
     using TestApplication.Common.OrchestrationTasks;
 
     public class RecurringOrchestration : TaskOrchestration<int, RecurringOrchestrationInput>

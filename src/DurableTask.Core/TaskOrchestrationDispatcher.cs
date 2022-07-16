@@ -15,7 +15,6 @@ namespace DurableTask.Core
 {
     using System;
     using System.Collections.Generic;
-    using System.ComponentModel;
     using System.Diagnostics;
     using System.Linq;
     using System.Threading;
@@ -106,7 +105,9 @@ namespace DurableTask.Core
         /// <param name="cancellationToken">A cancellation token used to cancel a fetch operation.</param>
         /// <returns>A new TaskOrchestrationWorkItem</returns>
         protected Task<TaskOrchestrationWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
-         => this.orchestrationService.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, cancellationToken);
+        {
+            return this.orchestrationService.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, cancellationToken);
+        }
 
 
         /// <summary>
@@ -191,7 +192,7 @@ namespace DurableTask.Core
 
                 CorrelationTraceClient.Propagate(
                     () =>
-                    {                
+                    {
                         // Check if it is extended session.
                         isExtendedSession = this.concurrentSessionLock.Acquire();
                         this.concurrentSessionLock.Release();
@@ -278,7 +279,7 @@ namespace DurableTask.Core
             var isCompleted = false;
             var continuedAsNew = false;
             var isInterrupted = false;
-            
+
             // correlation
             CorrelationTraceClient.Propagate(() => CorrelationTraceContext.Current = workItem.TraceContext);
 
@@ -492,7 +493,7 @@ namespace DurableTask.Core
                                 "Updating state for continuation");
 
                             // correlation
-                            CorrelationTraceClient.Propagate(() => 
+                            CorrelationTraceClient.Propagate(() =>
                             {
                                 continueAsNewExecutionStarted!.Correlation = CorrelationTraceContext.Current.SerializableTraceContext;
                             });
@@ -549,7 +550,7 @@ namespace DurableTask.Core
                 continuedAsNew ? null : timerMessages,
                 continuedAsNewMessage,
                 instanceState);
-            
+
             if (workItem.RestoreOriginalRuntimeStateDuringCompletion)
             {
                 workItem.OrchestrationRuntimeState = runtimeState;
@@ -773,7 +774,7 @@ namespace DurableTask.Core
                 return taskMessage;
             }
 
-            // If this is a Sub Orchestration, and not tagged as fire-and-forget, 
+            // If this is a Sub Orchestration, and not tagged as fire-and-forget,
             // then notify the parent by sending a complete message
             if (runtimeState.ParentInstance != null
                 && !OrchestrationTags.IsTaggedAsFireAndForget(runtimeState.Tags))
@@ -935,7 +936,7 @@ namespace DurableTask.Core
                 Name = sendEventAction.EventName,
                 Input = sendEventAction.EventData
             };
-            
+
             runtimeState.AddEvent(historyEvent);
 
             this.logHelper.RaisingEvent(runtimeState.OrchestrationInstance, historyEvent);
@@ -949,7 +950,7 @@ namespace DurableTask.Core
                 }
             };
         }
- 
+
         class NonBlockingCountdownLock
         {
             volatile int available;

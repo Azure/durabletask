@@ -33,9 +33,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// <summary>
         /// Creates a new AzureTableOrchestrationJumpStartEntity
         /// </summary>
-        public AzureTableOrchestrationJumpStartEntity()
-        {
-        }
+        public AzureTableOrchestrationJumpStartEntity() { }
 
         /// <summary>
         /// Creates a new AzureTableOrchestrationJumpStartEntity with the jump start state and datetime
@@ -43,7 +41,9 @@ namespace DurableTask.ServiceBus.Tracking
         /// <param name="jumpStartEvent"></param>
         public AzureTableOrchestrationJumpStartEntity(OrchestrationJumpStartInstanceEntity jumpStartEvent)
             : base(jumpStartEvent.State)
-         => JumpStartTime = jumpStartEvent.JumpStartTime;
+        {
+            JumpStartTime = jumpStartEvent.JumpStartTime;
+        }
 
         /// <summary>
         /// Gets a OrchestrationJumpStartInstanceEntity
@@ -99,6 +99,8 @@ namespace DurableTask.ServiceBus.Tracking
         /// <param name="dateTime">The datetime to use for the partition key</param>
         /// <returns>A string partition key</returns>
         public static string GetPartitionKey(DateTime dateTime)
-         => string.Format(CultureInfo.InvariantCulture, "{0:D19}", dateTime.Ticks);
+        {
+            return string.Format(CultureInfo.InvariantCulture, "{0:D19}", dateTime.Ticks);
+        }
     }
 }

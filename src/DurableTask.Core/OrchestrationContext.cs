@@ -118,7 +118,10 @@ namespace DurableTask.Core
         /// <param name="retryOptions">Retry policies</param>
         /// <returns>Dynamic proxy that can be used to schedule the remote tasks</returns>
         public virtual T CreateRetryableClient<T>(RetryOptions retryOptions) where T : class
-         => CreateRetryableClient<T>(retryOptions, false);
+
+        {
+            return CreateRetryableClient<T>(retryOptions, false);
+        }
 
         /// <summary>
         ///     Creates a proxy client with built-in retry logic.
@@ -168,11 +171,13 @@ namespace DurableTask.Core
         /// <param name="retryOptions">Retry policy</param>
         /// <param name="parameters">Parameters for the TaskActivity.Execute method</param>
         /// <returns>Task that represents the execution of the specified TaskActivity</returns>
-        public virtual Task<T> ScheduleWithRetry<T>(Type taskActivityType, RetryOptions retryOptions,
-            params object[] parameters)
-         => ScheduleWithRetry<T>(NameVersionHelper.GetDefaultName(taskActivityType),
+        public virtual Task<T> ScheduleWithRetry<T>(
+            Type taskActivityType, RetryOptions retryOptions, params object[] parameters)
+        {
+            return ScheduleWithRetry<T>(NameVersionHelper.GetDefaultName(taskActivityType),
                 NameVersionHelper.GetDefaultVersion(taskActivityType),
                 retryOptions, parameters);
+        }
 
         /// <summary>
         ///     Schedule a TaskActivity by name and version. Also retry on failure as per supplied policy.
@@ -201,8 +206,10 @@ namespace DurableTask.Core
         /// <returns>Task that represents the execution of the specified sub-orchestration</returns>
         public virtual Task<T> CreateSubOrchestrationInstanceWithRetry<T>(Type orchestrationType,
             RetryOptions retryOptions, object input)
-         => CreateSubOrchestrationInstanceWithRetry<T>(NameVersionHelper.GetDefaultName(orchestrationType),
+        {
+            return CreateSubOrchestrationInstanceWithRetry<T>(NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType), retryOptions, input);
+        }
 
         /// <summary>
         ///     Create a sub-orchestration of the specified type. Also retry on failure as per supplied policy.
@@ -215,8 +222,10 @@ namespace DurableTask.Core
         /// <returns>Task that represents the execution of the specified sub-orchestration</returns>
         public virtual Task<T> CreateSubOrchestrationInstanceWithRetry<T>(Type orchestrationType, string instanceId,
             RetryOptions retryOptions, object input)
-         => CreateSubOrchestrationInstanceWithRetry<T>(NameVersionHelper.GetDefaultName(orchestrationType),
+        {
+            return CreateSubOrchestrationInstanceWithRetry<T>(NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType), instanceId, retryOptions, input);
+        }
 
         /// <summary>
         ///     Create a sub-orchestration of the specified name and version. Also retry on failure as per supplied policy.
@@ -261,8 +270,10 @@ namespace DurableTask.Core
         /// <param name="parameters">Parameters for the TaskActivity.Execute method</param>
         /// <returns>Task that represents the execution of the specified TaskActivity</returns>
         public virtual Task<TResult> ScheduleTask<TResult>(Type activityType, params object[] parameters)
-         => ScheduleTask<TResult>(NameVersionHelper.GetDefaultName(activityType),
+        {
+            return ScheduleTask<TResult>(NameVersionHelper.GetDefaultName(activityType),
                 NameVersionHelper.GetDefaultVersion(activityType), parameters);
+        }
 
         /// <summary>
         ///     Schedule a TaskActivity by name and version.
@@ -301,8 +312,10 @@ namespace DurableTask.Core
         /// <param name="input">Input for the TaskOrchestration.RunTask method</param>
         /// <returns>Task that represents the execution of the specified sub-orchestration</returns>
         public virtual Task<T> CreateSubOrchestrationInstance<T>(Type orchestrationType, object input)
-         => CreateSubOrchestrationInstance<T>(NameVersionHelper.GetDefaultName(orchestrationType),
+        {
+            return CreateSubOrchestrationInstance<T>(NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType), input);
+        }
 
         /// <summary>
         ///     Create a sub-orchestration of the specified type with the specified instance id
@@ -313,8 +326,10 @@ namespace DurableTask.Core
         /// <param name="input">Input for the TaskOrchestration.RunTask method</param>
         /// <returns>Task that represents the execution of the specified sub-orchestration</returns>
         public virtual Task<T> CreateSubOrchestrationInstance<T>(Type orchestrationType, string instanceId, object input)
-         => CreateSubOrchestrationInstance<T>(NameVersionHelper.GetDefaultName(orchestrationType),
+        {
+            return CreateSubOrchestrationInstance<T>(NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType), instanceId, input);
+        }
 
         /// <summary>
         ///     Create a sub-orchestration of the specified name and version.

@@ -23,7 +23,7 @@ namespace DurableTask.Core
     /// </summary>
     public class OrchestrationStateQuery
     {
-        // if we get multiple filters in a state query, we will pick one as the primary filter to pass on in the 
+        // if we get multiple filters in a state query, we will pick one as the primary filter to pass on in the
         // azure table store query. the remaining filters will be used to trim the results in-memory
         // this table gives the precedence of the filters. higher number will be selected over the lower one.
         //
@@ -39,7 +39,10 @@ namespace DurableTask.Core
         ///     Query class that can be used to filter results from the Orchestration instance store.
         ///     Instance methods are not thread safe.
         /// </summary>
-        public OrchestrationStateQuery() => FilterMap = new Dictionary<Type, OrchestrationStateQueryFilter>();
+        public OrchestrationStateQuery()
+        {
+            FilterMap = new Dictionary<Type, OrchestrationStateQueryFilter>();
+        }
 
         /// <summary>
         /// Gets the FilterMap for the query
@@ -175,8 +178,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="status">The status to filter by</param>
         /// <returns></returns>
-        public OrchestrationStateQuery AddStatusFilter(OrchestrationStatus status)
-         => AddStatusFilter(status, FilterComparisonType.Equals);
+        public OrchestrationStateQuery AddStatusFilter(OrchestrationStatus status) => AddStatusFilter(status, FilterComparisonType.Equals);
 
         /// <summary>
         ///     Adds a status filter on the returned orchestrations

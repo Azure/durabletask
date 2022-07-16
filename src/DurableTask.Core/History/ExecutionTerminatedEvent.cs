@@ -26,7 +26,10 @@ namespace DurableTask.Core.History
         /// </summary>
         /// <param name="eventId">The event id of the history event</param>
         /// <param name="input">The serialized input of the termination event</param>
-        public ExecutionTerminatedEvent(int eventId, string input) : base(eventId) => Input = input;
+        public ExecutionTerminatedEvent(int eventId, string input) : base(eventId)
+        {
+            Input = input;
+        }
 
         /// <summary>
         /// Gets the event type

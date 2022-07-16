@@ -19,10 +19,8 @@ namespace DurableTask.SqlServer.Tests
     using System.Data.SqlClient;
     using System.Threading;
     using System.Threading.Tasks;
-
     using Docker.DotNet;
     using Docker.DotNet.Models;
-
     using Microsoft.Extensions.Configuration;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 

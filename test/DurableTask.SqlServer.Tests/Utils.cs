@@ -16,7 +16,6 @@ namespace DurableTask.SqlServer.Tests
     using System;
     using System.Collections.Generic;
     using System.Linq;
-
     using DurableTask.Core;
     using DurableTask.Core.History;
     using DurableTask.Core.Tracking;

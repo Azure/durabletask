@@ -20,12 +20,10 @@ namespace DurableTask.Emulator
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
-
     using Newtonsoft.Json;
 
     /// <summary>
@@ -150,7 +148,9 @@ namespace DurableTask.Emulator
         /******************************/
         /// <inheritdoc />
         public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
-         => CreateTaskOrchestrationAsync(creationMessage, null);
+        {
+            return CreateTaskOrchestrationAsync(creationMessage, null);
+        }
 
         /// <inheritdoc />
         public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
@@ -337,11 +337,15 @@ namespace DurableTask.Emulator
 
         /// <inheritdoc />
         public Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId)
-         => throw new NotSupportedException();
+        {
+            throw new NotSupportedException();
+        }
 
         /// <inheritdoc />
         public Task PurgeOrchestrationHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
-         => throw new NotSupportedException();
+        {
+            throw new NotSupportedException();
+        }
 
         /******************************/
         // Task orchestration methods

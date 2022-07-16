@@ -31,8 +31,7 @@ namespace DurableTask.Core.Exceptions
         /// Initializes an new instance of the SubOrchestrationFailedException class with a specified error message
         /// </summary>
         /// <param name="reason">The message that describes the error.</param>
-        public SubOrchestrationFailedException(string reason)
-            : base(reason) { }
+        public SubOrchestrationFailedException(string reason) : base(reason) { }
 
         /// <summary>
         /// Initializes an new instance of the SubOrchestrationFailedException class with a specified error message
@@ -40,8 +39,7 @@ namespace DurableTask.Core.Exceptions
         /// </summary>
         /// <param name="reason">The message that describes the error.</param>
         /// <param name="innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
-        public SubOrchestrationFailedException(string reason, Exception innerException)
-            : base(reason, innerException) { }
+        public SubOrchestrationFailedException(string reason, Exception innerException) : base(reason, innerException) { }
 
         /// <summary>
         /// Initializes an new instance of the SubOrchestrationFailedException class with a specified event id, schedule id, name, version and error message
@@ -53,8 +51,8 @@ namespace DurableTask.Core.Exceptions
         /// <param name="version">Version of the Type Instance that experienced the error.</param>
         /// <param name="reason">The message that describes the error.</param>
         /// <param name="cause">The exception that is the cause of the current exception, or a null reference if no cause is specified.</param>
-        public SubOrchestrationFailedException(int eventId, int scheduleId, string name, string version, string reason,
-            Exception cause)
+        public SubOrchestrationFailedException(
+            int eventId, int scheduleId, string name, string version, string reason, Exception cause)
             : base(eventId, reason, cause)
         {
             ScheduleId = scheduleId;
@@ -67,8 +65,7 @@ namespace DurableTask.Core.Exceptions
         /// </summary>
         /// <param name="info">The System.Runtime.Serialization.SerializationInfo that holds the serialized object data about the exception being thrown.</param>
         /// <param name="context">The System.Runtime.Serialization.StreamingContext that contains contextual information about the source or destination.</param>
-        protected SubOrchestrationFailedException(SerializationInfo info, StreamingContext context)
-            : base(info, context)
+        protected SubOrchestrationFailedException(SerializationInfo info, StreamingContext context) : base(info, context)
         {
             ScheduleId = info.GetInt32(nameof(ScheduleId));
             Name = info.GetString(nameof(Name));
@@ -82,8 +79,7 @@ namespace DurableTask.Core.Exceptions
         /// <param name="eventId">EventId of the error.</param>
         /// <param name="message">The message that describes the error.</param>
         /// <param name="innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
-        SubOrchestrationFailedException(int eventId, string message, Exception innerException)
-            : base(eventId, message, innerException) { }
+        SubOrchestrationFailedException(int eventId, string message, Exception innerException) : base(eventId, message, innerException) { }
 
         /// <inheritdoc />
         public override void GetObjectData(SerializationInfo info, StreamingContext context)

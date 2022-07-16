@@ -16,13 +16,14 @@ namespace DurableTask.AzureServiceFabric.TaskHelpers
     using System;
     using System.Diagnostics;
     using System.Threading.Tasks;
-
     using DurableTask.AzureServiceFabric.Tracing;
 
     static class RetryHelper
     {
         public static Task ExecuteWithRetryOnTransient(Func<Task> action, string uniqueActionIdentifier)
-         => ExecuteWithRetryOnTransient(action, CountBasedFixedDelayRetryPolicy.GetNewDefaultPolicy(), uniqueActionIdentifier);
+        {
+            return ExecuteWithRetryOnTransient(action, CountBasedFixedDelayRetryPolicy.GetNewDefaultPolicy(), uniqueActionIdentifier);
+        }
 
         static async Task ExecuteWithRetryOnTransient(Func<Task> action, IRetryPolicy retryPolicy, string uniqueActionIdentifier)
         {
@@ -65,7 +66,9 @@ namespace DurableTask.AzureServiceFabric.TaskHelpers
         }
 
         public static Task<TResult> ExecuteWithRetryOnTransient<TResult>(Func<Task<TResult>> action, string uniqueActionIdentifier)
-         => ExecuteWithRetryOnTransient(action, CountBasedFixedDelayRetryPolicy.GetNewDefaultPolicy(), uniqueActionIdentifier);
+        {
+            return ExecuteWithRetryOnTransient(action, CountBasedFixedDelayRetryPolicy.GetNewDefaultPolicy(), uniqueActionIdentifier);
+        }
 
         static async Task<TResult> ExecuteWithRetryOnTransient<TResult>(Func<Task<TResult>> action, IRetryPolicy retryPolicy, string uniqueActionIdentifier)
         {

@@ -115,7 +115,9 @@ namespace DurableTask.Core
             string version,
             string instanceId,
             object input)
-         => CreateSubOrchestrationInstanceCore<T>(name, version, instanceId, input, null);
+        {
+            return CreateSubOrchestrationInstanceCore<T>(name, version, instanceId, input, null);
+        }
 
         public override Task<T> CreateSubOrchestrationInstance<T>(
             string name,
@@ -123,13 +125,17 @@ namespace DurableTask.Core
             string instanceId,
             object input,
             IDictionary<string, string> tags)
-         => CreateSubOrchestrationInstanceCore<T>(name, version, instanceId, input, tags);
+        {
+            return CreateSubOrchestrationInstanceCore<T>(name, version, instanceId, input, tags);
+        }
 
         public override Task<T> CreateSubOrchestrationInstance<T>(
             string name,
             string version,
             object input)
-         => CreateSubOrchestrationInstanceCore<T>(name, version, null, input, null);
+        {
+            return CreateSubOrchestrationInstanceCore<T>(name, version, null, input, null);
+        }
 
         async Task<T> CreateSubOrchestrationInstanceCore<T>(
             string name,
@@ -501,7 +507,8 @@ namespace DurableTask.Core
         }
 
         void LogDuplicateEvent(string source, HistoryEvent historyEvent, int taskId)
-         => TraceHelper.TraceSession(
+        {
+            TraceHelper.TraceSession(
                 TraceEventType.Warning,
                 "TaskOrchestrationContext-DuplicateEvent",
                 OrchestrationInstance.InstanceId,
@@ -510,9 +517,12 @@ namespace DurableTask.Core
                 taskId.ToString(),
                 historyEvent.EventType,
                 historyEvent.Timestamp.ToString(CultureInfo.InvariantCulture));
+        }
 
         public void HandleExecutionTerminatedEvent(ExecutionTerminatedEvent terminatedEvent)
-         => CompleteOrchestration(terminatedEvent.Input, null, OrchestrationStatus.Terminated);
+        {
+            CompleteOrchestration(terminatedEvent.Input, null, OrchestrationStatus.Terminated);
+        }
 
         public void CompleteOrchestration(string result) => CompleteOrchestration(result, null, OrchestrationStatus.Completed);
 
@@ -529,7 +539,7 @@ namespace DurableTask.Core
             string details = null;
             FailureDetails failureDetails = null;
 
-            // correlation 
+            // correlation
             CorrelationTraceClient.Propagate(
                 () =>
                 {
@@ -548,7 +558,7 @@ namespace DurableTask.Core
                     details = orchestrationFailureException.Details;
                 }
             }
-            else 
+            else
             {
                 if (this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
                 {
@@ -563,7 +573,8 @@ namespace DurableTask.Core
             CompleteOrchestration(reason, details, OrchestrationStatus.Failed, failureDetails);
         }
 
-        public void CompleteOrchestration(string result, string details, OrchestrationStatus orchestrationStatus, FailureDetails failureDetails = null)
+        public void CompleteOrchestration(
+            string result, string details, OrchestrationStatus orchestrationStatus, FailureDetails failureDetails = null)
         {
             int id = this.idCounter++;
             OrchestrationCompleteOrchestratorAction completedOrchestratorAction;

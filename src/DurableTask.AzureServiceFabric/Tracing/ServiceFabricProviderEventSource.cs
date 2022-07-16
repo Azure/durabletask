@@ -17,8 +17,6 @@ namespace DurableTask.AzureServiceFabric.Tracing
     using System.Diagnostics.Tracing;
     using System.Threading.Tasks;
 
-    using Microsoft.ServiceFabric.Services.Runtime;
-
     /// <summary>
     /// The event source which emits ETW events for service fabric based provider functionality.
     /// </summary>
@@ -33,9 +31,11 @@ namespace DurableTask.AzureServiceFabric.Tracing
         public static readonly ServiceFabricProviderEventSource Tracing = new ServiceFabricProviderEventSource();
 
         static ServiceFabricProviderEventSource()
-         // A workaround for the problem where ETW activities do not get tracked until Tasks infrastructure is initialized.
-         // This problem will be fixed in .NET Framework 4.6.2.
-         => Task.Run(() => { });
+        {
+            // A workaround for the problem where ETW activities do not get tracked until Tasks infrastructure is initialized.
+            // This problem will be fixed in .NET Framework 4.6.2.
+            Task.Run(() => { });
+        }
 
         ServiceFabricProviderEventSource() : base() { }
 

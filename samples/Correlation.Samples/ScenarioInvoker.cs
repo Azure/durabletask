@@ -17,7 +17,6 @@ namespace Correlation.Samples
     using System.Diagnostics;
     using System.Diagnostics.Contracts;
     using System.Threading.Tasks;
-
     using DurableTask.Core.Settings;
 
     public class ScenarioInvoker

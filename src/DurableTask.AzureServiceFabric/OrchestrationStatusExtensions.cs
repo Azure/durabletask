@@ -20,6 +20,8 @@ namespace DurableTask.AzureServiceFabric
         public static bool IsTerminalState(this OrchestrationStatus status) => !status.IsRunningOrPending();
 
         public static bool IsRunningOrPending(this OrchestrationStatus status)
-         => status == OrchestrationStatus.Pending || status == OrchestrationStatus.Running;
+        {
+            return status == OrchestrationStatus.Pending || status == OrchestrationStatus.Running;
+        }
     }
 }

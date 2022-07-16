@@ -16,8 +16,6 @@ namespace DurableTask.Core
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
-    using System.Linq;
-    using System.Reflection;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
 
@@ -27,18 +25,23 @@ namespace DurableTask.Core
     public abstract class TraceContextBase
     {
         /// <summary>
-        /// Default constructor 
+        /// Default constructor
         /// </summary>
-        protected TraceContextBase() => OrchestrationTraceContexts = new Stack<TraceContextBase>();
+        protected TraceContextBase()
+        {
+            OrchestrationTraceContexts = new Stack<TraceContextBase>();
+        }
 
         static TraceContextBase()
-         => CustomJsonSerializerSettings = new JsonSerializerSettings()
-         {
-             TypeNameHandling = TypeNameHandling.Objects,
-             PreserveReferencesHandling = PreserveReferencesHandling.Objects,
-             ReferenceLoopHandling = ReferenceLoopHandling.Serialize,
-         };
-       
+        {
+            CustomJsonSerializerSettings = new JsonSerializerSettings()
+            {
+                TypeNameHandling = TypeNameHandling.Objects,
+                PreserveReferencesHandling = PreserveReferencesHandling.Objects,
+                ReferenceLoopHandling = ReferenceLoopHandling.Serialize,
+            };
+        }
+
         /// <summary>
         /// Start time of this telemetry
         /// </summary>
@@ -48,12 +51,12 @@ namespace DurableTask.Core
         /// Type of this telemetry.
         /// Request Telemetry or Dependency Telemetry.
         /// Use
-        /// <see cref="TelemetryType"/> 
+        /// <see cref="TelemetryType"/>
         /// </summary>
         public TelemetryType TelemetryType { get; set; }
 
         /// <summary>
-        /// OrchestrationState save the state of the 
+        /// OrchestrationState save the state of the
         /// </summary>
         public Stack<TraceContextBase> OrchestrationTraceContexts { get; set; }
 
@@ -89,8 +92,7 @@ namespace DurableTask.Core
         /// Serializable Json string of TraceContext
         /// </summary>
         [JsonIgnore]
-        public string SerializableTraceContext => 
-            JsonConvert.SerializeObject(this, CustomJsonSerializerSettings);
+        public string SerializableTraceContext => JsonConvert.SerializeObject(this, CustomJsonSerializerSettings);
 
         /// <summary>
         /// Telemetry.Id Used for sending telemetry. refer this URL

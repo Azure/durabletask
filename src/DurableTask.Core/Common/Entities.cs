@@ -11,13 +11,12 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using DurableTask.Core.History;
-using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace DurableTask.Core.Common
 {
+    using System;
+    using System.Collections.Generic;
+    using DurableTask.Core.History;
+
     /// <summary>
     /// Helpers for dealing with special naming conventions around auto-started orchestrations (entities)
     /// </summary>
@@ -28,7 +27,10 @@ namespace DurableTask.Core.Common
         /// </summary>
         /// <param name="instanceId"></param>
         /// <returns></returns>
-        public static bool IsEntityInstance(string instanceId) => !string.IsNullOrEmpty(instanceId) && instanceId[0] == '@';
+        public static bool IsEntityInstance(string instanceId)
+        {
+            return !string.IsNullOrEmpty(instanceId) && instanceId[0] == '@';
+        }
 
         /// <summary>
         /// Determine if a task message is an entity message with a time delay
@@ -38,12 +40,12 @@ namespace DurableTask.Core.Common
         /// <returns>true if this is an entity message with a time delay</returns>
         /// <remarks>
         /// We assume that auto-started orchestrations (i.e. instance ids starting with '@') are
-        /// used exclusively by durable entities; so we can follow 
+        /// used exclusively by durable entities; so we can follow
         /// a custom naming convention to pass a time parameter.
         /// </remarks>
         public static bool IsDelayedEntityMessage(TaskMessage taskMessage, out DateTime due)
         {
-            // Special functionality for entity messages with a delivery delay 
+            // Special functionality for entity messages with a delivery delay
             if (taskMessage.Event is EventRaisedEvent eventRaisedEvent
                 && IsEntityInstance(taskMessage.OrchestrationInstance.InstanceId))
             {

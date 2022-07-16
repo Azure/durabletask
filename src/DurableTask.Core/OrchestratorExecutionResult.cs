@@ -49,17 +49,16 @@ namespace DurableTask.Core
         /// <param name="message">The simple failure message.</param>
         /// <param name="details">The failure details that give more information about what triggered the failure.</param>
         /// <returns>The orchestrator failure result.</returns>
-        public static OrchestratorExecutionResult ForFailure(string message, string? details)
-         => new OrchestratorExecutionResult
-         {
-             Actions = new List<OrchestratorAction>
+        public static OrchestratorExecutionResult ForFailure(string message, string? details) => new OrchestratorExecutionResult
+        {
+            Actions = new List<OrchestratorAction>
+            {
+                new OrchestrationCompleteOrchestratorAction
                 {
-                    new OrchestrationCompleteOrchestratorAction
-                    {
-                        OrchestrationStatus = OrchestrationStatus.Failed,
-                        Result = JsonConvert.SerializeObject(new { message, details }),
-                    },
+                    OrchestrationStatus = OrchestrationStatus.Failed,
+                    Result = JsonConvert.SerializeObject(new { message, details }),
                 },
-         };
+            },
+        };
     }
 }

@@ -16,13 +16,12 @@ namespace Correlation.Samples
     using System;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
 
     [KnownType(typeof(MultiLayeredOrchestrationChildWithRetry))]
     [KnownType(typeof(NeedToExecuteTwice01))]
     [KnownType(typeof(NeedToExecuteTwice02))]
-class MultiLayeredOrchestrationWithRetryOrchestrator : TaskOrchestration<string, string>
+    class MultiLayeredOrchestrationWithRetryOrchestrator : TaskOrchestration<string, string>
     {
         public override Task<string> RunTask(OrchestrationContext context, string input)
         {
@@ -33,7 +32,7 @@ class MultiLayeredOrchestrationWithRetryOrchestrator : TaskOrchestration<string,
 
     [KnownType(typeof(NeedToExecuteTwice01))]
     [KnownType(typeof(NeedToExecuteTwice02))]
-class MultiLayeredOrchestrationChildWithRetry : TaskOrchestration<string, string>
+    class MultiLayeredOrchestrationChildWithRetry : TaskOrchestration<string, string>
     {
         public override async Task<string> RunTask(OrchestrationContext context, string input)
         {

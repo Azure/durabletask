@@ -64,7 +64,7 @@ namespace DurableTask.Core
         Func<TimeSpan, CancellationToken, Task<T>> FetchWorkItem { get; }
 
         Func<T, Task> ProcessWorkItem { get; }
-        
+
         /// <summary>
         /// Method to execute for safely releasing a work item
         /// </summary>
@@ -96,7 +96,7 @@ namespace DurableTask.Core
         /// <param name="fetchWorkItem"></param>
         /// <param name="processWorkItem"></param>
         public WorkItemDispatcher(
-            string name, 
+            string name,
             Func<T, string> workItemIdentifier,
             Func<TimeSpan, CancellationToken, Task<T>> fetchWorkItem,
             Func<T, Task> processWorkItem)
@@ -238,7 +238,7 @@ namespace DurableTask.Core
                             TraceEventType.Warning,
                             "WorkItemDispatcherDispatch-MaxOperations",
                             this.GetFormattedLog(dispatcherId, $"Max concurrent operations ({this.concurrentWorkItemCount}) are already in progress. Still waiting for next accept."));
-                        
+
                         logThrottle = false;
                     }
 
@@ -254,7 +254,7 @@ namespace DurableTask.Core
                     Interlocked.Increment(ref this.activeFetchers);
                     this.LogHelper.FetchWorkItemStarting(context, DefaultReceiveTimeout, this.concurrentWorkItemCount, this.MaxConcurrentWorkItems);
                     TraceHelper.Trace(
-                        TraceEventType.Verbose, 
+                        TraceEventType.Verbose,
                         "WorkItemDispatcherDispatch-StartFetch",
                         this.GetFormattedLog(dispatcherId, $"Starting fetch with timeout of {DefaultReceiveTimeout} ({this.concurrentWorkItemCount}/{this.MaxConcurrentWorkItems} max)"));
 
@@ -273,7 +273,7 @@ namespace DurableTask.Core
                     }
 
                     TraceHelper.Trace(
-                        TraceEventType.Verbose, 
+                        TraceEventType.Verbose,
                         "WorkItemDispatcherDispatch-EndFetch",
                         this.GetFormattedLog(dispatcherId, $"After fetch ({timer.ElapsedMilliseconds} ms) ({this.concurrentWorkItemCount}/{this.MaxConcurrentWorkItems} max)"));
                 }
@@ -294,7 +294,7 @@ namespace DurableTask.Core
                     if (!this.isStarted)
                     {
                         TraceHelper.Trace(
-                            TraceEventType.Information, 
+                            TraceEventType.Information,
                             "WorkItemDispatcherDispatch-HarmlessException",
                             this.GetFormattedLog(dispatcherId, $"Harmless exception while fetching workItem after Stop(): {exception.Message}"));
                     }
@@ -303,8 +303,8 @@ namespace DurableTask.Core
                         this.LogHelper.FetchWorkItemFailure(context, exception);
                         // TODO : dump full node context here
                         TraceHelper.TraceException(
-                            TraceEventType.Warning, 
-                            "WorkItemDispatcherDispatch-Exception", 
+                            TraceEventType.Warning,
+                            "WorkItemDispatcherDispatch-Exception",
                             exception,
                             this.GetFormattedLog(dispatcherId, $"Exception while fetching workItem: {exception.Message}"));
                         delaySecs = this.GetDelayInSecondsAfterOnFetchException(exception);
@@ -366,7 +366,7 @@ namespace DurableTask.Core
 
                 this.LogHelper.ProcessWorkItemStarting(context, workItemId);
                 TraceHelper.Trace(
-                    TraceEventType.Information, 
+                    TraceEventType.Information,
                     "WorkItemDispatcherProcess-Begin",
                     this.GetFormattedLog(context.DispatcherId, $"Starting to process workItem {workItemId}"));
 
@@ -376,7 +376,7 @@ namespace DurableTask.Core
 
                 this.LogHelper.ProcessWorkItemCompleted(context, workItemId);
                 TraceHelper.Trace(
-                    TraceEventType.Information, 
+                    TraceEventType.Information,
                     "WorkItemDispatcherProcess-End",
                     this.GetFormattedLog(context.DispatcherId, $"Finished processing workItem {workItemId}"));
 
@@ -390,12 +390,12 @@ namespace DurableTask.Core
                     $"Backing off for {BackOffIntervalOnInvalidOperationSecs} seconds",
                     exception);
                 TraceHelper.TraceException(
-                    TraceEventType.Error, 
-                    "WorkItemDispatcherProcess-TypeMissingException", 
+                    TraceEventType.Error,
+                    "WorkItemDispatcherProcess-TypeMissingException",
                     exception,
                     this.GetFormattedLog(context.DispatcherId, $"Exception while processing workItem {workItemId}"));
                 TraceHelper.Trace(
-                    TraceEventType.Error, 
+                    TraceEventType.Error,
                     "WorkItemDispatcherProcess-TypeMissingBackingOff",
                     "Backing off after invalid operation by " + BackOffIntervalOnInvalidOperationSecs);
 
@@ -405,8 +405,8 @@ namespace DurableTask.Core
             catch (Exception exception) when (!Utils.IsFatal(exception))
             {
                 TraceHelper.TraceException(
-                    TraceEventType.Error, 
-                    "WorkItemDispatcherProcess-Exception", 
+                    TraceEventType.Error,
+                    "WorkItemDispatcherProcess-Exception",
                     exception,
                     this.GetFormattedLog(context.DispatcherId, $"Exception while processing workItem {workItemId}"));
 
@@ -419,7 +419,7 @@ namespace DurableTask.Core
                         $"Backing off for {delayInSecs} seconds until {CountDownToZeroDelay} successful operations",
                         exception);
                     TraceHelper.Trace(
-                        TraceEventType.Error, 
+                        TraceEventType.Error,
                         "WorkItemDispatcherProcess-BackingOff",
                         "Backing off after exception by at least " + delayInSecs + " until " + CountDownToZeroDelay +
                         " successful operations");
@@ -495,7 +495,7 @@ namespace DurableTask.Core
             }
             catch (Exception exception) when (!Utils.IsFatal(exception))
             {
-                // eat and move on 
+                // eat and move on
                 this.LogHelper.ProcessWorkItemFailed(context, workItemId, operation, exception);
                 TraceHelper.TraceException(TraceEventType.Error, "WorkItemDispatcher-ExceptionTraceError", exception);
             }
@@ -508,7 +508,9 @@ namespace DurableTask.Core
         /// <param name="message">The message to format</param>
         /// <returns>The formatted message</returns>
         protected string GetFormattedLog(string dispatcherId, string message)
-         => $"{this.name}-{this.id}-{dispatcherId}: {message}";
+        {
+            return $"{this.name}-{this.id}-{dispatcherId}: {message}";
+        }
 
         /// <inheritdoc />
         public void Dispose()

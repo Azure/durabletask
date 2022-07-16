@@ -68,9 +68,11 @@ namespace DurableTask.Core
         /// The result of the orchestration execution, including any actions scheduled by the orchestrator.
         /// </returns>
         public OrchestratorExecutionResult Execute()
-         => this.ExecuteCore(
+        {
+            return this.ExecuteCore(
                 pastEvents: this.orchestrationRuntimeState.PastEvents,
                 newEvents: this.orchestrationRuntimeState.NewEvents);
+        }
 
         /// <summary>
         /// Resumes an orchestration
@@ -141,7 +143,7 @@ namespace DurableTask.Core
                                     // Let this exception propagate out to be handled by the dispatcher
                                     ExceptionDispatchInfo.Capture(exception).Throw();
                                 }
-                                
+
                                 this.context.FailOrchestration(exception);
                             }
                             else
@@ -231,10 +233,13 @@ namespace DurableTask.Core
 
             public TaskOrchestrationSynchronizationContext(TaskScheduler scheduler) => this.scheduler = scheduler;
 
-            public override void Post(SendOrPostCallback sendOrPostCallback, object state) => Task.Factory.StartNew(() => sendOrPostCallback(state),
-                    CancellationToken.None,
-                    TaskCreationOptions.None,
-                    this.scheduler);
+            public override void Post(SendOrPostCallback sendOrPostCallback, object state)
+            {
+                Task.Factory.StartNew(() => sendOrPostCallback(state),
+                                      CancellationToken.None,
+                                      TaskCreationOptions.None,
+                                      this.scheduler);
+            }
 
             public override void Send(SendOrPostCallback sendOrPostCallback, object state)
             {

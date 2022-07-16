@@ -17,9 +17,7 @@ namespace DurableTask.AzureStorage
     using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
-
     using DurableTask.AzureStorage.Monitoring;
-
     using Microsoft.WindowsAzure.Storage;
 
     // Class that acts as a timeout handler to wrap Azure Storage calls, mitigating a deadlock that occurs with Azure Storage SDK 9.3.3.

@@ -11,12 +11,12 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Threading.Tasks;
-using StackExchange.Redis;
-
 namespace DurableTask.Redis
 {
+    using System;
+    using System.Threading.Tasks;
+    using StackExchange.Redis;
+
     class RedisLogger
     {
         readonly ConnectionMultiplexer redisConnection;
@@ -29,6 +29,8 @@ namespace DurableTask.Redis
         }
 
         public async Task LogAsync(string logMessage)
-         => await this.redisConnection.GetDatabase().ListRightPushAsync(this.logKey, $"{DateTime.Now} {logMessage}");
+        {
+            await this.redisConnection.GetDatabase().ListRightPushAsync(this.logKey, $"{DateTime.Now} {logMessage}");
+        }
     }
 }

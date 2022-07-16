@@ -22,8 +22,10 @@ namespace DurableTask.Core
         ///     Creates a new instance of the OrchestrationStateInstanceFilter with default settings
         /// </summary>
         public OrchestrationStateInstanceFilter()
-         // default is exact match
-         => StartsWith = false;
+        {
+            // default is exact match
+            StartsWith = false;
+        }
 
         /// <summary>
         ///     Gets or sets the InstanceId for the filter

@@ -19,7 +19,6 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
-
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
     using DurableTask.Core.History;

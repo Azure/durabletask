@@ -14,9 +14,7 @@
 namespace DurableTask.Redis.Tests
 {
     using System.Threading.Tasks;
-
     using Microsoft.Extensions.Configuration;
-
     using StackExchange.Redis;
 
     public static class TestHelpers

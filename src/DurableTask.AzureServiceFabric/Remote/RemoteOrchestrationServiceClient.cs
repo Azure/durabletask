@@ -23,12 +23,10 @@ namespace DurableTask.AzureServiceFabric.Remote
     using System.Threading;
     using System.Threading.Tasks;
     using System.Web;
-
     using DurableTask.AzureServiceFabric.Exceptions;
     using DurableTask.AzureServiceFabric.Models;
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
-
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
 
@@ -42,7 +40,6 @@ namespace DurableTask.AzureServiceFabric.Remote
 
         readonly IPartitionEndpointResolver partitionProvider;
         readonly int maxPollDelayInSecs = 10;
-        HttpClient httpClient;
 
         /// <summary>
         /// Creates a new instance.
@@ -50,7 +47,7 @@ namespace DurableTask.AzureServiceFabric.Remote
         public RemoteOrchestrationServiceClient(IPartitionEndpointResolver partitionProvider)
         {
             this.partitionProvider = partitionProvider;
-            this.httpClient = new HttpClient();
+            this.HttpClient = new HttpClient();
         }
 
         /// <summary>
@@ -59,17 +56,13 @@ namespace DurableTask.AzureServiceFabric.Remote
         public RemoteOrchestrationServiceClient(IPartitionEndpointResolver partitionProvider, HttpClientHandler httpClientHandler = null)
         {
             this.partitionProvider = partitionProvider;
-            this.httpClient = new HttpClient(httpClientHandler);
+            this.HttpClient = new HttpClient(httpClientHandler);
         }
 
         /// <summary>
         /// HttpClient for making REST calls.
         /// </summary>
-        public HttpClient HttpClient
-        {
-            get => this.httpClient;
-            set => this.httpClient = value;
-        }
+        public HttpClient HttpClient { get; set; }
 
         /// <summary>
         /// Creates a new orchestration
@@ -400,7 +393,7 @@ namespace DurableTask.AzureServiceFabric.Remote
             {
                 if (disposing)
                 {
-                    this.httpClient.Dispose();
+                    this.HttpClient.Dispose();
                 }
 
                 disposedValue = true;

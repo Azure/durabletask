@@ -18,9 +18,7 @@ namespace TestApplication.StatefulService
     using System.Fabric;
     using System.Security.Cryptography.X509Certificates;
     using System.Threading;
-
     using DurableTask.AzureServiceFabric.Service;
-
     using Microsoft.ServiceFabric.Services.Runtime;
 
     static class Program

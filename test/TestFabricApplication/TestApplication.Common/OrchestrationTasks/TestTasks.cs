@@ -14,7 +14,6 @@
 namespace TestApplication.Common.OrchestrationTasks
 {
     using System.Threading.Tasks;
-
     using TestApplication.Common.Orchestrations;
 
     public class TestTasks : ITestTasks

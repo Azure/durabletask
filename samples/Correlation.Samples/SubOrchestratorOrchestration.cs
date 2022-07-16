@@ -20,7 +20,7 @@ namespace Correlation.Samples
 
     [KnownType(typeof(ChildOrchestration))]
     [KnownType(typeof(ChildActivity))]
-class SubOrchestratorOrchestration : TaskOrchestration<string, string>
+    class SubOrchestratorOrchestration : TaskOrchestration<string, string>
     {
         public override async Task<string> RunTask(OrchestrationContext context, string input)
         {
@@ -29,7 +29,7 @@ class SubOrchestratorOrchestration : TaskOrchestration<string, string>
     }
 
     [KnownType(typeof(ChildActivity))]
-class ChildOrchestration : TaskOrchestration<string, string>
+    class ChildOrchestration : TaskOrchestration<string, string>
     {
         public override async Task<string> RunTask(OrchestrationContext context, string input)
         {

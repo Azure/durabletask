@@ -16,12 +16,11 @@ namespace Correlation.Samples
     using System;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
 
     [KnownType(typeof(RetryActivity))]
     [KnownType(typeof(NonRetryActivity))]
-class RetryOrchestration : TaskOrchestration<string, string>
+    class RetryOrchestration : TaskOrchestration<string, string>
     {
         public override async Task<string> RunTask(OrchestrationContext context, string input)
         {

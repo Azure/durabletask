@@ -19,7 +19,6 @@ namespace DurableTask.AzureStorage.Tests
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
@@ -27,7 +26,6 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using DurableTask.Core.History;
-
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
@@ -45,13 +43,13 @@ namespace DurableTask.AzureStorage.Tests
         /// Basic validation of task hub creation.
         /// </summary>
         [TestMethod]
-        public async Task CreateTaskHub() => await this.EnsureTaskHubAsync(nameof(CreateTaskHub), testDeletion: false);
+        public Task CreateTaskHub() => this.EnsureTaskHubAsync(nameof(CreateTaskHub), testDeletion: false);
 
         /// <summary>
         /// Basic validation of task hub deletion.
         /// </summary>
         [TestMethod]
-        public async Task DeleteTaskHub() => await this.EnsureTaskHubAsync(nameof(DeleteTaskHub), testDeletion: true);
+        public Task DeleteTaskHub() => this.EnsureTaskHubAsync(nameof(DeleteTaskHub), testDeletion: true);
 #pragma warning restore CA2000 // Dispose objects before losing scope
 
         async Task<AzureStorageOrchestrationService> EnsureTaskHubAsync(

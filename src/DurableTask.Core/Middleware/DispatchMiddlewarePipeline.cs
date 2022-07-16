@@ -34,7 +34,8 @@ namespace DurableTask.Core.Middleware
         }
 
         public void Add(Func<DispatchMiddlewareContext, Func<Task>, Task> middleware)
-         => this.components.Push(next =>
+        {
+            this.components.Push(next =>
             {
                 return context =>
                 {
@@ -42,5 +43,6 @@ namespace DurableTask.Core.Middleware
                     return middleware(context, SimpleNext);
                 };
             });
+        }
     }
 }

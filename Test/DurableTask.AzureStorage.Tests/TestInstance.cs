@@ -17,11 +17,8 @@ namespace DurableTask.AzureStorage.Tests
     using System.Diagnostics;
     using System.Text.RegularExpressions;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
-
     using Microsoft.VisualStudio.TestTools.UnitTesting;
-
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
 
@@ -137,20 +134,11 @@ namespace DurableTask.AzureStorage.Tests
             return state;
         }
 
-        internal Task<OrchestrationState> GetStateAsync()
-        {
-            return this.client.GetOrchestrationStateAsync(this.instance);
-        }
+        internal Task<OrchestrationState> GetStateAsync() => this.client.GetOrchestrationStateAsync(this.instance);
 
-        internal Task RaiseEventAsync(string name, object value)
-        {
-            return this.client.RaiseEventAsync(this.instance, name, value);
-        }
+        internal Task RaiseEventAsync(string name, object value) => this.client.RaiseEventAsync(this.instance, name, value);
 
-        internal Task TerminateAsync(string reason)
-        {
-            return this.client.TerminateInstanceAsync(this.instance, reason);
-        }
+        internal Task TerminateAsync(string reason) => this.client.TerminateInstanceAsync(this.instance, reason);
 
         static void AdjustTimeout(ref TimeSpan timeout)
         {

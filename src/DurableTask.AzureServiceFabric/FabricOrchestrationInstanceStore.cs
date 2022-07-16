@@ -21,12 +21,10 @@ namespace DurableTask.AzureServiceFabric
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-
     using DurableTask.AzureServiceFabric.TaskHelpers;
     using DurableTask.AzureServiceFabric.Tracing;
     using DurableTask.Core;
     using DurableTask.Core.Tracking;
-
     using Microsoft.ServiceFabric.Data;
     using Microsoft.ServiceFabric.Data.Collections;
 
@@ -227,7 +225,9 @@ namespace DurableTask.AzureServiceFabric
         }
 
         public Task<IEnumerable<OrchestrationWorkItemInstanceEntity>> GetOrchestrationHistoryEventsAsync(string instanceId, string executionId)
-         => throw new NotImplementedException();
+        {
+            throw new NotImplementedException();
+        }
 
         // Todo: This is incomplete and inaccurate implementation done for testing purposes.
         // The method will cleanup state for every orchestration happening in the hour time window of given time,
@@ -247,14 +247,14 @@ namespace DurableTask.AzureServiceFabric
 
         string GetKey(string instanceId, string executionId) => string.Concat(instanceId, "_", executionId);
 
-        string GetDictionaryKeyFromTimeFormat(DateTime time)
-         => GetInstanceStoreBackupDictionaryKey(time, TimeFormatString);
+        string GetDictionaryKeyFromTimeFormat(DateTime time) => GetInstanceStoreBackupDictionaryKey(time, TimeFormatString);
 
-        string GetDictionaryKeyFromTimePrefixFormat(DateTime time)
-         => GetInstanceStoreBackupDictionaryKey(time, TimeFormatStringPrefix);
+        string GetDictionaryKeyFromTimePrefixFormat(DateTime time) => GetInstanceStoreBackupDictionaryKey(time, TimeFormatStringPrefix);
 
         string GetInstanceStoreBackupDictionaryKey(DateTime time, string formatString)
-         => InstanceStoreCollectionNamePrefix + time.ToString(formatString);
+        {
+            return InstanceStoreCollectionNamePrefix + time.ToString(formatString);
+        }
 
         Task CleanupDayOldDictionariesAsync() => Utils.RunBackgroundJob(async () =>
         {

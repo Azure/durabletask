@@ -21,9 +21,15 @@ namespace TestApplication.Common.Orchestrations
     {
         static readonly string CounterPropName = "Counter";
 
-        public CounterException(int counter) => this.Counter = counter;
+        public CounterException(int counter)
+        {
+            this.Counter = counter;
+        }
 
-        protected CounterException(SerializationInfo info, StreamingContext context) => this.Counter = info.GetInt32(CounterPropName);
+        protected CounterException(SerializationInfo info, StreamingContext context)
+        {
+            this.Counter = info.GetInt32(CounterPropName);
+        }
 
         /// <summary>Initializes a new instance of the <see cref="CounterException" /> class.</summary>
         CounterException() { }

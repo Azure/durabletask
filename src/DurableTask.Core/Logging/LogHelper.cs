@@ -24,8 +24,10 @@ namespace DurableTask.Core.Logging
         readonly ILogger log;
 
         public LogHelper(ILogger log)
-         // null is okay
-         => this.log = log;
+        {
+            // null is okay
+            this.log = log;
+        }
 
         bool IsStructuredLoggingEnabled => this.log != null;
 
@@ -611,7 +613,6 @@ namespace DurableTask.Core.Logging
         }
         #endregion
 
-        void WriteStructuredLog(ILogEvent logEvent, Exception exception = null)
-         => this.log?.LogDurableEvent(logEvent, exception);
+        void WriteStructuredLog(ILogEvent logEvent, Exception exception = null) => this.log?.LogDurableEvent(logEvent, exception);
     }
 }

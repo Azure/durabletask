@@ -11,16 +11,12 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Collections.Concurrent;
-using System.Threading;
-using System.Threading.Tasks;
-using DurableTask.Core;
-using StackExchange.Redis;
-using static StackExchange.Redis.RedisChannel;
-
 namespace DurableTask.Redis
 {
+    using System.Threading.Tasks;
+    using DurableTask.Core;
+    using StackExchange.Redis;
+
     /// <summary>
     /// Responsible for cleaning up the processing queues and other Redis data of dead workers. Right now,
     /// since only one worker can be alive at a time, as long as this finishes cleaning up before 
@@ -36,7 +32,7 @@ namespace DurableTask.Redis
         readonly string incomingActivityQueueKey;
         readonly RedisLogger logger;
 
-        public WorkerRecycler(string taskHub,  ConnectionMultiplexer connection)
+        public WorkerRecycler(string taskHub, ConnectionMultiplexer connection)
         {
             this.taskHub = taskHub;
             this.redisConnection = connection;
@@ -55,7 +51,7 @@ namespace DurableTask.Redis
         {
             IDatabase redisDatabase = this.redisConnection.GetDatabase();
             RedisValue[] deadWorkerIds = await redisDatabase.SetMembersAsync(this.workerSetKey);
-            
+
             foreach (string deadWorkerId in deadWorkerIds)
             {
                 string processingQueueKey = RedisKeyNameResolver.GetTaskActivityProcessingQueueKey(this.taskHub, deadWorkerId);

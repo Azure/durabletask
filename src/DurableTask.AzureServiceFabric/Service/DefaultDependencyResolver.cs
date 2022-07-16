@@ -16,7 +16,6 @@ namespace DurableTask.AzureServiceFabric.Service
     using System;
     using System.Collections.Generic;
     using System.Web.Http.Dependencies;
-
     using Microsoft.Extensions.DependencyInjection;
 
     /// <inheritdoc/>
@@ -29,7 +28,9 @@ namespace DurableTask.AzureServiceFabric.Service
         /// </summary>
         /// <param name="provider">An instance of <see cref="IServiceProvider"/> </param>
         public DefaultDependencyResolver(IServiceProvider provider)
-         => this.provider = provider ?? throw new ArgumentNullException(nameof(provider));
+        {
+            this.provider = provider ?? throw new ArgumentNullException(nameof(provider));
+        }
 
         /// <inheritdoc/>
         public object GetService(Type serviceType) => provider.GetService(serviceType);

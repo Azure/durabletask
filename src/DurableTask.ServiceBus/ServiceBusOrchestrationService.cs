@@ -59,7 +59,7 @@ namespace DurableTask.ServiceBus
     public class ServiceBusOrchestrationService : IOrchestrationService, IOrchestrationServiceClient
     {
         // This is the Max number of messages which can be processed in a single transaction.
-        // Current ServiceBus limit is 100 so it has to be lower than that.  
+        // Current ServiceBus limit is 100 so it has to be lower than that.
         // This also has an impact on prefetch count as PrefetchCount cannot be greater than this value
         // as every fetched message also creates a tracking message which counts towards this limit.
         const int MaxMessageCount = 80;
@@ -68,7 +68,7 @@ namespace DurableTask.ServiceBus
         const int DuplicateDetectionWindowInHours = 4;
 
         /// <summary>
-        /// Orchestration service settings 
+        /// Orchestration service settings
         /// </summary>
         public readonly ServiceBusOrchestrationServiceSettings Settings;
 
@@ -134,9 +134,7 @@ namespace DurableTask.ServiceBus
                       hubName,
                       instanceStore,
                       blobStore,
-                      settings)
-        {
-        }
+                      settings) { }
 
 #endif
 
@@ -160,8 +158,7 @@ namespace DurableTask.ServiceBus
                     instanceStore,
                     blobStore,
                     settings)
-        {
-        }
+        { }
 
         /// <summary>
         ///     Create a new ServiceBusOrchestrationService to the given service bus connection and hub name
@@ -692,18 +689,13 @@ namespace DurableTask.ServiceBus
                         e.Transaction.TransactionInformation.Status == TransactionStatus.Committed ? TraceEventType.Information : TraceEventType.Error,
                         "ServiceBusOrchestrationService-CompleteTaskOrchestrationWorkItem-TransactionComplete",
                         runtimeState.OrchestrationInstance,
-                        () => $@"Orchestration Transaction Completed {
-                                e.Transaction.TransactionInformation.LocalIdentifier
-                            } status: {
-                                e.Transaction.TransactionInformation.Status}");
+                        () => $@"Orchestration Transaction Completed {e.Transaction.TransactionInformation.LocalIdentifier} status: {e.Transaction.TransactionInformation.Status}");
 
                 TraceHelper.TraceInstance(
                     TraceEventType.Information,
                     "ServiceBusOrchestrationService-CompleteTaskOrchestrationWorkItem-CreateTransaction",
                     runtimeState.OrchestrationInstance,
-                    () => $@"Created new Orchestration Transaction - txnid: {
-                            Transaction.Current.TransactionInformation.LocalIdentifier
-                        }");
+                    () => $@"Created new Orchestration Transaction - txnid: {Transaction.Current.TransactionInformation.LocalIdentifier}");
 
                 if (await TrySetSessionStateAsync(workItem, newOrchestrationRuntimeState, runtimeState, session))
                 {
@@ -900,7 +892,7 @@ namespace DurableTask.ServiceBus
         public int MaxConcurrentTaskActivityWorkItems => this.Settings.TaskActivityDispatcherSettings.MaxConcurrentActivities;
 
         /// <summary>
-        ///    Wait for an lock the next task activity to be processed 
+        ///    Wait for an lock the next task activity to be processed
         /// </summary>
         /// <param name="receiveTimeout">The timespan to wait for new messages before timing out</param>
         /// <param name="cancellationToken">The cancellation token to cancel execution of the task</param>
@@ -1009,18 +1001,13 @@ namespace DurableTask.ServiceBus
                         e.Transaction.TransactionInformation.Status == TransactionStatus.Committed ? TraceEventType.Information : TraceEventType.Error,
                         "ServiceBusOrchestrationService-CompleteTaskActivityWorkItem-TransactionComplete",
                         workItem.TaskMessage.OrchestrationInstance,
-                        () => $@"TaskActivity Transaction Completed {
-                                e.Transaction.TransactionInformation.LocalIdentifier
-                            } status: {
-                                e.Transaction.TransactionInformation.Status}");
+                        () => $@"TaskActivity Transaction Completed {e.Transaction.TransactionInformation.LocalIdentifier} status: {e.Transaction.TransactionInformation.Status}");
 
                 TraceHelper.TraceInstance(
                     TraceEventType.Information,
                     "ServiceBusOrchestrationService-CompleteTaskActivityWorkItem-CreateTransaction",
                     workItem.TaskMessage.OrchestrationInstance,
-                    () => $@"Created new TaskActivity Transaction - txnid: {
-                            Transaction.Current.TransactionInformation.LocalIdentifier
-                        } - message sequence and lock token: [SEQ: {originalMessage.SystemProperties.SequenceNumber} LT: {originalMessage.SystemProperties.LockToken}]");
+                    () => $@"Created new TaskActivity Transaction - txnid: {Transaction.Current.TransactionInformation.LocalIdentifier} - message sequence and lock token: [SEQ: {originalMessage.SystemProperties.SequenceNumber} LT: {originalMessage.SystemProperties.LockToken}]");
 
                 await this.workerReceiver.CompleteAsync(originalMessage.SystemProperties.LockToken);
                 await this.orchestratorSender.SendAsync(brokeredResponseMessage);
@@ -1038,7 +1025,7 @@ namespace DurableTask.ServiceBus
         public Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem)
         {
             Message message = GetAndDeleteBrokeredMessageForWorkItem(workItem);
-            TraceHelper.Trace(TraceEventType.Information, "ServiceBusOrchestrationService-AbandonTaskActivityWorkItem",  $"Abandoning message {workItem?.Id}");
+            TraceHelper.Trace(TraceEventType.Information, "ServiceBusOrchestrationService-AbandonTaskActivityWorkItem", $"Abandoning message {workItem?.Id}");
 
             return message == null
                 ? Task.FromResult<object>(null)
@@ -1051,8 +1038,7 @@ namespace DurableTask.ServiceBus
         /// <param name="creationMessage">Orchestration creation message</param>
         /// <exception cref="OrchestrationAlreadyExistsException">Will throw exception If any orchestration with the same instance Id exists in the instance store.</exception>
         /// <returns></returns>
-        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage)
-         => CreateTaskOrchestrationAsync(creationMessage, null);
+        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage) => CreateTaskOrchestrationAsync(creationMessage, null);
 
         /// <summary>
         /// Creates a new orchestration and specifies a subset of states which should be de duplicated on in the client side

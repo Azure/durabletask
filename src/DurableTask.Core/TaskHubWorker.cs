@@ -21,11 +21,9 @@ namespace DurableTask.Core
     using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
-
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.Logging;
     using DurableTask.Core.Middleware;
-
     using Microsoft.Extensions.Logging;
 
     /// <summary>
@@ -65,8 +63,7 @@ namespace DurableTask.Core
                   orchestrationService,
                   new NameVersionObjectManager<TaskOrchestration>(),
                   new NameVersionObjectManager<TaskActivity>())
-        {
-        }
+        { }
 
 
         /// <summary>
@@ -80,8 +77,7 @@ namespace DurableTask.Core
                   new NameVersionObjectManager<TaskOrchestration>(),
                   new NameVersionObjectManager<TaskActivity>(),
                   loggerFactory)
-        {
-        }
+        { }
 
         /// <summary>
         ///     Create a new TaskHubWorker with given OrchestrationService and name version managers
@@ -98,8 +94,7 @@ namespace DurableTask.Core
                 orchestrationObjectManager,
                 activityObjectManager,
                 loggerFactory: null)
-        {
-        }
+        { }
 
 
         /// <summary>
@@ -153,14 +148,18 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="middleware">Delegate to invoke whenever a message is dispatched to an orchestration.</param>
         public void AddOrchestrationDispatcherMiddleware(Func<DispatchMiddlewareContext, Func<Task>, Task> middleware)
-         => this.orchestrationDispatchPipeline.Add(middleware ?? throw new ArgumentNullException(nameof(middleware)));
+        {
+            this.orchestrationDispatchPipeline.Add(middleware ?? throw new ArgumentNullException(nameof(middleware)));
+        }
 
         /// <summary>
         /// Adds a middleware delegate to the activity dispatch pipeline.
         /// </summary>
         /// <param name="middleware">Delegate to invoke whenever a message is dispatched to an activity.</param>
         public void AddActivityDispatcherMiddleware(Func<DispatchMiddlewareContext, Func<Task>, Task> middleware)
-         => this.activityDispatchPipeline.Add(middleware ?? throw new ArgumentNullException(nameof(middleware)));
+        {
+            this.activityDispatchPipeline.Add(middleware ?? throw new ArgumentNullException(nameof(middleware)));
+        }
 
         /// <summary>
         ///     Starts the TaskHubWorker so it begins processing orchestrations and activities
@@ -335,7 +334,9 @@ namespace DurableTask.Core
         /// <typeparam name="T">Interface</typeparam>
         /// <param name="activities">Object that implements this interface</param>
         public TaskHubWorker AddTaskActivitiesFromInterface<T>(T activities)
-         => this.AddTaskActivitiesFromInterface(activities, false);
+        {
+            return this.AddTaskActivitiesFromInterface(activities, false);
+        }
 
         /// <summary>
         ///     Infers and adds every method in the specified interface T on the
@@ -350,7 +351,9 @@ namespace DurableTask.Core
         ///     the interface name, if false then only the method name is used
         /// </param>
         public TaskHubWorker AddTaskActivitiesFromInterface<T>(T activities, bool useFullyQualifiedMethodNames)
-         => this.AddTaskActivitiesFromInterface(typeof(T), activities, useFullyQualifiedMethodNames);
+        {
+            return this.AddTaskActivitiesFromInterface(typeof(T), activities, useFullyQualifiedMethodNames);
+        }
 
         /// <summary>
         ///     Infers and adds every method in the specified interface T on the
@@ -407,8 +410,11 @@ namespace DurableTask.Core
         ///  <see cref="System.Runtime.CompilerServices.InternalsVisibleToAttribute"/> must be set on the assembly containing
         ///  the <typeparamref name="T"/> for 'DynamicProxyGenAssembly2' assembly.
         /// </remarks>
-        public TaskHubWorker AddTaskActivitiesFromInterfaceOrClass<T>(object activities, bool useFullyQualifiedMethodNames = false, bool includeInternalMethods = false)
-         => this.AddTaskActivitiesFromInterfaceOrClass(typeof(T), activities, useFullyQualifiedMethodNames, includeInternalMethods);
+        public TaskHubWorker AddTaskActivitiesFromInterfaceOrClass<T>(
+            object activities, bool useFullyQualifiedMethodNames = false, bool includeInternalMethods = false)
+        {
+            return this.AddTaskActivitiesFromInterfaceOrClass(typeof(T), activities, useFullyQualifiedMethodNames, includeInternalMethods);
+        }
 
         /// <summary>
         ///     Infers and adds every method in the specified interface or class T on the
@@ -428,7 +434,8 @@ namespace DurableTask.Core
         ///  <see cref="System.Runtime.CompilerServices.InternalsVisibleToAttribute"/> must be set on the assembly containing
         ///  the <paramref name="interfaceOrClass"/> for 'DynamicProxyGenAssembly2' assembly.
         /// </remarks>
-        public TaskHubWorker AddTaskActivitiesFromInterfaceOrClass(Type interfaceOrClass, object activities, bool useFullyQualifiedMethodNames = false, bool includeInternalMethods = false)
+        public TaskHubWorker AddTaskActivitiesFromInterfaceOrClass(
+            Type interfaceOrClass, object activities, bool useFullyQualifiedMethodNames = false, bool includeInternalMethods = false)
         {
             if (interfaceOrClass.IsClass && interfaceOrClass.IsSealed)
             {

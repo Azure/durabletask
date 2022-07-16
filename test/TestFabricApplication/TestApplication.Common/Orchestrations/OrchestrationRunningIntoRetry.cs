@@ -15,10 +15,8 @@ namespace TestApplication.Common.Orchestrations
 {
     using System;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
-
     using TestApplication.Common.OrchestrationTasks;
 
     public class OrchestrationRunningIntoRetry : TaskOrchestration<int, int>

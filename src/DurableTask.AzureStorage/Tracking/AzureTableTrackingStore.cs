@@ -23,12 +23,10 @@ namespace DurableTask.AzureStorage.Tracking
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
-
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
     using DurableTask.Core.History;
-
     using Microsoft.WindowsAzure.Storage.Table;
 
     /// <summary>
@@ -111,7 +109,7 @@ namespace DurableTask.AzureStorage.Tracking
             this.InstancesTable = instancesTable;
             this.settings = new AzureStorageOrchestrationServiceSettings
             {
-                // Have to set FetchLargeMessageDataEnabled to false, as no MessageManager is 
+                // Have to set FetchLargeMessageDataEnabled to false, as no MessageManager is
                 // instantiated for this test.
                 FetchLargeMessageDataEnabled = false
             };
@@ -341,7 +339,7 @@ namespace DurableTask.AzureStorage.Tracking
                     continue;
                 }
 
-                // delete TaskScheduled corresponding to TaskFailed event 
+                // delete TaskScheduled corresponding to TaskFailed event
                 if (entity.Properties["EventType"].StringValue == nameof(EventType.TaskFailed))
                 {
                     var taskScheduledId = entity.Properties["TaskScheduledId"].Int32Value.Value;
@@ -922,7 +920,7 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 Properties =
                 {
-                    // TODO: Translating null to "null" is a temporary workaround. We should prioritize 
+                    // TODO: Translating null to "null" is a temporary workaround. We should prioritize
                     // https://github.com/Azure/durabletask/issues/477 so that this is no longer necessary.
                     ["CustomStatus"] = new EntityProperty(newRuntimeState.Status ?? "null"),
                     ["ExecutionId"] = new EntityProperty(executionId),
@@ -953,7 +951,7 @@ namespace DurableTask.AzureStorage.Tracking
                 // Keep track of the byte count to ensure we don't hit the 4 MB per-batch maximum
                 estimatedBytes += GetEstimatedByteCount(historyEntity);
 
-                // Monitor for orchestration instance events 
+                // Monitor for orchestration instance events
                 switch (historyEvent.EventType)
                 {
                     case EventType.ExecutionStarted:

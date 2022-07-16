@@ -14,9 +14,7 @@
 namespace Correlation.Samples
 {
     using System.Diagnostics.Contracts;
-
     using DurableTask.Core;
-
     using Microsoft.ApplicationInsights.DataContracts;
 
     public static class CorrelatedExceptionExtensions

@@ -30,7 +30,6 @@ namespace DurableTask.AzureServiceFabric.TaskHelpers
 
         public TimeSpan GetNextDelay() => this.pendingAttempts < 1 ? TimeSpan.Zero : this.delay;
 
-        public static IRetryPolicy GetNewDefaultPolicy()
-         => new CountBasedFixedDelayRetryPolicy(3, TimeSpan.FromMilliseconds(100));
+        public static IRetryPolicy GetNewDefaultPolicy() => new CountBasedFixedDelayRetryPolicy(3, TimeSpan.FromMilliseconds(100));
     }
 }

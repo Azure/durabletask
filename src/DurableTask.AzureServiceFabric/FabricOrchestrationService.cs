@@ -20,14 +20,12 @@ namespace DurableTask.AzureServiceFabric
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-
     using DurableTask.AzureServiceFabric.Stores;
     using DurableTask.AzureServiceFabric.TaskHelpers;
     using DurableTask.AzureServiceFabric.Tracing;
     using DurableTask.Core;
     using DurableTask.Core.History;
     using DurableTask.Core.Tracking;
-
     using Microsoft.ServiceFabric.Data;
 
     class FabricOrchestrationService : IOrchestrationService
@@ -57,12 +55,14 @@ namespace DurableTask.AzureServiceFabric
             this.scheduledMessagesProvider = new ScheduledMessageProvider(this.stateManager, Constants.ScheduledMessagesDictionaryName, orchestrationProvider, cancellationTokenSource.Token);
         }
 
-        public Task StartAsync()
-         => Task.WhenAll(
-             this.activitiesProvider.StartAsync(),
-             this.scheduledMessagesProvider.StartAsync(),
-             this.instanceStore.StartAsync(),
-             this.orchestrationProvider.StartAsync());
+        public Task StartAsync() => Task.WhenAll(
+
+            this.activitiesProvider.StartAsync(),
+            this.scheduledMessagesProvider.StartAsync(),
+            this.instanceStore.StartAsync(),
+            this.orchestrationProvider.StartAsync()
+
+        );
 
         public Task StopAsync() => StopAsync(false);
 
@@ -104,11 +104,9 @@ namespace DurableTask.AzureServiceFabric
 
         public bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState) => false;
 
-        public int GetDelayInSecondsAfterOnProcessException(Exception exception)
-         => GetDelayForFetchOrProcessException(exception);
+        public int GetDelayInSecondsAfterOnProcessException(Exception exception) => GetDelayForFetchOrProcessException(exception);
 
-        public int GetDelayInSecondsAfterOnFetchException(Exception exception)
-         => GetDelayForFetchOrProcessException(exception);
+        public int GetDelayInSecondsAfterOnFetchException(Exception exception) => GetDelayForFetchOrProcessException(exception);
 
         public int TaskOrchestrationDispatcherCount => this.settings.TaskOrchestrationDispatcherSettings.DispatcherCount;
         public int MaxConcurrentTaskOrchestrationWorkItems => this.settings.TaskOrchestrationDispatcherSettings.MaxConcurrentOrchestrations;
@@ -451,8 +449,7 @@ namespace DurableTask.AzureServiceFabric
             return Task.CompletedTask;
         }
 
-        public Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem)
-         => Task.FromResult(workItem);
+        public Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem) => Task.FromResult(workItem);
 
         int GetTaskScheduledId(HistoryEvent historyEvent)
         {
@@ -488,7 +485,9 @@ namespace DurableTask.AzureServiceFabric
         }
 
         bool IsOrchestrationComplete(OrchestrationStatus status)
-         => !(status.IsRunningOrPending() || status == OrchestrationStatus.ContinuedAsNew);
+        {
+            return !(status.IsRunningOrPending() || status == OrchestrationStatus.ContinuedAsNew);
+        }
 
         SessionInformation GetSessionInfo(string sessionId)
         {

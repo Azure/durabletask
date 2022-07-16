@@ -19,9 +19,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Linq;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
-
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     sealed class TestOrchestrationHost : IDisposable
@@ -53,15 +51,9 @@ namespace DurableTask.AzureStorage.Tests
             this.worker.Dispose();
         }
 
-        public Task StartAsync()
-        {
-            return this.worker.StartAsync();
-        }
+        public Task StartAsync() => this.worker.StartAsync();
 
-        public Task StopAsync()
-        {
-            return this.worker.StopAsync(isForced: true);
-        }
+        public Task StopAsync() => this.worker.StopAsync(isForced: true);
 
         public void AddAutoStartOrchestrator(Type type)
         {
@@ -258,17 +250,11 @@ namespace DurableTask.AzureStorage.Tests
 
         class ActivityShim<TInput, TOutput> : TaskActivity<TInput, TOutput>
         {
-            public ActivityShim(Func<TaskContext, TInput, TOutput> implementation)
-            {
-                this.Implementation = implementation;
-            }
+            public ActivityShim(Func<TaskContext, TInput, TOutput> implementation) => this.Implementation = implementation;
 
             public Func<TaskContext, TInput, TOutput> Implementation { get; }
 
-            protected override TOutput Execute(TaskContext context, TInput input)
-            {
-                return this.Implementation(context, input);
-            }
+            protected override TOutput Execute(TaskContext context, TInput input) => this.Implementation(context, input);
         }
 
         class OrchestrationShim<TOutput, TInput> : TaskOrchestration<TOutput, TInput>
@@ -285,21 +271,19 @@ namespace DurableTask.AzureStorage.Tests
 
             public Action<OrchestrationContext, string, string> OnEventRaised { get; set; }
 
-            public override Task<TOutput> RunTask(OrchestrationContext context, TInput input)
-                => this.Implementation(context, input);
+            public override Task<TOutput> RunTask(OrchestrationContext context, TInput input) => this.Implementation(context, input);
 
             public override void RaiseEvent(OrchestrationContext context, string name, string input)
-                => this.OnEventRaised(context, name, input);
+            {
+                this.OnEventRaised(context, name, input);
+            }
         }
 
         class TestObjectCreator<T> : ObjectCreator<T>
         {
             readonly T obj;
 
-            public TestObjectCreator(string name, T obj)
-                : this(name, string.Empty, obj)
-            {
-            }
+            public TestObjectCreator(string name, T obj) : this(name, string.Empty, obj) { }
 
             public TestObjectCreator(string name, string version, T obj)
             {

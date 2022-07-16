@@ -42,7 +42,7 @@ namespace DurableTask.AzureServiceFabric
         IEnumerable<HistoryEvent> sessionState { get; set; }
 
         [OnDeserialized]
-void OnDeserialized(StreamingContext context) => this.sessionState = this.sessionState.ToImmutableList();
+        void OnDeserialized(StreamingContext context) => this.sessionState = this.sessionState.ToImmutableList();
 
         PersistentSession(OrchestrationInstance sessionId, IImmutableList<HistoryEvent> sessionState)
         {
@@ -53,7 +53,9 @@ void OnDeserialized(StreamingContext context) => this.sessionState = this.sessio
         public static PersistentSession Create(OrchestrationInstance sessionId) => Create(sessionId, null);
 
         public static PersistentSession Create(OrchestrationInstance sessionId, IImmutableList<HistoryEvent> sessionState)
-         => new PersistentSession(sessionId, sessionState);
+        {
+            return new PersistentSession(sessionId, sessionState);
+        }
 
         public ImmutableList<HistoryEvent> SessionState => this.sessionState.ToImmutableList();
 

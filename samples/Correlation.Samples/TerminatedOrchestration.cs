@@ -19,10 +19,12 @@ namespace Correlation.Samples
     using DurableTask.Core;
 
     [KnownType(typeof(WaitActivity))]
-class TerminatedOrchestration : TaskOrchestration<string, string>
+    class TerminatedOrchestration : TaskOrchestration<string, string>
     {
         public override async Task<string> RunTask(OrchestrationContext context, string input)
-         => await context.ScheduleTask<string>(typeof(WaitActivity), "");
+        {
+            return await context.ScheduleTask<string>(typeof(WaitActivity), "");
+        }
     }
 
     class WaitActivity : TaskActivity<string, string>
@@ -31,7 +33,7 @@ class TerminatedOrchestration : TaskOrchestration<string, string>
 
         protected override async Task<string> ExecuteAsync(TaskContext context, string input)
         {
-            // Wait for 5 min for terminate. 
+            // Wait for 5 min for terminate.
             await Task.Delay(TimeSpan.FromMinutes(2));
 
             Console.WriteLine($"Activity: Hello {input}");

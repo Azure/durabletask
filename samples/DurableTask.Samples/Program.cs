@@ -22,7 +22,6 @@ namespace DurableTask.Samples
     using System.IO;
     using System.Linq;
     using System.Threading;
-
     using DurableTask.Core;
     using DurableTask.Core.Tracing;
     using DurableTask.Samples.AverageCalculator;
@@ -36,7 +35,6 @@ namespace DurableTask.Samples
     using DurableTask.Samples.SumOfSquares;
     using DurableTask.ServiceBus;
     using DurableTask.ServiceBus.Tracking;
-
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging;
 
     class Program

@@ -55,12 +55,11 @@ namespace DurableTask.Core.Settings
         /// </summary>
         public bool TrackHistoryEvents { get; set; }
 
-        internal TrackingDispatcherSettings Clone()
-         => new TrackingDispatcherSettings
-         {
-             TransientErrorBackOffSecs = TransientErrorBackOffSecs,
-             NonTransientErrorBackOffSecs = NonTransientErrorBackOffSecs,
-             MaxConcurrentTrackingSessions = MaxConcurrentTrackingSessions,
-         };
+        internal TrackingDispatcherSettings Clone() => new TrackingDispatcherSettings
+        {
+            TransientErrorBackOffSecs = TransientErrorBackOffSecs,
+            NonTransientErrorBackOffSecs = NonTransientErrorBackOffSecs,
+            MaxConcurrentTrackingSessions = MaxConcurrentTrackingSessions,
+        };
     }
 }

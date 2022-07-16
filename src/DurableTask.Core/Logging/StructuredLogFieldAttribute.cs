@@ -25,7 +25,10 @@ namespace DurableTask.Core.Logging
         /// Initializes a new instance of the <see cref="StructuredLogFieldAttribute"/> class.
         /// </summary>
         /// <param name="name">The name of the log entry field. If not specified, the name of the property is used.</param>
-        public StructuredLogFieldAttribute(string name = null) => this.Name = name;
+        public StructuredLogFieldAttribute(string name = null)
+        {
+            this.Name = name;
+        }
 
         /// <summary>
         /// Gets the name of the log entry field. If not specified, the name of the property is used.

@@ -16,14 +16,11 @@ namespace TestApplication.StatefulService
     using System;
     using System.Collections.Generic;
     using System.Linq;
-
-    using DurableTask.Core;
     using DurableTask.AzureServiceFabric;
+    using DurableTask.Core;
     using DurableTask.Test.Orchestrations.Performance;
-
     using TestApplication.Common.Orchestrations;
     using TestApplication.Common.OrchestrationTasks;
-
 
     /// <inheritdoc/>
     public class TestOrchestrationsProvider

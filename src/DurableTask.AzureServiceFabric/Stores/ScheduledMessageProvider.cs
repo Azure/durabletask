@@ -19,11 +19,10 @@ namespace DurableTask.AzureServiceFabric.Stores
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-
-    using DurableTask.Core;
-    using DurableTask.Core.History;
     using DurableTask.AzureServiceFabric.TaskHelpers;
     using DurableTask.AzureServiceFabric.Tracing;
+    using DurableTask.Core;
+    using DurableTask.Core.History;
     using Microsoft.ServiceFabric.Data;
 
     class ScheduledMessageProvider : MessageProviderBase<Guid, TaskMessageItem>
@@ -31,12 +30,17 @@ namespace DurableTask.AzureServiceFabric.Stores
         readonly SessionProvider sessionProvider;
         readonly object @lock = new object();
 
-        ImmutableSortedSet<Message<Guid, TaskMessageItem>> inMemorySet = ImmutableSortedSet<Message<Guid, TaskMessageItem>>.Empty.WithComparer(TimerFiredEventComparer.Instance);
+        ImmutableSortedSet<Message<Guid, TaskMessageItem>> inMemorySet =
+            ImmutableSortedSet<Message<Guid, TaskMessageItem>>.Empty.WithComparer(TimerFiredEventComparer.Instance);
+
         DateTime nextActivationCheck;
 
         public ScheduledMessageProvider(IReliableStateManager stateManager, string storeName, SessionProvider sessionProvider, CancellationToken token)
             : base(stateManager, storeName, token)
-         => this.sessionProvider = sessionProvider;
+
+        {
+            this.sessionProvider = sessionProvider;
+        }
 
         public override async Task StartAsync()
         {
@@ -162,7 +166,8 @@ namespace DurableTask.AzureServiceFabric.Stores
                 }
                 catch (Exception e)
                 {
-                    ServiceFabricProviderEventSource.Tracing.ExceptionWhileRunningBackgroundJob($"{nameof(ScheduledMessageProvider)}.{nameof(ProcessScheduledMessages)}", e.ToString());
+                    const string OperationIdentifier = $"{nameof(ScheduledMessageProvider)}.{nameof(ProcessScheduledMessages)}";
+                    ServiceFabricProviderEventSource.Tracing.ExceptionWhileRunningBackgroundJob(OperationIdentifier, e.ToString());
                     await Task.Delay(TimeSpan.FromMilliseconds(100));
                 }
             }

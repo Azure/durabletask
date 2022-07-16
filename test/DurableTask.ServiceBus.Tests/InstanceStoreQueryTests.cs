@@ -21,10 +21,8 @@ namespace DurableTask.ServiceBus.Tests
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
     using DurableTask.ServiceBus.Tracking;
-
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]

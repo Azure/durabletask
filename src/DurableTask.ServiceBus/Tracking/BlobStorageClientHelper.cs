@@ -59,7 +59,9 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         static string BuildContainerNameSuffix(string containerType, DateTime blobCreationTime)
-         => $"{containerType.ToLower()}{ContainerNameDelimiter}{GetDateStringForContainerName(blobCreationTime)}";
+        {
+            return $"{containerType.ToLower()}{ContainerNameDelimiter}{GetDateStringForContainerName(blobCreationTime)}";
+        }
 
         /// <summary>
         /// Build the container name prefix using the lower case hub name.
@@ -84,9 +86,11 @@ namespace DurableTask.ServiceBus.Tracking
         // use the message fire time if it is set;
         // otherwise, use the current utc time as the date string as part of the container name
         static string GetDateStringForContainerName(DateTime messageFireTime)
-         => messageFireTime.IsSet() ?
+        {
+            return messageFireTime.IsSet() ?
                 messageFireTime.ToString(DateFormat) :
                 DateTime.UtcNow.ToString(DateFormat);
+        }
 
         /// <summary>
         /// Parse the key for the container name suffix and the blob name.

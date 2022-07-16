@@ -39,8 +39,7 @@ namespace DurableTask.AzureServiceFabric
         {
             while (true)
             {
-                TaskCompletionSource<bool> thisTcs;
-                thisTcs = this.taskCompletionSource;
+                var thisTcs = this.taskCompletionSource;
 
                 if (!thisTcs.Task.IsCompleted
                  || Interlocked.CompareExchange(ref this.taskCompletionSource, new TaskCompletionSource<bool>(), thisTcs) == thisTcs)

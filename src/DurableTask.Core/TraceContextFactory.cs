@@ -14,10 +14,7 @@
 namespace DurableTask.Core
 {
     using System;
-    using System.Collections.Generic;
     using System.Diagnostics;
-    using System.Dynamic;
-    using System.Text;
     using DurableTask.Core.Settings;
 
     /// <summary>
@@ -50,7 +47,7 @@ namespace DurableTask.Core
             switch (CorrelationSettings.Current.Protocol)
             {
                 case Protocol.W3CTraceContext:
-                    return new W3CTraceContextFactory();                
+                    return new W3CTraceContextFactory();
                 case Protocol.HttpCorrelationProtocol:
                     return new HttpCorrelationProtocolTraceContextFactory();
                 default:
@@ -67,41 +64,37 @@ namespace DurableTask.Core
 
         class W3CTraceContextFactory : ITraceContextFactory
         {
-            public TraceContextBase Create(Activity activity)
-             => new W3CTraceContext()
-             {
-                 OperationName = activity.OperationName,
-                 StartTime = activity.StartTimeUtc,
-                 TraceParent = activity.Id,
-                 TraceState = activity.TraceStateString,
-                 ParentSpanId = activity.ParentSpanId.ToHexString(),
-                 // ParentId = activity.Id // TODO check if it necessary
-                 CurrentActivity = activity
-             };
+            public TraceContextBase Create(Activity activity) => new W3CTraceContext()
+            {
+                OperationName = activity.OperationName,
+                StartTime = activity.StartTimeUtc,
+                TraceParent = activity.Id,
+                TraceState = activity.TraceStateString,
+                ParentSpanId = activity.ParentSpanId.ToHexString(),
+                // ParentId = activity.Id // TODO check if it necessary
+                CurrentActivity = activity
+            };
 
-            public TraceContextBase Create(string operationName)
-             => new W3CTraceContext()
-             {
-                 OperationName = operationName
-             };
+            public TraceContextBase Create(string operationName) => new W3CTraceContext()
+            {
+                OperationName = operationName
+            };
         }
 
         class HttpCorrelationProtocolTraceContextFactory : ITraceContextFactory
         {
-            public TraceContextBase Create(Activity activity)
-             => new HttpCorrelationProtocolTraceContext()
-             {
-                 OperationName = activity.OperationName,
-                 StartTime = activity.StartTimeUtc,
-                 ParentId = activity.Id,
-                 CurrentActivity = activity
-             };
+            public TraceContextBase Create(Activity activity) => new HttpCorrelationProtocolTraceContext()
+            {
+                OperationName = activity.OperationName,
+                StartTime = activity.StartTimeUtc,
+                ParentId = activity.Id,
+                CurrentActivity = activity
+            };
 
-            public TraceContextBase Create(string operationName)
-             => new HttpCorrelationProtocolTraceContext()
-             {
-                 OperationName = operationName
-             };
+            public TraceContextBase Create(string operationName) => new HttpCorrelationProtocolTraceContext()
+            {
+                OperationName = operationName
+            };
         }
     }
 }

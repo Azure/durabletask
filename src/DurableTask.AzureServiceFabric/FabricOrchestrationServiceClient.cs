@@ -32,11 +32,12 @@ namespace DurableTask.AzureServiceFabric
     using Newtonsoft.Json;
     using DurableTask.Core.Serializing;
 
-    class FabricOrchestrationServiceClient : IOrchestrationServiceClient
+    class FabricOrchestrationServiceClient : IOrchestrationServiceClient, IFabricProviderClient
     {
         readonly IReliableStateManager stateManager;
         readonly IFabricOrchestrationServiceInstanceStore instanceStore;
         readonly SessionProvider orchestrationProvider;
+        readonly JsonDataConverter formattingConverter = new JsonDataConverter(new JsonSerializerSettings() { Formatting = Formatting.Indented });
 
         public FabricOrchestrationServiceClient(IReliableStateManager stateManager, SessionProvider orchestrationProvider, IFabricOrchestrationServiceInstanceStore instanceStore)
         {

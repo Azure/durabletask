@@ -20,7 +20,7 @@ namespace Correlation.Samples
     using DurableTask.Core;
 
     [KnownType(typeof(ParallelHello))]
-class FanOutFanInOrchestrator : TaskOrchestration<string, string>
+    class FanOutFanInOrchestrator : TaskOrchestration<string, string>
     {
         public override async Task<string> RunTask(OrchestrationContext context, string input)
         {

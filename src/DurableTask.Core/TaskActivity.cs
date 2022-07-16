@@ -100,7 +100,7 @@ namespace DurableTask.Core
                 throw new TaskFailureException(
                     "TaskActivity implementation cannot be invoked due to more than expected input parameters.  Signature mismatch.");
             }
-            
+
             if (parameterCount == 1)
             {
                 JToken jToken = jArray[0];
@@ -163,7 +163,6 @@ namespace DurableTask.Core
         /// <param name="context">The task context</param>
         /// <param name="input">The typed input</param>
         /// <returns>The typed output from the execution</returns>
-        protected override Task<TResult> ExecuteAsync(TaskContext context, TInput input)
-         => Task.FromResult(Execute(context, input));
+        protected override Task<TResult> ExecuteAsync(TaskContext context, TInput input) => Task.FromResult(Execute(context, input));
     }
 }

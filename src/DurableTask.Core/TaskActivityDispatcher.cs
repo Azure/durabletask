@@ -81,7 +81,9 @@ namespace DurableTask.Core
         public Task StopAsync(bool forced) => this.dispatcher.StopAsync(forced);
 
         Task<TaskActivityWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
-         => this.orchestrationService.LockNextTaskActivityWorkItem(receiveTimeout, cancellationToken);
+        {
+            return this.orchestrationService.LockNextTaskActivityWorkItem(receiveTimeout, cancellationToken);
+        }
 
         async Task OnProcessWorkItemAsync(TaskActivityWorkItem workItem)
         {
@@ -108,7 +110,7 @@ namespace DurableTask.Core
                 if (taskMessage.Event.EventType != EventType.TaskScheduled)
                 {
                     this.logHelper.TaskActivityDispatcherError(
-                        workItem, 
+                        workItem,
                         $"The activity worker received an event of type '{taskMessage.Event.EventType}' but only '{EventType.TaskScheduled}' is supported.");
                     throw TraceHelper.TraceException(
                         TraceEventType.Critical,
@@ -179,7 +181,7 @@ namespace DurableTask.Core
                         }
                         catch (Exception e) when (e is not TaskFailureException && !Utils.IsFatal(e) && !Utils.IsExecutionAborting(e))
                         {
-                            // These are unexpected exceptions that occur in the task activity abstraction. Normal exceptions from 
+                            // These are unexpected exceptions that occur in the task activity abstraction. Normal exceptions from
                             // activities are expected to be translated into TaskFailureException and handled outside the middleware
                             // context (see further below).
                             TraceHelper.TraceExceptionInstance(TraceEventType.Error, "TaskActivityDispatcher-ProcessException", taskMessage.OrchestrationInstance, e);
@@ -270,7 +272,7 @@ namespace DurableTask.Core
 
                 DateTime renewAt = workItem.LockedUntilUtc.Subtract(TimeSpan.FromSeconds(30));
 
-                // service bus clock sku can really mess us up so just always renew every 30 secs regardless of 
+                // service bus clock sku can really mess us up so just always renew every 30 secs regardless of
                 // what the message.LockedUntilUtc says. if the sku is negative then in the worst case we will be
                 // renewing every 5 secs
                 //
@@ -310,7 +312,7 @@ namespace DurableTask.Core
             }
             catch (ObjectDisposedException)
             {
-                // brokered message is already disposed probably through 
+                // brokered message is already disposed probably through
                 // a complete call in the main dispatcher thread
             }
         }

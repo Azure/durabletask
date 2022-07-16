@@ -36,7 +36,7 @@ namespace DurableTask.Core.Serializing
 
             JObject value = JObject.Load(reader);
 
-            // Create target object based on JObject 
+            // Create target object based on JObject
             T target = CreateObject(objectType, value);
 
             serializer.Populate(value.CreateReader(), target);
@@ -45,7 +45,9 @@ namespace DurableTask.Core.Serializing
         }
 
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
-         => throw new NotSupportedException();
+        {
+            throw new NotSupportedException();
+        }
 
         /// <summary>
         /// Creates an instance of objectType, based properties in the JSON object

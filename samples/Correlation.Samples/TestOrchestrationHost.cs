@@ -18,7 +18,6 @@ namespace Correlation.Samples
     using System.Diagnostics;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
-
     using DurableTask.AzureStorage;
     using DurableTask.Core;
 

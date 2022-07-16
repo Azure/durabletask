@@ -11,14 +11,12 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Runtime.Serialization;
-using System.Security;
-
 namespace DurableTask.AzureServiceFabric.Exceptions
 {
     using System;
     using System.Net;
-
+    using System.Runtime.Serialization;
+    using System.Security;
     using DurableTask.AzureServiceFabric.Remote;
 
 
@@ -35,7 +33,9 @@ namespace DurableTask.AzureServiceFabric.Exceptions
         /// <param name="message">Exception message.</param>
         /// <param name="statusCode">Http response message</param>
         public RemoteServiceException(string message, HttpStatusCode statusCode) : base(message)
-         => this.statusCode = statusCode;
+        {
+            this.statusCode = statusCode;
+        }
 
         /// <summary>Initializes a new instance of the <see cref="RemoteServiceException" /> class.</summary>
         RemoteServiceException() { }

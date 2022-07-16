@@ -19,12 +19,10 @@ namespace DurableTask.ServiceBus.Tracking
     using System.Linq;
     using System.Text;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
     using DurableTask.Core.Common;
     using DurableTask.Core.Serializing;
     using DurableTask.Core.Tracking;
-
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Table;
 
@@ -272,7 +270,9 @@ namespace DurableTask.ServiceBus.Tracking
         /// <returns></returns>
         public Task<OrchestrationStateQuerySegment> QueryOrchestrationStatesSegmentedAsync(
             OrchestrationStateQuery stateQuery, string continuationToken)
-         => QueryOrchestrationStatesSegmentedAsync(stateQuery, continuationToken, -1);
+        {
+            return QueryOrchestrationStatesSegmentedAsync(stateQuery, continuationToken, -1);
+        }
 
         /// <summary>
         ///     Get a segmented list of orchestration states from the instance storage table which match the specified
@@ -387,10 +387,12 @@ namespace DurableTask.ServiceBus.Tracking
         /// </summary>
         /// <returns>List of jump start events</returns>
         public async Task<IEnumerable<OrchestrationJumpStartInstanceEntity>> GetJumpStartEntitiesAsync(int top)
-         => (await this.tableClient.QueryJumpStartOrchestrationsAsync(
+        {
+            return (await this.tableClient.QueryJumpStartOrchestrationsAsync(
                         DateTime.UtcNow.AddDays(-AzureTableClient.JumpStartTableScanIntervalInDays),
                         DateTime.UtcNow,
                         top)).Select(e => e.OrchestrationJumpStartInstanceEntity);
+        }
 
         AzureTableCompositeTableEntity HistoryEventToTableEntity(InstanceEntityBase historyEvent)
         {
@@ -444,17 +446,21 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         OrchestrationStateInstanceEntity TableStateToStateEvent(OrchestrationState state)
-         => new OrchestrationStateInstanceEntity { State = state };
+        {
+            return new OrchestrationStateInstanceEntity { State = state };
+        }
 
         OrchestrationWorkItemInstanceEntity TableHistoryEntityToWorkItemEvent(AzureTableOrchestrationHistoryEventEntity entity)
-          => new OrchestrationWorkItemInstanceEntity
-          {
-              InstanceId = entity.InstanceId,
-              ExecutionId = entity.ExecutionId,
-              SequenceNumber = entity.SequenceNumber,
-              EventTimestamp = entity.TaskTimeStamp,
-              HistoryEvent = entity.HistoryEvent
-          };
+        {
+            return new OrchestrationWorkItemInstanceEntity
+            {
+                InstanceId = entity.InstanceId,
+                ExecutionId = entity.ExecutionId,
+                SequenceNumber = entity.SequenceNumber,
+                EventTimestamp = entity.TaskTimeStamp,
+                HistoryEvent = entity.HistoryEvent
+            };
+        }
 
         string SerializeTableContinuationToken(TableContinuationToken continuationToken)
         {

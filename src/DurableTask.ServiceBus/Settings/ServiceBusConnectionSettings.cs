@@ -30,11 +30,10 @@ namespace DurableTask.ServiceBus.Settings
         /// </summary>
         /// <param name="connectionString">Service Bus connection string</param>
         /// <returns></returns>
-        public static ServiceBusConnectionSettings Create(string connectionString)
-         => new ServiceBusConnectionSettings
-         {
-             ConnectionString = connectionString
-         };
+        public static ServiceBusConnectionSettings Create(string connectionString) => new ServiceBusConnectionSettings
+        {
+            ConnectionString = connectionString
+        };
 
 #if NETSTANDARD2_0
 
@@ -45,13 +44,16 @@ namespace DurableTask.ServiceBus.Settings
         /// <param name="tokenProvider">Service Bus authentication token provider</param>
         /// <param name="transportType">Service Bus messaging protocol</param>
         /// <returns></returns>
-        public static ServiceBusConnectionSettings Create(string namespaceHostName, ITokenProvider tokenProvider, TransportType transportType = TransportType.Amqp)
-         => new ServiceBusConnectionSettings
-         {
-             Endpoint = new Uri($"sb://{namespaceHostName}/"),
-             TokenProvider = tokenProvider,
-             TransportType = transportType
-         };
+        public static ServiceBusConnectionSettings Create(
+            string namespaceHostName, ITokenProvider tokenProvider, TransportType transportType = TransportType.Amqp)
+        {
+            return new ServiceBusConnectionSettings
+            {
+                Endpoint = new Uri($"sb://{namespaceHostName}/"),
+                TokenProvider = tokenProvider,
+                TransportType = transportType
+            };
+        }
 
         /// <summary>
         /// Creates an instance of <see cref="ServiceBusConnectionSettings"/>
@@ -60,19 +62,20 @@ namespace DurableTask.ServiceBus.Settings
         /// <param name="tokenProvider">Service Bus authentication token provider</param>
         /// <param name="transportType">Service Bus messaging protocol</param>
         /// <returns></returns>
-        public static ServiceBusConnectionSettings Create(Uri serviceBusEndpoint, ITokenProvider tokenProvider, TransportType transportType = TransportType.Amqp)
-         => new ServiceBusConnectionSettings
-         {
-             Endpoint = serviceBusEndpoint,
-             TokenProvider = tokenProvider,
-             TransportType = transportType
-         };
+        public static ServiceBusConnectionSettings Create(
+            Uri serviceBusEndpoint, ITokenProvider tokenProvider, TransportType transportType = TransportType.Amqp)
+        {
+            return new ServiceBusConnectionSettings
+            {
+                Endpoint = serviceBusEndpoint,
+                TokenProvider = tokenProvider,
+                TransportType = transportType
+            };
+        }
 
 #endif
 
-        ServiceBusConnectionSettings()
-        {
-        }
+        ServiceBusConnectionSettings() { }
 
         /// <summary>
         /// Service Bus connection string

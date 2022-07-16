@@ -11,11 +11,11 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-
 namespace DurableTask.AzureStorage.Tests.Correlation
 {
+    using System;
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
+
 
     [TestClass]
     public class StringExtensionsTest

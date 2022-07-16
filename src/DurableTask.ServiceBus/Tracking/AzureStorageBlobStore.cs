@@ -36,7 +36,9 @@ namespace DurableTask.ServiceBus.Tracking
         /// <param name="hubName">The hub name for this store</param>
         /// <param name="connectionString">Azure storage connection string</param>
         public AzureStorageBlobStore(string hubName, string connectionString)
-         => this.blobClient = new BlobStorageClient(hubName, connectionString);
+        {
+            this.blobClient = new BlobStorageClient(hubName, connectionString);
+        }
 
         /// <summary>
         /// Creates a new AzureStorageBlobStore using the supplied hub name and cloud storage account
@@ -44,7 +46,9 @@ namespace DurableTask.ServiceBus.Tracking
         /// <param name="hubName">The hub name for this store</param>
         /// <param name="cloudStorageAccount">Azure Cloud Storage Account</param>
         public AzureStorageBlobStore(string hubName, CloudStorageAccount cloudStorageAccount)
-         => this.blobClient = new BlobStorageClient(hubName, cloudStorageAccount);
+        {
+            this.blobClient = new BlobStorageClient(hubName, cloudStorageAccount);
+        }
 
         /// <summary>
         /// Create a blob storage access key based on the orchestrationInstance.
@@ -54,10 +58,12 @@ namespace DurableTask.ServiceBus.Tracking
         /// <param name="messageFireTime">The message fire time.</param>
         /// <returns>The created blob key.</returns>
         public string BuildMessageBlobKey(OrchestrationInstance orchestrationInstance, DateTime messageFireTime)
-         => BlobStorageClientHelper.BuildMessageBlobKey(
+        {
+            return BlobStorageClientHelper.BuildMessageBlobKey(
                 orchestrationInstance is not null ? orchestrationInstance.InstanceId : "null",
                 orchestrationInstance is not null ? orchestrationInstance.ExecutionId : "null",
                 messageFireTime);
+        }
 
         /// <summary>
         /// Create a blob storage access key based on message session.
@@ -92,6 +98,8 @@ namespace DurableTask.ServiceBus.Tracking
         /// </summary>
         /// <param name="thresholdDateTimeUtc">The datetime in UTC to use as the threshold for purging history</param>
         public Task PurgeExpiredBlobsAsync(DateTime thresholdDateTimeUtc)
-         => this.blobClient.DeleteExpiredContainersAsync(thresholdDateTimeUtc);
+        {
+            return this.blobClient.DeleteExpiredContainersAsync(thresholdDateTimeUtc);
+        }
     }
 }

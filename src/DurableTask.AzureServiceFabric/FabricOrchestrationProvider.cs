@@ -15,9 +15,9 @@ namespace DurableTask.AzureServiceFabric
 {
     using System;
     using System.Threading;
-    using DurableTask.Core;
     using DurableTask.AzureServiceFabric.Stores;
     using DurableTask.Core;
+    using DurableTask.Core.Query;
     using Microsoft.ServiceFabric.Data;
 
     /// <summary>
@@ -34,7 +34,6 @@ namespace DurableTask.AzureServiceFabric
     {
         readonly FabricOrchestrationService orchestrationService;
         readonly FabricOrchestrationServiceClient orchestrationClient;
-        readonly FabricProviderClient fabricProviderClient;
         readonly CancellationTokenSource cancellationTokenSource;
 
         internal FabricOrchestrationProvider(IReliableStateManager stateManager, FabricOrchestrationProviderSettings settings)

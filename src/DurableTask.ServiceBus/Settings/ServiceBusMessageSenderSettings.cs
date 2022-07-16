@@ -20,11 +20,12 @@ namespace DurableTask.ServiceBus.Settings
     /// </summary>
     public class ServiceBusMessageSenderSettings
     {
-        internal ServiceBusMessageSenderSettings() :
-            this(FrameworkConstants.BatchFlushIntervalInMilliSecs) { }
+        internal ServiceBusMessageSenderSettings() : this(FrameworkConstants.BatchFlushIntervalInMilliSecs) { }
 
         internal ServiceBusMessageSenderSettings(int batchFlushInterval)
-         => BatchFlushIntervalInMilliSecs = batchFlushInterval;
+        {
+            BatchFlushIntervalInMilliSecs = batchFlushInterval;
+        }
 
         /// <summary>
         ///    The sender batch flush interval in milliseconds

@@ -35,12 +35,11 @@ namespace DurableTask.Core
         [DataMember]
         public string ExecutionId { get; set; }
 
-        internal OrchestrationInstance Clone()
-         => new OrchestrationInstance
-         {
-             ExecutionId = ExecutionId,
-             InstanceId = InstanceId
-         };
+        internal OrchestrationInstance Clone() => new OrchestrationInstance
+        {
+            ExecutionId = ExecutionId,
+            InstanceId = InstanceId
+        };
 
         /// <summary>
         /// Serves as a hash function for an OrchestrationInstance.
@@ -50,7 +49,9 @@ namespace DurableTask.Core
         /// </returns>
         [SuppressMessage("ReSharper", "NonReadonlyMemberInGetHashCode")]
         public override int GetHashCode()
-         => (this.InstanceId ?? string.Empty).GetHashCode() ^ (this.ExecutionId ?? string.Empty).GetHashCode();
+        {
+            return (this.InstanceId ?? string.Empty).GetHashCode() ^ (this.ExecutionId ?? string.Empty).GetHashCode();
+        }
 
         /// <summary>
         /// Returns a string that represents the OrchestrationInstance.

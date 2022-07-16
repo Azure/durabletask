@@ -87,13 +87,16 @@ namespace DurableTask.Core.Logging
         }
 
         IEnumerator<KeyValuePair<string, object>> IEnumerable<KeyValuePair<string, object>>.GetEnumerator()
-         => this.Properties.Select(pair => new KeyValuePair<string, object>(pair.Key, pair.Value.GetValue(this)))
-                           .GetEnumerator();
+        {
+            return this.Properties.Select(pair => new KeyValuePair<string, object>(pair.Key, pair.Value.GetValue(this)))
+                                  .GetEnumerator();
+        }
 
         IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable<KeyValuePair<string, object>>)this).GetEnumerator();
 
         static IReadOnlyDictionary<string, PropertyInfo> GetProperties(Type type)
-         => SharedPropertiesCache.GetOrAdd(type, t =>
+        {
+            return SharedPropertiesCache.GetOrAdd(type, t =>
             {
                 var properties = new Dictionary<string, PropertyInfo>();
 
@@ -117,6 +120,7 @@ namespace DurableTask.Core.Logging
 
                 return properties;
             });
+        }
 
         /// <summary>
         /// Gets a log-friendly description of a history event.

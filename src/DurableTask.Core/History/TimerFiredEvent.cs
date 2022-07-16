@@ -31,7 +31,10 @@ namespace DurableTask.Core.History
         /// </summary>
         /// <param name="eventId">The ID of the timer event.</param>
         /// <param name="fireAt">The time at which the timer was scheduled to fire.</param>
-        public TimerFiredEvent(int eventId, DateTime fireAt) : base(eventId) => this.FireAt = fireAt;
+        public TimerFiredEvent(int eventId, DateTime fireAt) : base(eventId)
+        {
+            this.FireAt = fireAt;
+        }
 
         /// <summary>
         /// Creates a new TimerFiredEvent with the supplied event id

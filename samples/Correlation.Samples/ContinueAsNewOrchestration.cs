@@ -16,11 +16,10 @@ namespace Correlation.Samples
     using System;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
 
     [KnownType(typeof(HelloActivity))]
-class ContinueAsNewOrchestration : TaskOrchestration<string, string>
+    class ContinueAsNewOrchestration : TaskOrchestration<string, string>
     {
         static int Counter = 0;
 

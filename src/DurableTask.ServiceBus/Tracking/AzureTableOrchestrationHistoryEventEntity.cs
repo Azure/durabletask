@@ -43,7 +43,7 @@ namespace DurableTask.ServiceBus.Tracking
         };
 
         /// <summary>
-        /// Creates a new AzureTableOrchestrationHistoryEventEntity 
+        /// Creates a new AzureTableOrchestrationHistoryEventEntity
         /// </summary>
         public AzureTableOrchestrationHistoryEventEntity()
         {
@@ -170,6 +170,8 @@ namespace DurableTask.ServiceBus.Tracking
         /// A string that represents the current object.
         /// </returns>
         public override string ToString()
-        => $"Instance Id: {InstanceId} Execution Id: {ExecutionId} Seq: {SequenceNumber.ToString()} Time: {TaskTimeStamp} HistoryEvent: {HistoryEvent.EventType.ToString()}";
+        {
+            return $"Instance Id: {InstanceId} Execution Id: {ExecutionId} Seq: {SequenceNumber} Time: {TaskTimeStamp} HistoryEvent: {HistoryEvent.EventType}";
+        }
     }
 }

@@ -17,7 +17,6 @@ namespace Correlation.Samples
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Threading.Tasks;
-
     using DurableTask.AzureStorage;
     using DurableTask.Core;
     using DurableTask.Core.History;

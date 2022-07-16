@@ -17,12 +17,10 @@ namespace DurableTask.Emulator.Tests
     using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
     using DurableTask.Emulator;
     using DurableTask.Test.Orchestrations;
-
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     /// <summary>

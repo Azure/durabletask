@@ -14,9 +14,7 @@
 namespace TestApplication.Common.Orchestrations
 {
     using System.Threading.Tasks;
-
     using DurableTask.Core;
-
     using TestApplication.Common.OrchestrationTasks;
 
     public class RecurringTargetOrchestration : TaskOrchestration<int, int>

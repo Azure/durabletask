@@ -14,7 +14,6 @@
 namespace DurableTask.AzureServiceFabric
 {
     using System;
-
     using Microsoft.ServiceFabric.Data;
 
     /// <summary>

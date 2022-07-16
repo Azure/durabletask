@@ -11,13 +11,11 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Collections.Generic;
-using System.Text;
-using DurableTask.Core;
-
 namespace DurableTask.AzureStorage
 {
+    using System.Collections.Generic;
+    using DurableTask.Core;
+
     /// <summary>
     /// DurableStatusQueryResult is a result object for OrchestrationInstanceStatusQuery
     /// </summary>

@@ -23,13 +23,11 @@ namespace DurableTask.ServiceBus.Tests
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
     using DurableTask.Core.Common;
     using DurableTask.Core.Settings;
     using DurableTask.Core.Tests;
     using DurableTask.ServiceBus.Settings;
-
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]

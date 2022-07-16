@@ -11,12 +11,11 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Runtime.Serialization;
-using System.Security;
-
 namespace DurableTask.AzureServiceFabric.Exceptions
 {
     using System;
+    using System.Runtime.Serialization;
+    using System.Security;
 
     /// <summary>
     /// Exception representing that instanceId is not Valid.

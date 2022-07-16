@@ -17,10 +17,8 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Threading.Tasks;
-
     using DurableTask.Core;
     using DurableTask.Test.Orchestrations.Performance;
-
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]

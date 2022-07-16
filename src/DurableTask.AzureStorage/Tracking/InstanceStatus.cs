@@ -11,11 +11,11 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using DurableTask.Core;
-
 namespace DurableTask.AzureStorage.Tracking
 {
+    using System;
+    using DurableTask.Core;
+
     class InstanceStatus
     {
         public InstanceStatus(OrchestrationState state)

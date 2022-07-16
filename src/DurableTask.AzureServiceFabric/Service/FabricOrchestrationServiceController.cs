@@ -34,7 +34,10 @@ namespace DurableTask.AzureServiceFabric.Service
         /// </summary>
         /// <param name="orchestrationServiceClient">IOrchestrationServiceClient instance</param>
         public FabricOrchestrationServiceController(IOrchestrationServiceClient orchestrationServiceClient)
-         => this.orchestrationServiceClient = orchestrationServiceClient;
+
+        {
+            this.orchestrationServiceClient = orchestrationServiceClient;
+        }
 
         /// <summary>
         /// Creates a task orchestration.

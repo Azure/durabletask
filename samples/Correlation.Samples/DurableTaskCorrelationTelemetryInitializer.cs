@@ -18,10 +18,8 @@ namespace Correlation.Samples
     using System.ComponentModel;
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
-
     using DurableTask.Core;
     using DurableTask.Core.Settings;
-
     using Microsoft.ApplicationInsights.Channel;
     using Microsoft.ApplicationInsights.DataContracts;
     using Microsoft.ApplicationInsights.Extensibility;
@@ -91,7 +89,7 @@ namespace Correlation.Samples
         public HashSet<string> ExcludeComponentCorrelationHttpHeadersOnDomains { get; set; }
 
         /// <summary>
-        /// Constructor 
+        /// Constructor
         /// </summary>
         public DurableTaskCorrelationTelemetryInitializer()
         {
@@ -288,7 +286,7 @@ namespace Correlation.Samples
                 return;
             }
 
-            // Requests and dependnecies are initialized from the current Activity 
+            // Requests and dependnecies are initialized from the current Activity
             // (i.e. telemetry.Id = current.Id). Activity is created for such requests specifically
             // Traces, exceptions, events on the other side are children of current activity
             // There is one exception - SQL DiagnosticSource where current Activity is a parent

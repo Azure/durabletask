@@ -45,7 +45,9 @@ namespace DurableTask.Redis
         /// </summary>
         /// <param name="settings">The settings used to configure the orchestration service.</param>
         public RedisOrchestrationService(RedisOrchestrationServiceSettings settings)
-         => this.settings = RedisOrchestrationServiceSettings.Validate(settings);
+        {
+            this.settings = RedisOrchestrationServiceSettings.Validate(settings);
+        }
 
         /// <inheritdoc />
         public int TaskOrchestrationDispatcherCount => 1;
@@ -78,7 +80,9 @@ namespace DurableTask.Redis
 
         /// <inheritdoc />
         public bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState)
-         => currentMessageCount > MaxConcurrentTaskOrchestrationWorkItems;
+        {
+            return currentMessageCount > MaxConcurrentTaskOrchestrationWorkItems;
+        }
 
         /// <inheritdoc />
         public async Task CompleteTaskOrchestrationWorkItemAsync(
@@ -120,7 +124,7 @@ namespace DurableTask.Redis
             if (continuedAsNewMessage != null)
             {
                 transaction.SendControlQueueMessage(continuedAsNewMessage);
-            } 
+            }
 
             // TODO send timer messages in transaction
 
@@ -211,8 +215,7 @@ namespace DurableTask.Redis
 
         // TODO: At this time this is sufficient, as locks last indefinitely
         /// <inheritdoc />
-        public Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem)
-         => Task.FromResult(workItem);
+        public Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem) => Task.FromResult(workItem);
 
         /// <inheritdoc />
         public async Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem)
@@ -271,7 +274,7 @@ namespace DurableTask.Redis
         }
 
         /// <inheritdoc />
-        public async Task DeleteAsync(bool deleteInstanceStore) => await this.DeleteAsync();
+        public Task DeleteAsync(bool deleteInstanceStore) => this.DeleteAsync();
 
         /// <inheritdoc />
         public async Task StartAsync()
@@ -312,7 +315,7 @@ namespace DurableTask.Redis
         }
 
         /// <inheritdoc />
-        public async Task StopAsync(bool isForced) => await this.StopAsync();
+        public Task StopAsync(bool isForced) => this.StopAsync();
         #endregion
 
         #region Dispatcher Methods
@@ -414,11 +417,15 @@ namespace DurableTask.Redis
 
         /// <inheritdoc />
         public Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
-         => throw new NotImplementedException();
+        {
+            throw new NotImplementedException();
+        }
 
         /// <inheritdoc />
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
-         => new OrchestrationState[] { await this.GetOrchestrationStateAsync(instanceId, "") };
+        {
+            return new OrchestrationState[] { await this.GetOrchestrationStateAsync(instanceId, "") };
+        }
 
         /// <inheritdoc />
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
@@ -432,12 +439,17 @@ namespace DurableTask.Redis
 
         /// <inheritdoc />
         public Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId)
-         => throw new NotImplementedException();
+        {
+            throw new NotImplementedException();
+        }
 
         /// <inheritdoc />
         public Task PurgeOrchestrationHistoryAsync(
             DateTime thresholdDateTimeUtc,
-            OrchestrationStateTimeRangeFilterType timeRangeFilterType) => throw new NotImplementedException();
+            OrchestrationStateTimeRangeFilterType timeRangeFilterType)
+        {
+            throw new NotImplementedException();
+        }
         #endregion
     }
 }

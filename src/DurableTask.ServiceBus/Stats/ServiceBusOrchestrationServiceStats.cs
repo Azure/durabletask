@@ -54,8 +54,10 @@ namespace DurableTask.ServiceBus.Stats
         /// Returns a string that represents the stats for each queue.
         /// </summary>
         public override string ToString()
-         => $"OrchestrationDispatcherStats: {{{OrchestrationDispatcherStats}}}"
-          + $", ActivityDispatcherStats: {{{ActivityDispatcherStats}}}"
-          + $", TrackingDispatcherStats: {{{TrackingDispatcherStats}}}";
+        {
+            return $"OrchestrationDispatcherStats: {{{OrchestrationDispatcherStats}}}"
+                 + $", ActivityDispatcherStats: {{{ActivityDispatcherStats}}}"
+                 + $", TrackingDispatcherStats: {{{TrackingDispatcherStats}}}";
+        }
     }
 }

@@ -11,15 +11,15 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Collections.Concurrent;
-using System.Threading;
-using System.Threading.Tasks;
-using DurableTask.Core;
-using StackExchange.Redis;
-
 namespace DurableTask.Redis
 {
+    using System;
+    using System.Collections.Concurrent;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using DurableTask.Core;
+    using StackExchange.Redis;
+
     /// <summary>
     /// Responsible for taking items off of the incoming processing queue and reserving them to process them.
     /// Right now only one is alive, but when multiple are alive, they will have to have a background task to constantly

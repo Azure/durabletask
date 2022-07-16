@@ -16,12 +16,9 @@ namespace DurableTask.Core.Tests
     using System;
     using System.Diagnostics;
     using System.Threading.Tasks;
-
     using DurableTask.Core.Exceptions;
     using DurableTask.Emulator;
-
     using Microsoft.VisualStudio.TestTools.UnitTesting;
-
     using Newtonsoft.Json;
 
     [TestClass]

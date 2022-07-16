@@ -39,13 +39,16 @@ namespace DurableTask.Core.Logging
 
             protected override string CreateLogMessage() => "Durable task hub worker is starting";
 
-            void IEventSourceEvent.WriteEventSource() => 
+            void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.TaskHubWorkerStarting(Utils.AppName, Utils.PackageVersion);
         }
 
         internal class TaskHubWorkerStarted : StructuredLogEvent, IEventSourceEvent
         {
-            public TaskHubWorkerStarted(TimeSpan latency) => this.LatencyMs = (long)latency.TotalMilliseconds;
+            public TaskHubWorkerStarted(TimeSpan latency)
+            {
+                this.LatencyMs = (long)latency.TotalMilliseconds;
+            }
 
             public override EventId EventId => new EventId(
                 EventIds.TaskHubWorkerStarted,
@@ -56,7 +59,7 @@ namespace DurableTask.Core.Logging
             [StructuredLogField]
             public long LatencyMs { get; }
 
-            protected override string CreateLogMessage() => 
+            protected override string CreateLogMessage() =>
                 $"Durable task hub worker started successfully after {this.LatencyMs}ms";
 
             void IEventSourceEvent.WriteEventSource() =>
@@ -65,7 +68,10 @@ namespace DurableTask.Core.Logging
 
         internal class TaskHubWorkerStopping : StructuredLogEvent, IEventSourceEvent
         {
-            public TaskHubWorkerStopping(bool isForced) => this.IsForced = isForced;
+            public TaskHubWorkerStopping(bool isForced)
+            {
+                this.IsForced = isForced;
+            }
 
             [StructuredLogField]
             public bool IsForced { get; }
@@ -85,7 +91,10 @@ namespace DurableTask.Core.Logging
 
         internal class TaskHubWorkerStopped : StructuredLogEvent, IEventSourceEvent
         {
-            public TaskHubWorkerStopped(TimeSpan latency) => this.LatencyMs = (long)latency.TotalMilliseconds;
+            public TaskHubWorkerStopped(TimeSpan latency)
+            {
+                this.LatencyMs = (long)latency.TotalMilliseconds;
+            }
 
             public override EventId EventId => new EventId(
                 EventIds.TaskHubWorkerStopped,
@@ -96,7 +105,7 @@ namespace DurableTask.Core.Logging
             [StructuredLogField]
             public long LatencyMs { get; }
 
-            protected override string CreateLogMessage() => 
+            protected override string CreateLogMessage() =>
                 $"Durable task hub worker stopped successfully after {this.LatencyMs}ms";
 
             void IEventSourceEvent.WriteEventSource() =>
@@ -105,7 +114,10 @@ namespace DurableTask.Core.Logging
 
         internal class DispatcherStarting : StructuredLogEvent, IEventSourceEvent
         {
-            public DispatcherStarting(WorkItemDispatcherContext context) => this.Dispatcher = context.GetDisplayName();
+            public DispatcherStarting(WorkItemDispatcherContext context)
+            {
+                this.Dispatcher = context.GetDisplayName();
+            }
 
             [StructuredLogField]
             public string Dispatcher { get; }
@@ -124,7 +136,10 @@ namespace DurableTask.Core.Logging
 
         internal class DispatcherStopped : StructuredLogEvent, IEventSourceEvent
         {
-            public DispatcherStopped(WorkItemDispatcherContext context) => this.Dispatcher = context.GetDisplayName();
+            public DispatcherStopped(WorkItemDispatcherContext context)
+            {
+                this.Dispatcher = context.GetDisplayName();
+            }
 
             [StructuredLogField]
             public string Dispatcher { get; }
@@ -825,7 +840,7 @@ namespace DurableTask.Core.Logging
 
             [StructuredLogField]
             public string Name { get; }
-            
+
             [StructuredLogField]
             public int ActionCount { get; }
 

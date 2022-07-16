@@ -1,12 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-
-namespace DurableTask.AzureStorage.Tests
+﻿namespace DurableTask.AzureStorage.Tests
 {
+    using System;
+    using System.Reflection;
+    using System.Threading.Tasks;
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
+
     /// <summary>
     /// Tests for <see cref="TimeoutHandler"/>.
     /// </summary>
