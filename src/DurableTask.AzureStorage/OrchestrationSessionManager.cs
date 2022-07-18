@@ -467,7 +467,7 @@ namespace DurableTask.AzureStorage
             AnalyticsEventSource.SetLogicalTraceActivityId(traceActivityId);
             
             try
-            {              
+            {
                 if (batch.OrchestrationState == null)
                 {
                     OrchestrationHistory history = await this.trackingStore.GetHistoryEventsAsync(

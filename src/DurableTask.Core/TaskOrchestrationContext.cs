@@ -36,7 +36,7 @@ namespace DurableTask.Core
 
         // Buffer to hold metadata associated with messages that arrive while orchestration is in suspended state
         public List<SuspendedOrchestrationMessageInfo> suspendedOrchestrationMessages;
-        public bool executionSuspended;
+        public bool isSuspended;
 
         public bool HasContinueAsNew => continueAsNew != null;
 
@@ -410,7 +410,7 @@ namespace DurableTask.Core
             int taskId = completedEvent.TaskScheduledId;
             if (this.openTasks.ContainsKey(taskId))
             {
-                if (this.executionSuspended)
+                if (this.isSuspended)
                 {
                     Debug.Assert(this.suspendedOrchestrationMessages != null);
 
@@ -554,7 +554,7 @@ namespace DurableTask.Core
 
         public void HandleExecutionSuspendedEvent(ExecutionSuspendedEvent suspendedEvent)
         {
-            this.executionSuspended = true;
+            this.isSuspended = true;
             Debug.Assert(this.suspendedOrchestrationMessages == null);
             this.suspendedOrchestrationMessages = new List<SuspendedOrchestrationMessageInfo>();
         }
@@ -587,12 +587,12 @@ namespace DurableTask.Core
                         }
                         break;
                     default:
-                        throw new NotImplementedException("Found unkown event when resuming orchestration.");
+                        throw new NotImplementedException("Found unknown event when resuming orchestration.");
 
                 }
                 suspendedOrchestrationMessages.RemoveAt(0);
             }
-            this.executionSuspended = false;
+            this.isSuspended = false;
             suspendedOrchestrationMessages = null;
         }
 

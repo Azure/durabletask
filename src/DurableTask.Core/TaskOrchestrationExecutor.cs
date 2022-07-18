@@ -111,6 +111,7 @@ namespace DurableTask.Core
                                 this.context.CurrentUtcDateTime = decisionStartedEvent.Timestamp;
                                 continue;
                             }
+
                             this.ProcessEvent(historyEvent);
                             historyEvent.IsPlayed = true;
                         }
@@ -214,7 +215,7 @@ namespace DurableTask.Core
                     this.context.HandleEventSentEvent((EventSentEvent)historyEvent);
                     break;
                 case EventType.EventRaised:
-                    if (this.context.executionSuspended)
+                    if (this.context.isSuspended)
                     {
                         var msgInfo = new SuspendedOrchestrationMessageInfo(historyEvent, this.taskOrchestration, this.skipCarryOverEvents);
                         this.context.suspendedOrchestrationMessages.Add(msgInfo);
