@@ -404,6 +404,27 @@ namespace DurableTask.Core
             this.orchestratorActionsMap.Remove(taskId);
         }
 
+        public void HandleEventRaisedEvent(HistoryEvent historyEvent, bool skipCarryOverEvents, TaskOrchestration taskOrchestration)
+        {
+            if (this.isSuspended)
+            {
+                var msgInfo = new SuspendedOrchestrationMessageInfo(historyEvent, taskOrchestration, skipCarryOverEvents);
+                this.suspendedOrchestrationMessages.Add(msgInfo);
+            }
+            else
+            {
+                if (skipCarryOverEvents || !this.HasContinueAsNew)
+                {
+                    var eventRaisedEvent = (EventRaisedEvent)historyEvent;
+                    taskOrchestration.RaiseEvent(this, eventRaisedEvent.Name, eventRaisedEvent.Input);
+                }
+                else
+                {
+                    this.AddEventToNextIteration(historyEvent);
+                }
+            }
+        }
+
 
         public void HandleTaskCompletedEvent(TaskCompletedEvent completedEvent)
         {
@@ -559,40 +580,17 @@ namespace DurableTask.Core
             this.suspendedOrchestrationMessages = new List<SuspendedOrchestrationMessageInfo>();
         }
 
-        public void HandleExecutionResumedEvent(ExecutionResumedEvent resumedEvent)
+        public void HandleExecutionResumedEvent(ExecutionResumedEvent resumedEvent, Action<HistoryEvent> eventProcessor)
         {
             Debug.Assert(suspendedOrchestrationMessages != null);
 
+            this.isSuspended = false;
             while (suspendedOrchestrationMessages.Count > 0)
             {
                 var currMsgInfo = suspendedOrchestrationMessages[0];
-                switch (currMsgInfo.historyEvent.EventType)
-                {
-                    case EventType.TaskCompleted:
-                        var taskCompleted = (TaskCompletedEvent)currMsgInfo.historyEvent;
-
-                        OpenTaskInfo info = this.openTasks[taskCompleted.TaskScheduledId];
-                        info.Result.SetResult(taskCompleted.Result);
-                        this.openTasks.Remove(taskCompleted.TaskScheduledId);
-                        break;
-                    case EventType.EventRaised:
-                        if (currMsgInfo.skipCarryOverEvents || !this.HasContinueAsNew)
-                        {
-                            var eventRaisedEvent = (EventRaisedEvent)currMsgInfo.historyEvent;
-                            currMsgInfo.taskOrchestration.RaiseEvent(this, eventRaisedEvent.Name, eventRaisedEvent.Input);
-                        }
-                        else
-                        {
-                            this.AddEventToNextIteration(currMsgInfo.historyEvent);
-                        }
-                        break;
-                    default:
-                        throw new NotImplementedException("Found unknown event when resuming orchestration.");
-
-                }
+                eventProcessor(currMsgInfo.historyEvent);
                 suspendedOrchestrationMessages.RemoveAt(0);
             }
-            this.isSuspended = false;
             suspendedOrchestrationMessages = null;
         }
 
