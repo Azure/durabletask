@@ -215,10 +215,10 @@ namespace DurableTask.Core
                     this.context.HandleEventSentEvent((EventSentEvent)historyEvent);
                     break;
                 case EventType.EventRaised:
-                    if (this.context.isSuspended)
+                    if (this.context.IsSuspended)
                     {
                         var msgInfo = new SuspendedOrchestrationMessageInfo(historyEvent, this.taskOrchestration, this.skipCarryOverEvents);
-                        this.context.suspendedOrchestrationMessages.Add(msgInfo);
+                        this.context.AddSuspendedOrchestrationMessage(msgInfo);
                     } else
                     {
                         if (this.skipCarryOverEvents || !this.context.HasContinueAsNew)

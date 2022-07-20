@@ -321,6 +321,66 @@ namespace DurableTask.Test.Orchestrations
         }
     }
 
+    public sealed class ChangeStatusOrchestration2 : TaskOrchestration<string, string>
+    {
+        TaskCompletionSource<string> waitForTriggerHandle;
+        private bool hasSetCustomStatus = false;
+        private string customStatus = null;
+
+        private async Task SetCustomStatus(OrchestrationContext context, string status)
+        {
+            this.hasSetCustomStatus = true;
+            this.customStatus = status;
+            // Dummy timer to persist state.
+            await context.CreateTimer<int>(context.CurrentUtcDateTime, 0);
+        }
+
+        public override async Task<string> RunTask(OrchestrationContext context, string status)
+        {
+            string newStatus = await this.WaitForTrigger();
+
+            if (newStatus == null)
+            {
+                return string.Empty;
+            }
+
+            await this.SetCustomStatus(context, newStatus);
+
+            return "Changed_status";
+        }
+
+        public override string OnGetStatus()
+        {
+            if (this.hasSetCustomStatus)
+            {
+                return this.customStatus;
+            }
+
+            return base.OnGetStatus();
+        }
+
+        async Task<string> WaitForTrigger()
+        {
+            this.waitForTriggerHandle = new TaskCompletionSource<string>();
+            string trigger = await this.waitForTriggerHandle.Task;
+            this.waitForTriggerHandle = null;
+            return trigger;
+        }
+
+        public override void OnEvent(OrchestrationContext context, string eventName, string status)
+        {
+            if (!"changeStatusNow".Equals(eventName))
+            {
+                throw new InvalidOperationException("Unknown event raised");
+            }
+
+            if (this.waitForTriggerHandle != null)
+            {
+                this.waitForTriggerHandle.SetResult(status);
+            }
+        }
+    }
+
     [KnownType(typeof(EventConversationOrchestration.Responder))]
     public sealed class EventConversationOrchestration : TaskOrchestration<string, bool>
     {

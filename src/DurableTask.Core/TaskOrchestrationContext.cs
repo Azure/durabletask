@@ -33,16 +33,22 @@ namespace DurableTask.Core
         private OrchestrationCompleteOrchestratorAction continueAsNew;
         private bool executionCompletedOrTerminated;
         private int idCounter;
-
         // Buffer to hold metadata associated with messages that arrive while orchestration is in suspended state
-        public List<SuspendedOrchestrationMessageInfo> suspendedOrchestrationMessages;
-        public bool isSuspended;
+        private List<SuspendedOrchestrationMessageInfo> suspendedOrchestrationMessages;
+
+        // Used during replay. Flag to indicate when the orchestration enters and exits the suspended state.
+        public bool IsSuspended { get; private set; }
 
         public bool HasContinueAsNew => continueAsNew != null;
 
         public void AddEventToNextIteration(HistoryEvent he)
         {
             continueAsNew.CarryoverEvents.Add(he);
+        }
+
+        public void AddSuspendedOrchestrationMessage(SuspendedOrchestrationMessageInfo msg)
+        {
+            suspendedOrchestrationMessages.Add(msg);
         }
 
         public TaskOrchestrationContext(
@@ -410,7 +416,7 @@ namespace DurableTask.Core
             int taskId = completedEvent.TaskScheduledId;
             if (this.openTasks.ContainsKey(taskId))
             {
-                if (this.isSuspended)
+                if (this.IsSuspended)
                 {
                     Debug.Assert(this.suspendedOrchestrationMessages != null);
 
@@ -554,7 +560,7 @@ namespace DurableTask.Core
 
         public void HandleExecutionSuspendedEvent(ExecutionSuspendedEvent suspendedEvent)
         {
-            this.isSuspended = true;
+            this.IsSuspended = true;
             Debug.Assert(this.suspendedOrchestrationMessages == null);
             this.suspendedOrchestrationMessages = new List<SuspendedOrchestrationMessageInfo>();
         }
@@ -592,7 +598,7 @@ namespace DurableTask.Core
                 }
                 suspendedOrchestrationMessages.RemoveAt(0);
             }
-            this.isSuspended = false;
+            this.IsSuspended = false;
             suspendedOrchestrationMessages = null;
         }
 

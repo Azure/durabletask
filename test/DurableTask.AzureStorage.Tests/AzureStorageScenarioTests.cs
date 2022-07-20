@@ -920,6 +920,129 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        /// <summary> 
+        /// Tests that the status of an orchestration changes when it is suspended and resumed.
+        /// </summary>
+        [TestMethod]
+        public async Task SuspendResumeCheckStatus()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
+            {
+                var suspendMsg = "sleepyOrch";
+                var resumeMsg = "wakeUp";
+
+                await host.StartAsync();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Counter), 0);
+                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
+                var status = await client.GetStatusAsync();
+
+                Assert.AreEqual(OrchestrationStatus.Running, status?.OrchestrationStatus);
+
+                await client.SuspendAsync(suspendMsg);
+                await Task.Delay(2000);
+                status = await client.GetStatusAsync();
+
+                Assert.AreEqual(OrchestrationStatus.Suspended, status?.OrchestrationStatus);
+                Assert.AreEqual(suspendMsg, status?.Output);
+
+                await client.ResumeAsync(resumeMsg);
+                await Task.Delay(2000);
+                status = await client.GetStatusAsync();
+
+                Assert.AreEqual(OrchestrationStatus.Running, status?.OrchestrationStatus);
+                Assert.AreEqual(resumeMsg, status?.Output);
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// Tests that an orchestration stays suspended even after receiving new events
+        /// </summary>
+        [TestMethod]
+        public async Task StaySuspended()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
+            {
+                string suspendReason = "noIncrement";
+                string resumeReason = "shouldIncrementNow";
+                int expectedResult = 1;
+
+                await host.StartAsync();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Counter), 0);
+                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
+                await client.SuspendAsync(suspendReason);
+                await Task.Delay(2000);
+                var status = await client.GetStatusAsync();
+
+                await client.RaiseEventAsync("operation", "incr");
+                await client.RaiseEventAsync("operation", "end");
+                await Task.Delay(2000);
+                status = await client.GetStatusAsync();
+
+                Assert.AreEqual(OrchestrationStatus.Suspended, status?.OrchestrationStatus);
+                Assert.AreEqual(suspendReason, status?.Output);
+
+                await client.ResumeAsync(resumeReason);
+                await Task.Delay(2000);
+                status = await client.GetStatusAsync();
+
+                Assert.AreEqual(expectedResult, JToken.Parse(status?.Output));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// Tests that a suspended orchestration does not execute the next line of code.
+        /// </summary>
+        [TestMethod]
+        public async Task SuspendNoNextExecution()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
+            {
+                string suspendReason = "Deactivate_bomb";
+
+                await host.StartAsync();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Bomb), "bomb");
+                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
+                await client.SuspendAsync(suspendReason);
+
+                // if this event goes through, the orchestration will throw an exception
+                await client.RaiseEventAsync("bombTrigger", "tryToDeactivate");
+                await Task.Delay(2000);
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// Tests that when you 
+        /// </summary>
+        [TestMethod]
+        public async Task ResumeNextExecution()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
+            {
+                string customStatus = "myStatus";
+
+                await host.StartAsync();
+                var client = await host.StartOrchestrationAsync(typeof(Test.Orchestrations.ChangeStatusOrchestration2), "originalStatus");
+                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
+                await client.SuspendAsync("sleep");
+
+                await client.RaiseEventAsync("changeStatusNow", customStatus);
+                await Task.Delay(2000);
+                await client.ResumeAsync("wakeUp");
+                await Task.Delay(2000);
+                var state = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, state?.OrchestrationStatus);
+                Assert.AreEqual(customStatus, JToken.Parse(state?.Status));
+            }
+        }
+
         /// <summary>
         /// End-to-end test which validates the Rewind functionality on more than one orchestration.
         /// </summary>
@@ -2497,6 +2620,38 @@ namespace DurableTask.AzureStorage.Tests
                     if (this.waitForOperationHandle != null)
                     {
                         this.waitForOperationHandle.SetResult(input);
+                    }
+                }
+            }
+
+            internal class Bomb : TaskOrchestration<string, string>
+            {
+                TaskCompletionSource<string> waitForTriggerHandle;
+
+                public override async Task<string> RunTask(OrchestrationContext context, string msg)
+                {
+                    string trigger = await this.WaitForTrigger();
+                    if (trigger != null)
+                    {
+                        throw new Exception("BOOM!");
+                    }
+                    return "You're Gucci";
+                }
+
+                async Task<string> WaitForTrigger()
+                {
+                    this.waitForTriggerHandle = new TaskCompletionSource<string>();
+                    string trigger = await this.waitForTriggerHandle.Task;
+                    this.waitForTriggerHandle = null;
+                    return trigger;
+                }
+
+                public override void OnEvent(OrchestrationContext context, string name, string input)
+                {
+                    Assert.AreEqual("bombTrigger", name, true, "Unknown signal recieved...");
+                    if (this.waitForTriggerHandle != null)
+                    {
+                        this.waitForTriggerHandle.SetResult(input);
                     }
                 }
             }

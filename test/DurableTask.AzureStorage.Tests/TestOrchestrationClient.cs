@@ -136,6 +136,22 @@ namespace DurableTask.AzureStorage.Tests
             return this.client.TerminateInstanceAsync(instance, reason);
         }
 
+        public Task SuspendAsync(string reason)
+        {
+            Trace.TraceInformation($"Suspending instance {this.instanceId} with reason = {reason}.");
+
+            var instance = new OrchestrationInstance { InstanceId = this.instanceId };
+            return this.client.SuspendInstanceAsync(instance, reason);
+        }
+
+        public Task ResumeAsync(string reason)
+        {
+            Trace.TraceInformation($"Resuming instance {this.instanceId} with reason = {reason}.");
+
+            var instance = new OrchestrationInstance { InstanceId = this.instanceId };
+            return this.client.ResumeInstanceAsync(instance, reason);
+        }
+
         public Task RewindAsync(string reason)
         {
             Trace.TraceInformation($"Rewinding instance {this.instanceId} with reason = {reason}.");
