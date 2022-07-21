@@ -920,6 +920,32 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        /// <summary>
+        /// Test that a suspended orchestration can be terminated.
+        /// </summary>
+        [TestMethod]
+        public async Task TerminateSuspendedOrchestration()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
+            {
+                await host.StartAsync();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Counter), 0);
+                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
+
+                await client.SuspendAsync("suspend");
+                await Task.Delay(2000);
+
+                await client.TerminateAsync("terminate");
+
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+
+                Assert.AreEqual(OrchestrationStatus.Terminated, status?.OrchestrationStatus);
+                Assert.AreEqual("terminate", status?.Output);
+
+                await host.StopAsync();
+            }
+        }
+
         /// <summary> 
         /// Tests that the status of an orchestration changes when it is suspended and resumed.
         /// </summary>
@@ -995,7 +1021,8 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
-        /// Tests that a suspended orchestration does not execute the next line of code.
+        /// Tests that a suspended orchestration does not execute the next line of code (by ensuring that the custom
+        /// status does not change).
         /// </summary>
         [TestMethod]
         public async Task SuspendNoNextExecution()
@@ -1021,6 +1048,7 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
 
                 Assert.AreEqual(OrchestrationStatus.Terminated, status?.OrchestrationStatus);
+                Assert.AreEqual(terminateReason, status?.Output);
                 Assert.AreEqual(originalStatus, JToken.Parse(status?.Status));
 
                 await host.StopAsync();
