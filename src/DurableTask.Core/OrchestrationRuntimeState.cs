@@ -68,7 +68,7 @@ namespace DurableTask.Core
         /// <summary>
         /// The OrchestrationStatus corresponding to the OrchestrationRuntimeStatus
         /// </summary>
-        public OrchestrationStatus _orchestrationStatus;
+        OrchestrationStatus orchestrationStatus;
 
         /// <summary>
         /// Creates a new instance of the OrchestrationRuntimeState
@@ -166,11 +166,7 @@ namespace DurableTask.Core
                     return ExecutionCompletedEvent.OrchestrationStatus;
                 }
 
-                return _orchestrationStatus;
-            }
-            set
-            {
-                _orchestrationStatus = value;
+                return orchestrationStatus;
             }
         }
 
@@ -267,6 +263,14 @@ namespace DurableTask.Core
                 }
 
                 ExecutionCompletedEvent = completedEvent;
+            }
+            else if (historyEvent is ExecutionSuspendedEvent)
+            {
+                orchestrationStatus = OrchestrationStatus.Suspended;
+            }
+            else if (historyEvent is ExecutionResumedEvent)
+            {
+                orchestrationStatus = OrchestrationStatus.Running;
             }
         }
 
