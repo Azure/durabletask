@@ -337,6 +337,8 @@ namespace DurableTask.Test.Orchestrations
 
         public override async Task<string> RunTask(OrchestrationContext context, string status)
         {
+            await this.SetCustomStatus(context, status);
+
             string newStatus = await this.WaitForTrigger();
 
             if (newStatus == null)

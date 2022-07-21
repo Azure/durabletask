@@ -1002,23 +1002,46 @@ namespace DurableTask.AzureStorage.Tests
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
             {
-                string suspendReason = "Deactivate_bomb";
+                string customStatus = "myStatus";
+                string originalStatus = "OGstatus";
+                string terminateReason = "end";
 
                 await host.StartAsync();
-                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Bomb), "bomb");
+                var client = await host.StartOrchestrationAsync(typeof(Test.Orchestrations.ChangeStatusOrchestration2), originalStatus);
                 await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
-                await client.SuspendAsync(suspendReason);
 
-                // if this event goes through, the orchestration will throw an exception
-                await client.RaiseEventAsync("bombTrigger", "tryToDeactivate");
+                await client.SuspendAsync("sleep");
                 await Task.Delay(2000);
 
+                await client.RaiseEventAsync("changeStatusNow", customStatus);
+                await Task.Delay(2000);
+
+                await client.TerminateAsync(terminateReason);
+
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+
+                Assert.AreEqual(OrchestrationStatus.Terminated, status?.OrchestrationStatus);
+                Assert.AreEqual(originalStatus, JToken.Parse(status?.Status));
+
                 await host.StopAsync();
+
+                /*                string suspendReason = "Deactivate_bomb";
+
+                                await host.StartAsync();
+                                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Bomb), "bomb");
+                                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
+                                await client.SuspendAsync(suspendReason);
+
+                                // if this event goes through, the orchestration will throw an exception
+                                await client.RaiseEventAsync("bombTrigger", "tryToDeactivate");
+                                await Task.Delay(2000);
+
+                                await host.StopAsync();*/
             }
         }
 
         /// <summary>
-        /// Tests that when you 
+        /// Tests that when you resume execution, the next line of code in the orchestration is executed
         /// </summary>
         [TestMethod]
         public async Task ResumeNextExecution()
