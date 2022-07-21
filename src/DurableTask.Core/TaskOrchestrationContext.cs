@@ -48,7 +48,7 @@ namespace DurableTask.Core
 
         public void AddSuspendedOrchestrationMessage(SuspendedOrchestrationMessageInfo msg)
         {
-            suspendedOrchestrationMessages.Add(msg);
+            this.suspendedOrchestrationMessages.Add(msg);
         }
 
         public TaskOrchestrationContext(
@@ -66,6 +66,7 @@ namespace DurableTask.Core
             OrchestrationInstance = orchestrationInstance;
             IsReplaying = false;
             ErrorPropagationMode = errorPropagationMode;
+            suspendedOrchestrationMessages = new List<SuspendedOrchestrationMessageInfo>();
         }
 
         public IEnumerable<OrchestratorAction> OrchestratorActions => this.orchestratorActionsMap.Values;
@@ -561,8 +562,6 @@ namespace DurableTask.Core
         public void HandleExecutionSuspendedEvent(ExecutionSuspendedEvent suspendedEvent)
         {
             this.IsSuspended = true;
-            Debug.Assert(this.suspendedOrchestrationMessages == null);
-            this.suspendedOrchestrationMessages = new List<SuspendedOrchestrationMessageInfo>();
         }
 
         public void HandleExecutionResumedEvent(ExecutionResumedEvent resumedEvent)
