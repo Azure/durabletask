@@ -25,11 +25,11 @@ namespace DurableTask.Core.History
         /// Creates a new ExecutionResumedEvent with the supplied params
         /// </summary>
         /// <param name="eventId">The event id of the history event</param>
-        /// <param name="input">The serialized input of the resuming event</param>
-        public ExecutionResumedEvent(int eventId, string input)
+        /// <param name="reason">The serialized reason of the resuming event</param>
+        public ExecutionResumedEvent(int eventId, string reason)
             : base(eventId)
         {
-            Input = input;
+            Reason = Reason;
         }
 
         /// <summary>
@@ -38,9 +38,9 @@ namespace DurableTask.Core.History
         public override EventType EventType => EventType.ExecutionResumed;
 
         /// <summary>
-        /// Gets or sets the serialized input for the the resuming event
+        /// Gets or sets the reason for the resuming event
         /// </summary>
         [DataMember]
-        public string Input { get; set; }
+        public string Reason { get; set; }
     }
 }
