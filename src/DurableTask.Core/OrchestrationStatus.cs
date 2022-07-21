@@ -54,7 +54,7 @@ namespace DurableTask.Core
         Pending,
 
         /// <summary>
-        /// Orchestration state of paused
+        /// Orchestration state of suspended
         /// </summary>
         Suspended,
     }
