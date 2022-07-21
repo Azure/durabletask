@@ -34,7 +34,7 @@ namespace DurableTask.Core
         private bool executionCompletedOrTerminated;
         private int idCounter;
         // Buffer to hold metadata associated with messages that arrive while orchestration is in suspended state
-        private List<SuspendedOrchestrationMessageInfo> suspendedOrchestrationMessages;
+        private readonly Queue<SuspendedOrchestrationMessageInfo> suspendedOrchestrationMessages;
 
         // Used during replay. Flag to indicate when the orchestration enters and exits the suspended state.
         public bool IsSuspended { get; private set; }
@@ -48,7 +48,7 @@ namespace DurableTask.Core
 
         public void AddSuspendedOrchestrationMessage(SuspendedOrchestrationMessageInfo msg)
         {
-            this.suspendedOrchestrationMessages.Add(msg);
+            this.suspendedOrchestrationMessages.Enqueue(msg);
         }
 
         public TaskOrchestrationContext(
@@ -66,7 +66,7 @@ namespace DurableTask.Core
             OrchestrationInstance = orchestrationInstance;
             IsReplaying = false;
             ErrorPropagationMode = errorPropagationMode;
-            suspendedOrchestrationMessages = new List<SuspendedOrchestrationMessageInfo>();
+            suspendedOrchestrationMessages = new Queue<SuspendedOrchestrationMessageInfo>();
         }
 
         public IEnumerable<OrchestratorAction> OrchestratorActions => this.orchestratorActionsMap.Values;
@@ -422,7 +422,7 @@ namespace DurableTask.Core
                     Debug.Assert(this.suspendedOrchestrationMessages != null);
 
                     var msgInfo = new SuspendedOrchestrationMessageInfo(completedEvent);
-                    suspendedOrchestrationMessages.Add(msgInfo);
+                    suspendedOrchestrationMessages.Enqueue(msgInfo);
                 }
                 else
                 {
@@ -566,11 +566,9 @@ namespace DurableTask.Core
 
         public void HandleExecutionResumedEvent(ExecutionResumedEvent resumedEvent)
         {
-            Debug.Assert(suspendedOrchestrationMessages != null);
-
             while (suspendedOrchestrationMessages.Count > 0)
             {
-                var currMsgInfo = suspendedOrchestrationMessages[0];
+                var currMsgInfo = suspendedOrchestrationMessages.Dequeue();
                 switch (currMsgInfo.historyEvent.EventType)
                 {
                     case EventType.TaskCompleted:
@@ -595,10 +593,8 @@ namespace DurableTask.Core
                         throw new NotImplementedException("Found unknown event when resuming orchestration.");
 
                 }
-                suspendedOrchestrationMessages.RemoveAt(0);
             }
             this.IsSuspended = false;
-            suspendedOrchestrationMessages = null;
         }
 
         public void FailOrchestration(Exception failure)
