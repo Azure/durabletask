@@ -215,28 +215,13 @@ namespace DurableTask.Core
                     this.context.HandleEventSentEvent((EventSentEvent)historyEvent);
                     break;
                 case EventType.EventRaised:
-                    if (this.context.IsSuspended)
-                    {
-                        var msgInfo = new SuspendedOrchestrationMessageInfo(historyEvent, this.taskOrchestration, this.skipCarryOverEvents);
-                        this.context.AddSuspendedOrchestrationMessage(msgInfo);
-                    } else
-                    {
-                        if (this.skipCarryOverEvents || !this.context.HasContinueAsNew)
-                        {
-                            var eventRaisedEvent = (EventRaisedEvent)historyEvent;
-                            this.taskOrchestration.RaiseEvent(this.context, eventRaisedEvent.Name, eventRaisedEvent.Input);
-                        }
-                        else
-                        {
-                            this.context.AddEventToNextIteration(historyEvent);
-                        }
-                    }
+                    this.context.HandleEventRaisedEvent(historyEvent, this.skipCarryOverEvents, this.taskOrchestration);
                     break;
                 case EventType.ExecutionSuspended:
                     this.context.HandleExecutionSuspendedEvent((ExecutionSuspendedEvent)historyEvent);
                     break;
                 case EventType.ExecutionResumed:
-                    this.context.HandleExecutionResumedEvent((ExecutionResumedEvent)historyEvent);
+                    this.context.HandleExecutionResumedEvent((ExecutionResumedEvent)historyEvent, ProcessEvent);
                     break;
             }
         }
