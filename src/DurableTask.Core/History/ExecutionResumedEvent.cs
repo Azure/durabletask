@@ -29,7 +29,7 @@ namespace DurableTask.Core.History
         public ExecutionResumedEvent(int eventId, string reason)
             : base(eventId)
         {
-            Reason = Reason;
+            Reason = reason;
         }
 
         /// <summary>
