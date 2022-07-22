@@ -63,6 +63,8 @@ namespace DurableTask.Core.Common
 #endif
         };
 
+        internal static readonly JsonSerializerSettings defaultSerializerSettings = new JsonSerializerSettings();
+
         /// <summary>
         /// Gets or sets the name of the app, for use when writing structured event source traces.
         /// </summary>

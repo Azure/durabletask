@@ -250,7 +250,7 @@ namespace DurableTask.AzureStorage.Storage
             if (!string.IsNullOrEmpty(continuationToken))
             {
                 var tokenContent = Encoding.UTF8.GetString(Convert.FromBase64String(continuationToken));
-                tableContinuationToken = JsonConvert.DeserializeObject<TableContinuationToken>(tokenContent);
+                tableContinuationToken = JsonConvert.DeserializeObject<TableContinuationToken>(tokenContent, Utils.defaultSerializerSettings);
             }
 
             var stopwatch = new Stopwatch();
@@ -277,7 +277,7 @@ namespace DurableTask.AzureStorage.Storage
             string? newContinuationToken = null;
             if (segment.ContinuationToken != null)
             {
-                string tokenJson = JsonConvert.SerializeObject(segment.ContinuationToken);
+                string tokenJson = JsonConvert.SerializeObject(segment.ContinuationToken, Utils.defaultSerializerSettings);
                 newContinuationToken = Convert.ToBase64String(Encoding.UTF8.GetBytes(tokenJson));
             }
 

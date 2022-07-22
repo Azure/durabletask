@@ -95,7 +95,7 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             Blob leaseBlob = this.taskHubContainer.GetBlobReference(partitionId, this.blobDirectoryName);
             BlobLease lease = new BlobLease(leaseBlob) { PartitionId = partitionId };
-            string serializedLease = JsonConvert.SerializeObject(lease);
+            string serializedLease = JsonConvert.SerializeObject(lease, Utils.defaultSerializerSettings);
             try
             {
                 this.settings.Logger.PartitionManagerInfo(
@@ -178,7 +178,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 lease.Owner = owner;
                 // Increment Epoch each time lease is acquired or stolen by new host
                 lease.Epoch += 1;
-                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(lease), leaseId: lease.Token);
+                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(lease, Utils.defaultSerializerSettings), leaseId: lease.Token);
             }
             catch (DurableTaskStorageException storageException)
             {
@@ -198,7 +198,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 BlobLease copy = new BlobLease(lease);
                 copy.Token = null;
                 copy.Owner = null;
-                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(copy), leaseId);
+                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(copy, Utils.defaultSerializerSettings), leaseId);
                 await leaseBlob.ReleaseLeaseAsync(leaseId);
             }
             catch (DurableTaskStorageException storageException)
@@ -239,7 +239,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
             try
             {
-                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(lease), lease.Token);
+                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(lease, Utils.defaultSerializerSettings), lease.Token);
             }
             catch (DurableTaskStorageException storageException)
             {
@@ -251,7 +251,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         public async Task CreateTaskHubInfoIfNotExistAsync(TaskHubInfo taskHubInfo)
         {
-            string serializedInfo = JsonConvert.SerializeObject(taskHubInfo);
+            string serializedInfo = JsonConvert.SerializeObject(taskHubInfo, Utils.defaultSerializerSettings);
             try
             {
                 await this.taskHubInfoBlob.UploadTextAsync(serializedInfo, ifDoesntExist: true);
@@ -279,7 +279,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
                     try
                     {
-                        string serializedInfo = JsonConvert.SerializeObject(newTaskHubInfo);
+                        string serializedInfo = JsonConvert.SerializeObject(newTaskHubInfo, Utils.defaultSerializerSettings);
                         await this.taskHubInfoBlob.UploadTextAsync(serializedInfo);
                     } 
                     catch (DurableTaskStorageException)
@@ -315,7 +315,7 @@ namespace DurableTask.AzureStorage.Partitioning
             {
                 await taskHubInfoBlob.FetchAttributesAsync();
                 string serializedEventHubInfo = await this.taskHubInfoBlob.DownloadTextAsync();
-                return JsonConvert.DeserializeObject<TaskHubInfo>(serializedEventHubInfo);
+                return JsonConvert.DeserializeObject<TaskHubInfo>(serializedEventHubInfo, Utils.defaultSerializerSettings);
             }
 
             return null;
@@ -338,7 +338,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 SimpleBufferManager.Shared.ReturnBuffer(buffer);
             }
 
-            BlobLease deserializedLease = JsonConvert.DeserializeObject<BlobLease>(serializedLease);
+            BlobLease deserializedLease = JsonConvert.DeserializeObject<BlobLease>(serializedLease, Utils.defaultSerializerSettings);
             deserializedLease.Blob = blob;
 
             // Workaround: for some reason storage client reports incorrect blob properties after downloading the blob
