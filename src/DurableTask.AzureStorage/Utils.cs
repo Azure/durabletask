@@ -21,6 +21,7 @@ namespace DurableTask.AzureStorage
     using System.Threading.Tasks;
     using DurableTask.Core;
     using DurableTask.Core.History;
+    using Newtonsoft.Json;
 
     static class Utils
     {
