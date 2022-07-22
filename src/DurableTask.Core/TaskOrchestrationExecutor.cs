@@ -177,52 +177,59 @@ namespace DurableTask.Core
 
         void ProcessEvent(HistoryEvent historyEvent)
         {
-            switch (historyEvent.EventType)
+            if (this.context.IsSuspended && !(historyEvent.EventType == EventType.ExecutionResumed || historyEvent.EventType == EventType.ExecutionTerminated))
             {
-                case EventType.ExecutionStarted:
-                    var executionStartedEvent = (ExecutionStartedEvent)historyEvent;
-                    this.result = this.taskOrchestration.Execute(this.context, executionStartedEvent.Input);
-                    break;
-                case EventType.ExecutionTerminated:
-                    this.context.HandleExecutionTerminatedEvent((ExecutionTerminatedEvent)historyEvent);
-                    break;
-                case EventType.TaskScheduled:
-                    this.context.HandleTaskScheduledEvent((TaskScheduledEvent)historyEvent);
-                    break;
-                case EventType.TaskCompleted:
-                    this.context.HandleTaskCompletedEvent((TaskCompletedEvent)historyEvent);
-                    break;
-                case EventType.TaskFailed:
-                    this.context.HandleTaskFailedEvent((TaskFailedEvent)historyEvent);
-                    break;
-                case EventType.SubOrchestrationInstanceCreated:
-                    this.context.HandleSubOrchestrationCreatedEvent((SubOrchestrationInstanceCreatedEvent)historyEvent);
-                    break;
-                case EventType.SubOrchestrationInstanceCompleted:
-                    this.context.HandleSubOrchestrationInstanceCompletedEvent(
-                        (SubOrchestrationInstanceCompletedEvent)historyEvent);
-                    break;
-                case EventType.SubOrchestrationInstanceFailed:
-                    this.context.HandleSubOrchestrationInstanceFailedEvent((SubOrchestrationInstanceFailedEvent)historyEvent);
-                    break;
-                case EventType.TimerCreated:
-                    this.context.HandleTimerCreatedEvent((TimerCreatedEvent)historyEvent);
-                    break;
-                case EventType.TimerFired:
-                    this.context.HandleTimerFiredEvent((TimerFiredEvent)historyEvent);
-                    break;
-                case EventType.EventSent:
-                    this.context.HandleEventSentEvent((EventSentEvent)historyEvent);
-                    break;
-                case EventType.EventRaised:
-                    this.context.HandleEventRaisedEvent(historyEvent, this.skipCarryOverEvents, this.taskOrchestration);
-                    break;
-                case EventType.ExecutionSuspended:
-                    this.context.HandleExecutionSuspendedEvent((ExecutionSuspendedEvent)historyEvent);
-                    break;
-                case EventType.ExecutionResumed:
-                    this.context.HandleExecutionResumedEvent((ExecutionResumedEvent)historyEvent, ProcessEvent);
-                    break;
+                this.context.HandleEventWhileSuspended(historyEvent);
+            }
+            else
+            {
+                switch (historyEvent.EventType)
+                {
+                    case EventType.ExecutionStarted:
+                        var executionStartedEvent = (ExecutionStartedEvent)historyEvent;
+                        this.result = this.taskOrchestration.Execute(this.context, executionStartedEvent.Input);
+                        break;
+                    case EventType.ExecutionTerminated:
+                        this.context.HandleExecutionTerminatedEvent((ExecutionTerminatedEvent)historyEvent);
+                        break;
+                    case EventType.TaskScheduled:
+                        this.context.HandleTaskScheduledEvent((TaskScheduledEvent)historyEvent);
+                        break;
+                    case EventType.TaskCompleted:
+                        this.context.HandleTaskCompletedEvent((TaskCompletedEvent)historyEvent);
+                        break;
+                    case EventType.TaskFailed:
+                        this.context.HandleTaskFailedEvent((TaskFailedEvent)historyEvent);
+                        break;
+                    case EventType.SubOrchestrationInstanceCreated:
+                        this.context.HandleSubOrchestrationCreatedEvent((SubOrchestrationInstanceCreatedEvent)historyEvent);
+                        break;
+                    case EventType.SubOrchestrationInstanceCompleted:
+                        this.context.HandleSubOrchestrationInstanceCompletedEvent(
+                            (SubOrchestrationInstanceCompletedEvent)historyEvent);
+                        break;
+                    case EventType.SubOrchestrationInstanceFailed:
+                        this.context.HandleSubOrchestrationInstanceFailedEvent((SubOrchestrationInstanceFailedEvent)historyEvent);
+                        break;
+                    case EventType.TimerCreated:
+                        this.context.HandleTimerCreatedEvent((TimerCreatedEvent)historyEvent);
+                        break;
+                    case EventType.TimerFired:
+                        this.context.HandleTimerFiredEvent((TimerFiredEvent)historyEvent);
+                        break;
+                    case EventType.EventSent:
+                        this.context.HandleEventSentEvent((EventSentEvent)historyEvent);
+                        break;
+                    case EventType.EventRaised:
+                        this.context.HandleEventRaisedEvent(historyEvent, this.skipCarryOverEvents, this.taskOrchestration);
+                        break;
+                    case EventType.ExecutionSuspended:
+                        this.context.HandleExecutionSuspendedEvent((ExecutionSuspendedEvent)historyEvent);
+                        break;
+                    case EventType.ExecutionResumed:
+                        this.context.HandleExecutionResumedEvent((ExecutionResumedEvent)historyEvent, ProcessEvent);
+                        break;
+                }
             }
         }
 

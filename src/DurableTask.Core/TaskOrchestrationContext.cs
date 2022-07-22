@@ -33,10 +33,8 @@ namespace DurableTask.Core
         private OrchestrationCompleteOrchestratorAction continueAsNew;
         private bool executionCompletedOrTerminated;
         private int idCounter;
-        // Buffer to hold metadata associated with messages that arrive while orchestration is in suspended state
-        private readonly Queue<SuspendedOrchestrationMessageInfo> suspendedOrchestrationMessages;
+        private readonly Queue<HistoryEvent> eventsWhileSuspended;
 
-        // Used during replay. Flag to indicate when the orchestration enters and exits the suspended state.
         public bool IsSuspended { get; private set; }
 
         public bool HasContinueAsNew => continueAsNew != null;
@@ -46,9 +44,9 @@ namespace DurableTask.Core
             continueAsNew.CarryoverEvents.Add(he);
         }
 
-        public void AddSuspendedOrchestrationMessage(SuspendedOrchestrationMessageInfo msg)
+        public void HandleEventWhileSuspended(HistoryEvent historyEvent)
         {
-            this.suspendedOrchestrationMessages.Enqueue(msg);
+            this.eventsWhileSuspended.Enqueue(historyEvent);
         }
 
         public TaskOrchestrationContext(
@@ -66,7 +64,7 @@ namespace DurableTask.Core
             OrchestrationInstance = orchestrationInstance;
             IsReplaying = false;
             ErrorPropagationMode = errorPropagationMode;
-            suspendedOrchestrationMessages = new Queue<SuspendedOrchestrationMessageInfo>();
+            eventsWhileSuspended = new Queue<HistoryEvent>();
         }
 
         public IEnumerable<OrchestratorAction> OrchestratorActions => this.orchestratorActionsMap.Values;
@@ -413,22 +411,14 @@ namespace DurableTask.Core
 
         public void HandleEventRaisedEvent(HistoryEvent historyEvent, bool skipCarryOverEvents, TaskOrchestration taskOrchestration)
         {
-            if (this.IsSuspended)
+            if (skipCarryOverEvents || !this.HasContinueAsNew)
             {
-                var msgInfo = new SuspendedOrchestrationMessageInfo(historyEvent, taskOrchestration, skipCarryOverEvents);
-                this.AddSuspendedOrchestrationMessage(msgInfo);
+                var eventRaisedEvent = (EventRaisedEvent)historyEvent;
+                taskOrchestration.RaiseEvent(this, eventRaisedEvent.Name, eventRaisedEvent.Input);
             }
             else
             {
-                if (skipCarryOverEvents || !this.HasContinueAsNew)
-                {
-                    var eventRaisedEvent = (EventRaisedEvent)historyEvent;
-                    taskOrchestration.RaiseEvent(this, eventRaisedEvent.Name, eventRaisedEvent.Input);
-                }
-                else
-                {
-                    this.AddEventToNextIteration(historyEvent);
-                }
+                this.AddEventToNextIteration(historyEvent);
             }
         }
 
@@ -438,20 +428,10 @@ namespace DurableTask.Core
             int taskId = completedEvent.TaskScheduledId;
             if (this.openTasks.ContainsKey(taskId))
             {
-                if (this.IsSuspended)
-                {
-                    Debug.Assert(this.suspendedOrchestrationMessages != null);
+                OpenTaskInfo info = this.openTasks[taskId];
+                info.Result.SetResult(completedEvent.Result);
 
-                    var msgInfo = new SuspendedOrchestrationMessageInfo(completedEvent);
-                    suspendedOrchestrationMessages.Enqueue(msgInfo);
-                }
-                else
-                {
-                    OpenTaskInfo info = this.openTasks[taskId];
-                    info.Result.SetResult(completedEvent.Result);
-
-                    this.openTasks.Remove(taskId);
-                }
+                this.openTasks.Remove(taskId);
             }
             else
             {
@@ -588,10 +568,9 @@ namespace DurableTask.Core
         public void HandleExecutionResumedEvent(ExecutionResumedEvent resumedEvent, Action<HistoryEvent> eventProcessor)
         {
             this.IsSuspended = false;
-            while (suspendedOrchestrationMessages.Count > 0)
+            while (eventsWhileSuspended.Count > 0)
             {
-                var currMsgInfo = suspendedOrchestrationMessages.Dequeue();
-                eventProcessor(currMsgInfo.historyEvent);
+                eventProcessor(eventsWhileSuspended.Dequeue());
             }
         }
 

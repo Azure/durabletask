@@ -721,16 +721,16 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        ///     Forcefully suspend the specified orchestration instance
+        ///     Suspend the specified orchestration instance.
         /// </summary>
-        /// <param name="orchestrationInstance">Instance to terminate</param>
+        /// <param name="orchestrationInstance">Instance to suspend.</param>
         public Task SuspendInstanceAsync(OrchestrationInstance orchestrationInstance)
         {
             return this.SuspendInstanceAsync(orchestrationInstance, string.Empty);
         }
 
         /// <summary>
-        ///     Suspend the specified orchestration instance with a reason
+        ///     Suspend the specified orchestration instance with a reason.
         /// </summary>
         /// <param name="orchestrationInstance">Instance to suspend</param>
         /// <param name="reason">Reason for suspending the instance</param>
@@ -746,7 +746,7 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        ///     Resume the specified orchestration instance
+        ///     Resume the specified orchestration instance.
         /// </summary>
         /// <param name="orchestrationInstance">Instance to resume</param>
         public Task ResumeInstanceAsync(OrchestrationInstance orchestrationInstance)
@@ -755,7 +755,7 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        ///     Resume the specified orchestration instance with a reason
+        ///     Resume the specified orchestration instance with a reason.
         /// </summary>
         /// <param name="orchestrationInstance">Instance to resume</param>
         /// <param name="reason">Reason for resuming the instance</param>

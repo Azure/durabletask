@@ -25,6 +25,8 @@ namespace DurableTask.Core
     /// </summary>
     public class OrchestrationRuntimeState
     {
+        private OrchestrationStatus orchestrationStatus;
+
         /// <summary>
         /// List of all history events for this runtime state.
         /// Note that this list is frequently a combination of <see cref="PastEvents"/> and <see cref="NewEvents"/>, but not always.
@@ -64,11 +66,6 @@ namespace DurableTask.Core
         /// The string status of the runtime state
         /// </summary>
         public string? Status;
-
-        /// <summary>
-        /// The OrchestrationStatus corresponding to the OrchestrationRuntimeStatus
-        /// </summary>
-        OrchestrationStatus orchestrationStatus;
 
         /// <summary>
         /// Creates a new instance of the OrchestrationRuntimeState

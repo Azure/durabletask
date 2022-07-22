@@ -983,7 +983,7 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
-        /// Tests that an orchestration stays suspended even after receiving new events
+        /// Tests that an orchestration stays suspended even after receiving new events.
         /// </summary>
         [TestMethod]
         public async Task StaySuspended()
@@ -1052,24 +1052,11 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(originalStatus, JToken.Parse(status?.Status));
 
                 await host.StopAsync();
-
-                /*                string suspendReason = "Deactivate_bomb";
-
-                                await host.StartAsync();
-                                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Bomb), "bomb");
-                                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
-                                await client.SuspendAsync(suspendReason);
-
-                                // if this event goes through, the orchestration will throw an exception
-                                await client.RaiseEventAsync("bombTrigger", "tryToDeactivate");
-                                await Task.Delay(2000);
-
-                                await host.StopAsync();*/
             }
         }
 
         /// <summary>
-        /// Tests that when you resume execution, the next line of code in the orchestration is executed
+        /// Tests that when you resume execution, the next line of code in the orchestration is executed.
         /// </summary>
         [TestMethod]
         public async Task ResumeNextExecution()
@@ -2671,38 +2658,6 @@ namespace DurableTask.AzureStorage.Tests
                     if (this.waitForOperationHandle != null)
                     {
                         this.waitForOperationHandle.SetResult(input);
-                    }
-                }
-            }
-
-            internal class Bomb : TaskOrchestration<string, string>
-            {
-                TaskCompletionSource<string> waitForTriggerHandle;
-
-                public override async Task<string> RunTask(OrchestrationContext context, string msg)
-                {
-                    string trigger = await this.WaitForTrigger();
-                    if (trigger != null)
-                    {
-                        throw new Exception("BOOM!");
-                    }
-                    return "You're Gucci";
-                }
-
-                async Task<string> WaitForTrigger()
-                {
-                    this.waitForTriggerHandle = new TaskCompletionSource<string>();
-                    string trigger = await this.waitForTriggerHandle.Task;
-                    this.waitForTriggerHandle = null;
-                    return trigger;
-                }
-
-                public override void OnEvent(OrchestrationContext context, string name, string input)
-                {
-                    Assert.AreEqual("bombTrigger", name, true, "Unknown signal recieved...");
-                    if (this.waitForTriggerHandle != null)
-                    {
-                        this.waitForTriggerHandle.SetResult(input);
                     }
                 }
             }
