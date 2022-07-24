@@ -14,19 +14,20 @@
 namespace DurableTask.Core.Middleware
 {
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading.Tasks;
 
     internal class DispatchMiddlewarePipeline
     {
-        readonly IList<Func<DispatchMiddlewareDelegate, DispatchMiddlewareDelegate>> components =
-            new List<Func<DispatchMiddlewareDelegate, DispatchMiddlewareDelegate>>();
+        readonly ConcurrentStack<Func<DispatchMiddlewareDelegate, DispatchMiddlewareDelegate>> components =
+            new ConcurrentStack<Func<DispatchMiddlewareDelegate, DispatchMiddlewareDelegate>>();
 
         public Task RunAsync(DispatchMiddlewareContext context, DispatchMiddlewareDelegate handler)
         {
             // Build the delegate chain
-            foreach (Func<DispatchMiddlewareDelegate, DispatchMiddlewareDelegate> component in this.components.Reverse())
+            foreach (Func<DispatchMiddlewareDelegate, DispatchMiddlewareDelegate> component in this.components)
             {
                 handler = component(handler);
             }
@@ -36,7 +37,7 @@ namespace DurableTask.Core.Middleware
 
         public void Add(Func<DispatchMiddlewareContext, Func<Task>, Task> middleware)
         {
-            this.components.Add(next =>
+            this.components.Push(next =>
             {
                 return context =>
                 {
