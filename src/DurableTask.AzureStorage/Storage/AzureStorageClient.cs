@@ -34,19 +34,19 @@ namespace DurableTask.AzureStorage.Storage
                 throw new ArgumentNullException(nameof(settings));
             }
 
-            if (settings.StorageAccountDetails?.BlobClientProvider == null)
+            if (settings.BlobStorageProvider == null)
             {
-                throw new ArgumentException("Blob client provider is not specified.", nameof(settings));
+                throw new ArgumentException("Blob storage provider is not specified.", nameof(settings));
             }
 
-            if (settings.StorageAccountDetails?.QueueClientProvider == null)
+            if (settings.QueueStorageProvider == null)
             {
-                throw new ArgumentException("Queue client provider is not specified.", nameof(settings));
+                throw new ArgumentException("Queue storage provider is not specified.", nameof(settings));
             }
 
-            if (settings.StorageAccountDetails?.TableClientProvider == null)
+            if (settings.TableStorageProvider == null)
             {
-                throw new ArgumentException("Table client provider is not specified.", nameof(settings));
+                throw new ArgumentException("Table storage provider is not specified.", nameof(settings));
             }
 
             this.Settings = settings;
@@ -56,11 +56,9 @@ namespace DurableTask.AzureStorage.Storage
             var throttlingPolicy = new ThrottlingHttpPipelinePolicy(this.Settings.MaxStorageOperationConcurrency);
             var monitoringPolicy = new MonitoringHttpPipelinePolicy(this.Stats);
 
-            this.blobClient = settings.StorageAccountDetails.BlobClientProvider.Create(o => AddPolicies(o, exceptionPolicy, throttlingPolicy, monitoringPolicy));
-            this.queueClient = settings.StorageAccountDetails.QueueClientProvider.Create(o => AddPolicies(o, exceptionPolicy, throttlingPolicy, monitoringPolicy));
-            this.tableClient = settings.HasTrackingStoreStorageAccount
-                ? settings.TrackingStoreClientProvider!.Create(o => AddPolicies(o, exceptionPolicy, throttlingPolicy, monitoringPolicy))
-                : settings.StorageAccountDetails.TableClientProvider.Create(o => AddPolicies(o, exceptionPolicy, throttlingPolicy, monitoringPolicy));
+            this.blobClient = CreateClient(settings.BlobStorageProvider, exceptionPolicy, throttlingPolicy, monitoringPolicy);
+            this.queueClient = CreateClient(settings.QueueStorageProvider, exceptionPolicy, throttlingPolicy, monitoringPolicy);
+            this.tableClient = CreateClient(settings.TableStorageProvider, exceptionPolicy, throttlingPolicy, monitoringPolicy);
         }
 
         public AzureStorageOrchestrationServiceSettings Settings { get; }
@@ -98,11 +96,20 @@ namespace DurableTask.AzureStorage.Storage
             return new Table(this, this.tableClient, tableName);
         }
 
-        static void AddPolicies(ClientOptions options, ExceptionHttpPipelinePolicy exceptionPolicy, ThrottlingHttpPipelinePolicy throttlePolicy, MonitoringHttpPipelinePolicy monitoringPolicy)
+        static TClient CreateClient<TClient, TClientOptions>(
+            IAzureStorageProvider<TClient, TClientOptions> storageProvider,
+            ExceptionHttpPipelinePolicy exceptionPolicy,
+            ThrottlingHttpPipelinePolicy throttlePolicy,
+            MonitoringHttpPipelinePolicy monitoringPolicy)
+            where TClientOptions : ClientOptions
         {
+            TClientOptions options = storageProvider.CreateOptions();
+
             options.AddPolicy(exceptionPolicy, HttpPipelinePosition.PerCall);
             options.AddPolicy(throttlePolicy, HttpPipelinePosition.PerCall);
             options.AddPolicy(monitoringPolicy, HttpPipelinePosition.PerRetry);
+
+            return storageProvider.CreateClient(options);
         }
     }
 }

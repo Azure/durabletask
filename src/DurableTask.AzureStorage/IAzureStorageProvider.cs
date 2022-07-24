@@ -13,7 +13,6 @@
 #nullable enable
 namespace DurableTask.AzureStorage
 {
-    using System;
     using Azure.Core;
 
     /// <summary>
@@ -21,35 +20,22 @@ namespace DurableTask.AzureStorage
     /// </summary>
     /// <typeparam name="TClient">The type of the client.</typeparam>
     /// <typeparam name="TClientOptions">The type of the options used by the client.</typeparam>
-    public abstract class AzureStorageProvider<TClient, TClientOptions> where TClientOptions : ClientOptions
+    public interface IAzureStorageProvider<TClient, TClientOptions> where TClientOptions : ClientOptions
     {
-        /// <summary>
-        /// Creates a client for the Azure Storage service.
-        /// </summary>
-        /// <param name="configureOptions">An optional delegate for configuring the client.</param>
-        /// <returns>The corresponding client.</returns>
-        public TClient Create(Action<TClientOptions>? configureOptions = null)
-        {
-            TClientOptions options = this.CreateOptions();
-
-            configureOptions?.Invoke(options);
-            return this.CreateClient(options);
-        }
-
         /// <summary>
         /// Creates the options for the client.
         /// </summary>
         /// <remarks>
-        /// The result may be modified by callers to <see cref="Create(Action{TClientOptions}?)"/>.
+        /// The result may be modified by callers before invoking <see cref="CreateClient(TClientOptions)"/>.
         /// </remarks>
         /// <returns>The corresponding client options.</returns>
-        protected abstract TClientOptions CreateOptions();
+        TClientOptions CreateOptions();
 
         /// <summary>
         /// Creates the client based on the given <paramref name="options"/>.
         /// </summary>
         /// <param name="options">Options for the client.</param>
         /// <returns>The corresponding client.</returns>
-        protected abstract TClient CreateClient(TClientOptions options);
+        TClient CreateClient(TClientOptions options);
     }
 }

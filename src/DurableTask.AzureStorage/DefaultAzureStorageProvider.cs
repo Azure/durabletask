@@ -16,7 +16,7 @@ namespace DurableTask.AzureStorage
     using System;
     using Azure.Core;
 
-    sealed class DefaultAzureStorageProvider<TClient, TClientOptions> : AzureStorageProvider<TClient, TClientOptions> where TClientOptions : ClientOptions
+    sealed class DefaultAzureStorageProvider<TClient, TClientOptions> : IAzureStorageProvider<TClient, TClientOptions> where TClientOptions : ClientOptions
     {
         readonly Func<TClientOptions, TClient> factory;
         readonly TClientOptions options;
@@ -27,12 +27,12 @@ namespace DurableTask.AzureStorage
             this.options = options ?? throw new ArgumentNullException(nameof(options));
         }
 
-        protected override TClient CreateClient(TClientOptions options)
+        public TClient CreateClient(TClientOptions options)
         {
             return this.factory(options);
         }
 
-        protected override TClientOptions CreateOptions()
+        public TClientOptions CreateOptions()
         {
             return this.options;
         }

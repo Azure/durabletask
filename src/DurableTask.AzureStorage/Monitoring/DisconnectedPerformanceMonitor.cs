@@ -51,22 +51,9 @@ namespace DurableTask.AzureStorage.Monitoring
         /// </summary>
         /// <param name="storageConnectionString">The connection string for the Azure Storage account to monitor.</param>
         /// <param name="taskHub">The name of the task hub within the specified storage account.</param>
-        public DisconnectedPerformanceMonitor(string storageConnectionString, string taskHub)
-            : this(StorageAccountDetails.FromConnectionString(storageConnectionString), taskHub, null)
-        {
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="DisconnectedPerformanceMonitor"/> class.
-        /// </summary>
-        /// <param name="storageAccount">The Azure Storage account to monitor.</param>
-        /// <param name="taskHub">The name of the task hub within the specified storage account.</param>
         /// <param name="maxPollingIntervalMilliseconds">The maximum interval in milliseconds for polling control and work-item queues.</param>
-        public DisconnectedPerformanceMonitor(
-            StorageAccountDetails storageAccount,
-            string taskHub,
-            int? maxPollingIntervalMilliseconds = null)
-            : this(GetSettings(storageAccount, taskHub, maxPollingIntervalMilliseconds))
+        public DisconnectedPerformanceMonitor(string storageConnectionString, string taskHub, int? maxPollingIntervalMilliseconds = null)
+            : this(GetSettings(storageConnectionString, taskHub, maxPollingIntervalMilliseconds))
         {
         }
 
@@ -97,15 +84,11 @@ namespace DurableTask.AzureStorage.Monitoring
         internal QueueMetricHistory WorkItemQueueLatencies => this.workItemQueueLatencies;
 
         static AzureStorageOrchestrationServiceSettings GetSettings(
-            StorageAccountDetails storageAccount,
+            string connectionString,
             string taskHub,
             int? maxPollingIntervalMilliseconds = null)
         {
-            var settings = new AzureStorageOrchestrationServiceSettings
-            {
-                StorageAccountDetails = storageAccount,
-                TaskHubName = taskHub
-            };
+            var settings = new AzureStorageOrchestrationServiceSettings(connectionString) { TaskHubName = taskHub };
 
             if (maxPollingIntervalMilliseconds != null)
             {
@@ -597,22 +580,6 @@ namespace DurableTask.AzureStorage.Monitoring
 
                 builder.Remove(builder.Length - 1, 1).Append(']');
                 return builder.ToString();
-            }
-
-            static void ThrowIfNegative(string paramName, double value)
-            {
-                if (value < 0.0)
-                {
-                    throw new ArgumentOutOfRangeException(paramName, value, $"{paramName} cannot be negative.");
-                }
-            }
-
-            static void ThrowIfPositive(string paramName, double value)
-            {
-                if (value > 0.0)
-                {
-                    throw new ArgumentOutOfRangeException(paramName, value, $"{paramName} cannot be positive.");
-                }
             }
         }
     }

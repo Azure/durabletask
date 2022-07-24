@@ -16,6 +16,8 @@ namespace DurableTask.AzureStorage
     using System;
     using System.Runtime.Serialization;
     using Azure.Data.Tables;
+    using Azure.Storage.Blobs;
+    using Azure.Storage.Queues;
     using DurableTask.AzureStorage.Logging;
     using DurableTask.AzureStorage.Partitioning;
     using DurableTask.Core;
@@ -31,6 +33,28 @@ namespace DurableTask.AzureStorage
         internal static readonly TimeSpan DefaultMaxQueuePollingInterval = TimeSpan.FromSeconds(30);
 
         LogHelper? logHelper;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="AzureStorageOrchestrationServiceSettings"/>.
+        /// </summary>
+        public AzureStorageOrchestrationServiceSettings()
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="AzureStorageOrchestrationServiceSettings"/> whose
+        /// Azure storage account providers are based on the given <paramref name="connectionString"/>.
+        /// </summary>
+        /// <param name="connectionString"></param>
+        /// <exception cref="ArgumentNullException">
+        /// <paramref name="connectionString"/> is <see langword="null"/> or consists entirely of white space.
+        /// </exception>
+        public AzureStorageOrchestrationServiceSettings(string connectionString)
+        {
+            this.BlobStorageProvider = AzureStorageProvider.ForBlob(connectionString);
+            this.QueueStorageProvider = AzureStorageProvider.ForQueue(connectionString);
+            this.TableStorageProvider = AzureStorageProvider.ForTable(connectionString);
+        }
 
         /// <summary>
         /// Gets or sets the name of the app.
@@ -60,16 +84,15 @@ namespace DurableTask.AzureStorage
         public TimeSpan WorkItemQueueVisibilityTimeout { get; set; } = TimeSpan.FromMinutes(5);
 
         /// <summary>
-        /// Gets or sets the prefix of the TrackingStore table name.
-        /// This property is only used when we have TrackingStoreStorageAccountDetails.
-        /// The default is "DurableTask"
-        /// </summary>
-        public string TrackingStoreNamePrefix { get; set; } = "DurableTask";
-
-        /// <summary>
         /// Gets or sets the name of the task hub. This value is used to group related storage resources.
         /// </summary>
         public string TaskHubName { get; set; } = "Default";
+
+        /// <summary>
+        /// Gets or sets the optional prefix used for the various tracking table names.
+        /// </summary>
+        /// <remarks>If left unspecified, tables reuse the <see cref="TaskHubName"/> as their prefix.</remarks>
+        public string? TrackingStoreNamePrefix { get; set; }
 
         /// <summary>
         /// Gets or sets the maximum number of work items that can be processed concurrently on a single node.
@@ -153,17 +176,22 @@ namespace DurableTask.AzureStorage
         public AppLeaseOptions AppLeaseOptions { get; set; } = AppLeaseOptions.DefaultOptions;
 
         /// <summary>
-        /// Gets or sets the Azure Storage Account details.
+        /// Gets or sets the storage provider for Azure Blob Storage, which is used for managing the leases
+        /// shared by DurableTask workers.
         /// </summary>
-        public StorageAccountDetails? StorageAccountDetails { get; set; }
+        public IAzureStorageProvider<BlobServiceClient, BlobClientOptions>? BlobStorageProvider { get; set; }
 
         /// <summary>
-        /// Gets or sets the table client provider for Tracking Store.
+        /// Gets or sets the storage provider for Azure Queue Storage, which is used for the control and
+        /// work item queues that record messages for the DurableTask workers.
         /// </summary>
-        /// <remarks>
-        /// In case of <see langword="null"/>, <see cref="StorageAccountDetails"/> is applied.
-        /// </remarks>
-        public AzureStorageProvider<TableServiceClient, TableClientOptions>? TrackingStoreClientProvider { get; set; }
+        public IAzureStorageProvider<QueueServiceClient, QueueClientOptions>? QueueStorageProvider { get; set; }
+
+        /// <summary>
+        /// Gets or sets the storage provider for Azure Table Storage, which is used for the Tracking Store
+        /// that records the progress of orchestrations and entities.
+        /// </summary>
+        public IAzureStorageProvider<TableServiceClient, TableClientOptions>? TableStorageProvider { get; set; }
 
         /// <summary>
         ///  Should we carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
@@ -196,14 +224,9 @@ namespace DurableTask.AzureStorage
         /// </summary>
         public bool DisableExecutionStartedDeduplication { get; set; }
 
-        /// <summary>
-        /// Returns bool indicating is the TrackingStoreStorageAccount has been set.
-        /// </summary>
-        public bool HasTrackingStoreStorageAccount => this.TrackingStoreClientProvider != null;
+        internal string HistoryTableName => this.TrackingStoreNamePrefix != null ? $"{this.TrackingStoreNamePrefix}History" : $"{this.TaskHubName}History";
 
-        internal string HistoryTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}History" : $"{this.TaskHubName}History";
-
-        internal string InstanceTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}Instances" : $"{this.TaskHubName}Instances";
+        internal string InstanceTableName => this.TrackingStoreNamePrefix != null ? $"{this.TrackingStoreNamePrefix}Instances" : $"{this.TaskHubName}Instances";
 
         /// <summary>
         /// Gets an instance of <see cref="LogHelper"/> that can be used for writing structured logs.

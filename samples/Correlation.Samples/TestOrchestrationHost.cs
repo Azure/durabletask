@@ -16,6 +16,7 @@ namespace Correlation.Samples
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Linq;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage;
@@ -113,7 +114,7 @@ namespace Correlation.Samples
         {
             // This API currently only exists in the service object and is not yet exposed on the TaskHubClient
             var service = (AzureStorageOrchestrationService)this.client.ServiceClient;
-            IList<OrchestrationState> instances = await service.GetOrchestrationStateAsync();
+            List<OrchestrationState> instances = await service.GetOrchestrationStateAsync().ToListAsync();
             Trace.TraceInformation($"Found {instances.Count} in the task hub instance store.");
             return instances;
         }

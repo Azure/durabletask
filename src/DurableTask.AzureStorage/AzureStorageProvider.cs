@@ -22,14 +22,14 @@ namespace DurableTask.AzureStorage
 
     /// <summary>
     /// Represents a <see langword="static"/> set of methods for easily creating instances of type
-    /// <see cref="AzureStorageProvider{TClient, TClientOptions}"/>.
+    /// <see cref="IAzureStorageProvider{TClient, TClientOptions}"/>.
     /// </summary>
     public static class AzureStorageProvider
     {
         #region Blob
 
         /// <summary>
-        /// Creates an <see cref="AzureStorageProvider{TClient, TClientOptions}"/> for the Azure Blob Storage service.
+        /// Creates an <see cref="IAzureStorageProvider{TClient, TClientOptions}"/> for the Azure Blob Storage service.
         /// </summary>
         /// <param name="accountName">An Azure Storage account name.</param>
         /// <param name="tokenCredential">An optional token credential for accessing the service.</param>
@@ -38,7 +38,7 @@ namespace DurableTask.AzureStorage
         /// <exception cref="ArgumentNullException">
         /// <paramref name="accountName"/> is <see langword="null"/> or consists entirely of white space characters.
         /// </exception>
-        public static AzureStorageProvider<BlobServiceClient, BlobClientOptions> ForBlobAccount(
+        public static IAzureStorageProvider<BlobServiceClient, BlobClientOptions> ForBlobAccount(
             string accountName,
             TokenCredential? tokenCredential = null,
             BlobClientOptions? options = null)
@@ -47,7 +47,7 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Creates an <see cref="AzureStorageProvider{TClient, TClientOptions}"/> for the Azure Blob Storage service.
+        /// Creates an <see cref="IAzureStorageProvider{TClient, TClientOptions}"/> for the Azure Blob Storage service.
         /// </summary>
         /// <param name="connectionString">An Azure Storage connection string for the blob service.</param>
         /// <param name="options">An optional set of client options.</param>
@@ -55,7 +55,7 @@ namespace DurableTask.AzureStorage
         /// <exception cref="ArgumentNullException">
         /// <paramref name="connectionString"/> is <see langword="null"/> or the empty string.
         /// </exception>
-        public static AzureStorageProvider<BlobServiceClient, BlobClientOptions> ForBlob(string connectionString, BlobClientOptions? options = null)
+        public static IAzureStorageProvider<BlobServiceClient, BlobClientOptions> ForBlob(string connectionString, BlobClientOptions? options = null)
         {
             return new DefaultAzureStorageProvider<BlobServiceClient, BlobClientOptions>(
                 o => new BlobServiceClient(connectionString, o),
@@ -63,14 +63,14 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Creates an <see cref="AzureStorageProvider{TClient, TClientOptions}"/> for the Azure Blob Storage service.
+        /// Creates an <see cref="IAzureStorageProvider{TClient, TClientOptions}"/> for the Azure Blob Storage service.
         /// </summary>
         /// <param name="serviceUri">An Azure Blob Storage service URI.</param>
         /// <param name="tokenCredential">An optional token credential for accessing the service.</param>
         /// <param name="options">An optional set of client options.</param>
         /// <returns>An Azure Blob Storage service client whose connection is based on the given <paramref name="serviceUri"/>.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="serviceUri"/> is <see langword="null"/>.</exception>
-        public static AzureStorageProvider<BlobServiceClient, BlobClientOptions> ForBlob(
+        public static IAzureStorageProvider<BlobServiceClient, BlobClientOptions> ForBlob(
             Uri serviceUri,
             TokenCredential? tokenCredential = null,
             BlobClientOptions? options = null)
@@ -85,7 +85,7 @@ namespace DurableTask.AzureStorage
         #region Queue
 
         /// <summary>
-        /// Creates an <see cref="AzureStorageProvider{TClient, TClientOptions}"/> for the Azure Queue Storage service.
+        /// Creates an <see cref="IAzureStorageProvider{TClient, TClientOptions}"/> for the Azure Queue Storage service.
         /// </summary>
         /// <param name="accountName">An Azure Storage account name.</param>
         /// <param name="tokenCredential">An optional token credential for accessing the service.</param>
@@ -94,7 +94,7 @@ namespace DurableTask.AzureStorage
         /// <exception cref="ArgumentNullException">
         /// <paramref name="accountName"/> is <see langword="null"/> or consists entirely of white space characters.
         /// </exception>
-        public static AzureStorageProvider<QueueServiceClient, QueueClientOptions> ForQueueAccount(
+        public static IAzureStorageProvider<QueueServiceClient, QueueClientOptions> ForQueueAccount(
             string accountName,
             TokenCredential? tokenCredential = null,
             QueueClientOptions? options = null)
@@ -103,7 +103,7 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Creates an <see cref="AzureStorageProvider{TClient, TClientOptions}"/> for the Azure Queue Storage service.
+        /// Creates an <see cref="IAzureStorageProvider{TClient, TClientOptions}"/> for the Azure Queue Storage service.
         /// </summary>
         /// <param name="connectionString">An Azure Storage connection string for the queue service.</param>
         /// <param name="options">An optional set of client options.</param>
@@ -111,7 +111,7 @@ namespace DurableTask.AzureStorage
         /// <exception cref="ArgumentNullException">
         /// <paramref name="connectionString"/> is <see langword="null"/> or the empty string.
         /// </exception>
-        public static AzureStorageProvider<QueueServiceClient, QueueClientOptions> ForQueue(string connectionString, QueueClientOptions? options = null)
+        public static IAzureStorageProvider<QueueServiceClient, QueueClientOptions> ForQueue(string connectionString, QueueClientOptions? options = null)
         {
             return new DefaultAzureStorageProvider<QueueServiceClient, QueueClientOptions>(
                 o => new QueueServiceClient(connectionString, o),
@@ -119,14 +119,14 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Creates an <see cref="AzureStorageProvider{TClient, TClientOptions}"/> for the Azure Queue Storage service.
+        /// Creates an <see cref="IAzureStorageProvider{TClient, TClientOptions}"/> for the Azure Queue Storage service.
         /// </summary>
         /// <param name="serviceUri">An Azure Queue Storage service URI.</param>
         /// <param name="tokenCredential">An optional token credential for accessing the service.</param>
         /// <param name="options">An optional set of client options.</param>
         /// <returns>An Azure Queue Storage service client whose connection is based on the given <paramref name="serviceUri"/>.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="serviceUri"/> is <see langword="null"/>.</exception>
-        public static AzureStorageProvider<QueueServiceClient, QueueClientOptions> ForQueue(
+        public static IAzureStorageProvider<QueueServiceClient, QueueClientOptions> ForQueue(
             Uri serviceUri,
             TokenCredential? tokenCredential = null,
             QueueClientOptions? options = null)
@@ -141,7 +141,7 @@ namespace DurableTask.AzureStorage
         #region Table
 
         /// <summary>
-        /// Creates an <see cref="AzureStorageProvider{TClient, TClientOptions}"/> for the Azure Table Storage service.
+        /// Creates an <see cref="IAzureStorageProvider{TClient, TClientOptions}"/> for the Azure Table Storage service.
         /// </summary>
         /// <param name="accountName">An Azure Storage account name.</param>
         /// <param name="tokenCredential">An optional token credential for accessing the service.</param>
@@ -150,7 +150,7 @@ namespace DurableTask.AzureStorage
         /// <exception cref="ArgumentNullException">
         /// <paramref name="accountName"/> is <see langword="null"/> or consists entirely of white space characters.
         /// </exception>
-        public static AzureStorageProvider<TableServiceClient, TableClientOptions> ForTableAccount(
+        public static IAzureStorageProvider<TableServiceClient, TableClientOptions> ForTableAccount(
             string accountName,
             TokenCredential? tokenCredential = null,
             TableClientOptions? options = null)
@@ -159,7 +159,7 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Creates an <see cref="AzureStorageProvider{TClient, TClientOptions}"/> for the Azure Table Storage service.
+        /// Creates an <see cref="IAzureStorageProvider{TClient, TClientOptions}"/> for the Azure Table Storage service.
         /// </summary>
         /// <param name="connectionString">An Azure Storage connection string for the table service.</param>
         /// <param name="options">An optional set of client options.</param>
@@ -167,7 +167,7 @@ namespace DurableTask.AzureStorage
         /// <exception cref="ArgumentNullException">
         /// <paramref name="connectionString"/> is <see langword="null"/> or the empty string.
         /// </exception>
-        public static AzureStorageProvider<TableServiceClient, TableClientOptions> ForTable(string connectionString, TableClientOptions? options = null)
+        public static IAzureStorageProvider<TableServiceClient, TableClientOptions> ForTable(string connectionString, TableClientOptions? options = null)
         {
             return new DefaultAzureStorageProvider<TableServiceClient, TableClientOptions>(
                 o => new TableServiceClient(connectionString, o),
@@ -175,14 +175,14 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Creates an <see cref="AzureStorageProvider{TClient, TClientOptions}"/> for the Azure Table Storage service.
+        /// Creates an <see cref="IAzureStorageProvider{TClient, TClientOptions}"/> for the Azure Table Storage service.
         /// </summary>
         /// <param name="serviceUri">An Azure Table Storage service URI.</param>
         /// <param name="tokenCredential">An optional token credential for accessing the service.</param>
         /// <param name="options">An optional set of client options.</param>
         /// <returns>An Azure Table Storage service client whose connection is based on the given <paramref name="serviceUri"/>.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="serviceUri"/> is <see langword="null"/>.</exception>
-        public static AzureStorageProvider<TableServiceClient, TableClientOptions> ForTable(
+        public static IAzureStorageProvider<TableServiceClient, TableClientOptions> ForTable(
             Uri serviceUri,
             TokenCredential? tokenCredential = null,
             TableClientOptions? options = null)
