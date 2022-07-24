@@ -23,7 +23,7 @@ namespace DurableTask.Core
     /// </summary>
     public class OrchestrationStateQuery
     {
-        // if we get multiple filters in a state query, we will pick one as the primary filter to pass on in the 
+        // if we get multiple filters in a state query, we will pick one as the primary filter to pass on in the
         // azure table store query. the remaining filters will be used to trim the results in-memory
         // this table gives the precedence of the filters. higher number will be selected over the lower one.
         //
@@ -52,12 +52,12 @@ namespace DurableTask.Core
         /// <summary>
         /// Gets the primary_filter, collection_of(secondary_filters) for the query
         /// </summary>
-        public Tuple<OrchestrationStateQueryFilter, IEnumerable<OrchestrationStateQueryFilter>> GetFilters()
+        public (OrchestrationStateQueryFilter Primary, IEnumerable<OrchestrationStateQueryFilter> Secondary) GetFiltersTuple()
         {
             ICollection<OrchestrationStateQueryFilter> filters = FilterMap.Values;
             if (filters.Count == 0)
             {
-                return null;
+                return default;
             }
 
             var secondaryFilters = new List<OrchestrationStateQueryFilter>();
@@ -83,6 +83,17 @@ namespace DurableTask.Core
                     }
                 }
             }
+
+            return (primaryFilter, secondaryFilters);
+        }
+
+        /// <summary>
+        /// Gets the primary_filter, collection_of(secondary_filters) for the query
+        /// </summary>
+        [Obsolete("Use GetFiltersTuple() instead")]
+        public Tuple<OrchestrationStateQueryFilter, IEnumerable<OrchestrationStateQueryFilter>> GetFilters()
+        {
+            var (primaryFilter, secondaryFilters) = GetFiltersTuple();
 
             return new Tuple<OrchestrationStateQueryFilter, IEnumerable<OrchestrationStateQueryFilter>>(
                 primaryFilter, secondaryFilters);

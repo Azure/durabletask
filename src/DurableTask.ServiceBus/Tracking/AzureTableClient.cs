@@ -39,7 +39,7 @@ namespace DurableTask.ServiceBus.Tracking
         readonly string hubName;
         readonly CloudTableClient tableClient;
 
-        static readonly IDictionary<FilterComparisonType, string> ComparisonOperatorMap 
+        static readonly IDictionary<FilterComparisonType, string> ComparisonOperatorMap
             = new Dictionary<FilterComparisonType, string>
             {{ FilterComparisonType.Equals, AzureTableConstants.EqualityOperator},
             { FilterComparisonType.NotEquals, AzureTableConstants.InEqualityOperator}};
@@ -165,15 +165,7 @@ namespace DurableTask.ServiceBus.Tracking
 
         internal TableQuery<AzureTableOrchestrationStateEntity> CreateQueryInternal(OrchestrationStateQuery stateQuery, int count, bool useTimeRangePrimaryFilter)
         {
-            OrchestrationStateQueryFilter primaryFilter = null;
-            IEnumerable<OrchestrationStateQueryFilter> secondaryFilters = null;
-            Tuple<OrchestrationStateQueryFilter, IEnumerable<OrchestrationStateQueryFilter>> filters =
-                stateQuery.GetFilters();
-            if (filters != null)
-            {
-                primaryFilter = filters.Item1;
-                secondaryFilters = filters.Item2;
-            }
+            var (primaryFilter, secondaryFilters) = stateQuery.GetFiltersTuple();
 
             string filterExpression = GetPrimaryFilterExpression(primaryFilter, useTimeRangePrimaryFilter);
             if (string.IsNullOrWhiteSpace(filterExpression))
