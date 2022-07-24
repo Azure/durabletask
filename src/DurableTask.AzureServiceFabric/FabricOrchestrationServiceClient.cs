@@ -16,6 +16,7 @@ namespace DurableTask.AzureServiceFabric
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
 
@@ -31,6 +32,8 @@ namespace DurableTask.AzureServiceFabric
 
     using Newtonsoft.Json;
     using DurableTask.Core.Serializing;
+
+    using AsyncStateEnumerable = System.Collections.Generic.IAsyncEnumerable<Core.OrchestrationState>;
 
     class FabricOrchestrationServiceClient : IOrchestrationServiceClient, IFabricProviderClient
     {
@@ -153,20 +156,18 @@ namespace DurableTask.AzureServiceFabric
             }
         }
 
-        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
+        public async AsyncStateEnumerable GetOrchestrationStateAsync(string instanceId, bool allExecutions, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             instanceId.EnsureValidInstanceId();
             var stateInstances = await this.instanceStore.GetOrchestrationStateAsync(instanceId, allExecutions);
 
-            var result = new List<OrchestrationState>();
             foreach (var stateInstance in stateInstances)
             {
                 if (stateInstance != null)
                 {
-                    result.Add(stateInstance.State);
+                    yield return stateInstance.State;
                 }
             }
-            return result;
         }
 
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)

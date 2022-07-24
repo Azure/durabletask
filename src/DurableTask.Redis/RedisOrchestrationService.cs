@@ -17,6 +17,7 @@ namespace DurableTask.Redis
     using System.Collections.Generic;
     using System.Linq;
     using System.Net;
+    using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core;
@@ -449,9 +450,9 @@ namespace DurableTask.Redis
         }
 
         /// <inheritdoc />
-        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
+        public async IAsyncEnumerable<OrchestrationState> GetOrchestrationStateAsync(string instanceId, bool allExecutions, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            return new OrchestrationState[] { await this.GetOrchestrationStateAsync(instanceId, "") };
+            yield return await this.GetOrchestrationStateAsync(instanceId, "");
         }
 
         /// <inheritdoc />
