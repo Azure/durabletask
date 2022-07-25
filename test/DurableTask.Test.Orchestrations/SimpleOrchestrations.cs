@@ -321,7 +321,7 @@ namespace DurableTask.Test.Orchestrations
         }
     }
 
-    public sealed class ChangeStatusOrchestration2 : TaskOrchestration<string, string>
+    public sealed class NextExecution : TaskOrchestration<string, string>
     {
         TaskCompletionSource<string> waitForTriggerHandle;
         private bool hasSetCustomStatus = false;
@@ -331,7 +331,6 @@ namespace DurableTask.Test.Orchestrations
         {
             this.hasSetCustomStatus = true;
             this.customStatus = status;
-            // Dummy timer to persist state.
             await context.CreateTimer<int>(context.CurrentUtcDateTime, 0);
         }
 
@@ -340,11 +339,6 @@ namespace DurableTask.Test.Orchestrations
             await this.SetCustomStatus(context, status);
 
             string newStatus = await this.WaitForTrigger();
-
-            if (newStatus == null)
-            {
-                return string.Empty;
-            }
 
             await this.SetCustomStatus(context, newStatus);
 

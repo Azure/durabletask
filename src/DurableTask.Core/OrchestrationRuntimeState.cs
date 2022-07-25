@@ -85,6 +85,7 @@ namespace DurableTask.Core
             PastEvents = events != null ? new List<HistoryEvent>(events.Count) : new List<HistoryEvent>();
             NewEvents = new List<HistoryEvent>();
             completedEventIds = new HashSet<int>();
+            orchestrationStatus = OrchestrationStatus.Running;
 
             if (events != null && events.Count > 0)
             {

@@ -921,6 +921,51 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
+        /// End-to-end test which validates the Suspend-Resume functionality.
+        /// </summary>
+        [TestMethod]
+        public async Task SuspendResumeOrchestration()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
+            {
+                var suspendMsg = "sleepyOrch";
+                var resumeMsg = "wakeUp";
+                int expectedResult = 1;
+
+                await host.StartAsync();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Counter), 0);
+                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
+
+                var status = await client.GetStatusAsync();
+
+                Assert.AreEqual(OrchestrationStatus.Running, status?.OrchestrationStatus);
+
+                await client.SuspendAsync(suspendMsg);
+                await Task.Delay(2000);
+
+                await client.RaiseEventAsync("operation", "incr");
+                await client.RaiseEventAsync("operation", "end");
+                await Task.Delay(2000);
+
+                status = await client.GetStatusAsync();
+
+                // check that it still is in the suspended status, and that the external events did not cause it to act
+                Assert.AreEqual(OrchestrationStatus.Suspended, status?.OrchestrationStatus);
+                Assert.AreEqual(suspendMsg, status?.Output);
+
+                await client.ResumeAsync(resumeMsg);
+                await Task.Delay(2000);
+                status = await client.GetStatusAsync();
+
+                // chech that after it is resumed, it does the pending work
+                Assert.AreEqual(expectedResult, JToken.Parse(status?.Output));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
         /// Test that a suspended orchestration can be terminated.
         /// </summary>
         [TestMethod]
@@ -946,80 +991,6 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        /// <summary> 
-        /// Tests that the status of an orchestration changes when it is suspended and resumed.
-        /// </summary>
-        [TestMethod]
-        public async Task SuspendResumeCheckStatus()
-        {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
-            {
-                var suspendMsg = "sleepyOrch";
-                var resumeMsg = "wakeUp";
-
-                await host.StartAsync();
-                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Counter), 0);
-                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
-                var status = await client.GetStatusAsync();
-
-                Assert.AreEqual(OrchestrationStatus.Running, status?.OrchestrationStatus);
-
-                await client.SuspendAsync(suspendMsg);
-                await Task.Delay(2000);
-                status = await client.GetStatusAsync();
-
-                Assert.AreEqual(OrchestrationStatus.Suspended, status?.OrchestrationStatus);
-                Assert.AreEqual(suspendMsg, status?.Output);
-
-                await client.ResumeAsync(resumeMsg);
-                await Task.Delay(2000);
-                status = await client.GetStatusAsync();
-
-                Assert.AreEqual(OrchestrationStatus.Running, status?.OrchestrationStatus);
-                Assert.AreEqual(resumeMsg, status?.Output);
-
-                await host.StopAsync();
-            }
-        }
-
-        /// <summary>
-        /// Tests that an orchestration stays suspended even after receiving new events.
-        /// </summary>
-        [TestMethod]
-        public async Task StaySuspended()
-        {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
-            {
-                string suspendReason = "noIncrement";
-                string resumeReason = "shouldIncrementNow";
-                int expectedResult = 1;
-
-                await host.StartAsync();
-                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Counter), 0);
-                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
-                await client.SuspendAsync(suspendReason);
-                await Task.Delay(2000);
-                var status = await client.GetStatusAsync();
-
-                await client.RaiseEventAsync("operation", "incr");
-                await client.RaiseEventAsync("operation", "end");
-                await Task.Delay(2000);
-                status = await client.GetStatusAsync();
-
-                Assert.AreEqual(OrchestrationStatus.Suspended, status?.OrchestrationStatus);
-                Assert.AreEqual(suspendReason, status?.Output);
-
-                await client.ResumeAsync(resumeReason);
-                await Task.Delay(2000);
-                status = await client.GetStatusAsync();
-
-                Assert.AreEqual(expectedResult, JToken.Parse(status?.Output));
-                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-
-                await host.StopAsync();
-            }
-        }
-
         /// <summary>
         /// Tests that a suspended orchestration does not execute the next line of code (by ensuring that the custom
         /// status does not change).
@@ -1034,7 +1005,7 @@ namespace DurableTask.AzureStorage.Tests
                 string terminateReason = "end";
 
                 await host.StartAsync();
-                var client = await host.StartOrchestrationAsync(typeof(Test.Orchestrations.ChangeStatusOrchestration2), originalStatus);
+                var client = await host.StartOrchestrationAsync(typeof(Test.Orchestrations.NextExecution), originalStatus);
                 await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
 
                 await client.SuspendAsync("sleep");
@@ -1066,7 +1037,7 @@ namespace DurableTask.AzureStorage.Tests
                 string customStatus = "myStatus";
 
                 await host.StartAsync();
-                var client = await host.StartOrchestrationAsync(typeof(Test.Orchestrations.ChangeStatusOrchestration2), "originalStatus");
+                var client = await host.StartOrchestrationAsync(typeof(Test.Orchestrations.NextExecution), "originalStatus");
                 await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
                 await client.SuspendAsync("sleep");
 
