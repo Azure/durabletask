@@ -26,10 +26,10 @@ namespace DurableTask.Core.History
         /// </summary>
         /// <param name="eventId">The event id of the history event</param>
         /// <param name="input">The serialized input of the termination event</param>
-        public ExecutionSuspendedEvent(int eventId, string input)
+        public ExecutionSuspendedEvent(int eventId, string reason)
             : base(eventId)
         {
-            Input = input;
+            Reason = reason;
         }
 
         /// <summary>
@@ -41,6 +41,6 @@ namespace DurableTask.Core.History
         /// Gets or sets the serialized input for the the termination event
         /// </summary>
         [DataMember]
-        public string Input { get; set; }
+        public string Reason { get; set; }
     }
 }

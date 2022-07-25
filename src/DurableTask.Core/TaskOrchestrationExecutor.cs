@@ -177,7 +177,8 @@ namespace DurableTask.Core
 
         void ProcessEvent(HistoryEvent historyEvent)
         {
-            if (this.context.IsSuspended && !(historyEvent.EventType == EventType.ExecutionResumed || historyEvent.EventType == EventType.ExecutionTerminated))
+            bool isWakingEvent = historyEvent.EventType == EventType.ExecutionResumed || historyEvent.EventType == EventType.ExecutionTerminated;
+            if (this.context.IsSuspended && !isWakingEvent)
             {
                 this.context.HandleEventWhileSuspended(historyEvent);
             }
