@@ -184,7 +184,7 @@ namespace DurableTask.Core.Tracing
 
             return ActivityTraceSource.StartActivity(
                 name: eventRaisedEvent.Name,
-                kind: ActivityKind.Server,
+                kind: ActivityKind.Consumer,
                 parentContext: activityContext,
                 tags: new KeyValuePair<string, object?>[]
                 {
