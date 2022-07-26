@@ -964,9 +964,9 @@ namespace DurableTask.AzureStorage.Tracking
                         this.SetInstancesTablePropertyFromHistoryProperty(
                             historyEntity,
                             instanceEntity,
-                            historyPropertyName: nameof(executionSuspendedEvent.Input),
+                            historyPropertyName: nameof(executionSuspendedEvent.Reason),
                             instancePropertyName: OutputProperty,
-                            data: executionSuspendedEvent.Input);
+                            data: executionSuspendedEvent.Reason);
                         break;
                     case EventType.ExecutionResumed:
                         runtimeStatus = OrchestrationStatus.Running;

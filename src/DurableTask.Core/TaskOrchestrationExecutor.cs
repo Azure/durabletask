@@ -180,7 +180,10 @@ namespace DurableTask.Core
             bool isWakingEvent = historyEvent.EventType == EventType.ExecutionResumed || historyEvent.EventType == EventType.ExecutionTerminated;
             if (this.context.IsSuspended && !isWakingEvent)
             {
-                this.context.HandleEventWhileSuspended(historyEvent);
+                if (historyEvent.EventType != EventType.ExecutionSuspended)
+                {
+                    this.context.HandleEventWhileSuspended(historyEvent);
+                }
             }
             else
             {

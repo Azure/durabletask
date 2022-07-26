@@ -25,7 +25,7 @@ namespace DurableTask.Core.History
         /// Creates a new ExecutionSuspendedEvent with the supplied params
         /// </summary>
         /// <param name="eventId">The event id of the history event</param>
-        /// <param name="input">The serialized input of the termination event</param>
+        /// <param name="reason">The serialized input of the termination event</param>
         public ExecutionSuspendedEvent(int eventId, string reason)
             : base(eventId)
         {
