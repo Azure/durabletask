@@ -27,6 +27,7 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
+    using DurableTask.Test.Orchestrations;
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging.Utility;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.WindowsAzure.Storage;
@@ -928,38 +929,34 @@ namespace DurableTask.AzureStorage.Tests
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
             {
-                var suspendMsg = "sleepyOrch";
-                var resumeMsg = "wakeUp";
-                int expectedResult = 1;
+                string originalStatus = "OGstatus";
+                string newStatus = "newStatus";
+                string suspendMsg = "sleepyOrch";
+                string resumeMsg = "wakeUp";
 
                 await host.StartAsync();
-                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Counter), 0);
+                var client = await host.StartOrchestrationAsync(typeof(Test.Orchestrations.NextExecution), originalStatus);
                 await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
 
-                var status = await client.GetStatusAsync();
-
-                Assert.AreEqual(OrchestrationStatus.Running, status?.OrchestrationStatus);
-
+                // Test case 1: Suspend changes the status Running->Suspended
                 await client.SuspendAsync(suspendMsg);
                 await Task.Delay(2000);
-
-                await client.RaiseEventAsync("operation", "incr");
-                await client.RaiseEventAsync("operation", "end");
-                await Task.Delay(2000);
-
-                status = await client.GetStatusAsync();
-
-                // check that it still is in the suspended status, and that the external events did not cause it to act
+                var status = await client.GetStatusAsync();
                 Assert.AreEqual(OrchestrationStatus.Suspended, status?.OrchestrationStatus);
                 Assert.AreEqual(suspendMsg, status?.Output);
 
-                await client.ResumeAsync(resumeMsg);
+                // Test case 2: external event does not go through
+                await client.RaiseEventAsync("changeStatusNow", newStatus);
                 await Task.Delay(2000);
                 status = await client.GetStatusAsync();
+                Assert.AreEqual(originalStatus, JToken.Parse(status?.Status));
 
-                // chech that after it is resumed, it does the pending work
-                Assert.AreEqual(expectedResult, JToken.Parse(status?.Output));
+                // Test case 3: external event now goes through
+                await client.ResumeAsync(resumeMsg);
+                await Task.Delay(2000);
+                status  = await client.GetStatusAsync();
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual(newStatus, JToken.Parse(status?.Status));
 
                 await host.StopAsync();
             }
@@ -988,67 +985,6 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual("terminate", status?.Output);
 
                 await host.StopAsync();
-            }
-        }
-
-        /// <summary>
-        /// Tests that a suspended orchestration does not execute the next line of code (by ensuring that the custom
-        /// status does not change).
-        /// </summary>
-        [TestMethod]
-        public async Task SuspendNoNextExecution()
-        {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
-            {
-                string customStatus = "myStatus";
-                string originalStatus = "OGstatus";
-                string terminateReason = "end";
-
-                await host.StartAsync();
-                var client = await host.StartOrchestrationAsync(typeof(Test.Orchestrations.NextExecution), originalStatus);
-                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
-
-                await client.SuspendAsync("sleep");
-                await Task.Delay(2000);
-
-                await client.RaiseEventAsync("changeStatusNow", customStatus);
-                await Task.Delay(2000);
-
-                await client.TerminateAsync(terminateReason);
-
-                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
-
-                Assert.AreEqual(OrchestrationStatus.Terminated, status?.OrchestrationStatus);
-                Assert.AreEqual(terminateReason, status?.Output);
-                Assert.AreEqual(originalStatus, JToken.Parse(status?.Status));
-
-                await host.StopAsync();
-            }
-        }
-
-        /// <summary>
-        /// Tests that when you resume execution, the next line of code in the orchestration is executed.
-        /// </summary>
-        [TestMethod]
-        public async Task ResumeNextExecution()
-        {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
-            {
-                string customStatus = "myStatus";
-
-                await host.StartAsync();
-                var client = await host.StartOrchestrationAsync(typeof(Test.Orchestrations.NextExecution), "originalStatus");
-                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
-                await client.SuspendAsync("sleep");
-
-                await client.RaiseEventAsync("changeStatusNow", customStatus);
-                await Task.Delay(2000);
-                await client.ResumeAsync("wakeUp");
-                await Task.Delay(2000);
-                var state = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
-
-                Assert.AreEqual(OrchestrationStatus.Completed, state?.OrchestrationStatus);
-                Assert.AreEqual(customStatus, JToken.Parse(state?.Status));
             }
         }
 
