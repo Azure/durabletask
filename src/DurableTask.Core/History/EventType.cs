@@ -11,6 +11,9 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+
+// NOTE: Changing the order of variables may cause bugs in OOProc SDKs. When introducing
+//       new EventTypes, append them at the end.
 namespace DurableTask.Core.History
 {
     /// <summary>
@@ -37,16 +40,6 @@ namespace DurableTask.Core.History
         /// Orchestration was terminated event
         /// </summary>
         ExecutionTerminated,
-
-        /// <summary>
-        /// Orchestration was suspended event
-        /// </summary>
-        ExecutionSuspended,
-
-        /// <summary>
-        /// Orchestration was resumed event
-        /// </summary>
-        ExecutionResumed,
 
         /// <summary>
         /// Task Activity scheduled event 
@@ -122,5 +115,15 @@ namespace DurableTask.Core.History
         /// Orchestration state history event
         /// </summary>
         HistoryState,
+
+        /// <summary>
+        /// Orchestration was suspended event
+        /// </summary>
+        ExecutionSuspended,
+
+        /// <summary>
+        /// Orchestration was resumed event
+        /// </summary>
+        ExecutionResumed,
     }
 }
