@@ -1,0 +1,88 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <AspNetWebApiVersion>5.2.6</AspNetWebApiVersion>
+    <MicrosoftDataVersion>5.8.5</MicrosoftDataVersion>
+    <MicrosoftExtensionsVersion>2.2.0</MicrosoftExtensionsVersion>
+  </PropertyGroup>
+
+  <ItemGroup Label="All frameworks">
+    <PackageReference Update="Castle.Core" Version="5.0.0" />
+    <PackageReference Update="Microsoft.ApplicationInsights.DependencyCollector" Version="2.12.0" />
+    <PackageReference Update="Microsoft.AspNet.WebApi.Core" Version="$(AspNetWebApiVersion)" />
+    <PackageReference Update="Microsoft.AspNet.WebApi.Client" Version="$(AspNetWebApiVersion)" />
+    <PackageReference Update="Microsoft.AspNet.WebApi.Owin" Version="$(AspNetWebApiVersion)" />
+    <PackageReference Update="Microsoft.AspNet.WebApi.OwinSelfHost" Version="$(AspNetWebApiVersion)" />
+    <PackageReference Update="Microsoft.CSharp" Version="4.7.0" />
+    <PackageReference Update="Microsoft.Extensions.DependencyInjection" Version="$(MicrosoftExtensionsVersion)" />
+    <PackageReference Update="Microsoft.NET.Test.Sdk" Version="15.9.0" />
+    <PackageReference Update="Microsoft.Owin.Hosting" Version="4.0.0" />
+    <PackageReference Update="Microsoft.ServiceFabric" Version="6.4.617" />
+    <PackageReference Update="Microsoft.ServiceFabric.Data" Version="3.3.617" />
+    <PackageReference Update="Microsoft.ServiceFabric.Services" Version="3.3.617" />
+    <PackageReference Update="Microsoft.SourceLink.GitHub" Version="1.*" PrivateAssets="All" />
+    <PackageReference Update="Microsoft.WindowsAzure.ConfigurationManager" version="3.2.3" />
+    <PackageReference Update="MSTest.TestAdapter" Version="1.4.0" />
+    <PackageReference Update="MSTest.TestFramework" Version="1.4.0" />
+    <PackageReference Update="Moq" Version="4.10.0" />
+    <PackageReference Update="Newtonsoft.Json" version="13.*" />
+    <PackageReference Update="StackExchange.Redis" Version="2.0.571" />
+    <PackageReference Update="System.Spatial" version="5.8.5" />
+    <PackageReference Update="System.Collections.Immutable" Version="1.5.0" />
+    <PackageReference Update="System.Data.Common" Version="4.3.0" />
+    <PackageReference Update="System.Diagnostics.DiagnosticSource" Version="5.0.1" />
+    <PackageReference Update="System.Net.Http" Version="4.3.4" />
+    <PackageReference Update="System.Reactive.Core" Version="4.4.1" />
+    <PackageReference Update="System.Reactive.Compatibility" Version="4.4.1" />
+    <PackageReference Update="xunit" Version="2.4.0" />
+    <PackageReference Update="xunit.runner.visualstudio" Version="2.4.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="net462 and net472" Condition="'$(TargetFramework)' == 'net462' or '$(TargetFramework)' == 'net472'">
+    <PackageReference Update="CommandLineParser" version="1.9.71" />
+    <PackageReference Update="EnterpriseLibrary.SemanticLogging" Version="2.0.1406.1" />
+    <PackageReference Update="EnterpriseLibrary.SemanticLogging.EventSourceAnalyzer" Version="2.0.1406.1" />
+    <PackageReference Update="EnterpriseLibrary.SemanticLogging.TextFile" version="2.0.1406.1" />
+    <PackageReference Update="ImpromptuInterface" Version="6.2.2" />
+    <PackageReference Update="Microsoft.Azure.KeyVault.Core" version="1.0.0" />
+    <PackageReference Update="Microsoft.Data.Edm" version="$(MicrosoftDataVersion)" />
+    <PackageReference Update="Microsoft.Data.OData" version="$(MicrosoftDataVersion)" />
+    <PackageReference Update="Microsoft.Data.Services.Client" version="$(MicrosoftDataVersion)" />
+    <PackageReference Update="Microsoft.Extensions.Logging" Version="$(MicrosoftExtensionsVersion)" />
+    <PackageReference Update="Microsoft.Extensions.Logging.Abstractions" Version="$(MicrosoftExtensionsVersion)" />
+    <PackageReference Update="Microsoft.Tpl.Dataflow" version="4.5.24" />
+    <PackageReference Update="Microsoft.WindowsAzure.ConfigurationManager" version="3.2.3" />
+    <PackageReference Update="ncrontab" version="1.0.0" />
+    <PackageReference Update="Newtonsoft.Json" version="7.0.1" />
+    <PackageReference Update="System.Spatial" version="$(MicrosoftDataVersion)" />
+    <PackageReference Update="WindowsAzure.ServiceBus" version="4.1.3" />
+    <PackageReference Update="WindowsAzure.Storage" version="7.0.0" />
+    <PackageReference Update="Newtonsoft.Json" Version="7.0.1" />
+    <PackageReference Update="WindowsAzure.ServiceBus" version="4.1.3" />
+    <PackageReference Update="WindowsAzure.Storage" version="7.2.1" />
+  </ItemGroup>
+
+  <ItemGroup Label="netstandard2.0 and netcoreapp3.1" Condition="'$(TargetFramework)' == 'netstandard2.0' or '$(TargetFramework)' == 'netcoreapp3.1'">
+    <!-- Restoring packages for netstandard2.0 causes warnings. As warnings are treated as errors, compilation will fail. -->
+    <!-- Once the packages support netstandard2.0, this project will support netstandard2.0. -->
+    <PackageReference Update="CommandLineParser" Version="2.4.3" />
+    <PackageReference Update="Docker.DotNet" Version="3.125.2" />
+    <PackageReference Update="EnterpriseLibrary.SemanticLogging.EventSourceAnalyzer.NetCore" Version="2.0.1406.4" />
+    <PackageReference Update="ImpromptuInterface" Version="7.0.1" />
+    <PackageReference Update="Microsoft.Azure.ServiceBus" Version="4.1.3" />
+    <PackageReference Update="Microsoft.Diagnostics.EventFlow.Core" Version="1.5.6" />
+    <PackageReference Update="Microsoft.Diagnostics.EventFlow.Inputs.EventSource" Version="1.4.3" />
+    <PackageReference Update="Microsoft.Diagnostics.EventFlow.Outputs.StdOutput" Version="1.4.0" />
+    <PackageReference Update="Microsoft.Extensions.Configuration" Version="$(MicrosoftExtensionsVersion)" />
+    <PackageReference Update="Microsoft.Extensions.Configuration.Binder" Version="$(MicrosoftExtensionsVersion)" />
+    <PackageReference Update="Microsoft.Extensions.Configuration.Json" Version="$(MicrosoftExtensionsVersion)" />
+    <PackageReference Update="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="$(MicrosoftExtensionsVersion)" />
+    <PackageReference Update="Microsoft.Extensions.Logging" Version="$(MicrosoftExtensionsVersion)" />
+    <PackageReference Update="Microsoft.Extensions.Logging.Abstractions" Version="$(MicrosoftExtensionsVersion)" />
+    <PackageReference Update="Microsoft.NET.Test.Sdk" Version="15.9.0" />
+    <PackageReference Update="Newtonsoft.Json" Version="11.0.2" />
+    <PackageReference Update="System.Configuration.ConfigurationManager" Version="4.5.0" />
+    <PackageReference Update="System.Data.SqlClient" Version="4.6.1" />
+    <PackageReference Update="WindowsAzure.Storage" version="9.3.3" />
+  </ItemGroup>
+</Project>

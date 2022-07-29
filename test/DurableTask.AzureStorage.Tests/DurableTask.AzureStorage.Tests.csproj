@@ -7,26 +7,26 @@
 
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="2.2.0" />
-    <PackageReference Include="Microsoft.WindowsAzure.ConfigurationManager" version="3.2.1" />
-    <PackageReference Include="Newtonsoft.Json" version="7.0.1" />
-    <PackageReference Include="WindowsAzure.Storage" version="7.2.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Microsoft.WindowsAzure.ConfigurationManager" />
+    <PackageReference Include="Newtonsoft.Json" />
+    <PackageReference Include="WindowsAzure.Storage" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' != 'net462'">
-    <PackageReference Include="System.Configuration.ConfigurationManager" Version="4.5.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="3.1.6" />
-    <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
-    <PackageReference Include="WindowsAzure.Storage" version="9.3.3" />
+  <ItemGroup Condition="'$(TargetFramework)' == 'netcoreapp3.1'">
+    <PackageReference Include="System.Configuration.ConfigurationManager" />
+    <PackageReference Include="Microsoft.Extensions.Logging" VersionOverride="3.1.*" />
+    <PackageReference Include="Newtonsoft.Json" />
+    <PackageReference Include="WindowsAzure.Storage" />
   </ItemGroup>
 
   <!-- Common package dependencies -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.ApplicationInsights.DependencyCollector" Version="2.12.0" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.9.0" />
-    <PackageReference Include="MSTest.TestAdapter" Version="1.4.0" />
-    <PackageReference Include="MSTest.TestFramework" Version="1.4.0" />
-    <PackageReference Include="Moq" Version="4.10.0" />
+    <PackageReference Include="Microsoft.ApplicationInsights.DependencyCollector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="MSTest.TestAdapter" />
+    <PackageReference Include="MSTest.TestFramework" />
+    <PackageReference Include="Moq" />
   </ItemGroup>
 
   <ItemGroup>

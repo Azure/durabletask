@@ -17,11 +17,6 @@
     <IncludeSymbols>false</IncludeSymbols>
   </PropertyGroup>
 
-  <!-- SourceLink Dependency for GitHub-->
-  <ItemGroup>
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.*" PrivateAssets="All" />
-  </ItemGroup>
-
   <!-- Sign assemblies if the snk file is present -->
   <PropertyGroup Condition="Exists('$(MSBuildProjectDirectory)\..\..\tools\sign.snk') And $(Configuration) == 'Release'">
     <SignAssembly>true</SignAssembly>

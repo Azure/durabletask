@@ -6,13 +6,13 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <PackageReference Include="Newtonsoft.Json" version="11.0.2" />
+    <PackageReference Include="Newtonsoft.Json" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
-    <PackageReference Include="Newtonsoft.Json" version="7.0.1" />
+    <PackageReference Include="Newtonsoft.Json" />
   </ItemGroup>
-  
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\DurableTask.Core\DurableTask.Core.csproj" />
   </ItemGroup>

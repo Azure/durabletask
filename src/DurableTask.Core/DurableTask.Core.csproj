@@ -7,7 +7,7 @@
     <!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
     <NoWarn>NU5125;NU5048</NoWarn>
   </PropertyGroup>
-  
+
   <!-- General Package Info -->
   <PropertyGroup>
     <PackageId>Microsoft.Azure.DurableTask.Core</PackageId>
@@ -19,7 +19,7 @@
     <MajorVersion>2</MajorVersion>
     <MinorVersion>10</MinorVersion>
     <PatchVersion>0</PatchVersion>
-    
+
     <Version>$(MajorVersion).$(MinorVersion).$(PatchVersion)</Version>
     <FileVersion>$(Version).0</FileVersion>
     <!-- FileVersionRevision is expected to be set by the CI. This is useful for distinguishing between multiple builds of the same version. -->
@@ -27,22 +27,22 @@
     <!-- The assembly version is only the major/minor pair, making it easier to do in-place upgrades -->
     <AssemblyVersion>$(MajorVersion).$(MinorVersion).0.0</AssemblyVersion>
   </PropertyGroup>
-  
+
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="1.1.1" />
-    <PackageReference Include="Newtonsoft.Json" Version="7.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Newtonsoft.Json" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="2.2.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Newtonsoft.Json" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="5.0.1" />
-    <PackageReference Include="System.Reactive.Core" Version="4.4.1" />
-    <PackageReference Include="System.Reactive.Compatibility" Version="4.4.1" />
-    <PackageReference Include="Castle.Core" Version="5.0.0" />
+    <PackageReference Include="System.Diagnostics.DiagnosticSource" />
+    <PackageReference Include="System.Reactive.Core" />
+    <PackageReference Include="System.Reactive.Compatibility" />
+    <PackageReference Include="Castle.Core" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(Configuration)'=='Release'">
@@ -51,5 +51,5 @@
       <PackagePath>content/SBOM</PackagePath>
     </Content>
   </ItemGroup>
-  
+
 </Project>

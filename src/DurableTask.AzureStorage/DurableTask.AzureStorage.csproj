@@ -8,11 +8,11 @@
     <Description>Azure Storage provider extension for the Durable Task Framework.</Description>
     <PackageTags>Azure Task Durable Orchestration Workflow Activity Reliable AzureStorage</PackageTags>
     <PackageId>Microsoft.Azure.DurableTask.AzureStorage</PackageId>
-    <PublishRepositoryUrl>true</PublishRepositoryUrl> 
-    <EmbedUntrackedSources>true</EmbedUntrackedSources> 
-    <DebugSymbols>true</DebugSymbols> 
-    <DebugType>embedded</DebugType> 
-    <IncludeSymbols>false</IncludeSymbols> 
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>embedded</DebugType>
+    <IncludeSymbols>false</IncludeSymbols>
     <!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
     <NoWarn>NU5125;NU5048</NoWarn>
   </PropertyGroup>
@@ -22,7 +22,7 @@
     <MajorVersion>1</MajorVersion>
     <MinorVersion>12</MinorVersion>
     <PatchVersion>1</PatchVersion>
-    
+
     <Version>$(MajorVersion).$(MinorVersion).$(PatchVersion)</Version>
     <FileVersion>$(Version).0</FileVersion>
     <!-- FileVersionRevision is expected to be set by the CI. This is useful for distinguishing between multiple builds of the same version. -->
@@ -30,22 +30,22 @@
     <!-- The assembly version is only the major/minor pair, making it easier to do in-place upgrades -->
     <AssemblyVersion>$(MajorVersion).$(MinorVersion).0.0</AssemblyVersion>
   </PropertyGroup>
-  
+
   <ItemGroup>
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.*" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="1.1.1" />
-    <PackageReference Include="Newtonsoft.Json" Version="7.0.1" />
-    <PackageReference Include="WindowsAzure.Storage" version="7.2.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Newtonsoft.Json" />
+    <PackageReference Include="WindowsAzure.Storage" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="2.2.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Newtonsoft.Json" />
     <!--Change the Storage SDK version with extreme caution, otherwise may break Durable Functions usage with Azure Storage Extension. -->
-    <PackageReference Include="WindowsAzure.Storage" version="9.3.1" />
+    <PackageReference Include="WindowsAzure.Storage" />
   </ItemGroup>
 
   <ItemGroup>

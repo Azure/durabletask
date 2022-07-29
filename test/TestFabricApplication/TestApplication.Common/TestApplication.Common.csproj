@@ -6,9 +6,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Owin.Hosting" Version="4.0.0" />
-    <PackageReference Include="Microsoft.ServiceFabric" Version="6.4.617" />
-    <PackageReference Include="Microsoft.ServiceFabric.Services" Version="3.3.617" />
+    <PackageReference Include="Microsoft.Owin.Hosting" />
+    <PackageReference Include="Microsoft.ServiceFabric" />
+    <PackageReference Include="Microsoft.ServiceFabric.Services" />
   </ItemGroup>
 
   <ItemGroup>
