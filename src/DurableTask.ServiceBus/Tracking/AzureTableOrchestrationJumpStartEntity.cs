@@ -16,8 +16,7 @@ namespace DurableTask.ServiceBus.Tracking
     using System;
     using System.Collections.Generic;
     using System.Globalization;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Table;
+    using Azure.Data.Tables;
     using DurableTask.Core.Tracking;
 
     /// <summary>
@@ -70,11 +69,10 @@ namespace DurableTask.ServiceBus.Tracking
         /// <summary>
         /// Write an entity to a dictionary of entity properties
         /// </summary>
-        /// <param name="operationContext">The operation context</param>
-        public override IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext)
+        public override IDictionary<string, object> WriteEntity()
         {
-            IDictionary<string, EntityProperty> returnValues = base.WriteEntity(operationContext);
-            returnValues.Add("JumpStartTime", new EntityProperty(JumpStartTime));
+            IDictionary<string, object> returnValues = base.WriteEntity();
+            returnValues.Add("JumpStartTime", JumpStartTime);
             return returnValues;
         }
 
@@ -82,15 +80,12 @@ namespace DurableTask.ServiceBus.Tracking
         /// Read an entity properties based on the supplied dictionary or entity properties
         /// </summary>
         /// <param name="properties">Dictionary of properties to read for the entity</param>
-        /// <param name="operationContext">The operation context</param>
-        public override void ReadEntity(IDictionary<string, EntityProperty> properties,
-            OperationContext operationContext)
+        public override void ReadEntity(IDictionary<string, object> properties)
         {
-            base.ReadEntity(properties, operationContext);
-            JumpStartTime =
-                GetValue("JumpStartTime", properties, property => property.DateTimeOffsetValue)
-                    .GetValueOrDefault()
-                    .DateTime;
+            base.ReadEntity(properties);
+            JumpStartTime = GetValue<DateTimeOffset?>("JumpStartTime", properties)
+                .GetValueOrDefault()
+                .DateTime;
         }
 
         /// <summary>
