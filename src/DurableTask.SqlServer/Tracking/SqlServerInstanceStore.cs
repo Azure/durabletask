@@ -22,7 +22,9 @@ namespace DurableTask.SqlServer.Tracking
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Runtime.CompilerServices;
     using System.Text.RegularExpressions;
+    using System.Threading;
     using System.Threading.Tasks;
 
     /// <summary>
@@ -98,7 +100,7 @@ namespace DurableTask.SqlServer.Tracking
         }
 
         /// <inheritdoc />
-        public async Task<IEnumerable<OrchestrationStateInstanceEntity>> GetEntitiesAsync(string instanceId, string executionId)
+        public async IAsyncEnumerable<OrchestrationStateInstanceEntity> GetEntitiesAsync(string instanceId, string executionId, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             using (var connection = await settings.GetDatabaseConnection())
             using (var command = connection.CreateCommand())
@@ -109,16 +111,12 @@ namespace DurableTask.SqlServer.Tracking
                     .AddParameter("executionId", executionId);
 
                 await connection.OpenAsync();
-                using (var reader = await command.ExecuteReaderAsync())
+                using (var reader = await command.ExecuteReaderAsync(cancellationToken))
                 {
-                    var entities = new List<OrchestrationStateInstanceEntity>();
-
-                    while (await reader.ReadAsync())
+                    while (await reader.ReadAsync(cancellationToken))
                     {
-                        entities.Add(new OrchestrationStateInstanceEntity { State = JsonDataConverter.Default.Deserialize<OrchestrationState>(reader.GetString(0)) });
+                        yield return new OrchestrationStateInstanceEntity { State = JsonDataConverter.Default.Deserialize<OrchestrationState>(reader.GetString(0)) };
                     }
-
-                    return entities;
                 }
             }
         }
@@ -126,10 +124,10 @@ namespace DurableTask.SqlServer.Tracking
         /// <summary>
         /// Not Supported
         /// </summary>
-        public Task<IEnumerable<OrchestrationJumpStartInstanceEntity>> GetJumpStartEntitiesAsync(int top) => throw new NotSupportedException("JumpStart Entities not supported.");
+        public IAsyncEnumerable<OrchestrationJumpStartInstanceEntity> GetJumpStartEntitiesAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException("JumpStart Entities not supported.");
 
         /// <inheritdoc />
-        public async Task<IEnumerable<OrchestrationWorkItemInstanceEntity>> GetOrchestrationHistoryEventsAsync(string instanceId, string executionId)
+        public async IAsyncEnumerable<OrchestrationWorkItemInstanceEntity> GetOrchestrationHistoryEventsAsync(string instanceId, string executionId, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             using (var connection = await settings.GetDatabaseConnection())
             using (var command = connection.CreateCommand())
@@ -140,27 +138,24 @@ namespace DurableTask.SqlServer.Tracking
 
                 await connection.OpenAsync();
 
-                var reader = await command.ExecuteReaderAsync();
-                var entities = new List<OrchestrationWorkItemInstanceEntity>();
+                var reader = await command.ExecuteReaderAsync(cancellationToken);
 
-                while (await reader.ReadAsync())
+                while (await reader.ReadAsync(cancellationToken))
                 {
-                    entities.Add(new OrchestrationWorkItemInstanceEntity
+                    yield return new OrchestrationWorkItemInstanceEntity
                     {
                         InstanceId = reader.GetFieldValue<string>(0),
                         ExecutionId = reader.GetFieldValue<string>(1),
                         EventTimestamp = reader.GetFieldValue<DateTime>(2),
                         SequenceNumber = reader.GetFieldValue<long>(3),
                         HistoryEvent = JsonDataConverter.Default.Deserialize<HistoryEvent>(reader.GetFieldValue<string>(4))
-                    });
+                    };
                 }
-
-                return entities;
             }
         }
 
         /// <inheritdoc />
-        public async Task<IEnumerable<OrchestrationStateInstanceEntity>> GetOrchestrationStateAsync(string instanceId, bool allInstances)
+        public async IAsyncEnumerable<OrchestrationStateInstanceEntity> GetOrchestrationStateAsync(string instanceId, bool allInstances, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             using (var connection = await settings.GetDatabaseConnection())
             using (var command = connection.CreateCommand())
@@ -177,18 +172,14 @@ namespace DurableTask.SqlServer.Tracking
                 command.CommandText += "ORDER BY LastUpdatedTime";
 
                 await connection.OpenAsync();
-                using (var reader = await command.ExecuteReaderAsync())
+                using (var reader = await command.ExecuteReaderAsync(cancellationToken))
                 {
-                    var entities = new List<OrchestrationStateInstanceEntity>();
-
-                    while (await reader.ReadAsync())
+                    while (await reader.ReadAsync(cancellationToken))
                     {
-                        entities.Add(new OrchestrationStateInstanceEntity { State = JsonDataConverter.Default.Deserialize<OrchestrationState>(reader.GetFieldValue<string>(0)) });
+                        yield return new OrchestrationStateInstanceEntity { State = JsonDataConverter.Default.Deserialize<OrchestrationState>(reader.GetFieldValue<string>(0)) };
 
                         if (allInstances == false) break;
                     }
-
-                    return entities;
                 }
             }
         }

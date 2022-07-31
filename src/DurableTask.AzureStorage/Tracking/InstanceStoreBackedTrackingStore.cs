@@ -52,19 +52,16 @@ namespace DurableTask.AzureStorage.Tracking
             //If no execution Id is provided get the latest executionId by getting the latest state
             if (expectedExecutionId == null)
             {
-                expectedExecutionId = (await this.instanceStore.GetOrchestrationStateAsync(instanceId, false)).FirstOrDefault()?.State.OrchestrationInstance.ExecutionId;
+                expectedExecutionId = (await this.instanceStore.GetOrchestrationStateAsync(instanceId, false).FirstOrDefaultAsync())?.State.OrchestrationInstance.ExecutionId;
             }
 
-            var events = await this.instanceStore.GetOrchestrationHistoryEventsAsync(instanceId, expectedExecutionId);
+            var events = await this.instanceStore.GetOrchestrationHistoryEventsAsync(instanceId, expectedExecutionId)
+                .Select(x => x.HistoryEvent)
+                .ToListAsync();
 
-            if (events == null || !events.Any())
-            {
-                return new OrchestrationHistory(EmptyHistoryEventList);
-            }
-            else
-            {
-                return new OrchestrationHistory(events.Select(x => x.HistoryEvent).ToList());
-            }
+            return events.Count == 0
+                ? new OrchestrationHistory(EmptyHistoryEventList)
+                : new OrchestrationHistory(events);
         }
 
         /// <inheritdoc />
@@ -75,17 +72,11 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async IAsyncEnumerable<OrchestrationState> GetStateAsync(string instanceId, bool allExecutions, bool fetchInput = true, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        public override IAsyncEnumerable<OrchestrationState> GetStateAsync(string instanceId, bool allExecutions, bool fetchInput = true, CancellationToken cancellationToken = default)
         {
-            IEnumerable<OrchestrationStateInstanceEntity> states = await instanceStore.GetOrchestrationStateAsync(instanceId, allExecutions);
-
-            if (states != null)
-            {
-                foreach (OrchestrationState state in states.Select(x => x.State))
-                {
-                    yield return state;
-                }
-            }
+            return instanceStore
+                .GetOrchestrationStateAsync(instanceId, allExecutions)
+                .Select(x => x.State);
         }
 
         /// <inheritdoc />

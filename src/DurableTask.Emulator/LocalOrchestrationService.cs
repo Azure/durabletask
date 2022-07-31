@@ -323,7 +323,7 @@ namespace DurableTask.Emulator
         }
 
         /// <inheritdoc />
-        public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
+        public Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
             OrchestrationState response;
 
@@ -336,11 +336,11 @@ namespace DurableTask.Emulator
                 }
             }
 
-            return await Task.FromResult(response);
+            return Task.FromResult(response);
         }
 
         /// <inheritdoc />
-        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
+        public IAsyncEnumerable<OrchestrationState> GetOrchestrationStateAsync(string instanceId, bool allExecutions, CancellationToken cancellationToken = default)
         {
             IList<OrchestrationState> response;
 
@@ -352,11 +352,11 @@ namespace DurableTask.Emulator
                 }
                 else
                 {
-                    response = new List<OrchestrationState>();
+                    response = Array.Empty<OrchestrationState>();
                 }
             }
 
-            return await Task.FromResult(response);
+            return response.ToAsyncEnumerable();
         }
 
         /// <inheritdoc />

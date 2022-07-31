@@ -17,7 +17,6 @@ namespace DurableTask.Core
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
-    using Azure;
     using DurableTask.Core.Tracking;
 
     /// <summary>
@@ -113,7 +112,7 @@ namespace DurableTask.Core
         /// Get a list of jump start events from instance store
         /// </summary>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        /// <returns>An pageable collection over the matching jump start events.</returns>
-        AsyncPageable<OrchestrationJumpStartInstanceEntity> GetJumpStartEntitiesAsync(CancellationToken cancellationToken = default);
+        /// <returns>An asynchronous enumerable over the matching jump start events.</returns>
+        IAsyncEnumerable<OrchestrationJumpStartInstanceEntity> GetJumpStartEntitiesAsync(CancellationToken cancellationToken = default);
     }
 }

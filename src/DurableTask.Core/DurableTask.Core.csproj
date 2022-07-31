@@ -39,7 +39,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Azure.Core" Version="1.24.0" />
     <PackageReference Include="Castle.Core" Version="5.0.0" />
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="6.0.0" />
     <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="5.0.1" />

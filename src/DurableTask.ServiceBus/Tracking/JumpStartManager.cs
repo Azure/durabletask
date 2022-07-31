@@ -83,9 +83,6 @@ namespace DurableTask.ServiceBus.Tracking
 
                     // TODO: Query in batches and change time frame only after current range is finished
                     List<OrchestrationJumpStartInstanceEntity> entities = await this.service.InstanceStore.GetJumpStartEntitiesAsync()
-                        .AsPages(pageSizeHint: 1000)
-                        .SelectMany(x => x.Values)
-                        .Take(1000)
                         .ToListAsync();
 
                     TraceHelper.Trace(

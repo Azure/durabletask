@@ -322,7 +322,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// </summary>
         /// <param name = "cancellationToken" > The token to monitor for cancellation requests.The default value is <see cref = "CancellationToken.None" />.</param >
         /// <returns>An asynchronous enumerable over the matching state.</returns>
-        public AsyncPageable<OrchestrationJumpStartInstanceEntity> GetJumpStartEntitiesAsync(CancellationToken cancellationToken = default)
+        public IAsyncEnumerable<OrchestrationJumpStartInstanceEntity> GetJumpStartEntitiesAsync(CancellationToken cancellationToken = default)
         {
             return new AsyncPageableProjection<AzureTableOrchestrationJumpStartEntity, OrchestrationJumpStartInstanceEntity>(
                 this.tableClient.QueryJumpStartOrchestrationsAsync(
