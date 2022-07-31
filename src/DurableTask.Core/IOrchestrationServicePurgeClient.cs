@@ -13,7 +13,6 @@
 
 namespace DurableTask.Core
 {
-    using System.Threading;
     using System.Threading.Tasks;
 
     /// <summary>
@@ -25,16 +24,14 @@ namespace DurableTask.Core
         /// Purge state for an orchestration with a specified instance ID.
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration to purge.</param>
-        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <returns>A <see cref="PurgeResult"/> object containing more information about the purged instance.</returns>
-        Task<PurgeResult> PurgeInstanceStateAsync(string instanceId, CancellationToken cancellationToken = default);
+        Task<PurgeResult> PurgeInstanceStateAsync(string instanceId);
 
         /// <summary>
         /// Purge state for orchestrations that match the specified parameters.
         /// </summary>
         /// <param name="purgeInstanceFilter">A <see cref="PurgeInstanceFilter"/> object that determines which orchestration instances to purge.</param>
-        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <returns>A <see cref="PurgeResult"/> object containing more information about the purged instances.</returns>
-        Task<PurgeResult> PurgeInstanceStateAsync(PurgeInstanceFilter purgeInstanceFilter, CancellationToken cancellationToken = default);
+        Task<PurgeResult> PurgeInstanceStateAsync(PurgeInstanceFilter purgeInstanceFilter);
     }
 }

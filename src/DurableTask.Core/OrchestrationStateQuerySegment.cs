@@ -14,21 +14,20 @@
 namespace DurableTask.Core
 {
     using System.Collections.Generic;
-    using System.Threading.Tasks;
 
     /// <summary>
-    /// Interface allowing providers to implement extended sessions (aka "sticky sessions").
+    /// Partial query results for an orchestration state query
     /// </summary>
-    public interface IOrchestrationSession
+    public class OrchestrationStateQuerySegment
     {
         /// <summary>
-        /// When implemented, fetches a new batch of messages for a particular work item.
+        /// The continuation token to obtain more results
         /// </summary>
-        /// <remarks>
-        /// Implementors of this method should feel free to block until new messages are available,
-        /// or until an internal wait period has expired. In either case, <c>null</c> can be returned
-        /// and the dispatcher will shut down the session.
-        /// </remarks>
-        Task<IList<TaskMessage>> FetchNewOrchestrationMessagesAsync(TaskOrchestrationWorkItem workItem);
+        public string ContinuationToken;
+
+        /// <summary>
+        /// The results for the partial query
+        /// </summary>
+        public IEnumerable<OrchestrationState> Results;
     }
 }
