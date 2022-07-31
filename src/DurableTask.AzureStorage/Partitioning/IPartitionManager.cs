@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage.Partitioning
 {
     using System.Collections.Generic;
+    using System.Threading;
     using System.Threading.Tasks;
 
     interface IPartitionManager
@@ -28,6 +29,6 @@ namespace DurableTask.AzureStorage.Partitioning
 
         Task DeleteLeases();
 
-        Task<IEnumerable<BlobLease>> GetOwnershipBlobLeases();
+        IAsyncEnumerable<BlobPartitionLease> GetOwnershipBlobLeases(CancellationToken cancellationToken = default);
     }
 }

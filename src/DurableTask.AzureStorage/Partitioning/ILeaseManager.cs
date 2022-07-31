@@ -23,7 +23,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         Task<bool> CreateLeaseStoreIfNotExistsAsync(TaskHubInfo eventHubInfo, bool checkIfStale = true, CancellationToken cancellationToken = default);
 
-        Task<IEnumerable<T>> ListLeasesAsync(CancellationToken cancellationToken = default);
+        IAsyncEnumerable<T> ListLeasesAsync(CancellationToken cancellationToken = default);
 
         Task CreateLeaseIfNotExistAsync(string partitionId, CancellationToken cancellationToken = default);
 
