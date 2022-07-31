@@ -14,6 +14,7 @@
 namespace DurableTask.Core
 {
     using System.Collections.Generic;
+    using System.Threading;
     using System.Threading.Tasks;
 
     /// <summary>
@@ -29,6 +30,6 @@ namespace DurableTask.Core
         /// or until an internal wait period has expired. In either case, <c>null</c> can be returned
         /// and the dispatcher will shut down the session.
         /// </remarks>
-        Task<IList<TaskMessage>> FetchNewOrchestrationMessagesAsync(TaskOrchestrationWorkItem workItem);
+        Task<IList<TaskMessage>> FetchNewOrchestrationMessagesAsync(TaskOrchestrationWorkItem workItem, CancellationToken cancellationToken = default);
     }
 }

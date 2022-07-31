@@ -28,32 +28,36 @@ namespace DurableTask.Core
         /// Creates a new orchestration
         /// </summary>
         /// <param name="creationMessage">Orchestration creation message</param>
+        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <exception cref="OrchestrationAlreadyExistsException">Will throw an OrchestrationAlreadyExistsException exception If any orchestration with the same instance Id exists in the instance store.</exception>
         /// <returns></returns>
-        Task CreateTaskOrchestrationAsync(TaskMessage creationMessage);
+        Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Creates a new orchestration and specifies a subset of states which should be de duplicated on in the client side
         /// </summary>
         /// <param name="creationMessage">Orchestration creation message</param>
         /// <param name="dedupeStatuses">States of previous orchestration executions to be considered while de-duping new orchestrations on the client</param>
+        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <exception cref="OrchestrationAlreadyExistsException">Will throw an OrchestrationAlreadyExistsException exception If any orchestration with the same instance Id exists in the instance store and it has a status specified in dedupeStatuses.</exception>
         /// <returns></returns>
-        Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses);
+        Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Send a new message for an orchestration
         /// </summary>
         /// <param name="message">Message to send</param>
+        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <returns></returns>
-        Task SendTaskOrchestrationMessageAsync(TaskMessage message);
+        Task SendTaskOrchestrationMessageAsync(TaskMessage message, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Send a new set of messages for an orchestration
         /// </summary>
         /// <param name="messages">Messages to send</param>
+        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <returns></returns>
-        Task SendTaskOrchestrationMessageBatchAsync(params TaskMessage[] messages);
+        Task SendTaskOrchestrationMessageBatchAsync(IEnumerable<TaskMessage> messages, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Wait for an orchestration to reach any terminal state within the given timeout
@@ -61,19 +65,20 @@ namespace DurableTask.Core
         /// <param name="instanceId">Instance id of the orchestration</param>
         /// <param name="executionId">Execution id of the orchestration</param>
         /// <param name="timeout">Maximum amount of time to wait</param>
-        /// <param name="cancellationToken">Task cancellation token</param>
+        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         Task<OrchestrationState> WaitForOrchestrationAsync(
             string instanceId,
             string executionId,
             TimeSpan timeout,
-            CancellationToken cancellationToken);
+            CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Forcefully terminate the specified orchestration instance
         /// </summary>
         /// <param name="instanceId">Instance to terminate</param>
         /// <param name="reason">Reason for termination</param>
-        Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason);
+        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
+        Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Asynchronously enumerates over the list of orchestration states from the instance storage for the most current execution (generation) of the specified instance.
@@ -89,16 +94,18 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="instanceId">Instance id</param>
         /// <param name="executionId">Execution id</param>
+        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <returns>The OrchestrationState of the specified instanceId or null if not found</returns>
-        Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId);
+        Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get a string dump of the execution history of the specified orchestration instance specified execution (generation) of the specified instance
         /// </summary>
         /// <param name="instanceId">Instance id</param>
         /// <param name="executionId">Execution id</param>
+        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <returns>String with formatted JSON representing the execution history</returns>
-        Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId);
+        Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Purges orchestration instance state and history for orchestrations older than the specified threshold time.
@@ -106,6 +113,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="thresholdDateTimeUtc">Threshold date time in UTC</param>
         /// <param name="timeRangeFilterType">What to compare the threshold date time against</param>
-        Task PurgeOrchestrationHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType);
+        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
+        Task PurgeOrchestrationHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType, CancellationToken cancellationToken = default);
     }
 }

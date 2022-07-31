@@ -33,17 +33,17 @@ namespace DurableTask.Core
         /// <summary>
         /// Starts the service initializing the required resources
         /// </summary>
-        Task StartAsync();
+        Task StartAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Stops the orchestration service gracefully
         /// </summary>
-        Task StopAsync();
+        Task StopAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Stops the orchestration service with optional forced flag
         /// </summary>
-        Task StopAsync(bool isForced);
+        Task StopAsync(bool isForced, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Deletes and Creates the necessary resources for the orchestration service and the instance store
@@ -53,22 +53,22 @@ namespace DurableTask.Core
         /// <summary>
         /// Deletes and Creates the necessary resources for the orchestration service and optionally the instance store
         /// </summary>
-        Task CreateAsync(bool recreateInstanceStore);
+        Task CreateAsync(bool recreateInstanceStore, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Creates the necessary resources for the orchestration service and the instance store
         /// </summary>
-        Task CreateIfNotExistsAsync();
+        Task CreateIfNotExistsAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Deletes the resources for the orchestration service and the instance store
         /// </summary>
-        Task DeleteAsync();
+        Task DeleteAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Deletes the resources for the orchestration service and optionally the instance store
         /// </summary>
-        Task DeleteAsync(bool deleteInstanceStore);
+        Task DeleteAsync(bool deleteInstanceStore, CancellationToken cancellationToken = default);
 
         // TaskOrchestrationDispatcher methods
 
@@ -105,12 +105,12 @@ namespace DurableTask.Core
         /// <summary>
         ///     Wait for the next orchestration work item and return the orchestration work item
         /// </summary>
-        Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken);
+        Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken = default);
 
         /// <summary>
         ///     Renew the lock on an orchestration
         /// </summary>
-        Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem);
+        Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem, CancellationToken cancellationToken = default);
 
         /// <summary>
         ///     Complete an orchestration, send any outbound messages and completes the session for all current messages
@@ -122,17 +122,18 @@ namespace DurableTask.Core
             IList<TaskMessage> orchestratorMessages,
             IList<TaskMessage> timerMessages,
             TaskMessage continuedAsNewMessage,
-            OrchestrationState orchestrationState);
+            OrchestrationState orchestrationState,
+            CancellationToken cancellationToken = default);
 
         /// <summary>
         ///     Abandon an orchestration, this abandons ownership/locking of all messages for an orchestration and it's session
         /// </summary>
-        Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem);
+        Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem, CancellationToken cancellationToken = default);
 
         /// <summary>
         ///     Release the lock on an orchestration, releases the session, decoupled from CompleteTaskOrchestrationWorkItemAsync to handle nested orchestrations
         /// </summary>
-        Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem);
+        Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem, CancellationToken cancellationToken = default);
 
         // TaskActivityDispatcher methods
 
@@ -149,21 +150,21 @@ namespace DurableTask.Core
         /// <summary>
         ///    Wait for an lock the next task activity to be processed 
         /// </summary>
-        Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken);
+        Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken = default);
 
         /// <summary>
         ///    Renew the lock on a still processing work item
         /// </summary>
-        Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem);
+        Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem, CancellationToken cancellationToken = default);
 
         /// <summary>
         ///    Atomically complete a work item and send the response messages
         /// </summary>
-        Task CompleteTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, TaskMessage responseMessage);
+        Task CompleteTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, TaskMessage responseMessage, CancellationToken cancellationToken = default);
 
         /// <summary>
         ///    Abandons a single work item and releases the lock on it
         /// </summary>
-        Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem);
+        Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, CancellationToken cancellationToken = default);
     }
 }
