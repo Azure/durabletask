@@ -155,7 +155,7 @@ namespace DurableTask.AzureStorage.Storage
                 TableResults = results
             };
 
-            IEnumerable<T> GetNext(IEnumerator<T> enumerator, int count)
+            static IEnumerable<T> GetNext(IEnumerator<T> enumerator, int count)
             {
                 for (int i = 0; i < count && enumerator.MoveNext(); i++)
                 {

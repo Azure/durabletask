@@ -15,8 +15,8 @@ namespace DurableTask.ServiceBus.Tracking
 {
     using System;
     using System.Collections.Generic;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Table;
+    using Azure;
+    using Azure.Data.Tables;
 
     /// <summary>
     /// Abstract class for composite entities for Azure table
@@ -41,40 +41,32 @@ namespace DurableTask.ServiceBus.Tracking
         /// <summary>
         /// Gets or sets the row timestamp
         /// </summary>
-        public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.Now;
+        public DateTimeOffset? Timestamp { get; set; } = DateTimeOffset.Now;
 
         /// <summary>
         /// Gets or sets the entity etag
         /// </summary>
-        public string ETag { get; set; }
+        public ETag ETag { get; set; }
 
         /// <summary>
         /// Read an entity properties based on the supplied dictionary or entity properties
         /// </summary>
         /// <param name="properties">Dictionary of properties to read for the entity</param>
-        /// <param name="operationContext">The operation context</param>
-        public abstract void ReadEntity(IDictionary<string, EntityProperty> properties, OperationContext operationContext);
+        public abstract void ReadEntity(IDictionary<string, object> properties);
 
         /// <summary>
         /// Write an entity to a dictionary of entity properties
         /// </summary>
-        /// <param name="operationContext">The operation context</param>
-        public abstract IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext);
+        public abstract IDictionary<string, object> WriteEntity();
 
         internal abstract IEnumerable<ITableEntity> BuildDenormalizedEntities();
 
         /// <summary>
-        /// 
+        /// Gets a value from the property bag if found.
         /// </summary>
-        protected T GetValue<T>(string key, IDictionary<string, EntityProperty> properties,
-            Func<EntityProperty, T> extract)
+        protected T GetValue<T>(string key, IDictionary<string, object> properties)
         {
-            if (!properties.TryGetValue(key, out EntityProperty ep))
-            {
-                return default(T);
-            }
-
-            return extract(ep);
+            return properties.TryGetValue(key, out object ep) ? (T)ep : default;
         }
     }
 }
