@@ -16,17 +16,14 @@ namespace DurableTask.AzureStorage.Tests
     using System;
     using System.Collections.Generic;
     using System.Linq;
-    using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
-    using DurableTask.AzureStorage.Entities;
+    using Azure.Data.Tables;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Table;
     using Moq;
     using Newtonsoft.Json;
 
@@ -110,17 +107,18 @@ namespace DurableTask.AzureStorage.Tests
 
             public string ActualPassedTokenString { get; set; }
 
-            public List<OrchestrationInstanceStatusEntity> InputStatus { get; set; }
+            public List<OrchestrationInstanceStatus> InputStatus { get; set; }
 
             public List<OrchestrationStatus> InputState { get; set; }
 
             public QueryFixture()
             {
-                var azureStorageClient = new AzureStorageClient(new AzureStorageOrchestrationServiceSettings() { StorageConnectionString = "UseDevelopmentStorage=true"});
-                var cloudStorageAccount = CloudStorageAccount.Parse(azureStorageClient.Settings.StorageConnectionString);
-                var cloudTableClient = cloudStorageAccount.CreateCloudTableClient();
+                const string ConnectionString = "UseDevelopmentStorage=true";
 
-                this.tableMock = new Mock<Table>(azureStorageClient, cloudTableClient, "MockTable");
+                var azureStorageClient = new AzureStorageClient(new AzureStorageOrchestrationServiceSettings(ConnectionString));
+                var tableServiceClient = new TableServiceClient(ConnectionString);
+
+                this.tableMock = new Mock<Table>(azureStorageClient, tableServiceClient, "MockTable");
             }
 
             private void SetUpQueryStateWithPager(string inputToken)
@@ -149,24 +147,24 @@ namespace DurableTask.AzureStorage.Tests
 
             public void VerifyQueryStateWithPager()
             {
-                this.tableMock.Verify(t => t.ExecuteQuerySegmentAsync<OrchestrationInstanceStatusEntity>(
-                    It.IsAny<TableQuery<OrchestrationInstanceStatusEntity>>(),
+                this.tableMock.Verify(t => t.ExecuteQuerySegmentAsync<OrchestrationInstanceStatus>(
+                    It.IsAny<TableQuery<OrchestrationInstanceStatus>>(),
                         It.IsAny<CancellationToken>(),
                         It.IsAny<string>()));
             }
 
             private void SetupExecuteQuerySegmentMock()
             {
-                var segment = (TableEntitiesResponseInfo<OrchestrationInstanceStatusEntity>)System.Runtime.Serialization.FormatterServices.GetSafeUninitializedObject(typeof(TableEntitiesResponseInfo<OrchestrationInstanceStatusEntity>));
+                var segment = (TableEntitiesResponseInfo<OrchestrationInstanceStatus>)System.Runtime.Serialization.FormatterServices.GetSafeUninitializedObject(typeof(TableEntitiesResponseInfo<OrchestrationInstanceStatus>));
                 segment.GetType().GetProperty("ReturnedEntities").SetValue(segment, this.InputStatus);
                 segment.GetType().GetProperty("ContinuationToken").SetValue(segment, this.ExpectedTokenObject);
 
-                this.tableMock.Setup(t => t.ExecuteQuerySegmentAsync<OrchestrationInstanceStatusEntity>(
-                        It.IsAny<TableQuery<OrchestrationInstanceStatusEntity>>(),
+                this.tableMock.Setup(t => t.ExecuteQuerySegmentAsync<OrchestrationInstanceStatus>(
+                        It.IsAny<TableQuery<OrchestrationInstanceStatus>>(),
                         It.IsAny<CancellationToken>(),
                         It.IsAny<string>()))
                     .Returns(Task.FromResult(segment))
-                    .Callback<TableQuery<OrchestrationInstanceStatusEntity>, CancellationToken, string>(
+                    .Callback<TableQuery<OrchestrationInstanceStatus>, CancellationToken, string>(
                         (q, cancelToken, token) =>
                         {
                             this.ActualPassedTokenString = token;
@@ -176,19 +174,19 @@ namespace DurableTask.AzureStorage.Tests
 
             private void SetupQueryStateWithPagerInputStatus()
             {
-                this.InputStatus = new List<OrchestrationInstanceStatusEntity>()
+                this.InputStatus = new List<OrchestrationInstanceStatus>()
                 {
-                    new OrchestrationInstanceStatusEntity()
+                    new OrchestrationInstanceStatus()
                     {
                         Name = "foo",
                         RuntimeStatus = "Running"
                     },
-                    new OrchestrationInstanceStatusEntity()
+                    new OrchestrationInstanceStatus()
                     {
                         Name = "bar",
                         RuntimeStatus = "Completed"
                     },
-                    new OrchestrationInstanceStatusEntity()
+                    new OrchestrationInstanceStatus()
                     {
                         Name = "baz",
                         RuntimeStatus = "Failed"

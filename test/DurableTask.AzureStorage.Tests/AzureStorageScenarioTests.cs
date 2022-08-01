@@ -15,7 +15,6 @@ namespace DurableTask.AzureStorage.Tests
 {
     using System;
     using System.Collections.Generic;
-    using System.Configuration;
     using System.Diagnostics;
     using System.IO;
     using System.Linq;
@@ -23,15 +22,15 @@ namespace DurableTask.AzureStorage.Tests
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+    using Azure.Data.Tables;
+    using Azure.Storage.Blobs;
+    using Azure.Storage.Blobs.Models;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging.Utility;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Blob;
-    using Microsoft.WindowsAzure.Storage.Table;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
 
@@ -169,34 +168,6 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public async Task GetPaginatedStatuses()
-        {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
-            {
-                // Execute the orchestrator twice. Orchestrator will be replied. However instances might be two.
-                await host.StartAsync();
-                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "world one");
-                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
-                client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "world two");
-                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
-
-                DurableStatusQueryResult queryResult = await host.service.GetOrchestrationStateAsync(
-                    new OrchestrationInstanceStatusQueryCondition(),
-                    1,
-                    null);
-                Assert.AreEqual(1, queryResult.OrchestrationState.Count());
-                Assert.IsNotNull(queryResult.ContinuationToken);
-                queryResult = await host.service.GetOrchestrationStateAsync(
-                    new OrchestrationInstanceStatusQueryCondition(),
-                    1,
-                    queryResult.ContinuationToken);
-                Assert.AreEqual(1, queryResult.OrchestrationState.Count());
-                Assert.IsNull(queryResult.ContinuationToken);
-                await host.StopAsync();
-            }
-        }
-
-        [TestMethod]
         public async Task GetInstanceIdsByPrefix()
         {
             using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false);
@@ -228,15 +199,12 @@ namespace DurableTask.AzureStorage.Tests
                 instanceId: $"Foo_{instanceIdPrefixGuid}");
             await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
 
-            DurableStatusQueryResult queryResult = await host.service.GetOrchestrationStateAsync(
-                new OrchestrationInstanceStatusQueryCondition()
-                {
-                    InstanceIdPrefix = instanceIdPrefixGuid,
-                },
-                top: instanceIds.Length,
-                continuationToken: null);
-            Assert.AreEqual(instanceIds.Length, queryResult.OrchestrationState.Count());
-            Assert.IsNull(queryResult.ContinuationToken);
+            int resultCount = await host.service
+                .GetOrchestrationStateAsync(
+                    new OrchestrationInstanceStatusQueryCondition { InstanceIdPrefix = instanceIdPrefixGuid })
+                .CountAsync();
+
+            Assert.AreEqual(instanceIds.Length, resultCount);
 
             await host.StopAsync();
         }
@@ -248,12 +216,9 @@ namespace DurableTask.AzureStorage.Tests
             {
                 // Execute the orchestrator twice. Orchestrator will be replied. However instances might be two.
                 await host.StartAsync();
-                var queryResult = await host.service.GetOrchestrationStateAsync(
-                    new OrchestrationInstanceStatusQueryCondition(),
-                    100,
-                    null);
+                var queryResult = host.service.GetOrchestrationStateAsync();
 
-                Assert.IsNull(queryResult.ContinuationToken);
+                Assert.AreEqual(0, queryResult.CountAsync());
                 await host.StopAsync();
             }
         }
@@ -545,40 +510,12 @@ namespace DurableTask.AzureStorage.Tests
 
         private async Task<int> GetBlobCount(string containerName, string directoryName)
         {
-            string storageConnectionString = TestHelpers.GetTestStorageAccountConnectionString();
-            CloudStorageAccount storageAccount;
-            if (!CloudStorageAccount.TryParse(storageConnectionString, out storageAccount))
-            {
-                Assert.Fail("Couldn't find the connection string to use to look up blobs!");
-                return 0;
-            }
+            var client = new BlobServiceClient(TestHelpers.GetTestStorageAccountConnectionString());
 
-            CloudBlobClient cloudBlobClient = storageAccount.CreateCloudBlobClient();
+            var containerClient = client.GetBlobContainerClient(containerName);
+            await containerClient.CreateIfNotExistsAsync();
 
-            CloudBlobContainer cloudBlobContainer = cloudBlobClient.GetContainerReference(containerName);
-            await cloudBlobContainer.CreateIfNotExistsAsync();
-            CloudBlobDirectory instanceDirectory = cloudBlobContainer.GetDirectoryReference(directoryName);
-            int blobCount = 0;
-            BlobContinuationToken blobContinuationToken = null;
-            do
-            {
-                BlobResultSegment results = await TimeoutHandler.ExecuteWithTimeout("GetBlobCount", "dummyAccount", new AzureStorageOrchestrationServiceSettings(), (context, timeoutToken) =>
-                {
-                    return instanceDirectory.ListBlobsSegmentedAsync(
-                            useFlatBlobListing: true,
-                            blobListingDetails: BlobListingDetails.Metadata,
-                            maxResults: null,
-                            currentToken: blobContinuationToken,
-                            options: null,
-                            operationContext: context,
-                            cancellationToken: timeoutToken);
-                }); ;
-                
-                blobContinuationToken = results.ContinuationToken;
-                blobCount += results.Results.Count();
-            } while (blobContinuationToken != null);
-
-            return blobCount;
+            return await containerClient.GetBlobsAsync(traits: BlobTraits.Metadata, prefix: directoryName).CountAsync();
         }
 
 
@@ -1961,27 +1898,34 @@ namespace DurableTask.AzureStorage.Tests
         {
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
 
-            CloudStorageAccount account = CloudStorageAccount.Parse(TestHelpers.GetTestStorageAccountConnectionString());
-            Assert.IsTrue(value.StartsWith(account.BlobStorageUri.PrimaryUri.OriginalString));
+            var serviceClient = new BlobServiceClient(TestHelpers.GetTestStorageAccountConnectionString());
+
+            Assert.IsTrue(value.StartsWith(serviceClient.Uri.OriginalString));
             Assert.IsTrue(value.Contains("/" + sanitizedInstanceId + "/"));
             Assert.IsTrue(value.EndsWith(".json.gz"));
 
             string containerName = $"{taskHubName.ToLowerInvariant()}-largemessages";
-            CloudBlobClient client = account.CreateCloudBlobClient();
-            CloudBlobContainer container = client.GetContainerReference(containerName);
+            BlobContainerClient container = serviceClient.GetBlobContainerClient(containerName);
             Assert.IsTrue(await container.ExistsAsync(), $"Blob container {containerName} is expected to exist.");
 
-            await client.GetBlobReferenceFromServerAsync(new Uri(value));
-            CloudBlobDirectory instanceDirectory = container.GetDirectoryReference(sanitizedInstanceId);
-
             string blobName = value.Split('/').Last();
-            CloudBlob blob = instanceDirectory.GetBlobReference(blobName);
-            Assert.IsTrue(await blob.ExistsAsync(), $"Blob named {blob.Uri} is expected to exist.");
+            int containerStart = value.IndexOf(serviceClient.Uri.OriginalString) + serviceClient.Uri.OriginalString.Length;
+            var blobClient = serviceClient
+                .GetBlobContainerClient(value.Substring(containerStart, value.IndexOf('/', containerStart + 1)))
+                .GetBlobClient(blobName);
+
+            await blobClient.ExistsAsync();
+            Assert.AreEqual(value, blobClient.Uri.OriginalString);
+            BlobItem blob = await container.GetBlobsByHierarchyAsync(prefix: sanitizedInstanceId)
+                .Where(x => x.IsBlob)
+                .Select(x => x.Blob)
+                .SingleOrDefaultAsync();
+
+            Assert.AreEqual(blobName, blob.Name, $"Blob named {blob.Name} is expected to exist.");
 
             if (originalPayloadSize > 0)
             {
-                await blob.FetchAttributesAsync();
-                Assert.IsTrue(blob.Properties.Length < originalPayloadSize, "Blob is expected to be compressed");
+                Assert.IsTrue(blob.Properties.ContentLength < originalPayloadSize, "Blob is expected to be compressed");
             }
         }
 
@@ -3058,16 +3002,16 @@ namespace DurableTask.AzureStorage.Tests
 
             internal class WriteTableRow : TaskActivity<Tuple<string, string>, string>
             {
-                static CloudTable cachedTable;
+                static TableClient cachedTable;
 
-                internal static CloudTable TestCloudTable
+                internal static TableClient TestTable
                 {
                     get
                     {
                         if (cachedTable == null)
                         {
                             string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
-                            CloudTable table = CloudStorageAccount.Parse(connectionString).CreateCloudTableClient().GetTableReference("TestTable");
+                            TableClient table = new TableServiceClient(connectionString).GetTableClient("TestTable");
                             table.CreateIfNotExistsAsync().Wait();
                             cachedTable = table;
                         }
@@ -3078,10 +3022,10 @@ namespace DurableTask.AzureStorage.Tests
 
                 protected override string Execute(TaskContext context, Tuple<string, string> rowData)
                 {
-                    var entity = new DynamicTableEntity(
+                    var entity = new TableEntity(
                         partitionKey: rowData.Item1,
                         rowKey: $"{rowData.Item2}.{Guid.NewGuid():N}");
-                    TestCloudTable.ExecuteAsync(TableOperation.Insert(entity)).Wait();
+                    TestTable.AddEntityAsync(entity).Wait();
                     return null;
                 }
             }
@@ -3090,13 +3034,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 protected override int Execute(TaskContext context, string partitionKey)
                 {
-                    var query = new TableQuery<DynamicTableEntity>().Where(
-                        TableQuery.GenerateFilterCondition(
-                            "PartitionKey",
-                            QueryComparisons.Equal,
-                            partitionKey));
-
-                    return WriteTableRow.TestCloudTable.ExecuteQuerySegmentedAsync(query, new TableContinuationToken()).Result.Count();
+                    return WriteTableRow.TestTable.Query<TableEntity>(filter: $"PartitionKey eq '{partitionKey}'").Count();
                 }
             }
             internal class Echo : TaskActivity<string, string>

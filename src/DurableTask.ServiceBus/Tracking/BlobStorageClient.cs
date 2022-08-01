@@ -130,6 +130,16 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         /// <summary>
+        /// Create a new <see cref="BlobContainerClient"/> for the given <paramref name="blobContainerName"/>.
+        /// </summary>
+        /// <param name="blobContainerName">The name of the blob container.</param>
+        /// <returns>The corresponding container client.</returns>
+        public BlobContainerClient GetBlobContainerClient(string blobContainerName)
+        {
+            return this.blobServiceClient.GetBlobContainerClient(blobContainerName);
+        }
+
+        /// <summary>
         /// Delete all containers that are older than the input threshold date.
         /// </summary>
         /// <param name="thresholdDateTimeUtc">The specified date threshold</param>
@@ -138,7 +148,7 @@ namespace DurableTask.ServiceBus.Tracking
         {
             await Task.WhenAll(await ListContainersAsync()
                 .Where(container => BlobStorageClientHelper.IsContainerExpired(container.Name, thresholdDateTimeUtc))
-                .Select(container => this.blobServiceClient.GetBlobContainerClient(container.Name).DeleteIfExistsAsync())
+                .Select(container => this.GetBlobContainerClient(container.Name).DeleteIfExistsAsync())
                 .ToListAsync());
         }
 
@@ -149,7 +159,7 @@ namespace DurableTask.ServiceBus.Tracking
         public async Task DeleteBlobStoreContainersAsync()
         {
             await Task.WhenAll(await ListContainersAsync()
-                .Select(container => this.blobServiceClient.GetBlobContainerClient(container.Name).DeleteIfExistsAsync())
+                .Select(container => this.GetBlobContainerClient(container.Name).DeleteIfExistsAsync())
                 .ToListAsync());
         }
     }

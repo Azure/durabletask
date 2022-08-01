@@ -1702,6 +1702,21 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
+        /// Gets the state of all orchestration instances that match the specified parameters.
+        /// </summary>
+        /// <param name="condition">Query condition. <see cref="OrchestrationInstanceStatusQueryCondition"/></param>
+        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
+        /// <returns>An asynchronous enumeration of <see cref="OrchestrationState"/></returns>
+        public async IAsyncEnumerable<OrchestrationState> GetOrchestrationStateAsync(OrchestrationInstanceStatusQueryCondition condition, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await this.EnsureTaskHubAsync();
+            await foreach (OrchestrationState state in this.trackingStore.GetStateAsync(condition, cancellationToken))
+            {
+                yield return state;
+            }
+        }
+
+        /// <summary>
         /// Force terminates an orchestration by sending a execution terminated event
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration to terminate.</param>

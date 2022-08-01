@@ -51,7 +51,9 @@ namespace DurableTask.SqlServer.Tests
 
             await InstanceStore.WriteEntitiesAsync(new InstanceEntityBase[] { expectedOrchestrationState, extraOrchestrationState });
 
-            var actual = (await InstanceStore.GetEntitiesAsync(expectedOrchestrationState.State.OrchestrationInstance.InstanceId, expectedOrchestrationState.State.OrchestrationInstance.ExecutionId)).ToList();
+            var actual = await InstanceStore
+                .GetEntitiesAsync(expectedOrchestrationState.State.OrchestrationInstance.InstanceId, expectedOrchestrationState.State.OrchestrationInstance.ExecutionId)
+                .ToListAsync();
 
             Assert.AreEqual(1, actual.Count);
 
@@ -73,7 +75,7 @@ namespace DurableTask.SqlServer.Tests
 
             await InstanceStore.WriteEntitiesAsync(new InstanceEntityBase[] { expectedWorkItemState, extraWorkItemState });
 
-            var actual = (await InstanceStore.GetOrchestrationHistoryEventsAsync(expectedInstanceId, expectedExecutionId)).ToList();
+            var actual = await InstanceStore.GetOrchestrationHistoryEventsAsync(expectedInstanceId, expectedExecutionId).ToListAsync();
 
             Assert.AreEqual(1, actual.Count);
 
@@ -98,7 +100,7 @@ namespace DurableTask.SqlServer.Tests
 
             await InstanceStore.WriteEntitiesAsync(entities);
 
-            var actual = (await InstanceStore.GetOrchestrationStateAsync(instanceId, true)).ToList();
+            var actual = await InstanceStore.GetOrchestrationStateAsync(instanceId, true).ToListAsync();
 
             Assert.AreEqual(entities.Count, actual.Count);
         }
@@ -118,7 +120,7 @@ namespace DurableTask.SqlServer.Tests
 
             await InstanceStore.WriteEntitiesAsync(entities);
 
-            var actual = (await InstanceStore.GetOrchestrationStateAsync(instanceId, false)).ToList();
+            var actual = await InstanceStore.GetOrchestrationStateAsync(instanceId, false).ToListAsync();
 
             Assert.AreEqual(1, actual.Count);
 

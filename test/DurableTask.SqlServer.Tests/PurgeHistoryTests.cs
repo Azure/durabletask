@@ -46,13 +46,13 @@ namespace DurableTask.SqlServer.Tests
             Assert.AreEqual(10, historyEntriesDeleted);
 
             var instance = orchestrations.Last().State.OrchestrationInstance;
-            var count = (await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)).Count();
+            var count = await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId).CountAsync();
             Assert.AreEqual(5, count);
 
             foreach (var item in orchestrations.Take(2))
             {
                 instance = item.State.OrchestrationInstance;
-                count = (await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)).Count();
+                count = await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId).CountAsync();
                 Assert.AreEqual(0, count);
             }
         }
@@ -80,13 +80,13 @@ namespace DurableTask.SqlServer.Tests
             Assert.AreEqual(10, historyEntriesDeleted);
 
             var instance = orchestrations.Last().State.OrchestrationInstance;
-            var count = (await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)).Count();
+            var count = await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId).CountAsync();
             Assert.AreEqual(5, count);
 
             foreach (var item in orchestrations.Take(2))
             {
                 instance = item.State.OrchestrationInstance;
-                count = (await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)).Count();
+                count = await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId).CountAsync();
                 Assert.AreEqual(0, count);
             }
         }
@@ -114,13 +114,13 @@ namespace DurableTask.SqlServer.Tests
             Assert.AreEqual(10, historyEntriesDeleted);
 
             var instance = orchestrations.Last().State.OrchestrationInstance;
-            var count = (await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)).Count();
+            var count = await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId).CountAsync();
             Assert.AreEqual(5, count);
 
             foreach (var item in orchestrations.Take(2))
             {
                 instance = item.State.OrchestrationInstance;
-                count = (await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId)).Count();
+                count = await InstanceStore.GetOrchestrationHistoryEventsAsync(instance.InstanceId, instance.ExecutionId).CountAsync();
                 Assert.AreEqual(0, count);
             }
         }

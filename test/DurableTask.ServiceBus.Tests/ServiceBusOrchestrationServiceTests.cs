@@ -15,6 +15,7 @@ namespace DurableTask.ServiceBus.Tests
 {
     using System;
     using System.Collections.Generic;
+    using System.Linq;
     using System.Threading.Tasks;
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
@@ -182,7 +183,7 @@ namespace DurableTask.ServiceBus.Tests
             // ReSharper disable once UnusedVariable
             long count = await TestHelpers.GetOrchestratorQueueMessageCount();
 
-            IList<OrchestrationState> executions = await this.client.GetOrchestrationStateAsync(id.InstanceId, true);
+            IList<OrchestrationState> executions = await this.client.GetOrchestrationStateAsync(id.InstanceId, true).ToListAsync();
             Assert.AreEqual(1, executions.Count, "Duplicate detection failed and orchestration ran for second time");
 
             // Make sure the second orchestration never started by checking the output from first orchestration

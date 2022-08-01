@@ -19,6 +19,7 @@ namespace DurableTask.ServiceBus.Tests
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using Azure;
     using DurableTask.Core;
     using DurableTask.ServiceBus.Tracking;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -93,13 +94,13 @@ namespace DurableTask.ServiceBus.Tests
             OrchestrationStateQuery emptyAllQuery = new OrchestrationStateQuery().AddInstanceFilter("apiservice10", true);
             var allQuery = new OrchestrationStateQuery();
 
-            IEnumerable<OrchestrationState> allResponse = await this.queryClient.QueryOrchestrationStatesAsync(allQuery);
-            IList<OrchestrationState> apiService1ExactResponse = (await this.queryClient.QueryOrchestrationStatesAsync(apiService1ExactQuery)).ToList();
-            IList<OrchestrationState> apiService1ExecutionIdExactResponse = (await this.queryClient.QueryOrchestrationStatesAsync(apiService1ExecutionIdExactQuery)).ToList();
-            IList<OrchestrationState> apiService1AllResponse = (await this.queryClient.QueryOrchestrationStatesAsync(apiService1AllQuery)).ToList();
-            IList<OrchestrationState> systemAllResponse = (await this.queryClient.QueryOrchestrationStatesAsync(systemAllQuery)).ToList();
-            IList<OrchestrationState> emptyAllResponse = (await this.queryClient.QueryOrchestrationStatesAsync(emptyExactQuery)).ToList();
-            IList<OrchestrationState> emptyExactResponse = (await this.queryClient.QueryOrchestrationStatesAsync(emptyAllQuery)).ToList();
+            IList<OrchestrationState> allResponse = await this.queryClient.QueryOrchestrationStatesAsync(allQuery).ToListAsync();
+            IList<OrchestrationState> apiService1ExactResponse = await this.queryClient.QueryOrchestrationStatesAsync(apiService1ExactQuery).ToListAsync();
+            IList<OrchestrationState> apiService1ExecutionIdExactResponse = await this.queryClient.QueryOrchestrationStatesAsync(apiService1ExecutionIdExactQuery).ToListAsync();
+            IList<OrchestrationState> apiService1AllResponse = await this.queryClient.QueryOrchestrationStatesAsync(apiService1AllQuery).ToListAsync();
+            IList<OrchestrationState> systemAllResponse = await this.queryClient.QueryOrchestrationStatesAsync(systemAllQuery).ToListAsync();
+            IList<OrchestrationState> emptyAllResponse = await this.queryClient.QueryOrchestrationStatesAsync(emptyExactQuery).ToListAsync();
+            IList<OrchestrationState> emptyExactResponse = await this.queryClient.QueryOrchestrationStatesAsync(emptyAllQuery).ToListAsync();
 
             Assert.IsTrue(allResponse.Count() == 5);
             Assert.IsTrue(apiService1ExactResponse.Count == 1);
@@ -141,18 +142,20 @@ namespace DurableTask.ServiceBus.Tests
 
             var results = new List<OrchestrationState>();
 
-            OrchestrationStateQuerySegment segment = await this.queryClient.QueryOrchestrationStatesSegmentedAsync(query, null, 2);
-            results.AddRange(segment.Results);
-            Assert.AreEqual(2, results.Count);
+            // We cannot guarantee that the page size is respected,
+            // so instead we'll continue to fetch pages based on continuation token until we reach the end
+            Page<OrchestrationState> page = null;
+            do
+            {
+                page = await this.queryClient
+                    .QueryOrchestrationStatePagesAsync(query)
+                    .AsPages(continuationToken: page?.ContinuationToken, pageSizeHint: 5)
+                    .FirstAsync();
 
-            segment = await this.queryClient.QueryOrchestrationStatesSegmentedAsync(query, segment.ContinuationToken, 5);
-            results.AddRange(segment.Results);
-            Assert.AreEqual(7, results.Count);
+                results.AddRange(page.Values);
+            } while (page.ContinuationToken != null);
 
-            segment = await this.queryClient.QueryOrchestrationStatesSegmentedAsync(query, segment.ContinuationToken, 10);
-            results.AddRange(segment.Results);
             Assert.AreEqual(15, results.Count);
-            Assert.IsNull(segment.ContinuationToken);
         }
 
         [TestMethod]
@@ -175,14 +178,14 @@ namespace DurableTask.ServiceBus.Tests
 
             var query = new OrchestrationStateQuery();
 
-            IEnumerable<OrchestrationState> states = await this.queryClient.QueryOrchestrationStatesAsync(query);
-            Assert.AreEqual(25, states.Count());
+            List<OrchestrationState> states = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
+            Assert.AreEqual(25, states.Count);
 
             await this.client.PurgeOrchestrationInstanceHistoryAsync
                 (DateTime.UtcNow, OrchestrationStateTimeRangeFilterType.OrchestrationCreatedTimeFilter);
 
-            states = await this.queryClient.QueryOrchestrationStatesAsync(query);
-            Assert.AreEqual(0, states.Count());
+            states = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
+            Assert.AreEqual(0, states.Count);
 
             for (var i = 0; i < 10; i++)
             {
@@ -201,16 +204,16 @@ namespace DurableTask.ServiceBus.Tests
 
             Thread.Sleep(TimeSpan.FromSeconds(30));
 
-            states = await this.queryClient.QueryOrchestrationStatesAsync(query);
-            Assert.AreEqual(20, states.Count());
+            states = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
+            Assert.AreEqual(20, states.Count);
 
             await this.client.PurgeOrchestrationInstanceHistoryAsync
                 (cutoff, OrchestrationStateTimeRangeFilterType.OrchestrationCreatedTimeFilter);
 
-            states = await this.queryClient.QueryOrchestrationStatesAsync(query);
+            states = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
 
             // ReSharper disable once PossibleMultipleEnumeration
-            Assert.AreEqual(10, states.Count());
+            Assert.AreEqual(10, states.Count);
 
             // ReSharper disable once PossibleMultipleEnumeration
             foreach (OrchestrationState s in states)
@@ -237,14 +240,14 @@ namespace DurableTask.ServiceBus.Tests
 
             var query = new OrchestrationStateQuery();
 
-            IEnumerable<OrchestrationState> states = await this.queryClient.QueryOrchestrationStatesAsync(query);
-            Assert.AreEqual(110, states.Count());
+            List<OrchestrationState> states = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
+            Assert.AreEqual(110, states.Count);
 
             await this.client.PurgeOrchestrationInstanceHistoryAsync
                 (DateTime.UtcNow, OrchestrationStateTimeRangeFilterType.OrchestrationCreatedTimeFilter);
 
-            states = await this.queryClient.QueryOrchestrationStatesAsync(query);
-            Assert.AreEqual(0, states.Count());
+            states = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
+            Assert.AreEqual(0, states.Count);
         }
 
         [TestCategory("DisabledInCI")] // https://github.com/Azure/durabletask/issues/262
@@ -268,52 +271,22 @@ namespace DurableTask.ServiceBus.Tests
 
             var query = new OrchestrationStateQuery();
 
-            OrchestrationStateQuerySegment seg = null;
-            var results = new List<OrchestrationState>();
-            do
-            {
-                seg = await this.queryClient.QueryOrchestrationStatesSegmentedAsync(query, seg?.ContinuationToken, 2);
-                results.AddRange(seg.Results);
-            } while (seg.ContinuationToken != null);
-
+            var results = await this.queryClient.QueryOrchestrationStatePagesAsync(query).ToListAsync();
             Assert.AreEqual(15, results.Count);
 
             query = new OrchestrationStateQuery()
                 .AddInstanceFilter("apiservice", true)
                 .AddNameVersionFilter("DurableTask.ServiceBus.Tests.InstanceStoreQueryTests+InstanceStoreTestOrchestration");
 
-            seg = null;
-            results = new List<OrchestrationState>();
-            do
-            {
-                seg = await this.queryClient.QueryOrchestrationStatesSegmentedAsync(query, seg?.ContinuationToken, 2);
-                results.AddRange(seg.Results);
-            } while (seg.ContinuationToken != null);
-
+            results = await this.queryClient.QueryOrchestrationStatePagesAsync(query).ToListAsync();
             Assert.AreEqual(8, results.Count);
 
             query = new OrchestrationStateQuery()
                 .AddInstanceFilter("apiservice", true)
                 .AddNameVersionFilter("DurableTask.ServiceBus.Tests.InstanceStoreQueryTests+InstanceStoreTestOrchestration2");
 
-            seg = null;
-            results = new List<OrchestrationState>();
-            do
-            {
-                seg = await this.queryClient.QueryOrchestrationStatesSegmentedAsync(query, seg?.ContinuationToken, 2);
-                results.AddRange(seg.Results);
-            } while (seg.ContinuationToken != null);
-
+            results = await this.queryClient.QueryOrchestrationStatePagesAsync(query).ToListAsync();
             Assert.AreEqual(7, results.Count);
-
-            query = new OrchestrationStateQuery()
-                .AddInstanceFilter("apiservice", true)
-                .AddNameVersionFilter("DurableTask.ServiceBus.Tests.InstanceStoreQueryTests+InstanceStoreTestOrchestration2");
-
-            seg = await this.queryClient.QueryOrchestrationStatesSegmentedAsync(query, null);
-
-            Assert.IsTrue(seg.ContinuationToken == null);
-            Assert.AreEqual(7, seg.Results.Count());
         }
 
         [TestMethod]
@@ -346,7 +319,7 @@ namespace DurableTask.ServiceBus.Tests
                 firstBatchStart.AddSeconds(5),
                 OrchestrationStateTimeRangeFilterType.OrchestrationCreatedTimeFilter);
 
-            IList<OrchestrationState> response = (await this.queryClient.QueryOrchestrationStatesAsync(query)).ToList();
+            IList<OrchestrationState> response = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
             Assert.IsTrue(response.Count == 1);
             Assert.AreEqual(instanceId1, response.First().OrchestrationInstance.InstanceId);
 
@@ -355,7 +328,7 @@ namespace DurableTask.ServiceBus.Tests
                 firstBatchEnd.AddSeconds(5),
                 OrchestrationStateTimeRangeFilterType.OrchestrationCompletedTimeFilter);
 
-            response = (await this.queryClient.QueryOrchestrationStatesAsync(query)).ToList();
+            response = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
             Assert.IsTrue(response.Count == 1);
             Assert.AreEqual(instanceId1, response.First().OrchestrationInstance.InstanceId);
 
@@ -364,7 +337,7 @@ namespace DurableTask.ServiceBus.Tests
                 secondBatchStart.AddSeconds(5),
                 OrchestrationStateTimeRangeFilterType.OrchestrationCreatedTimeFilter);
 
-            response = (await this.queryClient.QueryOrchestrationStatesAsync(query)).ToList();
+            response = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
             Assert.IsTrue(response.Count == 2);
             Assert.AreEqual(instanceId2, response.First().OrchestrationInstance.InstanceId);
             Assert.AreEqual(instanceId3, response.ElementAt(1).OrchestrationInstance.InstanceId);
@@ -374,7 +347,7 @@ namespace DurableTask.ServiceBus.Tests
                 secondBatchEnd.AddSeconds(5),
                 OrchestrationStateTimeRangeFilterType.OrchestrationCompletedTimeFilter);
 
-            response = (await this.queryClient.QueryOrchestrationStatesAsync(query)).ToList();
+            response = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
             Assert.IsTrue(response.Count == 2);
             Assert.AreEqual(instanceId2, response.First().OrchestrationInstance.InstanceId);
             Assert.AreEqual(instanceId3, response.ElementAt(1).OrchestrationInstance.InstanceId);
@@ -399,14 +372,14 @@ namespace DurableTask.ServiceBus.Tests
                 firstBatchStart.AddSeconds(60),
                 OrchestrationStateTimeRangeFilterType.OrchestrationCompletedTimeFilter);
 
-            IEnumerable<OrchestrationState> response = await this.queryClient.QueryOrchestrationStatesAsync(query);
-            Assert.AreEqual(0, response.Count());
+            List<OrchestrationState> response = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
+            Assert.AreEqual(0, response.Count);
 
             await TestHelpers.WaitForInstanceAsync(this.client, id1, 60);
 
             // now we should get a result
-            response = await this.queryClient.QueryOrchestrationStatesAsync(query);
-            Assert.AreEqual(1, response.Count());
+            response = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
+            Assert.AreEqual(1, response.Count);
         }
 
         [TestMethod]
@@ -428,20 +401,20 @@ namespace DurableTask.ServiceBus.Tests
                 firstBatchStart.AddSeconds(5),
                 OrchestrationStateTimeRangeFilterType.OrchestrationLastUpdatedTimeFilter);
 
-            IEnumerable<OrchestrationState> response = await this.queryClient.QueryOrchestrationStatesAsync(query);
-            Assert.IsTrue(response.Count() == 1);
+            List<OrchestrationState> response = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
+            Assert.AreEqual(1, response.Count);
 
             await TestHelpers.WaitForInstanceAsync(this.client, id1, 60);
 
-            response = await this.queryClient.QueryOrchestrationStatesAsync(query);
-            Assert.IsTrue(!response.Any());
+            response = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
+            Assert.AreEqual(0, response.Count);
 
             query = new OrchestrationStateQuery().AddTimeRangeFilter(firstBatchStart.AddSeconds(15), DateTime.MaxValue,
                 OrchestrationStateTimeRangeFilterType.OrchestrationLastUpdatedTimeFilter);
 
             // now we should get a result
-            response = await this.queryClient.QueryOrchestrationStatesAsync(query);
-            Assert.IsTrue(response.Count() == 1);
+            response = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
+            Assert.AreEqual(1, response.Count);
         }
 
         [TestMethod]
@@ -500,9 +473,9 @@ namespace DurableTask.ServiceBus.Tests
             await TestHelpers.WaitForInstanceAsync(this.client, id1, 60, false);
             await TestHelpers.WaitForInstanceAsync(this.client, id2, 60, false);
 
-            IList<OrchestrationState> pendingStates = (await this.queryClient.QueryOrchestrationStatesAsync(pendingQuery)).ToList();
-            IList<OrchestrationState> completedStates = (await this.queryClient.QueryOrchestrationStatesAsync(completedQuery)).ToList();
-            IList<OrchestrationState> failedStates = (await this.queryClient.QueryOrchestrationStatesAsync(failedQuery)).ToList();
+            IList<OrchestrationState> pendingStates = await this.queryClient.QueryOrchestrationStatesAsync(pendingQuery).ToListAsync();
+            IList<OrchestrationState> completedStates = await this.queryClient.QueryOrchestrationStatesAsync(completedQuery).ToListAsync();
+            IList<OrchestrationState> failedStates = await this.queryClient.QueryOrchestrationStatesAsync(failedQuery).ToListAsync();
 
             Assert.AreEqual(2, pendingStates.Count);
             Assert.AreEqual(0, completedStates.Count);
@@ -511,9 +484,9 @@ namespace DurableTask.ServiceBus.Tests
             await TestHelpers.WaitForInstanceAsync(this.client, id1, 60);
             await TestHelpers.WaitForInstanceAsync(this.client, id2, 60);
 
-            IList<OrchestrationState> runningStates = (await this.queryClient.QueryOrchestrationStatesAsync(runningQuery)).ToList();
-            completedStates = (await this.queryClient.QueryOrchestrationStatesAsync(completedQuery)).ToList();
-            failedStates = (await this.queryClient.QueryOrchestrationStatesAsync(failedQuery)).ToList();
+            IList<OrchestrationState> runningStates = await this.queryClient.QueryOrchestrationStatesAsync(runningQuery).ToListAsync();
+            completedStates = await this.queryClient.QueryOrchestrationStatesAsync(completedQuery).ToListAsync();
+            failedStates = await this.queryClient.QueryOrchestrationStatesAsync(failedQuery).ToListAsync();
 
             Assert.AreEqual(0, runningStates.Count);
             Assert.AreEqual(1, completedStates.Count);
@@ -550,8 +523,8 @@ namespace DurableTask.ServiceBus.Tests
                 AddInstanceFilter("apiservice1", true).
                 AddStatusFilter(OrchestrationStatus.Completed);
 
-            IList<OrchestrationState> response = (await this.queryClient.QueryOrchestrationStatesAsync(query)).ToList();
-            Assert.IsTrue(response.Count == 1);
+            IList<OrchestrationState> response = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
+            Assert.AreEqual(1, response.Count);
             Assert.AreEqual(id2.InstanceId, response.First().OrchestrationInstance.InstanceId);
 
             // failed apiService1 -> 1 result
@@ -559,8 +532,8 @@ namespace DurableTask.ServiceBus.Tests
                 AddInstanceFilter("apiservice1", true).
                 AddStatusFilter(OrchestrationStatus.Failed);
 
-            response = (await this.queryClient.QueryOrchestrationStatesAsync(query)).ToList();
-            Assert.IsTrue(response.Count == 1);
+            response = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
+            Assert.AreEqual(1, response.Count);
             Assert.AreEqual(id1.InstanceId, response.First().OrchestrationInstance.InstanceId);
 
             // failed gc -> 0 results
@@ -568,8 +541,8 @@ namespace DurableTask.ServiceBus.Tests
                 AddInstanceFilter("system", true).
                 AddStatusFilter(OrchestrationStatus.Failed);
 
-            response = (await this.queryClient.QueryOrchestrationStatesAsync(query)).ToList();
-            Assert.IsTrue(response.Count == 0);
+            response = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
+            Assert.AreEqual(0, response.Count);
         }
 
         [TestMethod]
@@ -591,8 +564,8 @@ namespace DurableTask.ServiceBus.Tests
                 AddInstanceFilter("apiservice1", true).
                 AddStatusFilter(OrchestrationStatus.Completed);
 
-            IList<OrchestrationState> response = (await this.queryClient.QueryOrchestrationStatesAsync(query)).ToList();
-            Assert.IsTrue(response.Count == 1);
+            IList<OrchestrationState> response = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
+            Assert.AreEqual(1, response.Count);
             Assert.AreEqual(id1.InstanceId, response.First().OrchestrationInstance.InstanceId);
 
             // continuedAsNew apiService1 --> 2 results
@@ -600,8 +573,8 @@ namespace DurableTask.ServiceBus.Tests
                 AddInstanceFilter("apiservice1", true).
                 AddStatusFilter(OrchestrationStatus.ContinuedAsNew);
 
-            response = (await this.queryClient.QueryOrchestrationStatesAsync(query)).ToList();
-            Assert.IsTrue(response.Count == 2);
+            response = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
+            Assert.AreEqual(2, response.Count);
         }
 
         [TestMethod]
@@ -632,8 +605,8 @@ namespace DurableTask.ServiceBus.Tests
 
             OrchestrationStateQuery query = new OrchestrationStateQuery().AddNameVersionFilter("orch1");
 
-            IList<OrchestrationState> response = (await this.queryClient.QueryOrchestrationStatesAsync(query)).ToList();
-            Assert.IsTrue(response.Count == 2);
+            IList<OrchestrationState> response = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
+            Assert.AreEqual(2, response.Count);
 
             // TODO : for some reason sometimes the order gets inverted
             //Assert.AreEqual(id1.InstanceId, response.First().OrchestrationInstance.InstanceId);
@@ -641,19 +614,19 @@ namespace DurableTask.ServiceBus.Tests
 
             query = new OrchestrationStateQuery().AddNameVersionFilter("orch1", "2.0");
 
-            response = (await this.queryClient.QueryOrchestrationStatesAsync(query)).ToList();
+            response = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
             Assert.AreEqual(1, response.Count);
             Assert.AreEqual(id2.InstanceId, response.First().OrchestrationInstance.InstanceId);
 
             query = new OrchestrationStateQuery().AddNameVersionFilter("orch1", string.Empty);
 
-            response = (await this.queryClient.QueryOrchestrationStatesAsync(query)).ToList();
-            Assert.IsTrue(!response.Any());
+            response = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
+            Assert.AreEqual(0, response.Count);
 
             query = new OrchestrationStateQuery().AddNameVersionFilter("orch2", string.Empty);
 
-            response = (await this.queryClient.QueryOrchestrationStatesAsync(query)).ToList();
-            Assert.IsTrue(response.Count == 1);
+            response = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
+            Assert.AreEqual(1, response.Count);
             Assert.AreEqual(id3.InstanceId, response.First().OrchestrationInstance.InstanceId);
         }
 

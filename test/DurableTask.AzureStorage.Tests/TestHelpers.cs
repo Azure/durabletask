@@ -32,9 +32,8 @@ namespace DurableTask.AzureStorage.Tests
         {
             string storageConnectionString = GetTestStorageAccountConnectionString();
 
-            var settings = new AzureStorageOrchestrationServiceSettings
+            var settings = new AzureStorageOrchestrationServiceSettings(storageConnectionString)
             {
-                StorageConnectionString = storageConnectionString,
                 TaskHubName = GetTestTaskHubName(),
                 ExtendedSessionsEnabled = enableExtendedSessions,
                 ExtendedSessionIdleTimeout = TimeSpan.FromSeconds(extendedSessionTimeoutInSeconds),
