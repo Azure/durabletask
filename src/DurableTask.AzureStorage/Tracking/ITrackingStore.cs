@@ -124,7 +124,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="runtimeStatus">RuntimeStatus</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <returns></returns>
-        IAsyncEnumerable<OrchestrationState> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default);
+        AsyncPageable<OrchestrationState> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get The Orchestration State for querying orchestration instances by the condition
@@ -132,7 +132,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="condition">Condition</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <returns></returns>
-        IAsyncEnumerable<OrchestrationState> GetStateAsync(OrchestrationInstanceStatusQueryCondition condition, CancellationToken cancellationToken = default);
+        AsyncPageable<OrchestrationState> GetStateAsync(OrchestrationInstanceStatusQueryCondition condition, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Used to set a state in the tracking store whenever a new execution is initiated from the client
