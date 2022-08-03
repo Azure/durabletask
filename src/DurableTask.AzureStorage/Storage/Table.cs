@@ -105,111 +105,66 @@ namespace DurableTask.AzureStorage.Storage
             this.stats.TableEntitiesWritten.Increment();
         }
 
-        public async Task<TableResultResponseInfo> DeleteBatchAsync<T>(IEnumerable<T> entityBatch, CancellationToken cancellationToken = default) where T : ITableEntity
+        public async Task<TableTransactionResults> DeleteBatchAsync<T>(IEnumerable<T> entityBatch, CancellationToken cancellationToken = default) where T : ITableEntity
         {
-            return await this.ExecuteBatchAsync(entityBatch, item => new TableTransactionAction(TableTransactionActionType.Delete, item), cancellationToken);
+            return await this.ExecuteBatchAsync(entityBatch, item => new TableTransactionAction(TableTransactionActionType.Delete, item), cancellationToken: cancellationToken);
         }
 
-        public async Task<TableResultResponseInfo> InsertOrMergeBatchAsync<T>(IEnumerable<T> entityBatch, CancellationToken cancellationToken = default) where T : ITableEntity
+        public async Task<TableTransactionResults> InsertOrMergeBatchAsync<T>(IEnumerable<T> entityBatch, CancellationToken cancellationToken = default) where T : ITableEntity
         {
-            TableResultResponseInfo results = await this.ExecuteBatchAsync(entityBatch, item => new TableTransactionAction(TableTransactionActionType.UpsertMerge, item), cancellationToken);
+            TableTransactionResults results = await this.ExecuteBatchAsync(entityBatch, item => new TableTransactionAction(TableTransactionActionType.UpsertMerge, item), cancellationToken: cancellationToken);
 
-            if (results.TableResults?.Count > 0)
+            if (results.Responses.Count > 0)
             {
-                this.stats.TableEntitiesWritten.Increment(results.TableResults.Count);
+                this.stats.TableEntitiesWritten.Increment(results.Responses.Count);
             }
 
             return results;
         }
 
-        async Task<TableResultResponseInfo> ExecuteBatchAsync<T>(
+        async Task<TableTransactionResults> ExecuteBatchAsync<T>(
             IEnumerable<T> entityBatch,
             Func<T, TableTransactionAction> batchOperation,
+            int batchSize = 100,
             CancellationToken cancellationToken = default) where T : ITableEntity
         {
-            var results = new List<Response>();
-            long elapsedMilliseconds = 0;
-            int requestCount = 0;
+            TableTransactionResults response = TableTransactionResults.Empty;
+            var batch = new List<TableTransactionAction>(batchSize);
 
-            List<TableTransactionAction>? batch = null;
-            IEnumerator<T> batchEnumerator = entityBatch.GetEnumerator();
-            do
+            foreach (T entity in entityBatch)
             {
-                batch = GetNext(batchEnumerator, 100).Select(batchOperation).ToList();
-
-                if (batch.Count > 0)
+                batch.Add(batchOperation(entity));
+                if (batch.Count == batchSize)
                 {
-                    TableResultResponseInfo batchResults = await this.ExecuteBatchAsync(batch, cancellationToken);
-
-                    elapsedMilliseconds += batchResults.ElapsedMilliseconds;
-                    requestCount++;
-                    results.AddRange(batchResults.TableResults);
-                }
-            } while (batch.Count > 0);
-
-            return new TableResultResponseInfo
-            {
-                ElapsedMilliseconds = elapsedMilliseconds,
-                RequestCount = requestCount,
-                TableResults = results
-            };
-
-            static IEnumerable<T> GetNext(IEnumerator<T> enumerator, int count)
-            {
-                for (int i = 0; i < count && enumerator.MoveNext(); i++)
-                {
-                    yield return enumerator.Current;
+                    response.Add(await this.ExecuteBatchAsync(batch, cancellationToken));
                 }
             }
+
+            if (batch.Count > 0)
+            {
+                response.Add(await this.ExecuteBatchAsync(batch, cancellationToken));
+            }
+
+            return response;
         }
 
-        public async Task<TableResultResponseInfo> ExecuteBatchAsync(IEnumerable<TableTransactionAction> batchOperation, CancellationToken cancellationToken = default)
+        public async Task<TableTransactionResults> ExecuteBatchAsync(IEnumerable<TableTransactionAction> batchOperation, CancellationToken cancellationToken = default)
         {
             var stopwatch = new Stopwatch();
-            long elapsedMilliseconds = 0;
 
             Response<IReadOnlyList<Response>> response = await this.tableClient.SubmitTransactionAsync(batchOperation, cancellationToken);
             IReadOnlyList<Response> batchResults = response.Value;
 
             stopwatch.Stop();
-            elapsedMilliseconds += stopwatch.ElapsedMilliseconds;
 
             this.stats.TableEntitiesWritten.Increment(batchResults.Count);
 
-            return new TableResultResponseInfo
-            {
-                ElapsedMilliseconds = elapsedMilliseconds,
-                RequestCount = 1,
-                TableResults = batchResults
-            };
+            return new TableTransactionResults(batchResults, stopwatch.Elapsed);
         }
 
-        public async Task<TableEntitiesResponseInfo<T>> ExecuteCompleteQueryAsync<T>(string? filter = null, IEnumerable<string>? select = null, CancellationToken cancellationToken = default) where T : class, ITableEntity, new()
+        public TableQueryResponse<T> ExecuteQueryAsync<T>(string? filter = null, IEnumerable<string>? select = null, CancellationToken cancellationToken = default) where T : class, ITableEntity, new()
         {
-            var stopwatch = new Stopwatch();
-            stopwatch.Start();
-
-            int requests = 0;
-            var results = new List<T>();
-            await foreach (Page<T> page in this.tableClient.QueryAsync<T>(filter, select: select, cancellationToken: cancellationToken).AsPages())
-            {
-                requests++;
-                results.AddRange(page.Values);
-            }
-
-            stopwatch.Stop();
-
-            return new TableEntitiesResponseInfo<T>
-            {
-                ElapsedMilliseconds = stopwatch.ElapsedMilliseconds,
-                RequestCount = requests,
-                ReturnedEntities = results,
-            };
-        }
-
-        public AsyncPageable<T> ExecuteQueryAsync<T>(string? filter = null, IEnumerable<string>? select = null, CancellationToken cancellationToken = default) where T : class, ITableEntity, new()
-        {
-            return this.tableClient.QueryAsync<T>(filter, select: select, cancellationToken: cancellationToken);
+            return new TableQueryResponse<T>(this.tableClient.QueryAsync<T>(filter, select: select, cancellationToken: cancellationToken));
         }
     }
 }

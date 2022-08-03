@@ -11,32 +11,40 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.ServiceBus.Common
+namespace DurableTask.AzureStorage
 {
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Threading;
+    using System.Threading.Tasks;
     using Azure;
 
     sealed class AsyncPageableProjection<TSource, TResult> : AsyncPageable<TResult>
     {
         readonly AsyncPageable<TSource> _source;
-        readonly Func<TSource, TResult> _selector;
+        readonly Func<TSource, CancellationToken, Task<TResult>> _selectorAsync;
 
-        public AsyncPageableProjection(AsyncPageable<TSource> source, Func<TSource, TResult> selector)
+        public AsyncPageableProjection(AsyncPageable<TSource> source, Func<TSource, CancellationToken, Task<TResult>> selectorAsync)
         {
             this._source = source ?? throw new ArgumentNullException(nameof(source));
-            this._selector = selector ?? throw new ArgumentNullException(nameof(selector));
+            this._selectorAsync = selectorAsync ?? throw new ArgumentNullException(nameof(selectorAsync));
         }
 
         public override IAsyncEnumerable<Page<TResult>> AsPages(string continuationToken = null, int? pageSizeHint = null)
         {
-            return _source
+            return this._source
                 .AsPages(continuationToken, pageSizeHint)
-                .Select(x => Page<TResult>.FromValues(
-                    x.Values.Select(this._selector).ToList(),
-                    continuationToken,
-                    x.GetRawResponse()));
+                .SelectAwaitWithCancellation(async (x, t) =>
+                {
+                    var newValues = new List<TResult>();
+                    foreach (TSource v in x.Values)
+                    {
+                        newValues.Add(await this._selectorAsync(v, t));
+                    }
+
+                    return Page<TResult>.FromValues(newValues, x.ContinuationToken, x.GetRawResponse());
+                });
         }
     }
 }

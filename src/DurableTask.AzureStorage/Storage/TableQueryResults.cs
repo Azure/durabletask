@@ -13,14 +13,24 @@
 #nullable enable
 namespace DurableTask.AzureStorage.Storage
 {
+    using System;
     using System.Collections.Generic;
 
-    class TableEntitiesResponseInfo<T>
+    sealed class TableQueryResults<T>
     {
-        public long ElapsedMilliseconds { get; set; }
+        public TableQueryResults(IReadOnlyList<T> entities, TimeSpan elapsed, int requestCount)
+        {
+            this.Entities = entities ?? throw new ArgumentNullException(nameof(entities));
+            this.Elapsed = elapsed;
+            this.RequestCount = requestCount;
+        }
 
-        public int RequestCount { get; set; }
+        public IReadOnlyList<T> Entities { get; }
 
-        public IReadOnlyList<T>? ReturnedEntities { get; set; }
+        public TimeSpan Elapsed { get; }
+
+        public int ElapsedMilliseconds => (int)this.Elapsed.TotalMilliseconds;
+
+        public int RequestCount { get; }
     }
 }
