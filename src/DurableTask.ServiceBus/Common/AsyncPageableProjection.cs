@@ -18,15 +18,15 @@ namespace DurableTask.ServiceBus.Common
     using System.Linq;
     using Azure;
 
-    sealed class AsyncPageableProjection<TSource, TResult> : AsyncPageable<TResult>
+    internal sealed class AsyncPageableProjection<TSource, TResult> : AsyncPageable<TResult>
     {
-        readonly AsyncPageable<TSource> _source;
-        readonly Func<TSource, TResult> _selector;
+        private readonly AsyncPageable<TSource> _source;
+        private readonly Func<TSource, TResult> _selector;
 
         public AsyncPageableProjection(AsyncPageable<TSource> source, Func<TSource, TResult> selector)
         {
-            this._source = source ?? throw new ArgumentNullException(nameof(source));
-            this._selector = selector ?? throw new ArgumentNullException(nameof(selector));
+            _source = source ?? throw new ArgumentNullException(nameof(source));
+            _selector = selector ?? throw new ArgumentNullException(nameof(selector));
         }
 
         public override IAsyncEnumerable<Page<TResult>> AsPages(string continuationToken = null, int? pageSizeHint = null)
@@ -34,7 +34,7 @@ namespace DurableTask.ServiceBus.Common
             return _source
                 .AsPages(continuationToken, pageSizeHint)
                 .Select(x => Page<TResult>.FromValues(
-                    x.Values.Select(this._selector).ToList(),
+                    x.Values.Select(_selector).ToList(),
                     continuationToken,
                     x.GetRawResponse()));
         }

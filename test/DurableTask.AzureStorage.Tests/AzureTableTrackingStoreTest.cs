@@ -155,7 +155,7 @@ namespace DurableTask.AzureStorage.Tests
 
             private void SetupExecuteQuerySegmentMock()
             {
-                var segment = (TableQueryResponse<OrchestrationInstanceStatus>)System.Runtime.Serialization.FormatterServices.GetSafeUninitializedObject(typeof(TableQueryResponse<OrchestrationInstanceStatus>));
+                var segment = (TableEntitiesResponseInfo<OrchestrationInstanceStatus>)System.Runtime.Serialization.FormatterServices.GetSafeUninitializedObject(typeof(TableEntitiesResponseInfo<OrchestrationInstanceStatus>));
                 segment.GetType().GetProperty("ReturnedEntities").SetValue(segment, this.InputStatus);
                 segment.GetType().GetProperty("ContinuationToken").SetValue(segment, this.ExpectedTokenObject);
 
