@@ -46,7 +46,10 @@ namespace DurableTask.Core
 
         public void HandleEventWhileSuspended(HistoryEvent historyEvent)
         {
-            this.eventsWhileSuspended.Enqueue(historyEvent);
+            if (historyEvent.EventType != EventType.ExecutionSuspended)
+            {
+                this.eventsWhileSuspended.Enqueue(historyEvent);
+            }
         }
 
         public TaskOrchestrationContext(
@@ -64,7 +67,7 @@ namespace DurableTask.Core
             OrchestrationInstance = orchestrationInstance;
             IsReplaying = false;
             ErrorPropagationMode = errorPropagationMode;
-            eventsWhileSuspended = new Queue<HistoryEvent>();
+            this.eventsWhileSuspended = new Queue<HistoryEvent>();
         }
 
         public IEnumerable<OrchestratorAction> OrchestratorActions => this.orchestratorActionsMap.Values;
