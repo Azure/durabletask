@@ -1657,10 +1657,10 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration.</param>
         /// <param name="allExecutions">This parameter is not used.</param>
-        /// <param name="fetchInput">If set, fetch and return the input for the orchestration instance.</param>
+        /// <param name="fetchInput">If <see langword="true"/>, fetch and return the input for the orchestration instance.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <returns>An asynchronous enumeration of the <see cref="OrchestrationState"/> objects that represent the list of orchestrations.</returns>
-        public async IAsyncEnumerable<OrchestrationState> GetOrchestrationStateAsync(string instanceId, bool allExecutions, bool fetchInput = true, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        public async IAsyncEnumerable<OrchestrationState> GetOrchestrationStateAsync(string instanceId, bool allExecutions, bool fetchInput, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
@@ -1691,10 +1691,14 @@ namespace DurableTask.AzureStorage
         /// <param name="createdTimeTo">CreatedTime of orchestrations. Fetch status less than this value.</param>
         /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several status.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        /// <returns>An asynchronous pageable enumeration of <see cref="OrchestrationState"/></returns>
-        public AsyncPageable<OrchestrationState> GetOrchestrationStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default)
+        /// <returns>An asynchronous enumeration of <see cref="OrchestrationState"/></returns>
+        public async IAsyncEnumerable<OrchestrationState> GetOrchestrationStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            return new EnsuredAsyncPageable<OrchestrationState>(this.trackingStore.GetStateAsync(createdTimeFrom, createdTimeTo, runtimeStatus, cancellationToken), this);
+            await this.EnsureTaskHubAsync();
+            await foreach (OrchestrationState state in this.trackingStore.GetStateAsync(createdTimeFrom, createdTimeTo, runtimeStatus, cancellationToken))
+            {
+                yield return state;
+            }
         }
 
         /// <summary>
@@ -1703,9 +1707,13 @@ namespace DurableTask.AzureStorage
         /// <param name="condition">Query condition. <see cref="OrchestrationInstanceStatusQueryCondition"/></param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <returns>An asynchronous pageable enumeration of <see cref="OrchestrationState"/></returns>
-        public AsyncPageable<OrchestrationState> GetOrchestrationStateAsync(OrchestrationInstanceStatusQueryCondition condition, CancellationToken cancellationToken = default)
+        public async IAsyncEnumerable<OrchestrationState> GetOrchestrationStateAsync(OrchestrationInstanceStatusQueryCondition condition, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            return new EnsuredAsyncPageable<OrchestrationState>(this.trackingStore.GetStateAsync(condition, cancellationToken), this);
+            await this.EnsureTaskHubAsync();
+            await foreach (OrchestrationState state in this.trackingStore.GetStateAsync(condition, cancellationToken))
+            {
+                yield return state;
+            }
         }
 
         /// <summary>
@@ -1975,27 +1983,6 @@ namespace DurableTask.AzureStorage
             public TaskHubQueue Queue { get; }
 
             public TaskMessage Message { get; }
-        }
-
-        sealed class EnsuredAsyncPageable<T> : AsyncPageable<T>
-        {
-            readonly AsyncPageable<T> _result;
-            readonly AzureStorageOrchestrationService _service;
-
-            public EnsuredAsyncPageable(AsyncPageable<T> result, AzureStorageOrchestrationService service)
-            {
-                this._result = result;
-                this._service = service;
-            }
-
-            public override async IAsyncEnumerable<Page<T>> AsPages(string continuationToken = null, int? pageSizeHint = null)
-            {
-                await this._service.EnsureTaskHubAsync();
-                await foreach (Page<T> page in this._result.AsPages(continuationToken, pageSizeHint).ConfigureAwait(false).WithCancellation(CancellationToken))
-                {
-                    yield return page;
-                }
-            }
         }
     }
 }

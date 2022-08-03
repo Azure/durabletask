@@ -27,13 +27,11 @@ namespace DurableTask.AzureStorage.Storage
             this.RequestCount = requestCount;
         }
 
-        public static TableTransactionResults Empty { get; } = new TableTransactionResults(Array.Empty<Response>(), TimeSpan.Zero, 0);
+        public IReadOnlyList<Response> Responses { get; }
 
         public TimeSpan Elapsed { get; }
 
         public int ElapsedMilliseconds => (int)this.Elapsed.TotalMilliseconds;
-
-        public IReadOnlyList<Response> Responses { get; }
 
         public int RequestCount { get; }
 

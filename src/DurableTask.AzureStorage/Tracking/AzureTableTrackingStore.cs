@@ -517,23 +517,23 @@ namespace DurableTask.AzureStorage.Tracking
             return this.QueryStateAsync($"{nameof(TableEntity.RowKey)} eq ''", cancellationToken: cancellationToken);
         }
 
-        public override AsyncPageable<OrchestrationState> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default)
+        public override IAsyncEnumerable<OrchestrationState> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default)
         {
             (string filter, IEnumerable<string> select) = OrchestrationInstanceStatusQueryCondition.Parse(createdTimeFrom, createdTimeTo, runtimeStatus).ToOData();
             return this.QueryStateAsync(filter, select, cancellationToken);
         }
 
-        public override AsyncPageable<OrchestrationState> GetStateAsync(OrchestrationInstanceStatusQueryCondition condition, CancellationToken cancellationToken = default)
+        public override IAsyncEnumerable<OrchestrationState> GetStateAsync(OrchestrationInstanceStatusQueryCondition condition, CancellationToken cancellationToken = default)
         {
             (string filter, IEnumerable<string> select) = condition.ToOData();
             return this.QueryStateAsync(filter, select, cancellationToken);
         }
 
-        AsyncPageable<OrchestrationState> QueryStateAsync(string filter = null, IEnumerable<string> select = null, CancellationToken cancellationToken = default)
+        IAsyncEnumerable<OrchestrationState> QueryStateAsync(string filter = null, IEnumerable<string> select = null, CancellationToken cancellationToken = default)
         {
-            return new AsyncPageableProjection<OrchestrationInstanceStatus, OrchestrationState>(
-                this.InstancesTable.ExecuteQueryAsync<OrchestrationInstanceStatus>(filter, select, cancellationToken),
-                (s, t) => this.ConvertFromAsync(s, KeySanitation.UnescapePartitionKey(s.PartitionKey), t));
+            return this.InstancesTable
+                .ExecuteQueryAsync<OrchestrationInstanceStatus>(filter, select, cancellationToken)
+                .SelectAwaitWithCancellation((s, t) => new ValueTask<OrchestrationState>(this.ConvertFromAsync(s, KeySanitation.UnescapePartitionKey(s.PartitionKey), t)));
         }
 
         async Task<PurgeHistoryResult> DeleteHistoryAsync(

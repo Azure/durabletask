@@ -243,21 +243,6 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         /// <summary>
-        ///     Get a segmented list of orchestration states from the instance storage table which match the specified
-        ///     orchestration state query. Segment size is controlled by the service.
-        /// </summary>
-        /// <param name="stateQuery">Orchestration state query to execute</param>
-        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        /// <returns>An asynchronous enumerable over the matching state.</returns>
-        public AsyncPageable<OrchestrationState> QueryOrchestrationStatePagesAsync(
-            OrchestrationStateQuery stateQuery, CancellationToken cancellationToken = default)
-        {
-            return new AsyncPageableProjection<AzureTableOrchestrationStateEntity, OrchestrationState>(
-                this.tableClient.QueryOrchestrationStatesAsync(stateQuery, cancellationToken),
-                x => x.State);
-        }
-
-        /// <summary>
         /// Purges history from storage for given time range
         /// </summary>
         /// <param name="thresholdDateTimeUtc">The datetime in UTC to use as the threshold for purging history</param>
@@ -324,12 +309,12 @@ namespace DurableTask.ServiceBus.Tracking
         /// <returns>An asynchronous enumerable over the matching state.</returns>
         public IAsyncEnumerable<OrchestrationJumpStartInstanceEntity> GetJumpStartEntitiesAsync(CancellationToken cancellationToken = default)
         {
-            return new AsyncPageableProjection<AzureTableOrchestrationJumpStartEntity, OrchestrationJumpStartInstanceEntity>(
-                this.tableClient.QueryJumpStartOrchestrationsAsync(
+            return this.tableClient
+                .QueryJumpStartOrchestrationsAsync(
                     DateTime.UtcNow.AddDays(-AzureTableClient.JumpStartTableScanIntervalInDays),
                     DateTime.UtcNow,
-                    cancellationToken),
-                x => x.OrchestrationJumpStartInstanceEntity);
+                    cancellationToken)
+                .Select(x => x.OrchestrationJumpStartInstanceEntity);
         }
 
         AzureTableCompositeTableEntity HistoryEventToTableEntity(InstanceEntityBase historyEvent)

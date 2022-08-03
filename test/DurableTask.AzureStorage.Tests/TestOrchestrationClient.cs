@@ -16,6 +16,7 @@ namespace DurableTask.AzureStorage.Tests
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Tracking;
@@ -179,7 +180,7 @@ namespace DurableTask.AzureStorage.Tests
             Trace.TraceInformation($"Getting orchestration state with instance id - {this.instanceId}");
             // The GetStateAsync only exists in the service object
             AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.ServiceClient;
-            return await service.GetOrchestrationStateAsync(instanceId, true);
+            return await service.GetOrchestrationStateAsync(instanceId, true).ToListAsync();
         }
 
         static TimeSpan AdjustTimeout(TimeSpan requestedTimeout)

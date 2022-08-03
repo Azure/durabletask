@@ -128,7 +128,7 @@ namespace DurableTask.AzureStorage.Storage
             int batchSize = 100,
             CancellationToken cancellationToken = default) where T : ITableEntity
         {
-            TableTransactionResults response = TableTransactionResults.Empty;
+            var resultsBuilder = new TableTransactionResultsBuilder();
             var batch = new List<TableTransactionAction>(batchSize);
 
             foreach (T entity in entityBatch)
@@ -136,16 +136,16 @@ namespace DurableTask.AzureStorage.Storage
                 batch.Add(batchOperation(entity));
                 if (batch.Count == batchSize)
                 {
-                    response.Add(await this.ExecuteBatchAsync(batch, cancellationToken));
+                    resultsBuilder.Add(await this.ExecuteBatchAsync(batch, cancellationToken));
                 }
             }
 
             if (batch.Count > 0)
             {
-                response.Add(await this.ExecuteBatchAsync(batch, cancellationToken));
+                resultsBuilder.Add(await this.ExecuteBatchAsync(batch, cancellationToken));
             }
 
-            return response;
+            return resultsBuilder.ToResults();
         }
 
         public async Task<TableTransactionResults> ExecuteBatchAsync(IEnumerable<TableTransactionAction> batchOperation, CancellationToken cancellationToken = default)

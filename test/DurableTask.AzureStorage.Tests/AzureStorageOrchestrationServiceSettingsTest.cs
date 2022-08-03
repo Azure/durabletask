@@ -13,11 +13,6 @@
 
 namespace DurableTask.AzureStorage.Tests
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Text;
-    using System.Threading.Tasks;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
@@ -41,7 +36,6 @@ namespace DurableTask.AzureStorage.Tests
             {
                 TaskHubName = "foo",
                 TrackingStoreNamePrefix = "bar",
-                TrackingStoreServiceClient = new AzureStorageServices()
             };
             Assert.AreEqual("barHistory", settings.HistoryTableName);
             Assert.AreEqual("barInstances", settings.InstanceTableName);

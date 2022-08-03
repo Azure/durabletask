@@ -119,45 +119,6 @@ namespace DurableTask.ServiceBus.Tests
             Assert.AreEqual(id4.InstanceId, systemAllResponse.ElementAt(1).OrchestrationInstance.InstanceId);
         }
 
-        [TestCategory("DisabledInCI")] // https://github.com/Azure/durabletask/issues/262
-        [TestMethod]
-        public async Task SegmentedQueryUnequalCountsTest()
-        {
-            await this.taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration),
-                typeof (InstanceStoreTestOrchestration2))
-                .AddTaskActivities(new Activity1())
-                .StartAsync();
-
-            for (var i = 0; i < 15; i++)
-            {
-                string instanceId = "apiservice" + i;
-                await this.client.CreateOrchestrationInstanceAsync(
-                    i%2 == 0 ? typeof (InstanceStoreTestOrchestration) : typeof (InstanceStoreTestOrchestration2),
-                    instanceId, "DONTTHROW");
-            }
-
-            Thread.Sleep(TimeSpan.FromSeconds(60));
-
-            var query = new OrchestrationStateQuery();
-
-            var results = new List<OrchestrationState>();
-
-            // We cannot guarantee that the page size is respected,
-            // so instead we'll continue to fetch pages based on continuation token until we reach the end
-            Page<OrchestrationState> page = null;
-            do
-            {
-                page = await this.queryClient
-                    .QueryOrchestrationStatePagesAsync(query)
-                    .AsPages(continuationToken: page?.ContinuationToken, pageSizeHint: 5)
-                    .FirstAsync();
-
-                results.AddRange(page.Values);
-            } while (page.ContinuationToken != null);
-
-            Assert.AreEqual(15, results.Count);
-        }
-
         [TestMethod]
         public async Task PurgeOrchestrationHistoryTest()
         {
@@ -248,45 +209,6 @@ namespace DurableTask.ServiceBus.Tests
 
             states = await this.queryClient.QueryOrchestrationStatesAsync(query).ToListAsync();
             Assert.AreEqual(0, states.Count);
-        }
-
-        [TestCategory("DisabledInCI")] // https://github.com/Azure/durabletask/issues/262
-        [TestMethod]
-        public async Task SegmentedQueryTest()
-        {
-            await this.taskHub.AddTaskOrchestrations(typeof (InstanceStoreTestOrchestration),
-                typeof (InstanceStoreTestOrchestration2))
-                .AddTaskActivities(new Activity1())
-                .StartAsync();
-
-            for (var i = 0; i < 15; i++)
-            {
-                string instanceId = "apiservice" + i;
-                await this.client.CreateOrchestrationInstanceAsync(
-                    i%2 == 0 ? typeof (InstanceStoreTestOrchestration) : typeof (InstanceStoreTestOrchestration2),
-                    instanceId, "DONTTHROW");
-            }
-
-            Thread.Sleep(TimeSpan.FromSeconds(60));
-
-            var query = new OrchestrationStateQuery();
-
-            var results = await this.queryClient.QueryOrchestrationStatePagesAsync(query).ToListAsync();
-            Assert.AreEqual(15, results.Count);
-
-            query = new OrchestrationStateQuery()
-                .AddInstanceFilter("apiservice", true)
-                .AddNameVersionFilter("DurableTask.ServiceBus.Tests.InstanceStoreQueryTests+InstanceStoreTestOrchestration");
-
-            results = await this.queryClient.QueryOrchestrationStatePagesAsync(query).ToListAsync();
-            Assert.AreEqual(8, results.Count);
-
-            query = new OrchestrationStateQuery()
-                .AddInstanceFilter("apiservice", true)
-                .AddNameVersionFilter("DurableTask.ServiceBus.Tests.InstanceStoreQueryTests+InstanceStoreTestOrchestration2");
-
-            results = await this.queryClient.QueryOrchestrationStatePagesAsync(query).ToListAsync();
-            Assert.AreEqual(7, results.Count);
         }
 
         [TestMethod]
