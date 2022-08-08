@@ -26,10 +26,12 @@ namespace DurableTask.Core.History
         /// </summary>
         /// <param name="eventId">The event id of the history event</param>
         /// <param name="reason">The serialized reason of the resuming event</param>
-        public ExecutionResumedEvent(int eventId, string reason)
+        /// <param name="resumeDescendants">Indicates whether suborchestrations should also be resumed.</param>"
+        public ExecutionResumedEvent(int eventId, string reason, bool resumeDescendants = false)
             : base(eventId)
         {
             Reason = reason;
+            ResumeDescendants = resumeDescendants;
         }
 
         /// <summary>
@@ -42,5 +44,11 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public string Reason { get; set; }
+
+        /// <summary>
+        /// Indicates whether suborchestrations should also be resumed.
+        /// </summary>
+        [DataMember]
+        public bool ResumeDescendants { get; set; }
     }
 }

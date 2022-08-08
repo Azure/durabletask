@@ -541,7 +541,7 @@ namespace DurableTask.Emulator
         public int MaxConcurrentTaskActivityWorkItems => this.MaxConcurrentWorkItems;
 
         /// <inheritdoc />
-        public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string message)
+        public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string message, bool terminateDescendants = false)
         {
             var taskMessage = new TaskMessage
             {
@@ -553,13 +553,13 @@ namespace DurableTask.Emulator
         }
 
         /// <inheritdoc />
-        public Task SuspendTaskOrchestrationAsync(string instanceId, string reason)
+        public Task SuspendTaskOrchestrationAsync(string instanceId, string reason, bool suspendDescendants = false)
         {
             throw new NotImplementedException();
         }
 
         /// <inheritdoc />
-        public Task ResumeTaskOrchestrationAsync(string instanceId, string reason)
+        public Task ResumeTaskOrchestrationAsync(string instanceId, string reason, bool resumeDescendants = false)
         {
             throw new NotImplementedException();
         }

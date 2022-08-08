@@ -73,6 +73,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="instanceId">Instance to terminate</param>
         /// <param name="reason">Reason for termination</param>
+        /// <param name="terminateDescendants">Indicates whether suborchestrations should also be terminated.</param>
         Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason, bool terminateDescendants = false);
 
         /// <summary>
@@ -80,14 +81,16 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="instanceId">Instance to suspend</param>
         /// <param name="reason">Reason for suspending</param>
-        Task SuspendTaskOrchestrationAsync(string instanceId, string reason);
+        /// <param name="suspendDescendants">Indicates whether suborchestrations should also be suspended.</param>
+        Task SuspendTaskOrchestrationAsync(string instanceId, string reason, bool suspendDescendants = false);
 
         /// <summary>
         /// Resumes the specified orchestration instance
         /// </summary>
         /// <param name="instanceId">Instance to resume</param>
         /// <param name="reason">Reason for resuming </param>
-        Task ResumeTaskOrchestrationAsync(string instanceId, string reason);
+        /// <param name="resumeDescendants">Indicates whether suborchestrations should also be resumed.</param>
+        Task ResumeTaskOrchestrationAsync(string instanceId, string reason, bool resumeDescendants = false);
 
         /// <summary>
         /// Get a list of orchestration states from the instance storage for the most current execution (generation) of the specified instance.

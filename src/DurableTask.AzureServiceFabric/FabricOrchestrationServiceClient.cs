@@ -115,7 +115,7 @@ namespace DurableTask.AzureServiceFabric
             }
         }
 
-        public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
+        public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason, bool terminateDescendants = false)
         {
             instanceId.EnsureValidInstanceId();
             var latestExecutionId = (await this.instanceStore.GetExecutionIds(instanceId)).Last();
@@ -151,12 +151,12 @@ namespace DurableTask.AzureServiceFabric
             }
         }
 
-        public Task SuspendTaskOrchestrationAsync(string instanceId, string reason)
+        public Task SuspendTaskOrchestrationAsync(string instanceId, string reason, bool suspendDescendants = false)
         {
             throw new NotImplementedException();
         }
 
-        public Task ResumeTaskOrchestrationAsync(string instanceId, string reason)
+        public Task ResumeTaskOrchestrationAsync(string instanceId, string reason, bool resumeDescendants = false)
         {
             throw new NotImplementedException();
         }

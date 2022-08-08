@@ -110,7 +110,8 @@ namespace DurableTask.AzureServiceFabric.Remote
         /// </summary>
         /// <param name="instanceId">Instance to terminate</param>
         /// <param name="reason">Reason for termination</param>
-        public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
+        /// <param name="terminateDescendants">Indicates whether suborchestrations should also be terminated.</param>
+        public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason, bool terminateDescendants = false)
         {
             instanceId.EnsureValidInstanceId();
 
@@ -132,7 +133,8 @@ namespace DurableTask.AzureServiceFabric.Remote
         /// </summary>
         /// <param name="instanceId">Instance to suspend.</param>
         /// <param name="reason">Reason for suspending.</param>
-        public Task SuspendTaskOrchestrationAsync(string instanceId, string reason)
+        /// <param name="suspendDescendants">Indicates whether suborchestrations should also be suspended.</param>
+        public Task SuspendTaskOrchestrationAsync(string instanceId, string reason, bool suspendDescendants = false)
         {
             throw new NotImplementedException();
         }
@@ -142,7 +144,8 @@ namespace DurableTask.AzureServiceFabric.Remote
         /// </summary>
         /// <param name="instanceId">Instance to resume.</param>
         /// <param name="reason">Reason for resuming.</param>
-        public Task ResumeTaskOrchestrationAsync(string instanceId, string reason)
+        /// <param name="resumeDescendants">Indicates whether suborchestratinos should also be resumed.</param>
+        public Task ResumeTaskOrchestrationAsync(string instanceId, string reason, bool resumeDescendants = false)
         {
             throw new NotImplementedException();
         }

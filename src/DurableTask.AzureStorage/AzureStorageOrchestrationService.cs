@@ -1723,12 +1723,13 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration to terminate.</param>
         /// <param name="reason">The user-friendly reason for terminating.</param>
-        public Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
+        /// <param name="terminateDescendants">Indicates whether suborchestrations should also be terminated.</param>
+        public Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason, bool terminateDescendants = false)
         {
             var taskMessage = new TaskMessage
             {
                 OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
-                Event = new ExecutionTerminatedEvent(-1, reason)
+                Event = new ExecutionTerminatedEvent(-1, reason, terminateDescendants)
             };
 
             return SendTaskOrchestrationMessageAsync(taskMessage);
@@ -1739,12 +1740,13 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration to suspend.</param>
         /// <param name="reason">The user-friendly reason for suspending.</param>
-        public Task SuspendTaskOrchestrationAsync(string instanceId, string reason)
+        /// <param name="suspendDescendants">Indicates whether suborchestrations should also be suspended.</param>"
+        public Task SuspendTaskOrchestrationAsync(string instanceId, string reason, bool suspendDescendants = false)
         {
             var taskMessage = new TaskMessage
             {
                 OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
-                Event = new ExecutionSuspendedEvent(-1, reason)
+                Event = new ExecutionSuspendedEvent(-1, reason, suspendDescendants)
             };
 
             return SendTaskOrchestrationMessageAsync(taskMessage);
@@ -1756,12 +1758,13 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration to resume.</param>
         /// <param name="reason">The user-friendly reason for resuming.</param>
-        public Task ResumeTaskOrchestrationAsync(string instanceId, string reason)
+        /// <param name="resumeDescendants">Indicates whether suborchestrations should also be resumed.</param>"
+        public Task ResumeTaskOrchestrationAsync(string instanceId, string reason, bool resumeDescendants = false)
         {
             var taskMessage = new TaskMessage
             {
                 OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
-                Event = new ExecutionResumedEvent(-1, reason)
+                Event = new ExecutionResumedEvent(-1, reason, resumeDescendants)
             };
 
             return SendTaskOrchestrationMessageAsync(taskMessage);

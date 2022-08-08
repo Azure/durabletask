@@ -443,19 +443,19 @@ namespace DurableTask.Redis
         }
 
         /// <inheritdoc />
-        public Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
+        public Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason, bool terminateDescendants = false)
         {
             throw new NotImplementedException();
         }
 
         /// <inheritdoc />
-        public Task SuspendTaskOrchestrationAsync(string instanceId, string reason)
+        public Task SuspendTaskOrchestrationAsync(string instanceId, string reason, bool suspendDescendants = false)
         {
             throw new NotImplementedException();
         }
 
         /// <inheritdoc />
-        public Task ResumeTaskOrchestrationAsync(string instanceId, string reason)
+        public Task ResumeTaskOrchestrationAsync(string instanceId, string reason, bool resumeDescendants = false)
         {
             throw new NotImplementedException();
         }

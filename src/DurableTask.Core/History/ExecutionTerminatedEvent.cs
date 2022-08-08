@@ -26,10 +26,12 @@ namespace DurableTask.Core.History
         /// </summary>
         /// <param name="eventId">The event id of the history event</param>
         /// <param name="input">The serialized input of the termination event</param>
-        public ExecutionTerminatedEvent(int eventId, string input)
+        /// <param name="terminateDescendants">Signals whether suborchestrations should also be terminated.</param>
+        public ExecutionTerminatedEvent(int eventId, string input, bool terminateDescendants = false)
             : base(eventId)
         {
             Input = input;
+            TerminateDescendants = terminateDescendants;
         }
 
         /// <summary>
@@ -42,5 +44,11 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public string Input { get; set; }
+
+        /// <summary>
+        /// Indicates whether suborchestrations should also be terminated.
+        /// </summary>
+        [DataMember]
+        public bool TerminateDescendants { get; set; }
     }
 }

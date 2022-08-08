@@ -43,18 +43,21 @@ namespace DurableTask.Core
         /// <param name="orchestrationRuntimeState"></param>
         /// <param name="taskOrchestration"></param>
         /// <param name="eventBehaviourForContinueAsNew"></param>
+        /// <param name="serviceClient"></param>
         /// <param name="errorPropagationMode"></param>
         public TaskOrchestrationExecutor(
             OrchestrationRuntimeState orchestrationRuntimeState,
             TaskOrchestration taskOrchestration,
             BehaviorOnContinueAsNew eventBehaviourForContinueAsNew,
+            IOrchestrationServiceClient serviceClient,
             ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
         {
             this.decisionScheduler = new SynchronousTaskScheduler();
             this.context = new TaskOrchestrationContext(
                 orchestrationRuntimeState.OrchestrationInstance,
                 this.decisionScheduler,
-                errorPropagationMode);
+                errorPropagationMode,
+                serviceClient);
             this.orchestrationRuntimeState = orchestrationRuntimeState;
             this.taskOrchestration = taskOrchestration;
             this.skipCarryOverEvents = eventBehaviourForContinueAsNew == BehaviorOnContinueAsNew.Ignore;
@@ -177,13 +180,10 @@ namespace DurableTask.Core
 
         void ProcessEvent(HistoryEvent historyEvent)
         {
-            bool isWakingEvent = historyEvent.EventType == EventType.ExecutionResumed || historyEvent.EventType == EventType.ExecutionTerminated;
-            if (this.context.IsSuspended && !isWakingEvent)
+            bool overrideSuspension = historyEvent.EventType == EventType.ExecutionResumed || historyEvent.EventType == EventType.ExecutionTerminated;
+            if (this.context.IsSuspended && !overrideSuspension)
             {
-                if (historyEvent.EventType != EventType.ExecutionSuspended)
-                {
-                    this.context.HandleEventWhileSuspended(historyEvent);
-                }
+                this.context.HandleEventWhileSuspended(historyEvent);
             }
             else
             {

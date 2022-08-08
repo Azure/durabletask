@@ -34,6 +34,8 @@ namespace DurableTask.Core
         private bool executionCompletedOrTerminated;
         private int idCounter;
         private readonly Queue<HistoryEvent> eventsWhileSuspended;
+        private readonly IDictionary<int, string> suborchestrations;
+        private readonly IOrchestrationServiceClient serviceClient;
 
         public bool IsSuspended { get; private set; }
 
@@ -46,13 +48,17 @@ namespace DurableTask.Core
 
         public void HandleEventWhileSuspended(HistoryEvent historyEvent)
         {
-            this.eventsWhileSuspended.Enqueue(historyEvent);
+            if (historyEvent.EventType != EventType.ExecutionSuspended)
+            {
+                this.eventsWhileSuspended.Enqueue(historyEvent);
+            }
         }
 
         public TaskOrchestrationContext(
             OrchestrationInstance orchestrationInstance,
             TaskScheduler taskScheduler,
-            ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
+            ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions,
+            IOrchestrationServiceClient serviceClient = null)
         {
             Utils.UnusedParameter(taskScheduler);
 
@@ -64,7 +70,9 @@ namespace DurableTask.Core
             OrchestrationInstance = orchestrationInstance;
             IsReplaying = false;
             ErrorPropagationMode = errorPropagationMode;
-            eventsWhileSuspended = new Queue<HistoryEvent>();
+            this.eventsWhileSuspended = new Queue<HistoryEvent>();
+            this.suborchestrations = new Dictionary<int, string>();
+            this.serviceClient = serviceClient;
         }
 
         public IEnumerable<OrchestratorAction> OrchestratorActions => this.orchestratorActionsMap.Values;
@@ -370,6 +378,7 @@ namespace DurableTask.Core
             }
 
             this.orchestratorActionsMap.Remove(taskId);
+            this.suborchestrations.Add(taskId, currentReplayAction.InstanceId);
         }
 
         public void HandleEventSentEvent(EventSentEvent eventSentEvent)
@@ -484,6 +493,7 @@ namespace DurableTask.Core
                 info.Result.SetResult(completedEvent.Result);
 
                 this.openTasks.Remove(taskId);
+                this.suborchestrations.Remove(taskId);
             }
             else
             {
@@ -553,6 +563,14 @@ namespace DurableTask.Core
         public void HandleExecutionTerminatedEvent(ExecutionTerminatedEvent terminatedEvent)
         {
             CompleteOrchestration(terminatedEvent.Input, null, OrchestrationStatus.Terminated);
+
+            if (!this.IsReplaying && terminatedEvent.TerminateDescendants)
+            {
+                foreach (string suborchestrationId in this.suborchestrations.Values)
+                {
+                    this.serviceClient.ForceTerminateTaskOrchestrationAsync(suborchestrationId, "Terminating suborchestrations", true);
+                }
+            }
         }
 
         public void CompleteOrchestration(string result)
@@ -563,6 +581,14 @@ namespace DurableTask.Core
         public void HandleExecutionSuspendedEvent(ExecutionSuspendedEvent suspendedEvent)
         {
             this.IsSuspended = true;
+
+            if (!this.IsReplaying && suspendedEvent.SuspendDescendants)
+            {
+                foreach (string suborchestrationId in this.suborchestrations.Values)
+                {
+                    this.serviceClient.SuspendTaskOrchestrationAsync(suborchestrationId, "Suspending suborchestrations", true);
+                }
+            }
         }
 
         public void HandleExecutionResumedEvent(ExecutionResumedEvent resumedEvent, Action<HistoryEvent> eventProcessor)
@@ -571,6 +597,14 @@ namespace DurableTask.Core
             while (eventsWhileSuspended.Count > 0)
             {
                 eventProcessor(eventsWhileSuspended.Dequeue());
+            }
+
+            if (!this.IsReplaying && resumedEvent.ResumeDescendants)
+            {
+                foreach (string suborchestrationId in this.suborchestrations.Values)
+                {
+                    this.serviceClient.ResumeTaskOrchestrationAsync(suborchestrationId, "Resuming suborchestrations", true);
+                }
             }
         }
 

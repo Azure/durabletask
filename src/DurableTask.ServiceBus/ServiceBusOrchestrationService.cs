@@ -1204,7 +1204,8 @@ namespace DurableTask.ServiceBus
         /// </summary>
         /// <param name="instanceId">The instance id to terminate</param>
         /// <param name="reason">The string reason for terminating</param>
-        public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
+        /// <param name="terminateDescendants">Indicates whether suborchestrations should also be terminated.</param>
+        public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason, bool terminateDescendants = false)
         {
             var taskMessage = new TaskMessage
             {
@@ -1220,7 +1221,8 @@ namespace DurableTask.ServiceBus
         /// </summary>
         /// <param name="instanceId">The instance id to suspend</param>
         /// <param name="reason">The string reason for suspending</param>
-        public Task SuspendTaskOrchestrationAsync(string instanceId, string reason)
+        /// <param name="suspendDescendants">Indicates whether suborchestrations should also be suspended.</param>
+        public Task SuspendTaskOrchestrationAsync(string instanceId, string reason, bool suspendDescendants = false)
         {
             throw new NotImplementedException();
         }
@@ -1230,7 +1232,8 @@ namespace DurableTask.ServiceBus
         /// </summary>
         /// <param name="instanceId">The instance id to resume </param>
         /// <param name="reason">The string reason for resuming </param>
-        public Task ResumeTaskOrchestrationAsync(string instanceId, string reason)
+        /// <param name="resumeDescendants">Indicates whether suborchestrations should be resumed.</param>
+        public Task ResumeTaskOrchestrationAsync(string instanceId, string reason, bool resumeDescendants = false)
         {
             throw new NotImplementedException();
         }
