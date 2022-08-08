@@ -930,29 +930,33 @@ namespace DurableTask.AzureStorage.Tests
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
+                string originalStatus = "OGstatus";
+                string suspendReason = "sleepyOrch";
+                string changedStatus = "newStatus";
+
                 await host.StartAsync();
-                var client = await host.StartOrchestrationAsync(typeof(Test.Orchestrations.NextExecution), "OGstatus");
+                var client = await host.StartOrchestrationAsync(typeof(Test.Orchestrations.NextExecution), originalStatus);
                 await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
 
                 // Test case 1: Suspend changes the status Running->Suspended
-                await client.SuspendAsync("sleepyOrch");
+                await client.SuspendAsync(suspendReason);
                 await Task.Delay(2000);
                 var status = await client.GetStatusAsync();
                 Assert.AreEqual(OrchestrationStatus.Suspended, status?.OrchestrationStatus);
-                Assert.AreEqual("sleepyOrch", status?.Output);
+                Assert.AreEqual(suspendReason, status?.Output);
 
                 // Test case 2: external event does not go through
-                await client.RaiseEventAsync("changeStatusNow", "newStatus");
+                await client.RaiseEventAsync("changeStatusNow", changedStatus);
                 await Task.Delay(2000);
                 status = await client.GetStatusAsync();
-                Assert.AreEqual("OGstatus", JToken.Parse(status?.Status));
+                Assert.AreEqual(originalStatus, JToken.Parse(status?.Status));
 
                 // Test case 3: external event now goes through
                 await client.ResumeAsync("wakeUp");
                 await Task.Delay(2000);
                 status  = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual("newStatus", JToken.Parse(status?.Status));
+                Assert.AreEqual(changedStatus, JToken.Parse(status?.Status));
 
                 await host.StopAsync();
             }
