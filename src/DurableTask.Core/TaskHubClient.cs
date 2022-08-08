@@ -709,7 +709,8 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="orchestrationInstance">Instance to terminate</param>
         /// <param name="reason">Reason for terminating the instance</param>
-        public async Task TerminateInstanceAsync(OrchestrationInstance orchestrationInstance, string reason)
+        /// <param name="terminateDescendants">Indicates whether suborchestrations should also be terminated.</param>
+        public async Task TerminateInstanceAsync(OrchestrationInstance orchestrationInstance, string reason, bool terminateDescendants = false)
         {
             if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
             {
@@ -717,16 +718,17 @@ namespace DurableTask.Core
             }
 
             this.logHelper.TerminatingInstance(orchestrationInstance, reason);
-            await this.ServiceClient.ForceTerminateTaskOrchestrationAsync(orchestrationInstance.InstanceId, reason);
+            await this.ServiceClient.ForceTerminateTaskOrchestrationAsync(orchestrationInstance.InstanceId, reason, terminateDescendants);
         }
 
         /// <summary>
         ///     Suspend the specified orchestration instance.
         /// </summary>
         /// <param name="orchestrationInstance">Instance to suspend.</param>
-        public Task SuspendInstanceAsync(OrchestrationInstance orchestrationInstance)
+        /// <param name="suspendDescendants">Indicates whether suborchestrations should also be suspended.</param>
+        public Task SuspendInstanceAsync(OrchestrationInstance orchestrationInstance, bool suspendDescendants = false)
         {
-            return this.SuspendInstanceAsync(orchestrationInstance, string.Empty);
+            return this.SuspendInstanceAsync(orchestrationInstance, string.Empty, suspendDescendants);
         }
 
         /// <summary>
@@ -734,7 +736,8 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="orchestrationInstance">Instance to suspend</param>
         /// <param name="reason">Reason for suspending the instance</param>
-        public async Task SuspendInstanceAsync(OrchestrationInstance orchestrationInstance, string reason)
+        /// <param name="suspendDescendants">Indicates whether suborchestrations should also be suspended.</param>
+        public async Task SuspendInstanceAsync(OrchestrationInstance orchestrationInstance, string reason, bool suspendDescendants = false)
         {
             if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
             {
@@ -742,16 +745,17 @@ namespace DurableTask.Core
             }
 
             this.logHelper.SuspendingInstance(orchestrationInstance, reason);
-            await this.ServiceClient.SuspendTaskOrchestrationAsync(orchestrationInstance.InstanceId, reason);
+            await this.ServiceClient.SuspendTaskOrchestrationAsync(orchestrationInstance.InstanceId, reason, suspendDescendants);
         }
 
         /// <summary>
         ///     Resume the specified orchestration instance.
         /// </summary>
         /// <param name="orchestrationInstance">Instance to resume</param>
-        public Task ResumeInstanceAsync(OrchestrationInstance orchestrationInstance)
+        /// <param name="resumeDescendants">Indicates whether suborchestrations should also be resumed.</param>
+        public Task ResumeInstanceAsync(OrchestrationInstance orchestrationInstance, bool resumeDescendants = false)
         {
-            return this.ResumeInstanceAsync(orchestrationInstance, string.Empty);
+            return this.ResumeInstanceAsync(orchestrationInstance, string.Empty, resumeDescendants);
         }
 
         /// <summary>
@@ -759,7 +763,8 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="orchestrationInstance">Instance to resume</param>
         /// <param name="reason">Reason for resuming the instance</param>
-        public async Task ResumeInstanceAsync(OrchestrationInstance orchestrationInstance, string reason)
+        /// <param name="resumeDescendants">Indicates whether suborchestrations should also be resumed.</param>
+        public async Task ResumeInstanceAsync(OrchestrationInstance orchestrationInstance, string reason, bool resumeDescendants = false)
         {
             if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
             {
@@ -767,7 +772,7 @@ namespace DurableTask.Core
             }
 
             this.logHelper.ResumingInstance(orchestrationInstance, reason);
-            await this.ServiceClient.ResumeTaskOrchestrationAsync(orchestrationInstance.InstanceId, reason);
+            await this.ServiceClient.ResumeTaskOrchestrationAsync(orchestrationInstance.InstanceId, reason, resumeDescendants);
         }
 
         /// <summary>
