@@ -73,7 +73,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="instanceId">Instance to terminate</param>
         /// <param name="reason">Reason for termination</param>
-        Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason);
+        Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason, bool terminateDescendants = false);
 
         /// <summary>
         /// Suspends the specified orchestration instance
