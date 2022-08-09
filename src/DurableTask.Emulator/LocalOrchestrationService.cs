@@ -553,15 +553,25 @@ namespace DurableTask.Emulator
         }
 
         /// <inheritdoc />
-        public Task SuspendTaskOrchestrationAsync(string instanceId, string reason)
+        public async Task SuspendTaskOrchestrationAsync(string instanceId, string reason)
         {
-            throw new NotImplementedException();
+            var taskMessage = new TaskMessage
+            {
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
+                Event = new ExecutionSuspendedEvent(-1, reason)
+            };
+            await SendTaskOrchestrationMessageAsync(taskMessage);
         }
 
         /// <inheritdoc />
-        public Task ResumeTaskOrchestrationAsync(string instanceId, string reason)
+        public async Task ResumeTaskOrchestrationAsync(string instanceId, string reason)
         {
-            throw new NotImplementedException();
+            var taskMessage = new TaskMessage
+            {
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
+                Event = new ExecutionResumedEvent(-1, reason)
+            };
+            await SendTaskOrchestrationMessageAsync(taskMessage);
         }
 
         /// <inheritdoc />
