@@ -45,17 +45,14 @@ namespace DurableTask.Core.Tracing
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 name: startEvent.Name,
-                kind: ActivityKind.Internal,
-                parentContext: Activity.Current?.Context ?? default,
-                tags: new KeyValuePair<string, object?>[]
-                {
-                    new("dtfx.type", "client"),
-                    new("dtfx.instance_id", startEvent.OrchestrationInstance.InstanceId),
-                    new("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId),
-                });
+                kind: ActivityKind.Internal);
 
             if (newActivity != null)
             {
+                newActivity.SetTag("dtfx.type", "client");
+                newActivity.SetTag("dtfx.instance_id", startEvent.OrchestrationInstance.InstanceId);
+                newActivity.SetTag("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId);
+                
                 startEvent.SetParentTraceContext(newActivity);
             }
 
@@ -83,25 +80,22 @@ namespace DurableTask.Core.Tracing
 
             string activityName = startEvent.Name;
             ActivityKind activityKind = ActivityKind.Internal;
-            KeyValuePair<string, object?>[] activityTags = new KeyValuePair<string, object?>[]
-            {
-                new("dtfx.type", "orchestrator"),
-                new("dtfx.instance_id", startEvent.OrchestrationInstance.InstanceId),
-                new("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId),
-            };
 
             DateTimeOffset startTime = startEvent.ParentTraceContext.ActivityStartTime ?? default;
             Activity? activity = ActivityTraceSource.StartActivity(
                 name: activityName,
                 kind: activityKind,
                 parentContext: activityContext,
-                startTime: startTime,
-                tags: activityTags);
+                startTime: startTime);
 
             if (activity == null)
             {
                 return null;
             }
+
+            activity.SetTag("dtfx.type", "orchestrator");
+            activity.SetTag("dtfx.instance_id", startEvent.OrchestrationInstance.InstanceId);
+            activity.SetTag("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId);
 
             if (startEvent.ParentTraceContext.Id != null && startEvent.ParentTraceContext.SpanId != null)
             {
