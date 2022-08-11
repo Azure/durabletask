@@ -920,6 +920,29 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        private async void waitForStatusChange(OrchestrationStatus expectedStatus, int timeout, TestOrchestrationClient client)
+        {
+            int timeElapsed = 0;
+            while (true)
+            {
+                if (timeElapsed >= timeout)
+                {
+                    throw new Exception("Status did not change during the allotted time.");
+                }
+
+                await Task.Delay(1000);
+                var theStatus = await client.GetStatusAsync();
+                if (theStatus?.OrchestrationStatus == expectedStatus)
+                {
+                    break;
+                }
+                else
+                {
+                    timeElapsed += 1000;
+                }
+            }
+        }
+
         /// <summary>
         /// End-to-end test which validates the Suspend-Resume functionality.
         /// </summary>
@@ -953,7 +976,6 @@ namespace DurableTask.AzureStorage.Tests
 
                 // Test case 3: external event now goes through
                 await client.ResumeAsync("wakeUp");
-                await Task.Delay(2000);
                 status  = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.AreEqual(changedStatus, JToken.Parse(status?.Status));

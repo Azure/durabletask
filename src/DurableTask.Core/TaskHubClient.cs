@@ -721,20 +721,11 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        ///     Suspend the specified orchestration instance.
-        /// </summary>
-        /// <param name="orchestrationInstance">Instance to suspend.</param>
-        public Task SuspendInstanceAsync(OrchestrationInstance orchestrationInstance)
-        {
-            return this.SuspendInstanceAsync(orchestrationInstance, string.Empty);
-        }
-
-        /// <summary>
         ///     Suspend the specified orchestration instance with a reason.
         /// </summary>
         /// <param name="orchestrationInstance">Instance to suspend</param>
         /// <param name="reason">Reason for suspending the instance</param>
-        public async Task SuspendInstanceAsync(OrchestrationInstance orchestrationInstance, string reason)
+        public async Task SuspendInstanceAsync(OrchestrationInstance orchestrationInstance, string reason = null)
         {
             if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
             {
@@ -742,16 +733,14 @@ namespace DurableTask.Core
             }
 
             this.logHelper.SuspendingInstance(orchestrationInstance, reason);
-            await this.ServiceClient.SuspendTaskOrchestrationAsync(orchestrationInstance.InstanceId, reason);
-        }
 
-        /// <summary>
-        ///     Resume the specified orchestration instance.
-        /// </summary>
-        /// <param name="orchestrationInstance">Instance to resume</param>
-        public Task ResumeInstanceAsync(OrchestrationInstance orchestrationInstance)
-        {
-            return this.ResumeInstanceAsync(orchestrationInstance, string.Empty);
+            var taskMessage = new TaskMessage
+            {
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = orchestrationInstance.InstanceId },
+                Event = new ExecutionSuspendedEvent(-1, reason)
+            };
+
+            await this.ServiceClient.SendTaskOrchestrationMessageAsync(taskMessage);
         }
 
         /// <summary>
@@ -759,7 +748,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="orchestrationInstance">Instance to resume</param>
         /// <param name="reason">Reason for resuming the instance</param>
-        public async Task ResumeInstanceAsync(OrchestrationInstance orchestrationInstance, string reason)
+        public async Task ResumeInstanceAsync(OrchestrationInstance orchestrationInstance, string reason = null)
         {
             if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
             {
@@ -767,7 +756,14 @@ namespace DurableTask.Core
             }
 
             this.logHelper.ResumingInstance(orchestrationInstance, reason);
-            await this.ServiceClient.ResumeTaskOrchestrationAsync(orchestrationInstance.InstanceId, reason);
+
+            var taskMessage = new TaskMessage
+            {
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = orchestrationInstance.InstanceId },
+                Event = new ExecutionResumedEvent(-1, reason)
+            };
+
+            await this.ServiceClient.SendTaskOrchestrationMessageAsync(taskMessage);
         }
 
         /// <summary>

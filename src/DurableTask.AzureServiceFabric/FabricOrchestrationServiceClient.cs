@@ -151,16 +151,6 @@ namespace DurableTask.AzureServiceFabric
             }
         }
 
-        public Task SuspendTaskOrchestrationAsync(string instanceId, string reason)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task ResumeTaskOrchestrationAsync(string instanceId, string reason)
-        {
-            throw new NotImplementedException();
-        }
-
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
             instanceId.EnsureValidInstanceId();

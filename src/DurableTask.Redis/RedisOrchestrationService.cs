@@ -449,18 +449,6 @@ namespace DurableTask.Redis
         }
 
         /// <inheritdoc />
-        public Task SuspendTaskOrchestrationAsync(string instanceId, string reason)
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <inheritdoc />
-        public Task ResumeTaskOrchestrationAsync(string instanceId, string reason)
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <inheritdoc />
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
             return new OrchestrationState[] { await this.GetOrchestrationStateAsync(instanceId, "") };

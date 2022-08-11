@@ -553,28 +553,6 @@ namespace DurableTask.Emulator
         }
 
         /// <inheritdoc />
-        public async Task SuspendTaskOrchestrationAsync(string instanceId, string reason)
-        {
-            var taskMessage = new TaskMessage
-            {
-                OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
-                Event = new ExecutionSuspendedEvent(-1, reason)
-            };
-            await SendTaskOrchestrationMessageAsync(taskMessage);
-        }
-
-        /// <inheritdoc />
-        public async Task ResumeTaskOrchestrationAsync(string instanceId, string reason)
-        {
-            var taskMessage = new TaskMessage
-            {
-                OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
-                Event = new ExecutionResumedEvent(-1, reason)
-            };
-            await SendTaskOrchestrationMessageAsync(taskMessage);
-        }
-
-        /// <inheritdoc />
         public Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem)
         {
             workItem.LockedUntilUtc = workItem.LockedUntilUtc.AddMinutes(5);

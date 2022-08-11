@@ -16,7 +16,7 @@ namespace DurableTask.Core.History
     using System.Runtime.Serialization;
 
     /// <summary>
-    /// A history event for orchestration pause
+    /// A history event for orchestration suspension.
     /// </summary>
     [DataContract]
     public class ExecutionSuspendedEvent : HistoryEvent
@@ -25,7 +25,7 @@ namespace DurableTask.Core.History
         /// Creates a new ExecutionSuspendedEvent with the supplied params
         /// </summary>
         /// <param name="eventId">The event id of the history event</param>
-        /// <param name="reason">The serialized input of the termination event</param>
+        /// <param name="reason">The serialized input of the suspension event</param>
         public ExecutionSuspendedEvent(int eventId, string reason)
             : base(eventId)
         {
@@ -38,7 +38,7 @@ namespace DurableTask.Core.History
         public override EventType EventType => EventType.ExecutionSuspended;
 
         /// <summary>
-        /// Gets or sets the serialized input for the the termination event
+        /// Gets or sets the serialized input for the the suspension event
         /// </summary>
         [DataMember]
         public string Reason { get; set; }

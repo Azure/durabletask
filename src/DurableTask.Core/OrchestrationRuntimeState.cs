@@ -268,7 +268,10 @@ namespace DurableTask.Core
             }
             else if (historyEvent is ExecutionResumedEvent)
             {
-                orchestrationStatus = OrchestrationStatus.Running;
+                if (ExecutionCompletedEvent == null)
+                {
+                    orchestrationStatus = OrchestrationStatus.Running;
+                }
             }
         }
 

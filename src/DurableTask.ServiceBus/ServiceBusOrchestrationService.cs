@@ -1216,26 +1216,6 @@ namespace DurableTask.ServiceBus
         }
 
         /// <summary>
-        ///    Suspends an orchestration by sending a execution suspended event
-        /// </summary>
-        /// <param name="instanceId">The instance id to suspend</param>
-        /// <param name="reason">The string reason for suspending</param>
-        public Task SuspendTaskOrchestrationAsync(string instanceId, string reason)
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        ///    Resumes an orchestration by sending a execution resumed event
-        /// </summary>
-        /// <param name="instanceId">The instance id to resume </param>
-        /// <param name="reason">The string reason for resuming </param>
-        public Task ResumeTaskOrchestrationAsync(string instanceId, string reason)
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
         ///     Wait for an orchestration to reach any terminal state within the given timeout
         /// </summary>
         /// <param name="executionId">The execution id of the orchestration</param>

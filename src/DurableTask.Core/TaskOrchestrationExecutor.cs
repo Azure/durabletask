@@ -222,7 +222,7 @@ namespace DurableTask.Core
                         this.context.HandleEventSentEvent((EventSentEvent)historyEvent);
                         break;
                     case EventType.EventRaised:
-                        this.context.HandleEventRaisedEvent(historyEvent, this.skipCarryOverEvents, this.taskOrchestration);
+                        this.context.HandleEventRaisedEvent((EventRaisedEvent)historyEvent, this.skipCarryOverEvents, this.taskOrchestration);
                         break;
                     case EventType.ExecutionSuspended:
                         this.context.HandleExecutionSuspendedEvent((ExecutionSuspendedEvent)historyEvent);

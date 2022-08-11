@@ -128,26 +128,6 @@ namespace DurableTask.AzureServiceFabric.Remote
         }
 
         /// <summary>
-        /// Suspends the specified orchestration instance.
-        /// </summary>
-        /// <param name="instanceId">Instance to suspend.</param>
-        /// <param name="reason">Reason for suspending.</param>
-        public Task SuspendTaskOrchestrationAsync(string instanceId, string reason)
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        /// Resumes the specified orchestration instance.
-        /// </summary>
-        /// <param name="instanceId">Instance to resume.</param>
-        /// <param name="reason">Reason for resuming.</param>
-        public Task ResumeTaskOrchestrationAsync(string instanceId, string reason)
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
         /// Get a string dump of the execution history of the specified orchestration instance specified execution (generation) of the specified instance
         /// </summary>
         /// <param name="instanceId">Instance id</param>

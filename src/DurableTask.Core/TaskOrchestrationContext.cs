@@ -44,14 +44,6 @@ namespace DurableTask.Core
             continueAsNew.CarryoverEvents.Add(he);
         }
 
-        public void HandleEventWhileSuspended(HistoryEvent historyEvent)
-        {
-            if (historyEvent.EventType != EventType.ExecutionSuspended)
-            {
-                this.eventsWhileSuspended.Enqueue(historyEvent);
-            }
-        }
-
         public TaskOrchestrationContext(
             OrchestrationInstance orchestrationInstance,
             TaskScheduler taskScheduler,
@@ -412,16 +404,15 @@ namespace DurableTask.Core
             this.orchestratorActionsMap.Remove(taskId);
         }
 
-        public void HandleEventRaisedEvent(HistoryEvent historyEvent, bool skipCarryOverEvents, TaskOrchestration taskOrchestration)
+        public void HandleEventRaisedEvent(EventRaisedEvent eventRaisedEvent, bool skipCarryOverEvents, TaskOrchestration taskOrchestration)
         {
             if (skipCarryOverEvents || !this.HasContinueAsNew)
             {
-                var eventRaisedEvent = (EventRaisedEvent)historyEvent;
                 taskOrchestration.RaiseEvent(this, eventRaisedEvent.Name, eventRaisedEvent.Input);
             }
             else
             {
-                this.AddEventToNextIteration(historyEvent);
+                this.AddEventToNextIteration(eventRaisedEvent);
             }
         }
 
@@ -561,6 +552,14 @@ namespace DurableTask.Core
         public void CompleteOrchestration(string result)
         {
             CompleteOrchestration(result, null, OrchestrationStatus.Completed);
+        }
+
+        public void HandleEventWhileSuspended(HistoryEvent historyEvent)
+        {
+            if (historyEvent.EventType != EventType.ExecutionSuspended)
+            {
+                this.eventsWhileSuspended.Enqueue(historyEvent);
+            }
         }
 
         public void HandleExecutionSuspendedEvent(ExecutionSuspendedEvent suspendedEvent)
