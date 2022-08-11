@@ -920,29 +920,6 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        private async void waitForStatusChange(OrchestrationStatus expectedStatus, int timeout, TestOrchestrationClient client)
-        {
-            int timeElapsed = 0;
-            while (true)
-            {
-                if (timeElapsed >= timeout)
-                {
-                    throw new Exception("Status did not change during the allotted time.");
-                }
-
-                await Task.Delay(1000);
-                var theStatus = await client.GetStatusAsync();
-                if (theStatus?.OrchestrationStatus == expectedStatus)
-                {
-                    break;
-                }
-                else
-                {
-                    timeElapsed += 1000;
-                }
-            }
-        }
-
         /// <summary>
         /// End-to-end test which validates the Suspend-Resume functionality.
         /// </summary>
@@ -963,14 +940,12 @@ namespace DurableTask.AzureStorage.Tests
 
                 // Test case 1: Suspend changes the status Running->Suspended
                 await client.SuspendAsync(suspendReason);
-                await Task.Delay(2000);
-                var status = await client.GetStatusAsync();
+                var status = await client.WaitForStatusChange(TimeSpan.FromSeconds(10), OrchestrationStatus.Suspended);
                 Assert.AreEqual(OrchestrationStatus.Suspended, status?.OrchestrationStatus);
                 Assert.AreEqual(suspendReason, status?.Output);
 
                 // Test case 2: external event does not go through
                 await client.RaiseEventAsync("changeStatusNow", changedStatus);
-                await Task.Delay(2000);
                 status = await client.GetStatusAsync();
                 Assert.AreEqual(originalStatus, JToken.Parse(status?.Status));
 
@@ -999,7 +974,7 @@ namespace DurableTask.AzureStorage.Tests
                 await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
 
                 await client.SuspendAsync("suspend");
-                await Task.Delay(2000);
+                await client.WaitForStatusChange(TimeSpan.FromSeconds(10), OrchestrationStatus.Suspended);
 
                 await client.TerminateAsync("terminate");
 
