@@ -247,8 +247,15 @@ namespace DurableTask.Core
 
                 ExecutionStartedEvent = startedEvent;
             }
-            else if (historyEvent is ExecutionCompletedEvent)
+            else if (historyEvent is ExecutionCompletedEvent completedEvent)
             {
+                if (ExecutionCompletedEvent != null)
+                {
+                    throw new InvalidOperationException(
+                        "Multiple ExecutionCompletedEvent found, potential corruption in state storage");
+                }
+
+                ExecutionCompletedEvent = completedEvent;
                 orchestrationStatus = OrchestrationStatus.Completed;
             }
             else if (historyEvent is ExecutionSuspendedEvent)
