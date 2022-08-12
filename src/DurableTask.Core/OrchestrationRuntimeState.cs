@@ -256,7 +256,7 @@ namespace DurableTask.Core
                 }
 
                 ExecutionCompletedEvent = completedEvent;
-                orchestrationStatus = OrchestrationStatus.Completed;
+                orchestrationStatus = completedEvent.OrchestrationStatus;
             }
             else if (historyEvent is ExecutionSuspendedEvent)
             {
