@@ -14,83 +14,61 @@
 namespace DurableTask.Core
 {
     using System;
-    using System.Collections.Generic;
     using System.Diagnostics;
-    using System.Dynamic;
     using System.Linq;
     using System.Reflection;
     using System.Threading.Tasks;
+    using Castle.DynamicProxy;
 
-    internal class RetryProxy<T> : DynamicObject
+    internal class RetryProxy : IInterceptor
     {
-        readonly OrchestrationContext context;
-        readonly RetryOptions retryOptions;
-        readonly IDictionary<string, Type> returnTypes;
-        readonly T wrappedObject;
+        private readonly OrchestrationContext context;
+        private readonly RetryOptions retryOptions;
 
-        public RetryProxy(OrchestrationContext context, RetryOptions retryOptions, T wrappedObject)
+        /// <summary>
+        /// Initializes a new instance of the <see cref="RetryProxy"/> class.
+        /// </summary>
+        /// <param name="context">The orchestration context.</param>
+        /// <param name="retryOptions">The retry options.</param>
+        public RetryProxy(OrchestrationContext context, RetryOptions retryOptions)
         {
             this.context = context;
             this.retryOptions = retryOptions;
-            this.wrappedObject = wrappedObject;
-
-            //If type can be determined by name
-            this.returnTypes = typeof(T).GetMethods()
-                .Where(method => !method.IsSpecialName)
-                .GroupBy(method => method.Name)
-                .Where(group => group.Select(method => method.ReturnType).Distinct().Count() == 1)
-                .Select(group => new
-                {
-                    Name = group.Key,
-                    ReturnType = group.Select(method => method.ReturnType).Distinct().Single()
-                })
-                .ToDictionary(info => info.Name, info => info.ReturnType);
         }
 
-        public override bool TryInvokeMember(InvokeMemberBinder binder, object[] args, out object result)
+        /// <inheritdoc/>
+        public void Intercept(IInvocation invocation)
         {
-            if (!this.returnTypes.TryGetValue(binder.Name, out Type returnType))
+            var returnType = invocation.Method.ReturnType;
+            if (!typeof(Task).IsAssignableFrom(returnType))
             {
-                throw new Exception("Method name '" + binder.Name + "' not known.");
+                throw new InvalidOperationException($"Invoked method must return a task. Current return type is {invocation.Method.ReturnType}");
             }
 
             if (returnType == typeof(Task))
             {
-                result = InvokeWithRetry<object>(binder.Name, args);
-            }
-            else
-            {
-                if (!returnType.IsGenericType)
-                {
-                    throw new Exception("Return type is not a generic type. Type Name: " + returnType.FullName);
-                }
-
-                Type[] genericArguments = returnType.GetGenericArguments();
-                if (genericArguments.Length != 1)
-                {
-                    throw new Exception("Generic Parameters are not equal to 1. Type Name: " + returnType.FullName);
-                }
-
-                MethodInfo invokeMethod = GetType().GetMethod("InvokeWithRetry");
-
-                Debug.Assert(invokeMethod != null);
-
-                MethodInfo genericInvokeMethod = invokeMethod.MakeGenericMethod(genericArguments[0]);
-                result = genericInvokeMethod.Invoke(this, new object[] { binder.Name, args });
+                invocation.ReturnValue = this.InvokeWithRetry<object>(invocation);
+                return;
             }
 
-            return true;
+            returnType = invocation.Method.ReturnType.GetGenericArguments().Single();
+
+            MethodInfo invokeMethod = this.GetType().GetMethod("InvokeWithRetry", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Debug.Assert(invokeMethod != null);
+
+            MethodInfo genericInvokeMethod = invokeMethod.MakeGenericMethod(returnType);
+            invocation.ReturnValue = genericInvokeMethod.Invoke(this, new object[] { invocation });
+
+            return;
         }
 
-        public async Task<TReturnType> InvokeWithRetry<TReturnType>(string methodName, object[] args)
+        private async Task<TReturnType> InvokeWithRetry<TReturnType>(IInvocation invocation)
         {
             Task<TReturnType> RetryCall()
             {
-#if NETSTANDARD2_0
-                return Dynamitey.Dynamic.InvokeMember(this.wrappedObject, methodName, args);
-#else
-                return ImpromptuInterface.Impromptu.InvokeMember(this.wrappedObject, methodName, args);
-#endif
+                invocation.Proceed();
+                return (Task<TReturnType>)invocation.ReturnValue;
             }
 
             var retryInterceptor = new RetryInterceptor<TReturnType>(this.context, this.retryOptions, RetryCall);
