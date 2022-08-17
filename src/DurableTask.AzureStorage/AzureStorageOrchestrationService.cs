@@ -937,7 +937,8 @@ namespace DurableTask.AzureStorage
 
             if (runtimeState.ExecutionStartedEvent != null &&
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Running &&
-                runtimeState.OrchestrationStatus != OrchestrationStatus.Pending)
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Pending &&
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Suspended)
             {
                 message = $"Instance is {runtimeState.OrchestrationStatus}";
                 return false;
