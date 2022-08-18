@@ -19,7 +19,7 @@
 
   <!-- Version Info -->
   <PropertyGroup>
-    <MajorVersion>99</MajorVersion>
+    <MajorVersion>1</MajorVersion>
     <MinorVersion>12</MinorVersion>
     <PatchVersion>1</PatchVersion>
     
