@@ -39,7 +39,7 @@ namespace DurableTask.AzureStorage
         readonly AzureStorageClient azureStorageClient;
         readonly BlobContainer blobContainer;
         readonly JsonSerializerSettings taskMessageSerializerSettings;
-        readonly JsonSerializer jsonSerializer;
+        readonly JsonSerializer serializer;
 
         bool containerInitialized;
 
@@ -60,7 +60,7 @@ namespace DurableTask.AzureStorage
                 Binder = new TypeNameSerializationBinder(),
 #endif
             };
-            this.jsonSerializer = JsonSerializer.Create(taskMessageSerializerSettings);
+            this.serializer = JsonSerializer.Create(taskMessageSerializerSettings);
 
             if (this.settings.UseDataContractSerialization)
             {
@@ -90,7 +90,7 @@ namespace DurableTask.AzureStorage
 
         public async Task<string> SerializeMessageDataAsync(MessageData messageData)
         {
-            string rawContent = Utils.SerializeToJson(jsonSerializer, messageData);
+            string rawContent = Utils.SerializeToJson(serializer, messageData);
             messageData.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(rawContent);
             MessageFormatFlags messageFormat = this.GetMessageFormatFlags(messageData);
 
@@ -104,10 +104,10 @@ namespace DurableTask.AzureStorage
 
                 // Create a "wrapper" message which has the blob name but not a task message.
                 var wrapperMessageData = new MessageData { CompressedBlobName = blobName };
-                return Utils.SerializeToJson(jsonSerializer, wrapperMessageData);
+                return Utils.SerializeToJson(serializer, wrapperMessageData);
             }
 
-            return Utils.SerializeToJson(jsonSerializer, messageData);
+            return Utils.SerializeToJson(serializer, messageData);
         }
 
         /// <summary>
@@ -130,12 +130,12 @@ namespace DurableTask.AzureStorage
 
         public async Task<MessageData> DeserializeQueueMessageAsync(QueueMessage queueMessage, string queueName)
         {
-            MessageData envelope = Utils.DeserializeFromJson<MessageData>(jsonSerializer, queueMessage.Message);
+            MessageData envelope = Utils.DeserializeFromJson<MessageData>(serializer, queueMessage.Message);
 
             if (!string.IsNullOrEmpty(envelope.CompressedBlobName))
             {
                 string decompressedMessage = await this.DownloadAndDecompressAsBytesAsync(envelope.CompressedBlobName);
-                envelope = Utils.DeserializeFromJson<MessageData>(jsonSerializer, decompressedMessage);
+                envelope = Utils.DeserializeFromJson<MessageData>(serializer, decompressedMessage);
                 envelope.MessageFormat = MessageFormatFlags.StorageBlob;
             }
 
