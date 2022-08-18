@@ -191,10 +191,10 @@ namespace DurableTask.Core
             }
 
             // De-serialize the object now that we now it's safe
-            var restored = JsonConvert.DeserializeObject(
+            var restored = Utils.DeserializeFromJson(
+                serializer,
                 json,
-                traceContextType,
-                CustomJsonSerializerSettings) as TraceContextBase;
+                traceContextType) as TraceContextBase;
             restored.OrchestrationTraceContexts = new Stack<TraceContextBase>(restored.OrchestrationTraceContexts);
             return restored;
         }

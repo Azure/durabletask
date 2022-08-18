@@ -276,7 +276,7 @@ namespace DurableTask.AzureStorage.Tracking
                         setObjectPropertyFunc = (o, e) =>
                         {
                             string json = e.StringValue;
-                            object value = json != null ? JsonConvert.DeserializeObject(json, memberValueType) : null;
+                            object value = json != null ? Utils.DeserializeFromJson(json, memberValueType) : null;
                             if (property != null)
                             {
                                 property.SetValue(o, value);
