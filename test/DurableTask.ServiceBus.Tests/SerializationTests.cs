@@ -892,8 +892,8 @@ namespace DurableTask.ServiceBus.Tests
         public async Task InterfaceOrClassActivityTests()
         {
             await this.taskHub.AddTaskOrchestrations(typeof(InterfaceOrClassActivityClientOrchestration))
-                .AddTaskActivitiesFromInterfaceOrClass<IInterfaceClient>(new InterfaceOrClassImpl())
-                .AddTaskActivitiesFromInterfaceOrClass<ClassClient>(new InterfaceOrClassImpl())
+                .AddTaskActivitiesFromInterfaceOrClass<IInterfaceClient>(new InterfaceOrClassImpl(), useFullyQualifiedMethodNames: true)
+                .AddTaskActivitiesFromInterfaceOrClass<ClassClient>(new InterfaceOrClassImpl(), useFullyQualifiedMethodNames: true)
                 .StartAsync();
 
             OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(InterfaceOrClassActivityClientOrchestration),
@@ -925,8 +925,8 @@ namespace DurableTask.ServiceBus.Tests
         {
             public override async Task<string> RunTask(OrchestrationContext context, bool input)
             {
-                IInterfaceClient interfaceClient = context.CreateClient<IInterfaceClient>();
-                ClassClient classClient = context.CreateRetryableClient<ClassClient>(new RetryOptions(TimeSpan.FromMilliseconds(1), 1));
+                IInterfaceClient interfaceClient = context.CreateClient<IInterfaceClient>(useFullyQualifiedMethodNames: true);
+                ClassClient classClient = context.CreateRetryableClient<ClassClient>(new RetryOptions(TimeSpan.FromMilliseconds(1), 1), useFullyQualifiedMethodNames: true);
 
                 var interfaceResult = await interfaceClient.Run<string>();
                 Assert.IsNotNull(interfaceResult);
