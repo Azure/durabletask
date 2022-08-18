@@ -130,16 +130,12 @@ namespace DurableTask.AzureStorage
 
         public async Task<MessageData> DeserializeQueueMessageAsync(QueueMessage queueMessage, string queueName)
         {
-            MessageData envelope = JsonConvert.DeserializeObject<MessageData>(
-                queueMessage.Message,
-                this.taskMessageSerializerSettings);
+            MessageData envelope = Utils.DeserializeFromJson<MessageData>(jsonSerializer, queueMessage.Message);
 
             if (!string.IsNullOrEmpty(envelope.CompressedBlobName))
             {
                 string decompressedMessage = await this.DownloadAndDecompressAsBytesAsync(envelope.CompressedBlobName);
-                envelope = JsonConvert.DeserializeObject<MessageData>(
-                    decompressedMessage,
-                    this.taskMessageSerializerSettings);
+                envelope = Utils.DeserializeFromJson<MessageData>(jsonSerializer, decompressedMessage);
                 envelope.MessageFormat = MessageFormatFlags.StorageBlob;
             }
 

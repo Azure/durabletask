@@ -315,7 +315,7 @@ namespace DurableTask.AzureStorage.Partitioning
             {
                 await taskHubInfoBlob.FetchAttributesAsync();
                 string serializedEventHubInfo = await this.taskHubInfoBlob.DownloadTextAsync();
-                return JsonConvert.DeserializeObject<TaskHubInfo>(serializedEventHubInfo);
+                return Utils.DeserializeFromJson<TaskHubInfo>(serializedEventHubInfo);
             }
 
             return null;
@@ -338,7 +338,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 SimpleBufferManager.Shared.ReturnBuffer(buffer);
             }
 
-            BlobLease deserializedLease = JsonConvert.DeserializeObject<BlobLease>(serializedLease);
+            BlobLease deserializedLease = Utils.DeserializeFromJson<BlobLease>(serializedLease);
             deserializedLease.Blob = blob;
 
             // Workaround: for some reason storage client reports incorrect blob properties after downloading the blob

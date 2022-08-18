@@ -180,5 +180,34 @@ namespace DurableTask.AzureStorage
             var jsonStr = stringBuilder.ToString();
             return jsonStr;
         }
+
+        /// <summary>
+        /// Deserialize a JSON-string into an object of type T
+        /// </summary>
+        /// <typeparam name="T">The type to deserialize the JSON string into.</typeparam>
+        /// <param name="serializer">The serializer whose config will guide the deserialization.</param>
+        /// <param name="jsonString">The JSON-string to deserialize.</param>
+        /// <returns></returns>
+        public static T DeserializeFromJson<T>(JsonSerializer serializer, string jsonString)
+        {
+            T obj;
+            using (var reader = new StringReader(jsonString))
+            using (var jsonReader = new JsonTextReader(reader))
+            {
+                obj = serializer.Deserialize<T>(jsonReader);
+            }
+            return obj;
+        }
+
+        /// <summary>
+        /// Deserialize a JSON-string into an object of type T
+        /// </summary>
+        /// <typeparam name="T">The type to deserialize the JSON string into.</typeparam>
+        /// <param name="jsonString">The JSON-string to deserialize.</param>
+        /// <returns></returns>
+        public static T DeserializeFromJson<T>(string jsonString)
+        {
+            return DeserializeFromJson<T>(serializer, jsonString);
+        }
     }
 }

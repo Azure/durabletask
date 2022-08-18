@@ -94,6 +94,24 @@ namespace DurableTask.Core.Common
             return jsonStr;
         }
 
+        /// <summary>
+        /// Deserialize a JSON-string into an object of type T
+        /// </summary>
+        /// <typeparam name="T">The type to deserialize the JSON string into.</typeparam>
+        /// <param name="serializer">The serializer whose config will guide the deserialization.</param>
+        /// <param name="jsonString">The JSON-string to deserialize.</param>
+        /// <returns></returns>
+        public static T DeserializeFromJson<T>(JsonSerializer serializer, string jsonString)
+        {
+            T obj;
+            using (var reader = new StringReader(jsonString))
+            using (var jsonReader = new JsonTextReader(reader))
+            {
+                obj = serializer.Deserialize<T>(jsonReader);
+            }
+            return obj;
+        }
+
 
         /// <summary>
         /// Gets or sets the name of the app, for use when writing structured event source traces.
@@ -212,9 +230,8 @@ namespace DurableTask.Core.Common
         /// </summary>
         public static T ReadObjectFromByteArray<T>(byte[] serializedBytes)
         {
-            return JsonConvert.DeserializeObject<T>(
-                                Encoding.UTF8.GetString(serializedBytes),
-                                ObjectJsonSettings);
+            var jsonString = Encoding.UTF8.GetString(serializedBytes);
+            return DeserializeFromJson<T>(objectJsonSerializer, jsonString);
         }
 
         /// <summary>
