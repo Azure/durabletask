@@ -277,7 +277,7 @@ namespace DurableTask.AzureStorage.Storage
             string? newContinuationToken = null;
             if (segment.ContinuationToken != null)
             {
-                string tokenJson = JsonConvert.SerializeObject(segment.ContinuationToken, Utils.defaultSerializerSettings);
+                string tokenJson = Utils.SerializeToJson(segment.ContinuationToken);
                 newContinuationToken = Convert.ToBase64String(Encoding.UTF8.GetBytes(tokenJson));
             }
 

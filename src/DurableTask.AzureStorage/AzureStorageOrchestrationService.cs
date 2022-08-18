@@ -1781,7 +1781,7 @@ namespace DurableTask.AzureStorage
                 instanceId,
                 executionId,
                 CancellationToken.None);
-            return JsonConvert.SerializeObject(history.Events, Utils.defaultSerializerSettings);
+            return Utils.SerializeToJson(history.Events);
         }
 
         /// <summary>

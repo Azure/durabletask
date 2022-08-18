@@ -62,8 +62,38 @@ namespace DurableTask.Core.Common
             Binder = new PackageUpgradeSerializationBinder()
 #endif
         };
+        private static readonly JsonSerializer objectJsonSerializer = JsonSerializer.Create(ObjectJsonSettings);
 
-        internal static readonly JsonSerializerSettings defaultSerializerSettings = new JsonSerializerSettings();
+
+        private static readonly JsonSerializer serializer = JsonSerializer.Create();
+
+        /// <summary>
+        /// Serialize some object payload to a JSON-string representation.
+        /// </summary>
+        /// <param name="payload">The object to serialize.</param>
+        /// <returns>The JSON-string representation of the payload</returns>
+        public static string SerializeToJson(object payload)
+        {
+            return SerializeToJson(serializer, payload);
+        }
+
+        /// <summary>
+        /// Serialize some object payload to a JSON-string representation.
+        /// </summary>
+        /// <param name="serializer">The serializer to use.</param>
+        /// <param name="payload">The object to serialize.</param>
+        /// <returns>The JSON-string representation of the payload</returns>
+        public static string SerializeToJson(JsonSerializer serializer, object payload)
+        {
+            StringBuilder stringBuilder = new StringBuilder();
+            using (var stringWriter = new StringWriter(stringBuilder))
+            {
+                serializer.Serialize(stringWriter, payload);
+            }
+            var jsonStr = stringBuilder.ToString();
+            return jsonStr;
+        }
+
 
         /// <summary>
         /// Gets or sets the name of the app, for use when writing structured event source traces.
@@ -120,7 +150,8 @@ namespace DurableTask.Core.Common
                 throw new ArgumentException("stream is not seekable or writable", nameof(objectStream));
             }
 
-            byte[] serializedBytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj, ObjectJsonSettings));
+            var jsonStr = SerializeToJson(objectJsonSerializer, obj);
+            byte[] serializedBytes = Encoding.UTF8.GetBytes(jsonStr);
 
             objectStream.Write(serializedBytes, 0, serializedBytes.Length);
             objectStream.Position = 0;

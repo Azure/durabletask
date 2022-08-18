@@ -62,7 +62,7 @@ namespace DurableTask.Core
                     new OrchestrationCompleteOrchestratorAction
                     {
                         OrchestrationStatus = OrchestrationStatus.Failed,
-                        Result = JsonConvert.SerializeObject(new { message, details }, Utils.defaultSerializerSettings),
+                        Result = Utils.SerializeToJson((new { message, details })),
                     },
                 },
             };

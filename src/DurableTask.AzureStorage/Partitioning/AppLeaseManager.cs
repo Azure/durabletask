@@ -539,7 +539,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         async Task UpdateAppLeaseInfoBlob(AppLeaseInfo appLeaseInfo)
         {
-            string serializedInfo = JsonConvert.SerializeObject(appLeaseInfo, Utils.defaultSerializerSettings);
+            string serializedInfo = Utils.SerializeToJson(appLeaseInfo);
             try
             {
                 await this.appLeaseInfoBlob.UploadTextAsync(serializedInfo);

@@ -18,6 +18,7 @@ namespace DurableTask.Core
     using System.Diagnostics;
     using System.Linq;
     using System.Reflection;
+    using DurableTask.Core.Common;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
 
@@ -42,8 +43,12 @@ namespace DurableTask.Core
                 PreserveReferencesHandling = PreserveReferencesHandling.Objects,
                 ReferenceLoopHandling = ReferenceLoopHandling.Serialize,
             };
+
+            serializer = JsonSerializer.Create(CustomJsonSerializerSettings);   
         }
-       
+
+        private static readonly JsonSerializer serializer;
+
         /// <summary>
         /// Start time of this telemetry
         /// </summary>
@@ -90,12 +95,13 @@ namespace DurableTask.Core
         [JsonIgnore]
         static JsonSerializerSettings CustomJsonSerializerSettings { get; }
 
+
         /// <summary>
         /// Serializable Json string of TraceContext
         /// </summary>
         [JsonIgnore]
-        public string SerializableTraceContext => 
-            JsonConvert.SerializeObject(this, CustomJsonSerializerSettings);
+        public string SerializableTraceContext =>
+            Utils.SerializeToJson(serializer, this);
 
         /// <summary>
         /// Telemetry.Id Used for sending telemetry. refer this URL

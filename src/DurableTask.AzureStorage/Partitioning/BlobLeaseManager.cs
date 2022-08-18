@@ -95,7 +95,7 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             Blob leaseBlob = this.taskHubContainer.GetBlobReference(partitionId, this.blobDirectoryName);
             BlobLease lease = new BlobLease(leaseBlob) { PartitionId = partitionId };
-            string serializedLease = JsonConvert.SerializeObject(lease, Utils.defaultSerializerSettings);
+            string serializedLease = Utils.SerializeToJson(lease);
             try
             {
                 this.settings.Logger.PartitionManagerInfo(
@@ -178,7 +178,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 lease.Owner = owner;
                 // Increment Epoch each time lease is acquired or stolen by new host
                 lease.Epoch += 1;
-                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(lease, Utils.defaultSerializerSettings), leaseId: lease.Token);
+                await leaseBlob.UploadTextAsync(Utils.SerializeToJson(lease), leaseId: lease.Token);
             }
             catch (DurableTaskStorageException storageException)
             {
@@ -198,7 +198,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 BlobLease copy = new BlobLease(lease);
                 copy.Token = null;
                 copy.Owner = null;
-                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(copy, Utils.defaultSerializerSettings), leaseId);
+                await leaseBlob.UploadTextAsync(Utils.SerializeToJson(copy), leaseId);
                 await leaseBlob.ReleaseLeaseAsync(leaseId);
             }
             catch (DurableTaskStorageException storageException)
@@ -239,7 +239,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
             try
             {
-                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(lease, Utils.defaultSerializerSettings), lease.Token);
+                await leaseBlob.UploadTextAsync(Utils.SerializeToJson(lease), lease.Token);
             }
             catch (DurableTaskStorageException storageException)
             {
@@ -251,7 +251,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         public async Task CreateTaskHubInfoIfNotExistAsync(TaskHubInfo taskHubInfo)
         {
-            string serializedInfo = JsonConvert.SerializeObject(taskHubInfo, Utils.defaultSerializerSettings);
+            string serializedInfo = Utils.SerializeToJson(taskHubInfo);
             try
             {
                 await this.taskHubInfoBlob.UploadTextAsync(serializedInfo, ifDoesntExist: true);
@@ -279,7 +279,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
                     try
                     {
-                        string serializedInfo = JsonConvert.SerializeObject(newTaskHubInfo, Utils.defaultSerializerSettings);
+                        string serializedInfo = Utils.SerializeToJson(newTaskHubInfo);
                         await this.taskHubInfoBlob.UploadTextAsync(serializedInfo);
                     } 
                     catch (DurableTaskStorageException)

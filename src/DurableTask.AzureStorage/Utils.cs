@@ -16,7 +16,9 @@ namespace DurableTask.AzureStorage
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.IO;
     using System.Linq;
+    using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core;
@@ -150,6 +152,35 @@ namespace DurableTask.AzureStorage
 
             int index = s.IndexOf('+');
             return s.Substring(index + 1, s.Length - index - 1);
+        }
+
+        private static readonly JsonSerializer serializer = JsonSerializer.Create();
+
+        /// <summary>
+        /// Serialize some object payload to a JSON-string representation.
+        /// </summary>
+        /// <param name="payload">The object to serialize.</param>
+        /// <returns>The JSON-string representation of the payload</returns>
+        public static string SerializeToJson(object payload)
+        {
+            return SerializeToJson(serializer, payload);
+        }
+
+        /// <summary>
+        /// Serialize some object payload to a JSON-string representation.
+        /// </summary>
+        /// <param name="serializer">The serializer to use.</param>
+        /// <param name="payload">The object to serialize.</param>
+        /// <returns>The JSON-string representation of the payload</returns>
+        public static string SerializeToJson(JsonSerializer serializer, object payload)
+        {
+            StringBuilder stringBuilder = new StringBuilder();
+            using (var stringWriter = new StringWriter(stringBuilder))
+            {
+                serializer.Serialize(stringWriter, payload);
+            }
+            var jsonStr = stringBuilder.ToString();
+            return jsonStr;
         }
     }
 }
