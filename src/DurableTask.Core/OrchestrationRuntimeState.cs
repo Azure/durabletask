@@ -25,6 +25,8 @@ namespace DurableTask.Core
     /// </summary>
     public class OrchestrationRuntimeState
     {
+        private OrchestrationStatus orchestrationStatus;
+
         /// <summary>
         /// List of all history events for this runtime state.
         /// Note that this list is frequently a combination of <see cref="PastEvents"/> and <see cref="NewEvents"/>, but not always.
@@ -83,6 +85,7 @@ namespace DurableTask.Core
             PastEvents = events != null ? new List<HistoryEvent>(events.Count) : new List<HistoryEvent>();
             NewEvents = new List<HistoryEvent>();
             completedEventIds = new HashSet<int>();
+            orchestrationStatus = OrchestrationStatus.Running;
 
             if (events != null && events.Count > 0)
             {
@@ -156,12 +159,7 @@ namespace DurableTask.Core
             {
                 GetExecutionStartedEventOrThrow();
 
-                if (ExecutionCompletedEvent != null)
-                {
-                    return ExecutionCompletedEvent.OrchestrationStatus;
-                }
-
-                return OrchestrationStatus.Running;
+                return orchestrationStatus;
             }
         }
 
@@ -258,6 +256,18 @@ namespace DurableTask.Core
                 }
 
                 ExecutionCompletedEvent = completedEvent;
+                orchestrationStatus = completedEvent.OrchestrationStatus;
+            }
+            else if (historyEvent is ExecutionSuspendedEvent)
+            {
+                orchestrationStatus = OrchestrationStatus.Suspended;
+            }
+            else if (historyEvent is ExecutionResumedEvent)
+            {
+                if (ExecutionCompletedEvent == null)
+                {
+                    orchestrationStatus = OrchestrationStatus.Running;
+                }
             }
         }
 

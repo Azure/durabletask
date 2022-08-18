@@ -33,6 +33,9 @@ namespace DurableTask.Core
         private OrchestrationCompleteOrchestratorAction continueAsNew;
         private bool executionCompletedOrTerminated;
         private int idCounter;
+        private readonly Queue<HistoryEvent> eventsWhileSuspended;
+
+        public bool IsSuspended { get; private set; }
 
         public bool HasContinueAsNew => continueAsNew != null;
 
@@ -56,6 +59,7 @@ namespace DurableTask.Core
             OrchestrationInstance = orchestrationInstance;
             IsReplaying = false;
             ErrorPropagationMode = errorPropagationMode;
+            this.eventsWhileSuspended = new Queue<HistoryEvent>();
         }
 
         public IEnumerable<OrchestratorAction> OrchestratorActions => this.orchestratorActionsMap.Values;
@@ -400,6 +404,18 @@ namespace DurableTask.Core
             this.orchestratorActionsMap.Remove(taskId);
         }
 
+        public void HandleEventRaisedEvent(EventRaisedEvent eventRaisedEvent, bool skipCarryOverEvents, TaskOrchestration taskOrchestration)
+        {
+            if (skipCarryOverEvents || !this.HasContinueAsNew)
+            {
+                taskOrchestration.RaiseEvent(this, eventRaisedEvent.Name, eventRaisedEvent.Input);
+            }
+            else
+            {
+                this.AddEventToNextIteration(eventRaisedEvent);
+            }
+        }
+
 
         public void HandleTaskCompletedEvent(TaskCompletedEvent completedEvent)
         {
@@ -536,6 +552,28 @@ namespace DurableTask.Core
         public void CompleteOrchestration(string result)
         {
             CompleteOrchestration(result, null, OrchestrationStatus.Completed);
+        }
+
+        public void HandleEventWhileSuspended(HistoryEvent historyEvent)
+        {
+            if (historyEvent.EventType != EventType.ExecutionSuspended)
+            {
+                this.eventsWhileSuspended.Enqueue(historyEvent);
+            }
+        }
+
+        public void HandleExecutionSuspendedEvent(ExecutionSuspendedEvent suspendedEvent)
+        {
+            this.IsSuspended = true;
+        }
+
+        public void HandleExecutionResumedEvent(ExecutionResumedEvent resumedEvent, Action<HistoryEvent> eventProcessor)
+        {
+            this.IsSuspended = false;
+            while (eventsWhileSuspended.Count > 0)
+            {
+                eventProcessor(eventsWhileSuspended.Dequeue());
+            }
         }
 
         public void FailOrchestration(Exception failure)

@@ -721,6 +721,52 @@ namespace DurableTask.Core
         }
 
         /// <summary>
+        ///     Suspend the specified orchestration instance with a reason.
+        /// </summary>
+        /// <param name="orchestrationInstance">Instance to suspend</param>
+        /// <param name="reason">Reason for suspending the instance</param>
+        public async Task SuspendInstanceAsync(OrchestrationInstance orchestrationInstance, string reason = null)
+        {
+            if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
+            {
+                throw new ArgumentException("orchestrationInstance");
+            }
+
+            this.logHelper.SuspendingInstance(orchestrationInstance, reason);
+
+            var taskMessage = new TaskMessage
+            {
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = orchestrationInstance.InstanceId },
+                Event = new ExecutionSuspendedEvent(-1, reason)
+            };
+
+            await this.ServiceClient.SendTaskOrchestrationMessageAsync(taskMessage);
+        }
+
+        /// <summary>
+        ///     Resume the specified orchestration instance with a reason.
+        /// </summary>
+        /// <param name="orchestrationInstance">Instance to resume</param>
+        /// <param name="reason">Reason for resuming the instance</param>
+        public async Task ResumeInstanceAsync(OrchestrationInstance orchestrationInstance, string reason = null)
+        {
+            if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
+            {
+                throw new ArgumentException("orchestrationInstance");
+            }
+
+            this.logHelper.ResumingInstance(orchestrationInstance, reason);
+
+            var taskMessage = new TaskMessage
+            {
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = orchestrationInstance.InstanceId },
+                Event = new ExecutionResumedEvent(-1, reason)
+            };
+
+            await this.ServiceClient.SendTaskOrchestrationMessageAsync(taskMessage);
+        }
+
+        /// <summary>
         ///     Wait for an orchestration to reach any terminal state within the given timeout
         /// </summary>
         /// <param name="orchestrationInstance">Instance to terminate</param>

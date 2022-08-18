@@ -921,6 +921,73 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
+        /// End-to-end test which validates the Suspend-Resume functionality.
+        /// </summary>
+        [TestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task SuspendResumeOrchestration(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                string originalStatus = "OGstatus";
+                string suspendReason = "sleepyOrch";
+                string changedStatus = "newStatus";
+
+                await host.StartAsync();
+                var client = await host.StartOrchestrationAsync(typeof(Test.Orchestrations.NextExecution), originalStatus);
+                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
+
+                // Test case 1: Suspend changes the status Running->Suspended
+                await client.SuspendAsync(suspendReason);
+                var status = await client.WaitForStatusChange(TimeSpan.FromSeconds(10), OrchestrationStatus.Suspended);
+                Assert.AreEqual(OrchestrationStatus.Suspended, status?.OrchestrationStatus);
+                Assert.AreEqual(suspendReason, status?.Output);
+
+                // Test case 2: external event does not go through
+                await client.RaiseEventAsync("changeStatusNow", changedStatus);
+                status = await client.GetStatusAsync();
+                Assert.AreEqual(originalStatus, JToken.Parse(status?.Status));
+
+                // Test case 3: external event now goes through
+                await client.ResumeAsync("wakeUp");
+                status  = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual(changedStatus, JToken.Parse(status?.Status));
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// Test that a suspended orchestration can be terminated.
+        /// </summary>
+        [TestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task TerminateSuspendedOrchestration(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Counter), 0);
+                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
+
+                await client.SuspendAsync("suspend");
+                await client.WaitForStatusChange(TimeSpan.FromSeconds(10), OrchestrationStatus.Suspended);
+
+                await client.TerminateAsync("terminate");
+
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+
+                Assert.AreEqual(OrchestrationStatus.Terminated, status?.OrchestrationStatus);
+                Assert.AreEqual("terminate", status?.Output);
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
         /// End-to-end test which validates the Rewind functionality on more than one orchestration.
         /// </summary>
         [TestMethod]

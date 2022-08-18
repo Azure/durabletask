@@ -11,51 +11,36 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.Core.History
 {
+    using System.Runtime.Serialization;
+
     /// <summary>
-    /// Enum describing the status of the orchestration
+    /// A history event for orchestration resuming
     /// </summary>
-    public enum OrchestrationStatus
+    [DataContract]
+    public class ExecutionResumedEvent : HistoryEvent
     {
         /// <summary>
-        /// Orchestration state of running
+        /// Creates a new ExecutionResumedEvent with the supplied params
         /// </summary>
-        Running,
+        /// <param name="eventId">The event id of the history event</param>
+        /// <param name="reason">The serialized reason of the resuming event</param>
+        public ExecutionResumedEvent(int eventId, string reason)
+            : base(eventId)
+        {
+            Reason = reason;
+        }
 
         /// <summary>
-        /// Orchestration state of complete
+        /// Gets the event type
         /// </summary>
-        Completed,
+        public override EventType EventType => EventType.ExecutionResumed;
 
         /// <summary>
-        /// Orchestration state of continued as new (this instance complete, continued in a new instance)
+        /// Gets or sets the reason for the resuming event
         /// </summary>
-        ContinuedAsNew,
-
-        /// <summary>
-        /// Orchestration state of failed
-        /// </summary>
-        Failed,
-
-        /// <summary>
-        /// Orchestration state of gracefully canceled
-        /// </summary>
-        Canceled,
-
-        /// <summary>
-        /// Orchestration state of abruptly shut down
-        /// </summary>
-        Terminated,
-
-        /// <summary>
-        /// Orchestration state of pending (not yet running)
-        /// </summary>
-        Pending,
-
-        /// <summary>
-        /// Orchestration state of suspended
-        /// </summary>
-        Suspended,
+        [DataMember]
+        public string Reason { get; set; }
     }
 }
