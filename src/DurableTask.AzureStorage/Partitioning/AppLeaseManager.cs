@@ -556,7 +556,7 @@ namespace DurableTask.AzureStorage.Partitioning
             {
                 await appLeaseInfoBlob.FetchAttributesAsync();
                 string serializedEventHubInfo = await this.appLeaseInfoBlob.DownloadTextAsync();
-                return JsonConvert.DeserializeObject<AppLeaseInfo>(serializedEventHubInfo, Utils.defaultSerializerSettings);
+                return JsonConvert.DeserializeObject<AppLeaseInfo>(serializedEventHubInfo);
             }
 
             return null;

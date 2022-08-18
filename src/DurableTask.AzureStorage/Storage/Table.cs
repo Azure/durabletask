@@ -250,7 +250,7 @@ namespace DurableTask.AzureStorage.Storage
             if (!string.IsNullOrEmpty(continuationToken))
             {
                 var tokenContent = Encoding.UTF8.GetString(Convert.FromBase64String(continuationToken));
-                tableContinuationToken = JsonConvert.DeserializeObject<TableContinuationToken>(tokenContent, Utils.defaultSerializerSettings);
+                tableContinuationToken = JsonConvert.DeserializeObject<TableContinuationToken>(tokenContent);
             }
 
             var stopwatch = new Stopwatch();
