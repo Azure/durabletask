@@ -14,6 +14,7 @@
 namespace DurableTask.Core.Tests
 {
     using System;
+    using System.Runtime.Serialization;
     using System.Text;
 
     public static class TestUtils
@@ -28,6 +29,25 @@ namespace DurableTask.Core.Tests
             }
 
             return result.ToString(0, length);
+        }
+
+        [DataContract]
+        public class DummyMessage
+        {
+            public DummyMessage(int eventId, string name)
+            {
+                this.Name = name;
+                this.EventId = eventId;
+            }
+
+            public DummyMessage()
+            { }
+
+            [DataMember]
+            public string Name { get; private set; }
+
+            [DataMember]
+            public int EventId { get; private set; }
         }
     }
 }
