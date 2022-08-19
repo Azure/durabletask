@@ -116,7 +116,7 @@ namespace DurableTask.Core.Common
         }
 
         /// <summary>
-        /// Deserialize a JSON-string into an object of type T
+        /// Deserialize a JSON-string into an object of type `type`
         /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
         /// </summary>
         /// <param name="jsonString">The JSON-string to deserialize.</param>
@@ -128,7 +128,7 @@ namespace DurableTask.Core.Common
         }
 
         /// <summary>
-        /// Deserialize a JSON-string into an object of type T
+        /// Deserialize a JSON-string into an object of type `type`
         /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
         /// </summary>
         /// <param name="serializer">The serializer whose config will guide the deserialization.</param>
