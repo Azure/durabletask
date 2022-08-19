@@ -63,7 +63,7 @@ namespace DurableTask.Core.Tests
 
             // global serializer is expected to drop EventId, but the utility serializer doesn't.
             Assert.IsFalse(jsonStrFromGlobalSettings.Contains("EventId"));
-            Assert.IsTrue(jsonStrFromGlobalSettings.Contains("EventId"));
+            Assert.IsTrue(jsonStrFromUtils.Contains("EventId"));
 
             // restore default settings
             JsonConvert.DefaultSettings = previousDefaultSettings;
