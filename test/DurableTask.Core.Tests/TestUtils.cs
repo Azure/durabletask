@@ -31,6 +31,9 @@ namespace DurableTask.Core.Tests
             return result.ToString(0, length);
         }
 
+        /// <summary>
+        /// A minimalistic serializable class.
+        /// </summary>
         [DataContract]
         public class DummyMessage
         {
