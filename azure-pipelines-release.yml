@@ -7,7 +7,6 @@ pool:
     - ImageOverride -equals MMS2022TLS
 
 steps:
-
 # Start by restoring all the dependencies. This needs to be its own task
 # from what I can tell. We specifically only target DurableTask.AzureStorage
 # and its direct dependencies.
