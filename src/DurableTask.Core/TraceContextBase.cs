@@ -27,6 +27,8 @@ namespace DurableTask.Core
     /// </summary>
     public abstract class TraceContextBase
     {
+        private static readonly JsonSerializer serializer;
+
         /// <summary>
         /// Default constructor 
         /// </summary>
@@ -46,8 +48,6 @@ namespace DurableTask.Core
 
             serializer = JsonSerializer.Create(CustomJsonSerializerSettings);   
         }
-
-        private static readonly JsonSerializer serializer;
 
         /// <summary>
         /// Start time of this telemetry

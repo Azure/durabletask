@@ -52,21 +52,27 @@ namespace DurableTask.Core.Tests
             {
                 DefaultValueHandling = DefaultValueHandling.Ignore,
             };
-            JsonConvert.DefaultSettings = () => globalSettings;
 
-            // create object to serialize. Set EventId to 0 so it may get dropped
-            var messageData = new TestUtils.DummyMessage(eventId: 0, "payload");
+            try
+            {
+                JsonConvert.DefaultSettings = () => globalSettings;
 
-            // serialize with global settings, and then with the serialization utility
-            var jsonStrFromGlobalSettings = JsonConvert.SerializeObject(messageData);
-            var jsonStrFromUtils = Utils.SerializeToJson(messageData);
+                // create object to serialize. Set EventId to 0 so it may get dropped
+                var messageData = new TestUtils.DummyMessage(eventId: 0, "payload");
 
-            // global serializer is expected to drop EventId, but the utility serializer doesn't.
-            Assert.IsFalse(jsonStrFromGlobalSettings.Contains("EventId"));
-            Assert.IsTrue(jsonStrFromUtils.Contains("EventId"));
+                // serialize with global settings, and then with the serialization utility
+                var jsonStrFromGlobalSettings = JsonConvert.SerializeObject(messageData);
+                var jsonStrFromUtils = Utils.SerializeToJson(messageData);
 
-            // restore default settings
-            JsonConvert.DefaultSettings = previousDefaultSettings;
+                // global serializer is expected to drop EventId, but the utility serializer doesn't.
+                Assert.IsFalse(jsonStrFromGlobalSettings.Contains("EventId"));
+                Assert.IsTrue(jsonStrFromUtils.Contains("EventId"));
+            }
+            finally
+            {
+                // restore default settings
+                JsonConvert.DefaultSettings = previousDefaultSettings;
+            }
 
         }
 
