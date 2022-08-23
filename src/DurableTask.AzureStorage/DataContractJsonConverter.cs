@@ -21,7 +21,7 @@ using Newtonsoft.Json;
 namespace DurableTask.AzureStorage
 {
     /// <summary>
-    /// This class bridges <see cref="DataContractJsonSerializer"/> with Newtonsoft.Json. This DefaultJsonSerializer
+    /// This class bridges <see cref="DataContractJsonSerializer"/> with Newtonsoft.Json. This serializer
     /// is slower, but it handles writing to <see cref="IExtensibleDataObject"/>, which Newtonsoft does not.
     /// A drawback of <see cref="DataContractJsonSerializer"/> is that ExtensionData Namespaces are not populated,
     /// meaning reading via the regular <see cref="DataContractSerializer"/> will not correctly hydrate extra fields

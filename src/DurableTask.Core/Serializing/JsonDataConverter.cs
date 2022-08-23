@@ -50,7 +50,7 @@ namespace DurableTask.Core.Serializing
         /// <summary>
         /// Creates a new instance of the JsonDataConverter with supplied settings
         /// </summary>
-        /// <param name="settings">Settings for the json DefaultSerializer</param>
+        /// <param name="settings">Settings for the json serializer</param>
         public JsonDataConverter(JsonSerializerSettings settings)
         {
             this.serializer = JsonSerializer.Create(settings);
