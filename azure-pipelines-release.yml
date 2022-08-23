@@ -7,6 +7,15 @@ pool:
     - ImageOverride -equals MMS2022TLS
 
 steps:
+
+# NuGet tool installer
+# Acquires a specific version of NuGet from the internet or the tools cache and adds it to the PATH. Use this task to change the version of NuGet used in the NuGet tasks.
+# This is necessary because .NET5 has some compatibility issues with older Nuget versions (<=5.7), causing nuget pack to potentially fail
+- task: NuGetToolInstaller@1
+  inputs:
+    versionSpec: '5.8'
+    #checkLatest: false # Optional
+
 # Start by restoring all the dependencies. This needs to be its own task
 # from what I can tell. We specifically only target DurableTask.AzureStorage
 # and its direct dependencies.
