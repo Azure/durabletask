@@ -64,7 +64,6 @@ namespace DurableTask.Core.Common
         };
         private static readonly JsonSerializer DefaultObjectJsonSerializer = JsonSerializer.Create(ObjectJsonSettings);
 
-
         private static readonly JsonSerializer DefaultSerializer = JsonSerializer.Create();
 
         /// <summary>
@@ -75,14 +74,14 @@ namespace DurableTask.Core.Common
         /// <returns>The JSON-string representation of the payload</returns>
         public static string SerializeToJson(object payload)
         {
-            return SerializeToJson(serializer, payload);
+            return SerializeToJson(DefaultSerializer, payload);
         }
 
         /// <summary>
         /// Serialize some object payload to a JSON-string representation.
         /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
         /// </summary>
-        /// <param name="serializer">The serializer to use.</param>
+        /// <param name="serializer">The DefaultSerializer to use.</param>
         /// <param name="payload">The object to serialize.</param>
         /// <returns>The JSON-string representation of the payload</returns>
         public static string SerializeToJson(JsonSerializer serializer, object payload)
@@ -101,7 +100,7 @@ namespace DurableTask.Core.Common
         /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
         /// </summary>
         /// <typeparam name="T">The type to deserialize the JSON string into.</typeparam>
-        /// <param name="serializer">The serializer whose config will guide the deserialization.</param>
+        /// <param name="serializer">The DefaultSerializer whose config will guide the deserialization.</param>
         /// <param name="jsonString">The JSON-string to deserialize.</param>
         /// <returns></returns>
         public static T DeserializeFromJson<T>(JsonSerializer serializer, string jsonString)
@@ -124,14 +123,14 @@ namespace DurableTask.Core.Common
         /// <returns></returns>
         public static object DeserializeFromJson(string jsonString, Type type)
         {
-            return DeserializeFromJson(serializer, jsonString, type);
+            return DeserializeFromJson(DefaultSerializer, jsonString, type);
         }
 
         /// <summary>
         /// Deserialize a JSON-string into an object of type `type`
         /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
         /// </summary>
-        /// <param name="serializer">The serializer whose config will guide the deserialization.</param>
+        /// <param name="serializer">The DefaultSerializer whose config will guide the deserialization.</param>
         /// <param name="jsonString">The JSON-string to deserialize.</param>
         /// <param name="type">The expected de-serialization type.</param>
         /// <returns></returns>
@@ -202,7 +201,7 @@ namespace DurableTask.Core.Common
                 throw new ArgumentException("stream is not seekable or writable", nameof(objectStream));
             }
 
-            var jsonStr = SerializeToJson(objectJsonSerializer, obj);
+            var jsonStr = SerializeToJson(DefaultObjectJsonSerializer, obj);
             byte[] serializedBytes = Encoding.UTF8.GetBytes(jsonStr);
 
             objectStream.Write(serializedBytes, 0, serializedBytes.Length);
@@ -265,7 +264,7 @@ namespace DurableTask.Core.Common
         public static T ReadObjectFromByteArray<T>(byte[] serializedBytes)
         {
             var jsonString = Encoding.UTF8.GetString(serializedBytes);
-            return DeserializeFromJson<T>(objectJsonSerializer, jsonString);
+            return DeserializeFromJson<T>(DefaultObjectJsonSerializer, jsonString);
         }
 
         /// <summary>
