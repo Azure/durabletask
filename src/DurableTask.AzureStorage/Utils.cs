@@ -169,7 +169,7 @@ namespace DurableTask.AzureStorage
         /// Serialize some object payload to a JSON-string representation.
         /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
         /// </summary>
-        /// <param name="serializer">The DefaultJsonSerializer to use.</param>
+        /// <param name="serializer">The serializer to use.</param>
         /// <param name="payload">The object to serialize.</param>
         /// <returns>The JSON-string representation of the payload</returns>
         public static string SerializeToJson(JsonSerializer serializer, object payload)
@@ -188,7 +188,7 @@ namespace DurableTask.AzureStorage
         /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
         /// </summary>
         /// <typeparam name="T">The type to deserialize the JSON string into.</typeparam>
-        /// <param name="serializer">The DefaultJsonSerializer whose config will guide the deserialization.</param>
+        /// <param name="serializer">The serializer whose config will guide the deserialization.</param>
         /// <param name="jsonString">The JSON-string to deserialize.</param>
         /// <returns></returns>
         public static T DeserializeFromJson<T>(JsonSerializer serializer, string jsonString)
@@ -230,7 +230,7 @@ namespace DurableTask.AzureStorage
         /// Deserialize a JSON-string into an object of type `type`
         /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
         /// </summary>
-        /// <param name="serializer">The DefaultJsonSerializer whose config will guide the deserialization.</param>
+        /// <param name="serializer">The serializer whose config will guide the deserialization.</param>
         /// <param name="jsonString">The JSON-string to deserialize.</param>
         /// <param name="type">The expected de-serialization type.</param>
         /// <returns></returns>
