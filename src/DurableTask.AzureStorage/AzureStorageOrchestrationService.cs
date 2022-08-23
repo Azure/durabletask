@@ -939,7 +939,8 @@ namespace DurableTask.AzureStorage
 
             if (runtimeState.ExecutionStartedEvent != null &&
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Running &&
-                runtimeState.OrchestrationStatus != OrchestrationStatus.Pending)
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Pending &&
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Suspended)
             {
                 message = $"Instance is {runtimeState.OrchestrationStatus}";
                 return false;
@@ -1844,6 +1845,7 @@ namespace DurableTask.AzureStorage
                 OrchestrationState state = await this.GetOrchestrationStateAsync(instanceId, executionId);
                 if (state == null ||
                     state.OrchestrationStatus == OrchestrationStatus.Running ||
+                    state.OrchestrationStatus == OrchestrationStatus.Suspended ||
                     state.OrchestrationStatus == OrchestrationStatus.Pending ||
                     state.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)
                 {

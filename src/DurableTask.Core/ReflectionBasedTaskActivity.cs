@@ -161,7 +161,12 @@ namespace DurableTask.Core
             return MethodInfo.Invoke(ActivityObject, inputParameters);
         }
 
-        private object InvokeActivity(object[] inputParameters, Type[] genericTypeParameters)
+        /// <summary>
+        /// Invokes the target method on the activity object with supplied parameters
+        /// </summary>
+        /// <param name="inputParameters">The methods' input parameters.</param>
+        /// <param name="genericTypeParameters">The methods' generic parameters.</param>
+        public virtual object InvokeActivity(object[] inputParameters, Type[] genericTypeParameters)
         {
             if (genericTypeParameters.Any())
             {

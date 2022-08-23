@@ -67,8 +67,7 @@ namespace DurableTask.Core
         {
             Task<TReturnType> RetryCall()
             {
-                invocation.Proceed();
-                return (Task<TReturnType>)invocation.ReturnValue;
+                return (Task<TReturnType>)invocation.GetConcreteMethod().Invoke(invocation.InvocationTarget, invocation.Arguments);
             }
 
             var retryInterceptor = new RetryInterceptor<TReturnType>(this.context, this.retryOptions, RetryCall);
