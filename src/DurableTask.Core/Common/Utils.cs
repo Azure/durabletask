@@ -62,7 +62,7 @@ namespace DurableTask.Core.Common
             Binder = new PackageUpgradeSerializationBinder()
 #endif
         };
-        private static readonly JsonSerializer objectJsonSerializer = JsonSerializer.Create(ObjectJsonSettings);
+        private static readonly JsonSerializer DefaultObjectJsonSerializer = JsonSerializer.Create(ObjectJsonSettings);
 
 
         private static readonly JsonSerializer serializer = JsonSerializer.Create();
