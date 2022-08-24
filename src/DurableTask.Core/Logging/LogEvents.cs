@@ -1279,13 +1279,13 @@ namespace DurableTask.Core.Logging
                 OrchestrationInstance instance,
                 string name,
                 TaskFailedEvent taskEvent,
-                Exception exception)
+                string exceptionDetails)
             {
                 this.InstanceId = instance.InstanceId;
                 this.ExecutionId = instance.ExecutionId;
                 this.Name = name;
                 this.TaskEventId = taskEvent.EventId;
-                this.Details = exception.ToString();
+                this.Details = exceptionDetails;
             }
 
             [StructuredLogField]
