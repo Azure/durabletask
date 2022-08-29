@@ -30,7 +30,7 @@
     <!-- The assembly version is only the major/minor pair, making it easier to do in-place upgrades -->
     <AssemblyVersion>$(MajorVersion).$(MinorVersion).0.0</AssemblyVersion>
   </PropertyGroup>
-  
+
   <ItemGroup>
     <PackageReference Include="Azure.Core" Version="1.24.0" />
     <PackageReference Include="Azure.Data.Tables" Version="12.6.0" />
@@ -48,7 +48,6 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="2.2.0" />
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
-    <!--Change the Storage SDK version with extreme caution, otherwise may break Durable Functions usage with Azure Storage Extension. -->
   </ItemGroup>
 
   <ItemGroup>
