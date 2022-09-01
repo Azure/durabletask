@@ -907,6 +907,7 @@ namespace DurableTask.AzureStorage
                 data.TotalMessageSizeBytes,
                 data.QueueName /* PartitionId */,
                 data.SequenceNumber,
+                queueMessage.PopReceipt,
                 data.Episode.GetValueOrDefault(-1));
         }
 

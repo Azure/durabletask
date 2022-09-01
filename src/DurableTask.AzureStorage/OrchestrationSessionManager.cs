@@ -294,7 +294,8 @@ namespace DurableTask.AzureStorage
                         msg.TaskMessage.OrchestrationInstance.InstanceId,
                         msg.TaskMessage.OrchestrationInstance.ExecutionId,
                         controlQueue.Name,
-                        msg.OriginalQueueMessage.DequeueCount);
+                        msg.OriginalQueueMessage.DequeueCount,
+                        msg.OriginalQueueMessage.PopReceipt);
 
                     return controlQueue.DeleteMessageAsync(msg, session: null);
                 }));

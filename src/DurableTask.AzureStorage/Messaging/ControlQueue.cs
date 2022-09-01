@@ -143,7 +143,8 @@ namespace DurableTask.AzureStorage.Messaging
                                     messageData.TaskMessage.OrchestrationInstance.InstanceId,
                                     messageData.TaskMessage.OrchestrationInstance.ExecutionId,
                                     this.Name,
-                                    queueMessage.DequeueCount);
+                                    queueMessage.DequeueCount,
+                                    queueMessage.PopReceipt);
                             }
 
                             batchMessages.Add(messageData);
