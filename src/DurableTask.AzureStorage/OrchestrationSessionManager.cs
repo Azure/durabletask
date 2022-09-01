@@ -33,6 +33,7 @@ namespace DurableTask.AzureStorage
         readonly ConcurrentDictionary<string, ControlQueue> ownedControlQueues = new ConcurrentDictionary<string, ControlQueue>();
         readonly LinkedList<PendingMessageBatch> pendingOrchestrationMessageBatches = new LinkedList<PendingMessageBatch>();
         readonly AsyncQueue<LinkedListNode<PendingMessageBatch>> readyForProcessingQueue = new AsyncQueue<LinkedListNode<PendingMessageBatch>>();
+        readonly CancellationTokenSource backgroundRenewalCancellationSource = new CancellationTokenSource();
         readonly object messageAndSessionLock = new object();
 
         readonly string storageAccountName;
@@ -53,6 +54,9 @@ namespace DurableTask.AzureStorage
             this.trackingStore = trackingStore;
 
             this.fetchRuntimeStateQueue = new DispatchQueue(this.settings.MaxStorageOperationConcurrency);
+
+            // Renew prefetched messages proactively
+            _ = Task.Run(() => this.BackgroundMessageRenewal(this.backgroundRenewalCancellationSource.Token));
         }
 
         internal IEnumerable<ControlQueue> Queues => this.ownedControlQueues.Values;
@@ -636,6 +640,54 @@ namespace DurableTask.AzureStorage
         {
             this.fetchRuntimeStateQueue.Dispose();
             this.readyForProcessingQueue.Dispose();
+            this.backgroundRenewalCancellationSource.Cancel();
+            this.backgroundRenewalCancellationSource.Dispose();
+        }
+
+        async Task BackgroundMessageRenewal(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    // Repeat every 30 seconds; the first iteration shouldn't start until after 30 seconds.
+                    // This will throw OperationCanceledException if cancellationToken is cancelled.
+                    await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+
+                    Task renewalTasks;
+                    lock (this.messageAndSessionLock)
+                    {
+                        // We periodically renew messages in the pending list because we don't know how long it will
+                        // take for them to actually get taken from the pending list and processed.
+                        renewalTasks = this.pendingOrchestrationMessageBatches
+                            .SelectMany(batch => batch.Messages)
+                            .Where(msg => DateTime.UtcNow.AddMinutes(1) > msg.OriginalQueueMessage.NextVisibleTime)
+                            .ToList()
+                            .ParallelForEachAsync(this.settings.MaxStorageOperationConcurrency, async msg =>
+                            {
+                                if (this.ownedControlQueues.TryGetValue(msg.QueueName, out ControlQueue queue))
+                                {
+                                    await queue.RenewMessageAsync(msg, null);
+                                }
+                            });
+                    }
+
+                    // Can't await while the above lock is held so we await down here instead
+                    await renewalTasks;
+                }
+                catch (OperationCanceledException oce) when (oce.CancellationToken == cancellationToken)
+                {
+                    // Shutting down
+                    break;
+                }
+                catch (Exception e)
+                {
+                    this.settings.Logger.GeneralWarning(
+                        this.storageAccountName,
+                        this.settings.TaskHubName,
+                        $"One or more orchestration message renewal failures occurred: {e}");
+                }
+            }
         }
 
         class PendingMessageBatch

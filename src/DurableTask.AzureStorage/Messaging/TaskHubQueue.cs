@@ -298,7 +298,7 @@ namespace DurableTask.AzureStorage.Messaging
             }
         }
 
-        public async Task RenewMessageAsync(MessageData message, SessionBase session)
+        public async Task RenewMessageAsync(MessageData message, SessionBase? session)
         {
             QueueMessage queueMessage = message.OriginalQueueMessage;
             TaskMessage taskMessage = message.TaskMessage;
@@ -398,7 +398,7 @@ namespace DurableTask.AzureStorage.Messaging
         {
             if (this.IsMessageGoneException(e))
             {
-                // Message may have been processed and deleted already.
+                // Message may have been processed and deleted already -OR- we lost track of its pop receipt
                 this.settings.Logger.MessageGone(
                     this.storageAccountName,
                     this.settings.TaskHubName,
