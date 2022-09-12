@@ -295,7 +295,8 @@ namespace DurableTask.AzureStorage
                         msg.TaskMessage.OrchestrationInstance.InstanceId,
                         msg.TaskMessage.OrchestrationInstance.ExecutionId,
                         controlQueue.Name,
-                        msg.OriginalQueueMessage.DequeueCount);
+                        msg.OriginalQueueMessage.DequeueCount,
+                        msg.OriginalQueueMessage.PopReceipt);
 
                     return controlQueue.DeleteMessageAsync(msg, session: null);
                 }));
@@ -545,7 +546,7 @@ namespace DurableTask.AzureStorage
 
                         return session;
                     }
-                    else if (nextBatch.OrchestrationExecutionId == existingSession.Instance.ExecutionId)
+                    else if (nextBatch.OrchestrationExecutionId == existingSession.Instance?.ExecutionId)
                     {
                         // there is already an active session with the same execution id.
                         // The session might be waiting for more messages. If it is, signal them.

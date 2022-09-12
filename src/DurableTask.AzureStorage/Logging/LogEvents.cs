@@ -138,6 +138,7 @@ namespace DurableTask.AzureStorage.Logging
                 long sizeInBytes,
                 string partitionId,
                 long sequenceNumber,
+                string popReceipt,
                 int episode)
             {
                 this.RelatedActivityId = relatedActivityId;
@@ -154,6 +155,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.SizeInBytes = sizeInBytes;
                 this.PartitionId = partitionId;
                 this.SequenceNumber = sequenceNumber;
+                this.PopReceipt = popReceipt;
                 this.Episode = episode;
             }
 
@@ -199,6 +201,9 @@ namespace DurableTask.AzureStorage.Logging
             public long SequenceNumber { get; }
 
             [StructuredLogField]
+            public string PopReceipt { get; }
+
+            [StructuredLogField]
             public int Episode { get; }
 
             public override EventId EventId => new EventId(
@@ -229,6 +234,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.SizeInBytes,
                 this.PartitionId,
                 this.SequenceNumber,
+                this.PopReceipt,
                 this.Episode,
                 Utils.AppName,
                 Utils.ExtensionVersion);
@@ -245,7 +251,8 @@ namespace DurableTask.AzureStorage.Logging
                 string instanceId,
                 string executionId,
                 string partitionId,
-                long sequenceNumber)
+                long sequenceNumber,
+                string popReceipt)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
@@ -256,6 +263,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId = executionId;
                 this.PartitionId = partitionId;
                 this.SequenceNumber = sequenceNumber;
+                this.PopReceipt = popReceipt;
             }
 
             [StructuredLogField]
@@ -285,6 +293,9 @@ namespace DurableTask.AzureStorage.Logging
             [StructuredLogField]
             public long SequenceNumber { get; }
 
+            [StructuredLogField]
+            public string PopReceipt { get; }
+
             public override EventId EventId => new EventId(
                 EventIds.DeletingMessage,
                 nameof(EventIds.DeletingMessage));
@@ -307,6 +318,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId,
                 this.PartitionId,
                 this.SequenceNumber,
+                this.PopReceipt,
                 Utils.AppName,
                 Utils.ExtensionVersion);
         }
@@ -323,6 +335,7 @@ namespace DurableTask.AzureStorage.Logging
                 string executionId,
                 string partitionId,
                 long sequenceNumber,
+                string popReceipt,
                 int visibilityTimeoutSeconds)
             {
                 this.Account = account;
@@ -334,6 +347,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId = executionId;
                 this.PartitionId = partitionId;
                 this.SequenceNumber = sequenceNumber;
+                this.PopReceipt = popReceipt;
                 this.VisibilityTimeoutSeconds = visibilityTimeoutSeconds;
             }
 
@@ -365,6 +379,9 @@ namespace DurableTask.AzureStorage.Logging
             public long SequenceNumber { get; }
 
             [StructuredLogField]
+            public string PopReceipt { get; }
+
+            [StructuredLogField]
             public int VisibilityTimeoutSeconds { get; }
 
             public override EventId EventId => new EventId(
@@ -390,6 +407,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId,
                 this.PartitionId,
                 this.SequenceNumber,
+                this.PopReceipt,
                 this.VisibilityTimeoutSeconds,
                 Utils.AppName,
                 Utils.ExtensionVersion);
@@ -443,7 +461,8 @@ namespace DurableTask.AzureStorage.Logging
                 string partitionId,
                 string eventType,
                 int taskEventId,
-                string details)
+                string details,
+                string popReceipt)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
@@ -454,6 +473,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId = executionId;
                 this.PartitionId = partitionId;
                 this.Details = details;
+                this.PopReceipt = popReceipt;
             }
 
             [StructuredLogField]
@@ -483,6 +503,9 @@ namespace DurableTask.AzureStorage.Logging
             [StructuredLogField]
             public string Details { get; }
 
+            [StructuredLogField]
+            public string PopReceipt { get; }
+
             public override EventId EventId => new EventId(
                 EventIds.MessageGone,
                 nameof(EventIds.MessageGone));
@@ -505,6 +528,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId,
                 this.PartitionId,
                 this.Details,
+                this.PopReceipt,
                 Utils.AppName,
                 Utils.ExtensionVersion);
         }
@@ -557,7 +581,8 @@ namespace DurableTask.AzureStorage.Logging
                 string instanceId,
                 string executionId,
                 string partitionId,
-                long dequeueCount)
+                long dequeueCount,
+                string popReceipt)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
@@ -568,6 +593,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId = executionId;
                 this.PartitionId = partitionId;
                 this.DequeueCount = dequeueCount;
+                this.PopReceipt = popReceipt;
             }
 
             [StructuredLogField]
@@ -597,6 +623,9 @@ namespace DurableTask.AzureStorage.Logging
             [StructuredLogField]
             public long DequeueCount { get; }
 
+            [StructuredLogField]
+            public string PopReceipt { get; }
+
             public override EventId EventId => new EventId(
                 EventIds.DuplicateMessageDetected,
                 nameof(EventIds.DuplicateMessageDetected));
@@ -621,6 +650,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId,
                 this.PartitionId,
                 this.DequeueCount,
+                this.PopReceipt,
                 Utils.AppName,
                 Utils.ExtensionVersion);
         }
@@ -980,6 +1010,7 @@ namespace DurableTask.AzureStorage.Logging
                 string eventType,
                 int taskEventId,
                 string messageId,
+                string popReceipt,
                 int visibilityTimeoutSeconds)
             {
                 this.Account = account;
@@ -990,6 +1021,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.EventType = eventType;
                 this.TaskEventId = taskEventId;
                 this.MessageId = messageId;
+                this.PopReceipt = popReceipt;
                 this.VisibilityTimeoutSeconds = visibilityTimeoutSeconds;
             }
 
@@ -1018,6 +1050,9 @@ namespace DurableTask.AzureStorage.Logging
             public string MessageId { get; }
 
             [StructuredLogField]
+            public string PopReceipt { get; }
+
+            [StructuredLogField]
             public int VisibilityTimeoutSeconds { get; }
 
             public override EventId EventId => new EventId(
@@ -1042,6 +1077,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.EventType,
                 this.TaskEventId,
                 this.MessageId,
+                this.PopReceipt,
                 this.VisibilityTimeoutSeconds,
                 Utils.AppName,
                 Utils.ExtensionVersion);

@@ -74,6 +74,7 @@ namespace DurableTask.AzureStorage.Logging
             long sizeInBytes,
             string partitionId,
             long sequenceNumber,
+            string popReceipt,
             int episode)
         {
             var logEvent = new LogEvents.ReceivedMessage(
@@ -91,6 +92,7 @@ namespace DurableTask.AzureStorage.Logging
                 sizeInBytes,
                 partitionId,
                 sequenceNumber,
+                popReceipt,
                 episode);
             this.WriteStructuredLog(logEvent);
         }
@@ -104,7 +106,8 @@ namespace DurableTask.AzureStorage.Logging
             string instanceId,
             string executionId,
             string partitionId,
-            long sequenceNumber)
+            long sequenceNumber,
+            string popReceipt)
         {
             var logEvent = new LogEvents.DeletingMessage(
                 account,
@@ -115,7 +118,8 @@ namespace DurableTask.AzureStorage.Logging
                 instanceId,
                 executionId,
                 partitionId,
-                sequenceNumber);
+                sequenceNumber,
+                popReceipt);
             this.WriteStructuredLog(logEvent);
         }
 
@@ -129,6 +133,7 @@ namespace DurableTask.AzureStorage.Logging
             string executionId,
             string partitionId,
             long sequenceNumber,
+            string popReceipt,
             int visibilityTimeoutSeconds)
         {
             var logEvent = new LogEvents.AbandoningMessage(
@@ -141,6 +146,7 @@ namespace DurableTask.AzureStorage.Logging
                 executionId,
                 partitionId,
                 sequenceNumber,
+                popReceipt,
                 visibilityTimeoutSeconds);
             this.WriteStructuredLog(logEvent);
         }
@@ -166,7 +172,8 @@ namespace DurableTask.AzureStorage.Logging
             string partitionId,
             string eventType,
             int taskEventId,
-            string details)
+            string details,
+            string popReceipt)
         {
             var logEvent = new LogEvents.MessageGone(
                 account,
@@ -177,7 +184,8 @@ namespace DurableTask.AzureStorage.Logging
                 partitionId,
                 eventType,
                 taskEventId,
-                details);
+                details,
+                popReceipt);
             this.WriteStructuredLog(logEvent);
         }
 
@@ -202,7 +210,8 @@ namespace DurableTask.AzureStorage.Logging
             string instanceId,
             string executionId,
             string partitionId,
-            long dequeueCount)
+            long dequeueCount,
+            string popReceipt)
         {
             var logEvent = new LogEvents.DuplicateMessageDetected(
                 account,
@@ -213,7 +222,8 @@ namespace DurableTask.AzureStorage.Logging
                 instanceId,
                 executionId,
                 partitionId,
-                dequeueCount);
+                dequeueCount,
+                popReceipt);
             this.WriteStructuredLog(logEvent);
         }
 
@@ -336,6 +346,7 @@ namespace DurableTask.AzureStorage.Logging
             string eventType,
             int taskEventId,
             string messageId,
+            string popReceipt,
             int visibilityTimeoutSeconds)
         {
             var logEvent = new LogEvents.RenewingMessage(
@@ -347,6 +358,7 @@ namespace DurableTask.AzureStorage.Logging
                 eventType,
                 taskEventId,
                 messageId,
+                popReceipt,
                 visibilityTimeoutSeconds);
             this.WriteStructuredLog(logEvent);
         }
