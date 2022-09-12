@@ -74,6 +74,7 @@ namespace DurableTask.AzureStorage.Tests
             tableMock
                 .Setup(t => t.ExecuteQueryAsync<OrchestrationInstanceStatus>(
                     $"{nameof(OrchestrationInstanceStatus.CreatedTime)} ge datetime'{expectedCreatedDateFrom:O} and {nameof(OrchestrationInstanceStatus.CreatedTime)} le datetime'{expectedCreatedDateTo:O}'",
+                    null,
                     new string[] { "foo", "bar", "baz" },
                     tokenSource.Token))
                 .Returns(

@@ -232,7 +232,7 @@ namespace DurableTask.AzureStorage.Tracking
                 filter += $" and ({nameof(TableEntity.RowKey)} eq '{SentinelRowKey}' or ExecutionId eq '{expectedExecutionId}')";
             }
 
-            return this.HistoryTable.ExecuteQueryAsync<TableEntity>(filter, projectionColumns, cancellationToken);
+            return this.HistoryTable.ExecuteQueryAsync<TableEntity>(filter, select: projectionColumns, cancellationToken: cancellationToken);
         }
 
         async Task<IReadOnlyList<TableEntity>> QueryHistoryAsync(string filter, string instanceId, CancellationToken cancellationToken)
@@ -391,11 +391,14 @@ namespace DurableTask.AzureStorage.Tracking
             };
 
             (string? filter, IEnumerable<string>? select) = queryCondition.ToOData();
-            TableQueryResults<TableEntity> results = await this.InstancesTable
-                .ExecuteQueryAsync<TableEntity>(filter, select, cancellationToken)
-                .GetResultsAsync(cancellationToken: cancellationToken);
 
-            TableEntity tableEntity = results.Entities.FirstOrDefault();
+            var sw = Stopwatch.StartNew();
+
+            OrchestrationInstanceStatus? tableEntity = await this.InstancesTable
+                .ExecuteQueryAsync<OrchestrationInstanceStatus>(filter, 1, select, cancellationToken)
+                .FirstOrDefaultAsync();
+
+            sw.Stop();
 
             OrchestrationState? orchestrationState = null;
             if (tableEntity != null)
@@ -409,7 +412,7 @@ namespace DurableTask.AzureStorage.Tracking
                 instanceId,
                 orchestrationState?.OrchestrationInstance.ExecutionId ?? string.Empty,
                 orchestrationState?.OrchestrationStatus.ToString() ?? "NotFound",
-                results.ElapsedMilliseconds);
+                sw.ElapsedMilliseconds);
 
             if (tableEntity == null || orchestrationState == null)
             {
@@ -419,43 +422,10 @@ namespace DurableTask.AzureStorage.Tracking
             return new InstanceStatus(orchestrationState, tableEntity.ETag);
         }
 #nullable disable
-        Task<OrchestrationState> ConvertFromAsync(TableEntity tableEntity, CancellationToken cancellationToken)
+        Task<OrchestrationState> ConvertFromAsync(OrchestrationInstanceStatus tableEntity, CancellationToken cancellationToken)
         {
-            var orchestrationInstanceStatus = ConvertFromProperties(tableEntity);
             var instanceId = KeySanitation.UnescapePartitionKey(tableEntity.PartitionKey);
-            return ConvertFromAsync(orchestrationInstanceStatus, instanceId, cancellationToken);
-        }
-
-        static OrchestrationInstanceStatus ConvertFromProperties(IDictionary<string, object> properties)
-        {
-            var orchestrationInstanceStatus = new OrchestrationInstanceStatus();
-
-            var type = typeof(TableEntity);
-            foreach (var pair in properties)
-            {
-                var property = type.GetProperty(pair.Key);
-                if (property != null)
-                {
-                    var value = pair.Value;
-                    if (value != null)
-                    {
-                        if (property.PropertyType == typeof(DateTime) || property.PropertyType == typeof(DateTime?))
-                        {
-                            property.SetValue(orchestrationInstanceStatus, value);
-                        }
-                        else if (property.PropertyType == typeof(int) || property.PropertyType == typeof(int?))
-                        {
-                            property.SetValue(orchestrationInstanceStatus, value);
-                        }
-                        else
-                        {
-                            property.SetValue(orchestrationInstanceStatus, value);
-                        }
-                    }
-                }
-            }
-
-            return orchestrationInstanceStatus;
+            return ConvertFromAsync(tableEntity, instanceId, cancellationToken);
         }
 
         async Task<OrchestrationState> ConvertFromAsync(OrchestrationInstanceStatus orchestrationInstanceStatus, string instanceId, CancellationToken cancellationToken)
@@ -532,7 +502,7 @@ namespace DurableTask.AzureStorage.Tracking
         IAsyncEnumerable<OrchestrationState> QueryStateAsync(string filter = null, IEnumerable<string> select = null, CancellationToken cancellationToken = default)
         {
             return this.InstancesTable
-                .ExecuteQueryAsync<OrchestrationInstanceStatus>(filter, select, cancellationToken)
+                .ExecuteQueryAsync<OrchestrationInstanceStatus>(filter, select: select, cancellationToken: cancellationToken)
                 .SelectAwaitWithCancellation((s, t) => new ValueTask<OrchestrationState>(this.ConvertFromAsync(s, KeySanitation.UnescapePartitionKey(s.PartitionKey), t)));
         }
 
@@ -557,7 +527,7 @@ namespace DurableTask.AzureStorage.Tracking
             int rowsDeleted = 0;
 
             var options = new ParallelOptions { MaxDegreeOfParallelism = this.settings.MaxStorageOperationConcurrency };
-            AsyncPageable<OrchestrationInstanceStatus> entitiesPageable = this.InstancesTable.ExecuteQueryAsync<OrchestrationInstanceStatus>(filter, select, cancellationToken);
+            AsyncPageable<OrchestrationInstanceStatus> entitiesPageable = this.InstancesTable.ExecuteQueryAsync<OrchestrationInstanceStatus>(filter, select: select, cancellationToken: cancellationToken);
             await foreach (Page<OrchestrationInstanceStatus> page in entitiesPageable.AsPages(pageSizeHint: 100))
             {
                 // The underlying client throttles
@@ -629,7 +599,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             string filter = $"{PartitionKeyProperty} eq '{sanitizedInstanceId}' and {RowKeyProperty} eq ''";
             var results = await this.InstancesTable
-                .ExecuteQueryAsync<OrchestrationInstanceStatus>(filter: filter, cancellationToken: cancellationToken)
+                .ExecuteQueryAsync<OrchestrationInstanceStatus>(filter, cancellationToken: cancellationToken)
                 .GetResultsAsync(cancellationToken: cancellationToken);
 
             OrchestrationInstanceStatus orchestrationInstanceStatus = results.Entities.FirstOrDefault();

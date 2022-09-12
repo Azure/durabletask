@@ -163,9 +163,9 @@ namespace DurableTask.AzureStorage.Storage
             return new TableTransactionResults(batchResults, stopwatch.Elapsed);
         }
 
-        public TableQueryResponse<T> ExecuteQueryAsync<T>(string? filter = null, IEnumerable<string>? select = null, CancellationToken cancellationToken = default) where T : class, ITableEntity, new()
+        public TableQueryResponse<T> ExecuteQueryAsync<T>(string? filter = null, int? maxPerPage = null, IEnumerable<string>? select = null, CancellationToken cancellationToken = default) where T : class, ITableEntity, new()
         {
-            return new TableQueryResponse<T>(this.tableClient.QueryAsync<T>(filter, select: select, cancellationToken: cancellationToken).DecorateFailure());
+            return new TableQueryResponse<T>(this.tableClient.QueryAsync<T>(filter, maxPerPage, select, cancellationToken).DecorateFailure());
         }
     }
 }
