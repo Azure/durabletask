@@ -48,14 +48,14 @@ namespace DurableTask.AzureStorage.Storage
         public async Task<bool> CreateIfNotExistsAsync(CancellationToken cancellationToken = default)
         {
             // If we received null, then the response must have been a 409 (Conflict) and the table must already exist
-            Response<TableItem> response = await this.tableClient.CreateIfNotExistsAsync(cancellationToken);
+            Response<TableItem> response = await this.tableClient.CreateIfNotExistsAsync(cancellationToken).DecorateFailure();
             return response != null;
         }
 
         public async Task<bool> DeleteIfExistsAsync(CancellationToken cancellationToken = default)
         {
             // If we received null, then the response must have been a 404 (NotFound) and the table must not exist
-            Response response = await this.tableClient.DeleteAsync(cancellationToken);
+            Response response = await this.tableClient.DeleteAsync(cancellationToken).DecorateFailure();
             return response != null;
         }
 
@@ -64,6 +64,7 @@ namespace DurableTask.AzureStorage.Storage
             // TODO: Re-evaluate the use of an "Exists" method as it was intentional omitted from the client API
             List<TableItem> tables = await this.tableServiceClient
                 .QueryAsync(filter: $"TableName eq '{tableClient.Name}'", cancellationToken: cancellationToken)
+                .DecorateFailure()
                 .ToListAsync(cancellationToken);
 
             return tables.Count > 0;
@@ -71,37 +72,37 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task ReplaceAsync<T>(T tableEntity, ETag ifMatch, CancellationToken cancellationToken = default) where T : ITableEntity
         {
-            await this.tableClient.UpdateEntityAsync(tableEntity, ifMatch, TableUpdateMode.Replace, cancellationToken);
+            await this.tableClient.UpdateEntityAsync(tableEntity, ifMatch, TableUpdateMode.Replace, cancellationToken).DecorateFailure();
             this.stats.TableEntitiesWritten.Increment();
         }
 
         public async Task DeleteAsync<T>(T tableEntity, ETag ifMatch = default, CancellationToken cancellationToken = default) where T : ITableEntity
         {
-            await this.tableClient.DeleteEntityAsync(tableEntity.PartitionKey, tableEntity.RowKey, ifMatch, cancellationToken);
+            await this.tableClient.DeleteEntityAsync(tableEntity.PartitionKey, tableEntity.RowKey, ifMatch, cancellationToken).DecorateFailure();
             this.stats.TableEntitiesWritten.Increment();
         }
 
         public async Task InsertAsync<T>(T tableEntity, CancellationToken cancellationToken = default) where T : ITableEntity
         {
-            await this.tableClient.AddEntityAsync(tableEntity, cancellationToken);
+            await this.tableClient.AddEntityAsync(tableEntity, cancellationToken).DecorateFailure();
             this.stats.TableEntitiesWritten.Increment();
         }
 
         public async Task MergeAsync<T>(T tableEntity, ETag ifMatch, CancellationToken cancellationToken = default) where T : ITableEntity
         {
-            await this.tableClient.UpdateEntityAsync(tableEntity, ifMatch, TableUpdateMode.Merge, cancellationToken);
+            await this.tableClient.UpdateEntityAsync(tableEntity, ifMatch, TableUpdateMode.Merge, cancellationToken).DecorateFailure();
             this.stats.TableEntitiesWritten.Increment();
         }
 
         public async Task InsertOrMergeAsync<T>(T tableEntity, CancellationToken cancellationToken = default) where T : ITableEntity
         {
-            await this.tableClient.UpsertEntityAsync(tableEntity, TableUpdateMode.Merge, cancellationToken);
+            await this.tableClient.UpsertEntityAsync(tableEntity, TableUpdateMode.Merge, cancellationToken).DecorateFailure();
             this.stats.TableEntitiesWritten.Increment();
         }
 
         public async Task InsertOrReplaceAsync<T>(T tableEntity, CancellationToken cancellationToken = default) where T : ITableEntity
         {
-            await this.tableClient.UpsertEntityAsync(tableEntity, TableUpdateMode.Replace, cancellationToken);
+            await this.tableClient.UpsertEntityAsync(tableEntity, TableUpdateMode.Replace, cancellationToken).DecorateFailure();
             this.stats.TableEntitiesWritten.Increment();
         }
 
@@ -152,7 +153,7 @@ namespace DurableTask.AzureStorage.Storage
         {
             var stopwatch = new Stopwatch();
 
-            Response<IReadOnlyList<Response>> response = await this.tableClient.SubmitTransactionAsync(batchOperation, cancellationToken);
+            Response<IReadOnlyList<Response>> response = await this.tableClient.SubmitTransactionAsync(batchOperation, cancellationToken).DecorateFailure();
             IReadOnlyList<Response> batchResults = response.Value;
 
             stopwatch.Stop();
@@ -164,7 +165,7 @@ namespace DurableTask.AzureStorage.Storage
 
         public TableQueryResponse<T> ExecuteQueryAsync<T>(string? filter = null, IEnumerable<string>? select = null, CancellationToken cancellationToken = default) where T : class, ITableEntity, new()
         {
-            return new TableQueryResponse<T>(this.tableClient.QueryAsync<T>(filter, select: select, cancellationToken: cancellationToken));
+            return new TableQueryResponse<T>(this.tableClient.QueryAsync<T>(filter, select: select, cancellationToken: cancellationToken).DecorateFailure());
         }
     }
 }

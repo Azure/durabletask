@@ -52,13 +52,12 @@ namespace DurableTask.AzureStorage.Storage
             this.Settings = settings;
             this.Stats = new AzureStorageOrchestrationServiceStats();
 
-            var exceptionPolicy = new ExceptionHttpPipelinePolicy();
             var throttlingPolicy = new ThrottlingHttpPipelinePolicy(this.Settings.MaxStorageOperationConcurrency);
             var monitoringPolicy = new MonitoringHttpPipelinePolicy(this.Stats);
 
-            this.blobClient = CreateClient(settings.BlobStorageProvider, exceptionPolicy, throttlingPolicy, monitoringPolicy);
-            this.queueClient = CreateClient(settings.QueueStorageProvider, exceptionPolicy, throttlingPolicy, monitoringPolicy);
-            this.tableClient = CreateClient(settings.TableStorageProvider, exceptionPolicy, throttlingPolicy, monitoringPolicy);
+            this.blobClient = CreateClient(settings.BlobStorageProvider, throttlingPolicy, monitoringPolicy);
+            this.queueClient = CreateClient(settings.QueueStorageProvider, throttlingPolicy, monitoringPolicy);
+            this.tableClient = CreateClient(settings.TableStorageProvider, throttlingPolicy, monitoringPolicy);
         }
 
         public AzureStorageOrchestrationServiceSettings Settings { get; }
@@ -98,14 +97,12 @@ namespace DurableTask.AzureStorage.Storage
 
         static TClient CreateClient<TClient, TClientOptions>(
             IAzureStorageProvider<TClient, TClientOptions> storageProvider,
-            ExceptionHttpPipelinePolicy exceptionPolicy,
             ThrottlingHttpPipelinePolicy throttlePolicy,
             MonitoringHttpPipelinePolicy monitoringPolicy)
             where TClientOptions : ClientOptions
         {
             TClientOptions options = storageProvider.CreateOptions();
 
-            options.AddPolicy(exceptionPolicy, HttpPipelinePosition.PerCall);
             options.AddPolicy(throttlePolicy, HttpPipelinePosition.PerCall);
             options.AddPolicy(monitoringPolicy, HttpPipelinePosition.PerRetry);
 

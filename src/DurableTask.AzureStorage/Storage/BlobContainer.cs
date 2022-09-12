@@ -48,13 +48,13 @@ namespace DurableTask.AzureStorage.Storage
         {
             // TODO: Any encryption scope?
             // If we received null, then the response must have been a 409 (Conflict) and the container must already exist
-            Response<BlobContainerInfo> response = await this.blobContainerClient.CreateIfNotExistsAsync(PublicAccessType.None, cancellationToken: cancellationToken);
+            Response<BlobContainerInfo> response = await this.blobContainerClient.CreateIfNotExistsAsync(PublicAccessType.None, cancellationToken: cancellationToken).DecorateFailure();
             return response != null;
         }
 
         public async Task<bool> ExistsAsync(CancellationToken cancellationToken = default)
         {
-            return await this.blobContainerClient.ExistsAsync(cancellationToken);
+            return await this.blobContainerClient.ExistsAsync(cancellationToken).DecorateFailure();
         }
 
         public async Task<bool> DeleteIfExistsAsync(string? appLeaseId = null, CancellationToken cancellationToken = default)
@@ -65,32 +65,33 @@ namespace DurableTask.AzureStorage.Storage
                 conditions = new BlobRequestConditions { LeaseId = appLeaseId };
             }
 
-            return await this.blobContainerClient.DeleteIfExistsAsync(conditions, cancellationToken);
+            return await this.blobContainerClient.DeleteIfExistsAsync(conditions, cancellationToken).DecorateFailure();
         }
 
         public IAsyncEnumerable<Page<Blob>> ListBlobsAsync(string? prefix = null, CancellationToken cancellationToken = default)
         {
             return this.blobContainerClient
                 .GetBlobsAsync(BlobTraits.Metadata, BlobStates.None, prefix, cancellationToken)
+                .DecorateFailure()
                 .AsPages()
                 .Select(p => Page<Blob>.FromValues(p.Values.Select(b => this.GetBlobReference(b.Name)).ToList(), p.ContinuationToken, p.GetRawResponse()));
         }
 
         public async Task<string> AcquireLeaseAsync(TimeSpan leaseInterval, string leaseId, CancellationToken cancellationToken = default)
         {
-            BlobLease lease = await this.blobContainerClient.GetBlobLeaseClient(leaseId).AcquireAsync(leaseInterval, cancellationToken: cancellationToken);
+            BlobLease lease = await this.blobContainerClient.GetBlobLeaseClient(leaseId).AcquireAsync(leaseInterval, cancellationToken: cancellationToken).DecorateFailure();
             return lease.LeaseId;
         }
 
         public async Task<string> ChangeLeaseAsync(string proposedLeaseId, string currentLeaseId, CancellationToken cancellationToken = default)
         {
-            BlobLease lease = await this.blobContainerClient.GetBlobLeaseClient(currentLeaseId).ChangeAsync(proposedLeaseId, cancellationToken: cancellationToken);
+            BlobLease lease = await this.blobContainerClient.GetBlobLeaseClient(currentLeaseId).ChangeAsync(proposedLeaseId, cancellationToken: cancellationToken).DecorateFailure();
             return lease.LeaseId;
         }
 
         public Task RenewLeaseAsync(string leaseId, CancellationToken cancellationToken = default)
         {
-            return this.blobContainerClient.GetBlobLeaseClient(leaseId).RenewAsync(cancellationToken: cancellationToken);
+            return this.blobContainerClient.GetBlobLeaseClient(leaseId).RenewAsync(cancellationToken: cancellationToken).DecorateFailure();
         }
     }
 }

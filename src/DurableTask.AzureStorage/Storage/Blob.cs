@@ -31,7 +31,6 @@ namespace DurableTask.AzureStorage.Storage
         public Blob(BlobServiceClient blobServiceClient, string containerName, string blobName)
         {
             this.Name = blobName;
-
             this.blockBlobClient = blobServiceClient.GetBlobContainerClient(containerName).GetBlockBlobClient(blobName);
         }
 
@@ -76,17 +75,17 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task<bool> ExistsAsync(CancellationToken cancellationToken = default)
         {
-            return await this.blockBlobClient.ExistsAsync(cancellationToken);
+            return await this.blockBlobClient.ExistsAsync(cancellationToken).DecorateFailure();
         }
 
         public async Task<bool> DeleteIfExistsAsync(CancellationToken cancellationToken = default)
         {
-            return await this.blockBlobClient.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots, cancellationToken: cancellationToken);
+            return await this.blockBlobClient.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots, cancellationToken: cancellationToken).DecorateFailure();
         }
 
         public async Task<bool> IsLeasedAsync(CancellationToken cancellationToken = default)
         {
-            BlobProperties properties = await this.blockBlobClient.GetPropertiesAsync(cancellationToken: cancellationToken);
+            BlobProperties properties = await this.blockBlobClient.GetPropertiesAsync(cancellationToken: cancellationToken).DecorateFailure();
             return properties.LeaseState == LeaseState.Leased;
         }
 
@@ -95,7 +94,7 @@ namespace DurableTask.AzureStorage.Storage
             BlobRequestConditions? conditions = null;
             if (ifDoesntExist)
             {
-                conditions = new BlobRequestConditions { IfNoneMatch = new ETag("*") };
+                conditions = new BlobRequestConditions { IfNoneMatch = ETag.All };
             }
             else if (leaseId != null)
             {
@@ -103,18 +102,18 @@ namespace DurableTask.AzureStorage.Storage
             }
 
             using var buffer = new MemoryStream(Encoding.UTF8.GetBytes(content));
-            await this.blockBlobClient.UploadAsync(buffer, conditions: conditions, cancellationToken: cancellationToken);
+            await this.blockBlobClient.UploadAsync(buffer, conditions: conditions, cancellationToken: cancellationToken).DecorateFailure();
         }
 
         public async Task UploadFromByteArrayAsync(byte[] buffer, int index, int byteCount, CancellationToken cancellationToken = default)
         {
             using var stream = new MemoryStream(buffer, index, byteCount);
-            await this.blockBlobClient.UploadAsync(stream, cancellationToken: cancellationToken);
+            await this.blockBlobClient.UploadAsync(stream, cancellationToken: cancellationToken).DecorateFailure();
         }
 
         public async Task<string> DownloadTextAsync(CancellationToken cancellationToken = default)
         {
-            BlobDownloadStreamingResult result = await this.blockBlobClient.DownloadStreamingAsync(cancellationToken: cancellationToken);
+            BlobDownloadStreamingResult result = await this.blockBlobClient.DownloadStreamingAsync(cancellationToken: cancellationToken).DecorateFailure();
 
             using var reader = new StreamReader(result.Content, Encoding.UTF8);
             return await reader.ReadToEndAsync();
@@ -122,29 +121,29 @@ namespace DurableTask.AzureStorage.Storage
 
         public Task DownloadToStreamAsync(MemoryStream target, CancellationToken cancellationToken = default)
         {
-            return this.blockBlobClient.DownloadToAsync(target, cancellationToken: cancellationToken);
+            return this.blockBlobClient.DownloadToAsync(target, cancellationToken: cancellationToken).DecorateFailure();
         }
 
         public async Task<string> AcquireLeaseAsync(TimeSpan leaseInterval, string leaseId, CancellationToken cancellationToken = default)
         {
-            BlobLease lease = await this.blockBlobClient.GetBlobLeaseClient(leaseId).AcquireAsync(leaseInterval, cancellationToken: cancellationToken);
+            BlobLease lease = await this.blockBlobClient.GetBlobLeaseClient(leaseId).AcquireAsync(leaseInterval, cancellationToken: cancellationToken).DecorateFailure();
             return lease.LeaseId;
         }
 
         public async Task<string> ChangeLeaseAsync(string proposedLeaseId, string currentLeaseId, CancellationToken cancellationToken = default)
         {
-            BlobLease lease = await this.blockBlobClient.GetBlobLeaseClient(currentLeaseId).ChangeAsync(proposedLeaseId, cancellationToken: cancellationToken);
+            BlobLease lease = await this.blockBlobClient.GetBlobLeaseClient(currentLeaseId).ChangeAsync(proposedLeaseId, cancellationToken: cancellationToken).DecorateFailure();
             return lease.LeaseId;
         }
 
         public Task RenewLeaseAsync(string leaseId, CancellationToken cancellationToken = default)
         {
-            return this.blockBlobClient.GetBlobLeaseClient(leaseId).RenewAsync(cancellationToken: cancellationToken);
+            return this.blockBlobClient.GetBlobLeaseClient(leaseId).RenewAsync(cancellationToken: cancellationToken).DecorateFailure();
         }
 
         public Task ReleaseLeaseAsync(string leaseId, CancellationToken cancellationToken = default)
         {
-            return this.blockBlobClient.GetBlobLeaseClient(leaseId).ReleaseAsync(cancellationToken: cancellationToken);
+            return this.blockBlobClient.GetBlobLeaseClient(leaseId).ReleaseAsync(cancellationToken: cancellationToken).DecorateFailure();
         }
     }
 }

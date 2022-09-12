@@ -54,7 +54,7 @@ namespace DurableTask.AzureStorage.Http
         }
 
         public override ValueTask ProcessAsync(HttpMessage message, ReadOnlyMemory<HttpPipelinePolicy> pipeline) =>
-            IsBlobLease(message.Request.Uri.Query) ? ProcessNextAsync(message, pipeline) : ThrottledProcessNextAsync(message, pipeline);
+            IsBlobLease(message.Request.Uri.Query) ? ProcessNextAsync(message, pipeline) : this.ThrottledProcessNextAsync(message, pipeline);
 
         async ValueTask ThrottledProcessNextAsync(HttpMessage message, ReadOnlyMemory<HttpPipelinePolicy> pipeline)
         {
