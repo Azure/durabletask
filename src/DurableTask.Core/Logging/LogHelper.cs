@@ -568,11 +568,8 @@ namespace DurableTask.Core.Logging
         {
             if (this.IsStructuredLoggingEnabled)
             {
-                // This is a user-code exception which could contain sensitive information. Depending on the
-                // environment, some of the exception details may need to be redacted.
-                string exceptionDetails = GetSafeExceptionDetails(exception);
                 this.WriteStructuredLog(
-                    new LogEvents.TaskActivityFailure(instance, name, failedEvent, exceptionDetails),
+                    new LogEvents.TaskActivityFailure(instance, name, failedEvent, exception),
                     exception);
             }
         }
@@ -648,45 +645,38 @@ namespace DurableTask.Core.Logging
             this.log?.LogDurableEvent(logEvent, exception);
         }
 
-        static string GetSafeExceptionDetails(Exception? exception)
+        internal static string GetRedactedExceptionDetails(Exception? exception)
         {
             if (exception == null)
             {
                 return string.Empty;
             }
 
-            if (Utils.RedactUserCodeExceptions)
+            // Redact the exception message since its possible to contain sensitive information (PII, secrets, etc.)
+            // Exception.ToString() code: https://referencesource.microsoft.com/#mscorlib/system/exception.cs,e2e19f4ed8da81aa
+            // Example output for a method chain of Foo() --> Bar() --> Baz() --> (exception):
+            // System.ApplicationException: [Redacted]
+            //     ---> System.Exception: [Redacted]
+            //     ---> System.InvalidOperationException: [Redacted]
+            //     at UserQuery.<Main>g__Baz|4_3() in C:\Users\xxx\AppData\Local\Temp\LINQPad7\_wrmpjfpn\hjvskp\LINQPadQuery:line 68
+            //     at UserQuery.<Main>g__Bar|4_2() in C:\Users\xxx\AppData\Local\Temp\LINQPad7\_wrmpjfpn\hjvskp\LINQPadQuery:line 58
+            //     --- End of inner exception stack trace ---
+            //     at UserQuery.<Main>g__Bar|4_2() in C:\Users\xxx\AppData\Local\Temp\LINQPad7\_wrmpjfpn\hjvskp\LINQPadQuery:line 62
+            //     at UserQuery.<Main>g__Foo|4_1() in C:\Users\xxx\AppData\Local\Temp\LINQPad7\_wrmpjfpn\hjvskp\LINQPadQuery:line 46
+            //     --- End of inner exception stack trace ---
+            //     at UserQuery.<Main>g__Foo|4_1() in C:\Users\xxx\AppData\Local\Temp\LINQPad7\_wrmpjfpn\hjvskp\LINQPadQuery:line 50
+            //     at UserQuery.Main() in C:\Users\xxx\AppData\Local\Temp\LINQPad7\_wrmpjfpn\hjvskp\LINQPadQuery:line 4
+            var sb = new StringBuilder(capacity: 1024);
+            sb.Append(exception.GetType().FullName).Append(": ").Append("[Redacted]");
+            if (exception.InnerException != null)
             {
-                // Redact the exception message since its possible to contain sensitive information (PII, secrets, etc.)
-                // Exception.ToString() code: https://referencesource.microsoft.com/#mscorlib/system/exception.cs,e2e19f4ed8da81aa
-                // Example output for a method chain of Foo() --> Bar() --> Baz() --> (exception):
-                // System.ApplicationException: [Redacted]
-                //     ---> System.Exception: [Redacted]
-                //     ---> System.InvalidOperationException: [Redacted]
-                //     at UserQuery.<Main>g__Baz|4_3() in C:\Users\xxx\AppData\Local\Temp\LINQPad7\_wrmpjfpn\hjvskp\LINQPadQuery:line 68
-                //     at UserQuery.<Main>g__Bar|4_2() in C:\Users\xxx\AppData\Local\Temp\LINQPad7\_wrmpjfpn\hjvskp\LINQPadQuery:line 58
-                //     --- End of inner exception stack trace ---
-                //     at UserQuery.<Main>g__Bar|4_2() in C:\Users\xxx\AppData\Local\Temp\LINQPad7\_wrmpjfpn\hjvskp\LINQPadQuery:line 62
-                //     at UserQuery.<Main>g__Foo|4_1() in C:\Users\xxx\AppData\Local\Temp\LINQPad7\_wrmpjfpn\hjvskp\LINQPadQuery:line 46
-                //     --- End of inner exception stack trace ---
-                //     at UserQuery.<Main>g__Foo|4_1() in C:\Users\xxx\AppData\Local\Temp\LINQPad7\_wrmpjfpn\hjvskp\LINQPadQuery:line 50
-                //     at UserQuery.Main() in C:\Users\xxx\AppData\Local\Temp\LINQPad7\_wrmpjfpn\hjvskp\LINQPadQuery:line 4
-                var sb = new StringBuilder(capacity: 1024);
-                sb.Append(exception.GetType().FullName).Append(": ").Append("[Redacted]");
-                if (exception.InnerException != null)
-                {
-                    // Recursive
-                    sb.AppendLine().Append(" ---> ").AppendLine(GetSafeExceptionDetails(exception.InnerException));
-                    sb.Append("   --- End of inner exception stack trace ---");
-                }
+                // Recursive
+                sb.AppendLine().Append(" ---> ").AppendLine(GetRedactedExceptionDetails(exception.InnerException));
+                sb.Append("   --- End of inner exception stack trace ---");
+            }
 
-                sb.AppendLine().Append(exception.StackTrace);
-                return sb.ToString();
-            }
-            else
-            {
-                return exception.ToString();
-            }
+            sb.AppendLine().Append(exception.StackTrace);
+            return sb.ToString();
         }
     }
 }
