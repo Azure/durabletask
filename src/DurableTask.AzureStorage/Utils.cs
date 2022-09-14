@@ -16,11 +16,14 @@ namespace DurableTask.AzureStorage
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.IO;
     using System.Linq;
+    using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core;
     using DurableTask.Core.History;
+    using Newtonsoft.Json;
 
     static class Utils
     {
@@ -30,6 +33,8 @@ namespace DurableTask.AzureStorage
 
         // DurableTask.Core has a public static variable that contains the app name
         public static readonly string AppName = DurableTask.Core.Common.Utils.AppName;
+
+        private static readonly JsonSerializer DefaultJsonSerializer = JsonSerializer.Create();
 
         public static async Task ParallelForEachAsync<TSource>(
             this IEnumerable<TSource> enumerable,
@@ -147,6 +152,97 @@ namespace DurableTask.AzureStorage
 
             int index = s.IndexOf('+');
             return s.Substring(index + 1, s.Length - index - 1);
+        }
+
+        /// <summary>
+        /// Serialize some object payload to a JSON-string representation.
+        /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
+        /// </summary>
+        /// <param name="payload">The object to serialize.</param>
+        /// <returns>The JSON-string representation of the payload</returns>
+        public static string SerializeToJson(object payload)
+        {
+            return SerializeToJson(DefaultJsonSerializer, payload);
+        }
+
+        /// <summary>
+        /// Serialize some object payload to a JSON-string representation.
+        /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
+        /// </summary>
+        /// <param name="serializer">The serializer to use.</param>
+        /// <param name="payload">The object to serialize.</param>
+        /// <returns>The JSON-string representation of the payload</returns>
+        public static string SerializeToJson(JsonSerializer serializer, object payload)
+        {
+            StringBuilder stringBuilder = new StringBuilder();
+            using (var stringWriter = new StringWriter(stringBuilder))
+            {
+                serializer.Serialize(stringWriter, payload);
+            }
+            var jsonStr = stringBuilder.ToString();
+            return jsonStr;
+        }
+
+        /// <summary>
+        /// Deserialize a JSON-string into an object of type T
+        /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
+        /// </summary>
+        /// <typeparam name="T">The type to deserialize the JSON string into.</typeparam>
+        /// <param name="serializer">The serializer whose config will guide the deserialization.</param>
+        /// <param name="jsonString">The JSON-string to deserialize.</param>
+        /// <returns></returns>
+        public static T DeserializeFromJson<T>(JsonSerializer serializer, string jsonString)
+        {
+            T obj;
+            using (var reader = new StringReader(jsonString))
+            using (var jsonReader = new JsonTextReader(reader))
+            {
+                obj = serializer.Deserialize<T>(jsonReader);
+            }
+            return obj;
+        }
+
+        /// <summary>
+        /// Deserialize a JSON-string into an object of type T
+        /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
+        /// </summary>
+        /// <typeparam name="T">The type to deserialize the JSON string into.</typeparam>
+        /// <param name="jsonString">The JSON-string to deserialize.</param>
+        /// <returns></returns>
+        public static T DeserializeFromJson<T>(string jsonString)
+        {
+            return DeserializeFromJson<T>(DefaultJsonSerializer, jsonString);
+        }
+
+        /// <summary>
+        /// Deserialize a JSON-string into an object of type `type`
+        /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
+        /// </summary>
+        /// <param name="jsonString">The JSON-string to deserialize.</param>
+        /// <param name="type">The expected de-serialization type.</param>
+        /// <returns></returns>
+        public static object DeserializeFromJson(string jsonString, Type type)
+        {
+            return DeserializeFromJson(DefaultJsonSerializer, jsonString, type);
+        }
+
+        /// <summary>
+        /// Deserialize a JSON-string into an object of type `type`
+        /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
+        /// </summary>
+        /// <param name="serializer">The serializer whose config will guide the deserialization.</param>
+        /// <param name="jsonString">The JSON-string to deserialize.</param>
+        /// <param name="type">The expected de-serialization type.</param>
+        /// <returns></returns>
+        public static object DeserializeFromJson(JsonSerializer serializer, string jsonString, Type type)
+        {
+            object obj;
+            using (var reader = new StringReader(jsonString))
+            using (var jsonReader = new JsonTextReader(reader))
+            {
+                obj = serializer.Deserialize(jsonReader, type);
+            }
+            return obj;
         }
     }
 }
