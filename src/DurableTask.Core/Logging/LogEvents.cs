@@ -1275,6 +1275,8 @@ namespace DurableTask.Core.Logging
 
         internal class TaskActivityFailure : StructuredLogEvent, IEventSourceEvent
         {
+            readonly Exception exception;
+
             public TaskActivityFailure(
                 OrchestrationInstance instance,
                 string name,
@@ -1286,6 +1288,7 @@ namespace DurableTask.Core.Logging
                 this.Name = name;
                 this.TaskEventId = taskEvent.EventId;
                 this.Details = exception.ToString();
+                this.exception = exception;
             }
 
             [StructuredLogField]
@@ -1318,7 +1321,7 @@ namespace DurableTask.Core.Logging
                     this.ExecutionId,
                     this.Name,
                     this.TaskEventId,
-                    this.Details,
+                    Utils.RedactUserCodeExceptions ? LogHelper.GetRedactedExceptionDetails(this.exception) : this.Details, // We have to be extra guarded about logging user exceptions to EventSource (ETW)
                     Utils.AppName,
                     Utils.PackageVersion);
         }

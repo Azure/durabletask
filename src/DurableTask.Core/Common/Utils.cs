@@ -10,13 +10,12 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core.Common
 {
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
-    using System.Dynamic;
     using System.IO;
     using System.IO.Compression;
     using System.Linq;
@@ -159,6 +158,31 @@ namespace DurableTask.Core.Common
             string.Empty;
 
         /// <summary>
+        /// Gets or sets a value indicating whether to redact user code exceptions from log output.
+        /// </summary>
+        /// <remarks>
+        /// This value defaults to <c>true</c> if the WEBSITE_SITE_NAME is set to a non-empty value, which is always
+        /// the case in hosted Azure environments where log telemetry is automatically captured. This value can be also
+        /// be set explicitly by assigning the DTFX_REDACT_USER_CODE_EXCEPTIONS environment variable to "1" or "true".
+        /// </remarks>
+        public static bool RedactUserCodeExceptions { get; set; } = GetRedactUserCodeExceptionsDefaultValue();
+
+        static bool GetRedactUserCodeExceptionsDefaultValue()
+        {
+            string? configuredValue = Environment.GetEnvironmentVariable("DTFX_REDACT_USER_CODE_EXCEPTIONS")?.Trim();
+            if (configuredValue != null)
+            {
+                return configuredValue == "1" || configuredValue.Equals("true", StringComparison.OrdinalIgnoreCase);
+            }
+            else
+            {
+                // Fallback case when DTFX_REDACT_USER_CODE_EXCEPTIONS is not defined is to automatically redact
+                // any time we appear to be in a hosted Azure environment.
+                return Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME") != null;
+            }
+        }
+
+        /// <summary>
         /// NoOp utility method
         /// </summary>
         /// <param name="parameter">The parameter.</param>
@@ -223,7 +247,7 @@ namespace DurableTask.Core.Common
 
             if (compress)
             {
-                Stream compressedStream = GetCompressedStream(resultStream);
+                Stream compressedStream = GetCompressedStream(resultStream)!;
                 resultStream.Dispose();
                 resultStream = compressedStream;
             }
@@ -295,7 +319,7 @@ namespace DurableTask.Core.Common
         /// </summary>
         /// <param name="input"></param>
         /// <returns></returns>
-        public static Stream GetCompressedStream(Stream input)
+        public static Stream? GetCompressedStream(Stream input)
         {
             if (input == null)
             {
@@ -319,7 +343,7 @@ namespace DurableTask.Core.Common
         /// </summary>
         /// <param name="input"></param>
         /// <returns></returns>
-        public static async Task<Stream> GetDecompressedStreamAsync(Stream input)
+        public static async Task<Stream?> GetDecompressedStreamAsync(Stream input)
         {
             if (input == null)
             {
@@ -377,7 +401,7 @@ namespace DurableTask.Core.Common
             }
 
             int retryCount = numberOfAttempts;
-            ExceptionDispatchInfo lastException = null;
+            ExceptionDispatchInfo? lastException = null;
             while (retryCount-- > 0)
             {
                 try
@@ -405,7 +429,7 @@ namespace DurableTask.Core.Common
         /// <summary>
         /// Executes the supplied action until successful or the supplied number of attempts is reached
         /// </summary>
-        public static async Task<T> ExecuteWithRetries<T>(Func<Task<T>> retryAction, string sessionId, string operation,
+        public static async Task<T?> ExecuteWithRetries<T>(Func<Task<T>> retryAction, string sessionId, string operation,
             int numberOfAttempts, int delayInAttemptsSecs)
         {
             if (numberOfAttempts == 0)
@@ -415,7 +439,7 @@ namespace DurableTask.Core.Common
             }
 
             int retryCount = numberOfAttempts;
-            ExceptionDispatchInfo lastException = null;
+            ExceptionDispatchInfo? lastException = null;
             while (retryCount-- > 0)
             {
                 try
@@ -477,14 +501,14 @@ namespace DurableTask.Core.Common
         /// <summary>
         /// Retrieves the exception from a previously serialized exception
         /// </summary>
-        public static Exception RetrieveCause(string details, DataConverter converter)
+        public static Exception? RetrieveCause(string details, DataConverter converter)
         {
             if (converter == null)
             {
                 throw new ArgumentNullException(nameof(converter));
             }
 
-            Exception cause = null;
+            Exception? cause = null;
             try
             {
                 if (!string.IsNullOrWhiteSpace(details))
@@ -683,9 +707,9 @@ namespace DurableTask.Core.Common
 
         internal sealed class TypeMetadata
         {
-            public string AssemblyName { get; set; }
+            public string? AssemblyName { get; set; }
 
-            public string FullyQualifiedTypeName { get; set; }
+            public string? FullyQualifiedTypeName { get; set; }
         }
     }
 }

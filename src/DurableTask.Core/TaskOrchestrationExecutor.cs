@@ -139,7 +139,7 @@ namespace DurableTask.Core
                                 Exception? exception = this.result.Exception?.InnerExceptions.FirstOrDefault();
                                 Debug.Assert(exception != null);
 
-                                if (Utils.IsExecutionAborting(exception))
+                                if (Utils.IsExecutionAborting(exception!))
                                 {
                                     // Let this exception propagate out to be handled by the dispatcher
                                     ExceptionDispatchInfo.Capture(exception).Throw();

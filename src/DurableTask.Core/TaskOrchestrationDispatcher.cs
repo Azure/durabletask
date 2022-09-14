@@ -323,7 +323,7 @@ namespace DurableTask.Core
                     continuedAsNew = false;
                     continuedAsNewMessage = null;
 
-                    this.logHelper.OrchestrationExecuting(runtimeState.OrchestrationInstance, runtimeState.Name);
+                    this.logHelper.OrchestrationExecuting(runtimeState.OrchestrationInstance!, runtimeState.Name);
                     TraceHelper.TraceInstance(
                         TraceEventType.Verbose,
                         "TaskOrchestrationDispatcher-ExecuteUserOrchestration-Begin",
@@ -343,7 +343,7 @@ namespace DurableTask.Core
                     IReadOnlyList<OrchestratorAction> decisions = workItem.Cursor.LatestDecisions.ToList();
 
                     this.logHelper.OrchestrationExecuted(
-                        runtimeState.OrchestrationInstance,
+                        runtimeState.OrchestrationInstance!,
                         runtimeState.Name,
                         decisions);
                     TraceHelper.TraceInstance(
@@ -852,7 +852,7 @@ namespace DurableTask.Core
             }
 
             this.logHelper.SchedulingActivity(
-                runtimeState.OrchestrationInstance,
+                runtimeState.OrchestrationInstance!,
                 scheduledEvent);
 
             runtimeState.AddEvent(scheduledEvent);
@@ -880,7 +880,7 @@ namespace DurableTask.Core
             };
 
             this.logHelper.CreatingTimer(
-                runtimeState.OrchestrationInstance,
+                runtimeState.OrchestrationInstance!,
                 timerCreatedEvent,
                 isInternal);
 
@@ -949,7 +949,7 @@ namespace DurableTask.Core
             
             runtimeState.AddEvent(historyEvent);
 
-            this.logHelper.RaisingEvent(runtimeState.OrchestrationInstance, historyEvent);
+            this.logHelper.RaisingEvent(runtimeState.OrchestrationInstance!, historyEvent);
 
             return new TaskMessage
             {
