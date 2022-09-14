@@ -308,12 +308,12 @@ namespace DurableTask.Core
             if (!this.ReconcileMessagesWithState(workItem))
             {
                 // TODO : mark an orchestration as faulted if there is data corruption
-                this.logHelper.DroppingOrchestrationWorkItem(workItem, "Received result for a deleted orchestration");
+                this.logHelper.DroppingOrchestrationWorkItem(workItem, "Received work-item for an invalid orchestration");
                 TraceHelper.TraceSession(
                     TraceEventType.Error,
                     "TaskOrchestrationDispatcher-DeletedOrchestration",
                     runtimeState.OrchestrationInstance?.InstanceId,
-                    "Received result for a deleted orchestration");
+                    "Received work-item for an invalid orchestration");
                 isCompleted = true;
             }
             else
@@ -660,6 +660,12 @@ namespace DurableTask.Core
                         new InvalidOperationException("Message does not contain any OrchestrationInstance information"));
                 }
 
+                if (!workItem.OrchestrationRuntimeState.IsValid)
+                {
+                    // we get here if the orchestration history is somehow corrupted (partially deleted, etc.)
+                    return false;
+                }
+
                 if (workItem.OrchestrationRuntimeState.Events.Count == 1 && message.Event.EventType != EventType.ExecutionStarted)
                 {
                     // we get here because of:
@@ -679,7 +685,7 @@ namespace DurableTask.Core
 
                 if (message.Event.EventType == EventType.ExecutionStarted)
                 {
-                    if (workItem.OrchestrationRuntimeState.Events.Count > 1)
+                    if (workItem.OrchestrationRuntimeState.ExecutionStartedEvent != null)
                     {
                         // this was caused due to a dupe execution started event, swallow this one
                         this.logHelper.DroppingOrchestrationMessage(workItem, message, "Duplicate start event");

@@ -907,6 +907,7 @@ namespace DurableTask.AzureStorage
                 data.TotalMessageSizeBytes,
                 data.QueueName /* PartitionId */,
                 data.SequenceNumber,
+                queueMessage.PopReceipt,
                 data.Episode.GetValueOrDefault(-1));
         }
 
@@ -982,6 +983,18 @@ namespace DurableTask.AzureStorage
 
             session.StartNewLogicalTraceScope();
             OrchestrationRuntimeState runtimeState = newOrchestrationRuntimeState ?? workItem.OrchestrationRuntimeState;
+
+            // Only commit side-effects if the orchestration runtime state is valid (i.e. not corrupted)
+            if (!runtimeState.IsValid)
+            {
+                this.settings.Logger.GeneralWarning(
+                    this.azureStorageClient.QueueAccountName,
+                    this.settings.TaskHubName,
+                    $"{nameof(CompleteTaskOrchestrationWorkItemAsync)}: Discarding execution results because the orchestration state is invalid.",
+                    instanceId: workItem.InstanceId);
+                await this.DeleteMessageBatchAsync(session, session.CurrentMessageBatch);
+                return;
+            }
 
             string instanceId = workItem.InstanceId;
             string executionId = runtimeState.OrchestrationInstance?.ExecutionId;
@@ -1782,7 +1795,7 @@ namespace DurableTask.AzureStorage
                 instanceId,
                 executionId,
                 CancellationToken.None);
-            return JsonConvert.SerializeObject(history.Events);
+            return Utils.SerializeToJson(history.Events);
         }
 
         /// <summary>

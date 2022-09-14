@@ -61,6 +61,89 @@ namespace DurableTask.Core.Common
             Binder = new PackageUpgradeSerializationBinder()
 #endif
         };
+        private static readonly JsonSerializer DefaultObjectJsonSerializer = JsonSerializer.Create(ObjectJsonSettings);
+
+        private static readonly JsonSerializer DefaultSerializer = JsonSerializer.Create();
+
+        /// <summary>
+        /// Serialize some object payload to a JSON-string representation.
+        /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
+        /// </summary>
+        /// <param name="payload">The object to serialize.</param>
+        /// <returns>The JSON-string representation of the payload</returns>
+        public static string SerializeToJson(object payload)
+        {
+            return SerializeToJson(DefaultSerializer, payload);
+        }
+
+        /// <summary>
+        /// Serialize some object payload to a JSON-string representation.
+        /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
+        /// </summary>
+        /// <param name="serializer">The serializer to use.</param>
+        /// <param name="payload">The object to serialize.</param>
+        /// <returns>The JSON-string representation of the payload</returns>
+        public static string SerializeToJson(JsonSerializer serializer, object payload)
+        {
+            StringBuilder stringBuilder = new StringBuilder();
+            using (var stringWriter = new StringWriter(stringBuilder))
+            {
+                serializer.Serialize(stringWriter, payload);
+            }
+            var jsonStr = stringBuilder.ToString();
+            return jsonStr;
+        }
+
+        /// <summary>
+        /// Deserialize a JSON-string into an object of type T
+        /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
+        /// </summary>
+        /// <typeparam name="T">The type to deserialize the JSON string into.</typeparam>
+        /// <param name="serializer">The serializer whose config will guide the deserialization.</param>
+        /// <param name="jsonString">The JSON-string to deserialize.</param>
+        /// <returns></returns>
+        public static T DeserializeFromJson<T>(JsonSerializer serializer, string jsonString)
+        {
+            T obj;
+            using (var reader = new StringReader(jsonString))
+            using (var jsonReader = new JsonTextReader(reader))
+            {
+                obj = serializer.Deserialize<T>(jsonReader);
+            }
+            return obj;
+        }
+
+        /// <summary>
+        /// Deserialize a JSON-string into an object of type `type`
+        /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
+        /// </summary>
+        /// <param name="jsonString">The JSON-string to deserialize.</param>
+        /// <param name="type">The expected de-serialization type.</param>
+        /// <returns></returns>
+        public static object DeserializeFromJson(string jsonString, Type type)
+        {
+            return DeserializeFromJson(DefaultSerializer, jsonString, type);
+        }
+
+        /// <summary>
+        /// Deserialize a JSON-string into an object of type `type`
+        /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
+        /// </summary>
+        /// <param name="serializer">The serializer whose config will guide the deserialization.</param>
+        /// <param name="jsonString">The JSON-string to deserialize.</param>
+        /// <param name="type">The expected de-serialization type.</param>
+        /// <returns></returns>
+        public static object DeserializeFromJson(JsonSerializer serializer, string jsonString, Type type)
+        {
+            object obj;
+            using (var reader = new StringReader(jsonString))
+            using (var jsonReader = new JsonTextReader(reader))
+            {
+                obj = serializer.Deserialize(jsonReader, type);
+            }
+            return obj;
+        }
+
 
         /// <summary>
         /// Gets or sets the name of the app, for use when writing structured event source traces.
@@ -142,7 +225,8 @@ namespace DurableTask.Core.Common
                 throw new ArgumentException("stream is not seekable or writable", nameof(objectStream));
             }
 
-            byte[] serializedBytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj, ObjectJsonSettings));
+            var jsonStr = SerializeToJson(DefaultObjectJsonSerializer, obj);
+            byte[] serializedBytes = Encoding.UTF8.GetBytes(jsonStr);
 
             objectStream.Write(serializedBytes, 0, serializedBytes.Length);
             objectStream.Position = 0;
@@ -203,9 +287,8 @@ namespace DurableTask.Core.Common
         /// </summary>
         public static T ReadObjectFromByteArray<T>(byte[] serializedBytes)
         {
-            return JsonConvert.DeserializeObject<T>(
-                                Encoding.UTF8.GetString(serializedBytes),
-                                ObjectJsonSettings);
+            var jsonString = Encoding.UTF8.GetString(serializedBytes);
+            return DeserializeFromJson<T>(DefaultObjectJsonSerializer, jsonString);
         }
 
         /// <summary>
