@@ -137,10 +137,14 @@ namespace DurableTask.AzureStorage
                 string decompressedMessage = await this.DownloadAndDecompressAsBytesAsync(envelope.CompressedBlobName);
                 envelope = Utils.DeserializeFromJson<MessageData>(serializer, decompressedMessage);
                 envelope.MessageFormat = MessageFormatFlags.StorageBlob;
+                envelope.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(decompressedMessage);
+            }
+            else
+            {
+                envelope.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(queueMessage.Message);
             }
 
             envelope.OriginalQueueMessage = queueMessage;
-            envelope.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(queueMessage.Message);
             envelope.QueueName = queueName;
             return envelope;
         }
