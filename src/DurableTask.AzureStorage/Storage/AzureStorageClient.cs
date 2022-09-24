@@ -53,11 +53,19 @@ namespace DurableTask.AzureStorage.Storage
             this.Stats = new AzureStorageOrchestrationServiceStats();
 
             var throttlingPolicy = new ThrottlingHttpPipelinePolicy(this.Settings.MaxStorageOperationConcurrency);
+            var timeoutPolicy = new TimeoutHttpPipelinePolicy(this.Settings.LeaseRenewInterval);
             var monitoringPolicy = new MonitoringHttpPipelinePolicy(this.Stats);
 
-            this.blobClient = CreateClient(settings.BlobStorageProvider, throttlingPolicy, monitoringPolicy);
-            this.queueClient = CreateClient(settings.QueueStorageProvider, throttlingPolicy, monitoringPolicy);
-            this.tableClient = CreateClient(settings.TableStorageProvider, throttlingPolicy, monitoringPolicy);
+            this.blobClient = CreateClient(settings.BlobStorageProvider, ConfigureClientPolicies);
+            this.queueClient = CreateClient(settings.QueueStorageProvider, ConfigureClientPolicies);
+            this.tableClient = CreateClient(settings.TableStorageProvider, ConfigureClientPolicies);
+
+            void ConfigureClientPolicies<TClientOptions>(TClientOptions options) where TClientOptions : ClientOptions
+            {
+                options.AddPolicy(throttlingPolicy!, HttpPipelinePosition.PerCall);
+                options.AddPolicy(timeoutPolicy!, HttpPipelinePosition.PerCall);
+                options.AddPolicy(monitoringPolicy!, HttpPipelinePosition.PerRetry);
+            }
         }
 
         public AzureStorageOrchestrationServiceSettings Settings { get; }
@@ -97,14 +105,11 @@ namespace DurableTask.AzureStorage.Storage
 
         static TClient CreateClient<TClient, TClientOptions>(
             IAzureStorageProvider<TClient, TClientOptions> storageProvider,
-            ThrottlingHttpPipelinePolicy throttlePolicy,
-            MonitoringHttpPipelinePolicy monitoringPolicy)
+            Action<TClientOptions> configurePolicies)
             where TClientOptions : ClientOptions
         {
             TClientOptions options = storageProvider.CreateOptions();
-
-            options.AddPolicy(throttlePolicy, HttpPipelinePosition.PerCall);
-            options.AddPolicy(monitoringPolicy, HttpPipelinePosition.PerRetry);
+            configurePolicies?.Invoke(options);
 
             return storageProvider.CreateClient(options);
         }

@@ -51,7 +51,6 @@ namespace DurableTask.AzureStorage.Partitioning
             LeaseCollectionBalancerOptions options,
             Func<string, bool> shouldAquireLeaseDelegate = null,
             Func<string, bool> shouldRenewLeaseDelegate = null)
-
         {
             this.leaseType = leaseType;
             this.accountName = blobAccountName;

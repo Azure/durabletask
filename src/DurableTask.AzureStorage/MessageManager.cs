@@ -24,6 +24,7 @@ namespace DurableTask.AzureStorage
     using System.Threading;
     using System.Threading.Tasks;
     using Azure;
+    using Azure.Storage.Blobs.Models;
     using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Storage;
     using Newtonsoft.Json;
@@ -281,11 +282,14 @@ namespace DurableTask.AzureStorage
             int storageOperationCount = 1;
             if (await this.blobContainer.ExistsAsync(cancellationToken))
             {
-                await foreach (Page<Blob> page in this.blobContainer.ListBlobsAsync(sanitizedInstanceId, cancellationToken))
+                await foreach (Page<BlobItem> page in this.blobContainer.ListBlobsAsync(sanitizedInstanceId, cancellationToken).AsPages())
                 {
                     storageOperationCount++;
 
-                    await Task.WhenAll(page.Values.Select(x => x.DeleteIfExistsAsync(cancellationToken)));
+                    await Task.WhenAll(page.Values
+                        .Select(b => this.blobContainer.GetBlobReference(b.Name))
+                        .Select(b => b.DeleteIfExistsAsync(cancellationToken)));
+
                     storageOperationCount += page.Values.Count;
                 }
             }

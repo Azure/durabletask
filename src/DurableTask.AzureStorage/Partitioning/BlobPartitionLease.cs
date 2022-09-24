@@ -40,9 +40,9 @@ namespace DurableTask.AzureStorage.Partitioning
         [JsonIgnore]
         public Blob Blob { get; set; }
 
-        public override Task<bool> IsExpiredAsync(CancellationToken cancellationToken = default)
+        public override async Task<bool> IsExpiredAsync(CancellationToken cancellationToken = default)
         {
-            return this.Blob.IsLeasedAsync(cancellationToken);
+            return !await this.Blob.IsLeasedAsync(cancellationToken);
         }
     }
 }

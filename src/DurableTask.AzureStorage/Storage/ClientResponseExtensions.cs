@@ -49,41 +49,41 @@ namespace DurableTask.AzureStorage.Storage
 
         sealed class DecoratedAsyncPageable<T> : AsyncPageable<T> where T : notnull
         {
-            readonly AsyncPageable<T> _source;
+            readonly AsyncPageable<T> source;
 
             public DecoratedAsyncPageable(AsyncPageable<T> source) =>
-                this._source = source;
+                this.source = source;
 
             public override IAsyncEnumerable<Page<T>> AsPages(string? continuationToken = null, int? pageSizeHint = null) =>
-                new DecoratedPageEnumerable(this._source.AsPages(continuationToken, pageSizeHint));
+                new DecoratedPageEnumerable(this.source.AsPages(continuationToken, pageSizeHint));
 
             sealed class DecoratedPageEnumerable : IAsyncEnumerable<Page<T>>
             {
-                readonly IAsyncEnumerable<Page<T>> _source;
+                readonly IAsyncEnumerable<Page<T>> source;
 
                 public DecoratedPageEnumerable(IAsyncEnumerable<Page<T>> source) =>
-                    this._source = source;
+                    this.source = source;
 
                 public IAsyncEnumerator<Page<T>> GetAsyncEnumerator(CancellationToken cancellationToken = default) =>
-                    new DecoratedPageEnumerator(this._source.GetAsyncEnumerator(cancellationToken));
+                    new DecoratedPageEnumerator(this.source.GetAsyncEnumerator(cancellationToken));
 
                 sealed class DecoratedPageEnumerator : IAsyncEnumerator<Page<T>>
                 {
-                    readonly IAsyncEnumerator<Page<T>> _source;
+                    readonly IAsyncEnumerator<Page<T>> source;
 
                     public DecoratedPageEnumerator(IAsyncEnumerator<Page<T>> source) =>
-                        this._source = source;
+                        this.source = source;
 
-                    public Page<T> Current => this._source.Current;
+                    public Page<T> Current => this.source.Current;
 
                     public ValueTask DisposeAsync() =>
-                        this._source.DisposeAsync();
+                        this.source.DisposeAsync();
 
                     public async ValueTask<bool> MoveNextAsync()
                     {
                         try
                         {
-                            return await this._source.MoveNextAsync();
+                            return await this.source.MoveNextAsync();
                         }
                         catch (RequestFailedException rfe)
                         {

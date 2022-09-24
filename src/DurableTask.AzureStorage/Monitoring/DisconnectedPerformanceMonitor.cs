@@ -159,7 +159,7 @@ namespace DurableTask.AzureStorage.Monitoring
             {
                 await Task.WhenAll(tasks);
             }
-            catch (RequestFailedException rfe) when (rfe.Status == (int)HttpStatusCode.NotFound)
+            catch (DurableTaskStorageException dtse) when (dtse.InnerException is RequestFailedException rfe && rfe.Status == (int)HttpStatusCode.NotFound)
             {
                 // The queues are not yet provisioned.
                 this.settings.Logger.GeneralWarning(

@@ -222,8 +222,8 @@ namespace DurableTask.AzureStorage.Tests
                         .Select(
                             lease => new
                             {
-                                Name = lease.Blob.Name,
-                                Owner = lease.Owner,
+                                lease.Blob.Name,
+                                lease.Owner,
                             })
                         .Where(lease => !string.IsNullOrEmpty(lease.Owner))
                         .ToArrayAsync();
@@ -232,12 +232,16 @@ namespace DurableTask.AzureStorage.Tests
                         $"Blob: {lease.Name}, Owner: {lease.Owner}"));
 
                     isBalanced = false;
-                    var workersWithLeases = leases.GroupBy(l => l.Owner).ToArray();
-                    if (workersWithLeases.Count() == currentWorkerCount)
+                    var workersWithLeases = leases
+                        .GroupBy(l => l.Owner)
+                        .Select(x => x.ToArray())
+                        .ToArray();
+
+                    if (workersWithLeases.Length == currentWorkerCount)
                     {
-                        int maxLeaseCount = workersWithLeases.Max(owned => owned.Count());
-                        int minLeaseCount = workersWithLeases.Min(owned => owned.Count());
-                        int totalLeaseCount = workersWithLeases.Sum(owned => owned.Count());
+                        int maxLeaseCount = workersWithLeases.Max(owned => owned.Length);
+                        int minLeaseCount = workersWithLeases.Min(owned => owned.Length);
+                        int totalLeaseCount = workersWithLeases.Sum(owned => owned.Length);
 
                         isBalanced = maxLeaseCount - minLeaseCount <= 1 && totalLeaseCount == 4;
                         if (isBalanced)

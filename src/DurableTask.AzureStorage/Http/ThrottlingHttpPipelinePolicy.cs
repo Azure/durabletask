@@ -69,9 +69,7 @@ namespace DurableTask.AzureStorage.Http
             }
         }
 
-        static bool IsBlobLease(string query)
-        {
-            return query.IndexOf("comp=lease", StringComparison.OrdinalIgnoreCase) != -1;
-        }
+        static bool IsBlobLease(string query) =>
+            query.IndexOf("comp=lease", StringComparison.OrdinalIgnoreCase) != -1;
     }
 }

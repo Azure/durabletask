@@ -17,27 +17,39 @@ namespace DurableTask.AzureStorage.Http
     using System.Threading.Tasks;
     using Azure.Core;
     using Azure.Core.Pipeline;
-    using DurableTask.AzureStorage.Monitoring;
 
-    sealed class MonitoringHttpPipelinePolicy : HttpPipelinePolicy
+    sealed class TimeoutHttpPipelinePolicy : HttpPipelinePolicy
     {
-        readonly AzureStorageOrchestrationServiceStats stats;
+        readonly TimeSpan leaseRenewalTimeout;
 
-        public MonitoringHttpPipelinePolicy(AzureStorageOrchestrationServiceStats stats)
+        public TimeoutHttpPipelinePolicy(TimeSpan leaseRenewalTimeout)
         {
-            this.stats = stats ?? throw new ArgumentNullException(nameof(stats));
+            this.leaseRenewalTimeout = leaseRenewalTimeout;
         }
 
         public override void Process(HttpMessage message, ReadOnlyMemory<HttpPipelinePolicy> pipeline)
         {
-            this.stats.StorageRequests.Increment();
+            if (IsBlobLeaseRenewal(message.Request.Uri.Query, message.Request.Headers))
+            {
+                message.NetworkTimeout = this.leaseRenewalTimeout;
+            }
+
             ProcessNext(message, pipeline);
         }
 
         public override ValueTask ProcessAsync(HttpMessage message, ReadOnlyMemory<HttpPipelinePolicy> pipeline)
         {
-            this.stats.StorageRequests.Increment();
+            if (IsBlobLeaseRenewal(message.Request.Uri.Query, message.Request.Headers))
+            {
+                message.NetworkTimeout = this.leaseRenewalTimeout;
+            }
+
             return ProcessNextAsync(message, pipeline);
         }
+
+        static bool IsBlobLeaseRenewal(string query, RequestHeaders headers) =>
+            query.IndexOf("comp=lease", StringComparison.OrdinalIgnoreCase) != -1 &&
+            headers.TryGetValue("x-ms-lease-action", out string? value) &&
+            string.Equals(value, "renew", StringComparison.OrdinalIgnoreCase);
     }
 }
