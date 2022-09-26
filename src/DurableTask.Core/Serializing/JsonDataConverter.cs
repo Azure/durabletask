@@ -39,7 +39,11 @@ namespace DurableTask.Core.Serializing
             {
                 TypeNameHandling = TypeNameHandling.Objects,
                 DateParseHandling = DateParseHandling.None,
+#if NETSTANDARD2_0
                 SerializationBinder = new PackageUpgradeSerializationBinder()
+#else
+                Binder = new PackageUpgradeSerializationBinder()
+#endif
             })
         { }
 

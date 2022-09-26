@@ -17,13 +17,13 @@
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
     <PackageReference Include="ImpromptuInterface" Version="6.2.2" />
-    <PackageReference Include="Newtonsoft.Json" Version="10.0.3" />
+    <PackageReference Include="Newtonsoft.Json" Version="7.0.1" />
     <Reference Include="System.Web" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
     <PackageReference Include="ImpromptuInterface" Version="6.2.2" />
-    <PackageReference Include="Newtonsoft.Json" Version="10.0.3" />
+    <PackageReference Include="Newtonsoft.Json" Version="7.0.1" />
     <Reference Include="System.Web" />
   </ItemGroup>
 
