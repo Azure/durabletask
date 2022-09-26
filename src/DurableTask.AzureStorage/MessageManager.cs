@@ -54,11 +54,7 @@ namespace DurableTask.AzureStorage
             this.taskMessageSerializerSettings = new JsonSerializerSettings
             {
                 TypeNameHandling = TypeNameHandling.Objects,
-#if NETSTANDARD2_0
-                SerializationBinder = new TypeNameSerializationBinder(),
-#else
-                Binder = new TypeNameSerializationBinder(),
-#endif
+                SerializationBinder = new TypeNameSerializationBinder()
             };
             this.serializer = JsonSerializer.Create(taskMessageSerializerSettings);
 

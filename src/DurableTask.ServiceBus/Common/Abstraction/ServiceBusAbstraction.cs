@@ -8,7 +8,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
     using System.Xml;
-#if !NETSTANDARD2_0
+#if !(NETSTANDARD2_0 || NET461_OR_GREATER)
     using Microsoft.ServiceBus.Messaging;
 
     public class DataContractBinarySerializer<T>
@@ -115,7 +115,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     }
 #endif
 
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
     /// <inheritdoc />
     public class IMessageSession
     {
@@ -236,7 +236,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
     }
 
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
     /// <inheritdoc />
     public class Message
     {
@@ -424,7 +424,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #endif
     }
 
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
     /// <inheritdoc />
     public abstract class RetryPolicy : Microsoft.Azure.ServiceBus.RetryPolicy
     {
@@ -454,7 +454,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #endif
     }
 
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
     /// <inheritdoc />
     public class ServiceBusConnection : Microsoft.Azure.ServiceBus.ServiceBusConnection
     {
@@ -498,7 +498,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #endif
     }
 
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
     /// <inheritdoc />
     public class ServiceBusConnectionStringBuilder : Microsoft.Azure.ServiceBus.ServiceBusConnectionStringBuilder
     {
@@ -521,7 +521,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #endif
     }
 
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
     /// <inheritdoc />
     public class TokenProvider : Microsoft.Azure.ServiceBus.Primitives.ITokenProvider
     {
@@ -573,7 +573,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #endif
     }
 
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
     /// <inheritdoc />
     public class MessageSender : Microsoft.Azure.ServiceBus.Core.MessageSender
     {
@@ -674,7 +674,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #endif
     }
 
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
     /// <inheritdoc />
     public class MessageReceiver : Microsoft.Azure.ServiceBus.Core.MessageReceiver
     {
@@ -764,7 +764,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #endif
     }
 
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
     /// <inheritdoc />
     public class QueueClient : Microsoft.Azure.ServiceBus.QueueClient
     {
@@ -856,7 +856,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #endif
     }
 
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
     /// <inheritdoc />
     public class ManagementClient : Microsoft.Azure.ServiceBus.Management.ManagementClient
     {
@@ -916,7 +916,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #endif
     }
 
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
     public class SessionClient
     {
         Microsoft.Azure.ServiceBus.SessionClient sessionClient;

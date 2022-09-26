@@ -28,7 +28,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     using DurableTask.Core.Tracking;
     using DurableTask.ServiceBus.Settings;
     using Newtonsoft.Json;
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
     using Microsoft.Azure.ServiceBus.InteropExtensions;
 #endif
 
@@ -57,7 +57,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
             if (compressionSettings.Style == CompressionStyle.Legacy)
             {
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
                 using (var ms = new MemoryStream())
                 {
                     var serialiser = (XmlObjectSerializer)typeof(DataContractBinarySerializer<>)
@@ -140,7 +140,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
         static Message GenerateBrokeredMessageWithCompressionTypeProperty(Stream stream, string compressionType)
         {
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
             Message brokeredMessage;
             using (var ms = new MemoryStream())
             {
@@ -215,7 +215,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             if (string.IsNullOrWhiteSpace(compressionType))
             {
                 // no compression, legacy style
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
                 using (var ms = new MemoryStream(message.Body))
                     deserializedObject = (T)DataContractBinarySerializer<T>.Instance.ReadObject(ms);
 #else
@@ -302,7 +302,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             {
                 // load the stream from the message directly if the blob key property is not set,
                 // i.e., it is not stored externally
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
                 return Task.Run(() => new System.IO.MemoryStream(message.Body) as Stream);
 #else
                 return Task.Run(() => message.GetBody<Stream>());

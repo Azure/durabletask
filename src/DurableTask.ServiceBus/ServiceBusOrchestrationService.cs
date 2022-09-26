@@ -44,7 +44,7 @@ namespace DurableTask.ServiceBus
     using TokenProvider = DurableTask.ServiceBus.Common.Abstraction.TokenProvider;
     using ManagementClient = DurableTask.ServiceBus.Common.Abstraction.ManagementClient;
     using ServiceBusConnectionStringBuilder = DurableTask.ServiceBus.Common.Abstraction.ServiceBusConnectionStringBuilder;
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
     using Microsoft.Azure.ServiceBus;
     using Microsoft.Azure.ServiceBus.Management;
     using Microsoft.Azure.ServiceBus.Primitives;
@@ -111,7 +111,7 @@ namespace DurableTask.ServiceBus
 
         ServiceBusConnection serviceBusConnection;
 
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
 
         /// <summary>
         ///     Create a new ServiceBusOrchestrationService to the given service bus namespace and hub name
@@ -195,7 +195,7 @@ namespace DurableTask.ServiceBus
                         sbConnectionStringBuilder.SasKey, ServiceBusUtils.TokenTimeToLive)
                 };
             }
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
             else if (connectionSettings.Endpoint != null && connectionSettings.TokenProvider != null)
             {
                 this.serviceBusConnection = new ServiceBusConnection(connectionSettings.Endpoint.ToString(), connectionSettings.TransportType)
@@ -1329,7 +1329,7 @@ namespace DurableTask.ServiceBus
         static bool IsTransientException(Exception exception)
         {
             // TODO : Once we change the exception model, check for inner exception
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
             return (exception as ServiceBusException)?.IsTransient ?? false;
 #else
             return (exception as MessagingException)?.IsTransient ?? false;
@@ -1746,7 +1746,7 @@ namespace DurableTask.ServiceBus
                 MaxDeliveryCount = maxDeliveryCount,
                 RequiresDuplicateDetection = requiresDuplicateDetection,
                 DuplicateDetectionHistoryTimeWindow = TimeSpan.FromHours(DuplicateDetectionWindowInHours),
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
                 MaxSizeInMB = maxSizeInMegabytes
 #else
                 MaxSizeInMegabytes = maxSizeInMegabytes
@@ -1789,7 +1789,7 @@ namespace DurableTask.ServiceBus
             {
                 return new ManagementClient(this.connectionSettings.ConnectionString);
             }
-#if NETSTANDARD2_0
+#if NETSTANDARD2_0 || NET461_OR_GREATER
             else if (connectionSettings.Endpoint != null && connectionSettings.TokenProvider != null)
             {
                 return new ManagementClient(connectionSettings.Endpoint.ToString(), connectionSettings.TokenProvider);
