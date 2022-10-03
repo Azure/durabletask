@@ -13,10 +13,8 @@
 
 namespace DurableTask.ServiceBus.Settings
 {
-#if NETSTANDARD2_0 || NET461_OR_GREATER
     using Microsoft.Azure.ServiceBus;
     using Microsoft.Azure.ServiceBus.Primitives;
-#endif
     using System;
 
     /// <summary>
@@ -36,8 +34,6 @@ namespace DurableTask.ServiceBus.Settings
                 ConnectionString = connectionString
             };
         }
-
-#if NETSTANDARD2_0 || NET461_OR_GREATER
 
         /// <summary>
         /// Creates an instance of <see cref="ServiceBusConnectionSettings"/>
@@ -73,8 +69,6 @@ namespace DurableTask.ServiceBus.Settings
             };
         }
 
-#endif
-
         private ServiceBusConnectionSettings()
         {
         }
@@ -83,8 +77,6 @@ namespace DurableTask.ServiceBus.Settings
         /// Service Bus connection string
         /// </summary>
         public string ConnectionString { get; private set; }
-
-#if NETSTANDARD2_0 || NET461_OR_GREATER
 
         /// <summary>
         /// Service Bus endpoint
@@ -100,7 +92,6 @@ namespace DurableTask.ServiceBus.Settings
         /// Service Bus messaging protocol
         /// </summary>
         public TransportType TransportType { get; private set; }
-#endif
 
     }
 }
