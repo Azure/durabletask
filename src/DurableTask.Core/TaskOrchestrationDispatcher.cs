@@ -565,6 +565,11 @@ namespace DurableTask.Core
             return isCompleted || continuedAsNew || isInterrupted;
         }
 
+        static OrchestrationExecutionContext GetOrchestrationExecutionContext(OrchestrationRuntimeState runtimeState)
+        {
+            return new OrchestrationExecutionContext { OrchestrationTags = runtimeState.Tags ?? new Dictionary<string, string>() };
+        }
+
         async Task<OrchestrationExecutionCursor> ExecuteOrchestrationAsync(OrchestrationRuntimeState runtimeState, TaskOrchestrationWorkItem workItem)
         {
             // Get the TaskOrchestration implementation. If it's not found, it either means that the developer never
@@ -577,6 +582,7 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(taskOrchestration);
             dispatchContext.SetProperty(runtimeState);
             dispatchContext.SetProperty(workItem);
+            dispatchContext.SetProperty(GetOrchestrationExecutionContext(runtimeState));
 
             TaskOrchestrationExecutor? executor = null;
 
@@ -842,7 +848,7 @@ namespace DurableTask.Core
 
             taskMessage.Event = scheduledEvent;
             taskMessage.OrchestrationInstance = runtimeState.OrchestrationInstance;
-            taskMessage.OrchestrationRuntimeState = runtimeState;
+            taskMessage.OrchestrationExecutionContext = GetOrchestrationExecutionContext(runtimeState);
 
             if (!includeParameters)
             {

@@ -13,6 +13,7 @@
 
 namespace DurableTask.Core
 {
+    using System.Collections.Generic;
     using System.Runtime.Serialization;
     using DurableTask.Core.History;
 
@@ -41,10 +42,10 @@ namespace DurableTask.Core
         public OrchestrationInstance OrchestrationInstance { get; set; }
 
         /// <summary>
-        /// Gets or sets the orchestration runtime state.
+        /// Gets or sets the context associated with executing orchestration.
         /// </summary>
         [DataMember]
-        public OrchestrationRuntimeState OrchestrationRuntimeState { get; set; }
+        public OrchestrationExecutionContext OrchestrationExecutionContext { get; set; }
 
         /// <summary>
         /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.

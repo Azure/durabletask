@@ -57,16 +57,19 @@ namespace DurableTask.Core.Tests
             TaskOrchestration? orchestration = null;
             OrchestrationRuntimeState? state = null;
             OrchestrationInstance? instance1 = null;
+            OrchestrationExecutionContext? executionContext1 = null;
 
             TaskActivity? activity = null;
             TaskScheduledEvent? taskScheduledEvent = null;
             OrchestrationInstance? instance2 = null;
+            OrchestrationExecutionContext? executionContext2 = null;
 
             this.worker.AddOrchestrationDispatcherMiddleware((context, next) =>
             {
                 orchestration = context.GetProperty<TaskOrchestration>();
                 state = context.GetProperty<OrchestrationRuntimeState>();
                 instance1 = context.GetProperty<OrchestrationInstance>();
+                executionContext1 = context.GetProperty<OrchestrationExecutionContext>();
 
                 return next();
             });
@@ -76,6 +79,7 @@ namespace DurableTask.Core.Tests
                 activity = context.GetProperty<TaskActivity>();
                 taskScheduledEvent = context.GetProperty<TaskScheduledEvent>();
                 instance2 = context.GetProperty<OrchestrationInstance>();
+                executionContext2 = context.GetProperty<OrchestrationExecutionContext>();
 
                 return next();
             });
@@ -88,10 +92,12 @@ namespace DurableTask.Core.Tests
             Assert.IsNotNull(orchestration);
             Assert.IsNotNull(state);
             Assert.IsNotNull(instance1);
+            Assert.IsNotNull(executionContext1);
 
             Assert.IsNotNull(activity);
             Assert.IsNotNull(taskScheduledEvent);
             Assert.IsNotNull(instance2);
+            Assert.IsNotNull(executionContext2);
 
             Assert.AreNotSame(instance1, instance2);
             Assert.AreEqual(instance1!.InstanceId, instance2!.InstanceId);
@@ -174,14 +180,14 @@ namespace DurableTask.Core.Tests
         [TestMethod]
         public async Task EnsureActivityDispatcherMiddlewareHasAccessToRuntimeState()
         {
-            OrchestrationRuntimeState? runtimeState = null;
+            OrchestrationExecutionContext? executionContext = null;
 
             for (var i = 0; i < 10; i++)
             {
                 string value = i.ToString();
                 this.worker.AddActivityDispatcherMiddleware(async (context, next) =>
                 {
-                    runtimeState = context.GetProperty<OrchestrationRuntimeState>();
+                    executionContext = context.GetProperty<OrchestrationExecutionContext>();
                     await next();
                 });
             }
@@ -201,8 +207,8 @@ namespace DurableTask.Core.Tests
 
             // Each activity gets a new context, so the output should stay the same regardless of how
             // many activities an orchestration schedules (as long as there is at least one).
-            Assert.IsNotNull(runtimeState);
-            Assert.AreEqual("Value", runtimeState?.Tags?["Test"]);
+            Assert.IsNotNull(executionContext);
+            Assert.AreEqual("Value", executionContext?.OrchestrationTags?["Test"]);
         }
 
         [DataTestMethod]
