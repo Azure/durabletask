@@ -41,6 +41,12 @@ namespace DurableTask.Core
         public OrchestrationInstance OrchestrationInstance { get; set; }
 
         /// <summary>
+        /// Gets or sets the orchestration runtime state.
+        /// </summary>
+        [DataMember]
+        public OrchestrationRuntimeState OrchestrationRuntimeState { get; set; }
+
+        /// <summary>
         /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
         /// </summary>
         public ExtensionDataObject ExtensionData { get; set; }

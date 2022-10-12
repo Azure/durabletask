@@ -842,6 +842,7 @@ namespace DurableTask.Core
 
             taskMessage.Event = scheduledEvent;
             taskMessage.OrchestrationInstance = runtimeState.OrchestrationInstance;
+            taskMessage.OrchestrationRuntimeState = runtimeState;
 
             if (!includeParameters)
             {

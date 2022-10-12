@@ -152,6 +152,13 @@ namespace DurableTask.Core
                 dispatchContext.SetProperty(taskActivity);
                 dispatchContext.SetProperty(scheduledEvent);
 
+                if (taskMessage.OrchestrationRuntimeState != null)
+                {
+                    // Why this code? The deserialized version of runtime state doesn't have critical properties like ExecutionStartedEvent etc
+                    // setup. The only way to have that info is through recreation of event history.
+                    dispatchContext.SetProperty(new OrchestrationRuntimeState(taskMessage.OrchestrationRuntimeState.Events));
+                }
+
                 // correlation
                 CorrelationTraceClient.Propagate(() =>
                 {

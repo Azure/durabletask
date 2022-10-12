@@ -14,6 +14,7 @@
 namespace DurableTask.Core.Tests
 {
     using System;
+    using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
     using System.Text;
@@ -168,6 +169,40 @@ namespace DurableTask.Core.Tests
             // many activities an orchestration schedules (as long as there is at least one).
             Assert.IsNotNull(output);
             Assert.AreEqual("01234567899876543210", output?.ToString());
+        }
+
+        [TestMethod]
+        public async Task EnsureActivityDispatcherMiddlewareHasAccessToRuntimeState()
+        {
+            OrchestrationRuntimeState? runtimeState = null;
+
+            for (var i = 0; i < 10; i++)
+            {
+                string value = i.ToString();
+                this.worker.AddActivityDispatcherMiddleware(async (context, next) =>
+                {
+                    runtimeState = context.GetProperty<OrchestrationRuntimeState>();
+                    await next();
+                });
+            }
+
+            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(
+                NameVersionHelper.GetDefaultName(typeof(SimplestGreetingsOrchestration)),
+                NameVersionHelper.GetDefaultVersion(typeof(SimplestGreetingsOrchestration)),
+                "testInstanceId",
+                null,
+                new Dictionary<string, string>
+                {
+                    { "Test", "Value" }
+                });
+
+            TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 10);
+            await this.client.WaitForOrchestrationAsync(instance, timeout);
+
+            // Each activity gets a new context, so the output should stay the same regardless of how
+            // many activities an orchestration schedules (as long as there is at least one).
+            Assert.IsNotNull(runtimeState);
+            Assert.AreEqual("Value", runtimeState?.Tags?["Test"]);
         }
 
         [DataTestMethod]
