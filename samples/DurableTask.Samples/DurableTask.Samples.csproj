@@ -9,7 +9,6 @@
   <ItemGroup>
     <PackageReference Include="CommandLineParser" version="1.9.71" />
     <PackageReference Include="EnterpriseLibrary.SemanticLogging" Version="2.0.1406.1" />
-    <PackageReference Include="Microsoft.Azure.KeyVault.Core" version="1.0.0" />
     <PackageReference Include="Microsoft.Data.Edm" version="5.8.5" />
     <PackageReference Include="Microsoft.Data.OData" version="5.8.5" />
     <PackageReference Include="Microsoft.Data.Services.Client" version="5.8.5" />
