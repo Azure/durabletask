@@ -10,7 +10,6 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-#nullable enable
 namespace DurableTask.Core
 {
     using System.Collections.Generic;
@@ -26,6 +25,6 @@ namespace DurableTask.Core
         /// Gets the orchestration tags
         /// </summary>
         [DataMember]
-        public IDictionary<string, string> OrchestrationTags { get; internal set; } = new Dictionary<string, string>();
+        public IReadOnlyDictionary<string, string> OrchestrationTags { get; internal set; }
     }
 }

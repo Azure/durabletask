@@ -15,7 +15,7 @@ namespace DurableTask.Core
 {
     using System;
     using System.Collections.Generic;
-    using System.ComponentModel;
+    using System.Collections.ObjectModel;
     using System.Diagnostics;
     using System.Linq;
     using System.Threading;
@@ -567,7 +567,22 @@ namespace DurableTask.Core
 
         static OrchestrationExecutionContext GetOrchestrationExecutionContext(OrchestrationRuntimeState runtimeState)
         {
-            return new OrchestrationExecutionContext { OrchestrationTags = runtimeState.Tags ?? new Dictionary<string, string>() };
+            IReadOnlyDictionary<string, string> tags;
+
+            if (runtimeState.Tags == null)
+            {
+                tags = new Dictionary<string, string>(capacity: 0);
+            }
+            else if (runtimeState.Tags is IReadOnlyDictionary<string, string> runtimeStateReadOnlyDict)
+            {
+                tags = runtimeStateReadOnlyDict;
+            }
+            else
+            {
+                tags = new ReadOnlyDictionary<string, string>(runtimeState.Tags);
+            }
+
+            return new OrchestrationExecutionContext { OrchestrationTags = tags };
         }
 
         async Task<OrchestrationExecutionCursor> ExecuteOrchestrationAsync(OrchestrationRuntimeState runtimeState, TaskOrchestrationWorkItem workItem)
@@ -939,6 +954,7 @@ namespace DurableTask.Core
 
             taskMessage.OrchestrationInstance = startedEvent.OrchestrationInstance;
             taskMessage.Event = startedEvent;
+            taskMessage.OrchestrationExecutionContext = GetOrchestrationExecutionContext(runtimeState);
 
             return taskMessage;
         }

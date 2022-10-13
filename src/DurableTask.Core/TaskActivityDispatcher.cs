@@ -151,7 +151,12 @@ namespace DurableTask.Core
                 dispatchContext.SetProperty(taskMessage.OrchestrationInstance);
                 dispatchContext.SetProperty(taskActivity);
                 dispatchContext.SetProperty(scheduledEvent);
-                dispatchContext.SetProperty(taskMessage.OrchestrationExecutionContext);
+
+                // In transitionary phase (activity queued from old code, accessed in new code) context can be null.
+                if (taskMessage.OrchestrationExecutionContext != null)
+                {
+                    dispatchContext.SetProperty(taskMessage.OrchestrationExecutionContext);
+                }
 
                 // correlation
                 CorrelationTraceClient.Propagate(() =>
