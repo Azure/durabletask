@@ -14,6 +14,8 @@
 namespace DurableTask.Core.Tests
 {
     using System;
+    using System.Collections.Concurrent;
+    using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
     using System.Text;
@@ -37,7 +39,7 @@ namespace DurableTask.Core.Tests
             this.worker = new TaskHubWorker(service);
 
             await this.worker
-                .AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration))
+                .AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration), typeof(ParentWorkflow), typeof(ChildWorkflow))
                 .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
                 .StartAsync();
 
@@ -56,16 +58,19 @@ namespace DurableTask.Core.Tests
             TaskOrchestration? orchestration = null;
             OrchestrationRuntimeState? state = null;
             OrchestrationInstance? instance1 = null;
+            OrchestrationExecutionContext? executionContext1 = null;
 
             TaskActivity? activity = null;
             TaskScheduledEvent? taskScheduledEvent = null;
             OrchestrationInstance? instance2 = null;
+            OrchestrationExecutionContext? executionContext2 = null;
 
             this.worker.AddOrchestrationDispatcherMiddleware((context, next) =>
             {
                 orchestration = context.GetProperty<TaskOrchestration>();
                 state = context.GetProperty<OrchestrationRuntimeState>();
                 instance1 = context.GetProperty<OrchestrationInstance>();
+                executionContext1 = context.GetProperty<OrchestrationExecutionContext>();
 
                 return next();
             });
@@ -75,6 +80,7 @@ namespace DurableTask.Core.Tests
                 activity = context.GetProperty<TaskActivity>();
                 taskScheduledEvent = context.GetProperty<TaskScheduledEvent>();
                 instance2 = context.GetProperty<OrchestrationInstance>();
+                executionContext2 = context.GetProperty<OrchestrationExecutionContext>();
 
                 return next();
             });
@@ -87,10 +93,12 @@ namespace DurableTask.Core.Tests
             Assert.IsNotNull(orchestration);
             Assert.IsNotNull(state);
             Assert.IsNotNull(instance1);
+            Assert.IsNotNull(executionContext1);
 
             Assert.IsNotNull(activity);
             Assert.IsNotNull(taskScheduledEvent);
             Assert.IsNotNull(instance2);
+            Assert.IsNotNull(executionContext2);
 
             Assert.AreNotSame(instance1, instance2);
             Assert.AreEqual(instance1!.InstanceId, instance2!.InstanceId);
@@ -168,6 +176,109 @@ namespace DurableTask.Core.Tests
             // many activities an orchestration schedules (as long as there is at least one).
             Assert.IsNotNull(output);
             Assert.AreEqual("01234567899876543210", output?.ToString());
+        }
+
+        [TestMethod]
+        public async Task EnsureOrchestrationDispatcherMiddlewareHasAccessToRuntimeState()
+        {
+            OrchestrationExecutionContext? executionContext = null;
+
+            for (var i = 0; i < 10; i++)
+            {
+                string value = i.ToString();
+                this.worker.AddOrchestrationDispatcherMiddleware(async (context, next) =>
+                {
+                    executionContext = context.GetProperty<OrchestrationExecutionContext>();
+                    await next();
+                });
+            }
+
+            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(
+                NameVersionHelper.GetDefaultName(typeof(SimplestGreetingsOrchestration)),
+                NameVersionHelper.GetDefaultVersion(typeof(SimplestGreetingsOrchestration)),
+                "testInstanceId",
+                null,
+                new Dictionary<string, string>
+                {
+                    { "Test", "Value" }
+                });
+
+            TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 10);
+            await this.client.WaitForOrchestrationAsync(instance, timeout);
+
+            // Each activity gets a new context, so the output should stay the same regardless of how
+            // many activities an orchestration schedules (as long as there is at least one).
+            Assert.IsNotNull(executionContext);
+            Assert.AreEqual("Value", executionContext?.OrchestrationTags?["Test"]);
+        }
+
+        [TestMethod]
+        public async Task EnsureSubOrchestrationDispatcherMiddlewareHasAccessToRuntimeState()
+        {
+            ConcurrentBag<OrchestrationExecutionContext> capturedContexts = new ConcurrentBag<OrchestrationExecutionContext>(); 
+
+            for (var i = 0; i < 10; i++)
+            {
+                string value = i.ToString();
+                this.worker.AddOrchestrationDispatcherMiddleware(async (context, next) =>
+                {
+                    capturedContexts.Add(context.GetProperty<OrchestrationExecutionContext>());
+                    await next();
+                });
+            }
+
+            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(
+                NameVersionHelper.GetDefaultName(typeof(ParentWorkflow)),
+                NameVersionHelper.GetDefaultVersion(typeof(ParentWorkflow)),
+                "testInstanceId",
+                false,
+                new Dictionary<string, string>
+                {
+                    { "Test", "Value" }
+                });
+
+            TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 10);
+            await this.client.WaitForOrchestrationAsync(instance, timeout);
+
+            foreach (OrchestrationExecutionContext context in capturedContexts)
+            {
+                Assert.IsNotNull(context);
+                Assert.AreEqual("Value", context?.OrchestrationTags?["Test"]);
+            }
+        }
+
+        [TestMethod]
+        public async Task EnsureActivityDispatcherMiddlewareHasAccessToRuntimeState()
+        {
+            OrchestrationExecutionContext? executionContext = null;
+
+            for (var i = 0; i < 10; i++)
+            {
+                string value = i.ToString();
+                this.worker.AddActivityDispatcherMiddleware(async (context, next) =>
+                {
+                    executionContext = context.GetProperty<OrchestrationExecutionContext>();
+                    await next();
+                });
+            }
+
+            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(
+                NameVersionHelper.GetDefaultName(typeof(SimplestGreetingsOrchestration)),
+                NameVersionHelper.GetDefaultVersion(typeof(SimplestGreetingsOrchestration)),
+                "testInstanceId",
+                null,
+                new Dictionary<string, string>
+                {
+                    { "Test", "Value" }
+                });
+
+            TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 10);
+            await this.client.WaitForOrchestrationAsync(instance, timeout);
+
+            // Each activity gets a new context, so the output should stay the same regardless of how
+            // many activities an orchestration schedules (as long as there is at least one).
+            Assert.IsNotNull(executionContext);
+            Assert.AreEqual("Value", executionContext?.OrchestrationTags?["Test"]);
         }
 
         [DataTestMethod]

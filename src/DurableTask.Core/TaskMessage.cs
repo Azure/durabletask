@@ -41,6 +41,12 @@ namespace DurableTask.Core
         public OrchestrationInstance OrchestrationInstance { get; set; }
 
         /// <summary>
+        /// Gets or sets the context associated with executing orchestration.
+        /// </summary>
+        [DataMember]
+        public OrchestrationExecutionContext OrchestrationExecutionContext { get; set; }
+
+        /// <summary>
         /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
         /// </summary>
         public ExtensionDataObject ExtensionData { get; set; }
