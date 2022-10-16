@@ -164,13 +164,13 @@ namespace DurableTask.AzureStorage.Tracking
                         getEntityPropertyFunc = o =>
                         {
                             object value = property != null ? property.GetValue(o) : field.GetValue(o);
-                            return value != null ? JsonConvert.SerializeObject(value) : null;
+                            return value != null ? Utils.SerializeToJson(value) : null;
                         };
 
                         setObjectPropertyFunc = (o, e) =>
                         {
                             string json = e as string;
-                            object value = json != null ? JsonConvert.DeserializeObject(json, memberValueType) : null;
+                            object value = json != null ? Utils.DeserializeFromJson(json, memberValueType) : null;
                             if (property != null)
                             {
                                 property.SetValue(o, value);

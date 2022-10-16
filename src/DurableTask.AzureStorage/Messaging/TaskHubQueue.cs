@@ -117,7 +117,7 @@ namespace DurableTask.AzureStorage.Messaging
                     Utils.GetTaskEventId(taskMessage.Event),
                     sourceInstance.InstanceId,
                     sourceInstance.ExecutionId,
-                    Encoding.UTF8.GetByteCount(rawContent),
+                    data.TotalMessageSizeBytes,
                     data.QueueName /* PartitionId */,
                     taskMessage.OrchestrationInstance.InstanceId,
                     taskMessage.OrchestrationInstance.ExecutionId,

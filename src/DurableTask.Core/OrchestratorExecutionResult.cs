@@ -16,6 +16,7 @@ namespace DurableTask.Core
     using System;
     using System.Collections.Generic;
     using DurableTask.Core.Command;
+    using DurableTask.Core.Common;
     using Newtonsoft.Json;
 
     /// <summary>
@@ -61,7 +62,7 @@ namespace DurableTask.Core
                     new OrchestrationCompleteOrchestratorAction
                     {
                         OrchestrationStatus = OrchestrationStatus.Failed,
-                        Result = JsonConvert.SerializeObject(new { message, details }),
+                        Result = Utils.SerializeToJson((new { message, details })),
                     },
                 },
             };

@@ -15,7 +15,7 @@ namespace DurableTask.Core
 {
     using System;
     using System.Collections.Generic;
-    using System.ComponentModel;
+    using System.Collections.ObjectModel;
     using System.Diagnostics;
     using System.Linq;
     using System.Threading;
@@ -323,7 +323,7 @@ namespace DurableTask.Core
                     continuedAsNew = false;
                     continuedAsNewMessage = null;
 
-                    this.logHelper.OrchestrationExecuting(runtimeState.OrchestrationInstance, runtimeState.Name);
+                    this.logHelper.OrchestrationExecuting(runtimeState.OrchestrationInstance!, runtimeState.Name);
                     TraceHelper.TraceInstance(
                         TraceEventType.Verbose,
                         "TaskOrchestrationDispatcher-ExecuteUserOrchestration-Begin",
@@ -343,7 +343,7 @@ namespace DurableTask.Core
                     IReadOnlyList<OrchestratorAction> decisions = workItem.Cursor.LatestDecisions.ToList();
 
                     this.logHelper.OrchestrationExecuted(
-                        runtimeState.OrchestrationInstance,
+                        runtimeState.OrchestrationInstance!,
                         runtimeState.Name,
                         decisions);
                     TraceHelper.TraceInstance(
@@ -565,6 +565,26 @@ namespace DurableTask.Core
             return isCompleted || continuedAsNew || isInterrupted;
         }
 
+        static OrchestrationExecutionContext GetOrchestrationExecutionContext(OrchestrationRuntimeState runtimeState)
+        {
+            IReadOnlyDictionary<string, string> tags;
+
+            if (runtimeState.Tags == null)
+            {
+                tags = new Dictionary<string, string>(capacity: 0);
+            }
+            else if (runtimeState.Tags is IReadOnlyDictionary<string, string> runtimeStateReadOnlyDict)
+            {
+                tags = runtimeStateReadOnlyDict;
+            }
+            else
+            {
+                tags = new ReadOnlyDictionary<string, string>(runtimeState.Tags);
+            }
+
+            return new OrchestrationExecutionContext { OrchestrationTags = tags };
+        }
+
         async Task<OrchestrationExecutionCursor> ExecuteOrchestrationAsync(OrchestrationRuntimeState runtimeState, TaskOrchestrationWorkItem workItem)
         {
             // Get the TaskOrchestration implementation. If it's not found, it either means that the developer never
@@ -577,6 +597,7 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(taskOrchestration);
             dispatchContext.SetProperty(runtimeState);
             dispatchContext.SetProperty(workItem);
+            dispatchContext.SetProperty(GetOrchestrationExecutionContext(runtimeState));
 
             TaskOrchestrationExecutor? executor = null;
 
@@ -842,6 +863,7 @@ namespace DurableTask.Core
 
             taskMessage.Event = scheduledEvent;
             taskMessage.OrchestrationInstance = runtimeState.OrchestrationInstance;
+            taskMessage.OrchestrationExecutionContext = GetOrchestrationExecutionContext(runtimeState);
 
             if (!includeParameters)
             {
@@ -852,7 +874,7 @@ namespace DurableTask.Core
             }
 
             this.logHelper.SchedulingActivity(
-                runtimeState.OrchestrationInstance,
+                runtimeState.OrchestrationInstance!,
                 scheduledEvent);
 
             runtimeState.AddEvent(scheduledEvent);
@@ -880,7 +902,7 @@ namespace DurableTask.Core
             };
 
             this.logHelper.CreatingTimer(
-                runtimeState.OrchestrationInstance,
+                runtimeState.OrchestrationInstance!,
                 timerCreatedEvent,
                 isInternal);
 
@@ -932,6 +954,7 @@ namespace DurableTask.Core
 
             taskMessage.OrchestrationInstance = startedEvent.OrchestrationInstance;
             taskMessage.Event = startedEvent;
+            taskMessage.OrchestrationExecutionContext = GetOrchestrationExecutionContext(runtimeState);
 
             return taskMessage;
         }
@@ -949,7 +972,7 @@ namespace DurableTask.Core
             
             runtimeState.AddEvent(historyEvent);
 
-            this.logHelper.RaisingEvent(runtimeState.OrchestrationInstance, historyEvent);
+            this.logHelper.RaisingEvent(runtimeState.OrchestrationInstance!, historyEvent);
 
             return new TaskMessage
             {

@@ -94,7 +94,7 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             Blob leaseBlob = this.taskHubContainer.GetBlobReference(partitionId, this.blobDirectoryName);
             BlobPartitionLease lease = new BlobPartitionLease(leaseBlob) { PartitionId = partitionId };
-            string serializedLease = JsonConvert.SerializeObject(lease);
+            string serializedLease = Utils.SerializeToJson(lease);
             try
             {
                 this.settings.Logger.PartitionManagerInfo(
@@ -177,7 +177,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 lease.Owner = owner;
                 // Increment Epoch each time lease is acquired or stolen by new host
                 lease.Epoch += 1;
-                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(lease), leaseId: lease.Token, cancellationToken: cancellationToken);
+                await leaseBlob.UploadTextAsync(Utils.SerializeToJson(lease), leaseId: lease.Token, cancellationToken: cancellationToken);
             }
             catch (DurableTaskStorageException storageException)
             {
@@ -197,7 +197,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 BlobPartitionLease copy = new BlobPartitionLease(lease);
                 copy.Token = null;
                 copy.Owner = null;
-                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(copy), leaseId, cancellationToken: cancellationToken);
+                await leaseBlob.UploadTextAsync(Utils.SerializeToJson(copy), leaseId, cancellationToken: cancellationToken);
                 await leaseBlob.ReleaseLeaseAsync(leaseId, cancellationToken);
             }
             catch (DurableTaskStorageException storageException)
@@ -238,7 +238,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
             try
             {
-                await leaseBlob.UploadTextAsync(JsonConvert.SerializeObject(lease), lease.Token, cancellationToken: cancellationToken);
+                await leaseBlob.UploadTextAsync(Utils.SerializeToJson(lease), lease.Token, cancellationToken: cancellationToken);
             }
             catch (DurableTaskStorageException storageException)
             {
@@ -250,7 +250,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         public async Task CreateTaskHubInfoIfNotExistAsync(TaskHubInfo taskHubInfo, CancellationToken cancellationToken = default)
         {
-            string serializedInfo = JsonConvert.SerializeObject(taskHubInfo);
+            string serializedInfo = Utils.SerializeToJson(taskHubInfo);
             try
             {
                 await this.taskHubInfoBlob.UploadTextAsync(serializedInfo, ifDoesntExist: true, cancellationToken: cancellationToken);
@@ -278,7 +278,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
                     try
                     {
-                        string serializedInfo = JsonConvert.SerializeObject(newTaskHubInfo);
+                        string serializedInfo = Utils.SerializeToJson(newTaskHubInfo);
                         await this.taskHubInfoBlob.UploadTextAsync(serializedInfo, cancellationToken: cancellationToken);
                     } 
                     catch (DurableTaskStorageException)
@@ -313,7 +313,7 @@ namespace DurableTask.AzureStorage.Partitioning
             if (await this.taskHubInfoBlob.ExistsAsync(cancellationToken))
             {
                 string serializedEventHubInfo = await this.taskHubInfoBlob.DownloadTextAsync(cancellationToken);
-                return JsonConvert.DeserializeObject<TaskHubInfo>(serializedEventHubInfo);
+                return Utils.DeserializeFromJson<TaskHubInfo>(serializedEventHubInfo);
             }
 
             return null;
@@ -336,7 +336,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 SimpleBufferManager.Shared.ReturnBuffer(buffer);
             }
 
-            BlobPartitionLease deserializedLease = JsonConvert.DeserializeObject<BlobPartitionLease>(serializedLease);
+            BlobPartitionLease deserializedLease = Utils.DeserializeFromJson<BlobPartitionLease>(serializedLease);
             deserializedLease.Blob = blob;
 
             return deserializedLease;
