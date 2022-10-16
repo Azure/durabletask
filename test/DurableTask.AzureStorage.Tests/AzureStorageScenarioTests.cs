@@ -210,7 +210,7 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public async Task NoInstancesGetAllOrchestrationStatusesNullContinuationToken()
+        public async Task NoInstancesGetAllOrchestrationStatuses()
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
             {
@@ -218,7 +218,7 @@ namespace DurableTask.AzureStorage.Tests
                 await host.StartAsync();
                 var queryResult = host.service.GetOrchestrationStateAsync();
 
-                Assert.AreEqual(0, queryResult.CountAsync());
+                Assert.AreEqual(0, await queryResult.CountAsync());
                 await host.StopAsync();
             }
         }
