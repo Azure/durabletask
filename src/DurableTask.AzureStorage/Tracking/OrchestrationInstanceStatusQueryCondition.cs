@@ -71,7 +71,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// Get the corresponding OData filter.
         /// </summary>
         /// <returns></returns>
-        public (string? Filter, IEnumerable<string>? Select) ToOData()
+        public ODataCondition ToOData()
         {
             if (!((this.RuntimeStatus == null || !this.RuntimeStatus.Any()) && 
                 this.CreatedTimeFrom == default(DateTime) && 
@@ -97,7 +97,7 @@ namespace DurableTask.AzureStorage.Tracking
                     select = columns;
                 }
 
-                return (this.GetODataFilter(), select);
+                return new ODataCondition(select, this.GetODataFilter());
             }
 
             return default;
@@ -118,12 +118,12 @@ namespace DurableTask.AzureStorage.Tracking
 
             if (this.RuntimeStatus != null && this.RuntimeStatus.Any())
             {
-                conditions.Add($"({string.Join(" or ", this.RuntimeStatus.Select(x => $"{nameof(OrchestrationInstanceStatus.RuntimeStatus)} eq '{x:G}'"))})");
+                conditions.Add($"{string.Join(" or ", this.RuntimeStatus.Select(x => $"{nameof(OrchestrationInstanceStatus.RuntimeStatus)} eq '{x:G}'"))}");
             }
 
             if (this.TaskHubNames != null && this.TaskHubNames.Any())
             {
-                conditions.Add($"({string.Join(" or ", this.TaskHubNames.Select(x => $"TaskHubName eq '{x}'"))})");
+                conditions.Add($"{string.Join(" or ", this.TaskHubNames.Select(x => $"TaskHubName eq '{x}'"))}");
             }
 
             if (!string.IsNullOrEmpty(this.InstanceIdPrefix))
@@ -144,7 +144,12 @@ namespace DurableTask.AzureStorage.Tracking
                 conditions.Add($"{nameof(OrchestrationInstanceStatus.PartitionKey)} eq '{sanitizedInstanceId}'");
             }
 
-            return conditions.Count == 0 ? null : string.Join(" and ", conditions);
+            return conditions.Count switch
+            {
+                0 => null,
+                1 => conditions[0],
+                _ => string.Join(" and ", conditions.Select(c => $"({c})")),
+            };
         }
 
         /// <summary>

@@ -97,7 +97,7 @@ namespace DurableTask.AzureStorage.Tests
             };
 
             Assert.AreEqual(
-                "((CreatedTime ge datetime'2018-01-10T10:10:10.0000000Z') and (CreatedTime le datetime'2018-01-10T10:10:50.0000000Z')) and (RuntimeStatus eq 'Running')",
+                "(CreatedTime ge datetime'2018-01-10T10:10:10.0000000Z') and (CreatedTime le datetime'2018-01-10T10:10:50.0000000Z') and (RuntimeStatus eq 'Running')",
                 condition.ToOData().Filter);
         }
 
@@ -121,7 +121,7 @@ namespace DurableTask.AzureStorage.Tests
             };
 
             Assert.AreEqual(
-                "(((CreatedTime ge datetime'2018-01-10T10:10:10.0000000Z') and (CreatedTime le datetime'2018-01-10T10:10:50.0000000Z')) and ((RuntimeStatus eq 'Running') or (RuntimeStatus eq 'Completed'))) and ((TaskHubName eq 'FooProduction') or (TaskHubName eq 'BarStaging'))",
+                "(CreatedTime ge datetime'2018-01-10T10:10:10.0000000Z') and (CreatedTime le datetime'2018-01-10T10:10:50.0000000Z') and (RuntimeStatus eq 'Running' or RuntimeStatus eq 'Completed') and (TaskHubName eq 'FooProduction' or TaskHubName eq 'BarStaging')",
                 condition.ToOData().Filter);
         }
 
@@ -148,7 +148,7 @@ namespace DurableTask.AzureStorage.Tests
                 runtimeStatus);
 
             Assert.AreEqual(
-                "((CreatedTime ge datetime'2018-01-10T10:10:10.0000000Z') and (CreatedTime le datetime'2018-01-10T10:10:50.0000000Z')) and (RuntimeStatus eq 'Running')",
+                "(CreatedTime ge datetime'2018-01-10T10:10:10.0000000Z') and (CreatedTime le datetime'2018-01-10T10:10:50.0000000Z') and (RuntimeStatus eq 'Running')",
                 condition.ToOData().Filter);
         }
 

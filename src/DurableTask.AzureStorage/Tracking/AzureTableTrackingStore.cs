@@ -390,12 +390,12 @@ namespace DurableTask.AzureStorage.Tracking
                 FetchInput = fetchInput,
             };
 
-            (string? filter, IEnumerable<string>? select) = queryCondition.ToOData();
+            ODataCondition odata = queryCondition.ToOData();
 
             var sw = Stopwatch.StartNew();
 
             OrchestrationInstanceStatus? tableEntity = await this.InstancesTable
-                .ExecuteQueryAsync<OrchestrationInstanceStatus>(filter, 1, select, cancellationToken)
+                .ExecuteQueryAsync<OrchestrationInstanceStatus>(odata.Filter, 1, odata.Select, cancellationToken)
                 .FirstOrDefaultAsync();
 
             sw.Stop();
@@ -489,14 +489,14 @@ namespace DurableTask.AzureStorage.Tracking
 
         public override IAsyncEnumerable<OrchestrationState> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default)
         {
-            (string filter, IEnumerable<string> select) = OrchestrationInstanceStatusQueryCondition.Parse(createdTimeFrom, createdTimeTo, runtimeStatus).ToOData();
-            return this.QueryStateAsync(filter, select, cancellationToken);
+            ODataCondition odata = OrchestrationInstanceStatusQueryCondition.Parse(createdTimeFrom, createdTimeTo, runtimeStatus).ToOData();
+            return this.QueryStateAsync(odata.Filter, odata.Select, cancellationToken);
         }
 
         public override IAsyncEnumerable<OrchestrationState> GetStateAsync(OrchestrationInstanceStatusQueryCondition condition, CancellationToken cancellationToken = default)
         {
-            (string filter, IEnumerable<string> select) = condition.ToOData();
-            return this.QueryStateAsync(filter, select, cancellationToken);
+            ODataCondition odata = condition.ToOData();
+            return this.QueryStateAsync(odata.Filter, odata.Select, cancellationToken);
         }
 
         IAsyncEnumerable<OrchestrationState> QueryStateAsync(string filter = null, IEnumerable<string> select = null, CancellationToken cancellationToken = default)
@@ -519,7 +519,7 @@ namespace DurableTask.AzureStorage.Tracking
             condition.FetchInput = false;
             condition.FetchOutput = false;
 
-            (string filter, IEnumerable<string> select) = condition.ToOData();
+            ODataCondition odata = condition.ToOData();
 
             // Limit to batches of 100 to avoid excessive memory usage and table storage scanning
             int storageRequests = 0;
@@ -527,7 +527,7 @@ namespace DurableTask.AzureStorage.Tracking
             int rowsDeleted = 0;
 
             var options = new ParallelOptions { MaxDegreeOfParallelism = this.settings.MaxStorageOperationConcurrency };
-            AsyncPageable<OrchestrationInstanceStatus> entitiesPageable = this.InstancesTable.ExecuteQueryAsync<OrchestrationInstanceStatus>(filter, select: select, cancellationToken: cancellationToken);
+            AsyncPageable<OrchestrationInstanceStatus> entitiesPageable = this.InstancesTable.ExecuteQueryAsync<OrchestrationInstanceStatus>(odata.Filter, select: odata.Select, cancellationToken: cancellationToken);
             await foreach (Page<OrchestrationInstanceStatus> page in entitiesPageable.AsPages(pageSizeHint: 100))
             {
                 // The underlying client throttles
