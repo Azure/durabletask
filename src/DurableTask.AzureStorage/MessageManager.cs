@@ -161,7 +161,6 @@ namespace DurableTask.AzureStorage
             return this.UploadToBlobAsync(compressedSegment.Array, compressedSegment.Count, blobName, cancellationToken);
         }
 
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:DoNotDisposeObjectsMultipleTimes", Justification = "This GZipStream will not dispose the MemoryStream.")]
         public ArraySegment<byte> Compress(byte[] payloadBuffer)
         {
             using (var originStream = new MemoryStream(payloadBuffer, 0, payloadBuffer.Length))

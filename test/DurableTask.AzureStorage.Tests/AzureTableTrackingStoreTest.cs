@@ -15,6 +15,7 @@ namespace DurableTask.AzureStorage.Tests
 {
     using System;
     using System.Collections.Generic;
+    using System.Globalization;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
@@ -34,15 +35,19 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task QueryStatus_WithContinuationToken_NoInputToken()
         {
+            const string TableName = "MockTable";
             const string ConnectionString = "UseDevelopmentStorage=true";
 
             using var tokenSource = new CancellationTokenSource();
 
             var azureStorageClient = new AzureStorageClient(new AzureStorageOrchestrationServiceSettings(ConnectionString));
-            var tableServiceClient = new TableServiceClient(ConnectionString);
-            var tableMock = new Mock<Table>(MockBehavior.Strict, azureStorageClient, tableServiceClient, "MockTable");
+            var tableServiceClient = new Mock<TableServiceClient>(MockBehavior.Strict, ConnectionString);
+            var tableClient = new Mock<TableClient>(MockBehavior.Strict, ConnectionString, TableName);
+            tableServiceClient.Setup(t => t.GetTableClient(TableName)).Returns(tableClient.Object);
+
+            var table = new Table(azureStorageClient, tableServiceClient.Object, TableName);
             var stats = new AzureStorageOrchestrationServiceStats();
-            var trackingStore = new AzureTableTrackingStore(stats, tableMock.Object);
+            var trackingStore = new AzureTableTrackingStore(stats, table);
 
             DateTime expectedCreatedDateFrom = DateTime.UtcNow;
             DateTime expectedCreatedDateTo = expectedCreatedDateFrom.AddHours(1);
@@ -71,26 +76,39 @@ namespace DurableTask.AzureStorage.Tests
                 }
             };
 
-            tableMock
-                .Setup(t => t.ExecuteQueryAsync<OrchestrationInstanceStatus>(
-                    $"{nameof(OrchestrationInstanceStatus.CreatedTime)} ge datetime'{expectedCreatedDateFrom:O} and {nameof(OrchestrationInstanceStatus.CreatedTime)} le datetime'{expectedCreatedDateTo:O}'",
+            string expectedFilter = string.Format(
+                CultureInfo.InvariantCulture,
+                "{0} ge datetime'{1:O}' and {0} le datetime'{2:O}' and ({3} eq '{4:G}' or {3} eq '{5:G}' or {3} eq '{6:G}')",
+                nameof(OrchestrationInstanceStatus.CreatedTime),
+                expectedCreatedDateFrom,
+                expectedCreatedDateTo,
+                nameof(OrchestrationInstanceStatus.RuntimeStatus),
+                OrchestrationStatus.Running,
+                OrchestrationStatus.Completed,
+                OrchestrationStatus.Failed);
+
+            tableClient
+                .Setup(t => t.QueryAsync<OrchestrationInstanceStatus>(
+                    expectedFilter,
                     null,
-                    new string[] { "foo", "bar", "baz" },
+                    null,
                     tokenSource.Token))
-                .Returns(
-                    new TableQueryResponse<OrchestrationInstanceStatus>(
-                        AsyncPageable<OrchestrationInstanceStatus>.FromPages(
-                            new[] { Page<OrchestrationInstanceStatus>.FromValues(expected, null, new Mock<Response>().Object) })));
+                .Returns(AsyncPageable<OrchestrationInstanceStatus>.FromPages(
+                    new[]
+                    {
+                        Page<OrchestrationInstanceStatus>.FromValues(expected, null, new Mock<Response>().Object)
+                    }));
 
             // .ExecuteQueryAsync<OrchestrationInstanceStatus>(filter, select, cancellationToken)
             var actual = await trackingStore
-                .GetStateAsync(expectedCreatedDateFrom, expectedCreatedDateTo, inputState)
+                .GetStateAsync(expectedCreatedDateFrom, expectedCreatedDateTo, inputState, tokenSource.Token)
                 .ToListAsync();
 
-            Assert.Equals(expected.Count, actual.Count);
+            Assert.AreEqual(expected.Count, actual.Count);
             for (int i = 0; i < expected.Count; i++)
             {
-                Assert.AreSame(expected[i], actual[i]);
+                Assert.AreEqual(expected[i].Name, actual[i].Name);
+                Assert.AreEqual(Enum.Parse(typeof(OrchestrationStatus), expected[i].RuntimeStatus), actual[i].OrchestrationStatus);
             }
         }
     }

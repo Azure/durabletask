@@ -36,37 +36,29 @@ namespace DurableTask.AzureStorage.Storage
 
         public Blob(BlobServiceClient blobServiceClient, Uri blobUri)
         {
-            if (!blobUri.IsAbsoluteUri)
+            string serviceString = blobServiceClient.Uri.AbsoluteUri;
+            if (serviceString[serviceString.Length - 1] != '/')
             {
-                throw new ArgumentException("Blob URI must be absolute", nameof(blobUri));
+                serviceString += '/';
             }
 
-            if (blobUri.Scheme != blobServiceClient.Uri.Scheme)
+            string blobString = blobUri.AbsoluteUri;
+            if (blobString.IndexOf(blobString, StringComparison.Ordinal) != 0)
             {
-                throw new ArgumentException("Blob URI has a different scheme from blob client,", nameof(blobUri));
+                throw new ArgumentException("Blob is not present in the storage account", nameof(blobUri));
             }
 
-            if (blobUri.Host != blobServiceClient.Uri.Host)
+            // Create a relative URI by removing the service's address
+            string remaining = blobString.Substring(serviceString.Length);
+            int containerEnd = remaining.IndexOf('/');
+            if (containerEnd == -1)
             {
-                throw new ArgumentException("Blob URI has a different host from blob client,", nameof(blobUri));
+                throw new ArgumentException("Missing blob container", nameof(blobUri));
             }
 
-            if (blobUri.Port != blobServiceClient.Uri.Port)
-            {
-                throw new ArgumentException("Blob URI has a different port from blob client,", nameof(blobUri));
-            }
-
-            if (blobUri.Segments.Length < 3)
-            {
-                throw new ArgumentException("Blob URI is missing the container.", nameof(blobUri));
-            }
-
-            // Uri.Segments splits on the '/' in the path such that it is always the last character.
-            // Eg. 'https://foo.blob.core.windows.net/bar/baz/dog.json' => [ '/', 'bar/', 'baz/', 'dog.json' ]
-            string container = blobUri.Segments[1];
             this.blockBlobClient = blobServiceClient
-                .GetBlobContainerClient(container.Substring(0, container.Length - 1))
-                .GetBlockBlobClient(string.Join("", blobUri.Segments.Skip(2)));
+                .GetBlobContainerClient(remaining.Substring(0, containerEnd))
+                .GetBlockBlobClient(remaining.Substring(containerEnd + 1));
         }
 
         public string? Name { get; }
