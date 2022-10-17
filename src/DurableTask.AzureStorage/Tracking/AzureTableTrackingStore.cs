@@ -40,8 +40,9 @@ namespace DurableTask.AzureStorage.Tracking
         const string InputProperty = "Input";
         const string ResultProperty = "Result";
         const string OutputProperty = "Output";
-        const string RowKeyProperty = "RowKey";
-        const string PartitionKeyProperty = "PartitionKey";
+        const string RowKeyProperty = nameof(TableEntity.RowKey);
+        const string PartitionKeyProperty = nameof(TableEntity.PartitionKey);
+        const string TimestampProperty = nameof(TableEntity.Timestamp);
         const string SentinelRowKey = "sentinel";
         const string IsCheckpointCompleteProperty = "IsCheckpointComplete";
         const string CheckpointCompletedTimestampProperty = "CheckpointCompletedTimestamp";
@@ -552,7 +553,7 @@ namespace DurableTask.AzureStorage.Tracking
                 .GetHistoryEntitiesResponseInfoAsync(
                     instanceId: sanitizedInstanceId,
                     expectedExecutionId: null,
-                    projectionColumns: new[] { RowKeyProperty },
+                    projectionColumns: new[] { RowKeyProperty, PartitionKeyProperty, TimestampProperty },
                     cancellationToken)
                 .GetResultsAsync(cancellationToken: cancellationToken);
 

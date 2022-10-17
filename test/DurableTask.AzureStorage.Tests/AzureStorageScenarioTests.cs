@@ -25,6 +25,7 @@ namespace DurableTask.AzureStorage.Tests
     using Azure.Data.Tables;
     using Azure.Storage.Blobs;
     using Azure.Storage.Blobs.Models;
+    using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
@@ -1479,12 +1480,12 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                await ValidateBlobUrlAsync(
+                await ValidateLargeMessageBlobUrlAsync(
                     host.TaskHub,
                     client.InstanceId,
                     status?.Input,
                     Encoding.UTF8.GetByteCount(message));
-                await ValidateBlobUrlAsync(
+                await ValidateLargeMessageBlobUrlAsync(
                     host.TaskHub,
                     client.InstanceId,
                     status?.Output,
@@ -1512,12 +1513,12 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                await ValidateBlobUrlAsync(
+                await ValidateLargeMessageBlobUrlAsync(
                     host.TaskHub,
                     client.InstanceId,
                     status?.Input,
                     Encoding.UTF8.GetByteCount(message));
-                await ValidateBlobUrlAsync(
+                await ValidateLargeMessageBlobUrlAsync(
                     host.TaskHub,
                     client.InstanceId,
                     status?.Output,
@@ -1961,34 +1962,27 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        private static async Task ValidateBlobUrlAsync(string taskHubName, string instanceId, string value, int originalPayloadSize = 0)
+        private static async Task ValidateLargeMessageBlobUrlAsync(string taskHubName, string instanceId, string value, int originalPayloadSize = 0)
         {
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
 
             var serviceClient = new BlobServiceClient(TestHelpers.GetTestStorageAccountConnectionString());
-
             Assert.IsTrue(value.StartsWith(serviceClient.Uri.OriginalString));
             Assert.IsTrue(value.Contains("/" + sanitizedInstanceId + "/"));
             Assert.IsTrue(value.EndsWith(".json.gz"));
 
+            string blobName = value.Split('/').Last();
+            Assert.IsTrue(await new Blob(serviceClient, new Uri(value)).ExistsAsync(), $"Blob named {blobName} is expected to exist.");
+
             string containerName = $"{taskHubName.ToLowerInvariant()}-largemessages";
             BlobContainerClient container = serviceClient.GetBlobContainerClient(containerName);
             Assert.IsTrue(await container.ExistsAsync(), $"Blob container {containerName} is expected to exist.");
-
-            string blobName = value.Split('/').Last();
-            int containerStart = value.IndexOf(serviceClient.Uri.OriginalString) + serviceClient.Uri.OriginalString.Length;
-            var blobClient = serviceClient
-                .GetBlobContainerClient(value.Substring(containerStart, value.IndexOf('/', containerStart + 1)))
-                .GetBlobClient(blobName);
-
-            await blobClient.ExistsAsync();
-            Assert.AreEqual(value, blobClient.Uri.OriginalString);
-            BlobItem blob = await container.GetBlobsByHierarchyAsync(prefix: sanitizedInstanceId)
-                .Where(x => x.IsBlob)
+            BlobItem blob = await container
+                .GetBlobsByHierarchyAsync(BlobTraits.Metadata, prefix: sanitizedInstanceId)
+                .Where(x => x.IsBlob && x.Blob.Name == sanitizedInstanceId + "/" + blobName)
                 .Select(x => x.Blob)
                 .SingleOrDefaultAsync();
-
-            Assert.AreEqual(blobName, blob.Name, $"Blob named {blob.Name} is expected to exist.");
+            Assert.IsNotNull(blob);
 
             if (originalPayloadSize > 0)
             {
@@ -2905,7 +2899,7 @@ namespace DurableTask.AzureStorage.Tests
 
                     if (ShouldFail)
                     {
-                        throw new Exception("Simulating unhandled activty function failure...");
+                        throw new Exception("Simulating unhandled activity function failure...");
                     }
 
                     return $"Hello, {input}!";
@@ -2925,7 +2919,7 @@ namespace DurableTask.AzureStorage.Tests
 
                     if (ShouldFail1 || ShouldFail2) //&& (input == "0" || input == "2"))
                     {
-                        throw new Exception("Simulating unhandled activty function failure...");
+                        throw new Exception("Simulating unhandled activity function failure...");
                     }
 
                     return $"Hello, {input}!";
@@ -2945,7 +2939,7 @@ namespace DurableTask.AzureStorage.Tests
 
                     if (ShouldFail1 || ShouldFail2)
                     {
-                        throw new Exception("Simulating unhandled activty function failure...");
+                        throw new Exception("Simulating unhandled activity function failure...");
                     }
 
                     return $"Hello, {input}!";
@@ -2965,7 +2959,7 @@ namespace DurableTask.AzureStorage.Tests
 
                     if (ShouldFail1 || ShouldFail2)
                     {
-                        throw new Exception("Simulating unhandled activty function failure...");
+                        throw new Exception("Simulating unhandled activity function failure...");
                     }
 
                     return $"Hello, {input}!";
@@ -2985,7 +2979,7 @@ namespace DurableTask.AzureStorage.Tests
 
                     if (ShouldFail1 || ShouldFail2)
                     {
-                        throw new Exception("Simulating unhandled activty function failure...");
+                        throw new Exception("Simulating unhandled activity function failure...");
                     }
 
                     return $"Hello, {input}!";

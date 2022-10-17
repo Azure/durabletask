@@ -13,12 +13,12 @@
 
 namespace DurableTask.AzureStorage.Tests
 {
-    using Azure.Data.Tables;
-    using DurableTask.AzureStorage.Tracking;
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
     using System;
     using System.Linq;
     using System.Runtime.Serialization;
+    using Azure.Data.Tables;
+    using DurableTask.AzureStorage.Tracking;
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
     public class TableEntityConverterTests
@@ -124,7 +124,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public void SerializeNonNull()
         {
-            var expected = new Example
+            var expected = new Example(default)
             {
                 EnumField = ExampleEnum.B,
                 NullableEnumProperty = ExampleEnum.C,
@@ -162,7 +162,7 @@ namespace DurableTask.AzureStorage.Tests
         {
             // Of course, these null values are the defaults,
             // but we'll set them explicitly to illustrate the purpose of the test
-            var expected = new Example
+            var expected = new Example(default)
             {
                 NullableEnumProperty = null,
                 StringProperty = null,
@@ -290,6 +290,11 @@ namespace DurableTask.AzureStorage.Tests
 
             [DataMember]
             internal Nested ObjectProperty { get; set; }
+
+            public Example(int intField)
+            {
+                this.IntField = intField;
+            }
         }
 
         public sealed class Nested

@@ -138,6 +138,7 @@ namespace DurableTask.AzureStorage.Storage
                 if (batch.Count == batchSize)
                 {
                     resultsBuilder.Add(await this.ExecuteBatchAsync(batch, cancellationToken));
+                    batch.Clear();
                 }
             }
 

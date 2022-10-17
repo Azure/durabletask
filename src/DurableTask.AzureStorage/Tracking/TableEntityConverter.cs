@@ -50,6 +50,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             Debug.Assert(type.GetCustomAttribute<DataContractAttribute>() != null);
 
+            MethodInfo getStringMethod = typeof(TableEntity).GetMethod(nameof(TableEntity.GetString), new Type[] { typeof(string) });
             MethodInfo parseMethod = typeof(Enum).GetMethod(nameof(Enum.Parse), new Type[] { typeof(Type), typeof(string) });
             MethodInfo deserializeMethod = typeof(Utils).GetMethod(nameof(Utils.DeserializeFromJson), new Type[] { typeof(string) });
 
@@ -67,8 +68,13 @@ namespace DurableTask.AzureStorage.Tracking
                         Expression.Constant(tableParam.Name, typeof(string))))));
             #endregion
 
-            #region <Type> output = new <Type>();
-            body.Add(Expression.Assign(outputVar, Expression.New(type)));
+            #region <Type> output = (<Type>)FormatterServices.GetUninitializedObject(typeof(<Type>));
+            MethodInfo getUninitializedObjectMethod = typeof(FormatterServices).GetMethod(nameof(FormatterServices.GetUninitializedObject), new Type[] { typeof(Type) });
+            body.Add(Expression.Assign(
+                outputVar,
+                Expression.Convert(
+                    Expression.Call(null, getUninitializedObjectMethod, Expression.Constant(type, typeof(Type))),
+                    type)));
             #endregion
 
             foreach ((string propertyName, Type memberType, MemberInfo metadata) in EnumerateMembers(type))
@@ -81,7 +87,7 @@ namespace DurableTask.AzureStorage.Tracking
                     ParameterExpression enumStringVar = Expression.Parameter(typeof(string), propertyName + "Variable");
                     variables.Add(enumStringVar);
 
-                    body.Add(Expression.Assign(enumStringVar, Expression.Call(tableParam, typeof(TableEntity).GetMethod(nameof(TableEntity.GetString)), Expression.Constant(propertyName, typeof(string)))));
+                    body.Add(Expression.Assign(enumStringVar, Expression.Call(tableParam, getStringMethod, Expression.Constant(propertyName, typeof(string)))));
                     #endregion
 
                     #region output.<Member> = <Member>Variable == null ? default(<MemberType>) : (<MemberType>)Enum.Parse(typeof(<MemberType>), <Member>Variable);
@@ -112,7 +118,7 @@ namespace DurableTask.AzureStorage.Tracking
                     ParameterExpression jsonVariable = Expression.Parameter(typeof(string), propertyName + "Variable");
                     variables.Add(jsonVariable);
 
-                    body.Add(Expression.Assign(jsonVariable, Expression.Call(tableParam, typeof(TableEntity).GetMethod(nameof(TableEntity.GetString)), Expression.Constant(propertyName, typeof(string)))));
+                    body.Add(Expression.Assign(jsonVariable, Expression.Call(tableParam, getStringMethod, Expression.Constant(propertyName, typeof(string)))));
                     #endregion
 
                     #region output.<Member> = = <Member>Variable == null ? default(<MemberType>) : Utils.DeserializeFromJson<<MemberType>>(<Member>Variable);
@@ -143,7 +149,8 @@ namespace DurableTask.AzureStorage.Tracking
 
             Debug.Assert(type.GetCustomAttribute<DataContractAttribute>() != null);
 
-            MethodInfo setItemMethod = typeof(TableEntity).GetMethod("set_Item"); // Indexers use "get_Item" and "set_Item"
+            // Indexers use "get_Item" and "set_Item"
+            MethodInfo setItemMethod = typeof(TableEntity).GetMethod("set_Item", new Type[] { typeof(string), typeof(object) });
             MethodInfo serializeMethod = typeof(Utils).GetMethod(nameof(Utils.SerializeToJson), new Type[] { typeof(string) });
 
             ParameterExpression objParam = Expression.Parameter(typeof(object), "obj");
@@ -213,8 +220,7 @@ namespace DurableTask.AzureStorage.Tracking
             body.Add(tableVar);
             #endregion
 
-            var lambda = Expression.Lambda<Func<object, TableEntity>>(Expression.Block(variables, body), objParam);
-            return lambda.Compile();
+            return Expression.Lambda<Func<object, TableEntity>>(Expression.Block(variables, body), objParam).Compile();
         }
 
         static IEnumerable<(string Name, Type MemberType, MemberInfo Metadata)> EnumerateMembers(Type type)
@@ -284,33 +290,33 @@ namespace DurableTask.AzureStorage.Tracking
         static MethodInfo GetEntityAccessor(Type type)
         {
             if (type == typeof(string))
-                return typeof(TableEntity).GetMethod(nameof(TableEntity.GetString));
+                return typeof(TableEntity).GetMethod(nameof(TableEntity.GetString), new Type[] { typeof(string) });
 
             if (type == typeof(BinaryData))
-                return typeof(TableEntity).GetMethod(nameof(TableEntity.GetBinaryData));
+                return typeof(TableEntity).GetMethod(nameof(TableEntity.GetBinaryData), new Type[] { typeof(string) });
 
             if (type == typeof(byte[]))
-                return typeof(TableEntity).GetMethod(nameof(TableEntity.GetBinary));
+                return typeof(TableEntity).GetMethod(nameof(TableEntity.GetBinary), new Type[] { typeof(string) });
 
             if (type == typeof(bool) || type == typeof(bool?))
-                return typeof(TableEntity).GetMethod(nameof(TableEntity.GetBoolean));
+                return typeof(TableEntity).GetMethod(nameof(TableEntity.GetBoolean), new Type[] { typeof(string) });
 
             if (type == typeof(DateTime) || type == typeof(DateTime?))
-                return typeof(TableEntity).GetMethod(nameof(TableEntity.GetDateTime));
+                return typeof(TableEntity).GetMethod(nameof(TableEntity.GetDateTime), new Type[] { typeof(string) });
 
             if (type == typeof(DateTimeOffset) || type == typeof(DateTimeOffset?))
-                return typeof(TableEntity).GetMethod(nameof(TableEntity.GetDateTimeOffset));
+                return typeof(TableEntity).GetMethod(nameof(TableEntity.GetDateTimeOffset), new Type[] { typeof(string) });
 
             if (type == typeof(double) || type == typeof(double?))
-                return typeof(TableEntity).GetMethod(nameof(TableEntity.GetDouble));
+                return typeof(TableEntity).GetMethod(nameof(TableEntity.GetDouble), new Type[] { typeof(string) });
 
             if (type == typeof(Guid) || type == typeof(Guid?))
-                return typeof(TableEntity).GetMethod(nameof(TableEntity.GetGuid));
+                return typeof(TableEntity).GetMethod(nameof(TableEntity.GetGuid), new Type[] { typeof(string) });
 
             if (type == typeof(int) || type == typeof(int?))
-                return typeof(TableEntity).GetMethod(nameof(TableEntity.GetInt32));
+                return typeof(TableEntity).GetMethod(nameof(TableEntity.GetInt32), new Type[] { typeof(string) });
 
-            return typeof(TableEntity).GetMethod(nameof(TableEntity.GetInt64));
+            return typeof(TableEntity).GetMethod(nameof(TableEntity.GetInt64), new Type[] { typeof(string) });
         }
     }
 }
