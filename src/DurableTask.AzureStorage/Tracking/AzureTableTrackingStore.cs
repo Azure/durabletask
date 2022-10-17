@@ -66,7 +66,6 @@ namespace DurableTask.AzureStorage.Tracking
         readonly AzureStorageClient azureStorageClient;
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly AzureStorageOrchestrationServiceStats stats;
-        readonly TableEntityConverter tableEntityConverter;
         readonly IReadOnlyDictionary<EventType, Type> eventTypeMap;
         readonly MessageManager messageManager;
 
@@ -78,7 +77,6 @@ namespace DurableTask.AzureStorage.Tracking
             this.messageManager = messageManager;
             this.settings = this.azureStorageClient.Settings;
             this.stats = this.azureStorageClient.Stats;
-            this.tableEntityConverter = new TableEntityConverter();
             this.taskHubName = settings.TaskHubName;
 
             this.storageAccountName = this.azureStorageClient.TableAccountName;
@@ -183,7 +181,7 @@ namespace DurableTask.AzureStorage.Tracking
                     // Some entity properties may be stored in blob storage.
                     await this.DecompressLargeEntityProperties(entity, cancellationToken);
 
-                    events.Add(this.tableEntityConverter.ConvertFromTableEntity<HistoryEvent>(entity, GetTypeForTableEntity));
+                    events.Add((HistoryEvent)TableEntityConverter.Deserialize(entity, GetTypeForTableEntity(entity)));
                 }
 
                 historyEvents = events;
@@ -802,7 +800,7 @@ namespace DurableTask.AzureStorage.Tracking
                 bool isFinalEvent = i == newEvents.Count - 1;
 
                 HistoryEvent historyEvent = newEvents[i];
-                var historyEntity = this.tableEntityConverter.ConvertToTableEntity(historyEvent);
+                var historyEntity = TableEntityConverter.Serialize(historyEvent);
                 historyEntity.PartitionKey = sanitizedInstanceId;
 
                 newEventListBuffer.Append(historyEvent.EventType.ToString()).Append(',');
