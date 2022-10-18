@@ -129,6 +129,11 @@ namespace DurableTask.AzureStorage.Storage
             int batchSize = 100,
             CancellationToken cancellationToken = default) where T : ITableEntity
         {
+            if (batchSize > 100)
+            {
+                throw new ArgumentOutOfRangeException(nameof(batchSize), "Table storage does not support batch sizes greater than 100.");
+            }
+
             var resultsBuilder = new TableTransactionResultsBuilder();
             var batch = new List<TableTransactionAction>(batchSize);
 

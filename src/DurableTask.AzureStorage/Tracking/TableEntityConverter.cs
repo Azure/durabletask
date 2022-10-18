@@ -81,7 +81,7 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 #region output.<Member> = /* ... */
                 Expression valueExpr;
-                if (memberType.IsEnum || IsNullableEnum(memberType))
+                if (memberType.IsEnum)
                 {
                     #region string <Member>Variable = table.GetString("<property>");
                     ParameterExpression enumStringVar = Expression.Parameter(typeof(string), propertyName + "Variable");
@@ -91,11 +91,10 @@ namespace DurableTask.AzureStorage.Tracking
                     #endregion
 
                     #region output.<Member> = <Member>Variable == null ? default(<MemberType>) : (<MemberType>)Enum.Parse(typeof(<MemberType>), <Member>Variable);
-                    Type enumType = memberType.IsEnum ? memberType : memberType.GetGenericArguments()[0];
                     valueExpr = Expression.Condition(
                         Expression.Equal(enumStringVar, Expression.Constant(null, typeof(string))),
                         Expression.Default(memberType),
-                        Expression.Convert(Expression.Call(null, parseMethod, Expression.Constant(enumType, typeof(Type)), enumStringVar), memberType));
+                        Expression.Convert(Expression.Call(null, parseMethod, Expression.Constant(memberType, typeof(Type)), enumStringVar), memberType));
                     #endregion
                 }
                 else if(IsSupportedType(memberType))
@@ -114,6 +113,7 @@ namespace DurableTask.AzureStorage.Tracking
                 }
                 else
                 {
+                    // Note: We also deserialize nullable enumerations using JSON for backwards compatibility
                     #region string <Member>Variable = table.GetString("<property>");
                     ParameterExpression jsonVariable = Expression.Parameter(typeof(string), propertyName + "Variable");
                     variables.Add(jsonVariable);
@@ -188,17 +188,6 @@ namespace DurableTask.AzureStorage.Tracking
                     valueExpr = Expression.Call(memberExpr, toStringMethod, Expression.Constant("G", typeof(string)));
                     #endregion
                 }
-                else if (IsNullableEnum(memberType))
-                {
-                    #region table["<property>"] = input.<Member> == null ? (string)null : input.<Member>.GetValueOrDefault().ToString("G");
-                    MethodInfo getValueOrDefault = memberType.GetMethod(nameof(Nullable<int>.GetValueOrDefault), Type.EmptyTypes);
-                    MethodInfo toStringMethod = memberType.GetGenericArguments()[0].GetMethod(nameof(object.ToString), new Type[] { typeof(string) });
-                    valueExpr = Expression.Condition(
-                        Expression.Equal(memberExpr, Expression.Constant(null, memberType)),
-                        Expression.Constant(null, typeof(string)),
-                        Expression.Call(Expression.Call(memberExpr, getValueOrDefault), toStringMethod, Expression.Constant("G", typeof(string))));
-                    #endregion
-                }
                 else if (IsSupportedType(memberType))
                 {
                     #region table["<property>"] = input.<Member>;
@@ -207,6 +196,7 @@ namespace DurableTask.AzureStorage.Tracking
                 }
                 else
                 {
+                    // Note: We also serialize nullable enumerations using JSON for backwards compatibility
                     #region table["<property>"] = Utils.SerializeToJson(input.<Member>);
                     valueExpr = Expression.Call(null, serializeMethod, memberType != typeof(object) ? Expression.Convert(memberExpr, typeof(object)) : memberExpr);
                     #endregion
@@ -262,11 +252,6 @@ namespace DurableTask.AzureStorage.Tracking
                 type = type.BaseType;
             }
         }
-
-        static bool IsNullableEnum(Type type) =>
-            type.IsGenericType &&
-            type.GetGenericTypeDefinition() == typeof(Nullable<>) &&
-            type.GetGenericArguments()[0].IsEnum;
 
         static bool IsSupportedType(Type type) =>
             type == typeof(string) ||

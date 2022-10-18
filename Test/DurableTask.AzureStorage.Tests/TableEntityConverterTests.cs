@@ -14,11 +14,15 @@
 namespace DurableTask.AzureStorage.Tests
 {
     using System;
+    using System.Collections.Generic;
     using System.Linq;
     using System.Runtime.Serialization;
+    using System.Threading.Tasks;
     using Azure.Data.Tables;
+    using DurableTask.AzureStorage.Tests.Obsolete;
     using DurableTask.AzureStorage.Tracking;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using Microsoft.WindowsAzure.Storage;
 
     [TestClass]
     public class TableEntityConverterTests
@@ -33,7 +37,7 @@ namespace DurableTask.AzureStorage.Tests
             var entity = new TableEntity
             {
                 [nameof(Example.EnumField)] = ExampleEnum.B.ToString("G"),
-                [nameof(Example.NullableEnumProperty)] = ExampleEnum.C.ToString("G"),
+                [nameof(Example.NullableEnumProperty)] = Utils.SerializeToJson(ExampleEnum.C),
                 [nameof(Example.StringProperty)] = "Hello World",
                 [nameof(Example.BinaryDataField)] = new BinaryData(new byte[] { 1, 2, 3, 4, 5 }),
                 [nameof(Example.BinaryProperty)] = new byte[] { 6, 7, 8 },
@@ -51,6 +55,7 @@ namespace DurableTask.AzureStorage.Tests
                 [nameof(Example.NullableIntField)] = 10162022,
                 [nameof(Example.LongField)] = -2L,
                 [nameof(Example.NullableLongProperty)] = long.MaxValue,
+                [nameof(Example.Skipped)] = "Ignored",
                 [nameof(Example.UnsupportedProperty)] = Utils.SerializeToJson((short)7),
                 [nameof(Example.ObjectProperty)] = Utils.SerializeToJson(new Nested { Phrase = "Hello again", Number = -42 }),
             };
@@ -76,6 +81,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(10162022, actual.NullableIntField);
             Assert.AreEqual(-2L, actual.LongField);
             Assert.AreEqual(long.MaxValue, actual.NullableLongProperty);
+            Assert.IsNull(actual.Skipped);
             Assert.AreEqual((short)7, actual.UnsupportedProperty);
             Assert.AreEqual("Hello again", actual.ObjectProperty.Phrase);
             Assert.AreEqual(-42, actual.ObjectProperty.Number);
@@ -182,10 +188,148 @@ namespace DurableTask.AzureStorage.Tests
             AssertEntity(expected, TableEntityConverter.Serialize(expected));
         }
 
+        [TestMethod]
+        public async Task BackwardsCompatible()
+        {
+            // Note: BinaryData was previously invalid in the previous converter
+            var oldConverter = new LegacyTableEntityConverter();
+            var expected = new Example(default)
+            {
+                EnumField = ExampleEnum.B,
+                NullableEnumProperty = ExampleEnum.C,
+                StringProperty = "Hello World",
+                // BinaryDataField = new BinaryData(new byte[] { 1, 2, 3, 4, 5 }),
+                BinaryProperty = new byte[] { 6, 7, 8 },
+                BoolProperty = true,
+                NullableBoolProperty = true,
+                Timestamp = DateTime.UtcNow,
+                NullableDateTimeField = DateTime.UtcNow.AddDays(-1),
+                DateTimeOffsetProperty = DateTimeOffset.UtcNow.AddYears(-5),
+                NullableDateTimeOffsetProperty = DateTimeOffset.UtcNow.AddMonths(-2),
+                DoubleField = 1.234,
+                NullableDoubleProperty = 56.789,
+                GuidProperty = Guid.NewGuid(),
+                NullableGuidField = Guid.NewGuid(),
+                IntField = 42,
+                NullableIntField = 10162022,
+                LongField = -2,
+                NullableLongProperty = long.MaxValue,
+                Skipped = "Not Used",
+                UnsupportedProperty = 7,
+                ObjectProperty = new Nested
+                {
+                    Phrase = "Hello again",
+                    Number = -42,
+                },
+            };
+
+            // Create the DynamicTableEntity
+            var entity = oldConverter.ConvertToTableEntity(expected);
+            entity.PartitionKey = "12345";
+            entity.RowKey = "1";
+
+            var legacyTableClient = CloudStorageAccount
+                .Parse(TestHelpers.GetTestStorageAccountConnectionString())
+                .CreateCloudTableClient()
+                .GetTableReference(nameof(BackwardsCompatible));
+
+            try
+            {
+                // Initialize table and add the entity
+                await legacyTableClient.DeleteIfExistsAsync();
+                await legacyTableClient.CreateAsync();
+                await legacyTableClient.ExecuteAsync(Microsoft.WindowsAzure.Storage.Table.TableOperation.Insert(entity));
+
+                // Read the old entity using the new logic
+                var tableClient = new TableServiceClient(TestHelpers.GetTestStorageAccountConnectionString()).GetTableClient(nameof(BackwardsCompatible));
+                var result = await tableClient.QueryAsync<TableEntity>(filter: $"{nameof(ITableEntity.RowKey)} eq '1'").SingleAsync();
+
+                // Compare
+                expected.Skipped = null;
+                Assert.AreEqual(expected, (Example)TableEntityConverter.Deserialize(result, typeof(Example)));
+            }
+            finally
+            {
+                await legacyTableClient.DeleteIfExistsAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task ForwardsCompatible()
+        {
+            // Note: BinaryData was previously invalid in the previous converter
+            var expected = new Example(default)
+            {
+                EnumField = ExampleEnum.B,
+                NullableEnumProperty = ExampleEnum.C,
+                StringProperty = "Hello World",
+                // BinaryDataField = new BinaryData(new byte[] { 1, 2, 3, 4, 5 }),
+                BinaryProperty = new byte[] { 6, 7, 8 },
+                BoolProperty = true,
+                NullableBoolProperty = true,
+                Timestamp = DateTime.UtcNow,
+                NullableDateTimeField = DateTime.UtcNow.AddDays(-1),
+                DateTimeOffsetProperty = DateTimeOffset.UtcNow.AddYears(-5),
+                NullableDateTimeOffsetProperty = DateTimeOffset.UtcNow.AddMonths(-2),
+                DoubleField = 1.234,
+                NullableDoubleProperty = 56.789,
+                GuidProperty = Guid.NewGuid(),
+                NullableGuidField = Guid.NewGuid(),
+                IntField = 42,
+                NullableIntField = 10162022,
+                LongField = -2,
+                NullableLongProperty = long.MaxValue,
+                Skipped = "Not Used",
+                UnsupportedProperty = 7,
+                ObjectProperty = new Nested
+                {
+                    Phrase = "Hello again",
+                    Number = -42,
+                },
+            };
+
+            // Create the TableEntity
+            var entity = TableEntityConverter.Serialize(expected);
+            entity.PartitionKey = "12345";
+            entity.RowKey = "1";
+
+            var tableClient = new TableServiceClient(TestHelpers.GetTestStorageAccountConnectionString()).GetTableClient(nameof(ForwardsCompatible));
+
+            try
+            {
+                // Initialize table and add the entity
+                await tableClient.DeleteAsync();
+                await tableClient.CreateAsync();
+                await tableClient.AddEntityAsync(entity);
+
+                // Read the new entity using the old logic
+                var legacyTableClient = CloudStorageAccount
+                    .Parse(TestHelpers.GetTestStorageAccountConnectionString())
+                    .CreateCloudTableClient()
+                    .GetTableReference(nameof(ForwardsCompatible));
+
+                var segment = await legacyTableClient.ExecuteQuerySegmentedAsync(
+                    new Microsoft.WindowsAzure.Storage.Table.TableQuery<Microsoft.WindowsAzure.Storage.Table.DynamicTableEntity>().Where(
+                        Microsoft.WindowsAzure.Storage.Table.TableQuery.GenerateFilterCondition(
+                            nameof(ITableEntity.RowKey),
+                            Microsoft.WindowsAzure.Storage.Table.QueryComparisons.Equal,
+                            "1")),
+                    null);
+
+                // Compare
+                expected.Skipped = null;
+                Assert.AreEqual(expected, (Example)new LegacyTableEntityConverter().ConvertFromTableEntity(segment.Single(), x => typeof(Example)));
+            }
+            finally
+            {
+                await tableClient.DeleteAsync();
+            }
+        }
+
         static void AssertEntity(Example expected, TableEntity actual)
         {
             Assert.AreEqual(expected.EnumField.ToString(), actual.GetString(nameof(Example.EnumField)));
-            Assert.AreEqual(expected.NullableEnumProperty?.ToString(), actual.GetString(nameof(Example.NullableEnumProperty)));
+            Assert.AreEqual(Utils.SerializeToJson(expected.NullableEnumProperty), actual.GetString(nameof(Example.NullableEnumProperty)));
             Assert.AreEqual(expected.StringProperty, actual.GetString(nameof(Example.StringProperty)));
             Assert.AreEqual(expected.BoolProperty, actual.GetBoolean(nameof(Example.BoolProperty)));
             Assert.AreEqual(expected.NullableBoolProperty, actual.GetBoolean(nameof(Example.NullableBoolProperty)));
@@ -224,7 +368,7 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [DataContract]
-        sealed class Example
+        sealed class Example : IEquatable<Example>
         {
             [DataMember]
             public ExampleEnum EnumField;
@@ -295,16 +439,61 @@ namespace DurableTask.AzureStorage.Tests
             {
                 this.IntField = intField;
             }
+
+            public override bool Equals(object obj) =>
+                obj is Example other && Equals(other);
+
+            public bool Equals(Example other) =>
+                other != null &&
+                EnumField == other.EnumField &&
+                EqualityComparer<ExampleEnum?>.Default.Equals(NullableEnumProperty, other.NullableEnumProperty) &&
+                StringProperty == other.StringProperty &&
+                ArrayEquals(BinaryDataField?.ToArray(), other.BinaryDataField?.ToArray()) &&
+                ArrayEquals(BinaryProperty, other.BinaryProperty) &&
+                BoolProperty == other.BoolProperty &&
+                EqualityComparer<bool?>.Default.Equals(NullableBoolProperty, other.NullableBoolProperty) &&
+                Timestamp == other.Timestamp &&
+                EqualityComparer<DateTime?>.Default.Equals(NullableDateTimeField, other.NullableDateTimeField) &&
+                DateTimeOffsetProperty == other.DateTimeOffsetProperty &&
+                EqualityComparer<DateTimeOffset?>.Default.Equals(NullableDateTimeOffsetProperty, other.NullableDateTimeOffsetProperty) &&
+                DoubleField == other.DoubleField &&
+                EqualityComparer<double?>.Default.Equals(NullableDoubleProperty, other.NullableDoubleProperty) &&
+                GuidProperty == other.GuidProperty &&
+                EqualityComparer<Guid?>.Default.Equals(NullableGuidField, other.NullableGuidField) &&
+                IntField == other.IntField &&
+                EqualityComparer<int?>.Default.Equals(NullableIntField, other.NullableIntField) &&
+                LongField == other.LongField &&
+                EqualityComparer<long?>.Default.Equals(NullableLongProperty, other.NullableLongProperty) &&
+                Skipped == other.Skipped &&
+                UnsupportedProperty == other.UnsupportedProperty &&
+                ObjectProperty.Equals(other.ObjectProperty);
+
+            public override int GetHashCode() =>
+                throw new NotImplementedException();
+
+            private static bool ArrayEquals<T>(T[] x, T[] y) where T : IEquatable<T>
+            {
+                if (x == null)
+                    return y == null;
+
+                if (y == null)
+                    return false;
+
+                return x.SequenceEqual(y);
+            }
         }
 
-        public sealed class Nested
+        sealed class Nested : IEquatable<Nested>
         {
             public string Phrase { get; set; }
 
             public int Number { get; set; }
+
+            public bool Equals(Nested other) =>
+                other != null && Phrase == other.Phrase && Number == other.Number;
         }
 
-        private enum ExampleEnum
+        enum ExampleEnum
         {
             A,
             B,
