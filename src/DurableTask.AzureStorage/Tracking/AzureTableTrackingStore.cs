@@ -40,9 +40,9 @@ namespace DurableTask.AzureStorage.Tracking
         const string InputProperty = "Input";
         const string ResultProperty = "Result";
         const string OutputProperty = "Output";
-        const string RowKeyProperty = nameof(TableEntity.RowKey);
-        const string PartitionKeyProperty = nameof(TableEntity.PartitionKey);
-        const string TimestampProperty = nameof(TableEntity.Timestamp);
+        const string RowKeyProperty = nameof(ITableEntity.RowKey);
+        const string PartitionKeyProperty = nameof(ITableEntity.PartitionKey);
+        const string TimestampProperty = nameof(ITableEntity.Timestamp);
         const string SentinelRowKey = "sentinel";
         const string IsCheckpointCompleteProperty = "IsCheckpointComplete";
         const string CheckpointCompletedTimestampProperty = "CheckpointCompletedTimestamp";
@@ -225,10 +225,10 @@ namespace DurableTask.AzureStorage.Tracking
 
         TableQueryResponse<TableEntity> GetHistoryEntitiesResponseInfoAsync(string instanceId, string expectedExecutionId, IList<string> projectionColumns, CancellationToken cancellationToken)
         {
-            string filter = $"{nameof(TableEntity.PartitionKey)} eq '{KeySanitation.EscapePartitionKey(instanceId)}'";
+            string filter = $"{nameof(ITableEntity.PartitionKey)} eq '{KeySanitation.EscapePartitionKey(instanceId)}'";
             if (!string.IsNullOrEmpty(expectedExecutionId))
             {
-                filter += $" and ({nameof(TableEntity.RowKey)} eq '{SentinelRowKey}' or ExecutionId eq '{expectedExecutionId}')";
+                filter += $" and ({nameof(ITableEntity.RowKey)} eq '{SentinelRowKey}' or {nameof(OrchestrationInstance.ExecutionId)} eq '{expectedExecutionId}')";
             }
 
             return this.HistoryTable.ExecuteQueryAsync<TableEntity>(filter, select: projectionColumns, cancellationToken: cancellationToken);
@@ -242,7 +242,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             IReadOnlyList<TableEntity> entities = results.Entities;
 
-            string executionId = entities.FirstOrDefault()?.GetString("ExecutionId") ?? string.Empty;
+            string executionId = entities.FirstOrDefault()?.GetString(nameof(OrchestrationInstance.ExecutionId)) ?? string.Empty;
             this.settings.Logger.FetchedInstanceHistory(
                 this.storageAccountName,
                 this.taskHubName,
@@ -270,50 +270,61 @@ namespace DurableTask.AzureStorage.Tracking
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
             bool hasFailedSubOrchestrations = false;
-            string partitionFilter = $"{nameof(TableEntity.PartitionKey)} eq '{KeySanitation.EscapePartitionKey(instanceId)}'";
+            string partitionFilter = $"{nameof(ITableEntity.PartitionKey)} eq '{KeySanitation.EscapePartitionKey(instanceId)}'";
 
-            string orchestratorStartedFilter = $"{partitionFilter} and EventType eq '{nameof(EventType.OrchestratorStarted)}'";
+            string orchestratorStartedFilter = $"{partitionFilter} and {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.OrchestratorStarted)}'";
             IReadOnlyList<TableEntity> orchestratorStartedEntities = await this.QueryHistoryAsync(orchestratorStartedFilter, instanceId, cancellationToken);
 
             // get most recent orchestratorStarted event
             string recentStartRowKey = orchestratorStartedEntities.Max(x => x.RowKey);
             var recentStartRow = orchestratorStartedEntities.Where(y => y.RowKey == recentStartRowKey).ToList();
-            string executionId = recentStartRow[0].GetString("ExecutionId");
+            string executionId = recentStartRow[0].GetString(nameof(OrchestrationInstance.ExecutionId));
             DateTime instanceTimestamp = recentStartRow[0].Timestamp.GetValueOrDefault().DateTime;
 
-            string executionIdFilter = $"ExecutionId eq '{executionId}'";
+            string executionIdFilter = $"{nameof(OrchestrationInstance.ExecutionId)} eq '{executionId}'";
 
             var updateFilterBuilder = new StringBuilder();
             updateFilterBuilder.Append($"{partitionFilter}");
             updateFilterBuilder.Append($" and {executionIdFilter}");
             updateFilterBuilder.Append(" and (");
-            updateFilterBuilder.Append("OrchestrationStatus eq 'Failed'");
-            updateFilterBuilder.Append($" or EventType eq '{nameof(EventType.TaskFailed)}'");
-            updateFilterBuilder.Append($" or EventType eq '{nameof(EventType.SubOrchestrationInstanceFailed)}'");
+            updateFilterBuilder.Append($"{nameof(ExecutionCompletedEvent.OrchestrationStatus)} eq '{nameof(OrchestrationStatus.Failed)}'");
+            updateFilterBuilder.Append($" or {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.TaskFailed)}'");
+            updateFilterBuilder.Append($" or {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.SubOrchestrationInstanceFailed)}'");
             updateFilterBuilder.Append(')');
 
             IReadOnlyList<TableEntity> entitiesToClear = await this.QueryHistoryAsync(updateFilterBuilder.ToString(), instanceId, cancellationToken);
 
             var failedLeaves = new List<string>();
-            foreach (TableEntity entity in entitiesToClear.Where(x => x.RowKey == SentinelRowKey))
+            foreach (TableEntity entity in entitiesToClear)
             {
-                int? taskScheduledId = entity.GetInt32("TaskScheduledId");
+                if (entity.GetString(nameof(OrchestrationInstance.ExecutionId)) != executionId)
+                {
+                    // the remaining entities are from a previous generation and can be discarded.
+                    break;
+                }
+
+                if (entity.RowKey == SentinelRowKey)
+                {
+                    continue;
+                }
+
+                int? taskScheduledId = entity.GetInt32(nameof(TaskCompletedEvent.TaskScheduledId));
 
                 var eventFilterBuilder = new StringBuilder();
                 eventFilterBuilder.Append($"{partitionFilter}");
                 eventFilterBuilder.Append($" and {executionIdFilter}");
-                eventFilterBuilder.Append($" and EventId eq '{taskScheduledId.GetValueOrDefault()}'");
+                eventFilterBuilder.Append($" and {nameof(HistoryEvent.EventId)} eq {taskScheduledId.GetValueOrDefault()}");
 
-                switch (entity.GetString("EventType"))
+                switch (entity.GetString(nameof(HistoryEvent.EventType)))
                 {
                     // delete TaskScheduled corresponding to TaskFailed event
                     case nameof(EventType.TaskFailed):
-                        eventFilterBuilder.Append($" and EventType eq '{nameof(EventType.TaskScheduled)}'");
-                        IReadOnlyList<TableEntity> taskScheduledEntities = await QueryHistoryAsync(eventFilterBuilder.ToString(), instanceId, cancellationToken);
+                        eventFilterBuilder.Append($" and {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.TaskScheduled)}'");
+                        IReadOnlyList<TableEntity> taskScheduledEntities = await this.QueryHistoryAsync(eventFilterBuilder.ToString(), instanceId, cancellationToken);
 
                         TableEntity tsEntity = taskScheduledEntities[0];
-                        tsEntity["Reason"] = "Rewound: " + tsEntity.GetString("EventType");
-                        tsEntity["EventType"] = nameof(EventType.GenericEvent);
+                        tsEntity[nameof(TaskFailedEvent.Reason)] = "Rewound: " + tsEntity.GetString(nameof(HistoryEvent.EventType));
+                        tsEntity[nameof(TaskFailedEvent.EventType)] = nameof(EventType.GenericEvent);
                         await this.HistoryTable.ReplaceAsync(tsEntity, tsEntity.ETag, cancellationToken);
                         break;
 
@@ -321,22 +332,22 @@ namespace DurableTask.AzureStorage.Tracking
                     case nameof(EventType.SubOrchestrationInstanceFailed):
                         hasFailedSubOrchestrations = true;
 
-                        eventFilterBuilder.Append($" and EventType eq '{nameof(EventType.SubOrchestrationInstanceCreated)}'");
-                        IReadOnlyList<TableEntity> subOrchesratrationEntities = await QueryHistoryAsync(eventFilterBuilder.ToString(), instanceId, cancellationToken);
+                        eventFilterBuilder.Append($" and {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.SubOrchestrationInstanceCreated)}'");
+                        IReadOnlyList<TableEntity> subOrchesratrationEntities = await this.QueryHistoryAsync(eventFilterBuilder.ToString(), instanceId, cancellationToken);
 
                         // the SubOrchestrationCreatedEvent is still healthy and will not be overwritten, just marked as rewound
                         TableEntity soEntity = subOrchesratrationEntities[0];
-                        soEntity["Reason"] = "Rewound: " + soEntity.GetString("EventType");
+                        soEntity[nameof(SubOrchestrationInstanceFailedEvent.Reason)] = "Rewound: " + soEntity.GetString(nameof(HistoryEvent.EventType));
                         await this.HistoryTable.ReplaceAsync(soEntity, soEntity.ETag, cancellationToken);
 
                         // recursive call to clear out failure events on child instances
-                        failedLeaves.AddRange(await this.RewindHistoryAsync(soEntity.GetString("InstanceId"), cancellationToken));
+                        failedLeaves.AddRange(await this.RewindHistoryAsync(soEntity.GetString(nameof(OrchestrationInstance.InstanceId)), cancellationToken));
                         break;
                 }
 
                 // "clear" failure event by making RewindEvent: replay ignores row while dummy event preserves rowKey
-                entity["Reason"] = "Rewound: " + entity.GetString("EventType");
-                entity["EventType"] = nameof(EventType.GenericEvent);
+                entity[nameof(TaskFailedEvent.Reason)] = "Rewound: " + entity.GetString(nameof(HistoryEvent.EventType));
+                entity[nameof(TaskFailedEvent.EventType)] = nameof(EventType.GenericEvent);
 
                 await this.HistoryTable.ReplaceAsync(entity, entity.ETag, cancellationToken);
             }
@@ -483,7 +494,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override IAsyncEnumerable<OrchestrationState> GetStateAsync(CancellationToken cancellationToken = default)
         {
-            return this.QueryStateAsync($"{nameof(TableEntity.RowKey)} eq ''", cancellationToken: cancellationToken);
+            return this.QueryStateAsync($"{nameof(ITableEntity.RowKey)} eq ''", cancellationToken: cancellationToken);
         }
 
         public override IAsyncEnumerable<OrchestrationState> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default)
