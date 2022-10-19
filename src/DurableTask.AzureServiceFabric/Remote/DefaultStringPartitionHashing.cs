@@ -31,7 +31,7 @@ namespace DurableTask.AzureServiceFabric.Remote
             long hashCode = 0;
             if (!string.IsNullOrEmpty(value))
             {
-                using (var sha256 = SHA256Managed.Create())
+                using (var sha256 = SHA256.Create())
                 {
                     var bytes = Encoding.UTF8.GetBytes(value);
                     var hash = sha256.ComputeHash(bytes);

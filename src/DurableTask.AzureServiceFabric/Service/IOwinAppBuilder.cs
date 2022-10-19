@@ -11,8 +11,10 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+#if NETFRAMEWORK
 namespace DurableTask.AzureServiceFabric.Service
 {
+    using Microsoft.AspNetCore.Builder;
     using Owin;
 
     /// <summary>
@@ -34,3 +36,4 @@ namespace DurableTask.AzureServiceFabric.Service
         void Startup(IAppBuilder appBuilder);
     }
 }
+#endif

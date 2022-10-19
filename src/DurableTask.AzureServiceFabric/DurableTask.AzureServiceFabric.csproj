@@ -2,8 +2,9 @@
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
-    <TargetFrameworks>net462</TargetFrameworks>
+    <TargetFrameworks>net6.0</TargetFrameworks>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>disable</Nullable>
     <PackageId>Microsoft.Azure.DurableTask.AzureServiceFabric</PackageId>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Version>2.3.6</Version>
@@ -34,17 +35,27 @@
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
   </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.AspNet.WebApi.OwinSelfHost" Version="5.2.6" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="2.1.1" />
-    <PackageReference Include="Microsoft.ServiceFabric.Data" Version="3.3.617" />
-    <PackageReference Include="Microsoft.ServiceFabric.Services" Version="3.3.617" />
-    <PackageReference Include="Microsoft.ServiceFabric" Version="6.4.617" />
-    <PackageReference Include="System.Collections.Immutable" Version="1.2.0" />
+  <ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
+    <PackageReference Include="ImpromptuInterface" Version="7.0.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="6.0.10" />
+    <PackageReference Include="Microsoft.AspNetCore.Owin" Version="6.0.9" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="6.0.0" />
+    <PackageReference Include="Microsoft.ServiceFabric.Data" Version="6.0.1107" />
+    <PackageReference Include="Microsoft.ServiceFabric.Services" Version="6.0.1107" />
+    <PackageReference Include="Microsoft.ServiceFabric" Version="9.0.1107" />
+    <PackageReference Include="System.Collections.Immutable" Version="1.2.0" />
+    <PackageReference Include="Microsoft.AspNet.WebApi.Owin" Version="5.2.9" NoWarn="NU1701" />
+    <PackageReference Include="Microsoft.AspNet.WebApi.Core" Version="5.2.9" NoWarn="NU1701" />
+    <PackageReference Include="Microsoft.Owin" Version="4.2.2" NoWarn="NU1701" />
+    <PackageReference Include="Owin" Version="1.0.0" NoWarn="NU1701" />
+    <PackageReference Include="DurableTask.Core" Version="2.0.0.6" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="6.0.0" />
+    <PackageReference Include="Microsoft.Azure.DurableTask.Core" Version="2.11.1" />
+    <PackageReference Include="Microsoft.ServiceFabric.AspNetCore.Kestrel" Version="6.0.1107" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(Configuration)'=='Release'">
