@@ -14,16 +14,16 @@
 namespace DurableTask.AzureServiceFabric.Service
 {
     using System;
-    using System.Net;
-    using System.Web.Http;
     using System.Web.Http.ExceptionHandling;
 
     using DurableTask.Core;
     using DurableTask.AzureServiceFabric;
     using Microsoft.Extensions.DependencyInjection;
-    using Owin;
+    using Microsoft.AspNetCore.Builder;
+    using Microsoft.AspNetCore.Hosting;
+    using Newtonsoft.Json;
 
-    class Startup : IOwinAppBuilder
+    class Startup
     {
         FabricOrchestrationProvider fabricOrchestrationProvider;
         string listeningAddress;
@@ -39,29 +39,35 @@ namespace DurableTask.AzureServiceFabric.Service
             return this.listeningAddress;
         }
 
-        private ServiceProvider GenerateServiceProvider()
+        /// <summary>
+        /// this method gets called by the runtime. Use this method to add services to the container.
+        /// </summary>
+        /// <param name="services">Services to be configured.</param>
+        public void ConfigureServices(IServiceCollection services)
         {
-            var services = new ServiceCollection();
             services.AddSingleton<IOrchestrationServiceClient>(this.fabricOrchestrationProvider.OrchestrationServiceClient);
             services.AddTransient<FabricOrchestrationServiceController>();
             services.AddSingleton<IExceptionLogger, ProxyServiceExceptionLogger>();
             services.AddSingleton<IExceptionHandler, ProxyServiceExceptionHandler>();
-            var serviceProvider = services.BuildServiceProvider();
-            return serviceProvider;
+            services.AddControllers().AddNewtonsoftJson(options =>
+            {
+                options.SerializerSettings.TypeNameHandling = TypeNameHandling.All;
+            });
         }
 
-        void IOwinAppBuilder.Startup(IAppBuilder appBuilder)
+
+        public void Configure(IApplicationBuilder appBuilder, IWebHostEnvironment env)
         {
-            ServicePointManager.DefaultConnectionLimit = 256;
-            HttpConfiguration config = new HttpConfiguration();
-            config.MapHttpAttributeRoutes();
-            config.DependencyResolver = new DefaultDependencyResolver(GenerateServiceProvider());
-            config.MessageHandlers.Add(new ActivityLoggingMessageHandler());
-            config.IncludeErrorDetailPolicy = IncludeErrorDetailPolicy.Always;
-            config.Formatters.Remove(config.Formatters.XmlFormatter);
-            config.Formatters.Remove(config.Formatters.FormUrlEncodedFormatter);
-            config.Formatters.JsonFormatter.SerializerSettings.TypeNameHandling = Newtonsoft.Json.TypeNameHandling.All;
-            appBuilder.UseWebApi(config);
+            appBuilder.UseRouting();
+
+            appBuilder.UseAuthorization();
+            appBuilder.UseEndpoints(endpoints =>
+            {
+
+                endpoints.MapControllers();
+
+            });
         }
+
     }
 }
