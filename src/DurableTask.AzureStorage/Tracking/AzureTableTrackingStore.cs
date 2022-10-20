@@ -410,11 +410,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             sw.Stop();
 
-            OrchestrationState? orchestrationState = null;
-            if (tableEntity != null)
-            {
-                orchestrationState = await this.ConvertFromAsync(tableEntity, cancellationToken);
-            }
+            OrchestrationState? orchestrationState = tableEntity != null ? await this.ConvertFromAsync(tableEntity, cancellationToken) : null;
 
             this.settings.Logger.FetchedInstanceStatus(
                 this.storageAccountName,

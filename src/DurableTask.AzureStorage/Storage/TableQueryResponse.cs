@@ -30,8 +30,6 @@ namespace DurableTask.AzureStorage.Storage
             this._query = query ?? throw new ArgumentNullException(nameof(query));
         }
 
-        public static implicit operator AsyncPageable<T>(TableQueryResponse<T> response) => response._query;
-
         public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
         {
             return this._query.GetAsyncEnumerator(cancellationToken);
@@ -53,5 +51,8 @@ namespace DurableTask.AzureStorage.Storage
             sw.Stop();
             return new TableQueryResults<T>(entities, sw.Elapsed, pages);
         }
+
+        public static implicit operator AsyncPageable<T>(TableQueryResponse<T> response) =>
+            response._query;
     }
 }

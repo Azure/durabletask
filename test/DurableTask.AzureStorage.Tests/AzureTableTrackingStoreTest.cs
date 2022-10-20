@@ -27,7 +27,6 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.Core;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Moq;
-    using Newtonsoft.Json;
 
     [TestClass]
     public class AzureTableTrackingStoreTest
@@ -78,7 +77,7 @@ namespace DurableTask.AzureStorage.Tests
 
             string expectedFilter = string.Format(
                 CultureInfo.InvariantCulture,
-                "{0} ge datetime'{1:O}' and {0} le datetime'{2:O}' and ({3} eq '{4:G}' or {3} eq '{5:G}' or {3} eq '{6:G}')",
+                "({0} ge datetime'{1:O}') and ({0} le datetime'{2:O}') and ({3} eq '{4:G}' or {3} eq '{5:G}' or {3} eq '{6:G}')",
                 nameof(OrchestrationInstanceStatus.CreatedTime),
                 expectedCreatedDateFrom,
                 expectedCreatedDateTo,
@@ -88,11 +87,7 @@ namespace DurableTask.AzureStorage.Tests
                 OrchestrationStatus.Failed);
 
             tableClient
-                .Setup(t => t.QueryAsync<OrchestrationInstanceStatus>(
-                    expectedFilter,
-                    null,
-                    null,
-                    tokenSource.Token))
+                .Setup(t => t.QueryAsync<OrchestrationInstanceStatus>(expectedFilter, null, null, tokenSource.Token))
                 .Returns(AsyncPageable<OrchestrationInstanceStatus>.FromPages(
                     new[]
                     {
