@@ -53,7 +53,7 @@ namespace DurableTask.AzureStorage.Storage
             this.Stats = new AzureStorageOrchestrationServiceStats();
 
             var throttlingPolicy = new ThrottlingHttpPipelinePolicy(this.Settings.MaxStorageOperationConcurrency);
-            var timeoutPolicy = new TimeoutHttpPipelinePolicy(this.Settings.LeaseRenewInterval);
+            var timeoutPolicy = new LeaseTimeoutHttpPipelinePolicy(this.Settings.LeaseRenewInterval);
             var monitoringPolicy = new MonitoringHttpPipelinePolicy(this.Stats);
 
             this.blobClient = CreateClient(settings.BlobStorageProvider, ConfigureClientPolicies);

@@ -18,11 +18,11 @@ namespace DurableTask.AzureStorage.Http
     using Azure.Core;
     using Azure.Core.Pipeline;
 
-    sealed class TimeoutHttpPipelinePolicy : HttpPipelinePolicy
+    sealed class LeaseTimeoutHttpPipelinePolicy : HttpPipelinePolicy
     {
         readonly TimeSpan leaseRenewalTimeout;
 
-        public TimeoutHttpPipelinePolicy(TimeSpan leaseRenewalTimeout)
+        public LeaseTimeoutHttpPipelinePolicy(TimeSpan leaseRenewalTimeout)
         {
             this.leaseRenewalTimeout = leaseRenewalTimeout;
         }

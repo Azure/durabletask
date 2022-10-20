@@ -24,9 +24,7 @@ namespace DurableTask.AzureStorage.Partitioning
     using System.Threading;
     using System.Threading.Tasks;
     using Azure;
-    using Azure.Storage.Blobs.Models;
     using DurableTask.AzureStorage.Storage;
-    using Newtonsoft.Json;
 
     sealed class BlobPartitionLeaseManager : ILeaseManager<BlobPartitionLease>
     {
@@ -77,10 +75,9 @@ namespace DurableTask.AzureStorage.Partitioning
 
         public async IAsyncEnumerable<BlobPartitionLease> ListLeasesAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            await foreach (Page<BlobItem> page in this.taskHubContainer.ListBlobsAsync(this.blobDirectoryName, cancellationToken: cancellationToken).AsPages())
+            await foreach (Page<Blob> page in this.taskHubContainer.ListBlobsAsync(this.blobDirectoryName, cancellationToken: cancellationToken).AsPages())
             {
                 BlobPartitionLease[] leases = await Task.WhenAll(page.Values
-                    .Select(b => this.taskHubContainer.GetBlobReference(b.Name))
                     .Select(b => this.DownloadLeaseBlob(b, cancellationToken)));
 
                 foreach (BlobPartitionLease lease in leases)

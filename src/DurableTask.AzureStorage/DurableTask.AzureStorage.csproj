@@ -19,9 +19,9 @@
 
   <!-- Version Info -->
   <PropertyGroup>
-    <MajorVersion>1</MajorVersion>
-    <MinorVersion>13</MinorVersion>
-    <PatchVersion>1</PatchVersion>
+    <MajorVersion>2</MajorVersion>
+    <MinorVersion>0</MinorVersion>
+    <PatchVersion>0</PatchVersion>
 
     <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
     <FileVersion>$(VersionPrefix).0</FileVersion>
@@ -36,7 +36,8 @@
   <ItemGroup>
     <PackageReference Include="Azure.Core" Version="1.25.0" />
     <PackageReference Include="Azure.Data.Tables" Version="12.6.1" />
-    <PackageReference Include="Azure.Storage.Blobs" Version="12.14.0" />
+    <!-- The below version of Azure.Storage.Blobs must align with the Functions Host -->
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.13.0" />
     <PackageReference Include="Azure.Storage.Queues" Version="12.12.0" />
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="6.0.0" />
     <PackageReference Include="System.Linq.Async" Version="6.0.1" />

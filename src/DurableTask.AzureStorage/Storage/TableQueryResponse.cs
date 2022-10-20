@@ -37,8 +37,7 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task<TableQueryResults<T>> GetResultsAsync(string? continuationToken = null, int? pageSizeHint = null, CancellationToken cancellationToken = default)
         {
-            var sw = new Stopwatch();
-            sw.Start();
+            var sw = Stopwatch.StartNew();
 
             int pages = 0;
             var entities = new List<T>();

@@ -1642,15 +1642,8 @@ namespace DurableTask.AzureStorage
         /// <param name="allExecutions">This parameter is not used.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <returns>An asynchronous enumeration of the <see cref="OrchestrationState"/> objects that represent the list of orchestrations.</returns>
-        public async IAsyncEnumerable<OrchestrationState> GetOrchestrationStateAsync(string instanceId, bool allExecutions, [EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            // Client operations will auto-create the task hub if it doesn't already exist.
-            await this.EnsureTaskHubAsync();
-            await foreach (OrchestrationState state in this.trackingStore.GetStateAsync(instanceId, allExecutions, fetchInput: true, cancellationToken: cancellationToken))
-            {
-                yield return state;
-            }
-        }
+        public IAsyncEnumerable<OrchestrationState> GetOrchestrationStateAsync(string instanceId, bool allExecutions, CancellationToken cancellationToken = default) =>
+            this.GetOrchestrationStateAsync(instanceId, allExecutions, fetchInput: true, cancellationToken: cancellationToken);
 
         /// <summary>
         /// Get a the state of the specified execution (generation) of the specified orchestration instance.
@@ -1678,7 +1671,7 @@ namespace DurableTask.AzureStorage
         {
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
-            await foreach (OrchestrationState state in this.trackingStore.GetStateAsync(instanceId, allExecutions, fetchInput))
+            await foreach (OrchestrationState state in this.trackingStore.GetStateAsync(instanceId, allExecutions, fetchInput, cancellationToken))
             {
                 yield return state;
             }
