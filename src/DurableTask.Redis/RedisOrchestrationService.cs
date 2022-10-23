@@ -452,7 +452,11 @@ namespace DurableTask.Redis
         /// <inheritdoc />
         public async IAsyncEnumerable<OrchestrationState> GetOrchestrationStateAsync(string instanceId, bool allExecutions, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            yield return await this.GetOrchestrationStateAsync(instanceId, "");
+            OrchestrationState state = await this.GetOrchestrationStateAsync(instanceId, "");
+            if (state != null)
+            {
+                yield return state;
+            }
         }
 
         /// <inheritdoc />

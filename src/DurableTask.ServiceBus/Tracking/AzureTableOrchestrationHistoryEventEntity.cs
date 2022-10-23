@@ -110,51 +110,6 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         /// <summary>
-        /// Write an entity to a dictionary of entity properties
-        /// </summary>
-        public override IDictionary<string, object> WriteEntity()
-        {
-            string serializedHistoryEvent = JsonConvert.SerializeObject(HistoryEvent, WriteJsonSettings);
-
-            // replace with a generic event with the truncated history so at least we have some record
-            // note that this makes the history stored in the instance store unreplayable. so any replay logic
-            // that we build will have to especially check for this event and flag the orchestration as unplayable if it sees this event
-            if (!string.IsNullOrWhiteSpace(serializedHistoryEvent) &&
-                serializedHistoryEvent.Length > ServiceBusConstants.MaxStringLengthForAzureTableColumn)
-            {
-                serializedHistoryEvent = JsonConvert.SerializeObject(new GenericEvent(HistoryEvent.EventId,
-                    serializedHistoryEvent.Substring(0, ServiceBusConstants.MaxStringLengthForAzureTableColumn) + " ....(truncated)..]"),
-                    WriteJsonSettings);
-            }
-
-            return new Dictionary<string, object>
-            {
-                { "InstanceId", InstanceId },
-                { "ExecutionId", ExecutionId },
-                { "TaskTimeStamp", TaskTimeStamp },
-                { "SequenceNumber", SequenceNumber },
-                { "HistoryEvent", serializedHistoryEvent },
-            };
-        }
-
-        /// <summary>
-        /// Read an entity properties based on the supplied dictionary or entity properties
-        /// </summary>
-        /// <param name="properties">Dictionary of properties to read for the entity</param>
-        public override void ReadEntity(IDictionary<string, object> properties)
-        {
-            InstanceId = GetValue<string>("InstanceId", properties);
-            ExecutionId = GetValue<string>("ExecutionId", properties);
-            SequenceNumber = GetValue<int?>("SequenceNumber", properties).GetValueOrDefault();
-            TaskTimeStamp = GetValue<DateTimeOffset?>("TaskTimeStamp", properties)
-                .GetValueOrDefault()
-                .DateTime;
-
-            string serializedHistoryEvent = GetValue<string>("HistoryEvent", properties);
-            HistoryEvent = JsonConvert.DeserializeObject<HistoryEvent>(serializedHistoryEvent, ReadJsonSettings);
-        }
-
-        /// <summary>
         /// Returns a string that represents the current object.
         /// </summary>
         /// <returns>

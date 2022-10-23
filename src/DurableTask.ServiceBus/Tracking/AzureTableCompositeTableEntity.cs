@@ -48,25 +48,6 @@ namespace DurableTask.ServiceBus.Tracking
         /// </summary>
         public ETag ETag { get; set; }
 
-        /// <summary>
-        /// Read an entity properties based on the supplied dictionary or entity properties
-        /// </summary>
-        /// <param name="properties">Dictionary of properties to read for the entity</param>
-        public abstract void ReadEntity(IDictionary<string, object> properties);
-
-        /// <summary>
-        /// Write an entity to a dictionary of entity properties
-        /// </summary>
-        public abstract IDictionary<string, object> WriteEntity();
-
         internal abstract IEnumerable<ITableEntity> BuildDenormalizedEntities();
-
-        /// <summary>
-        /// Gets a value from the property bag if found.
-        /// </summary>
-        protected T GetValue<T>(string key, IDictionary<string, object> properties)
-        {
-            return properties.TryGetValue(key, out object ep) ? (T)ep : default;
-        }
     }
 }

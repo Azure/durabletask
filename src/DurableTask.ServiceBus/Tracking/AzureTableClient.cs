@@ -373,13 +373,13 @@ namespace DurableTask.ServiceBus.Tracking
             string operationTag,
             TableClient client,
             IEnumerable<AzureTableCompositeTableEntity> entities,
-            Func<AzureTableCompositeTableEntity, TableTransactionAction> batchOperationFunc,
+            Func<ITableEntity, TableTransactionAction> batchOperationFunc,
             CancellationToken cancellationToken = default)
         {
             const int BatchSize = 100;
 
             var batch = new List<TableTransactionAction>(BatchSize);
-            foreach (AzureTableCompositeTableEntity entity in entities)
+            foreach (ITableEntity entity in entities.SelectMany(x => x.BuildDenormalizedEntities()))
             {
                 batch.Add(batchOperationFunc(entity));
                 if (batch.Count == BatchSize)

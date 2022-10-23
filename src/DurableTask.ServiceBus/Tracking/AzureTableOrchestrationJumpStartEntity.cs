@@ -67,28 +67,6 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         /// <summary>
-        /// Write an entity to a dictionary of entity properties
-        /// </summary>
-        public override IDictionary<string, object> WriteEntity()
-        {
-            IDictionary<string, object> returnValues = base.WriteEntity();
-            returnValues.Add("JumpStartTime", JumpStartTime);
-            return returnValues;
-        }
-
-        /// <summary>
-        /// Read an entity properties based on the supplied dictionary or entity properties
-        /// </summary>
-        /// <param name="properties">Dictionary of properties to read for the entity</param>
-        public override void ReadEntity(IDictionary<string, object> properties)
-        {
-            base.ReadEntity(properties);
-            JumpStartTime = GetValue<DateTimeOffset?>("JumpStartTime", properties)
-                .GetValueOrDefault()
-                .DateTime;
-        }
-
-        /// <summary>
         /// Get a partition key based on a datetime
         /// </summary>
         /// <param name="dateTime">The datetime to use for the partition key</param>
