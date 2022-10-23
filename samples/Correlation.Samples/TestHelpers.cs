@@ -37,11 +37,12 @@ namespace Correlation.Samples
         {
             string storageConnectionString = GetTestStorageAccountConnectionString();
 
-            var settings = new AzureStorageOrchestrationServiceSettings(storageConnectionString)
+            var settings = new AzureStorageOrchestrationServiceSettings
             {
-                TaskHubName = Configuration["taskHubName"],
-                ExtendedSessionsEnabled = enableExtendedSessions,
                 ExtendedSessionIdleTimeout = TimeSpan.FromSeconds(extendedSessionTimeoutInSeconds),
+                ExtendedSessionsEnabled = enableExtendedSessions,
+                StorageAccountClientProvider = new StorageAccountClientProvider(storageConnectionString),
+                TaskHubName = Configuration["taskHubName"],
             };
 
             return new TestOrchestrationHost(settings);

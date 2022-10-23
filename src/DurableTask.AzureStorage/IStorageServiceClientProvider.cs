@@ -20,7 +20,7 @@ namespace DurableTask.AzureStorage
     /// </summary>
     /// <typeparam name="TClient">The type of the client.</typeparam>
     /// <typeparam name="TClientOptions">The type of the options used by the client.</typeparam>
-    public interface IAzureStorageProvider<TClient, TClientOptions> where TClientOptions : ClientOptions
+    public interface IStorageServiceClientProvider<TClient, TClientOptions> where TClientOptions : ClientOptions
     {
         /// <summary>
         /// Creates the options for the client.

@@ -88,14 +88,14 @@ namespace DurableTask.AzureStorage.Monitoring
             string taskHub,
             int? maxPollingIntervalMilliseconds = null)
         {
-            var settings = new AzureStorageOrchestrationServiceSettings(connectionString) { TaskHubName = taskHub };
-
-            if (maxPollingIntervalMilliseconds != null)
+            return new AzureStorageOrchestrationServiceSettings
             {
-                settings.MaxQueuePollingInterval = TimeSpan.FromMilliseconds(maxPollingIntervalMilliseconds.Value);
-            }
-
-            return settings;
+                MaxQueuePollingInterval = maxPollingIntervalMilliseconds != null
+                    ? TimeSpan.FromMilliseconds(maxPollingIntervalMilliseconds.Value)
+                    : default,
+                StorageAccountClientProvider = new StorageAccountClientProvider(connectionString),
+                TaskHubName = taskHub,
+            };
         }
 
         /// <summary>

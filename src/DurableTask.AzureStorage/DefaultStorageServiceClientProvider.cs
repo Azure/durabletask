@@ -16,12 +16,12 @@ namespace DurableTask.AzureStorage
     using System;
     using Azure.Core;
 
-    sealed class DefaultAzureStorageProvider<TClient, TClientOptions> : IAzureStorageProvider<TClient, TClientOptions> where TClientOptions : ClientOptions
+    sealed class DefaultStorageServiceClientProvider<TClient, TClientOptions> : IStorageServiceClientProvider<TClient, TClientOptions> where TClientOptions : ClientOptions
     {
         readonly Func<TClientOptions, TClient> factory;
         readonly TClientOptions options;
 
-        public DefaultAzureStorageProvider(Func<TClientOptions, TClient> factory, TClientOptions options)
+        public DefaultStorageServiceClientProvider(Func<TClientOptions, TClient> factory, TClientOptions options)
         {
             this.factory = factory ?? throw new ArgumentNullException(nameof(factory));
             this.options = options ?? throw new ArgumentNullException(nameof(options));

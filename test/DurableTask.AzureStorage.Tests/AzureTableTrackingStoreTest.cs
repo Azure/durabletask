@@ -39,7 +39,12 @@ namespace DurableTask.AzureStorage.Tests
 
             using var tokenSource = new CancellationTokenSource();
 
-            var azureStorageClient = new AzureStorageClient(new AzureStorageOrchestrationServiceSettings(ConnectionString));
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider(ConnectionString),
+            };
+
+            var azureStorageClient = new AzureStorageClient(settings);
             var tableServiceClient = new Mock<TableServiceClient>(MockBehavior.Strict, ConnectionString);
             var tableClient = new Mock<TableClient>(MockBehavior.Strict, ConnectionString, TableName);
             tableServiceClient.Setup(t => t.GetTableClient(TableName)).Returns(tableClient.Object);

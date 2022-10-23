@@ -67,12 +67,13 @@ namespace DurableTask.AzureStorage.Tests
             string storageConnectionString = TestHelpers.GetTestStorageAccountConnectionString();
 
             string taskHubName = testName;
-            var settings = new AzureStorageOrchestrationServiceSettings(storageConnectionString)
+            var settings = new AzureStorageOrchestrationServiceSettings
             {
-                TaskHubName = taskHubName,
-                WorkerId = workerId,
                 AppName = testName,
+                StorageAccountClientProvider = new StorageAccountClientProvider(storageConnectionString),
+                TaskHubName = taskHubName,
                 UseLegacyPartitionManagement = useLegacyPartitionManagement,
+                WorkerId = workerId,
             };
 
             Trace.TraceInformation($"Task Hub name: {taskHubName}");
@@ -306,10 +307,11 @@ namespace DurableTask.AzureStorage.Tests
 
             // Create a service and enqueue N messages.
             // Make sure each partition has messages in it.
-            var settings = new AzureStorageOrchestrationServiceSettings(TestHelpers.GetTestStorageAccountConnectionString())
+            var settings = new AzureStorageOrchestrationServiceSettings
             {
-                TaskHubName = nameof(TestInstanceAndMessageDistribution),
                 PartitionCount = 4,
+                StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                TaskHubName = nameof(TestInstanceAndMessageDistribution),
             };
 
             var service = new AzureStorageOrchestrationService(settings);
@@ -379,12 +381,13 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task PartitionLost_AbandonPrefetchedSession()
         {
-            var settings = new AzureStorageOrchestrationServiceSettings(TestHelpers.GetTestStorageAccountConnectionString())
+            var settings = new AzureStorageOrchestrationServiceSettings
             {
-                PartitionCount = 1,
-                LeaseRenewInterval = TimeSpan.FromMilliseconds(500),
-                TaskHubName = TestHelpers.GetTestTaskHubName(),
                 ControlQueueBufferThreshold = 100,
+                LeaseRenewInterval = TimeSpan.FromMilliseconds(500),
+                PartitionCount = 1,
+                StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                TaskHubName = TestHelpers.GetTestTaskHubName(),
             };
 
             // STEP 1: Start up the service and queue up a large number of messages
@@ -445,10 +448,11 @@ namespace DurableTask.AzureStorage.Tests
         public async Task MonitorIdleTaskHubDisconnected()
         {
             string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
-            var settings = new AzureStorageOrchestrationServiceSettings(connectionString)
+            var settings = new AzureStorageOrchestrationServiceSettings
             {
-                TaskHubName = nameof(MonitorIdleTaskHubDisconnected),
                 PartitionCount = 4,
+                StorageAccountClientProvider = new StorageAccountClientProvider(connectionString),
+                TaskHubName = nameof(MonitorIdleTaskHubDisconnected),
                 UseAppLease = false,
             };
 
@@ -498,10 +502,11 @@ namespace DurableTask.AzureStorage.Tests
         public async Task UpdateTaskHubJsonWithNewPartitionCount()
         {
             string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
-            var settings = new AzureStorageOrchestrationServiceSettings(connectionString)
+            var settings = new AzureStorageOrchestrationServiceSettings
             {
-                TaskHubName = nameof(UpdateTaskHubJsonWithNewPartitionCount),
                 PartitionCount = 4,
+                StorageAccountClientProvider = new StorageAccountClientProvider(connectionString),
+                TaskHubName = nameof(UpdateTaskHubJsonWithNewPartitionCount),
                 UseAppLease = false,
             };
 
@@ -574,10 +579,11 @@ namespace DurableTask.AzureStorage.Tests
         public async Task MonitorIncreasingControlQueueLoadDisconnected()
         {
             string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
-            var settings = new AzureStorageOrchestrationServiceSettings(connectionString)
+            var settings = new AzureStorageOrchestrationServiceSettings
             {
-                TaskHubName = nameof(MonitorIncreasingControlQueueLoadDisconnected),
                 PartitionCount = 4,
+                StorageAccountClientProvider = new StorageAccountClientProvider(connectionString),
+                TaskHubName = nameof(MonitorIncreasingControlQueueLoadDisconnected),
                 UseAppLease = false,
             };
 

@@ -36,6 +36,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 TaskHubName = "foo",
                 TrackingStoreNamePrefix = "bar",
+                TrackingServiceClientProvider = StorageServiceClientProvider.ForTable("connectionString"),
             };
             Assert.AreEqual("barHistory", settings.HistoryTableName);
             Assert.AreEqual("barInstances", settings.InstanceTableName);

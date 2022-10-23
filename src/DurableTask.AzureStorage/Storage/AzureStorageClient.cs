@@ -34,19 +34,9 @@ namespace DurableTask.AzureStorage.Storage
                 throw new ArgumentNullException(nameof(settings));
             }
 
-            if (settings.BlobStorageProvider == null)
+            if (settings.StorageAccountClientProvider == null)
             {
-                throw new ArgumentException("Blob storage provider is not specified.", nameof(settings));
-            }
-
-            if (settings.QueueStorageProvider == null)
-            {
-                throw new ArgumentException("Queue storage provider is not specified.", nameof(settings));
-            }
-
-            if (settings.TableStorageProvider == null)
-            {
-                throw new ArgumentException("Table storage provider is not specified.", nameof(settings));
+                throw new ArgumentException("Storage account client provider is not specified.", nameof(settings));
             }
 
             this.Settings = settings;
@@ -56,9 +46,13 @@ namespace DurableTask.AzureStorage.Storage
             var timeoutPolicy = new LeaseTimeoutHttpPipelinePolicy(this.Settings.LeaseRenewInterval);
             var monitoringPolicy = new MonitoringHttpPipelinePolicy(this.Stats);
 
-            this.blobClient = CreateClient(settings.BlobStorageProvider, ConfigureClientPolicies);
-            this.queueClient = CreateClient(settings.QueueStorageProvider, ConfigureClientPolicies);
-            this.tableClient = CreateClient(settings.TableStorageProvider, ConfigureClientPolicies);
+            this.blobClient = CreateClient(settings.StorageAccountClientProvider.Blob, ConfigureClientPolicies);
+            this.queueClient = CreateClient(settings.StorageAccountClientProvider.Queue, ConfigureClientPolicies);
+            this.tableClient = CreateClient(
+                settings.HasTrackingStoreStorageAccount
+                    ? settings.TrackingServiceClientProvider!
+                    : settings.StorageAccountClientProvider.Table,
+                ConfigureClientPolicies);
 
             void ConfigureClientPolicies<TClientOptions>(TClientOptions options) where TClientOptions : ClientOptions
             {
@@ -104,7 +98,7 @@ namespace DurableTask.AzureStorage.Storage
         }
 
         static TClient CreateClient<TClient, TClientOptions>(
-            IAzureStorageProvider<TClient, TClientOptions> storageProvider,
+            IStorageServiceClientProvider<TClient, TClientOptions> storageProvider,
             Action<TClientOptions> configurePolicies)
             where TClientOptions : ClientOptions
         {
