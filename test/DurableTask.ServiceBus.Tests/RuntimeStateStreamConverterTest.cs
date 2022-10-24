@@ -24,7 +24,6 @@ namespace DurableTask.ServiceBus.Tests
     using DurableTask.Core.Serializing;
     using DurableTask.ServiceBus.Settings;
     using DurableTask.ServiceBus.Tracking;
-    using DurableTask.Core.Tests;
 
     [TestClass]
     public class RuntimeStateStreamConverterTest
@@ -101,7 +100,7 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task LargeRuntimeStateConverterTest()
         {
-            string largeInput = TestUtils.GenerateRandomString(5 * 1024);
+            string largeInput = TestHelpers.GenerateRandomString(5 * 1024);
             OrchestrationRuntimeState newOrchestrationRuntimeStateLarge = generateOrchestrationRuntimeState(largeInput);
 
             var runtimeState = new OrchestrationRuntimeState();
@@ -120,7 +119,7 @@ namespace DurableTask.ServiceBus.Tests
             verifyEventInput(largeInput, convertedRuntimeStateLarge);
 
             // test for un-compress case
-            string largeInput2 = TestUtils.GenerateRandomString(3 * 1024);
+            string largeInput2 = TestHelpers.GenerateRandomString(3 * 1024);
             OrchestrationRuntimeState newOrchestrationRuntimeStateLarge2 = generateOrchestrationRuntimeState(largeInput2);
             Stream rawStreamLarge2 = await RuntimeStateStreamConverter.OrchestrationRuntimeStateToRawStream(
                 newOrchestrationRuntimeStateLarge2,
@@ -157,7 +156,7 @@ namespace DurableTask.ServiceBus.Tests
         [TestMethod]
         public async Task VeryLargeRuntimeStateConverterTest()
         {
-            string veryLargeInput = TestUtils.GenerateRandomString(20 * 1024);
+            string veryLargeInput = TestHelpers.GenerateRandomString(20 * 1024);
             OrchestrationRuntimeState newOrchestrationRuntimeStateLarge = generateOrchestrationRuntimeState(veryLargeInput);
 
             var runtimeState = new OrchestrationRuntimeState();

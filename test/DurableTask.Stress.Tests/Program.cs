@@ -19,53 +19,34 @@ namespace DurableTask.Stress.Tests
     using System;
     using System.Configuration;
     using System.Diagnostics;
-    using DurableTask.Core;
-    using DurableTask.Core.Tracing;
-    using DurableTask.ServiceBus.Settings;
-    using DurableTask.ServiceBus;
-    using DurableTask.Test.Orchestrations.Stress;
-    using DurableTask.ServiceBus.Tracking;
     using CommandLine;
+    using DurableTask.AzureStorage;
+    using DurableTask.Core;
+    using DurableTask.Test.Orchestrations.Stress;
     using Microsoft.Diagnostics.EventFlow;
 
     internal class Program
     {
-
         // ReSharper disable once UnusedMember.Local
         static void Main(string[] args)
         {
             using (DiagnosticPipelineFactory.CreatePipeline("eventFlowConfig.json"))
             {
-
                 var config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
-                string tableConnectionString = config.AppSettings.Settings["StorageConnectionString"].Value;
                 ParserResult<Options> parserResult = Parser.Default.ParseArguments<Options>(args);
                 parserResult.WithParsed(
                         options =>
                         {
-                            string connectionString = config.ConnectionStrings.ConnectionStrings["Microsoft.ServiceBus.ConnectionString"].ConnectionString;
-                            string taskHubName = config.AppSettings.Settings["TaskHubName"].Value;
-
-
-                            IOrchestrationServiceInstanceStore instanceStore = new AzureTableInstanceStore(taskHubName, tableConnectionString);
-
-                            var settings = new ServiceBusOrchestrationServiceSettings
+                            string connectionString = config.ConnectionStrings.ConnectionStrings["AzureStorage"].ConnectionString;
+                            var settings = new AzureStorageOrchestrationServiceSettings
                             {
-                                TaskOrchestrationDispatcherSettings =
-                                {
-                                    CompressOrchestrationState = bool.Parse(config.AppSettings.Settings["CompressOrchestrationState"].Value),
-                                    MaxConcurrentOrchestrations = int.Parse(config.AppSettings.Settings["MaxConcurrentOrchestrations"].Value)
-                                },
-                                TaskActivityDispatcherSettings =
-                                {
-                                    MaxConcurrentActivities = int.Parse(config.AppSettings.Settings["MaxConcurrentActivities"].Value)
-                                }
+                                MaxConcurrentTaskActivityWorkItems = int.Parse(config.AppSettings.Settings["MaxConcurrentActivities"].Value),
+                                MaxConcurrentTaskOrchestrationWorkItems = int.Parse(config.AppSettings.Settings["MaxConcurrentOrchestrations"].Value),
+                                StorageAccountDetails = new StorageAccountDetails { ConnectionString = connectionString },
+                                TaskHubName = config.AppSettings.Settings["TaskHubName"].Value,
                             };
 
-                            var orchestrationServiceAndClient =
-                                new ServiceBusOrchestrationService(connectionString, taskHubName, instanceStore, null, settings);
-
-
+                            var orchestrationServiceAndClient = new AzureStorageOrchestrationService(settings);
                             var taskHubClient = new TaskHubClient(orchestrationServiceAndClient);
                             var taskHub = new TaskHubWorker(orchestrationServiceAndClient);
 
@@ -168,14 +149,12 @@ namespace DurableTask.Stress.Tests
     using System;
     using System.Configuration;
     using System.Diagnostics;
+    using System.Diagnostics.Tracing;
+    using DurableTask.AzureStorage;
     using DurableTask.Core;
     using DurableTask.Core.Tracing;
-    using DurableTask.ServiceBus.Settings;
-    using DurableTask.ServiceBus;
     using DurableTask.Test.Orchestrations.Stress;
-    using DurableTask.ServiceBus.Tracking;
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging;
-    using System.Diagnostics.Tracing;
 
     internal class Program
     {
@@ -193,26 +172,16 @@ namespace DurableTask.Stress.Tests
 
             if (CommandLine.Parser.Default.ParseArgumentsStrict(args, ArgumentOptions))
             {
-                string connectionString = ConfigurationManager.ConnectionStrings["Microsoft.ServiceBus.ConnectionString"].ConnectionString;
-                string taskHubName = ConfigurationManager.AppSettings["TaskHubName"];
-
-                IOrchestrationServiceInstanceStore instanceStore = new AzureTableInstanceStore(taskHubName, tableConnectionString);
-
-                var settings = new ServiceBusOrchestrationServiceSettings
+                string connectionString = ConfigurationManager.ConnectionStrings["AzureStorage"].ConnectionString;
+                var settings = new AzureStorageOrchestrationServiceSettings
                 {
-                    TaskOrchestrationDispatcherSettings =
-                    {
-                        CompressOrchestrationState = bool.Parse(ConfigurationManager.AppSettings["CompressOrchestrationState"]),
-                        MaxConcurrentOrchestrations = int.Parse(ConfigurationManager.AppSettings["MaxConcurrentOrchestrations"])
-                    },
-                    TaskActivityDispatcherSettings =
-                    {
-                        MaxConcurrentActivities = int.Parse(ConfigurationManager.AppSettings["MaxConcurrentActivities"])
-                    }
+                    MaxConcurrentTaskActivityWorkItems = int.Parse(ConfigurationManager.AppSettings["MaxConcurrentActivities"]),
+                    MaxConcurrentTaskOrchestrationWorkItems = int.Parse(ConfigurationManager.AppSettings["MaxConcurrentOrchestrations"]),
+                    StorageAccountDetails = new StorageAccountDetails { ConnectionString = connectionString },
+                    TaskHubName = ConfigurationManager.AppSettings["TaskHubName"],
                 };
 
-                var orchestrationServiceAndClient =
-                    new ServiceBusOrchestrationService(connectionString, taskHubName, instanceStore, null, settings);
+                var orchestrationServiceAndClient = new AzureStorageOrchestrationService(settings);
 
                 var taskHubClient = new TaskHubClient(orchestrationServiceAndClient);
                 var taskHub = new TaskHubWorker(orchestrationServiceAndClient);
