@@ -17,7 +17,6 @@ namespace DurableTask.ServiceBus.Tests
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
-    using System.Linq;
     using System.Threading.Tasks;
     using DurableTask.Core;
     using DurableTask.Core.History;
@@ -186,14 +185,14 @@ namespace DurableTask.ServiceBus.Tests
             IEnumerable<AzureTableOrchestrationHistoryEventEntity> entitiesInst1Gen1 = CreateHistoryEntities(this.tableClient, "1", "1",
                 10);
 
-            List<AzureTableOrchestrationHistoryEventEntity> histInst0Gen0Returned =
-                await this.tableClient.ReadOrchestrationHistoryEventsAsync("0", "0").ToListAsync();
-            List<AzureTableOrchestrationHistoryEventEntity> histInst0Gen1Returned =
-                await this.tableClient.ReadOrchestrationHistoryEventsAsync("0", "1").ToListAsync();
-            List<AzureTableOrchestrationHistoryEventEntity> histInst1Gen0Returned =
-                await this.tableClient.ReadOrchestrationHistoryEventsAsync("1", "0").ToListAsync();
-            List<AzureTableOrchestrationHistoryEventEntity> histInst1Gen1Returned =
-                await this.tableClient.ReadOrchestrationHistoryEventsAsync("1", "1").ToListAsync();
+            IEnumerable<AzureTableOrchestrationHistoryEventEntity> histInst0Gen0Returned =
+                await this.tableClient.ReadOrchestrationHistoryEventsAsync("0", "0");
+            IEnumerable<AzureTableOrchestrationHistoryEventEntity> histInst0Gen1Returned =
+                await this.tableClient.ReadOrchestrationHistoryEventsAsync("0", "1");
+            IEnumerable<AzureTableOrchestrationHistoryEventEntity> histInst1Gen0Returned =
+                await this.tableClient.ReadOrchestrationHistoryEventsAsync("1", "0");
+            IEnumerable<AzureTableOrchestrationHistoryEventEntity> histInst1Gen1Returned =
+                await this.tableClient.ReadOrchestrationHistoryEventsAsync("1", "1");
 
             Assert.IsTrue(CompareEnumerations(entitiesInst0Gen0, histInst0Gen0Returned));
             Assert.IsTrue(CompareEnumerations(entitiesInst0Gen1, histInst0Gen1Returned));
@@ -209,21 +208,17 @@ namespace DurableTask.ServiceBus.Tests
             IEnumerable<AzureTableOrchestrationStateEntity> entitiesInst1Gen0 = CreateStateEntities(this.tableClient, "1", "0");
             IEnumerable<AzureTableOrchestrationStateEntity> entitiesInst1Gen1 = CreateStateEntities(this.tableClient, "1", "1");
 
-            List<AzureTableOrchestrationStateEntity> histInst0Gen0Returned = await this.tableClient
-                .QueryOrchestrationStatesAsync(new OrchestrationStateQuery().AddInstanceFilter("0", "0"))
-                .ToListAsync();
+            IEnumerable<AzureTableOrchestrationStateEntity> histInst0Gen0Returned = await this.tableClient.QueryOrchestrationStatesAsync(
+                new OrchestrationStateQuery().AddInstanceFilter("0", "0"));
 
-            List<AzureTableOrchestrationStateEntity> histInst0Gen1Returned = await this.tableClient
-                .QueryOrchestrationStatesAsync(new OrchestrationStateQuery().AddInstanceFilter("0", "1"))
-                .ToListAsync();
+            IEnumerable<AzureTableOrchestrationStateEntity> histInst0Gen1Returned = await this.tableClient.QueryOrchestrationStatesAsync(
+                new OrchestrationStateQuery().AddInstanceFilter("0", "1"));
 
-            List<AzureTableOrchestrationStateEntity> histInst1Gen0Returned = await this.tableClient
-                .QueryOrchestrationStatesAsync(new OrchestrationStateQuery().AddInstanceFilter("1", "0"))
-                .ToListAsync();
+            IEnumerable<AzureTableOrchestrationStateEntity> histInst1Gen0Returned = await this.tableClient.QueryOrchestrationStatesAsync(
+                new OrchestrationStateQuery().AddInstanceFilter("1", "0"));
 
-            List<AzureTableOrchestrationStateEntity> histInst1Gen1Returned = await this.tableClient
-                .QueryOrchestrationStatesAsync(new OrchestrationStateQuery().AddInstanceFilter("1", "1"))
-                .ToListAsync();
+            IEnumerable<AzureTableOrchestrationStateEntity> histInst1Gen1Returned = await this.tableClient.QueryOrchestrationStatesAsync(
+                new OrchestrationStateQuery().AddInstanceFilter("1", "1"));
 
             Assert.IsTrue(CompareEnumerations(entitiesInst0Gen0, histInst0Gen0Returned));
             Assert.IsTrue(CompareEnumerations(entitiesInst0Gen1, histInst0Gen1Returned));

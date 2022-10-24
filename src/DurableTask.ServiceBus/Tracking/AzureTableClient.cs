@@ -19,16 +19,15 @@ namespace DurableTask.ServiceBus.Tracking
     using System.Globalization;
     using System.Linq;
     using System.Net;
-    using System.Threading;
     using System.Threading.Tasks;
     using System.Xml;
-    using Azure;
-    using Azure.Core;
-    using Azure.Data.Tables;
     using DurableTask.Core;
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.Tracing;
+    using Microsoft.WindowsAzure.Storage;
+    using Microsoft.WindowsAzure.Storage.RetryPolicies;
+    using Microsoft.WindowsAzure.Storage.Table;
 
     internal class AzureTableClient
     {
@@ -38,112 +37,133 @@ namespace DurableTask.ServiceBus.Tracking
         static readonly TimeSpan DeltaBackOff = TimeSpan.FromSeconds(5);
 
         readonly string hubName;
-        readonly TableServiceClient tableClient;
-        readonly TableClient historyTable;
-        readonly TableClient jumpStartTable;
+        readonly CloudTableClient tableClient;
 
         static readonly IDictionary<FilterComparisonType, string> ComparisonOperatorMap 
             = new Dictionary<FilterComparisonType, string>
             {{ FilterComparisonType.Equals, AzureTableConstants.EqualityOperator},
             { FilterComparisonType.NotEquals, AzureTableConstants.InEqualityOperator}};
 
+        volatile CloudTable historyTable;
+        volatile CloudTable jumpStartTable;
+
         public AzureTableClient(string hubName, string tableConnectionString)
-            : this(hubName, CreateDefaultClient(tableConnectionString))
+            : this(hubName, CloudStorageAccount.Parse(tableConnectionString))
         {
 
         }
 
-        public AzureTableClient(string hubName, TableServiceClient client)
+        public AzureTableClient(string hubName, CloudStorageAccount cloudStorageAccount)
         {
             if (string.IsNullOrWhiteSpace(hubName))
             {
                 throw new ArgumentException("Invalid hub name", nameof(hubName));
             }
 
-            this.tableClient = client ?? throw new ArgumentNullException(nameof(client));
+            if (cloudStorageAccount == null)
+            {
+                throw new ArgumentException("Invalid Cloud Storage Account", nameof(cloudStorageAccount));
+            }
+
+            this.tableClient = CreateAzureTableClient(cloudStorageAccount);
             this.hubName = hubName;
-            this.historyTable = this.tableClient.GetTableClient(TableName);
-            this.jumpStartTable = this.tableClient.GetTableClient(JumpStartTableName);
+            this.historyTable = this.tableClient.GetTableReference(TableName);
+            this.jumpStartTable = this.tableClient.GetTableReference(JumpStartTableName);
         }
 
-        private static TableServiceClient CreateDefaultClient(string connectionString)
+        private static CloudTableClient CreateAzureTableClient(CloudStorageAccount cloudStorageAccount)
         {
-            var options = new TableClientOptions();
-            options.Retry.Delay = DeltaBackOff;
-            options.Retry.MaxRetries = MaxRetries;
-            options.Retry.Mode = RetryMode.Exponential;
-            options.Retry.NetworkTimeout = MaximumExecutionTime;
-
-            return new TableServiceClient(connectionString, options);
+            CloudTableClient tableClient = cloudStorageAccount.CreateCloudTableClient();
+            tableClient.DefaultRequestOptions.RetryPolicy = new ExponentialRetry(DeltaBackOff, MaxRetries);
+            tableClient.DefaultRequestOptions.MaximumExecutionTime = MaximumExecutionTime;
+            return tableClient;
         }
 
         public string TableName => AzureTableConstants.InstanceHistoryTableNamePrefix + "00" + this.hubName;
 
         public string JumpStartTableName => AzureTableConstants.JumpStartTableNamePrefix + "00" + this.hubName;
 
-        internal Task CreateTableIfNotExistsAsync(CancellationToken cancellationToken = default)
+        internal async Task CreateTableIfNotExistsAsync()
         {
-            return this.historyTable.CreateIfNotExistsAsync(cancellationToken);
+            this.historyTable = this.tableClient.GetTableReference(TableName);
+            await this.historyTable.CreateIfNotExistsAsync();
         }
 
-        internal Task CreateJumpStartTableIfNotExistsAsync(CancellationToken cancellationToken = default)
+        internal async Task CreateJumpStartTableIfNotExistsAsync()
         {
-            return this.jumpStartTable.CreateIfNotExistsAsync(cancellationToken);
+            this.jumpStartTable = this.tableClient.GetTableReference(JumpStartTableName);
+            await this.jumpStartTable.CreateIfNotExistsAsync();
         }
 
-        internal async Task DeleteTableIfExistsAsync(CancellationToken cancellationToken = default)
+        internal async Task DeleteTableIfExistsAsync()
         {
-            try
+            if (this.historyTable != null)
             {
-                await this.historyTable.DeleteAsync(cancellationToken);
-            }
-            catch (RequestFailedException e) when (e.Status == (int)HttpStatusCode.NotFound)
-            {
-            }
-        }
-
-        internal async Task DeleteJumpStartTableIfExistsAsync(CancellationToken cancellationToken = default)
-        {
-            try
-            {
-                await this.jumpStartTable.DeleteAsync(cancellationToken);
-            }
-            catch (RequestFailedException e) when (e.Status == (int)HttpStatusCode.NotFound)
-            {
+                await this.historyTable.DeleteIfExistsAsync();
             }
         }
 
-        public AsyncPageable<AzureTableOrchestrationStateEntity> QueryOrchestrationStatesAsync(OrchestrationStateQuery stateQuery, CancellationToken cancellationToken = default)
+        internal async Task DeleteJumpStartTableIfExistsAsync()
         {
-            return this.historyTable.QueryAsync<AzureTableOrchestrationStateEntity>(
-                CreateODataFilter(stateQuery, false),
-                cancellationToken: cancellationToken);
+            if (this.jumpStartTable != null)
+            {
+                await this.jumpStartTable.DeleteIfExistsAsync();
+            }
         }
 
-        public AsyncPageable<AzureTableOrchestrationStateEntity> QueryJumpStartOrchestrationsAsync(OrchestrationStateQuery stateQuery, CancellationToken cancellationToken = default)
+        public Task<IEnumerable<AzureTableOrchestrationStateEntity>> QueryOrchestrationStatesAsync(
+            OrchestrationStateQuery stateQuery)
         {
-            return this.jumpStartTable.QueryAsync<AzureTableOrchestrationStateEntity>(
-                CreateODataFilter(stateQuery, true),
-                cancellationToken: cancellationToken);
+            TableQuery<AzureTableOrchestrationStateEntity> query = CreateQueryInternal(stateQuery, -JumpStartTableScanIntervalInDays, false);
+            return ReadAllEntitiesAsync(query, this.historyTable);
         }
 
-        public AsyncPageable<AzureTableOrchestrationJumpStartEntity> QueryJumpStartOrchestrationsAsync(DateTime startTime, DateTime endTime, CancellationToken cancellationToken = default)
+        public Task<TableQuerySegment<AzureTableOrchestrationStateEntity>> QueryOrchestrationStatesSegmentedAsync(
+            OrchestrationStateQuery stateQuery, TableContinuationToken continuationToken, int count)
         {
-            return this.jumpStartTable.QueryAsync<AzureTableOrchestrationJumpStartEntity>(
-                CreateJumpStartODataFilter(startTime, endTime),
-                cancellationToken: cancellationToken);
+            TableQuery<AzureTableOrchestrationStateEntity> query = CreateQueryInternal(stateQuery, count, false);
+            return this.historyTable.ExecuteQuerySegmentedAsync(query, continuationToken);
         }
 
-        string CreateJumpStartODataFilter(DateTime startTime, DateTime endTime)
+        public Task<IEnumerable<AzureTableOrchestrationStateEntity>> QueryJumpStartOrchestrationsAsync(OrchestrationStateQuery stateQuery)
         {
-            return string.Format(
+            // TODO: Enable segmented query for paging purpose
+            TableQuery<AzureTableOrchestrationStateEntity> query = CreateQueryInternal(stateQuery, -1, true);
+            return ReadAllEntitiesAsync(query, this.jumpStartTable);
+        }
+
+        public Task<TableQuerySegment<AzureTableOrchestrationStateEntity>> QueryJumpStartOrchestrationsSegmentedAsync(
+            OrchestrationStateQuery stateQuery, TableContinuationToken continuationToken, int count)
+        {
+            TableQuery<AzureTableOrchestrationStateEntity> query = CreateQueryInternal(stateQuery, count, true);
+            return this.jumpStartTable.ExecuteQuerySegmentedAsync(query, continuationToken);
+        }
+
+        public Task<IEnumerable<AzureTableOrchestrationJumpStartEntity>> QueryJumpStartOrchestrationsAsync(DateTime startTime, DateTime endTime, int count)
+        {
+            TableQuery<AzureTableOrchestrationJumpStartEntity> query = CreateJumpStartQuery(startTime, endTime, count);
+            return ReadAllEntitiesAsync(query, this.jumpStartTable);
+        }
+
+        TableQuery<AzureTableOrchestrationJumpStartEntity> CreateJumpStartQuery(DateTime startTime, DateTime endTime, int count)
+        {
+            string filterExpression = string.Format(
                 CultureInfo.InvariantCulture,
                 AzureTableConstants.PrimaryTimeRangeTemplate,
                 AzureTableOrchestrationJumpStartEntity.GetPartitionKey(startTime),
                 AzureTableOrchestrationJumpStartEntity.GetPartitionKey(endTime));
+
+            TableQuery<AzureTableOrchestrationJumpStartEntity> query =
+                new TableQuery<AzureTableOrchestrationJumpStartEntity>().Where(filterExpression);
+            if (count != -1)
+            {
+                query.TakeCount = count;
+            }
+
+            return query;
         }
 
-        internal string CreateODataFilter(OrchestrationStateQuery stateQuery, bool useTimeRangePrimaryFilter)
+        internal TableQuery<AzureTableOrchestrationStateEntity> CreateQueryInternal(OrchestrationStateQuery stateQuery, int count, bool useTimeRangePrimaryFilter)
         {
             OrchestrationStateQueryFilter primaryFilter = null;
             IEnumerable<OrchestrationStateQueryFilter> secondaryFilters = null;
@@ -177,7 +197,15 @@ namespace DurableTask.ServiceBus.Tracking
                     });
             }
 
-            return filterExpression;
+            TableQuery<AzureTableOrchestrationStateEntity> query =
+                new TableQuery<AzureTableOrchestrationStateEntity>().Where(filterExpression);
+
+            if (count != -1)
+            {
+                query.TakeCount = count;
+            }
+
+            return query;
         }
 
         string GetPrimaryFilterExpression(OrchestrationStateQueryFilter filter, bool isJumpStartTable)
@@ -318,7 +346,6 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         private static readonly DateTimeOffset MinDateTime = new DateTimeOffset(1601, 1, 1, 0, 0, 0, TimeSpan.Zero);
-
         DateTime ClipStartTime(DateTime startTime)
         {
             DateTimeOffset offsetStartTime = startTime;
@@ -340,7 +367,8 @@ namespace DurableTask.ServiceBus.Tracking
             return endTime;
         }
 
-        public IAsyncEnumerable<AzureTableOrchestrationHistoryEventEntity> ReadOrchestrationHistoryEventsAsync(string instanceId, string executionId, CancellationToken cancellationToken = default)
+        public Task<IEnumerable<AzureTableOrchestrationHistoryEventEntity>> ReadOrchestrationHistoryEventsAsync(string instanceId,
+            string executionId)
         {
             string partitionKey = AzureTableConstants.InstanceHistoryEventPrefix +
                                   AzureTableConstants.JoinDelimiter + instanceId;
@@ -356,7 +384,31 @@ namespace DurableTask.ServiceBus.Tracking
             string filter = string.Format(CultureInfo.InvariantCulture, AzureTableConstants.TableRangeQueryFormat,
                 partitionKey, rowKeyLower, rowKeyUpper);
 
-            return this.historyTable.QueryAsync<AzureTableOrchestrationHistoryEventEntity>(filter, cancellationToken: cancellationToken);
+            TableQuery<AzureTableOrchestrationHistoryEventEntity> query =
+                new TableQuery<AzureTableOrchestrationHistoryEventEntity>().Where(filter);
+            return ReadAllEntitiesAsync(query, this.historyTable);
+        }
+
+        async Task<IEnumerable<T>> ReadAllEntitiesAsync<T>(TableQuery<T> query, CloudTable table)
+            where T : ITableEntity, new()
+        {
+            var results = new List<T>();
+            TableQuerySegment<T> resultSegment = await table.ExecuteQuerySegmentedAsync(query, null);
+            if (resultSegment.Results != null)
+            {
+                results.AddRange(resultSegment.Results);
+            }
+
+            while (resultSegment.ContinuationToken != null)
+            {
+                resultSegment = await table.ExecuteQuerySegmentedAsync(query, resultSegment.ContinuationToken);
+                if (resultSegment.Results != null)
+                {
+                    results.AddRange(resultSegment.Results);
+                }
+            }
+
+            return results;
         }
 
         string ComputeNextKeyInRange(string key)
@@ -371,73 +423,89 @@ namespace DurableTask.ServiceBus.Tracking
 
         public async Task<object> PerformBatchTableOperationAsync(
             string operationTag,
-            TableClient client,
+            CloudTable table,
             IEnumerable<AzureTableCompositeTableEntity> entities,
-            Func<ITableEntity, TableTransactionAction> batchOperationFunc,
-            CancellationToken cancellationToken = default)
+            Action<TableBatchOperation, ITableEntity> batchOperationFunc)
         {
-            const int BatchSize = 100;
-
-            var batch = new List<TableTransactionAction>(BatchSize);
-            foreach (ITableEntity entity in entities.SelectMany(x => x.BuildDenormalizedEntities()))
+            if (entities == null)
             {
-                batch.Add(batchOperationFunc(entity));
-                if (batch.Count == BatchSize)
+                throw new ArgumentNullException(nameof(entities));
+            }
+
+            var batchOperation = new TableBatchOperation();
+            var operationCounter = 0;
+
+            foreach (AzureTableCompositeTableEntity entity in entities)
+            {
+                foreach (ITableEntity e in entity.BuildDenormalizedEntities())
                 {
-                    await ExecuteBatchOperationAsync(operationTag, client, batch, cancellationToken);
-                    batch.Clear();
+                    batchOperationFunc(batchOperation, e);
+                    if (++operationCounter == 100)
+                    {
+                        await ExecuteBatchOperationAsync(operationTag, table, batchOperation);
+                        batchOperation = new TableBatchOperation();
+                        operationCounter = 0;
+                    }
                 }
             }
 
-            if (batch.Count > 0)
+            if (operationCounter > 0)
             {
-                await ExecuteBatchOperationAsync(operationTag, client, batch, cancellationToken);
+                await ExecuteBatchOperationAsync(operationTag, table, batchOperation);
             }
 
             return null;
         }
 
-        async Task ExecuteBatchOperationAsync(string operationTag, TableClient client, ICollection<TableTransactionAction> transaction, CancellationToken cancellationToken)
+        async Task ExecuteBatchOperationAsync(string operationTag, CloudTable table, TableBatchOperation batchOperation)
         {
-            if (transaction.Count == 0)
+            if (batchOperation.Count == 0)
             {
                 return;
             }
 
-            Response<IReadOnlyList<Response>> results = await client.SubmitTransactionAsync(transaction, cancellationToken);
-            foreach (Response response in results.Value)
+            IList<TableResult> results = await table.ExecuteBatchAsync(batchOperation);
+            foreach (TableResult result in results)
             {
-                if (response.Status < 200 || response.Status > 299)
+                if (result.HttpStatusCode < 200 || result.HttpStatusCode > 299)
                 {
                     throw new OrchestrationFrameworkException("Failed to perform " + operationTag + " batch operation: " +
-                                                              response.Status);
+                                                              result.HttpStatusCode);
                 }
             }
         }
 
-        public async Task<object> WriteEntitiesAsync(IEnumerable<AzureTableCompositeTableEntity> entities, CancellationToken cancellationToken = default)
+        public async Task<object> WriteEntitiesAsync(IEnumerable<AzureTableCompositeTableEntity> entities)
         {
-            return await PerformBatchTableOperationAsync("Write Entities", this.historyTable, entities, item => new TableTransactionAction(TableTransactionActionType.UpsertReplace, item), cancellationToken);
+            return await PerformBatchTableOperationAsync("Write Entities", this.historyTable, entities, (bo, te) => bo.InsertOrReplace(te));
         }
 
-        public async Task<object> WriteJumpStartEntitiesAsync(IEnumerable<AzureTableCompositeTableEntity> entities, CancellationToken cancellationToken = default)
+        public async Task<object> WriteJumpStartEntitiesAsync(IEnumerable<AzureTableCompositeTableEntity> entities)
         {
-            return await PerformBatchTableOperationAsync("Write Entities", this.jumpStartTable, entities, item => new TableTransactionAction(TableTransactionActionType.UpsertReplace, item), cancellationToken);
+            return await PerformBatchTableOperationAsync("Write Entities", this.jumpStartTable, entities, (bo, te) => bo.InsertOrReplace(te));
         }
 
-        public async Task<object> DeleteEntitiesAsync(IEnumerable<AzureTableCompositeTableEntity> entities, CancellationToken cancellationToken = default)
+        public async Task<object> DeleteEntitiesAsync(IEnumerable<AzureTableCompositeTableEntity> entities)
         {
-            return await PerformBatchTableOperationAsync("Delete Entities", this.historyTable, entities, item => new TableTransactionAction(TableTransactionActionType.Delete, item), cancellationToken);
+            return await PerformBatchTableOperationAsync("Delete Entities", this.historyTable, entities, (bo, te) =>
+            {
+                te.ETag = "*";
+                bo.Delete(te);
+            });
         }
 
-        public async Task<object> DeleteJumpStartEntitiesAsync(IEnumerable<AzureTableCompositeTableEntity> entities, CancellationToken cancellationToken = default)
+        public async Task<object> DeleteJumpStartEntitiesAsync(IEnumerable<AzureTableCompositeTableEntity> entities)
         {
             try
             {
-                return await PerformBatchTableOperationAsync("Delete Entities", this.jumpStartTable, entities, item => new TableTransactionAction(TableTransactionActionType.Delete, item), cancellationToken);
+                return await PerformBatchTableOperationAsync("Delete Entities", this.jumpStartTable, entities, (bo, te) =>
+                {
+                    te.ETag = "*";
+                    bo.Delete(te);
+                });
             }
             // This call could come in from multiple nodes at the same time so a not found exception is harmless
-            catch (RequestFailedException e) when (e.Status == (int)HttpStatusCode.NotFound)
+            catch (StorageException e) when (e.RequestInformation.HttpStatusCode == (int)HttpStatusCode.NotFound)
             {
                 TraceHelper.Trace(TraceEventType.Information, "AzureTableClient-DeleteJumpStartEntities-NotFound", "DeleteJumpStartEntitiesAsync not found exception: {0}", e.Message);
                 return Task.FromResult(false);

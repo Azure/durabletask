@@ -16,6 +16,7 @@ namespace DurableTask.ServiceBus.Tests
     using DurableTask.Core;
     using DurableTask.ServiceBus.Tracking;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using Microsoft.WindowsAzure.Storage.Table;
 
     [TestClass]
     public class AzureTableClientTest
@@ -28,9 +29,9 @@ namespace DurableTask.ServiceBus.Tests
             var tableClient = new AzureTableClient("myHub", ConnectionString);
             var stateQuery = new OrchestrationStateQuery();
 
-            string filter = tableClient.CreateODataFilter(stateQuery, false);
+            TableQuery<AzureTableOrchestrationStateEntity> query = tableClient.CreateQueryInternal(stateQuery, 1, false);
 
-            Assert.AreEqual("(PartitionKey eq 'IS')", filter);
+            Assert.AreEqual("(PartitionKey eq 'IS')", query.FilterString);
         }
 
         [TestMethod]
@@ -40,9 +41,9 @@ namespace DurableTask.ServiceBus.Tests
             var stateQuery = new OrchestrationStateQuery();
             stateQuery.AddInstanceFilter("myInstance");
 
-            string filter = tableClient.CreateODataFilter(stateQuery, false);
+            TableQuery<AzureTableOrchestrationStateEntity> query = tableClient.CreateQueryInternal(stateQuery, 1, false);
 
-            Assert.AreEqual("(PartitionKey eq 'IS') and (RowKey ge 'ID_EID_myInstance') and (RowKey lt 'ID_EID_myInstancf')", filter);
+            Assert.AreEqual("(PartitionKey eq 'IS') and (RowKey ge 'ID_EID_myInstance') and (RowKey lt 'ID_EID_myInstancf')", query.FilterString);
         }
 
         [TestMethod]
@@ -53,9 +54,9 @@ namespace DurableTask.ServiceBus.Tests
             stateQuery.AddInstanceFilter("myInstance");
             stateQuery.AddNameVersionFilter("myName");
 
-            string filter = tableClient.CreateODataFilter(stateQuery, false);
+            TableQuery<AzureTableOrchestrationStateEntity> query = tableClient.CreateQueryInternal(stateQuery, 1, false);
 
-            Assert.AreEqual("(PartitionKey eq 'IS') and (RowKey ge 'ID_EID_myInstance') and (RowKey lt 'ID_EID_myInstancf') and (InstanceId eq 'myInstance') and (Name eq 'myName')", filter);
+            Assert.AreEqual("(PartitionKey eq 'IS') and (RowKey ge 'ID_EID_myInstance') and (RowKey lt 'ID_EID_myInstancf') and (InstanceId eq 'myInstance') and (Name eq 'myName')", query.FilterString);
         }
     }
 }

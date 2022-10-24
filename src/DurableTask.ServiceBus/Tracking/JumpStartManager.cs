@@ -24,7 +24,6 @@ namespace DurableTask.ServiceBus.Tracking
     using DurableTask.Core.History;
     using DurableTask.Core.Tracing;
     using DurableTask.Core.Tracking;
-    using DurableTask.ServiceBus.Common;
 
     internal class JumpStartManager
     {
@@ -82,9 +81,7 @@ namespace DurableTask.ServiceBus.Tracking
                     TraceHelper.Trace(TraceEventType.Information, "JumpStartManager-Fetch-Begin", "Jump start starting fetch");
 
                     // TODO: Query in batches and change time frame only after current range is finished
-                    List<OrchestrationJumpStartInstanceEntity> entities = await this.service.InstanceStore.GetJumpStartEntitiesAsync()
-                        .ToListAsync();
-
+                    List<OrchestrationJumpStartInstanceEntity> entities = (await this.service.InstanceStore.GetJumpStartEntitiesAsync(1000)).ToList();
                     TraceHelper.Trace(
                         TraceEventType.Information,
                         "JumpStartManager-Fetch-End",
@@ -132,7 +129,7 @@ namespace DurableTask.ServiceBus.Tracking
         protected async Task JumpStartOrchestrationAsync(OrchestrationJumpStartInstanceEntity jumpStartEntity)
         {
             OrchestrationInstance instance = jumpStartEntity.State.OrchestrationInstance;
-            OrchestrationStateInstanceEntity stateEntity = await this.service.InstanceStore.GetEntitiesAsync(instance.InstanceId, instance.ExecutionId).FirstOrDefaultAsync();
+            OrchestrationStateInstanceEntity stateEntity = (await this.service.InstanceStore.GetEntitiesAsync(instance.InstanceId, instance.ExecutionId))?.FirstOrDefault();
             if (stateEntity != null)
             {
                 // It seems orchestration started, delete entity from JumpStart table

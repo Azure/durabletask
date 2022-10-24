@@ -21,7 +21,6 @@ namespace DurableTask.ServiceBus.Tests
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
     using DurableTask.ServiceBus.Settings;
-    using DurableTask.Core.Tests;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
@@ -683,7 +682,7 @@ namespace DurableTask.ServiceBus.Tests
                 "UberOrchestration",
                 "V1",
                 "TestInstance",
-                new TestOrchestrationInput { Iterations = numSubOrchestrations, Payload = TestUtils.GenerateRandomString(90 * 1024) });
+                new TestOrchestrationInput { Iterations = numSubOrchestrations, Payload = TestHelpers.GenerateRandomString(90 * 1024) });
 
             // Waiting for 60 seconds guarantees that to pass the orchestrations must run in parallel
             bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, instance, 60);
@@ -709,7 +708,7 @@ namespace DurableTask.ServiceBus.Tests
                 "SleeperSubOrchestration",
                 "V1",
                 $"{UberOrchestration.ChildWorkflowIdBase}_{i}",
-                new TestOrchestrationInput { Iterations = 1, Payload = TestUtils.GenerateRandomString(8 * 1024) }));
+                new TestOrchestrationInput { Iterations = 1, Payload = TestHelpers.GenerateRandomString(8 * 1024) }));
             }
 
             IList<OrchestrationInstance> orchestrationInstances = (await Task.WhenAll(orchestrations)).ToList();
@@ -758,7 +757,7 @@ namespace DurableTask.ServiceBus.Tests
                         "SleeperSubOrchestration",
                         "V1",
                         $"{ChildWorkflowIdBase}_{i}",
-                        new TestOrchestrationInput { Iterations = 1, Payload = TestUtils.GenerateRandomString(8 * 1024) }));
+                        new TestOrchestrationInput { Iterations = 1, Payload = TestHelpers.GenerateRandomString(8 * 1024) }));
                 }
 
                 int[] data = await Task.WhenAll(tasks);

@@ -14,12 +14,11 @@
 namespace DurableTask.ServiceBus
 {
     using System;
-    using System.Diagnostics;
     using System.Collections.Concurrent;
+    using System.Diagnostics;
     using System.Collections.Generic;
     using System.IO;
     using System.Linq;
-    using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
     using System.Transactions;
@@ -1091,7 +1090,7 @@ namespace DurableTask.ServiceBus
                 // to JumpStart table by JumpStart manager
                 // not thread safe in case multiple clients attempt to create an orchestration instance with the same id at the same time
 
-                OrchestrationState latestState = await GetOrchestrationStateAsync(creationMessage.OrchestrationInstance.InstanceId, false).FirstOrDefaultAsync();
+                OrchestrationState latestState = (await GetOrchestrationStateAsync(creationMessage.OrchestrationInstance.InstanceId, false)).FirstOrDefault();
                 if (latestState != null && (dedupeStatuses == null || dedupeStatuses.Contains(latestState.OrchestrationStatus)))
                 {
                     // An orchestration with same instance id is already running
@@ -1240,7 +1239,7 @@ namespace DurableTask.ServiceBus
 
             while (!cancellationToken.IsCancellationRequested && timeoutSeconds > 0)
             {
-                OrchestrationState state = await GetOrchestrationStateAsync(instanceId, false, cancellationToken).FirstOrDefaultAsync(cancellationToken);
+                OrchestrationState state = (await GetOrchestrationStateAsync(instanceId, false))?.FirstOrDefault();
                 if (state == null
                     || (state.OrchestrationStatus == OrchestrationStatus.Running)
                     || (state.OrchestrationStatus == OrchestrationStatus.Pending))
@@ -1262,14 +1261,12 @@ namespace DurableTask.ServiceBus
         /// </summary>
         /// <param name="instanceId">Instance id</param>
         /// <param name="allExecutions">True if method should fetch all executions of the instance, false if the method should only fetch the most recent execution</param>
-        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        /// <returns>An asynchronous enumerable over the list of orchestrations in the instance store</returns>
-        public IAsyncEnumerable<OrchestrationState> GetOrchestrationStateAsync(string instanceId, bool allExecutions, CancellationToken cancellationToken = default)
+        /// <returns>List of OrchestrationState objects that represents the list of orchestrations in the instance store</returns>
+        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
             ThrowIfInstanceStoreNotConfigured();
-            return this.InstanceStore
-                .GetOrchestrationStateAsync(instanceId, allExecutions, cancellationToken)
-                .Select(entity => entity.State);
+            IEnumerable<OrchestrationStateInstanceEntity> states = await this.InstanceStore.GetOrchestrationStateAsync(instanceId, allExecutions);
+            return states?.Select(s => s.State).ToList() ?? new List<OrchestrationState>();
         }
 
         /// <summary>
@@ -1294,9 +1291,10 @@ namespace DurableTask.ServiceBus
         public async Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId)
         {
             ThrowIfInstanceStoreNotConfigured();
-            IAsyncEnumerable<OrchestrationWorkItemInstanceEntity> historyEvents = this.InstanceStore.GetOrchestrationHistoryEventsAsync(instanceId, executionId);
+            IEnumerable<OrchestrationWorkItemInstanceEntity> historyEvents =
+                await this.InstanceStore.GetOrchestrationHistoryEventsAsync(instanceId, executionId);
 
-            return JsonDataConverter.Default.Serialize(await historyEvents.Select(historyEventEntity => historyEventEntity.HistoryEvent).ToListAsync());
+            return JsonDataConverter.Default.Serialize(historyEvents.Select(historyEventEntity => historyEventEntity.HistoryEvent));
         }
 
         /// <summary>
