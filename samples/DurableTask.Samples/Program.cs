@@ -22,6 +22,9 @@ namespace DurableTask.Samples
     using System.IO;
     using System.Linq;
     using System.Threading;
+    using DurableTask.AzureStorage;
+    using DurableTask.Core;
+    using DurableTask.Core.Tracing;
     using DurableTask.Samples.AverageCalculator;
     using DurableTask.Samples.Common.WorkItems;
     using DurableTask.Samples.Cron;
@@ -31,10 +34,6 @@ namespace DurableTask.Samples
     using DurableTask.Samples.Replat;
     using DurableTask.Samples.Signal;
     using DurableTask.Samples.SumOfSquares;
-    using DurableTask.Core;
-    using DurableTask.Core.Tracing;
-    using DurableTask.ServiceBus;
-    using DurableTask.ServiceBus.Tracking;
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging;
 
     internal class Program
@@ -51,15 +50,16 @@ namespace DurableTask.Samples
 
             if (CommandLine.Parser.Default.ParseArgumentsStrict(args, ArgumentOptions))
             {
-                string serviceBusConnectionString = GetSetting("ServiceBusConnectionString");
                 string storageConnectionString = GetSetting("StorageConnectionString");
                 string taskHubName = ConfigurationManager.AppSettings["taskHubName"];
 
-                IOrchestrationServiceInstanceStore instanceStore = new AzureTableInstanceStore(taskHubName, storageConnectionString);
+                var settings = new AzureStorageOrchestrationServiceSettings
+                {
+                    StorageAccountDetails = new StorageAccountDetails { ConnectionString = storageConnectionString },
+                    TaskHubName = taskHubName,
+                };
 
-                var orchestrationServiceAndClient =
-                    new ServiceBusOrchestrationService(serviceBusConnectionString, taskHubName, instanceStore, null, null);
-
+                var orchestrationServiceAndClient = new AzureStorageOrchestrationService(settings);
                 var taskHubClient = new TaskHubClient(orchestrationServiceAndClient);
                 var taskHubWorker = new TaskHubWorker(orchestrationServiceAndClient);
                 
