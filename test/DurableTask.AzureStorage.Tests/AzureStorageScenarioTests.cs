@@ -200,26 +200,32 @@ namespace DurableTask.AzureStorage.Tests
                 instanceId: $"Foo_{instanceIdPrefixGuid}");
             await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
 
-            int resultCount = await host.service
-                .GetOrchestrationStateAsync(
-                    new OrchestrationInstanceStatusQueryCondition { InstanceIdPrefix = instanceIdPrefixGuid })
-                .CountAsync();
-
-            Assert.AreEqual(instanceIds.Length, resultCount);
+            DurableStatusQueryResult queryResult = await host.service.GetOrchestrationStateAsync(
+                new OrchestrationInstanceStatusQueryCondition()
+                {
+                    InstanceIdPrefix = instanceIdPrefixGuid,
+                },
+                top: instanceIds.Length,
+                continuationToken: null);
+            Assert.AreEqual(instanceIds.Length, queryResult.OrchestrationState.Count());
+            Assert.IsNull(queryResult.ContinuationToken);
 
             await host.StopAsync();
         }
 
         [TestMethod]
-        public async Task NoInstancesGetAllOrchestrationStatuses()
+        public async Task NoInstancesGetAllOrchestrationStatusesNullContinuationToken()
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
             {
                 // Execute the orchestrator twice. Orchestrator will be replied. However instances might be two.
                 await host.StartAsync();
-                var queryResult = host.service.GetOrchestrationStateAsync();
+                var queryResult = await host.service.GetOrchestrationStateAsync(
+                    new OrchestrationInstanceStatusQueryCondition(),
+                    100,
+                    null);
 
-                Assert.AreEqual(0, await queryResult.CountAsync());
+                Assert.IsNull(queryResult.ContinuationToken);
                 await host.StopAsync();
             }
         }

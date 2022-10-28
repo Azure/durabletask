@@ -189,7 +189,7 @@ namespace DurableTask.AzureStorage.Tracking
             }
             else
             {
-                historyEvents = EmptyHistoryEventList;
+                historyEvents = Array.Empty<HistoryEvent>();
                 executionId = expectedExecutionId;
             }
 
@@ -258,7 +258,7 @@ namespace DurableTask.AzureStorage.Tracking
             return entities;
         }
 
-        public override async Task<IReadOnlyList<string>> RewindHistoryAsync(string instanceId, CancellationToken cancellationToken = default)
+        public override async IAsyncEnumerable<string> RewindHistoryAsync(string instanceId, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             // REWIND ALGORITHM:
@@ -293,8 +293,6 @@ namespace DurableTask.AzureStorage.Tracking
             updateFilterBuilder.Append(')');
 
             IReadOnlyList<TableEntity> entitiesToClear = await this.QueryHistoryAsync(updateFilterBuilder.ToString(), instanceId, cancellationToken);
-
-            var failedLeaves = new List<string>();
             foreach (TableEntity entity in entitiesToClear)
             {
                 if (entity.GetString(nameof(OrchestrationInstance.ExecutionId)) != executionId)
@@ -341,7 +339,11 @@ namespace DurableTask.AzureStorage.Tracking
                         await this.HistoryTable.ReplaceAsync(soEntity, soEntity.ETag, cancellationToken);
 
                         // recursive call to clear out failure events on child instances
-                        failedLeaves.AddRange(await this.RewindHistoryAsync(soEntity.GetString(nameof(OrchestrationInstance.InstanceId)), cancellationToken));
+                        await foreach (string childInstanceId in this.RewindHistoryAsync(soEntity.GetString(nameof(OrchestrationInstance.InstanceId)), cancellationToken))
+                        {
+                            yield return childInstanceId;
+                        }
+
                         break;
                 }
 
@@ -357,10 +359,8 @@ namespace DurableTask.AzureStorage.Tracking
 
             if (!hasFailedSubOrchestrations)
             {
-                failedLeaves.Add(instanceId);
+                yield return instanceId;
             }
-
-            return failedLeaves;
         }
 
         /// <inheritdoc />
@@ -493,23 +493,23 @@ namespace DurableTask.AzureStorage.Tracking
             return this.QueryStateAsync($"{nameof(ITableEntity.RowKey)} eq ''", cancellationToken: cancellationToken);
         }
 
-        public override IAsyncEnumerable<OrchestrationState> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default)
+        public override AsyncPageable<OrchestrationState> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default)
         {
             ODataCondition odata = OrchestrationInstanceStatusQueryCondition.Parse(createdTimeFrom, createdTimeTo, runtimeStatus).ToOData();
             return this.QueryStateAsync(odata.Filter, odata.Select, cancellationToken);
         }
 
-        public override IAsyncEnumerable<OrchestrationState> GetStateAsync(OrchestrationInstanceStatusQueryCondition condition, CancellationToken cancellationToken = default)
+        public override AsyncPageable<OrchestrationState> GetStateAsync(OrchestrationInstanceStatusQueryCondition condition, CancellationToken cancellationToken = default)
         {
             ODataCondition odata = condition.ToOData();
             return this.QueryStateAsync(odata.Filter, odata.Select, cancellationToken);
         }
 
-        IAsyncEnumerable<OrchestrationState> QueryStateAsync(string filter = null, IEnumerable<string> select = null, CancellationToken cancellationToken = default)
+        AsyncPageable<OrchestrationState> QueryStateAsync(string filter = null, IEnumerable<string> select = null, CancellationToken cancellationToken = default)
         {
-            return this.InstancesTable
-                .ExecuteQueryAsync<OrchestrationInstanceStatus>(filter, select: select, cancellationToken: cancellationToken)
-                .SelectAwaitWithCancellation((s, t) => new ValueTask<OrchestrationState>(this.ConvertFromAsync(s, KeySanitation.UnescapePartitionKey(s.PartitionKey), t)));
+            return new AsyncPageableAsyncProjection<OrchestrationInstanceStatus, OrchestrationState>(
+                this.InstancesTable.ExecuteQueryAsync<OrchestrationInstanceStatus>(filter, select: select, cancellationToken: cancellationToken),
+                (s, t) => new ValueTask<OrchestrationState>(this.ConvertFromAsync(s, KeySanitation.UnescapePartitionKey(s.PartitionKey), t)));
         }
 
         async Task<PurgeHistoryResult> DeleteHistoryAsync(

@@ -250,7 +250,7 @@ namespace DurableTask.AzureStorage.Tests
         {
             // This API currently only exists in the service object and is not yet exposed on the TaskHubClient
             AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.ServiceClient;
-            IList<OrchestrationState> instances = await service.GetOrchestrationStateAsync().ToListAsync();
+            IList<OrchestrationState> instances = await service.GetOrchestrationStateAsync();
             Trace.TraceInformation($"Found {instances.Count} in the task hub instance store.");
             return instances;
         }
