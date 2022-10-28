@@ -70,7 +70,7 @@ steps:
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   displayName: 'ESRP CodeSigning: Authenticode'
   inputs:
-    ConnectedServiceName: 'ESRP Service'
+    ConnectedServiceName: 'DurableTask Code Signing'
     FolderPath: 'src'
     Pattern: 'DurableTask.*.dll'
     signConfigType: inlineSignParams
@@ -148,7 +148,7 @@ steps:
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   displayName: 'ESRP CodeSigning: Nupkg'
   inputs:
-    ConnectedServiceName: 'ESRP Service'
+    ConnectedServiceName: 'DurableTask Code Signing'
     FolderPath: $(build.artifactStagingDirectory)
     Pattern: '*.nupkg'
     signConfigType: inlineSignParams
