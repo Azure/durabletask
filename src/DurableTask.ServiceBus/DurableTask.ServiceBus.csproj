@@ -36,11 +36,12 @@
   <ItemGroup>
     <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
   </ItemGroup>
-   
+
   <ItemGroup Condition="'$(Configuration)'=='Release'">
     <Content Include="..\..\_manifest\**">
      <Pack>true</Pack>
      <PackagePath>content/SBOM</PackagePath>
     </Content>
   </ItemGroup>
+
 </Project>
