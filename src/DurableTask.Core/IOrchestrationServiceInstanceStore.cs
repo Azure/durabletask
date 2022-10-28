@@ -15,7 +15,6 @@ namespace DurableTask.Core
 {
     using System;
     using System.Collections.Generic;
-    using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core.Tracking;
 
@@ -52,9 +51,8 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="instanceId">The instance id to return state for</param>
         /// <param name="executionId">The execution id to return state for</param>
-        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        /// <returns>An asynchronous enumerable over the matching orchestration state or <see langword="null"/> if not found.</returns>
-        IAsyncEnumerable<OrchestrationStateInstanceEntity> GetEntitiesAsync(string instanceId, string executionId, CancellationToken cancellationToken = default);
+        /// <returns>The matching orchestration state or null if not found</returns>
+        Task<IEnumerable<OrchestrationStateInstanceEntity>> GetEntitiesAsync(string instanceId, string executionId);
 
         /// <summary>
         /// Deletes a list of history events from instance store
@@ -67,9 +65,8 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="instanceId">The instance id to return state for</param>
         /// <param name="allInstances">Flag indication whether to get all history execution ids or just the most recent</param>
-        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        /// <returns>An asynchronous enumerable over the matching orchestration states.</returns>
-        IAsyncEnumerable<OrchestrationStateInstanceEntity> GetOrchestrationStateAsync(string instanceId, bool allInstances, CancellationToken cancellationToken = default);
+        /// <returns>List of matching orchestration states</returns>
+        Task<IEnumerable<OrchestrationStateInstanceEntity>> GetOrchestrationStateAsync(string instanceId, bool allInstances);
 
         /// <summary>
         /// Gets the orchestration state for a given instance and execution id
@@ -84,9 +81,8 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="instanceId">The instance id to return history for</param>
         /// <param name="executionId">The execution id to return history for</param>
-        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        /// <returns>An asynchronous enumerable over the history events.</returns>
-        IAsyncEnumerable<OrchestrationWorkItemInstanceEntity> GetOrchestrationHistoryEventsAsync(string instanceId, string executionId, CancellationToken cancellationToken = default);
+        /// <returns>List of history events</returns>
+        Task<IEnumerable<OrchestrationWorkItemInstanceEntity>> GetOrchestrationHistoryEventsAsync(string instanceId, string executionId);
 
         /// <summary>
         /// Purges history from storage for given time range
@@ -111,8 +107,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Get a list of jump start events from instance store
         /// </summary>
-        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        /// <returns>An asynchronous enumerable over the matching jump start events.</returns>
-        IAsyncEnumerable<OrchestrationJumpStartInstanceEntity> GetJumpStartEntitiesAsync(CancellationToken cancellationToken = default);
+        /// <returns>List of jump start events</returns>
+        Task<IEnumerable<OrchestrationJumpStartInstanceEntity>> GetJumpStartEntitiesAsync(int top);
     }
 }

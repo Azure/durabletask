@@ -16,8 +16,8 @@
 
   <!-- Version Info -->
   <PropertyGroup>
-    <MajorVersion>3</MajorVersion>
-    <MinorVersion>0</MinorVersion>
+    <MajorVersion>2</MajorVersion>
+    <MinorVersion>12</MinorVersion>
     <PatchVersion>0</PatchVersion>
 
     <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
@@ -42,9 +42,7 @@
 
   <ItemGroup>
     <PackageReference Include="Castle.Core" Version="5.0.0" />
-    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="6.0.0" />
     <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="5.0.1" />
-    <PackageReference Include="System.Linq.Async" Version="6.0.1" />
     <PackageReference Include="System.Reactive.Core" Version="4.4.1" />
     <PackageReference Include="System.Reactive.Compatibility" Version="4.4.1" />
   </ItemGroup>

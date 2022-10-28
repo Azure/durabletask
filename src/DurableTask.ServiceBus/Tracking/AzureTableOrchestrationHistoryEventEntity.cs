@@ -15,9 +15,10 @@ namespace DurableTask.ServiceBus.Tracking
 {
     using System;
     using System.Collections.Generic;
-    using Azure.Data.Tables;
     using DurableTask.Core.History;
     using DurableTask.Core.Serializing;
+    using Microsoft.WindowsAzure.Storage;
+    using Microsoft.WindowsAzure.Storage.Table;
     using Newtonsoft.Json;
 
     /// <summary>
@@ -110,6 +111,55 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         /// <summary>
+        /// Write an entity to a dictionary of entity properties
+        /// </summary>
+        /// <param name="operationContext">The operation context</param>
+        public override IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext)
+        {
+            string serializedHistoryEvent = JsonConvert.SerializeObject(HistoryEvent, WriteJsonSettings);
+
+            // replace with a generic event with the truncated history so at least we have some record
+            // note that this makes the history stored in the instance store unreplayable. so any replay logic
+            // that we build will have to especially check for this event and flag the orchestration as unplayable if it sees this event
+            if (!string.IsNullOrWhiteSpace(serializedHistoryEvent) &&
+                serializedHistoryEvent.Length > ServiceBusConstants.MaxStringLengthForAzureTableColumn)
+            {
+                serializedHistoryEvent = JsonConvert.SerializeObject(new GenericEvent(HistoryEvent.EventId,
+                    serializedHistoryEvent.Substring(0, ServiceBusConstants.MaxStringLengthForAzureTableColumn) + " ....(truncated)..]"),
+                    WriteJsonSettings);
+            }
+
+            var returnValues = new Dictionary<string, EntityProperty>();
+            returnValues.Add("InstanceId", new EntityProperty(InstanceId));
+            returnValues.Add("ExecutionId", new EntityProperty(ExecutionId));
+            returnValues.Add("TaskTimeStamp", new EntityProperty(TaskTimeStamp));
+            returnValues.Add("SequenceNumber", new EntityProperty(SequenceNumber));
+            returnValues.Add("HistoryEvent", new EntityProperty(serializedHistoryEvent));
+
+            return returnValues;
+        }
+
+        /// <summary>
+        /// Read an entity properties based on the supplied dictionary or entity properties
+        /// </summary>
+        /// <param name="properties">Dictionary of properties to read for the entity</param>
+        /// <param name="operationContext">The operation context</param>
+        public override void ReadEntity(IDictionary<string, EntityProperty> properties,
+            OperationContext operationContext)
+        {
+            InstanceId = GetValue("InstanceId", properties, property => property.StringValue);
+            ExecutionId = GetValue("ExecutionId", properties, property => property.StringValue);
+            SequenceNumber = GetValue("SequenceNumber", properties, property => property.Int32Value).GetValueOrDefault();
+            TaskTimeStamp =
+                GetValue("TaskTimeStamp", properties, property => property.DateTimeOffsetValue)
+                    .GetValueOrDefault()
+                    .DateTime;
+
+            string serializedHistoryEvent = GetValue("HistoryEvent", properties, property => property.StringValue);
+            HistoryEvent = JsonConvert.DeserializeObject<HistoryEvent>(serializedHistoryEvent, ReadJsonSettings);
+        }
+
+        /// <summary>
         /// Returns a string that represents the current object.
         /// </summary>
         /// <returns>
@@ -117,7 +167,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// </returns>
         public override string ToString()
         {
-            return $"Instance Id: {InstanceId} Execution Id: {ExecutionId} Seq: {SequenceNumber} Time: {TaskTimeStamp} HistoryEvent: {HistoryEvent.EventType}";
+            return $"Instance Id: {InstanceId} Execution Id: {ExecutionId} Seq: {SequenceNumber.ToString()} Time: {TaskTimeStamp} HistoryEvent: {HistoryEvent.EventType.ToString()}";
         }
     }
 }

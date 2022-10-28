@@ -14,17 +14,17 @@
 namespace DurableTask.ServiceBus.Tracking
 {
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Linq;
-    using System.Runtime.CompilerServices;
-    using System.Threading;
+    using System.Text;
     using System.Threading.Tasks;
-    using Azure;
-    using Azure.Data.Tables;
     using DurableTask.Core;
     using DurableTask.Core.Common;
+    using DurableTask.Core.Serializing;
     using DurableTask.Core.Tracking;
-    using DurableTask.ServiceBus.Common;
+    using Microsoft.WindowsAzure.Storage;
+    using Microsoft.WindowsAzure.Storage.Table;
 
     /// <summary>
     /// Azure Table Instance store provider to allow storage and lookup for orchestration state event history with query support
@@ -32,6 +32,8 @@ namespace DurableTask.ServiceBus.Tracking
     public class AzureTableInstanceStore : IOrchestrationServiceInstanceStore
     {
         const int MaxDisplayStringLengthForAzureTableColumn = (1024 * 24) - 20;
+        const int MaxRetriesTableStore = 5;
+        const int IntervalBetweenRetriesSecs = 5;
 
         readonly AzureTableClient tableClient;
 
@@ -62,10 +64,20 @@ namespace DurableTask.ServiceBus.Tracking
         /// Creates a new AzureTableInstanceStore using the supplied hub name and cloud storage account
         /// </summary>
         /// <param name="hubName">The hub name for this instance store</param>
-        /// <param name="client">Client for Azure Table Storage</param>
-        public AzureTableInstanceStore(string hubName, TableServiceClient client)
+        /// <param name="cloudStorageAccount">Cloud Storage Account</param>
+        public AzureTableInstanceStore(string hubName, CloudStorageAccount cloudStorageAccount)
         {
-            this.tableClient = new AzureTableClient(hubName, client);
+            if (cloudStorageAccount == null)
+            {
+                throw new ArgumentException("Invalid Cloud Storage Account", nameof(cloudStorageAccount));
+            }
+
+            if (string.IsNullOrWhiteSpace(hubName))
+            {
+                throw new ArgumentException("Invalid hub name", nameof(hubName));
+            }
+
+            this.tableClient = new AzureTableClient(hubName, cloudStorageAccount);
 
             // Workaround an issue with Storage that throws exceptions for any date < 1600 so DateTime.Min cannot be used
             DateTimeUtils.SetMinDateTimeForStorageEmulator();
@@ -107,9 +119,13 @@ namespace DurableTask.ServiceBus.Tracking
         /// Writes a list of history events to storage with retries for transient errors
         /// </summary>
         /// <param name="entities">List of history events to write</param>
-        public Task<object> WriteEntitiesAsync(IEnumerable<InstanceEntityBase> entities)
+        public async Task<object> WriteEntitiesAsync(IEnumerable<InstanceEntityBase> entities)
         {
-            return this.tableClient.WriteEntitiesAsync(entities.Select(HistoryEventToTableEntity));
+            return await Utils.ExecuteWithRetries(() => this.tableClient.WriteEntitiesAsync(entities.Select(HistoryEventToTableEntity)),
+                                string.Empty,
+                                "WriteEntitiesAsync",
+                                MaxRetriesTableStore,
+                                IntervalBetweenRetriesSecs);
         }
 
         /// <summary>
@@ -117,24 +133,27 @@ namespace DurableTask.ServiceBus.Tracking
         /// </summary>
         /// <param name="instanceId">The instance id to return state for</param>
         /// <param name="executionId">The execution id to return state for</param>
-        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        /// <returns>An asynchronous enumerable over the matching states.</returns>
-        public IAsyncEnumerable<OrchestrationStateInstanceEntity> GetEntitiesAsync(string instanceId, string executionId, CancellationToken cancellationToken = default)
+        /// <returns>The matching orchestration state or null if not found</returns>
+        public async Task<IEnumerable<OrchestrationStateInstanceEntity>> GetEntitiesAsync(string instanceId, string executionId)
         {
-            return this.tableClient
-                .QueryOrchestrationStatesAsync(
-                    new OrchestrationStateQuery().AddInstanceFilter(instanceId, executionId),
-                    cancellationToken)
-                .Select(r => TableStateToStateEvent(r.State));
+            IEnumerable<AzureTableOrchestrationStateEntity> results =
+                await this.tableClient.QueryOrchestrationStatesAsync(
+                new OrchestrationStateQuery().AddInstanceFilter(instanceId, executionId)).ConfigureAwait(false);
+
+            return results.Select(r => TableStateToStateEvent(r.State));
         }
 
         /// <summary>
         /// Deletes a list of history events from storage with retries for transient errors
         /// </summary>
         /// <param name="entities">List of history events to delete</param>
-        public Task<object> DeleteEntitiesAsync(IEnumerable<InstanceEntityBase> entities)
+        public async Task<object> DeleteEntitiesAsync(IEnumerable<InstanceEntityBase> entities)
         {
-            return this.tableClient.DeleteEntitiesAsync(entities.Select(HistoryEventToTableEntity));
+            return await Utils.ExecuteWithRetries(() => this.tableClient.DeleteEntitiesAsync(entities.Select(HistoryEventToTableEntity)),
+                                string.Empty,
+                                "DeleteEntitiesAsync",
+                                MaxRetriesTableStore,
+                                IntervalBetweenRetriesSecs);
         }
 
         /// <summary>
@@ -142,39 +161,45 @@ namespace DurableTask.ServiceBus.Tracking
         /// </summary>
         /// <param name="instanceId">The instance id to return state for</param>
         /// <param name="allInstances">Flag indicating whether to get all history execution ids or just the most recent</param>
-        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        /// <returns>An asynchronous enumerable over the matching states.</returns>
-        public IAsyncEnumerable<OrchestrationStateInstanceEntity> GetOrchestrationStateAsync(string instanceId, bool allInstances, CancellationToken cancellationToken = default)
+        /// <returns>List of matching orchestration states</returns>
+        public async Task<IEnumerable<OrchestrationStateInstanceEntity>> GetOrchestrationStateAsync(string instanceId, bool allInstances)
         {
             OrchestrationStateQuery query = new OrchestrationStateQuery().AddInstanceFilter(instanceId);
             query = allInstances ? query : query.AddStatusFilter(OrchestrationStatus.ContinuedAsNew, FilterComparisonType.NotEquals);
 
             // Fetch unscheduled orchestrations from JumpStart table
             // We need to get this first to avoid a race condition.
-            IAsyncEnumerable<AzureTableOrchestrationStateEntity> jumpStartEntities = this.tableClient.QueryJumpStartOrchestrationsAsync(query, cancellationToken);
+            IEnumerable<AzureTableOrchestrationStateEntity> jumpStartEntities = await Utils.ExecuteWithRetries(() => this.tableClient.QueryJumpStartOrchestrationsAsync(query),
+                string.Empty,
+                "GetOrchestrationStateAsync-jumpStartEntities",
+                MaxRetriesTableStore,
+                IntervalBetweenRetriesSecs).ConfigureAwait(false);
 
-            IAsyncEnumerable<AzureTableOrchestrationStateEntity> stateEntities = this.tableClient.QueryOrchestrationStatesAsync(query, cancellationToken);
+            IEnumerable<AzureTableOrchestrationStateEntity> stateEntities = await Utils.ExecuteWithRetries(() => this.tableClient.QueryOrchestrationStatesAsync(query),
+                string.Empty,
+                "GetOrchestrationStateAsync-stateEntities",
+                MaxRetriesTableStore,
+                IntervalBetweenRetriesSecs).ConfigureAwait(false);
 
-            IAsyncEnumerable<OrchestrationState> states = stateEntities.Select(stateEntity => stateEntity.State);
-            IAsyncEnumerable<OrchestrationState> jumpStartStates = jumpStartEntities
-                .Select(j => j.State)
-                .WhereAwaitWithCancellation((js, t) => states.AllAsync(s => s.OrchestrationInstance.InstanceId != js.OrchestrationInstance.InstanceId, t));
+            IEnumerable<OrchestrationState> states = stateEntities.Select(stateEntity => stateEntity.State);
+            IEnumerable<OrchestrationState> jumpStartStates = jumpStartEntities.Select(j => j.State)
+                .Where(js => states.All(s => s.OrchestrationInstance.InstanceId != js.OrchestrationInstance.InstanceId));
 
-            IAsyncEnumerable<OrchestrationState> newStates = states.Concat(jumpStartStates);
+            IEnumerable<OrchestrationState> newStates = states.Concat(jumpStartStates);
 
-            return allInstances
-                ? newStates.Select(TableStateToStateEvent)
-                : GetFirstOrDefault(
-                    newStates
-                        .OrderByDescending(x => x.LastUpdatedTime)
-                        .Select(TableStateToStateEvent),
-                    cancellationToken);
-
-            static async IAsyncEnumerable<OrchestrationStateInstanceEntity> GetFirstOrDefault(IAsyncEnumerable<OrchestrationStateInstanceEntity> results, [EnumeratorCancellation] CancellationToken cancellationToken)
+            if (allInstances)
             {
-                // If there are no elements, return the default value instead
-                yield return await results.FirstOrDefaultAsync(cancellationToken);
+                return newStates.Select(TableStateToStateEvent);
             }
+
+            // ReSharper disable once PossibleMultipleEnumeration
+            if (!newStates.Any())
+            {
+                return new OrchestrationStateInstanceEntity[0];
+            }
+
+            // ReSharper disable once PossibleMultipleEnumeration
+            return new List<OrchestrationStateInstanceEntity> { TableStateToStateEvent(newStates.OrderByDescending(x => x.LastUpdatedTime).FirstOrDefault()) };
         }
 
         /// <summary>
@@ -185,19 +210,19 @@ namespace DurableTask.ServiceBus.Tracking
         /// <returns>The matching orchestration state or null if not found</returns>
         public async Task<OrchestrationStateInstanceEntity> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
-            AzureTableOrchestrationStateEntity result = await this.tableClient
-                .QueryOrchestrationStatesAsync(new OrchestrationStateQuery().AddInstanceFilter(instanceId, executionId))
-                .FirstOrDefaultAsync()
-                .ConfigureAwait(false);
+            AzureTableOrchestrationStateEntity result =
+                (await this.tableClient.QueryOrchestrationStatesAsync(
+                new OrchestrationStateQuery().AddInstanceFilter(instanceId, executionId)).ConfigureAwait(false)).FirstOrDefault();
 
             // ReSharper disable once ConvertIfStatementToNullCoalescingExpression
             if (result == null)
             {
                 // Query from JumpStart table
-                result = await this.tableClient
-                    .QueryJumpStartOrchestrationsAsync(new OrchestrationStateQuery().AddInstanceFilter(instanceId, executionId))
-                    .FirstOrDefaultAsync()
-                    .ConfigureAwait(false);
+                result = (await this.tableClient.QueryJumpStartOrchestrationsAsync(
+                       new OrchestrationStateQuery()
+                        .AddInstanceFilter(instanceId, executionId))
+                        .ConfigureAwait(false))
+                    .FirstOrDefault();
             }
 
             return result != null ? TableStateToStateEvent(result.State) : null;
@@ -208,14 +233,12 @@ namespace DurableTask.ServiceBus.Tracking
         /// </summary>
         /// <param name="instanceId">The instance id to return history for</param>
         /// <param name="executionId">The execution id to return history for</param>
-        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        /// <returns>An asynchronous enumerable over the matching history events.</returns>
-        public IAsyncEnumerable<OrchestrationWorkItemInstanceEntity> GetOrchestrationHistoryEventsAsync(string instanceId, string executionId, CancellationToken cancellationToken = default)
+        /// <returns>List of history events</returns>
+        public async Task<IEnumerable<OrchestrationWorkItemInstanceEntity>> GetOrchestrationHistoryEventsAsync(string instanceId, string executionId)
         {
-            return this.tableClient
-                .ReadOrchestrationHistoryEventsAsync(instanceId, executionId, cancellationToken)
-                .Select(TableHistoryEntityToWorkItemEvent)
-                .OrderBy(ee => ee.SequenceNumber);
+            IEnumerable<AzureTableOrchestrationHistoryEventEntity> entities =
+                await this.tableClient.ReadOrchestrationHistoryEventsAsync(instanceId, executionId);
+            return entities.Select(TableHistoryEntityToWorkItemEvent).OrderBy(ee => ee.SequenceNumber);
         }
 
         /// <summary>
@@ -223,23 +246,65 @@ namespace DurableTask.ServiceBus.Tracking
         ///     orchestration state query.
         /// </summary>
         /// <param name="stateQuery">Orchestration state query to execute</param>
-        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        /// <returns>An asynchronous enumerable over the matching state.</returns>
-        public IAsyncEnumerable<OrchestrationState> QueryOrchestrationStatesAsync(
-            OrchestrationStateQuery stateQuery,
-            CancellationToken cancellationToken = default)
+        /// <returns></returns>
+        public async Task<IEnumerable<OrchestrationState>> QueryOrchestrationStatesAsync(
+            OrchestrationStateQuery stateQuery)
         {
-            IAsyncEnumerable<AzureTableOrchestrationStateEntity> result = this.tableClient.QueryOrchestrationStatesAsync(stateQuery, cancellationToken);
+            IEnumerable<AzureTableOrchestrationStateEntity> result =
+                await this.tableClient.QueryOrchestrationStatesAsync(stateQuery).ConfigureAwait(false);
 
             // Query from JumpStart table
-            IAsyncEnumerable<AzureTableOrchestrationStateEntity> jumpStartEntities = this.tableClient.QueryJumpStartOrchestrationsAsync(stateQuery, cancellationToken);
+            IEnumerable<AzureTableOrchestrationStateEntity> jumpStartEntities = await this.tableClient.QueryJumpStartOrchestrationsAsync(stateQuery).ConfigureAwait(false);
 
             // ReSharper disable PossibleMultipleEnumeration
-            IAsyncEnumerable<AzureTableOrchestrationStateEntity> newStates = result
-                .Concat(jumpStartEntities
-                    .WhereAwaitWithCancellation((js, t) => result.AllAsync(s => s.State.OrchestrationInstance.InstanceId != js.State.OrchestrationInstance.InstanceId, t)));
+            IEnumerable<AzureTableOrchestrationStateEntity> newStates = result.Concat(jumpStartEntities
+                .Where(js => result.All(s => s.State.OrchestrationInstance.InstanceId != js.State.OrchestrationInstance.InstanceId)));
 
             return newStates.Select(stateEntity => stateEntity.State);
+        }
+
+        /// <summary>
+        ///     Get a segmented list of orchestration states from the instance storage table which match the specified
+        ///     orchestration state query. Segment size is controlled by the service.
+        /// </summary>
+        /// <param name="stateQuery">Orchestration state query to execute</param>
+        /// <param name="continuationToken">The token returned from the last query execution. Can be null for the first time.</param>
+        /// <returns></returns>
+        public Task<OrchestrationStateQuerySegment> QueryOrchestrationStatesSegmentedAsync(
+            OrchestrationStateQuery stateQuery, string continuationToken)
+        {
+            return QueryOrchestrationStatesSegmentedAsync(stateQuery, continuationToken, -1);
+        }
+
+        /// <summary>
+        ///     Get a segmented list of orchestration states from the instance storage table which match the specified
+        ///     orchestration state query.
+        /// </summary>
+        /// <param name="stateQuery">Orchestration state query to execute</param>
+        /// <param name="continuationToken">The token returned from the last query execution. Can be null for the first time.</param>
+        /// <param name="count">Count of elements to return. Service will decide how many to return if set to -1.</param>
+        /// <returns></returns>
+        public async Task<OrchestrationStateQuerySegment> QueryOrchestrationStatesSegmentedAsync(
+            OrchestrationStateQuery stateQuery, string continuationToken, int count)
+        {
+            TableContinuationToken tokenObj = null;
+
+            if (continuationToken != null)
+            {
+                tokenObj = DeserializeTableContinuationToken(continuationToken);
+            }
+
+            TableQuerySegment<AzureTableOrchestrationStateEntity> results =
+                await this.tableClient.QueryOrchestrationStatesSegmentedAsync(stateQuery, tokenObj, count)
+                        .ConfigureAwait(false);
+
+            return new OrchestrationStateQuerySegment
+            {
+                Results = results.Results.Select(s => s.State),
+                ContinuationToken = results.ContinuationToken == null
+                    ? null
+                    : SerializeTableContinuationToken(results.ContinuationToken)
+            };
         }
 
         /// <summary>
@@ -250,36 +315,53 @@ namespace DurableTask.ServiceBus.Tracking
         /// <returns>The number of history events purged.</returns>
         public async Task<int> PurgeOrchestrationHistoryEventsAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {
-            AsyncPageable<AzureTableOrchestrationStateEntity> resultSegment = this.tableClient.QueryOrchestrationStatesAsync(
-                new OrchestrationStateQuery().AddTimeRangeFilter(DateTimeUtils.MinDateTime, thresholdDateTimeUtc, timeRangeFilterType));
+            TableContinuationToken continuationToken = null;
 
-            int purgeCount = 0;
-            await foreach (Page<AzureTableOrchestrationStateEntity> page in resultSegment.AsPages())
+            var purgeCount = 0;
+            do
             {
-                await PurgeOrchestrationHistorySegmentAsync(page.Values, default).ConfigureAwait(false);
-                purgeCount += page.Values.Count;
-            }
+                TableQuerySegment<AzureTableOrchestrationStateEntity> resultSegment =
+                    (await this.tableClient.QueryOrchestrationStatesSegmentedAsync(
+                        new OrchestrationStateQuery()
+                            .AddTimeRangeFilter(DateTimeUtils.MinDateTime, thresholdDateTimeUtc, timeRangeFilterType),
+                        continuationToken, 100)
+                        .ConfigureAwait(false));
+
+                continuationToken = resultSegment.ContinuationToken;
+
+                if (resultSegment.Results != null)
+                {
+                    await PurgeOrchestrationHistorySegmentAsync(resultSegment).ConfigureAwait(false);
+                    purgeCount += resultSegment.Results.Count;
+                }
+            } while (continuationToken != null);
 
             return purgeCount;
         }
 
         async Task PurgeOrchestrationHistorySegmentAsync(
-            IEnumerable<AzureTableOrchestrationStateEntity> orchestrationStateEntitySegment, CancellationToken cancellation)
+            TableQuerySegment<AzureTableOrchestrationStateEntity> orchestrationStateEntitySegment)
         {
-            List<AzureTableOrchestrationHistoryEventEntity>[] historyEntities = await Task.WhenAll(
-                orchestrationStateEntitySegment.Select(entity => this.tableClient
-                    .ReadOrchestrationHistoryEventsAsync(
-                        entity.State.OrchestrationInstance.InstanceId,
-                        entity.State.OrchestrationInstance.ExecutionId,
-                        cancellation)
-                    .ToListAsync(cancellation).AsTask()));
+            var stateEntitiesToDelete = new List<AzureTableOrchestrationStateEntity>(orchestrationStateEntitySegment.Results);
 
-            IEnumerable<Task> historyDeleteTasks = historyEntities.Select(
-                historyEventList => this.tableClient.DeleteEntitiesAsync(historyEventList)).Cast<Task>();
+            var historyEntitiesToDelete = new ConcurrentBag<IEnumerable<AzureTableOrchestrationHistoryEventEntity>>();
+            await Task.WhenAll(orchestrationStateEntitySegment.Results.Select(
+                entity => Task.Run(async () =>
+                {
+                    IEnumerable<AzureTableOrchestrationHistoryEventEntity> historyEntities =
+                        await this.tableClient.ReadOrchestrationHistoryEventsAsync(
+                                entity.State.OrchestrationInstance.InstanceId,
+                                entity.State.OrchestrationInstance.ExecutionId).ConfigureAwait(false);
+
+                    historyEntitiesToDelete.Add(historyEntities);
+                })));
+
+            List<Task> historyDeleteTasks = historyEntitiesToDelete.Select(
+                historyEventList => this.tableClient.DeleteEntitiesAsync(historyEventList)).Cast<Task>().ToList();
 
             // need to serialize history deletes before the state deletes so we don't leave orphaned history events
             await Task.WhenAll(historyDeleteTasks).ConfigureAwait(false);
-            await Task.WhenAll(this.tableClient.DeleteEntitiesAsync(orchestrationStateEntitySegment)).ConfigureAwait(false);
+            await Task.WhenAll(this.tableClient.DeleteEntitiesAsync(stateEntitiesToDelete)).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -305,16 +387,13 @@ namespace DurableTask.ServiceBus.Tracking
         /// <summary>
         /// Get a list of jump start events from instance store
         /// </summary>
-        /// <param name = "cancellationToken" > The token to monitor for cancellation requests.The default value is <see cref = "CancellationToken.None" />.</param >
-        /// <returns>An asynchronous enumerable over the matching state.</returns>
-        public IAsyncEnumerable<OrchestrationJumpStartInstanceEntity> GetJumpStartEntitiesAsync(CancellationToken cancellationToken = default)
+        /// <returns>List of jump start events</returns>
+        public async Task<IEnumerable<OrchestrationJumpStartInstanceEntity>> GetJumpStartEntitiesAsync(int top)
         {
-            return this.tableClient
-                .QueryJumpStartOrchestrationsAsync(
-                    DateTime.UtcNow.AddDays(-AzureTableClient.JumpStartTableScanIntervalInDays),
-                    DateTime.UtcNow,
-                    cancellationToken)
-                .Select(x => x.OrchestrationJumpStartInstanceEntity);
+            return (await this.tableClient.QueryJumpStartOrchestrationsAsync(
+                        DateTime.UtcNow.AddDays(-AzureTableClient.JumpStartTableScanIntervalInDays),
+                        DateTime.UtcNow,
+                        top)).Select(e => e.OrchestrationJumpStartInstanceEntity);
         }
 
         AzureTableCompositeTableEntity HistoryEventToTableEntity(InstanceEntityBase historyEvent)
@@ -383,6 +462,29 @@ namespace DurableTask.ServiceBus.Tracking
                 EventTimestamp = entity.TaskTimeStamp,
                 HistoryEvent = entity.HistoryEvent
             };
+        }
+
+        string SerializeTableContinuationToken(TableContinuationToken continuationToken)
+        {
+            if (continuationToken == null)
+            {
+                throw new ArgumentNullException(nameof(continuationToken));
+            }
+
+            string serializedToken = JsonDataConverter.Default.Serialize(continuationToken);
+            return Convert.ToBase64String(Encoding.Unicode.GetBytes(serializedToken));
+        }
+
+        TableContinuationToken DeserializeTableContinuationToken(string serializedContinuationToken)
+        {
+            if (string.IsNullOrWhiteSpace(serializedContinuationToken))
+            {
+                throw new ArgumentException("Invalid serializedContinuationToken");
+            }
+
+            byte[] tokenBytes = Convert.FromBase64String(serializedContinuationToken);
+
+            return JsonDataConverter.Default.Deserialize<TableContinuationToken>(Encoding.Unicode.GetString(tokenBytes));
         }
     }
 }

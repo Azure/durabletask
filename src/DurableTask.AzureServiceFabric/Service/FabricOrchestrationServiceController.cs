@@ -15,7 +15,6 @@ namespace DurableTask.AzureServiceFabric.Service
 {
     using System;
     using System.Collections.Generic;
-    using System.Linq;
     using System.Threading.Tasks;
     using System.Web.Http;
     using System.Web.Http.Results;
@@ -139,7 +138,8 @@ namespace DurableTask.AzureServiceFabric.Service
         public async Task<IList<OrchestrationState>> GetOrchestrationState([FromUri]string orchestrationId, bool allExecutions)
         {
             orchestrationId.EnsureValidInstanceId();
-            return await this.orchestrationServiceClient.GetOrchestrationStateAsync(orchestrationId, allExecutions).ToListAsync();
+            var state = await this.orchestrationServiceClient.GetOrchestrationStateAsync(orchestrationId, allExecutions);
+            return state;
         }
 
         /// <summary>

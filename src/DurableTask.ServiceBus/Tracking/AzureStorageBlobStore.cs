@@ -16,9 +16,9 @@ namespace DurableTask.ServiceBus.Tracking
     using System;
     using System.IO;
     using System.Threading.Tasks;
-    using Azure.Storage.Blobs;
     using DurableTask.Core;
     using DurableTask.Core.Tracking;
+    using Microsoft.WindowsAzure.Storage;
 
     /// <summary>
     /// Azure blob storage to allow save and load large blobs, such as message and session, as a stream using Azure blob container.
@@ -45,7 +45,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// </summary>
         /// <param name="hubName">The hub name for this store</param>
         /// <param name="cloudStorageAccount">Azure Cloud Storage Account</param>
-        public AzureStorageBlobStore(string hubName, BlobServiceClient cloudStorageAccount)
+        public AzureStorageBlobStore(string hubName, CloudStorageAccount cloudStorageAccount)
         {
             this.blobClient = new BlobStorageClient(hubName, cloudStorageAccount);
         }
