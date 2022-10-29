@@ -65,7 +65,7 @@ namespace DurableTask.AzureStorage
         readonly ITrackingStore trackingStore;
 
         readonly ResettableLazy<Task> taskHubCreator;
-        readonly BlobPartitionLeaseManager leaseManager;
+        readonly BlobLeaseManager leaseManager;
         readonly AppLeaseManager appLeaseManager;
         readonly OrchestrationSessionManager orchestrationSessionManager;
         readonly IPartitionManager partitionManager;
@@ -208,11 +208,11 @@ namespace DurableTask.AzureStorage
             return queueName;
         }
 
-        internal static BlobPartitionLeaseManager GetBlobLeaseManager(
+        internal static BlobLeaseManager GetBlobLeaseManager(
             AzureStorageClient azureStorageClient,
             string leaseType)
         {
-            return new BlobPartitionLeaseManager(
+            return new BlobLeaseManager(
                 azureStorageClient,
                 leaseContainerName: azureStorageClient.Settings.TaskHubName.ToLowerInvariant() + "-leases",
                 leaseType: leaseType);
@@ -483,21 +483,21 @@ namespace DurableTask.AzureStorage
                 this.stats.ActiveActivityExecutions.Value);
         }
 
-        internal async Task OnIntentLeaseAquiredAsync(BlobPartitionLease lease)
+        internal async Task OnIntentLeaseAquiredAsync(Partitioning.BlobLease lease)
         {
             var controlQueue = new ControlQueue(this.azureStorageClient, lease.PartitionId, this.messageManager);
             await controlQueue.CreateIfNotExistsAsync();
             this.orchestrationSessionManager.ResumeListeningIfOwnQueue(lease.PartitionId, controlQueue, this.shutdownSource.Token);
         }
 
-        internal Task OnIntentLeaseReleasedAsync(BlobPartitionLease lease, CloseReason reason)
+        internal Task OnIntentLeaseReleasedAsync(Partitioning.BlobLease lease, CloseReason reason)
         {
             // Mark the queue as released so it will stop grabbing new messages.
             this.orchestrationSessionManager.ReleaseQueue(lease.PartitionId, reason, "Intent LeaseCollectionBalancer");
             return Utils.CompletedTask;
         }
 
-        internal async Task OnOwnershipLeaseAquiredAsync(BlobPartitionLease lease)
+        internal async Task OnOwnershipLeaseAquiredAsync(Partitioning.BlobLease lease)
         {
             var controlQueue = new ControlQueue(this.azureStorageClient, lease.PartitionId, this.messageManager);
             await controlQueue.CreateIfNotExistsAsync();
@@ -506,14 +506,14 @@ namespace DurableTask.AzureStorage
             this.allControlQueues[lease.PartitionId] = controlQueue;
         }
 
-        internal Task OnOwnershipLeaseReleasedAsync(BlobPartitionLease lease, CloseReason reason)
+        internal Task OnOwnershipLeaseReleasedAsync(Partitioning.BlobLease lease, CloseReason reason)
         {
             this.orchestrationSessionManager.RemoveQueue(lease.PartitionId, reason, "Ownership LeaseCollectionBalancer");
             return Utils.CompletedTask;
         }
 
         // Used for testing
-        internal async Task<IEnumerable<BlobPartitionLease>> ListBlobLeasesAsync()
+        internal async Task<IEnumerable<Partitioning.BlobLease>> ListBlobLeasesAsync()
         {
             return await this.partitionManager.GetOwnershipBlobLeases().ToListAsync();
         }
@@ -529,7 +529,7 @@ namespace DurableTask.AzureStorage
 
             string taskHub = azureStorageClient.Settings.TaskHubName;
 
-            BlobPartitionLeaseManager inactiveLeaseManager = GetBlobLeaseManager(azureStorageClient, "inactive");
+            BlobLeaseManager inactiveLeaseManager = GetBlobLeaseManager(azureStorageClient, "inactive");
 
             TaskHubInfo hubInfo = await inactiveLeaseManager.GetOrCreateTaskHubInfoAsync(
                 GetTaskHubInfo(taskHub, defaultPartitionCount),
@@ -1772,7 +1772,7 @@ namespace DurableTask.AzureStorage
         {
             List<string> queueIds = await this.trackingStore.RewindHistoryAsync(instanceId).ToListAsync();
 
-            foreach (string id in queueIds )
+            foreach (string id in queueIds)
             {
                 var orchestrationInstance = new OrchestrationInstance
                 {

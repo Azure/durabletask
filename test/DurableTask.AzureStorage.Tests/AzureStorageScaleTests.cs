@@ -418,7 +418,7 @@ namespace DurableTask.AzureStorage.Tests
 
             // STEP 2: Force the lease to be stolen and wait for the lease status to update.
             //         The orchestration service should detect this and update its state.
-            BlobPartitionLease lease = (await service.ListBlobLeasesAsync()).Single();
+            Partitioning.BlobLease lease = (await service.ListBlobLeasesAsync()).Single();
             await lease.Blob.ChangeLeaseAsync(
                 proposedLeaseId: Guid.NewGuid().ToString(),
                 currentLeaseId: lease.Token);

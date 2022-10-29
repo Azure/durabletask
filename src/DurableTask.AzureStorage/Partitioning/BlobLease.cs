@@ -18,20 +18,20 @@ namespace DurableTask.AzureStorage.Partitioning
     using DurableTask.AzureStorage.Storage;
     using Newtonsoft.Json;
 
-    class BlobPartitionLease : Lease
+    class BlobLease : Lease
     {
-        public BlobPartitionLease()
+        public BlobLease()
             : base()
         {
         }
 
-        public BlobPartitionLease(Blob leaseBlob)
+        public BlobLease(Blob leaseBlob)
             : this()
         {
             this.Blob = leaseBlob;
         }
 
-        public BlobPartitionLease(BlobPartitionLease source)
+        public BlobLease(BlobLease source)
             : base(source)
         {
             this.Blob = source.Blob;

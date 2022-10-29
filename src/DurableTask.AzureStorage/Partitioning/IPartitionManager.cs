@@ -29,6 +29,6 @@ namespace DurableTask.AzureStorage.Partitioning
 
         Task DeleteLeases();
 
-        IAsyncEnumerable<BlobPartitionLease> GetOwnershipBlobLeases(CancellationToken cancellationToken = default);
+        IAsyncEnumerable<BlobLease> GetOwnershipBlobLeases(CancellationToken cancellationToken = default);
     }
 }

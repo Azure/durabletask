@@ -16,7 +16,6 @@ namespace DurableTask.AzureStorage.Tests
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
-    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Tracking;
@@ -119,7 +118,7 @@ namespace DurableTask.AzureStorage.Tests
 
         public async Task<OrchestrationState> GetStatusAsync()
         {
-                OrchestrationState state = await this.client.GetOrchestrationStateAsync(this.instanceId);
+            OrchestrationState state = await this.client.GetOrchestrationStateAsync(this.instanceId);
 
             if (state != null)
             {
