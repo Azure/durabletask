@@ -77,8 +77,7 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             await foreach (Page<Blob> page in this.taskHubContainer.ListBlobsAsync(this.blobDirectoryName, cancellationToken: cancellationToken).AsPages())
             {
-                BlobPartitionLease[] leases = await Task.WhenAll(page.Values
-                    .Select(b => this.DownloadLeaseBlob(b, cancellationToken)));
+                BlobPartitionLease[] leases = await Task.WhenAll(page.Values.Select(b => this.DownloadLeaseBlob(b, cancellationToken)));
 
                 foreach (BlobPartitionLease lease in leases)
                 {

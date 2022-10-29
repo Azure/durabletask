@@ -118,7 +118,7 @@ namespace DurableTask.AzureStorage.Tests
 
         public async Task<OrchestrationState> GetStatusAsync()
         {
-                OrchestrationState state = await this.client.GetOrchestrationStateAsync(this.instanceId);
+            OrchestrationState state = await this.client.GetOrchestrationStateAsync(this.instanceId);
 
             if (state != null)
             {
