@@ -1772,7 +1772,7 @@ namespace DurableTask.AzureStorage
         {
             List<string> queueIds = await this.trackingStore.RewindHistoryAsync(instanceId).ToListAsync();
 
-            foreach (string id in queueIds )
+            foreach (string id in queueIds)
             {
                 var orchestrationInstance = new OrchestrationInstance
                 {
