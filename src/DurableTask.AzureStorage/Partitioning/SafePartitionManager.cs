@@ -28,11 +28,11 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly OrchestrationSessionManager sessionManager;
 
-        readonly BlobLeaseManager intentLeaseManager;
-        readonly LeaseCollectionBalancer<BlobLease> intentLeaseCollectionManager;
+        readonly BlobPartitionLeaseManager intentLeaseManager;
+        readonly LeaseCollectionBalancer<BlobPartitionLease> intentLeaseCollectionManager;
 
-        readonly BlobLeaseManager ownershipLeaseManager;
-        readonly LeaseCollectionBalancer<BlobLease> ownershipLeaseCollectionManager;
+        readonly BlobPartitionLeaseManager ownershipLeaseManager;
+        readonly LeaseCollectionBalancer<BlobPartitionLease> ownershipLeaseCollectionManager;
 
         IDisposable intentLeaseSubscription;
         IDisposable ownershipLeaseSubscription;
@@ -51,7 +51,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.azureStorageClient,
                 "intent");
 
-            this.intentLeaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
+            this.intentLeaseCollectionManager = new LeaseCollectionBalancer<BlobPartitionLease>(
                 "intent",
                 settings,
                 this.azureStorageClient.BlobAccountName,
@@ -69,7 +69,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.azureStorageClient,
                 "ownership");
 
-            this.ownershipLeaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
+            this.ownershipLeaseCollectionManager = new LeaseCollectionBalancer<BlobPartitionLease>(
                 "ownership",
                 this.settings,
                 this.azureStorageClient.BlobAccountName,
@@ -87,7 +87,7 @@ namespace DurableTask.AzureStorage.Partitioning
                                                       || this.sessionManager.IsControlQueueProcessingMessages(leaseKey));
         }
 
-        IAsyncEnumerable<BlobLease> IPartitionManager.GetOwnershipBlobLeases(CancellationToken cancellationToken)
+        IAsyncEnumerable<BlobPartitionLease> IPartitionManager.GetOwnershipBlobLeases(CancellationToken cancellationToken)
         {
             return this.ownershipLeaseManager.ListLeasesAsync(cancellationToken);
         }

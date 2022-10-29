@@ -171,7 +171,7 @@ namespace Correlation.Samples
             Trace.TraceInformation($"Getting orchestration state with instance id - {this.instanceId}");
             // The GetStateAsync only exists in the service object
             var service = (AzureStorageOrchestrationService)this.client.ServiceClient;
-            return await service.GetOrchestrationStateAsync(instanceId, true);
+            return await service.GetOrchestrationStateAsync(instanceId, allExecutions: true, fetchInput: true);
         }
 
         static TimeSpan AdjustTimeout(TimeSpan requestedTimeout)
