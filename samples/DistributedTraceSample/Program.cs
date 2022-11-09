@@ -43,6 +43,7 @@ namespace OpenTelemetrySample
                 await GetOrchestrationServiceAndClient();
 
             using TaskHubWorker worker = new TaskHubWorker(service);
+            worker.AddTaskOrchestrations(typeof(HelloSubOrch));
             worker.AddTaskOrchestrations(typeof(HelloSequence));
             worker.AddTaskOrchestrations(typeof(HelloFanOut));
             worker.AddTaskActivities(typeof(SayHello));
@@ -56,12 +57,20 @@ namespace OpenTelemetrySample
 
             // Hello Sequence
             OrchestrationInstance helloSeqInstance = await client.CreateOrchestrationInstanceAsync(
-                typeof(HelloFanOut),
-                //typeof(HelloSequence),
+                //typeof(HelloFanOut),
+                typeof(HelloSequence),
                 input: null);
             await client.WaitForOrchestrationAsync(helloSeqInstance, TimeSpan.FromMinutes(5));
 
             Console.WriteLine("Done with Hello Sequence!");
+
+            // Sub orchestrations
+            OrchestrationInstance helloSubOrchInstance = await client.CreateOrchestrationInstanceAsync(
+                typeof(HelloSubOrch),
+                input: null);
+            await client.WaitForOrchestrationAsync(helloSubOrchInstance, TimeSpan.FromMinutes(5));
+
+            Console.WriteLine("Done with Hello Suborchestration!");
 
             // External event - SendEvent
             OrchestrationInstance eventConversationInstance = await client.CreateOrchestrationInstanceAsync(typeof(EventConversationOrchestration), null);
@@ -94,6 +103,19 @@ namespace OpenTelemetrySample
             IOrchestrationServiceClient client = (IOrchestrationServiceClient)service;
             await service.CreateIfNotExistsAsync();
             return (service, client);
+        }
+
+        class HelloSubOrch : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                string result = "";
+                result += await context.CreateSubOrchestrationInstance<string>(typeof(HelloSequence), null);
+                result += await context.ScheduleTask<string>(typeof(SayHello), "Tokyo");
+                result += context.CreateSubOrchestrationInstance<string>(typeof(HelloFanOut), null);
+                result += await context.CreateSubOrchestrationInstance<string>(typeof(HelloSequence), null);
+                return result;
+            }
         }
 
         class HelloSequence : TaskOrchestration<string, string>
