@@ -82,7 +82,7 @@ namespace DurableTask.Core.Tracing
             }
 
             string activityName = startEvent.Name;
-            ActivityKind activityKind = ActivityKind.Internal;
+            ActivityKind activityKind = ActivityKind.Server;
             KeyValuePair<string, object?>[] activityTags = new KeyValuePair<string, object?>[]
             {
                 new("dtfx.type", "orchestrator"),
@@ -146,6 +146,39 @@ namespace DurableTask.Core.Tracing
                     new("dtfx.instance_id", instance.InstanceId),
                     new("dtfx.execution_id", instance.ExecutionId),
                     new("dtfx.task_id", scheduledEvent.EventId),
+                });
+        }
+
+        /// <summary>
+        /// Starts a new trace activity for suborchestration execution.
+        /// </summary>
+        /// <param name="startEvent">The associated <see cref="ExecutionStartedEvent"/>.</param>
+        /// <returns>
+        /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
+        /// </returns>
+        internal static Activity? StartTraceActivityForSubOrchestration(
+            ExecutionStartedEvent? startEvent)
+        {
+            if (startEvent == null)
+            {
+                return null;
+            }
+
+            if (!startEvent.TryGetParentTraceContext(out ActivityContext activityContext))
+            {
+                return null;
+            }
+
+            return ActivityTraceSource.StartActivity(
+                name: $"{startEvent.Name} (#{startEvent.EventId})",
+                kind: ActivityKind.Client,
+                parentContext: activityContext,
+                tags: new KeyValuePair<string, object?>[]
+                {
+                    new("dtfx.type", "orchestrator"),
+                    new("dtfx.instance_id", startEvent.OrchestrationInstance.InstanceId),
+                    new("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId),
+                    new("dtfx.task_id", startEvent.EventId),
                 });
         }
 

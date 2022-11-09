@@ -305,8 +305,6 @@ namespace DurableTask.Core
             ExecutionStartedEvent startEvent =
                 runtimeState.ExecutionStartedEvent ??
                 workItem.NewMessages.Select(msg => msg.Event).OfType<ExecutionStartedEvent>().FirstOrDefault();
-            Activity traceActivity = TraceHelper.StartTraceActivityForExecution(startEvent);
-
             OrchestrationState instanceState = null;
 
             // Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
@@ -325,6 +323,8 @@ namespace DurableTask.Core
             {
                 do
                 {
+                    Activity traceActivity = TraceHelper.StartTraceActivityForExecution(runtimeState.ExecutionStartedEvent);
+
                     continuedAsNew = false;
                     continuedAsNewMessage = null;
 
@@ -391,7 +391,8 @@ namespace DurableTask.Core
                                     this.ProcessCreateSubOrchestrationInstanceDecision(
                                         createSubOrchestrationAction,
                                         runtimeState,
-                                        this.IncludeParameters));
+                                        this.IncludeParameters,
+                                        traceActivity));
                                 break;
                             case OrchestratorActionType.SendEvent:
                                 var sendEventAction = (SendEventOrchestratorAction)decision;
@@ -788,6 +789,8 @@ namespace DurableTask.Core
                     taskMessage.Event = subOrchestrationFailedEvent;
                 }
 
+                ResetDistributedTraceActivity(runtimeState);
+
                 if (taskMessage.Event != null)
                 {
                     taskMessage.OrchestrationInstance = runtimeState.ParentInstance.OrchestrationInstance;
@@ -795,11 +798,16 @@ namespace DurableTask.Core
                 }
             }
 
+            ResetDistributedTraceActivity(runtimeState);
+
+            return null;
+        }
+
+        private void ResetDistributedTraceActivity(OrchestrationRuntimeState runtimeState)
+        {
             DistributedTraceActivity.Current?.SetTag("dtfx.runtime_status", runtimeState.OrchestrationStatus.ToString());
             DistributedTraceActivity.Current?.Stop();
             DistributedTraceActivity.Current = null;
-
-            return null;
         }
 
         TaskMessage ProcessScheduleTaskDecision(
@@ -874,7 +882,8 @@ namespace DurableTask.Core
         TaskMessage ProcessCreateSubOrchestrationInstanceDecision(
             CreateSubOrchestrationAction createSubOrchestrationAction,
             OrchestrationRuntimeState runtimeState,
-            bool includeParameters)
+            bool includeParameters,
+            Activity parentTraceActivity)
         {
             var historyEvent = new SubOrchestrationInstanceCreatedEvent(createSubOrchestrationAction.Id)
             {
@@ -910,7 +919,12 @@ namespace DurableTask.Core
                 Version = createSubOrchestrationAction.Version
             };
 
+            startedEvent.SetParentTraceContext(parentTraceActivity);
+            using Activity activity = TraceHelper.StartTraceActivityForSubOrchestration(startedEvent);
+
             this.logHelper.SchedulingOrchestration(startedEvent);
+
+            activity.Stop();
 
             taskMessage.OrchestrationInstance = startedEvent.OrchestrationInstance;
             taskMessage.Event = startedEvent;
