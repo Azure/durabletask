@@ -71,7 +71,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// Get the corresponding OData filter.
         /// </summary>
         /// <returns></returns>
-        public ODataCondition ToOData()
+        internal ODataCondition ToOData()
         {
             if (!((this.RuntimeStatus == null || !this.RuntimeStatus.Any()) && 
                 this.CreatedTimeFrom == default(DateTime) && 

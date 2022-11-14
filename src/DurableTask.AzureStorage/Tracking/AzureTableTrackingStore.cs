@@ -757,18 +757,8 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override Task StartAsync(CancellationToken cancellationToken = default)
         {
-            Uri historyUri = this.HistoryTable.Uri;
-            Uri instanceUri = this.InstancesTable.Uri;
-
-            if (historyUri != null)
-            {
-                ServicePointManager.FindServicePoint(historyUri).UseNagleAlgorithm = false;
-            }
-
-            if (instanceUri != null)
-            {
-                ServicePointManager.FindServicePoint(instanceUri).UseNagleAlgorithm = false;
-            }
+            ServicePointManager.FindServicePoint(this.HistoryTable.Uri).UseNagleAlgorithm = false;
+            ServicePointManager.FindServicePoint(this.InstancesTable.Uri).UseNagleAlgorithm = false;
 
             return Task.CompletedTask;
         }

@@ -13,7 +13,6 @@
 #nullable enable
 namespace DurableTask.AzureStorage.Tracking
 {
-    using System;
     using System.Collections.Generic;
 
     /// <summary>
