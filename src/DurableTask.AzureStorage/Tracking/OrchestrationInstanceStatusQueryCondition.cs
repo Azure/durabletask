@@ -73,8 +73,8 @@ namespace DurableTask.AzureStorage.Tracking
         /// <returns></returns>
         internal ODataCondition ToOData()
         {
-            if (!((this.RuntimeStatus == null || !this.RuntimeStatus.Any()) && 
-                this.CreatedTimeFrom == default(DateTime) && 
+            if (!((this.RuntimeStatus == null || !this.RuntimeStatus.Any()) &&
+                this.CreatedTimeFrom == default(DateTime) &&
                 this.CreatedTimeTo == default(DateTime) &&
                 this.TaskHubNames == null &&
                 this.InstanceIdPrefix == null &&
