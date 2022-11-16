@@ -50,6 +50,7 @@ namespace OpenTelemetrySample
             worker.AddTaskOrchestrations(typeof(GetRequestionDecisionOrchestration));
             worker.AddTaskOrchestrations(typeof(EventConversationOrchestration));
             worker.AddTaskOrchestrations(typeof(EventConversationOrchestration.Responder));
+            worker.AddTaskOrchestrations(typeof(HelloSequenceWithTimer));
             await worker.StartAsync();
 
             TaskHubClient client = new TaskHubClient(serviceClient);
@@ -62,6 +63,12 @@ namespace OpenTelemetrySample
             await client.WaitForOrchestrationAsync(helloSeqInstance, TimeSpan.FromMinutes(5));
 
             Console.WriteLine("Done with Hello Sequence!");
+
+            // Hello Sequence with Timer
+            OrchestrationInstance helloSeqWithTimerInstance = await client.CreateOrchestrationInstanceAsync(typeof(HelloSequenceWithTimer), null);
+            await client.WaitForOrchestrationAsync(helloSeqWithTimerInstance, TimeSpan.FromMinutes(5));
+
+            Console.WriteLine("Done with Hello Sequence with Timer!");
 
             // External event - SendEvent
             OrchestrationInstance eventConversationInstance = await client.CreateOrchestrationInstanceAsync(typeof(EventConversationOrchestration), null);
@@ -127,6 +134,19 @@ namespace OpenTelemetrySample
             {
                 Thread.Sleep(1000);
                 return $"Hello, {input}!";
+            }
+        }
+
+        class HelloSequenceWithTimer : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                string output = "";
+                output += await context.ScheduleTask<string>(typeof(SayHello), "Tokyo") + ", ";
+                await context.CreateTimer(context.CurrentUtcDateTime.AddSeconds(15), true);
+                output += await context.ScheduleTask<string>(typeof(SayHello), "London") + ", ";
+                output += await context.ScheduleTask<string>(typeof(SayHello), "Seattle");
+                return output;
             }
         }
 

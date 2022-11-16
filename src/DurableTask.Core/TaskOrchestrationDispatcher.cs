@@ -383,7 +383,8 @@ namespace DurableTask.Core
                                 timerMessages.Add(this.ProcessCreateTimerDecision(
                                     timerOrchestratorAction,
                                     runtimeState,
-                                    isInternal: false));
+                                    isInternal: false,
+                                    parentTraceActivity: traceActivity));
                                 break;
                             case OrchestratorActionType.CreateSubOrchestration:
                                 var createSubOrchestrationAction = (CreateSubOrchestrationAction)decision;
@@ -465,7 +466,8 @@ namespace DurableTask.Core
                             timerMessages.Add(this.ProcessCreateTimerDecision(
                                 dummyTimer,
                                 runtimeState,
-                                isInternal: true));
+                                isInternal: true,
+                                parentTraceActivity: traceActivity));
                             isInterrupted = true;
                             break;
                         }
@@ -844,13 +846,16 @@ namespace DurableTask.Core
         TaskMessage ProcessCreateTimerDecision(
             CreateTimerOrchestratorAction createTimerOrchestratorAction,
             OrchestrationRuntimeState runtimeState,
-            bool isInternal)
+            bool isInternal,
+            Activity parentTraceActivity)
         {
             var taskMessage = new TaskMessage();
 
+            var fireAtTime = createTimerOrchestratorAction.FireAt;
+
             var timerCreatedEvent = new TimerCreatedEvent(createTimerOrchestratorAction.Id)
             {
-                FireAt = createTimerOrchestratorAction.FireAt
+                FireAt = fireAtTime
             };
 
             runtimeState.AddEvent(timerCreatedEvent);
@@ -858,13 +863,18 @@ namespace DurableTask.Core
             taskMessage.Event = new TimerFiredEvent(-1)
             {
                 TimerId = createTimerOrchestratorAction.Id,
-                FireAt = createTimerOrchestratorAction.FireAt
+                FireAt = fireAtTime
             };
+
+            timerCreatedEvent.SetParentTraceContext(parentTraceActivity);
+            using Activity traceActivity = TraceHelper.CreateActivityForTimer(runtimeState.OrchestrationInstance, fireAtTime);
 
             this.logHelper.CreatingTimer(
                 runtimeState.OrchestrationInstance,
                 timerCreatedEvent,
                 isInternal);
+
+            traceActivity.Stop();
 
             taskMessage.OrchestrationInstance = runtimeState.OrchestrationInstance;
 

@@ -13,7 +13,9 @@
 
 namespace DurableTask.Core.History
 {
+    using DurableTask.Core.Tracing;
     using System;
+    using System.Diagnostics;
     using System.Runtime.Serialization;
 
     /// <summary>
@@ -41,5 +43,39 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public DateTime FireAt { get; set; }
+
+        /// <summary>
+        /// The W3C trace context associated with this event.
+        /// </summary>
+        [DataMember]
+        public DistributedTraceContext ParentTraceContext { get; set; }
+
+        /// <summary>
+        /// Gets the W3C distributed trace parent context from this event, if any.
+        /// </summary>
+        public bool TryGetParentTraceContext(out ActivityContext parentTraceContext)
+        {
+            if (this.ParentTraceContext?.TraceParent == null)
+            {
+                parentTraceContext = default;
+                return false;
+            }
+
+            return ActivityContext.TryParse(
+                this.ParentTraceContext.TraceParent,
+                this.ParentTraceContext.TraceState,
+                out parentTraceContext);
+        }
+
+        // Used for new orchestration and sub-orchestration
+        internal void SetParentTraceContext(Activity traceActivity)
+        {
+            if (traceActivity != null)
+            {
+                this.ParentTraceContext = new DistributedTraceContext(
+                    traceActivity.Id,
+                    traceActivity.TraceStateString);
+            }
+        }
     }
 }
