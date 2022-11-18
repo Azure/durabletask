@@ -537,6 +537,8 @@ namespace DurableTask.AzureStorage.Tracking
                 if (MessageManager.TryGetLargeMessageReference(orchestrationState.Input, out Uri blobUrl))
                 {
                     string json = await this.messageManager.DownloadAndDecompressAsBytesAsync(blobUrl);
+
+                    // Depending on which blob this is, we interpret it differently.
                     if (blobUrl.AbsolutePath.EndsWith("ExecutionStarted.json.gz"))
                     {
                         // The downloaded content is an ExecutedStarted message payload that
