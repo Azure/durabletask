@@ -118,9 +118,9 @@ namespace DurableTask.AzureStorage
         /// <returns>Actual string representation of message.</returns>
         public async Task<string> FetchLargeMessageIfNecessary(string message)
         {
-            if (Uri.IsWellFormedUriString(message, UriKind.Absolute))
+            if (TryGetLargeMessageReference(message, out Uri blobUrl))
             {
-                return await this.DownloadAndDecompressAsBytesAsync(new Uri(message));
+                return await this.DownloadAndDecompressAsBytesAsync(blobUrl);
             }
             else
             {
@@ -128,14 +128,19 @@ namespace DurableTask.AzureStorage
             }
         }
 
+        internal static bool TryGetLargeMessageReference(string messagePayload, out Uri blobUrl)
+        {
+            return Uri.TryCreate(messagePayload, UriKind.Absolute, out blobUrl);
+        }
+
         public async Task<MessageData> DeserializeQueueMessageAsync(QueueMessage queueMessage, string queueName)
         {
-            MessageData envelope = Utils.DeserializeFromJson<MessageData>(serializer, queueMessage.Message);
+            MessageData envelope = this.DeserializeMessageData(queueMessage.Message);
 
             if (!string.IsNullOrEmpty(envelope.CompressedBlobName))
             {
                 string decompressedMessage = await this.DownloadAndDecompressAsBytesAsync(envelope.CompressedBlobName);
-                envelope = Utils.DeserializeFromJson<MessageData>(serializer, decompressedMessage);
+                envelope = this.DeserializeMessageData(decompressedMessage);
                 envelope.MessageFormat = MessageFormatFlags.StorageBlob;
                 envelope.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(decompressedMessage);
             }
@@ -147,6 +152,11 @@ namespace DurableTask.AzureStorage
             envelope.OriginalQueueMessage = queueMessage;
             envelope.QueueName = queueName;
             return envelope;
+        }
+
+        internal MessageData DeserializeMessageData(string json)
+        {
+            return Utils.DeserializeFromJson<MessageData>(this.serializer, json);
         }
 
         public Task CompressAndUploadAsBytesAsync(byte[] payloadBuffer, string blobName)
