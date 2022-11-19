@@ -134,8 +134,9 @@ namespace DurableTask.AzureServiceFabric.Service
         /// <param name="allExecutions">True if method should fetch all executions of the instance, false if the method should only fetch the most recent execution</param>
         /// <returns>List of <see cref="OrchestrationState"/>. </returns>
         [HttpGet]
-        [Route("orchestrations/{orchestrationId}")]
-        public async Task<IList<OrchestrationState>> GetOrchestrationState([FromUri]string orchestrationId, bool allExecutions)
+
+        [Route("orchestrationsAll/{orchestrationId}")]
+        public async Task<IList<OrchestrationState>> GetOrchestrationState([FromRoute] string orchestrationId, bool allExecutions)
         {
             orchestrationId.EnsureValidInstanceId();
             var state = await this.orchestrationServiceClient.GetOrchestrationStateAsync(orchestrationId, allExecutions);
