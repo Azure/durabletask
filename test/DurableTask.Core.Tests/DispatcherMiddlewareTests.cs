@@ -17,9 +17,12 @@ namespace DurableTask.Core.Tests
     using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.IO;
     using System.Linq;
+    using System.Runtime.Serialization;
     using System.Text;
     using System.Threading.Tasks;
+    using System.Xml;
     using DurableTask.Core.Command;
     using DurableTask.Core.History;
     using DurableTask.Emulator;
@@ -210,6 +213,38 @@ namespace DurableTask.Core.Tests
             // many activities an orchestration schedules (as long as there is at least one).
             Assert.IsNotNull(executionContext);
             Assert.AreEqual("Value", executionContext?.OrchestrationTags?["Test"]);
+        }
+
+        /// <summary>
+        /// Test to ensure <see cref="OrchestrationExecutionContext"/> supports DataContract serialization.
+        /// </summary>
+        [TestMethod]
+        public void EnsureOrchestrationExecutionContextSupportsDataContractSerialization()
+        {
+            OrchestrationExecutionContext orchestrationExecutionContext = new OrchestrationExecutionContext
+            {
+                OrchestrationTags = new Dictionary<string, string> { { "Key", "Value" } }
+            };
+
+            DataContractSerializer dataContractSerializer = new DataContractSerializer(typeof(OrchestrationExecutionContext));
+
+            StringBuilder stringBuilder = new StringBuilder();
+            XmlWriter xmlWriter = XmlWriter.Create(stringBuilder);
+            dataContractSerializer.WriteObject(xmlWriter, orchestrationExecutionContext);
+            xmlWriter.Close();
+
+            string writtenString = stringBuilder.ToString();
+
+            Assert.AreEqual(
+                "<?xml version=\"1.0\" encoding=\"utf-16\"?><OrchestrationExecutionContext xmlns:i=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns=\"http://schemas.datacontract.org/2004/07/DurableTask.Core\"><OrchestrationTags xmlns:d2p1=\"http://schemas.microsoft.com/2003/10/Serialization/Arrays\"><d2p1:KeyValueOfstringstring><d2p1:Key>Key</d2p1:Key><d2p1:Value>Value</d2p1:Value></d2p1:KeyValueOfstringstring></OrchestrationTags></OrchestrationExecutionContext>",
+                writtenString);
+
+            StringReader stringReader = new StringReader(writtenString);
+            XmlReader xmlReader = XmlReader.Create(stringReader);
+
+            OrchestrationExecutionContext deserializedContext = (OrchestrationExecutionContext)dataContractSerializer.ReadObject(xmlReader);
+
+            Assert.AreEqual("Value", deserializedContext.OrchestrationTags["Key"]);
         }
 
         [TestMethod]

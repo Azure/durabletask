@@ -1,8 +1,8 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net462</TargetFrameworks>
-    <TargetFramework>net462</TargetFramework>
+    <TargetFrameworks>net472</TargetFrameworks>
+	<TargetFramework>net472</TargetFramework>
     <PlatformTarget>x64</PlatformTarget>
     <ApplicationIcon />
     <OutputType>Exe</OutputType>
