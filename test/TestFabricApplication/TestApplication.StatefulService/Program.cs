@@ -16,6 +16,8 @@ namespace TestApplication.StatefulService
     using System;
     using System.Diagnostics;
     using System.Fabric;
+    using System.IO;
+    using System.Security.Cryptography;
     using System.Security.Cryptography.X509Certificates;
     using System.Threading;
 
@@ -69,14 +71,25 @@ namespace TestApplication.StatefulService
             }
 
             var endpoint = statefulServiceContext.CodePackageActivationContext.GetEndpoint("DtfxServiceEndpoint");
-            X509Certificate2 certificate;
+            X509Certificate2 certificate = null;
 
             using (var certStore = new X509Store(StoreName.My, StoreLocation.LocalMachine))
             {
-                certStore.Open(OpenFlags.ReadOnly | OpenFlags.OpenExistingOnly);
-                var certs = certStore.Certificates.Find(X509FindType.FindBySubjectDistinguishedName, "CN=localhost", false);
-                certificate = certs[0];
+                string subject = "CN=localhost";
+                certStore.Open(OpenFlags.ReadWrite | OpenFlags.OpenExistingOnly);
+                var certs = certStore.Certificates.Find(X509FindType.FindBySubjectDistinguishedName, subject, false);
+                if (certs.Count > 0)
+                {
+                    certificate = certs[0];
+                }
+                else
+                {
+                    certificate = CreateSelfSignedCertificate(subject);
+                    certStore.Add(certificate);
+                }
             }
+
+            
 
             sslEndpointPort = $"0.0.0.0:{endpoint.Port}";
             UnBindSslPort();
@@ -107,6 +120,19 @@ namespace TestApplication.StatefulService
             {
                 netshCommand.WaitForExit();
             }
+        }
+
+        private static X509Certificate2 CreateSelfSignedCertificate(string subject = "CN=localhost")
+        {
+            var rsa = new RSACryptoServiceProvider(4096, new CspParameters(24, "Microsoft Enhanced RSA and AES Cryptographic Provider", Guid.NewGuid().ToString()));
+
+            var req = new CertificateRequest(subject, rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            var cert = req.CreateSelfSigned(DateTimeOffset.Now, DateTimeOffset.Now.AddYears(1));
+            var password = Guid.NewGuid().ToString();
+
+            var rsaCert = new X509Certificate2(cert.Export(X509ContentType.Pfx, password), password, X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.PersistKeySet | X509KeyStorageFlags.Exportable);
+
+            return rsaCert;
         }
     }
 }
