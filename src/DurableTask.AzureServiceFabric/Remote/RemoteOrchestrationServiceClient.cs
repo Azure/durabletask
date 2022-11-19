@@ -152,7 +152,7 @@ namespace DurableTask.AzureServiceFabric.Remote
         {
             instanceId.EnsureValidInstanceId();
 
-            var fragment = $"{this.GetOrchestrationFragment(instanceId)}?allExecutions={allExecutions}";
+            var fragment = $"{this.GetOrchestrationFragmentAll(instanceId)}?allExecutions={allExecutions}";
             var stateString = await this.GetStringResponseAsync(instanceId, fragment, CancellationToken.None);
             var states = JsonConvert.DeserializeObject<IList<OrchestrationState>>(stateString);
             return states;
@@ -275,6 +275,8 @@ namespace DurableTask.AzureServiceFabric.Remote
         private string GetOrchestrationFragment() => "orchestrations";
 
         private string GetOrchestrationFragment(string orchestrationId) => $"orchestrations/{orchestrationId}";
+
+        private string GetOrchestrationFragmentAll(string orchestrationId) => $"orchestrationsAll/{orchestrationId}";
 
         private string GetMessageFragment() => "messages";
 

@@ -41,21 +41,21 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="6.0.10" />
-    <PackageReference Include="Microsoft.AspNetCore.Owin" Version="6.0.9" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="6.0.0" />
     <PackageReference Include="Microsoft.ServiceFabric.Data" Version="6.0.1107" />
     <PackageReference Include="Microsoft.ServiceFabric.Services" Version="6.0.1107" />
     <PackageReference Include="Microsoft.ServiceFabric" Version="9.0.1107" />
     <PackageReference Include="System.Collections.Immutable" Version="1.2.0" />
-    <PackageReference Include="Microsoft.AspNet.WebApi.Owin" Version="5.2.9" NoWarn="NU1701" />
+    <PackageReference Include="Microsoft.AspNetCore.Owin" Version="6.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="6.0.10" />
+   <!-- <PackageReference Include="Microsoft.AspNet.WebApi.Owin" Version="5.2.9" NoWarn="NU1701" />-->
     <PackageReference Include="Microsoft.AspNet.WebApi.Core" Version="5.2.9" NoWarn="NU1701" />
-    <PackageReference Include="Microsoft.Owin" Version="4.2.2" NoWarn="NU1701" />
-    <PackageReference Include="Owin" Version="1.0.0" NoWarn="NU1701" />
-    <PackageReference Include="DurableTask.Core" Version="2.0.0.6" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="6.0.0" />
-    <PackageReference Include="Microsoft.Azure.DurableTask.Core" Version="2.11.1" />
+   <!-- <PackageReference Include="Microsoft.Owin" Version="4.2.2" NoWarn="NU1701" />-->
     <PackageReference Include="Microsoft.ServiceFabric.AspNetCore.Kestrel" Version="6.0.1107" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(Configuration)'=='Release'">

@@ -2,7 +2,7 @@
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
-    <TargetFramework>net462</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Platforms>AnyCPU;x64</Platforms>
   </PropertyGroup>
@@ -11,10 +11,10 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.0.0" />
     <PackageReference Include="MSTest.TestAdapter" Version="1.4.0" />
     <PackageReference Include="MSTest.TestFramework" Version="1.4.0" />
-    <PackageReference Include="Newtonsoft.Json" version="12.0.1" />
+    <PackageReference Include="Newtonsoft.Json" version="13.0.1" />
     <PackageReference Include="System.Collections.Immutable" Version="1.5.0" />
     <PackageReference Include="System.Net.Http" Version="4.3.4" />
-    <PackageReference Include="Microsoft.AspNet.WebApi.Core" Version="5.2.6" />
+    <PackageReference Include="Microsoft.AspNet.WebApi.Core" Version="5.2.9" NoWarn="NU1701" />
   </ItemGroup>
 
   <ItemGroup>
