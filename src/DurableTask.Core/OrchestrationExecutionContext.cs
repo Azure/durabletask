@@ -25,6 +25,6 @@ namespace DurableTask.Core
         /// Gets the orchestration tags
         /// </summary>
         [DataMember]
-        public IReadOnlyDictionary<string, string> OrchestrationTags { get; internal set; }
+        public IDictionary<string, string> OrchestrationTags { get; internal set; }
     }
 }

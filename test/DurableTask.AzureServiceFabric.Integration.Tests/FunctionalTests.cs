@@ -80,6 +80,28 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
         }
 
         [TestMethod]
+        public async Task Orchestration_With_NestedSubOrchestrations_Finish()
+        {
+            var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(SimpleOrchestrationWithSubOrchestration2), null);
+            var result = await this.taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(2));
+
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+            string subSubOrchResult = $"TaskResult = Hello World , SubOrchestration1Result = Hello Gabbar, SubOrchestration2Result = Hello Gabbar";
+            Assert.AreEqual($"\"TaskResult = Hello World , SubSubOrchestration1Result = {subSubOrchResult}, SubOrchestration2Result = Hello Gabbar\"", result.Output);
+        }
+
+        [TestMethod]
+        public async Task Orchestration_With_RecurringSubOrchestration_Finishes()
+        {
+            int recurrenceCount = 100; 
+            var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(SimpleRecurringSubOrchestration), recurrenceCount);
+            var result = await this.taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(2));
+
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+            Assert.AreEqual($"\"{SimpleRecurringSubOrchestration.GetExpectedResult(recurrenceCount)}\"", result.Output);
+        }
+
+        [TestMethod]
         public async Task Orchestration_With_TimeoutWrapper_Test()
         {
             // Task finishes within timeout

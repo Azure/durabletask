@@ -567,22 +567,7 @@ namespace DurableTask.Core
 
         static OrchestrationExecutionContext GetOrchestrationExecutionContext(OrchestrationRuntimeState runtimeState)
         {
-            IReadOnlyDictionary<string, string> tags;
-
-            if (runtimeState.Tags == null)
-            {
-                tags = new Dictionary<string, string>(capacity: 0);
-            }
-            else if (runtimeState.Tags is IReadOnlyDictionary<string, string> runtimeStateReadOnlyDict)
-            {
-                tags = runtimeStateReadOnlyDict;
-            }
-            else
-            {
-                tags = new ReadOnlyDictionary<string, string>(runtimeState.Tags);
-            }
-
-            return new OrchestrationExecutionContext { OrchestrationTags = tags };
+            return new OrchestrationExecutionContext { OrchestrationTags = runtimeState.Tags ?? new Dictionary<string, string>(capacity: 0) };
         }
 
         async Task<OrchestrationExecutionCursor> ExecuteOrchestrationAsync(OrchestrationRuntimeState runtimeState, TaskOrchestrationWorkItem workItem)

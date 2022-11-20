@@ -1460,6 +1460,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.AreEqual(message, JToken.Parse(status?.Output));
+                Assert.AreEqual(message, JToken.Parse(status.Input));
 
                 await host.StopAsync();
             }
@@ -1528,6 +1529,10 @@ namespace DurableTask.AzureStorage.Tests
                     client.InstanceId,
                     status?.Output,
                     Encoding.UTF8.GetByteCount(message));
+
+                Assert.IsTrue(status.Output.EndsWith("-Result.json.gz"));
+                Assert.IsTrue(status.Input.EndsWith("-Input.json.gz"));
+
                 await host.StopAsync();
             }
         }
