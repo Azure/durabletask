@@ -175,6 +175,17 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
+        public void OrchestrationInstanceQuery_InstanceId()
+        {
+            var condition = new OrchestrationInstanceStatusQueryCondition
+            {
+                InstanceId = "abc123",
+            };
+
+            Assert.AreEqual("PartitionKey eq 'abc123'", condition.ToOData().Filter);
+        }
+
+        [TestMethod]
         public void OrchestrationInstanceQuery_EmptyInstanceId()
         {
             var condition = new OrchestrationInstanceStatusQueryCondition
