@@ -18,7 +18,9 @@ namespace DurableTask.AzureStorage
     using System.IO.Compression;
     using System.Linq;
     using System.Reflection;
+#if !NETSTANDARD2_0
     using System.Runtime.Serialization;
+#endif
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
@@ -26,7 +28,9 @@ namespace DurableTask.AzureStorage
     using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Storage;
     using Newtonsoft.Json;
+#if NETSTANDARD2_0
     using Newtonsoft.Json.Serialization;
+#endif
 
     /// <summary>
     /// The message manager for messages from MessageData, and DynamicTableEntities

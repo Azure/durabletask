@@ -47,6 +47,7 @@ namespace DurableTask.AzureStorage.Tests
             var azureStorageClient = new AzureStorageClient(settings);
             var tableServiceClient = new Mock<TableServiceClient>(MockBehavior.Strict, ConnectionString);
             var tableClient = new Mock<TableClient>(MockBehavior.Strict, ConnectionString, TableName);
+            tableClient.Setup(t => t.Name).Returns(TableName);
             tableServiceClient.Setup(t => t.GetTableClient(TableName)).Returns(tableClient.Object);
 
             var table = new Table(azureStorageClient, tableServiceClient.Object, TableName);

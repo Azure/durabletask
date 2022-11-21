@@ -39,7 +39,6 @@ namespace DurableTask.AzureStorage.Tests
                 [nameof(Example.EnumField)] = ExampleEnum.B.ToString("G"),
                 [nameof(Example.NullableEnumProperty)] = Utils.SerializeToJson(ExampleEnum.C),
                 [nameof(Example.StringProperty)] = "Hello World",
-                [nameof(Example.BinaryDataField)] = new BinaryData(new byte[] { 1, 2, 3, 4, 5 }),
                 [nameof(Example.BinaryProperty)] = new byte[] { 6, 7, 8 },
                 [nameof(Example.BoolProperty)] = true,
                 [nameof(Example.NullableBoolProperty)] = true,
@@ -65,7 +64,6 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(ExampleEnum.B, actual.EnumField);
             Assert.AreEqual(ExampleEnum.C, actual.NullableEnumProperty);
             Assert.AreEqual("Hello World", actual.StringProperty);
-            Assert.IsTrue(actual.BinaryDataField.ToArray().SequenceEqual(new byte[] { 1, 2, 3, 4, 5 }));
             Assert.IsTrue(actual.BinaryProperty.SequenceEqual(new byte[] { 6, 7, 8 }));
             Assert.IsTrue(actual.BoolProperty);
             Assert.IsTrue(actual.NullableBoolProperty.Value);
@@ -107,7 +105,6 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(ExampleEnum.A, actual.EnumField);
             Assert.IsNull(actual.NullableEnumProperty);
             Assert.IsNull(actual.StringProperty);
-            Assert.IsNull(actual.BinaryDataField);
             Assert.IsNull(actual.BinaryProperty);
             Assert.AreEqual(default(bool), actual.BoolProperty);
             Assert.IsNull(actual.NullableBoolProperty);
@@ -135,7 +132,6 @@ namespace DurableTask.AzureStorage.Tests
                 EnumField = ExampleEnum.B,
                 NullableEnumProperty = ExampleEnum.C,
                 StringProperty = "Hello World",
-                BinaryDataField = new BinaryData(new byte[] { 1, 2, 3, 4, 5 }),
                 BinaryProperty = new byte[] { 6, 7, 8 },
                 BoolProperty = true,
                 NullableBoolProperty = true,
@@ -172,7 +168,6 @@ namespace DurableTask.AzureStorage.Tests
             {
                 NullableEnumProperty = null,
                 StringProperty = null,
-                BinaryDataField = null,
                 BinaryProperty = null,
                 NullableBoolProperty = null,
                 NullableDateTimeField = null,
@@ -349,14 +344,6 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(Utils.SerializeToJson(expected.UnsupportedProperty), actual.GetString(nameof(Example.UnsupportedProperty)));
             Assert.AreEqual(Utils.SerializeToJson(expected.ObjectProperty), actual.GetString(nameof(Example.ObjectProperty)));
 
-            if (expected.BinaryDataField == null)
-            {
-                Assert.IsNull(actual.GetBinaryData(nameof(Example.BinaryDataField)));
-            }
-            else
-            {
-                Assert.IsTrue(expected.BinaryDataField.ToArray().SequenceEqual(actual.GetBinaryData(nameof(Example.BinaryDataField)).ToArray()));
-            }
             if (expected.BinaryProperty == null)
             {
                 Assert.IsNull(actual.GetBinary(nameof(Example.BinaryProperty)));
@@ -378,9 +365,6 @@ namespace DurableTask.AzureStorage.Tests
 
             [DataMember]
             public string StringProperty { get; set; }
-
-            [DataMember]
-            public BinaryData BinaryDataField;
 
             [DataMember]
             internal byte[] BinaryProperty { get; set; }
@@ -448,7 +432,6 @@ namespace DurableTask.AzureStorage.Tests
                 EnumField == other.EnumField &&
                 EqualityComparer<ExampleEnum?>.Default.Equals(NullableEnumProperty, other.NullableEnumProperty) &&
                 StringProperty == other.StringProperty &&
-                ArrayEquals(BinaryDataField?.ToArray(), other.BinaryDataField?.ToArray()) &&
                 ArrayEquals(BinaryProperty, other.BinaryProperty) &&
                 BoolProperty == other.BoolProperty &&
                 EqualityComparer<bool?>.Default.Equals(NullableBoolProperty, other.NullableBoolProperty) &&
