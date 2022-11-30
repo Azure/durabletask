@@ -165,18 +165,19 @@ namespace DurableTask.Core.Tracing
             return newActivity;
         }
 
-        internal static Activity? CreateActivityForTimer(OrchestrationInstance instance, DateTime fireAt)
+        internal static Activity? CreateActivityForTimer(OrchestrationInstance instance, DateTime startTime, DateTime fireAt)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 name: "Timer",
                 kind: ActivityKind.Internal,
+                startTime: startTime,
                 parentContext: Activity.Current?.Context ?? default,
                 tags: new KeyValuePair<string, object?>[]
                 {
                     new("dtfx.type", "timer"),
                     new("dtfx.instance_id", instance.InstanceId),
                     new("dtfx.execution_id", instance.ExecutionId),
-                    new("dtfx.fire_at_time", fireAt),
+                    new("dtfx.fire_at", fireAt),
                 });
 
             return newActivity;
