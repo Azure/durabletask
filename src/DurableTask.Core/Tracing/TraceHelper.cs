@@ -177,7 +177,7 @@ namespace DurableTask.Core.Tracing
                     new("dtfx.type", "timer"),
                     new("dtfx.instance_id", instance.InstanceId),
                     new("dtfx.execution_id", instance.ExecutionId),
-                    new("dtfx.fire_at", fireAt),
+                    new("dtfx.fire_at", fireAt.ToString("o")),
                 });
 
             return newActivity;
