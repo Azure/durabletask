@@ -20,12 +20,12 @@ using DurableTask.Core.Tracing;
 namespace DurableTask.Core
 {
     /// <summary>
-    /// IDurableTraceContextWrapper
+    /// Interface to store the Trace Context for events. Used for Distributed Tracing.
     /// </summary>
     public interface IDurableTraceContextWrapper
     {
         /// <summary>
-        /// ParentTraceContext
+        /// The trace context associated with an event.
         /// </summary>
         public DistributedTraceContext ParentTraceContext { get; set; }
     }
