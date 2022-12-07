@@ -484,12 +484,6 @@ namespace DurableTask.Core
             {
                 LogDuplicateEvent("TimerFired", timerFiredEvent, taskId);
             }
-
-            if (!this.IsReplaying)
-            {
-                Activity activity = TraceHelper.CreateActivityForTimer(this.OrchestrationInstance, timerFiredEvent.Timestamp, timerFiredEvent.FireAt);
-                activity.Stop();
-            }
         }
 
         private void LogDuplicateEvent(string source, HistoryEvent historyEvent, int taskId)

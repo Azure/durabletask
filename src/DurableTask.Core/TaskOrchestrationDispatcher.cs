@@ -697,6 +697,11 @@ namespace DurableTask.Core
                     continue;
                 }
 
+                if (Activity.Current != null && message.Event is TimerFiredEvent)
+                {
+                    using Activity activity = TraceHelper.CreateActivityForTimer(workItem.OrchestrationRuntimeState.OrchestrationInstance, message.Event.Timestamp, ((TimerFiredEvent)message.Event).FireAt);
+                }
+
                 workItem.OrchestrationRuntimeState.AddEvent(message.Event);
             }
 
