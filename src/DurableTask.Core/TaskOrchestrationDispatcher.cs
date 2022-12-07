@@ -946,8 +946,6 @@ namespace DurableTask.Core
 
             // Distributed Tracing: start a new trace activity derived from the orchestration
             // for an EventRaisedEvent (external event)
-            eventRaisedEvent.SetParentTraceContext(parentTraceActivity);
-
             using Activity traceActivity = TraceHelper.StartTraceActivityForEventRaised(eventRaisedEvent, runtimeState.OrchestrationInstance);
 
             this.logHelper.RaisingEvent(runtimeState.OrchestrationInstance, historyEvent);

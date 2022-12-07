@@ -195,15 +195,10 @@ namespace DurableTask.Core.Tracing
             EventRaisedEvent eventRaisedEvent,
             OrchestrationInstance instance)
         {
-            if (!eventRaisedEvent.TryGetParentTraceContext(out ActivityContext activityContext))
-            {
-                return null;
-            }
-
             return ActivityTraceSource.StartActivity(
                 name: eventRaisedEvent.Name,
                 kind: ActivityKind.Producer,
-                parentContext: activityContext,
+                parentContext: Activity.Current?.Context ?? default,
                 tags: new KeyValuePair<string, object?>[]
                 {
                     new("dtfx.type", "externalevent"),

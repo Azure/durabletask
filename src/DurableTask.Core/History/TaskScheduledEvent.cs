@@ -21,7 +21,7 @@ namespace DurableTask.Core.History
     /// A history event for a new task scheduled
     /// </summary>
     [DataContract]
-    public class TaskScheduledEvent : HistoryEvent
+    public class TaskScheduledEvent : HistoryEvent, IDurableTraceContextWrapper
     {
         /// <summary>
         /// Creates a new TaskScheduledEvent with the supplied event id
@@ -60,33 +60,5 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public DistributedTraceContext ParentTraceContext { get; set; }
-
-        /// <summary>
-        /// Gets the W3C distributed trace parent context from this event, if any.
-        /// </summary>
-        public bool TryGetParentTraceContext(out ActivityContext parentTraceContext)
-        {
-            if (this.ParentTraceContext?.TraceParent == null)
-            {
-                parentTraceContext = default;
-                return false;
-            }
-
-            return ActivityContext.TryParse(
-                this.ParentTraceContext.TraceParent,
-                this.ParentTraceContext.TraceState,
-                out parentTraceContext);
-        }
-
-        // Used for new orchestration and sub-orchestration
-        internal void SetParentTraceContext(Activity traceActivity)
-        {
-            if (traceActivity != null)
-            {
-                this.ParentTraceContext = new DistributedTraceContext(
-                    traceActivity.Id,
-                    traceActivity.TraceStateString);
-            }
-        }
     }
 }

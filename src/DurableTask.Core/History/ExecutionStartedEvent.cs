@@ -23,7 +23,7 @@ namespace DurableTask.Core.History
     /// A history event for orchestration execution starting
     /// </summary>
     [DataContract]
-    public class ExecutionStartedEvent : HistoryEvent
+    public class ExecutionStartedEvent : HistoryEvent, IDurableTraceContextWrapper
     {
         /// <summary>
         /// The orchestration instance for this event
@@ -101,34 +101,6 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public DateTime? ScheduledStartTime { get; set; }
-
-        /// <summary>
-        /// Gets the W3C distributed trace parent context from this event, if any.
-        /// </summary>
-        public bool TryGetParentTraceContext(out ActivityContext parentTraceContext)
-        {
-            if (this.ParentTraceContext?.TraceParent == null)
-            {
-                parentTraceContext = default;
-                return false;
-            }
-
-            return ActivityContext.TryParse(
-                this.ParentTraceContext.TraceParent,
-                this.ParentTraceContext.TraceState,
-                out parentTraceContext);
-        }
-
-        // Used for new orchestration and sub-orchestration
-        internal void SetParentTraceContext(Activity traceActivity)
-        {
-            if (traceActivity != null)
-            {
-                this.ParentTraceContext = new DistributedTraceContext(
-                    traceActivity.Id,
-                    traceActivity.TraceStateString);
-            }
-        }
 
         // Used for Continue-as-New scenarios
         internal void SetParentTraceContext(ExecutionStartedEvent parent)
