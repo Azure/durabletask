@@ -22,7 +22,7 @@ namespace DurableTask.Core
     /// <summary>
     /// Interface to store the Trace Context for events. Used for Distributed Tracing.
     /// </summary>
-    public interface IDurableTraceContextWrapper
+    public interface ISupportsDurableTraceContext
     {
         /// <summary>
         /// The trace context associated with an event.
@@ -32,7 +32,7 @@ namespace DurableTask.Core
 
     internal static class DurableTraceContextWrapperExtensions
     {
-        internal static bool TryGetParentTraceContext(this IDurableTraceContextWrapper wrapper, out ActivityContext parentTraceContext)
+        internal static bool TryGetParentTraceContext(this ISupportsDurableTraceContext wrapper, out ActivityContext parentTraceContext)
         {
             if (wrapper.ParentTraceContext?.TraceParent == null)
             {
@@ -46,7 +46,7 @@ namespace DurableTask.Core
                 out parentTraceContext);
         }
 
-        internal static void SetParentTraceContext(this IDurableTraceContextWrapper wrapper, Activity activity)
+        internal static void SetParentTraceContext(this ISupportsDurableTraceContext wrapper, Activity activity)
         {
             if (activity != null)
             {

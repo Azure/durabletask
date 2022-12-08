@@ -21,7 +21,7 @@ namespace DurableTask.Core.History
     /// A history event for a new task scheduled
     /// </summary>
     [DataContract]
-    public class TaskScheduledEvent : HistoryEvent, IDurableTraceContextWrapper
+    public class TaskScheduledEvent : HistoryEvent, ISupportsDurableTraceContext
     {
         /// <summary>
         /// Creates a new TaskScheduledEvent with the supplied event id

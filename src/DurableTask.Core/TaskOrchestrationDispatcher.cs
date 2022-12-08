@@ -697,9 +697,10 @@ namespace DurableTask.Core
                     continue;
                 }
 
-                if (Activity.Current != null && message.Event is TimerFiredEvent)
+                if (Activity.Current != null && message.Event is TimerFiredEvent timerFiredEvent)
                 {
-                    using Activity activity = TraceHelper.CreateActivityForTimer(workItem.OrchestrationRuntimeState.OrchestrationInstance, message.Event.Timestamp, ((TimerFiredEvent)message.Event).FireAt);
+                    // We immediately publish the activity span for this timer by creating the activity and immediately calling Dispose() on it.
+                    TraceHelper.CreateActivityForTimer(workItem.OrchestrationRuntimeState.OrchestrationInstance, message.Event.Timestamp, timerFiredEvent.FireAt).Dispose();
                 }
 
                 workItem.OrchestrationRuntimeState.AddEvent(message.Event);

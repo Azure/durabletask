@@ -23,7 +23,7 @@ namespace DurableTask.Core.History
     /// A history event for orchestration execution starting
     /// </summary>
     [DataContract]
-    public class ExecutionStartedEvent : HistoryEvent, IDurableTraceContextWrapper
+    public class ExecutionStartedEvent : HistoryEvent, ISupportsDurableTraceContext
     {
         /// <summary>
         /// The orchestration instance for this event

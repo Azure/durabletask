@@ -21,7 +21,7 @@ namespace DurableTask.Core.History
     /// A history event for event raised
     /// </summary>
     [DataContract]
-    public class EventRaisedEvent : HistoryEvent, IDurableTraceContextWrapper
+    public class EventRaisedEvent : HistoryEvent, ISupportsDurableTraceContext
     {
         /// <summary>
         /// Creates a new <see cref="EventRaisedEvent"/> with the supplied event id and input.
