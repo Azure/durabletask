@@ -171,14 +171,15 @@ namespace DurableTask.Core.Tracing
                 name: "Timer",
                 kind: ActivityKind.Internal,
                 startTime: startTime,
-                parentContext: Activity.Current?.Context ?? default,
-                tags: new KeyValuePair<string, object?>[]
-                {
-                    new("dtfx.type", "timer"),
-                    new("dtfx.instance_id", instance.InstanceId),
-                    new("dtfx.execution_id", instance.ExecutionId),
-                    new("dtfx.fire_at", fireAt.ToString("o")),
-                });
+                parentContext: Activity.Current?.Context ?? default);
+
+            if (newActivity is not null)
+            {
+                newActivity.AddTag("dtfx.type", "timer");
+                newActivity.AddTag("dtfx.instance_id", instance.InstanceId);
+                newActivity.AddTag("dtfx.execution_id", instance.ExecutionId);
+                newActivity.AddTag("dtfx.fire_at", fireAt.ToString("o"));
+            }
 
             return newActivity;
         }
