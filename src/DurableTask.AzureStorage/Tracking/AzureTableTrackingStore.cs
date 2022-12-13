@@ -808,6 +808,7 @@ namespace DurableTask.AzureStorage.Tracking
                     ["ScheduledStartTime"] = new EntityProperty(executionStartedEvent.ScheduledStartTime),
                     ["ExecutionId"] = new EntityProperty(executionStartedEvent.OrchestrationInstance.ExecutionId),
                     ["Generation"] = new EntityProperty(executionStartedEvent.Generation),
+                    ["Size"] = new EntityProperty(0),
                 }
             };
 
@@ -921,6 +922,7 @@ namespace DurableTask.AzureStorage.Tracking
                     ["CustomStatus"] = new EntityProperty(newRuntimeState.Status ?? "null"),
                     ["ExecutionId"] = new EntityProperty(executionId),
                     ["LastUpdatedTime"] = new EntityProperty(newEvents.Last().Timestamp),
+                    ["Size"] = new EntityProperty(newRuntimeState.Size),
                 }
             };
            

@@ -855,6 +855,24 @@ namespace DurableTask.AzureStorage.Logging
             this.WriteStructuredLog(logEvent);
         }
 
+        internal void ThrottlingOrchestrationHistory(
+            string account,
+            string taskHub,
+            string instanceId,
+            string executionId,
+            long sizeInBytes,
+            string details)
+        {
+            var logEvent = new ThrottlingOrchestrationHistory(
+                account,
+                taskHub,
+                instanceId,
+                executionId,
+                sizeInBytes,
+                details);
+            this.WriteStructuredLog(logEvent);
+        }
+
         void WriteStructuredLog(ILogEvent logEvent, Exception exception = null)
         {
             LoggingExtensions.LogDurableEvent(this.log, logEvent, exception);

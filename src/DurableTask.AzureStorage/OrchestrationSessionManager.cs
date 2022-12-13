@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage
 {
     using System;
+    using System.Buffers;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Linq;
@@ -40,6 +41,7 @@ namespace DurableTask.AzureStorage
         readonly AzureStorageOrchestrationServiceStats stats;
         readonly ITrackingStore trackingStore;
         readonly DispatchQueue fetchRuntimeStateQueue;
+        readonly OrchestrationMemoryManager memoryManager;
 
         public OrchestrationSessionManager(
             string queueAccountName,
@@ -53,6 +55,8 @@ namespace DurableTask.AzureStorage
             this.trackingStore = trackingStore;
 
             this.fetchRuntimeStateQueue = new DispatchQueue(this.settings.MaxStorageOperationConcurrency);
+
+            this.memoryManager = new OrchestrationMemoryManager(settings, queueAccountName);
         }
 
         internal IEnumerable<ControlQueue> Queues => this.ownedControlQueues.Values;
@@ -469,10 +473,9 @@ namespace DurableTask.AzureStorage
             {
                 if (batch.OrchestrationState == null)
                 {
-                    OrchestrationHistory history = await this.trackingStore.GetHistoryEventsAsync(
-                       batch.OrchestrationInstanceId,
-                       batch.OrchestrationExecutionId,
-                       cancellationToken);
+                    var state = await this.trackingStore.GetStateAsync(batch.OrchestrationInstanceId, batch.OrchestrationExecutionId, false);
+
+                    OrchestrationHistory history = await this.memoryManager.GetHistoryEventsAsync(this.trackingStore, state, cancellationToken);
 
                     batch.OrchestrationState = new OrchestrationRuntimeState(history.Events);
                     batch.ETag = history.ETag;

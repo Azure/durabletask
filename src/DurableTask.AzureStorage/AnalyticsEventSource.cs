@@ -1071,6 +1071,28 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
+        internal void ThrottlingOrchestrationHistory(
+            string Account, 
+            string TaskHub, 
+            string InstanceId, 
+            string ExecutionId, 
+            long SizeInBytes,
+            string Details, 
+            string AppName, 
+            string ExtensionVersion)
+        {
+            this.WriteEvent(
+                EventIds.ThrottlingOrchestrationHistory,
+                Account,
+                TaskHub,
+                InstanceId,
+                ExecutionId ?? string.Empty,
+                SizeInBytes,
+                Details,
+                AppName,
+                ExtensionVersion);
+        }
+
         // Specifying tasks is necessary when using WriteEventWithRelatedActivityId
         // or else the "TaskName" property written to ETW is the name of the opcode instead
         // of the name of the trace method.

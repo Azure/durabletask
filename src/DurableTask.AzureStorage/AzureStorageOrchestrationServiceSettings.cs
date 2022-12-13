@@ -251,6 +251,11 @@ namespace DurableTask.AzureStorage
         public TimeSpan StorageRequestsTimeoutCooldown { get; set; } = TimeSpan.FromMinutes(5);
 
         /// <summary>
+        /// Gets or sets the memory limit in bytes.
+        /// </summary>
+        public long MemoryLimitBytes { get; set; } = (long)(1.5 * 1024 * 1024 * 1024);
+
+        /// <summary>
         /// Returns bool indicating is the TrackingStoreStorageAccount has been set.
         /// </summary>
         public bool HasTrackingStoreStorageAccount => this.TrackingStoreStorageAccountDetails != null;
