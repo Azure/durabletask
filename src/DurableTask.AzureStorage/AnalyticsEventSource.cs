@@ -91,7 +91,7 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(EventIds.ReceivedMessage, Level = EventLevel.Informational, Opcode = EventOpcode.Receive, Task = Tasks.Dequeue, Version = 6)]
+        [Event(EventIds.ReceivedMessage, Level = EventLevel.Informational, Opcode = EventOpcode.Receive, Task = Tasks.Dequeue, Version = 7)]
         public void ReceivedMessage(
             Guid relatedActivityId,
             string Account,
@@ -107,6 +107,7 @@ namespace DurableTask.AzureStorage
             long SizeInBytes,
             string PartitionId,
             long SequenceNumber,
+            string PopReceipt,
             int Episode,
             string AppName,
             string ExtensionVersion)
@@ -127,12 +128,13 @@ namespace DurableTask.AzureStorage
                 SizeInBytes,
                 PartitionId,
                 SequenceNumber,
+                PopReceipt ?? string.Empty,
                 Episode,
                 AppName,
                 ExtensionVersion);
         }
 
-        [Event(EventIds.DeletingMessage, Level = EventLevel.Informational, Version = 5)]
+        [Event(EventIds.DeletingMessage, Level = EventLevel.Informational, Version = 6)]
         public void DeletingMessage(
             string Account,
             string TaskHub,
@@ -143,6 +145,7 @@ namespace DurableTask.AzureStorage
             string ExecutionId,
             string PartitionId,
             long SequenceNumber,
+            string PopReceipt,
             string AppName,
             string ExtensionVersion)
         {
@@ -157,11 +160,12 @@ namespace DurableTask.AzureStorage
                 ExecutionId ?? string.Empty,
                 PartitionId,
                 SequenceNumber,
+                PopReceipt ?? string.Empty,
                 AppName,
                 ExtensionVersion);
         }
 
-        [Event(EventIds.AbandoningMessage, Level = EventLevel.Warning, Version = 6)]
+        [Event(EventIds.AbandoningMessage, Level = EventLevel.Warning, Version = 7)]
         public void AbandoningMessage(
             string Account,
             string TaskHub,
@@ -172,6 +176,7 @@ namespace DurableTask.AzureStorage
             string ExecutionId,
             string PartitionId,
             long SequenceNumber,
+            string PopReceipt,
             int VisibilityTimeoutSeconds,
             string AppName,
             string ExtensionVersion)
@@ -187,6 +192,7 @@ namespace DurableTask.AzureStorage
                 ExecutionId ?? string.Empty,
                 PartitionId,
                 SequenceNumber,
+                PopReceipt ?? string.Empty,
                 VisibilityTimeoutSeconds,
                 AppName,
                 ExtensionVersion);
@@ -203,7 +209,7 @@ namespace DurableTask.AzureStorage
             this.WriteEvent(EventIds.AssertFailure, Account, TaskHub, Details, AppName, ExtensionVersion);
         }
 
-        [Event(EventIds.MessageGone, Level = EventLevel.Warning, Version = 4)]
+        [Event(EventIds.MessageGone, Level = EventLevel.Warning, Version = 5)]
         public void MessageGone(
             string Account,
             string TaskHub,
@@ -214,6 +220,7 @@ namespace DurableTask.AzureStorage
             string ExecutionId,
             string PartitionId,
             string Details,
+            string PopReceipt,
             string AppName,
             string ExtensionVersion)
         {
@@ -228,6 +235,7 @@ namespace DurableTask.AzureStorage
                 ExecutionId ?? string.Empty,
                 PartitionId,
                 Details,
+                PopReceipt ?? string.Empty,
                 AppName,
                 ExtensionVersion);
         }
@@ -238,7 +246,7 @@ namespace DurableTask.AzureStorage
             this.WriteEvent(EventIds.GeneralError, Account, TaskHub, Details, AppName, ExtensionVersion);
         }
 
-        [Event(EventIds.DuplicateMessageDetected, Level = EventLevel.Warning, Version = 3)]
+        [Event(EventIds.DuplicateMessageDetected, Level = EventLevel.Warning, Version = 4)]
         public void DuplicateMessageDetected(
             string Account,
             string TaskHub,
@@ -249,6 +257,7 @@ namespace DurableTask.AzureStorage
             string ExecutionId,
             string PartitionId,
             int DequeueCount,
+            string PopReceipt,
             string AppName,
             string ExtensionVersion)
         {
@@ -263,6 +272,7 @@ namespace DurableTask.AzureStorage
                 ExecutionId ?? string.Empty,
                 PartitionId,
                 DequeueCount,
+                PopReceipt ?? string.Empty,
                 AppName,
                 ExtensionVersion);
         }
@@ -397,7 +407,7 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(EventIds.RenewingMessage, Level = EventLevel.Informational, Version = 3)]
+        [Event(EventIds.RenewingMessage, Level = EventLevel.Informational, Version = 4)]
         public void RenewingMessage(
             string Account,
             string TaskHub,
@@ -407,6 +417,7 @@ namespace DurableTask.AzureStorage
             string EventType,
             int TaskEventId,
             string MessageId,
+            string PopReceipt,
             int VisibilityTimeoutSeconds,
             string AppName,
             string ExtensionVersion)
@@ -421,6 +432,7 @@ namespace DurableTask.AzureStorage
                 EventType,
                 TaskEventId,
                 MessageId,
+                PopReceipt ?? string.Empty,
                 VisibilityTimeoutSeconds,
                 AppName,
                 ExtensionVersion);

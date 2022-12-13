@@ -907,6 +907,7 @@ namespace DurableTask.AzureStorage
                 data.TotalMessageSizeBytes,
                 data.QueueName /* PartitionId */,
                 data.SequenceNumber,
+                queueMessage.PopReceipt,
                 data.Episode.GetValueOrDefault(-1));
         }
 
@@ -982,6 +983,18 @@ namespace DurableTask.AzureStorage
 
             session.StartNewLogicalTraceScope();
             OrchestrationRuntimeState runtimeState = newOrchestrationRuntimeState ?? workItem.OrchestrationRuntimeState;
+
+            // Only commit side-effects if the orchestration runtime state is valid (i.e. not corrupted)
+            if (!runtimeState.IsValid)
+            {
+                this.settings.Logger.GeneralWarning(
+                    this.azureStorageClient.QueueAccountName,
+                    this.settings.TaskHubName,
+                    $"{nameof(CompleteTaskOrchestrationWorkItemAsync)}: Discarding execution results because the orchestration state is invalid.",
+                    instanceId: workItem.InstanceId);
+                await this.DeleteMessageBatchAsync(session, session.CurrentMessageBatch);
+                return;
+            }
 
             string instanceId = workItem.InstanceId;
             string executionId = runtimeState.OrchestrationInstance?.ExecutionId;
@@ -1573,22 +1586,25 @@ namespace DurableTask.AzureStorage
             }
 
             ControlQueue controlQueue = await this.GetControlQueueAsync(creationMessage.OrchestrationInstance.InstanceId);
-            MessageData internalMessage = await this.SendTaskOrchestrationMessageInternalAsync(
+            MessageData startMessage = await this.SendTaskOrchestrationMessageInternalAsync(
                 EmptySourceInstance,
                 controlQueue,
                 creationMessage);
 
-            // CompressedBlobName either has a blob path for large messages or is null.
-            string inputStatusOverride = null;
-            if (internalMessage.CompressedBlobName != null)
+            string inputPayloadOverride = null;
+            if (startMessage.CompressedBlobName != null)
             {
-                inputStatusOverride = this.messageManager.GetBlobUrl(internalMessage.CompressedBlobName);
+                // The input of the orchestration is changed to be a URL to a compressed blob, which
+                // is the input queue message. When fetching the orchestration instance status, that
+                // blob will be downloaded, decompressed, and the ExecutionStartedEvent.Input value
+                // will be returned as the input value.
+                inputPayloadOverride = this.messageManager.GetBlobUrl(startMessage.CompressedBlobName);
             }
 
             await this.trackingStore.SetNewExecutionAsync(
                 executionStartedEvent,
                 existingInstance?.ETag,
-                inputStatusOverride);
+                inputPayloadOverride);
         }
 
         /// <summary>
@@ -1782,7 +1798,7 @@ namespace DurableTask.AzureStorage
                 instanceId,
                 executionId,
                 CancellationToken.None);
-            return JsonConvert.SerializeObject(history.Events);
+            return Utils.SerializeToJson(history.Events);
         }
 
         /// <summary>

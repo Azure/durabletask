@@ -10,13 +10,12 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core.Common
 {
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
-    using System.Dynamic;
     using System.IO;
     using System.IO.Compression;
     using System.Linq;
@@ -62,6 +61,89 @@ namespace DurableTask.Core.Common
             Binder = new PackageUpgradeSerializationBinder()
 #endif
         };
+        private static readonly JsonSerializer DefaultObjectJsonSerializer = JsonSerializer.Create(ObjectJsonSettings);
+
+        private static readonly JsonSerializer DefaultSerializer = JsonSerializer.Create();
+
+        /// <summary>
+        /// Serialize some object payload to a JSON-string representation.
+        /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
+        /// </summary>
+        /// <param name="payload">The object to serialize.</param>
+        /// <returns>The JSON-string representation of the payload</returns>
+        public static string SerializeToJson(object payload)
+        {
+            return SerializeToJson(DefaultSerializer, payload);
+        }
+
+        /// <summary>
+        /// Serialize some object payload to a JSON-string representation.
+        /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
+        /// </summary>
+        /// <param name="serializer">The serializer to use.</param>
+        /// <param name="payload">The object to serialize.</param>
+        /// <returns>The JSON-string representation of the payload</returns>
+        public static string SerializeToJson(JsonSerializer serializer, object payload)
+        {
+            StringBuilder stringBuilder = new StringBuilder();
+            using (var stringWriter = new StringWriter(stringBuilder))
+            {
+                serializer.Serialize(stringWriter, payload);
+            }
+            var jsonStr = stringBuilder.ToString();
+            return jsonStr;
+        }
+
+        /// <summary>
+        /// Deserialize a JSON-string into an object of type T
+        /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
+        /// </summary>
+        /// <typeparam name="T">The type to deserialize the JSON string into.</typeparam>
+        /// <param name="serializer">The serializer whose config will guide the deserialization.</param>
+        /// <param name="jsonString">The JSON-string to deserialize.</param>
+        /// <returns></returns>
+        public static T DeserializeFromJson<T>(JsonSerializer serializer, string jsonString)
+        {
+            T obj;
+            using (var reader = new StringReader(jsonString))
+            using (var jsonReader = new JsonTextReader(reader))
+            {
+                obj = serializer.Deserialize<T>(jsonReader);
+            }
+            return obj;
+        }
+
+        /// <summary>
+        /// Deserialize a JSON-string into an object of type `type`
+        /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
+        /// </summary>
+        /// <param name="jsonString">The JSON-string to deserialize.</param>
+        /// <param name="type">The expected de-serialization type.</param>
+        /// <returns></returns>
+        public static object DeserializeFromJson(string jsonString, Type type)
+        {
+            return DeserializeFromJson(DefaultSerializer, jsonString, type);
+        }
+
+        /// <summary>
+        /// Deserialize a JSON-string into an object of type `type`
+        /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
+        /// </summary>
+        /// <param name="serializer">The serializer whose config will guide the deserialization.</param>
+        /// <param name="jsonString">The JSON-string to deserialize.</param>
+        /// <param name="type">The expected de-serialization type.</param>
+        /// <returns></returns>
+        public static object DeserializeFromJson(JsonSerializer serializer, string jsonString, Type type)
+        {
+            object obj;
+            using (var reader = new StringReader(jsonString))
+            using (var jsonReader = new JsonTextReader(reader))
+            {
+                obj = serializer.Deserialize(jsonReader, type);
+            }
+            return obj;
+        }
+
 
         /// <summary>
         /// Gets or sets the name of the app, for use when writing structured event source traces.
@@ -74,6 +156,31 @@ namespace DurableTask.Core.Common
             Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME") ??
             Environment.GetEnvironmentVariable("DTFX_APP_NAME") ??
             string.Empty;
+
+        /// <summary>
+        /// Gets or sets a value indicating whether to redact user code exceptions from log output.
+        /// </summary>
+        /// <remarks>
+        /// This value defaults to <c>true</c> if the WEBSITE_SITE_NAME is set to a non-empty value, which is always
+        /// the case in hosted Azure environments where log telemetry is automatically captured. This value can be also
+        /// be set explicitly by assigning the DTFX_REDACT_USER_CODE_EXCEPTIONS environment variable to "1" or "true".
+        /// </remarks>
+        public static bool RedactUserCodeExceptions { get; set; } = GetRedactUserCodeExceptionsDefaultValue();
+
+        static bool GetRedactUserCodeExceptionsDefaultValue()
+        {
+            string? configuredValue = Environment.GetEnvironmentVariable("DTFX_REDACT_USER_CODE_EXCEPTIONS")?.Trim();
+            if (configuredValue != null)
+            {
+                return configuredValue == "1" || configuredValue.Equals("true", StringComparison.OrdinalIgnoreCase);
+            }
+            else
+            {
+                // Fallback case when DTFX_REDACT_USER_CODE_EXCEPTIONS is not defined is to automatically redact
+                // any time we appear to be in a hosted Azure environment.
+                return Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME") != null;
+            }
+        }
 
         /// <summary>
         /// NoOp utility method
@@ -118,7 +225,8 @@ namespace DurableTask.Core.Common
                 throw new ArgumentException("stream is not seekable or writable", nameof(objectStream));
             }
 
-            byte[] serializedBytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj, ObjectJsonSettings));
+            var jsonStr = SerializeToJson(DefaultObjectJsonSerializer, obj);
+            byte[] serializedBytes = Encoding.UTF8.GetBytes(jsonStr);
 
             objectStream.Write(serializedBytes, 0, serializedBytes.Length);
             objectStream.Position = 0;
@@ -139,7 +247,7 @@ namespace DurableTask.Core.Common
 
             if (compress)
             {
-                Stream compressedStream = GetCompressedStream(resultStream);
+                Stream compressedStream = GetCompressedStream(resultStream)!;
                 resultStream.Dispose();
                 resultStream = compressedStream;
             }
@@ -179,9 +287,8 @@ namespace DurableTask.Core.Common
         /// </summary>
         public static T ReadObjectFromByteArray<T>(byte[] serializedBytes)
         {
-            return JsonConvert.DeserializeObject<T>(
-                                Encoding.UTF8.GetString(serializedBytes),
-                                ObjectJsonSettings);
+            var jsonString = Encoding.UTF8.GetString(serializedBytes);
+            return DeserializeFromJson<T>(DefaultObjectJsonSerializer, jsonString);
         }
 
         /// <summary>
@@ -212,7 +319,7 @@ namespace DurableTask.Core.Common
         /// </summary>
         /// <param name="input"></param>
         /// <returns></returns>
-        public static Stream GetCompressedStream(Stream input)
+        public static Stream? GetCompressedStream(Stream input)
         {
             if (input == null)
             {
@@ -236,7 +343,7 @@ namespace DurableTask.Core.Common
         /// </summary>
         /// <param name="input"></param>
         /// <returns></returns>
-        public static async Task<Stream> GetDecompressedStreamAsync(Stream input)
+        public static async Task<Stream?> GetDecompressedStreamAsync(Stream input)
         {
             if (input == null)
             {
@@ -294,7 +401,7 @@ namespace DurableTask.Core.Common
             }
 
             int retryCount = numberOfAttempts;
-            ExceptionDispatchInfo lastException = null;
+            ExceptionDispatchInfo? lastException = null;
             while (retryCount-- > 0)
             {
                 try
@@ -322,7 +429,7 @@ namespace DurableTask.Core.Common
         /// <summary>
         /// Executes the supplied action until successful or the supplied number of attempts is reached
         /// </summary>
-        public static async Task<T> ExecuteWithRetries<T>(Func<Task<T>> retryAction, string sessionId, string operation,
+        public static async Task<T?> ExecuteWithRetries<T>(Func<Task<T>> retryAction, string sessionId, string operation,
             int numberOfAttempts, int delayInAttemptsSecs)
         {
             if (numberOfAttempts == 0)
@@ -332,7 +439,7 @@ namespace DurableTask.Core.Common
             }
 
             int retryCount = numberOfAttempts;
-            ExceptionDispatchInfo lastException = null;
+            ExceptionDispatchInfo? lastException = null;
             while (retryCount-- > 0)
             {
                 try
@@ -394,14 +501,14 @@ namespace DurableTask.Core.Common
         /// <summary>
         /// Retrieves the exception from a previously serialized exception
         /// </summary>
-        public static Exception RetrieveCause(string details, DataConverter converter)
+        public static Exception? RetrieveCause(string details, DataConverter converter)
         {
             if (converter == null)
             {
                 throw new ArgumentNullException(nameof(converter));
             }
 
-            Exception cause = null;
+            Exception? cause = null;
             try
             {
                 if (!string.IsNullOrWhiteSpace(details))
@@ -600,9 +707,9 @@ namespace DurableTask.Core.Common
 
         internal sealed class TypeMetadata
         {
-            public string AssemblyName { get; set; }
+            public string? AssemblyName { get; set; }
 
-            public string FullyQualifiedTypeName { get; set; }
+            public string? FullyQualifiedTypeName { get; set; }
         }
     }
 }

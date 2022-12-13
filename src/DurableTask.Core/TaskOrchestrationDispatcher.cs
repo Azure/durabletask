@@ -15,7 +15,7 @@ namespace DurableTask.Core
 {
     using System;
     using System.Collections.Generic;
-    using System.ComponentModel;
+    using System.Collections.ObjectModel;
     using System.Diagnostics;
     using System.Linq;
     using System.Threading;
@@ -308,12 +308,12 @@ namespace DurableTask.Core
             if (!this.ReconcileMessagesWithState(workItem))
             {
                 // TODO : mark an orchestration as faulted if there is data corruption
-                this.logHelper.DroppingOrchestrationWorkItem(workItem, "Received result for a deleted orchestration");
+                this.logHelper.DroppingOrchestrationWorkItem(workItem, "Received work-item for an invalid orchestration");
                 TraceHelper.TraceSession(
                     TraceEventType.Error,
                     "TaskOrchestrationDispatcher-DeletedOrchestration",
                     runtimeState.OrchestrationInstance?.InstanceId,
-                    "Received result for a deleted orchestration");
+                    "Received work-item for an invalid orchestration");
                 isCompleted = true;
             }
             else
@@ -323,7 +323,7 @@ namespace DurableTask.Core
                     continuedAsNew = false;
                     continuedAsNewMessage = null;
 
-                    this.logHelper.OrchestrationExecuting(runtimeState.OrchestrationInstance, runtimeState.Name);
+                    this.logHelper.OrchestrationExecuting(runtimeState.OrchestrationInstance!, runtimeState.Name);
                     TraceHelper.TraceInstance(
                         TraceEventType.Verbose,
                         "TaskOrchestrationDispatcher-ExecuteUserOrchestration-Begin",
@@ -343,7 +343,7 @@ namespace DurableTask.Core
                     IReadOnlyList<OrchestratorAction> decisions = workItem.Cursor.LatestDecisions.ToList();
 
                     this.logHelper.OrchestrationExecuted(
-                        runtimeState.OrchestrationInstance,
+                        runtimeState.OrchestrationInstance!,
                         runtimeState.Name,
                         decisions);
                     TraceHelper.TraceInstance(
@@ -566,6 +566,11 @@ namespace DurableTask.Core
             return isCompleted || continuedAsNew || isInterrupted;
         }
 
+        static OrchestrationExecutionContext GetOrchestrationExecutionContext(OrchestrationRuntimeState runtimeState)
+        {
+            return new OrchestrationExecutionContext { OrchestrationTags = runtimeState.Tags ?? new Dictionary<string, string>(capacity: 0) };
+        }
+
         async Task<OrchestrationExecutionCursor> ExecuteOrchestrationAsync(OrchestrationRuntimeState runtimeState, TaskOrchestrationWorkItem workItem)
         {
             // Get the TaskOrchestration implementation. If it's not found, it either means that the developer never
@@ -578,6 +583,7 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(taskOrchestration);
             dispatchContext.SetProperty(runtimeState);
             dispatchContext.SetProperty(workItem);
+            dispatchContext.SetProperty(GetOrchestrationExecutionContext(runtimeState));
 
             TaskOrchestrationExecutor? executor = null;
 
@@ -661,6 +667,12 @@ namespace DurableTask.Core
                         new InvalidOperationException("Message does not contain any OrchestrationInstance information"));
                 }
 
+                if (!workItem.OrchestrationRuntimeState.IsValid)
+                {
+                    // we get here if the orchestration history is somehow corrupted (partially deleted, etc.)
+                    return false;
+                }
+
                 if (workItem.OrchestrationRuntimeState.Events.Count == 1 && message.Event.EventType != EventType.ExecutionStarted)
                 {
                     // we get here because of:
@@ -680,7 +692,7 @@ namespace DurableTask.Core
 
                 if (message.Event.EventType == EventType.ExecutionStarted)
                 {
-                    if (workItem.OrchestrationRuntimeState.Events.Count > 1)
+                    if (workItem.OrchestrationRuntimeState.ExecutionStartedEvent != null)
                     {
                         // this was caused due to a dupe execution started event, swallow this one
                         this.logHelper.DroppingOrchestrationMessage(workItem, message, "Duplicate start event");
@@ -837,6 +849,7 @@ namespace DurableTask.Core
 
             taskMessage.Event = scheduledEvent;
             taskMessage.OrchestrationInstance = runtimeState.OrchestrationInstance;
+            taskMessage.OrchestrationExecutionContext = GetOrchestrationExecutionContext(runtimeState);
 
             if (!includeParameters)
             {
@@ -847,7 +860,7 @@ namespace DurableTask.Core
             }
 
             this.logHelper.SchedulingActivity(
-                runtimeState.OrchestrationInstance,
+                runtimeState.OrchestrationInstance!,
                 scheduledEvent);
 
             runtimeState.AddEvent(scheduledEvent);
@@ -875,7 +888,7 @@ namespace DurableTask.Core
             };
 
             this.logHelper.CreatingTimer(
-                runtimeState.OrchestrationInstance,
+                runtimeState.OrchestrationInstance!,
                 timerCreatedEvent,
                 isInternal);
 
@@ -927,6 +940,7 @@ namespace DurableTask.Core
 
             taskMessage.OrchestrationInstance = startedEvent.OrchestrationInstance;
             taskMessage.Event = startedEvent;
+            taskMessage.OrchestrationExecutionContext = GetOrchestrationExecutionContext(runtimeState);
 
             return taskMessage;
         }
@@ -944,7 +958,7 @@ namespace DurableTask.Core
             
             runtimeState.AddEvent(historyEvent);
 
-            this.logHelper.RaisingEvent(runtimeState.OrchestrationInstance, historyEvent);
+            this.logHelper.RaisingEvent(runtimeState.OrchestrationInstance!, historyEvent);
 
             return new TaskMessage
             {

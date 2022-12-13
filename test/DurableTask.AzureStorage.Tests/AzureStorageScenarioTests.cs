@@ -558,7 +558,7 @@ namespace DurableTask.AzureStorage.Tests
             CloudBlobContainer cloudBlobContainer = cloudBlobClient.GetContainerReference(containerName);
             await cloudBlobContainer.CreateIfNotExistsAsync();
             CloudBlobDirectory instanceDirectory = cloudBlobContainer.GetDirectoryReference(directoryName);
-            int blobCount = 0;
+            var blobs = new List<IListBlobItem>();
             BlobContinuationToken blobContinuationToken = null;
             do
             {
@@ -572,13 +572,18 @@ namespace DurableTask.AzureStorage.Tests
                             options: null,
                             operationContext: context,
                             cancellationToken: timeoutToken);
-                }); ;
+                });
                 
                 blobContinuationToken = results.ContinuationToken;
-                blobCount += results.Results.Count();
+                blobs.AddRange(results.Results);
             } while (blobContinuationToken != null);
 
-            return blobCount;
+            Trace.TraceInformation(
+                "Found {0} blobs: {1}{2}",
+                blobs.Count,
+                Environment.NewLine,
+                string.Join(Environment.NewLine, blobs.Select(b => b.Uri)));
+            return blobs.Count;
         }
 
 
@@ -1517,6 +1522,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.AreEqual(message, JToken.Parse(status?.Output));
+                Assert.AreEqual(message, JToken.Parse(status.Input));
 
                 await host.StopAsync();
             }
@@ -1585,6 +1591,10 @@ namespace DurableTask.AzureStorage.Tests
                     client.InstanceId,
                     status?.Output,
                     Encoding.UTF8.GetByteCount(message));
+
+                Assert.IsTrue(status.Output.EndsWith("-Result.json.gz"));
+                Assert.IsTrue(status.Input.EndsWith("-Input.json.gz"));
+
                 await host.StopAsync();
             }
         }

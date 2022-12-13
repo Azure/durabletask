@@ -102,7 +102,7 @@ namespace DurableTask.Core
             Activity? diagnosticActivity = null;
             try
             {
-                if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
+                if (orchestrationInstance == null || string.IsNullOrWhiteSpace(orchestrationInstance.InstanceId))
                 {
                     this.logHelper.TaskActivityDispatcherError(
                         workItem,
@@ -151,6 +151,12 @@ namespace DurableTask.Core
                 dispatchContext.SetProperty(taskMessage.OrchestrationInstance);
                 dispatchContext.SetProperty(taskActivity);
                 dispatchContext.SetProperty(scheduledEvent);
+
+                // In transitionary phase (activity queued from old code, accessed in new code) context can be null.
+                if (taskMessage.OrchestrationExecutionContext != null)
+                {
+                    dispatchContext.SetProperty(taskMessage.OrchestrationExecutionContext);
+                }
 
                 // correlation
                 CorrelationTraceClient.Propagate(() =>
@@ -242,7 +248,7 @@ namespace DurableTask.Core
             catch (SessionAbortedException e)
             {
                 // The activity aborted its execution
-                this.logHelper.TaskActivityAborted(orchestrationInstance, scheduledEvent, e.Message);
+                this.logHelper.TaskActivityAborted(orchestrationInstance, scheduledEvent!, e.Message);
                 TraceHelper.TraceInstance(TraceEventType.Warning, "TaskActivityDispatcher-ExecutionAborted", orchestrationInstance, "{0}: {1}", scheduledEvent?.Name, e.Message);
                 await this.orchestrationService.AbandonTaskActivityWorkItemAsync(workItem);
             }

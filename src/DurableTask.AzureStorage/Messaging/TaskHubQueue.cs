@@ -119,7 +119,7 @@ namespace DurableTask.AzureStorage.Messaging
                     Utils.GetTaskEventId(taskMessage.Event),
                     sourceInstance.InstanceId,
                     sourceInstance.ExecutionId,
-                    Encoding.UTF8.GetByteCount(rawContent),
+                    data.TotalMessageSizeBytes,
                     data.QueueName /* PartitionId */,
                     taskMessage.OrchestrationInstance.InstanceId,
                     taskMessage.OrchestrationInstance.ExecutionId,
@@ -271,6 +271,7 @@ namespace DurableTask.AzureStorage.Messaging
                 executionId,
                 this.storageQueue.Name,
                 sequenceNumber,
+                queueMessage.PopReceipt,
                 numSecondsToWait);
 
             try
@@ -292,7 +293,8 @@ namespace DurableTask.AzureStorage.Messaging
                     executionId,
                     eventType,
                     taskEventId,
-                    details: $"Caller: {nameof(AbandonMessageAsync)}");
+                    details: $"Caller: {nameof(AbandonMessageAsync)}",
+                    queueMessage.PopReceipt);
             }
         }
 
@@ -311,6 +313,7 @@ namespace DurableTask.AzureStorage.Messaging
                 message.TaskMessage.Event.EventType.ToString(),
                 Utils.GetTaskEventId(message.TaskMessage.Event),
                 queueMessage.Id,
+                queueMessage.PopReceipt,
                 (int)this.MessageVisibilityTimeout.TotalSeconds);
 
             try
@@ -341,7 +344,8 @@ namespace DurableTask.AzureStorage.Messaging
                 taskMessage.OrchestrationInstance.InstanceId,
                 taskMessage.OrchestrationInstance.ExecutionId,
                 this.storageQueue.Name,
-                message.SequenceNumber);
+                message.SequenceNumber,
+                queueMessage.PopReceipt);
 
             bool haveRetried = false;
             while (true)
@@ -379,7 +383,7 @@ namespace DurableTask.AzureStorage.Messaging
             string eventType = message.TaskMessage.Event.EventType.ToString() ?? string.Empty;
             int taskEventId = Utils.GetTaskEventId(message.TaskMessage.Event);
 
-            this.HandleMessagingExceptions(e, messageId, instanceId, executionId, eventType, taskEventId, details);
+            this.HandleMessagingExceptions(e, messageId, instanceId, executionId, eventType, taskEventId, details, message.OriginalQueueMessage.PopReceipt);
         }
 
         void HandleMessagingExceptions(
@@ -389,7 +393,8 @@ namespace DurableTask.AzureStorage.Messaging
             string executionId,
             string eventType,
             int taskEventId,
-            string details)
+            string details,
+            string popReceipt)
         {
             if (this.IsMessageGoneException(e))
             {
@@ -403,7 +408,8 @@ namespace DurableTask.AzureStorage.Messaging
                     this.storageQueue.Name,
                     eventType,
                     taskEventId,
-                    details);
+                    details,
+                    popReceipt);
             }
             else
             {

@@ -174,6 +174,17 @@ namespace DurableTask.Core
         public ParentInstance? ParentInstance => ExecutionStartedEvent?.ParentInstance;
 
         /// <summary>
+        /// Gets a value indicating whether the orchestration state is valid.
+        /// </summary>
+        /// <remarks>
+        /// An invalid orchestration runtime state means that the history is somehow corrupted.
+        /// </remarks>
+        public bool IsValid => 
+            this.Events.Count == 0 ||
+            this.Events.Count == 1 && this.Events[0].EventType == EventType.OrchestratorStarted ||
+            this.ExecutionStartedEvent != null;
+
+        /// <summary>
         /// Adds a new history event to the Events list and NewEvents list
         /// </summary>
         /// <param name="historyEvent">The new history event to add</param>
