@@ -57,6 +57,7 @@ namespace DurableTask.AzureStorage.Tracking
             "Details",
             "Correlation",
             "FailureDetails",
+            "Tags",
         };
 
         readonly string storageAccountName;
