@@ -159,6 +159,25 @@ namespace DurableTask.Core.Tracing
             return newActivity;
         }
 
+        internal static Activity? CreateActivityForTimer(OrchestrationInstance instance, DateTime startTime, DateTime fireAt)
+        {
+            Activity? newActivity = ActivityTraceSource.StartActivity(
+                name: "Timer",
+                kind: ActivityKind.Internal,
+                startTime: startTime,
+                parentContext: Activity.Current?.Context ?? default);
+
+            if (newActivity is not null)
+            {
+                newActivity.AddTag("dtfx.type", "timer");
+                newActivity.AddTag("dtfx.instance_id", instance.InstanceId);
+                newActivity.AddTag("dtfx.execution_id", instance.ExecutionId);
+                newActivity.AddTag("dtfx.fire_at", fireAt.ToString("o"));
+            }
+
+            return newActivity;
+        }
+
         /// <summary>
         /// Starts a new trace activity for (task) activity execution.
         /// </summary>
@@ -171,15 +190,10 @@ namespace DurableTask.Core.Tracing
             EventRaisedEvent eventRaisedEvent,
             OrchestrationInstance instance)
         {
-            if (!eventRaisedEvent.TryGetParentTraceContext(out ActivityContext activityContext))
-            {
-                return null;
-            }
-
             return ActivityTraceSource.StartActivity(
                 name: eventRaisedEvent.Name,
-                kind: ActivityKind.Consumer,
-                parentContext: activityContext,
+                kind: ActivityKind.Producer,
+                parentContext: Activity.Current?.Context ?? default,
                 tags: new KeyValuePair<string, object?>[]
                 {
                     new("dtfx.type", "externalevent"),

@@ -21,7 +21,7 @@ namespace DurableTask.Core.History
     /// A history event for event raised
     /// </summary>
     [DataContract]
-    public class EventRaisedEvent : HistoryEvent
+    public class EventRaisedEvent : HistoryEvent, ISupportsDurableTraceContext
     {
         /// <summary>
         /// Creates a new <see cref="EventRaisedEvent"/> with the supplied event id and input.
@@ -56,32 +56,5 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public DistributedTraceContext ParentTraceContext { get; set; }
-
-        /// <summary>
-        /// Gets the W3C distributed trace parent context from this event, if any.
-        /// </summary>
-        public bool TryGetParentTraceContext(out ActivityContext parentTraceContext)
-        {
-            if (this.ParentTraceContext?.TraceParent == null)
-            {
-                parentTraceContext = default;
-                return false;
-            }
-
-            return ActivityContext.TryParse(
-                this.ParentTraceContext.TraceParent,
-                this.ParentTraceContext.TraceState,
-                out parentTraceContext);
-        }
-
-        internal void SetParentTraceContext(Activity traceActivity)
-        {
-            if (traceActivity != null)
-            {
-                this.ParentTraceContext = new DistributedTraceContext(
-                    traceActivity.Id,
-                    traceActivity.TraceStateString);
-            }
-        }
     }
 }
