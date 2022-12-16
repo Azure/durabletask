@@ -23,8 +23,6 @@ namespace DurableTask.AzureStorage.Tracking
 
     abstract class TrackingStoreBase : ITrackingStore
     {
-        protected static readonly HistoryEvent[] EmptyHistoryEventList = new HistoryEvent[0];
-
         /// <inheritdoc />
         public abstract Task CreateAsync(CancellationToken cancellationToken = default);
 
@@ -41,7 +39,7 @@ namespace DurableTask.AzureStorage.Tracking
         public abstract Task<OrchestrationHistory> GetHistoryEventsAsync(string instanceId, string expectedExecutionId, CancellationToken cancellationToken = default);
 
         /// <inheritdoc />
-        public virtual Task<IReadOnlyList<string>> RewindHistoryAsync(string instanceId, CancellationToken cancellationToken = default)
+        public virtual IAsyncEnumerable<string> RewindHistoryAsync(string instanceId, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
@@ -68,12 +66,12 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public virtual IAsyncEnumerable<OrchestrationState> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default)
+        public virtual AsyncPageable<OrchestrationState> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
 
-        public virtual IAsyncEnumerable<OrchestrationState> GetStateAsync(OrchestrationInstanceStatusQueryCondition condition, CancellationToken cancellationToken = default)
+        public virtual AsyncPageable<OrchestrationState> GetStateAsync(OrchestrationInstanceStatusQueryCondition condition, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }

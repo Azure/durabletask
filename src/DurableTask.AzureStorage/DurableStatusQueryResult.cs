@@ -10,21 +10,27 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-namespace DurableTask.Core
-{
-    using System.Collections.Generic;
-    using System.Runtime.Serialization;
 
+using System;
+using System.Collections.Generic;
+using System.Text;
+using DurableTask.Core;
+
+namespace DurableTask.AzureStorage
+{
     /// <summary>
-    /// Context associated with the orchestration being executed.
+    /// DurableStatusQueryResult is a result object for OrchestrationInstanceStatusQuery
     /// </summary>
-    [DataContract]
-    public class OrchestrationExecutionContext
+    public class DurableStatusQueryResult
     {
         /// <summary>
-        /// Gets the orchestration tags
+        /// OrchestrationInstances
         /// </summary>
-        [DataMember]
-        public IDictionary<string, string> OrchestrationTags { get; internal set; }
+        public IEnumerable<OrchestrationState> OrchestrationState { get; set; }
+
+        /// <summary>
+        /// ContinuationToken
+        /// </summary>
+        public string ContinuationToken { get; set; }
     }
 }

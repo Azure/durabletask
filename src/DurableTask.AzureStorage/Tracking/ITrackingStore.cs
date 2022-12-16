@@ -63,7 +63,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// </summary>
         /// <param name="instanceId">InstanceId for orchestration</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        Task<IReadOnlyList<string>> RewindHistoryAsync(string instanceId, CancellationToken cancellationToken = default);
+        IAsyncEnumerable<string> RewindHistoryAsync(string instanceId, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Update State in the Tracking store for a particular orchestration instance and execution base on the new runtime state
@@ -124,7 +124,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="runtimeStatus">RuntimeStatus</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <returns></returns>
-        IAsyncEnumerable<OrchestrationState> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default);
+        AsyncPageable<OrchestrationState> GetStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get The Orchestration State for querying orchestration instances by the condition
@@ -132,17 +132,17 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="condition">Condition</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <returns></returns>
-        IAsyncEnumerable<OrchestrationState> GetStateAsync(OrchestrationInstanceStatusQueryCondition condition, CancellationToken cancellationToken = default);
+        AsyncPageable<OrchestrationState> GetStateAsync(OrchestrationInstanceStatusQueryCondition condition, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Used to set a state in the tracking store whenever a new execution is initiated from the client
         /// </summary>
         /// <param name="executionStartedEvent">The Execution Started Event being queued</param>
         /// <param name="eTag">The eTag value to use for optimistic concurrency or <c>null</c> to overwrite any existing execution status.</param>
-        /// <param name="inputStatusOverride">An override value to use for the Input column. If not specified, uses <see cref="ExecutionStartedEvent.Input"/>.</param>
+        /// <param name="inputPayloadOverride">An override value to use for the Input column. If not specified, uses <see cref="ExecutionStartedEvent.Input"/>.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <returns>Returns <c>true</c> if the record was created successfully; <c>false</c> otherwise.</returns>
-        Task<bool> SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent, ETag? eTag, string inputStatusOverride, CancellationToken cancellationToken = default);
+        Task<bool> SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent, ETag? eTag, string inputPayloadOverride, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Used to update a state in the tracking store to pending whenever a rewind is initiated from the client

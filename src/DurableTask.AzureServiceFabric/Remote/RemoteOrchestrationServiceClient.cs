@@ -20,7 +20,6 @@ namespace DurableTask.AzureServiceFabric.Remote
     using System.Net.Http;
     using System.Net.Http.Formatting;
     using System.Net.Sockets;
-    using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
     using System.Web;
@@ -148,23 +147,15 @@ namespace DurableTask.AzureServiceFabric.Remote
         /// </summary>
         /// <param name="instanceId">Instance id</param>
         /// <param name="allExecutions">True if method should fetch all executions of the instance, false if the method should only fetch the most recent execution</param>
-        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        /// <returns>An asynchronous enumerable over the list of orchestrations in the instance store</returns>
-        public async IAsyncEnumerable<OrchestrationState> GetOrchestrationStateAsync(string instanceId, bool allExecutions, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        /// <returns>List of OrchestrationState objects that represents the list of orchestrations in the instance store</returns>
+        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
             instanceId.EnsureValidInstanceId();
 
             var fragment = $"{this.GetOrchestrationFragment(instanceId)}?allExecutions={allExecutions}";
-            var stateString = await this.GetStringResponseAsync(instanceId, fragment, cancellationToken);
+            var stateString = await this.GetStringResponseAsync(instanceId, fragment, CancellationToken.None);
             var states = JsonConvert.DeserializeObject<IList<OrchestrationState>>(stateString);
-
-            if (states?.Count > 0)
-            {
-                foreach (OrchestrationState state in states)
-                {
-                    yield return state;
-                }
-            }
+            return states;
         }
 
         /// <summary>
@@ -177,7 +168,7 @@ namespace DurableTask.AzureServiceFabric.Remote
         {
             if (string.IsNullOrWhiteSpace(executionId))
             {
-                return await this.GetOrchestrationStateAsync(instanceId, false).FirstOrDefaultAsync();
+                return (await this.GetOrchestrationStateAsync(instanceId, false)).FirstOrDefault();
             }
 
             instanceId.EnsureValidInstanceId();

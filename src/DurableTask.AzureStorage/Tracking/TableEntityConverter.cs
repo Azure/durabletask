@@ -21,7 +21,6 @@ namespace DurableTask.AzureStorage.Tracking
     using System.Reflection;
     using System.Runtime.Serialization;
     using Azure.Data.Tables;
-    using Newtonsoft.Json;
 
     /// <summary>
     /// Utility class for converting objects that use <see cref="DataContractAttribute"/> into TableEntity and back.
@@ -253,9 +252,9 @@ namespace DurableTask.AzureStorage.Tracking
             }
         }
 
+        // TODO: Add support for BinaryData if necessary
         static bool IsSupportedType(Type type) =>
             type == typeof(string) ||
-            type == typeof(BinaryData) ||
             type == typeof(byte[]) ||
             type == typeof(bool) ||
             type == typeof(bool?) ||
@@ -276,9 +275,6 @@ namespace DurableTask.AzureStorage.Tracking
         {
             if (type == typeof(string))
                 return typeof(TableEntity).GetMethod(nameof(TableEntity.GetString), new Type[] { typeof(string) });
-
-            if (type == typeof(BinaryData))
-                return typeof(TableEntity).GetMethod(nameof(TableEntity.GetBinaryData), new Type[] { typeof(string) });
 
             if (type == typeof(byte[]))
                 return typeof(TableEntity).GetMethod(nameof(TableEntity.GetBinary), new Type[] { typeof(string) });

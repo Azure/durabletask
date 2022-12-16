@@ -2,7 +2,7 @@
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
-    <TargetFrameworks>net462</TargetFrameworks>
+    <TargetFrameworks>net462;net472</TargetFrameworks>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PackageId>Microsoft.Azure.DurableTask.AzureServiceFabric</PackageId>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
@@ -36,13 +36,11 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNet.WebApi.OwinSelfHost" Version="5.2.6" />
-    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="6.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="2.1.1" />
     <PackageReference Include="Microsoft.ServiceFabric.Data" Version="3.3.617" />
     <PackageReference Include="Microsoft.ServiceFabric.Services" Version="3.3.617" />
     <PackageReference Include="Microsoft.ServiceFabric" Version="6.4.617" />
     <PackageReference Include="System.Collections.Immutable" Version="1.2.0" />
-    <PackageReference Include="System.Linq.Async" Version="6.0.1" />
   </ItemGroup>
 
   <ItemGroup>

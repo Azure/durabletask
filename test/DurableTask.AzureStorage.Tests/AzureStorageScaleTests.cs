@@ -219,15 +219,15 @@ namespace DurableTask.AzureStorage.Tests
                 while (sw.Elapsed < timeout)
                 {
                     Trace.TraceInformation($"Checking current lease distribution across {currentWorkerCount} workers...");
-                    var leases = await services[0].ListBlobLeasesAsync()
+                    var leases = (await services[0].ListBlobLeasesAsync())
                         .Select(
                             lease => new
                             {
-                                lease.Blob.Name,
-                                lease.Owner,
+                                Name = lease.Blob.Name,
+                                Owner = lease.Owner,
                             })
                         .Where(lease => !string.IsNullOrEmpty(lease.Owner))
-                        .ToArrayAsync();
+                        .ToArray();
 
                     Array.ForEach(leases, lease => Trace.TraceInformation(
                         $"Blob: {lease.Name}, Owner: {lease.Owner}"));
@@ -418,7 +418,7 @@ namespace DurableTask.AzureStorage.Tests
 
             // STEP 2: Force the lease to be stolen and wait for the lease status to update.
             //         The orchestration service should detect this and update its state.
-            BlobPartitionLease lease = await service.ListBlobLeasesAsync().SingleAsync();
+            BlobPartitionLease lease = (await service.ListBlobLeasesAsync()).Single();
             await lease.Blob.ChangeLeaseAsync(
                 proposedLeaseId: Guid.NewGuid().ToString(),
                 currentLeaseId: lease.Token);

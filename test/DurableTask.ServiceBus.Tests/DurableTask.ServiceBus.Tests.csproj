@@ -5,6 +5,10 @@
     <TargetFrameworks>netcoreapp3.1;net462</TargetFrameworks>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net462'">
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+  </PropertyGroup>
+
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
     <PackageReference Include="CommandLineParser" version="1.9.71" />
     <PackageReference Include="EnterpriseLibrary.SemanticLogging" version="2.0.1406.1" />
@@ -26,7 +30,6 @@
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netcoreapp3.1'">
     <PackageReference Include="EnterpriseLibrary.SemanticLogging.NetCore" Version="2.0.1406.4" />
-    <PackageReference Include="Microsoft.Azure.ServiceBus" Version="4.1.3" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.9.0" />
     <PackageReference Include="MSTest.TestAdapter" Version="1.4.0" />
     <PackageReference Include="MSTest.TestFramework" Version="1.4.0" />
@@ -35,23 +38,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Azure.DurableTask.Core" Version="2.11.1" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <ProjectReference Include="..\..\src\DurableTask.Core\DurableTask.Core.csproj" />
     <ProjectReference Include="..\..\src\DurableTask.ServiceBus\DurableTask.ServiceBus.csproj" />
+    <ProjectReference Include="..\DurableTask.Test.Orchestrations\DurableTask.Test.Orchestrations.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Service Include="{82a7f48d-3b50-4b1e-b82e-3ada8210c358}" />
-  </ItemGroup>
-
-  <!-- Include the shared test orchestration source files, but do not bring in the latest DurableTask.Core project -->
-  <ItemGroup>
-    <Compile
-      Include="..\DurableTask.Test.Orchestrations\**\*.cs"
-      Exclude="..\DurableTask.Test.Orchestrations\obj\**"
-      Visible="false" />
   </ItemGroup>
 
   <ItemGroup>

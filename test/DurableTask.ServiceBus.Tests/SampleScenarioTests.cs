@@ -21,7 +21,6 @@ namespace DurableTask.ServiceBus.Tests
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using DurableTask.Core.Common;
 
     [TestClass]
     public class SampleScenarioTests

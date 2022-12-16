@@ -213,6 +213,7 @@ namespace DurableTask.Emulator
                     Name = ee.Name,
                     Input = ee.Input,
                     ScheduledStartTime = ee.ScheduledStartTime,
+                    Tags = ee.Tags,
                 };
 
                 ed.Add(creationMessage.OrchestrationInstance.ExecutionId, newState);
@@ -323,7 +324,7 @@ namespace DurableTask.Emulator
         }
 
         /// <inheritdoc />
-        public Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
+        public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
             OrchestrationState response;
 
@@ -336,11 +337,11 @@ namespace DurableTask.Emulator
                 }
             }
 
-            return Task.FromResult(response);
+            return await Task.FromResult(response);
         }
 
         /// <inheritdoc />
-        public IAsyncEnumerable<OrchestrationState> GetOrchestrationStateAsync(string instanceId, bool allExecutions, CancellationToken cancellationToken = default)
+        public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
             IList<OrchestrationState> response;
 
@@ -352,11 +353,11 @@ namespace DurableTask.Emulator
                 }
                 else
                 {
-                    response = Array.Empty<OrchestrationState>();
+                    response = new List<OrchestrationState>();
                 }
             }
 
-            return response.ToAsyncEnumerable();
+            return await Task.FromResult(response);
         }
 
         /// <inheritdoc />

@@ -18,7 +18,9 @@ namespace DurableTask.AzureStorage
     using System.IO.Compression;
     using System.Linq;
     using System.Reflection;
+#if !NETSTANDARD2_0
     using System.Runtime.Serialization;
+#endif
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
@@ -26,7 +28,9 @@ namespace DurableTask.AzureStorage
     using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Storage;
     using Newtonsoft.Json;
+#if NETSTANDARD2_0
     using Newtonsoft.Json.Serialization;
+#endif
 
     /// <summary>
     /// The message manager for messages from MessageData, and DynamicTableEntities
@@ -122,9 +126,9 @@ namespace DurableTask.AzureStorage
         /// <returns>Actual string representation of message.</returns>
         public async Task<string> FetchLargeMessageIfNecessary(string message, CancellationToken cancellationToken = default)
         {
-            if (Uri.IsWellFormedUriString(message, UriKind.Absolute))
+            if (TryGetLargeMessageReference(message, out Uri blobUrl))
             {
-                return await this.DownloadAndDecompressAsBytesAsync(new Uri(message), cancellationToken);
+                return await this.DownloadAndDecompressAsBytesAsync(blobUrl, cancellationToken);
             }
             else
             {
@@ -132,16 +136,21 @@ namespace DurableTask.AzureStorage
             }
         }
 
+        internal static bool TryGetLargeMessageReference(string messagePayload, out Uri blobUrl)
+        {
+            return Uri.TryCreate(messagePayload, UriKind.Absolute, out blobUrl);
+        }
+
         public async Task<MessageData> DeserializeQueueMessageAsync(QueueMessage queueMessage, string queueName, CancellationToken cancellationToken = default)
         {
             // TODO: Deserialize with Stream?
             byte[] body = queueMessage.Body.ToArray();
-            MessageData envelope = Utils.DeserializeFromJson<MessageData>(serializer, Encoding.UTF8.GetString(body));
+            MessageData envelope = this.DeserializeMessageData(Encoding.UTF8.GetString(body));
 
             if (!string.IsNullOrEmpty(envelope.CompressedBlobName))
             {
                 string decompressedMessage = await this.DownloadAndDecompressAsBytesAsync(envelope.CompressedBlobName, cancellationToken);
-                envelope = Utils.DeserializeFromJson<MessageData>(serializer, decompressedMessage);
+                envelope = this.DeserializeMessageData(decompressedMessage);
                 envelope.MessageFormat = MessageFormatFlags.StorageBlob;
                 envelope.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(decompressedMessage);
             }
@@ -153,6 +162,11 @@ namespace DurableTask.AzureStorage
             envelope.OriginalQueueMessage = queueMessage;
             envelope.QueueName = queueName;
             return envelope;
+        }
+
+        internal MessageData DeserializeMessageData(string json)
+        {
+            return Utils.DeserializeFromJson<MessageData>(serializer, json);
         }
 
         public Task CompressAndUploadAsBytesAsync(byte[] payloadBuffer, string blobName, CancellationToken cancellationToken = default)

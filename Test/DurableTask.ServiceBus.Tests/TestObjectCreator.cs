@@ -10,21 +10,26 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-namespace DurableTask.Core
-{
-    using System.Collections.Generic;
-    using System.Runtime.Serialization;
 
-    /// <summary>
-    /// Context associated with the orchestration being executed.
-    /// </summary>
-    [DataContract]
-    public class OrchestrationExecutionContext
+namespace DurableTask.ServiceBus.Tests
+{
+    using System;
+    using DurableTask.Core;
+
+    internal class TestObjectCreator<T> : ObjectCreator<T>
     {
-        /// <summary>
-        /// Gets the orchestration tags
-        /// </summary>
-        [DataMember]
-        public IDictionary<string, string> OrchestrationTags { get; internal set; }
+        readonly Func<T> creator;
+
+        public TestObjectCreator(string name, string version, Func<T> creator)
+        {
+            Name = name;
+            Version = version;
+            this.creator = creator;
+        }
+
+        public override T Create()
+        {
+            return this.creator();
+        }
     }
 }

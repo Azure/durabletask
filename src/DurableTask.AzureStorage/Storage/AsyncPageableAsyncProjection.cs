@@ -20,14 +20,14 @@ namespace DurableTask.AzureStorage.Storage
     using System.Threading.Tasks;
     using Azure;
 
-    sealed class AsyncPageableProjection<TSource, TResult> : AsyncPageable<TResult>
+    sealed class AsyncPageableAsyncProjection<TSource, TResult> : AsyncPageable<TResult>
         where TSource : notnull
         where TResult : notnull
     {
         readonly AsyncPageable<TSource> source;
-        readonly Func<TSource, TResult> selector;
+        readonly Func<TSource, CancellationToken, ValueTask<TResult>> selector;
 
-        public AsyncPageableProjection(AsyncPageable<TSource> source, Func<TSource, TResult> selector)
+        public AsyncPageableAsyncProjection(AsyncPageable<TSource> source, Func<TSource, CancellationToken, ValueTask<TResult>> selector)
         {
             this.source = source ?? throw new ArgumentNullException(nameof(source));
             this.selector = selector ?? throw new ArgumentNullException(nameof(selector));
@@ -39,9 +39,9 @@ namespace DurableTask.AzureStorage.Storage
         sealed class AsyncPageableProjectionEnumerable : IAsyncEnumerable<Page<TResult>>
         {
             readonly IAsyncEnumerable<Page<TSource>> source;
-            readonly Func<TSource, TResult> selector;
+            readonly Func<TSource, CancellationToken, ValueTask<TResult>> selector;
 
-            public AsyncPageableProjectionEnumerable(IAsyncEnumerable<Page<TSource>> source, Func<TSource, TResult> selector)
+            public AsyncPageableProjectionEnumerable(IAsyncEnumerable<Page<TSource>> source, Func<TSource, CancellationToken, ValueTask<TResult>> selector)
             {
                 this.source = source;
                 this.selector = selector;
@@ -51,7 +51,10 @@ namespace DurableTask.AzureStorage.Storage
             {
                 await foreach (Page<TSource> page in this.source.WithCancellation(cancellationToken))
                 {
-                    yield return Page<TResult>.FromValues(page.Values.Select(this.selector).ToList(), page.ContinuationToken, page.GetRawResponse());
+                    yield return Page<TResult>.FromValues(
+                        await page.Values.ToAsyncEnumerable().SelectAwaitWithCancellation(this.selector).ToListAsync(cancellationToken),
+                        page.ContinuationToken,
+                        page.GetRawResponse());
                 }
             }
         }

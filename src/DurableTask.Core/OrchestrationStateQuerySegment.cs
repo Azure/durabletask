@@ -10,21 +10,24 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
+
 namespace DurableTask.Core
 {
     using System.Collections.Generic;
-    using System.Runtime.Serialization;
 
     /// <summary>
-    /// Context associated with the orchestration being executed.
+    /// Partial query results for an orchestration state query
     /// </summary>
-    [DataContract]
-    public class OrchestrationExecutionContext
+    public class OrchestrationStateQuerySegment
     {
         /// <summary>
-        /// Gets the orchestration tags
+        /// The continuation token to obtain more results
         /// </summary>
-        [DataMember]
-        public IDictionary<string, string> OrchestrationTags { get; internal set; }
+        public string ContinuationToken;
+
+        /// <summary>
+        /// The results for the partial query
+        /// </summary>
+        public IEnumerable<OrchestrationState> Results;
     }
 }
