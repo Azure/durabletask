@@ -63,7 +63,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task<InstanceStatus> FetchInstanceStatusAsync(string instanceId, CancellationToken cancellationToken = default)
         {
-            OrchestrationState state = await this.GetStateAsync(instanceId, executionId: null);
+            OrchestrationState state = await this.GetStateAsync(instanceId, executionId: null, cancellationToken: cancellationToken);
             return state != null ? new InstanceStatus(state) : null;
         }
 
@@ -82,7 +82,7 @@ namespace DurableTask.AzureStorage.Tracking
         {
             if (executionId == null)
             {
-                return await this.GetStateAsync(instanceId, false).FirstOrDefaultAsync(cancellationToken);
+                return await this.GetStateAsync(instanceId, false, cancellationToken: cancellationToken).FirstOrDefaultAsync(cancellationToken);
             }
             else
             {
@@ -142,10 +142,10 @@ namespace DurableTask.AzureStorage.Tracking
             //This may be the case if a ContinueAsNew was executed on the orchestration
             if (newRuntimeState != oldRuntimeState)
             {
-                eTag = await UpdateStateAsync(oldRuntimeState, instanceId, oldRuntimeState.OrchestrationInstance.ExecutionId, eTag);
+                eTag = await UpdateStateAsync(oldRuntimeState, instanceId, oldRuntimeState.OrchestrationInstance.ExecutionId, eTag, cancellationToken);
             }
 
-            return await UpdateStateAsync(newRuntimeState, instanceId, executionId, eTag);
+            return await UpdateStateAsync(newRuntimeState, instanceId, executionId, eTag, cancellationToken);
         }
 
         /// <inheritdoc />
