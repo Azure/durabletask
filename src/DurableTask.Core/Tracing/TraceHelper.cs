@@ -88,7 +88,6 @@ namespace DurableTask.Core.Tracing
                 new("dtfx.type", "orchestrator"),
                 new("dtfx.instance_id", startEvent.OrchestrationInstance.InstanceId),
                 new("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId),
-                new("dtfx.details", "Executing orchestration"),
             };
 
             DateTimeOffset startTime = startEvent.ParentTraceContext.ActivityStartTime ?? default;
