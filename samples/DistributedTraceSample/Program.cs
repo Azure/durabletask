@@ -112,8 +112,10 @@ namespace OpenTelemetrySample
                 string result = "";
                 result += await context.CreateSubOrchestrationInstance<string>(typeof(HelloSequence), null);
                 result += await context.ScheduleTask<string>(typeof(SayHello), "Tokyo");
-                result += context.CreateSubOrchestrationInstance<string>(typeof(HelloFanOut), null);
+                Task<string> fanOut = context.CreateSubOrchestrationInstance<string>(typeof(HelloFanOut), null);
                 result += await context.CreateSubOrchestrationInstance<string>(typeof(HelloSequence), null);
+                result += await fanOut;
+
                 return result;
             }
         }

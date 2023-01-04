@@ -303,8 +303,8 @@ namespace DurableTask.Core
             // that derives from an established parent trace context. It is expected that some
             // listener will receive these events and publish them to a distributed trace logger.
             ExecutionStartedEvent startEvent =
-                runtimeState.ExecutionStartedEvent ??
-                workItem.NewMessages.Select(msg => msg.Event).OfType<ExecutionStartedEvent>().FirstOrDefault();
+                        runtimeState.ExecutionStartedEvent ??
+                        workItem.NewMessages.Select(msg => msg.Event).OfType<ExecutionStartedEvent>().FirstOrDefault();
             OrchestrationState instanceState = null;
 
             // Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
@@ -699,6 +699,12 @@ namespace DurableTask.Core
                 }
 
                 workItem.OrchestrationRuntimeState.AddEvent(message.Event);
+
+                if (message.Event is SubOrchestrationInstanceCompletedEvent completedEvent && completedEvent.Name != null && completedEvent.ParentTraceContext != null && completedEvent.StartTime != null)
+                {
+                    // We immediately publish the activity span for this sub-orchestration by creating the activity and immediately calling Dispose() on it.
+                    TraceHelper.StartTraceActivityForSubOrchestrationCompleted(workItem.OrchestrationRuntimeState.OrchestrationInstance, completedEvent)?.Dispose();
+                }
             }
 
             return true;
@@ -775,6 +781,13 @@ namespace DurableTask.Core
                     var subOrchestrationCompletedEvent =
                         new SubOrchestrationInstanceCompletedEvent(-1, runtimeState.ParentInstance.TaskScheduleId,
                             completeOrchestratorAction.Result);
+
+                    if (Activity.Current != null)
+                    {
+                        subOrchestrationCompletedEvent.Name = runtimeState.ExecutionStartedEvent.Name;
+                        subOrchestrationCompletedEvent.ParentTraceContext = runtimeState.ExecutionStartedEvent.ParentTraceContext;
+                        subOrchestrationCompletedEvent.StartTime = runtimeState.ExecutionStartedEvent.Timestamp;
+                    }
 
                     taskMessage.Event = subOrchestrationCompletedEvent;
                 }
@@ -920,11 +933,8 @@ namespace DurableTask.Core
             };
 
             startedEvent.SetParentTraceContext(parentTraceActivity);
-            using Activity activity = TraceHelper.StartTraceActivityForSubOrchestration(startedEvent);
 
             this.logHelper.SchedulingOrchestration(startedEvent);
-
-            activity.Stop();
 
             taskMessage.OrchestrationInstance = startedEvent.OrchestrationInstance;
             taskMessage.Event = startedEvent;

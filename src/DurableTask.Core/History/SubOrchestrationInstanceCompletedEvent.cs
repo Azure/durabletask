@@ -13,7 +13,9 @@
 
 namespace DurableTask.Core.History
 {
+    using System;
     using System.Runtime.Serialization;
+    using DurableTask.Core.Tracing;
 
     /// <summary>
     /// A history event for sub orchestration instance completion
@@ -50,5 +52,23 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public string Result { get; private set; }
+
+        /// <summary>
+        /// The name of the sub-orchestration.
+        /// </summary>
+        [DataMember]
+        public string Name { get; set; }
+
+        /// <summary>
+        /// The W3C trace context associated with this event.
+        /// </summary>
+        [DataMember]
+        public DistributedTraceContext ParentTraceContext { get; set; }
+
+        /// <summary>
+        /// The start time of the sub-orchestration.
+        /// </summary>
+        [DataMember]
+        public DateTime StartTime { get; set; }
     }
 }

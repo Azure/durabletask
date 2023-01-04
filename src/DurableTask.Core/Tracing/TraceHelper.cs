@@ -153,34 +153,35 @@ namespace DurableTask.Core.Tracing
         /// <summary>
         /// Starts a new trace activity for suborchestration execution.
         /// </summary>
-        /// <param name="startEvent">The associated <see cref="ExecutionStartedEvent"/>.</param>
+        /// <param name="orchestrationInstance">The associated orchestration instance metadata.</param>
+        /// <param name="completedEvent">The sub-orchestration completed event.</param>
         /// <returns>
         /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
         /// </returns>
-        internal static Activity? StartTraceActivityForSubOrchestration(
-            ExecutionStartedEvent? startEvent)
+        internal static Activity? StartTraceActivityForSubOrchestrationCompleted(
+            OrchestrationInstance orchestrationInstance,
+            SubOrchestrationInstanceCompletedEvent completedEvent)
         {
-            if (startEvent == null)
+            if (orchestrationInstance == null|| completedEvent == null)
             {
                 return null;
             }
 
-            if (!startEvent.TryGetParentTraceContext(out ActivityContext activityContext))
-            {
-                return null;
-            }
+            ActivityContext.TryParse(
+                completedEvent.ParentTraceContext.TraceParent,
+                completedEvent.ParentTraceContext.TraceState,
+                out ActivityContext parentActivityContext);
 
             return ActivityTraceSource.StartActivity(
-                name: $"{startEvent.Name} (#{startEvent.EventId})",
+                name: completedEvent.Name,
                 kind: ActivityKind.Client,
-                parentContext: activityContext,
+                startTime: (DateTimeOffset)completedEvent.StartTime,
+                parentContext: parentActivityContext,
                 tags: new KeyValuePair<string, object?>[]
                 {
                     new("dtfx.type", "orchestrator"),
-                    new("dtfx.instance_id", startEvent.OrchestrationInstance.InstanceId),
-                    new("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId),
-                    new("dtfx.task_id", startEvent.EventId),
-                    new("dtfx.details", "Scheduling orchestration"),
+                    new("dtfx.instance_id", orchestrationInstance.InstanceId),
+                    new("dtfx.execution_id", orchestrationInstance.ExecutionId),
                 });
         }
 
