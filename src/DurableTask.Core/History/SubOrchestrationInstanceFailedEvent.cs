@@ -13,13 +13,15 @@
 
 namespace DurableTask.Core.History
 {
+    using System;
     using System.Runtime.Serialization;
+    using DurableTask.Core.Tracing;
 
     /// <summary>
     /// A history event for a sub orchestration instance failure
     /// </summary>
     [DataContract]
-    public class SubOrchestrationInstanceFailedEvent : HistoryEvent
+    public class SubOrchestrationInstanceFailedEvent : HistoryEvent, ISubOrchestrationFinishedEvent
     {
         /// <summary>
         /// Creates a new SubOrchestrationInstanceFailedEvent with the supplied params
@@ -58,5 +60,23 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public string Details { get; private set; }
+
+        /// <inheritdoc/>
+        [DataMember]
+        public string Name { get; set; }
+
+        /// <inheritdoc/>
+        [DataMember]
+        public DistributedTraceContext ParentTraceContext { get; set; }
+
+        /// <inheritdoc/>
+        [DataMember]
+        public DateTime StartTime { get; set; }
+
+        /// <inheritdoc/>
+        public bool DistributedTracingPropertiesAreSet()
+        {
+            return Name != null && ParentTraceContext != null && StartTime != null;
+        }
     }
 }

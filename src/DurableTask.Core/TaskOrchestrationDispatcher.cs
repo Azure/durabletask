@@ -303,8 +303,8 @@ namespace DurableTask.Core
             // that derives from an established parent trace context. It is expected that some
             // listener will receive these events and publish them to a distributed trace logger.
             ExecutionStartedEvent startEvent =
-                        runtimeState.ExecutionStartedEvent ??
-                        workItem.NewMessages.Select(msg => msg.Event).OfType<ExecutionStartedEvent>().FirstOrDefault();
+                runtimeState.ExecutionStartedEvent ??
+                workItem.NewMessages.Select(msg => msg.Event).OfType<ExecutionStartedEvent>().FirstOrDefault();
             OrchestrationState instanceState = null;
 
             // Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
@@ -700,10 +700,10 @@ namespace DurableTask.Core
 
                 workItem.OrchestrationRuntimeState.AddEvent(message.Event);
 
-                if (message.Event is SubOrchestrationInstanceCompletedEvent completedEvent && completedEvent.Name != null && completedEvent.ParentTraceContext != null && completedEvent.StartTime != null)
+                if (message.Event is ISubOrchestrationFinishedEvent finishedEvent && finishedEvent.DistributedTracingPropertiesAreSet())
                 {
                     // We immediately publish the activity span for this sub-orchestration by creating the activity and immediately calling Dispose() on it.
-                    TraceHelper.StartTraceActivityForSubOrchestrationCompleted(workItem.OrchestrationRuntimeState.OrchestrationInstance, completedEvent)?.Dispose();
+                    TraceHelper.StartTraceActivityForSubOrchestrationFinished(workItem.OrchestrationRuntimeState.OrchestrationInstance, finishedEvent)?.Dispose();
                 }
             }
 
@@ -798,6 +798,13 @@ namespace DurableTask.Core
                         new SubOrchestrationInstanceFailedEvent(-1, runtimeState.ParentInstance.TaskScheduleId,
                             completeOrchestratorAction.Result,
                             includeDetails ? completeOrchestratorAction.Details : null);
+
+                    if (Activity.Current != null)
+                    {
+                        subOrchestrationFailedEvent.Name = runtimeState.ExecutionStartedEvent.Name;
+                        subOrchestrationFailedEvent.ParentTraceContext = runtimeState.ExecutionStartedEvent.ParentTraceContext;
+                        subOrchestrationFailedEvent.StartTime = runtimeState.ExecutionStartedEvent.Timestamp;
+                    }
 
                     taskMessage.Event = subOrchestrationFailedEvent;
                 }

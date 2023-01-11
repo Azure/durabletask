@@ -21,7 +21,7 @@ namespace DurableTask.Core.History
     /// A history event for sub orchestration instance completion
     /// </summary>
     [DataContract]
-    public class SubOrchestrationInstanceCompletedEvent : HistoryEvent
+    public class SubOrchestrationInstanceCompletedEvent : HistoryEvent, ISubOrchestrationFinishedEvent
     {
         /// <summary>
         /// Create a new SubOrchestrationInstanceCompletedEvent with the supplied params
@@ -53,22 +53,22 @@ namespace DurableTask.Core.History
         [DataMember]
         public string Result { get; private set; }
 
-        /// <summary>
-        /// The name of the sub-orchestration.
-        /// </summary>
+        /// <inheritdoc/>
         [DataMember]
         public string Name { get; set; }
 
-        /// <summary>
-        /// The W3C trace context associated with this event.
-        /// </summary>
+        /// <inheritdoc/>
         [DataMember]
         public DistributedTraceContext ParentTraceContext { get; set; }
 
-        /// <summary>
-        /// The start time of the sub-orchestration.
-        /// </summary>
+        /// <inheritdoc/>
         [DataMember]
         public DateTime StartTime { get; set; }
+
+        /// <inheritdoc/>
+        public bool DistributedTracingPropertiesAreSet()
+        {
+            return Name != null && ParentTraceContext != null && StartTime != null;
+        }
     }
 }

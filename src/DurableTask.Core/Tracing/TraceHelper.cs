@@ -153,35 +153,44 @@ namespace DurableTask.Core.Tracing
         /// Starts a new trace activity for suborchestration execution.
         /// </summary>
         /// <param name="orchestrationInstance">The associated orchestration instance metadata.</param>
-        /// <param name="completedEvent">The sub-orchestration completed event.</param>
+        /// <param name="finishedEvent">The sub-orchestration event. Represents a sub-orchestration completing or failing.</param>
         /// <returns>
         /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
         /// </returns>
-        internal static Activity? StartTraceActivityForSubOrchestrationCompleted(
+        internal static Activity? StartTraceActivityForSubOrchestrationFinished(
             OrchestrationInstance orchestrationInstance,
-            SubOrchestrationInstanceCompletedEvent completedEvent)
+            ISubOrchestrationFinishedEvent finishedEvent)
         {
-            if (orchestrationInstance == null|| completedEvent == null)
+            if (orchestrationInstance == null || finishedEvent == null)
             {
                 return null;
             }
 
             ActivityContext.TryParse(
-                completedEvent.ParentTraceContext.TraceParent,
-                completedEvent.ParentTraceContext.TraceState,
+                finishedEvent.ParentTraceContext.TraceParent,
+                finishedEvent.ParentTraceContext.TraceState,
                 out ActivityContext parentActivityContext);
 
+            List<KeyValuePair<string, object?>> activityTags = new List<KeyValuePair<string, object?>>
+            {
+                new("dtfx.type", "orchestrator"),
+                new("dtfx.instance_id", orchestrationInstance.InstanceId),
+                new("dtfx.execution_id", orchestrationInstance.ExecutionId),
+            };
+
+            // Adding additional tags for a SubOrchestrationInstanceFailedEvent
+            if (finishedEvent is SubOrchestrationInstanceFailedEvent failedEvent)
+            {
+                activityTags.Add(new KeyValuePair<string, object?>("otel.status_code", "ERROR"));
+                activityTags.Add(new KeyValuePair<string, object?>("dtfx.details", failedEvent.Details));
+            }
+
             return ActivityTraceSource.StartActivity(
-                name: completedEvent.Name,
+                name: finishedEvent.Name,
                 kind: ActivityKind.Client,
-                startTime: (DateTimeOffset)completedEvent.StartTime,
+                startTime: (DateTimeOffset)finishedEvent.StartTime,
                 parentContext: parentActivityContext,
-                tags: new KeyValuePair<string, object?>[]
-                {
-                    new("dtfx.type", "orchestrator"),
-                    new("dtfx.instance_id", orchestrationInstance.InstanceId),
-                    new("dtfx.execution_id", orchestrationInstance.ExecutionId),
-                });
+                tags: activityTags);
         }
 
         internal static Activity? CreateActivityForNewEventRaised(EventRaisedEvent eventRaised, OrchestrationInstance instance)

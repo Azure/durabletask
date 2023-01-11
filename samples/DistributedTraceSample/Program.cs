@@ -46,6 +46,8 @@ namespace OpenTelemetrySample
             worker.AddTaskOrchestrations(typeof(HelloSubOrch));
             worker.AddTaskOrchestrations(typeof(HelloSequence));
             worker.AddTaskOrchestrations(typeof(HelloFanOut));
+            worker.AddTaskOrchestrations(typeof(ExceptionSubOrch));
+            worker.AddTaskOrchestrations(typeof(ExceptionOrchestration));
             worker.AddTaskActivities(typeof(SayHello));
             worker.AddTaskActivities(typeof(GetRequestResultMessageActivity));
             worker.AddTaskOrchestrations(typeof(GetRequestionDecisionOrchestration));
@@ -70,7 +72,15 @@ namespace OpenTelemetrySample
                 input: null);
             await client.WaitForOrchestrationAsync(helloSubOrchInstance, TimeSpan.FromMinutes(5));
 
-            Console.WriteLine("Done with Hello Suborchestration!");
+            Console.WriteLine("Done with Hello Sub-orchestration!");
+
+            // Sub orchestration failure
+            OrchestrationInstance helloSubOrchFailedInstance = await client.CreateOrchestrationInstanceAsync(
+                typeof(ExceptionSubOrch),
+                input: null);
+            await client.WaitForOrchestrationAsync(helloSubOrchFailedInstance, TimeSpan.FromMinutes(5));
+
+            Console.WriteLine("Done with Hello Sub-orchestration with failed sub-orchestration!");
 
             // External event - SendEvent
             OrchestrationInstance eventConversationInstance = await client.CreateOrchestrationInstanceAsync(typeof(EventConversationOrchestration), null);
@@ -117,6 +127,29 @@ namespace OpenTelemetrySample
                 result += await fanOut;
 
                 return result;
+            }
+        }
+
+        class ExceptionSubOrch : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                string result = "";
+                result += await context.CreateSubOrchestrationInstance<string>(typeof(HelloSequence), null);
+                result += await context.ScheduleTask<string>(typeof(SayHello), "Tokyo");
+                Task<string> fanOut = context.CreateSubOrchestrationInstance<string>(typeof(ExceptionOrchestration), null);
+                result += await context.CreateSubOrchestrationInstance<string>(typeof(HelloSequence), null);
+                result += await fanOut;
+
+                return result;
+            }
+        }
+
+        class ExceptionOrchestration : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                throw new Exception();
             }
         }
 
