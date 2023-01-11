@@ -1083,12 +1083,12 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
+        [Event(EventIds.ThrottlingOrchestrationHistory, Level = EventLevel.Informational, Version = 1)]
         internal void ThrottlingOrchestrationHistory(
             string Account, 
             string TaskHub, 
             string InstanceId, 
             string ExecutionId, 
-            long SizeInBytes,
             string Details, 
             string AppName, 
             string ExtensionVersion)
@@ -1097,9 +1097,8 @@ namespace DurableTask.AzureStorage
                 EventIds.ThrottlingOrchestrationHistory,
                 Account,
                 TaskHub,
-                InstanceId,
+                InstanceId ?? string.Empty,
                 ExecutionId ?? string.Empty,
-                SizeInBytes,
                 Details,
                 AppName,
                 ExtensionVersion);

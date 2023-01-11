@@ -2654,61 +2654,55 @@ namespace DurableTask.AzureStorage.Logging
                 Utils.AppName,
                 Utils.ExtensionVersion);
         }
-    }
 
-    internal class ThrottlingOrchestrationHistory : StructuredLogEvent, IEventSourceEvent
-    {
-        public ThrottlingOrchestrationHistory(
-            string account,
-            string taskHub,
-            string instanceId,
-            string executionId,
-            long sizeInBytes,
-            string details)
+        internal class ThrottlingOrchestrationHistory : StructuredLogEvent, IEventSourceEvent
         {
-            this.Account = account;
-            this.TaskHub = taskHub;
-            this.InstanceId = instanceId;
-            this.ExecutionId = executionId;
-            this.SizeInBytes = sizeInBytes;
-            this.Details = details;
+            public ThrottlingOrchestrationHistory(
+                string account,
+                string taskHub,
+                string instanceId,
+                string executionId,
+                string details)
+            {
+                this.Account = account;
+                this.TaskHub = taskHub;
+                this.InstanceId = instanceId;
+                this.ExecutionId = executionId;
+                this.Details = details;
+            }
+
+            [StructuredLogField]
+            public string Account { get; }
+
+            [StructuredLogField]
+            public string TaskHub { get; }
+
+            [StructuredLogField]
+            public string InstanceId { get; }
+
+            [StructuredLogField]
+            public string ExecutionId { get; }
+
+            [StructuredLogField]
+            public string Details { get; }
+
+            public override EventId EventId => new EventId(
+                EventIds.ThrottlingOrchestrationHistory,
+                nameof(EventIds.ThrottlingOrchestrationHistory));
+
+            public override LogLevel Level => LogLevel.Information;
+
+            protected override string CreateLogMessage() =>
+                $"Throttling orchestration history load for instance {this.InstanceId}: {this.Details})";
+
+            void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.ThrottlingOrchestrationHistory(
+                this.Account,
+                this.TaskHub,
+                this.InstanceId,
+                this.ExecutionId,
+                this.Details,
+                Utils.AppName,
+                Utils.ExtensionVersion);
         }
-
-        [StructuredLogField]
-        public string Account { get; }
-
-        [StructuredLogField]
-        public string TaskHub { get; }
-
-        [StructuredLogField]
-        public string InstanceId { get; }
-
-        [StructuredLogField]
-        public string ExecutionId { get; }
-
-        [StructuredLogField]
-        public long SizeInBytes { get; }
-
-        [StructuredLogField]
-        public string Details { get; }
-
-        public override EventId EventId => new EventId(
-            EventIds.ThrottlingOrchestrationHistory,
-            nameof(EventIds.ThrottlingOrchestrationHistory));
-
-        public override LogLevel Level => LogLevel.Information;
-
-        protected override string CreateLogMessage() =>
-            $"Throttling orchestration history load for instance {this.InstanceId}: {this.Details})";
-
-        void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.ThrottlingOrchestrationHistory(
-            this.Account,
-            this.TaskHub,
-            this.InstanceId,
-            this.ExecutionId,
-            this.SizeInBytes,
-            this.Details,
-            Utils.AppName,
-            Utils.ExtensionVersion);
     }
 }

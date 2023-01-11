@@ -531,6 +531,7 @@ namespace DurableTask.AzureStorage.Tracking
             orchestrationState.Output = orchestrationInstanceStatus.Output;
             orchestrationState.ScheduledStartTime = orchestrationInstanceStatus.ScheduledStartTime;
             orchestrationState.Generation = orchestrationInstanceStatus.Generation;
+            orchestrationState.Size = long.Parse(orchestrationInstanceStatus.Size);
 
             if (this.settings.FetchLargeMessageDataEnabled)
             {
@@ -837,7 +838,7 @@ namespace DurableTask.AzureStorage.Tracking
                     ["ScheduledStartTime"] = new EntityProperty(executionStartedEvent.ScheduledStartTime),
                     ["ExecutionId"] = new EntityProperty(executionStartedEvent.OrchestrationInstance.ExecutionId),
                     ["Generation"] = new EntityProperty(executionStartedEvent.Generation),
-                    ["Size"] = new EntityProperty(0),
+                    ["Size"] = new EntityProperty("0"),
                 }
             };
 
@@ -951,7 +952,7 @@ namespace DurableTask.AzureStorage.Tracking
                     ["CustomStatus"] = new EntityProperty(newRuntimeState.Status ?? "null"),
                     ["ExecutionId"] = new EntityProperty(executionId),
                     ["LastUpdatedTime"] = new EntityProperty(newEvents.Last().Timestamp),
-                    ["Size"] = new EntityProperty(newRuntimeState.Size),
+                    ["Size"] = new EntityProperty(newRuntimeState.Size.ToString()),
                 }
             };
            

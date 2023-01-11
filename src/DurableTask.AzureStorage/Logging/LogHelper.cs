@@ -872,15 +872,13 @@ namespace DurableTask.AzureStorage.Logging
             string taskHub,
             string instanceId,
             string executionId,
-            long sizeInBytes,
             string details)
         {
-            var logEvent = new ThrottlingOrchestrationHistory(
+            var logEvent = new LogEvents.ThrottlingOrchestrationHistory(
                 account,
                 taskHub,
                 instanceId,
                 executionId,
-                sizeInBytes,
                 details);
             this.WriteStructuredLog(logEvent);
         }

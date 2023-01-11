@@ -29,13 +29,14 @@ namespace DurableTask.AzureStorage
         private long pendingMemory;
         private readonly object lockObject = new object();
 
-        public OrchestrationMemoryManager(AzureStorageOrchestrationServiceSettings settings, string storageAccountName, long? memoryBufferBytes = null)
+        public OrchestrationMemoryManager(AzureStorageOrchestrationServiceSettings settings, string storageAccountName, long memoryBufferBytes = 500000000)
         {
             this.settings = settings;
             this.storageAccountName = storageAccountName;
             this.messageVisibilityTimeout = settings.ControlQueueVisibilityTimeout.TotalMilliseconds;
             this.totalMemoryBytes = settings.MemoryLimitBytes;
             this.adjustedTotalMemory = this.totalMemoryBytes - memoryBufferBytes;
+            this.pendingMemory = 0;
         }
 
         async Task<bool> WaitUntilMemoryReservedAsync(OrchestrationState state, CancellationToken cancellationToken)
@@ -48,7 +49,7 @@ namespace DurableTask.AzureStorage
             double elapsed = 0;
             while (elapsed < this.messageVisibilityTimeout && !cancellationToken.IsCancellationRequested)
             {
-                var currentlyAllocatedMemory = Process.GetCurrentProcess().PrivateMemorySize64;
+                long currentlyAllocatedMemory = Process.GetCurrentProcess().PrivateMemorySize64;
 
                 lock (this.lockObject)
                 {
@@ -58,7 +59,7 @@ namespace DurableTask.AzureStorage
                         return true;
                     }
                 }
-                //TODO: can make this an exponential backoff
+
                 int delayInMs = 1000;
 
                 this.settings.Logger.ThrottlingOrchestrationHistory(
@@ -66,8 +67,7 @@ namespace DurableTask.AzureStorage
                    this.settings.TaskHubName,
                    instanceId,
                    executonId,
-                   bytesNeeded,
-                   $"Not enough memory to load orchestrator history. Retrying in {delayInMs}ms. Total elapsed time: {elapsed}. Attempt number {attemptNumber}");
+                   $"Not enough memory to load orchestrator history. Retrying in {delayInMs}ms. Total elapsed time: {elapsed}, Attempt number {attemptNumber}, Instance size: {bytesNeeded}, Currently allocated memory: {currentlyAllocatedMemory}, Pending orchestrator history memory: {this.pendingMemory}, MemoryLimitBytes: {this.totalMemoryBytes}");
 
                 await Task.Delay(delayInMs, cancellationToken);
                 elapsed += delayInMs;
