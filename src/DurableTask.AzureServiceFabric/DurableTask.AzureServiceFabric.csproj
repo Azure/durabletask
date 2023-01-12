@@ -48,9 +48,7 @@
     <PackageReference Include="System.Collections.Immutable" Version="1.2.0" />
     <PackageReference Include="Microsoft.AspNetCore.Owin" Version="6.0.9" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="6.0.10" />
-   <!-- <PackageReference Include="Microsoft.AspNet.WebApi.Owin" Version="5.2.9" NoWarn="NU1701" />-->
     <PackageReference Include="Microsoft.AspNet.WebApi.Core" Version="5.2.9" NoWarn="NU1701" />
-   <!-- <PackageReference Include="Microsoft.Owin" Version="4.2.2" NoWarn="NU1701" />-->
     <PackageReference Include="Microsoft.ServiceFabric.AspNetCore.Kestrel" Version="6.0.1107" />
   </ItemGroup>
 
