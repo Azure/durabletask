@@ -34,6 +34,7 @@ namespace TestApplication.StatefulService
             var settings = new FabricOrchestrationProviderSettings();
             settings.TaskOrchestrationDispatcherSettings.DispatcherCount = 10;
             settings.TaskActivityDispatcherSettings.DispatcherCount = 10;
+            settings.SSLSubjectName = "CN=localhost";
             return settings;
         }
 

@@ -32,6 +32,7 @@ namespace DurableTask.AzureServiceFabric.Service
     using Microsoft.ServiceFabric.Services.Communication.AspNetCore;
     using Microsoft.AspNetCore.Hosting;
     using Microsoft.Extensions.Hosting;
+    using System.Security.Cryptography.X509Certificates;
 
     /// <summary>
     /// Delegate invoked before starting the worker to register orchestrations.
@@ -68,7 +69,7 @@ namespace DurableTask.AzureServiceFabric.Service
         TaskHubClient localClient;
         ReplicaRole currentRole;
         StatefulService statefulService;
-        bool enableHttps = false;
+        bool enableHttps = true;
 
         /// <summary>
         /// Creates instance of <see cref="TaskHubProxyListener"/>
@@ -153,32 +154,55 @@ namespace DurableTask.AzureServiceFabric.Service
         public ServiceReplicaListener CreateServiceReplicaListener()
         {
             return new ServiceReplicaListener(context =>
-            new KestrelCommunicationListener(
-                    context,
-                    "DtfxServiceEndpoint",
-                    (url, listener) =>
-                    {
-                        var serviceEndpoint = context.CodePackageActivationContext.GetEndpoint(Constants.TaskHubProxyListenerEndpointName);
-                        string ipAddress = context.NodeContext.IPAddressOrFQDN;
+            new KestrelCommunicationListener(context, "DtfxServiceEndpoint", (url, listener) =>
+            {
+                var serviceEndpoint = context.CodePackageActivationContext.GetEndpoint(Constants.TaskHubProxyListenerEndpointName);
+                string ipAddress = context.NodeContext.IPAddressOrFQDN;
 #if DEBUG
-                        IPHostEntry entry = Dns.GetHostEntry(ipAddress);
-                        IPAddress ipv4Address = entry.AddressList.FirstOrDefault(
-                            address => (address.AddressFamily == AddressFamily.InterNetwork) && (!IPAddress.IsLoopback(address)));
-                        ipAddress = ipv4Address.ToString();
+                IPHostEntry entry = Dns.GetHostEntry(ipAddress);
+                IPAddress ipv4Address = entry.AddressList.FirstOrDefault(
+                    address => (address.AddressFamily == AddressFamily.InterNetwork) && (!IPAddress.IsLoopback(address)));
+                ipAddress = ipv4Address.ToString();
 #endif
 
-                        EnsureFabricOrchestrationProviderIsInitialized();
-                        string protocol = this.enableHttps ? "https" : "http";
-                        string listeningAddress = string.Format(CultureInfo.InvariantCulture, "{0}://{1}:{2}/", protocol, ipAddress, serviceEndpoint.Port);
+                EnsureFabricOrchestrationProviderIsInitialized();
+                string protocol = this.enableHttps ? "https" : "http";
+                string listeningAddress = string.Format(CultureInfo.InvariantCulture, "{0}://{1}:{2}/", protocol, ipAddress, serviceEndpoint.Port);
 
-                        return new WebHostBuilder()
-                            .UseKestrel()
-                            .UseContentRoot(Directory.GetCurrentDirectory())
-                            .UseUrls(listeningAddress)
-                            .UseStartup(x => new Startup(listeningAddress, this.fabricOrchestrationProvider))
-                            .UseServiceFabricIntegration(listener, ServiceFabricIntegrationOptions.None)
-                            .Build();
-                    }), Constants.TaskHubProxyServiceName);
+                return new WebHostBuilder().UseKestrel(opt =>
+                {
+                    opt.ConfigureHttpsDefaults((httpConAdaptOption) =>
+                    {
+                        httpConAdaptOption.ServerCertificate = FindMatchingCertificateBySubject(this.fabricOrchestrationProviderSettings.SSLSubjectName);
+                        httpConAdaptOption.AllowAnyClientCertificate();
+                    });
+
+                })
+                .UseContentRoot(Directory.GetCurrentDirectory())
+                .UseUrls(listeningAddress)
+                .UseStartup(x => new Startup(listeningAddress, this.fabricOrchestrationProvider))
+                .UseServiceFabricIntegration(listener, ServiceFabricIntegrationOptions.None)
+                .Build();
+            }), Constants.TaskHubProxyServiceName);
+        }
+
+        private static X509Certificate2 FindMatchingCertificateBySubject(string subject)
+        {
+            X509Certificate2 certificate = null;
+            using (var certStore = new X509Store(StoreName.My, StoreLocation.LocalMachine))
+            {
+                certStore.Open(OpenFlags.ReadWrite | OpenFlags.OpenExistingOnly);
+                var certs = certStore.Certificates.Find(X509FindType.FindBySubjectDistinguishedName, subject, false);
+                if (certs.Count > 0)
+                {
+                    certificate = certs[0];
+                }
+                else
+                {
+                    throw new Exception($"Could not find a match for a certificate with the subject '{subject}'");
+                }
+            }
+            return certificate;
         }
 
         /// <inheritdoc />
