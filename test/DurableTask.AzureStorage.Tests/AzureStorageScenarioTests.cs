@@ -1650,6 +1650,32 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
+        /// End-to-end test which validates that orchestrations with > 60KB of tag data can be run successfully.
+        /// </summary>
+        [TestMethod]
+        public async Task LargeOrchestrationTags()
+        {
+            const int largeMessageSize = 64 * 1024;
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false, fetchLargeMessages: true);
+            await host.StartAsync();
+
+            string bigMessage = this.GenerateMediumRandomStringPayload(largeMessageSize, utf8ByteSize: 1, utf16ByteSize: 2).ToString();
+            var bigTags = new Dictionary<string, string> { { "BigTag", bigMessage } };
+            var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), "Hello, world!", tags: bigTags);
+            var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+            Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+            // TODO: Uncomment these assertions as part of https://github.com/Azure/durabletask/issues/840.
+            ////Assert.IsNotNull(status?.Tags);
+            ////Assert.AreEqual(bigTags.Count, status.Tags.Count);
+            ////Assert.IsTrue(bigTags.TryGetValue("BigTag", out string actualMessage));
+            ////Assert.AreEqual(bigMessage, actualMessage);
+
+            await host.StopAsync();
+        }
+
+        /// <summary>
         /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
         /// </summary>
         [DataTestMethod]
