@@ -43,6 +43,11 @@ namespace DurableTask.AzureServiceFabric
         }
 
         /// <summary>
+        ///     Settings to configure the SSLSubjectName
+        /// </summary>
+        public string SSLSubjectName { get; set; }
+
+        /// <summary>
         ///     Settings to configure the Task Orchestration Dispatcher
         /// </summary>
         public TaskOrchestrationDispatcherSettings TaskOrchestrationDispatcherSettings { get; set; }
