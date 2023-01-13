@@ -181,7 +181,10 @@ namespace DurableTask.AzureServiceFabric.Service
                 .UseContentRoot(Directory.GetCurrentDirectory())
                 .UseUrls(listeningAddress)
                 .UseStartup(x => new Startup(listeningAddress, this.fabricOrchestrationProvider))
-                .UseServiceFabricIntegration(listener, ServiceFabricIntegrationOptions.None)
+                // The UseUniqueServiceUrl option injects "/partitionId/instanceId"
+                // to the end of the service fabric service endpoint as a unique identifier
+                // Example Endpoint: https://{MachineName}:{port}/{partitionId}/{instanceId}
+                .UseServiceFabricIntegration(listener, ServiceFabricIntegrationOptions.UseUniqueServiceUrl)
                 .Build();
             }), Constants.TaskHubProxyServiceName);
         }
