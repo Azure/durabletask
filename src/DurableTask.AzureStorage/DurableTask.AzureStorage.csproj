@@ -35,8 +35,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Azure.Core" Version="1.26.0" />
-    <PackageReference Include="Azure.Data.Tables" Version="12.7.0" />
+    <PackageReference Include="Azure.Core" Version="1.27.0" />
+    <PackageReference Include="Azure.Data.Tables" Version="12.7.1" />
     <!-- The below version of Azure.Storage.Blobs must align with the Functions Host -->
     <PackageReference Include="Azure.Storage.Blobs" Version="12.13.0" />
     <PackageReference Include="Azure.Storage.Queues" Version="12.12.0" />

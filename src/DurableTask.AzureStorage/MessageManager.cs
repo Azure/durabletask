@@ -166,7 +166,7 @@ namespace DurableTask.AzureStorage
 
         internal MessageData DeserializeMessageData(string json)
         {
-            return Utils.DeserializeFromJson<MessageData>(serializer, json);
+            return Utils.DeserializeFromJson<MessageData>(this.serializer, json);
         }
 
         public Task CompressAndUploadAsBytesAsync(byte[] payloadBuffer, string blobName, CancellationToken cancellationToken = default)
