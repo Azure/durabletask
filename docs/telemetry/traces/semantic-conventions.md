@@ -33,8 +33,9 @@ durabletask.event.instance_id | string | The target orchestration instance ID of
 
 Represents enqueueing a new orchestration via TaskHubClient to the backend.
 
-| Name  | create\_orchestration\|\|\{orchestrationName\}\(\|\|\{orchestrationVersion\}\)?  |
+| Span Property | Span Value |
 |---|---|
+| Name  | `create_orchestration||{orchestrationName}(||{orchestrationVersion})?`  |
 | Kind  | Producer  |
 | Start  | Before submitting the new orchestration to the backend  |
 | End  | After the orchestration has been submitted to the backend  |
@@ -56,19 +57,16 @@ Attributes:
 | durabletask.task.execution_id  | Execution ID of the enqueued orchestration  |
 | exception.*  | Exception details on failure. |
 
-Note: Backends SHOULD enrich this activity with additional attributes, links, or events as appropriate.
-
 #### Client - Starting a sub-orchestration
 
 Represents enqueueing and waiting for a sub-orchestration to complete 
 
-| Name   | orchestration\|\|\{orchestrationName\}\(\|\| \{orchestrationVersion\}\)?   |
+| Span Property | Span Value |
 |---|---|
-| Kind   | Standard: Client   |
-|  | Fire and forget: Producer  |
+| Name   | `orchestration||{orchestrationName}(||{orchestrationVersion})?`   |
+| Kind   | Standard: Client<br />Fire and forget: Producer  |
 | Start   | When the parent orchestration enqueues a message to execute the sub\-orchestration  |
-| End   | Standard: When the parent orchestration is notified that the sub\-orchestration completed\.  |
-|  | Fire and forget: After the sub\-orchestration started event is enqueued  |
+| End   | Standard: When the parent orchestration is notified that the sub\-orchestration completed\.<br />Fire and forget: After the sub\-orchestration started event is enqueued  |
 | Status   | OK – successfully enqueued<br />Error – failed to enqueue for any reason   |
 | Links   | None   |
 | Events   | TBD   |
@@ -90,8 +88,9 @@ Attributes:
 
 Represents enqueueing a new orchestration via TaskHubClient to the backend
 
-| Name   | orchestration\|\|\{orchestrationName\}\(\|\|\{orchestrationVersion\}\)?   |
+| Span Property | Span Value |
 |---|---|
+| Name   | `orchestration||{orchestrationName}(||{orchestrationVersion})?`   |
 | Kind   | Server   |
 | Start   | Before the orchestration starts executing\.  |
 | End   | After the orchestration has finished executing\.   |
@@ -117,8 +116,9 @@ Attributes:
 
 Represents enqueueing an activity
 
-| Name   | activity\|\|\{activityName\}\(\|\|\{orchestrationVersion\}\)?   |
+| Span Property | Span Value |
 |---|---|
+| Name   | `activity||{activityName}(||{orchestrationVersion})?`   |
 | Kind   | Client   |
 | Start   | Before enqueuing the activity  |
 | End   | After the activity has finished executing\.   |
@@ -143,8 +143,9 @@ Attributes:
 
 Represents the activity executing
 
-| Name   | activity\|\|\{activityName\}\(\|\| \{orchestrationVersion\}\)?   |
+| Span Property | Span Value |
 |---|---|
+| Name   | `activity||{activityName}(|| {orchestrationVersion})?`   |
 | Kind   | Server   |
 | Start   | Before the activity starts executing\.  |
 | End   | After the activity has finished executing\.   |
@@ -170,8 +171,9 @@ Attributes:
 
 Represents the Durable Timer
 
-| Name    | timer    |
+| Span Property | Span Value |
 |---|---|
+| Name    | `timer`    |
 | Kind    | Internal    |
 | Start    | When the timer is created   |
 | End    | When the TimerFired event is processed    |
@@ -196,8 +198,9 @@ Attributes:
 
 Represents sending an event to an orchestration
 
-| Name    | orchestration\_event\|\|\{orchestration\_name\}  |
+| Span Property | Span Value |
 |---|---|
+| Name    | `orchestration_event||{orchestration_name}`  |
 | Kind    | Client  |
 | Start    | Before sending the event  |
 | End    | From client: when the event has been sent <br />From worker: when the event message has been created \(this will have a negligible duration, but we want a span for a link\) |
@@ -216,27 +219,3 @@ Attributes:
 | durabletask.event.instance_id  | The instance ID of the target orchestration (the one receiving the event).    |
 | durabletask.task.instance_id    | Instance ID of the orchestration that is sending the event. Not present if sent from the client.  |
 | durabletask.task.execution_id   | Execution ID of the orchestration that is sending the event. Not present if sent from the client. |
-
-#### Receiving an Event
-
-Represents an orchestration receiving an event
-
-| Name    | orchestration\_event\|\|\{orchestration\_name\}  |
-|---|---|
-| Kind    | Consumer  |
-| Start    | When the event message is raised  |
-| End    | After the event is processed  |
-| Status    | OK – event received<br />Error – event failed to be read  |
-| Links    | The orchestration span that produced this event  |
-| Events    | None  |
-| Parent    | Current active span\. |
-
-&nbsp;
-Attributes:
-
-| Name    | Value    |
-|---|---|
-| durabletask.type    | “event”    |
-| durabletask.event.name  | The name of the event being received.  |
-| durabletask.task.instance_id    | Instance ID of the orchestration that received the event.  |
-| durabletask.task.execution_id   | Execution ID of the orchestration that received the event. |
