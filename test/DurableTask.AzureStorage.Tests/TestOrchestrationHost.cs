@@ -72,8 +72,14 @@ namespace DurableTask.AzureStorage.Tests
             Type orchestrationType,
             object input,
             string instanceId = null,
-            DateTime? startAt = null)
+            DateTime? startAt = null,
+            IDictionary<string, string> tags = null)
         {
+            if (startAt != null && tags != null)
+            {
+                throw new NotSupportedException("Cannot set both startAt and tags parameters.");
+            }
+
             if (!this.addedOrchestrationTypes.Contains(orchestrationType))
             {
                 this.worker.AddTaskOrchestrations(orchestrationType);
@@ -103,17 +109,31 @@ namespace DurableTask.AzureStorage.Tests
             }
 
             DateTime creationTime = DateTime.UtcNow;
-            OrchestrationInstance instance = startAt.HasValue ?
-                await this.client.CreateScheduledOrchestrationInstanceAsync(
+            OrchestrationInstance instance;
+            if (tags != null)
+            {
+                instance = await this.client.CreateOrchestrationInstanceAsync(
+                    NameVersionHelper.GetDefaultName(orchestrationType),
+                    NameVersionHelper.GetDefaultVersion(orchestrationType),
+                    instanceId,
+                    input,
+                    tags);
+            }
+            else if (startAt.HasValue)
+            {
+                instance = await this.client.CreateScheduledOrchestrationInstanceAsync(
                     orchestrationType,
                     instanceId,
                     input,
-                    startAt.Value)
-                    : 
-                await this.client.CreateOrchestrationInstanceAsync(
+                    startAt.Value);
+            }
+            else
+            {
+                instance = await this.client.CreateOrchestrationInstanceAsync(
                     orchestrationType,
                     instanceId,
                     input);
+            }
 
             Trace.TraceInformation($"Started {orchestrationType.Name}, Instance ID = {instance.InstanceId}");
             return new TestOrchestrationClient(this.client, orchestrationType, instance.InstanceId, creationTime);

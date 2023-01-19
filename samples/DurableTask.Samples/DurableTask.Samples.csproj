@@ -2,6 +2,7 @@
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <OutputType>Exe</OutputType>
     <TargetFramework>net462</TargetFramework>
   </PropertyGroup>
@@ -15,13 +16,11 @@
     <PackageReference Include="Microsoft.WindowsAzure.ConfigurationManager" version="3.2.3" />
     <PackageReference Include="ncrontab" version="1.0.0" />
     <PackageReference Include="Newtonsoft.Json" version="11.0.2" />
-    <PackageReference Include="System.Spatial" version="5.8.5" />
-    <PackageReference Include="WindowsAzure.Storage" version="9.3.3" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\DurableTask.AzureStorage\DurableTask.AzureStorage.csproj" />
     <ProjectReference Include="..\..\src\DurableTask.Core\DurableTask.Core.csproj" />
-    <ProjectReference Include="..\..\src\DurableTask.ServiceBus\DurableTask.ServiceBus.csproj" />
   </ItemGroup>
 
   <ItemGroup>
