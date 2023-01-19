@@ -201,7 +201,7 @@ Represents sending an event to an orchestration
 | Span Property | Span Value |
 |---|---|
 | Name    | `orchestration_event||{orchestration_name}`  |
-| Kind    | Client  |
+| Kind    | Producer |
 | Start    | Before sending the event  |
 | End    | From client: when the event has been sent <br />From worker: when the event message has been created \(this will have a negligible duration, but we want a span for a link\) |
 | Status    | OK – event sent<br />Error – event failed to send  |
