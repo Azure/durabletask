@@ -184,7 +184,7 @@ namespace DurableTask.AzureStorage.Messaging
                     }
                 }
 
-                this.Release(CloseReason.Shutdown, $"ControlQueue GetMessagesAsync [control queue released: {this.releaseCancellationToken.IsCancellationRequested}, shutdown: {cancellationToken.IsCancellationRequested}]");
+                this.Release(CloseReason.Shutdown, $"ControlQueue GetMessagesAsync cancelled by: {(this.releaseCancellationToken.IsCancellationRequested ? "control queue released token cancelled" : "")} {(cancellationToken.IsCancellationRequested ? "shutdown token cancelled" : "")}");
                 return EmptyMessageList;
             }
         }
