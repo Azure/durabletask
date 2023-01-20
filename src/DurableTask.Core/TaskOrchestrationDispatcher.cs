@@ -714,6 +714,14 @@ namespace DurableTask.Core
                     TraceHelper.StartTraceActivityForSubOrchestrationFinished(workItem.OrchestrationRuntimeState.OrchestrationInstance, finishedEvent, subOrchestrationScheduledEvent)?.Dispose();
                 }
 
+                if (Activity.Current != null && message.Event is TaskCompletedEvent taskCompletedEvent)
+                {
+                    TaskScheduledEvent taskScheduledEvent = (TaskScheduledEvent)workItem.OrchestrationRuntimeState.Events.FirstOrDefault(x => x.EventId == taskCompletedEvent.TaskScheduledId);
+
+                    // We immediately publish the activity span for this task by creating the activity and immediately calling Dispose() on it.
+                    TraceHelper.CreateActivityforTaskCompleted(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent)?.Dispose();
+                }
+
                 workItem.OrchestrationRuntimeState.AddEvent(message.Event);
             }
 

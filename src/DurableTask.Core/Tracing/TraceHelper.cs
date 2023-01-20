@@ -133,7 +133,7 @@ namespace DurableTask.Core.Tracing
 
             return ActivityTraceSource.StartActivity(
                 name: $"{scheduledEvent.Name} (#{scheduledEvent.EventId})",
-                kind: ActivityKind.Internal,
+                kind: ActivityKind.Server,
                 parentContext: activityContext,
                 tags: new KeyValuePair<string, object?>[]
                 {
@@ -243,6 +243,24 @@ namespace DurableTask.Core.Tracing
                 newActivity.AddTag("dtfx.instance_id", instance.InstanceId);
                 newActivity.AddTag("dtfx.execution_id", instance.ExecutionId);
                 newActivity.AddTag("dtfx.fire_at", fireAt.ToString("o"));
+            }
+
+            return newActivity;
+        }
+
+        internal static Activity? CreateActivityforTaskCompleted(OrchestrationInstance instance, TaskScheduledEvent taskScheduledEvent)
+        {
+            Activity? newActivity = ActivityTraceSource.StartActivity(
+                name: taskScheduledEvent.Name,
+                kind: ActivityKind.Client,
+                startTime: taskScheduledEvent.Timestamp,
+                parentContext: Activity.Current?.Context ?? default);
+
+            if (newActivity != null)
+            {
+                newActivity.AddTag("dtfx.type", "activity");
+                newActivity.AddTag("dtfx.instance_id", instance.InstanceId);
+                newActivity.AddTag("dtfx.execution_id", instance.ExecutionId);
             }
 
             return newActivity;
