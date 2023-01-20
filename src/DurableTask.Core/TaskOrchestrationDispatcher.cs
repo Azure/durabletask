@@ -951,6 +951,11 @@ namespace DurableTask.Core
 
             this.logHelper.SchedulingOrchestration(startedEvent);
 
+            if (OrchestrationTags.IsTaggedAsFireAndForget(createSubOrchestrationAction.Tags))
+            {
+                TraceHelper.CreateActivityForFireAndForgetSubOrchestration(historyEvent, runtimeState.OrchestrationInstance, parentTraceActivity)?.Dispose();
+            }
+
             taskMessage.OrchestrationInstance = startedEvent.OrchestrationInstance;
             taskMessage.Event = startedEvent;
 

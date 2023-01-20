@@ -54,6 +54,7 @@ namespace OpenTelemetrySample
             worker.AddTaskOrchestrations(typeof(EventConversationOrchestration));
             worker.AddTaskOrchestrations(typeof(EventConversationOrchestration.Responder));
             worker.AddTaskOrchestrations(typeof(HelloSequenceWithTimer));
+            worker.AddTaskOrchestrations(typeof(FireAndForgetSubOrchestration));
             await worker.StartAsync();
 
             TaskHubClient client = new TaskHubClient(serviceClient);
@@ -82,6 +83,12 @@ namespace OpenTelemetrySample
             await client.WaitForOrchestrationAsync(helloSubOrchFailedInstance, TimeSpan.FromMinutes(5));
 
             Console.WriteLine("Done with Hello Sub-orchestration with failed sub-orchestration!");
+
+            // Fire and forget sub-orchestration
+            OrchestrationInstance orchestrationInstance = await client.CreateOrchestrationInstanceAsync(typeof(FireAndForgetSubOrchestration), true);
+            OrchestrationState orchestrationState = await client.WaitForOrchestrationAsync(orchestrationInstance, TimeSpan.FromMinutes(5)); Console.WriteLine(orchestrationState.Output); Console.WriteLine("Done with FireAndForgetSubOrchestration!");
+
+            Console.WriteLine("Done with Sub-orchestration fire and forget!");
 
             // Hello Sequence with Timer
             OrchestrationInstance helloSeqWithTimerInstance = await client.CreateOrchestrationInstanceAsync(typeof(HelloSequenceWithTimer), null);
@@ -133,6 +140,19 @@ namespace OpenTelemetrySample
                 result += await context.CreateSubOrchestrationInstance<string>(typeof(HelloSequence), null);
                 result += await fanOut;
 
+                return result;
+            }
+        }
+
+        class FireAndForgetSubOrchestration : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                string result = "";
+                result += await context.CreateSubOrchestrationInstance<string>(typeof(HelloSequence), null);
+                context.CreateSubOrchestrationInstance<object>(NameVersionHelper.GetDefaultName(typeof(HelloFanOut)), "", "1", null, new Dictionary<string, string>() { { OrchestrationTags.FireAndForget, "" } });
+                context.CreateSubOrchestrationInstance<object>(NameVersionHelper.GetDefaultName(typeof(HelloSequence)), "", "2", null, new Dictionary<string, string>() { { OrchestrationTags.FireAndForget, "" } });
+                context.CreateSubOrchestrationInstance<object>(NameVersionHelper.GetDefaultName(typeof(HelloSequence)), "", "3", null, new Dictionary<string, string>() { { OrchestrationTags.FireAndForget, "" } });
                 return result;
             }
         }
