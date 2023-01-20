@@ -45,17 +45,14 @@ namespace DurableTask.Core.Tracing
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 name: startEvent.Name,
-                kind: ActivityKind.Internal,
-                parentContext: Activity.Current?.Context ?? default,
-                tags: new KeyValuePair<string, object?>[]
-                {
-                    new("dtfx.type", "client"),
-                    new("dtfx.instance_id", startEvent.OrchestrationInstance.InstanceId),
-                    new("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId),
-                });
+                kind: ActivityKind.Internal);
 
             if (newActivity != null)
             {
+                newActivity.SetTag("dtfx.type", "client");
+                newActivity.SetTag("dtfx.instance_id", startEvent.OrchestrationInstance.InstanceId);
+                newActivity.SetTag("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId);
+                
                 startEvent.SetParentTraceContext(newActivity);
             }
 
@@ -83,25 +80,22 @@ namespace DurableTask.Core.Tracing
 
             string activityName = startEvent.Name;
             ActivityKind activityKind = ActivityKind.Server;
-            KeyValuePair<string, object?>[] activityTags = new KeyValuePair<string, object?>[]
-            {
-                new("dtfx.type", "orchestrator"),
-                new("dtfx.instance_id", startEvent.OrchestrationInstance.InstanceId),
-                new("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId),
-            };
-
             DateTimeOffset startTime = startEvent.ParentTraceContext.ActivityStartTime ?? default;
+
             Activity? activity = ActivityTraceSource.StartActivity(
                 name: activityName,
                 kind: activityKind,
                 parentContext: activityContext,
-                startTime: startTime,
-                tags: activityTags);
+                startTime: startTime);
 
             if (activity == null)
             {
                 return null;
             }
+
+            activity.SetTag("dtfx.type", "orchestrator");
+            activity.SetTag("dtfx.instance_id", startEvent.OrchestrationInstance.InstanceId);
+            activity.SetTag("dtfx.execution_id", startEvent.OrchestrationInstance.ExecutionId);
 
             if (startEvent.ParentTraceContext.Id != null && startEvent.ParentTraceContext.SpanId != null)
             {
@@ -154,14 +148,16 @@ namespace DurableTask.Core.Tracing
         /// </summary>
         /// <param name="orchestrationInstance">The associated orchestration instance metadata.</param>
         /// <param name="finishedEvent">The sub-orchestration event. Represents a sub-orchestration completing or failing.</param>
+        /// <param name="createdEvent">The related sub-orchestration created event.</param>
         /// <returns>
         /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
         /// </returns>
         internal static Activity? StartTraceActivityForSubOrchestrationFinished(
             OrchestrationInstance orchestrationInstance,
-            ISubOrchestrationFinishedEvent finishedEvent)
+            ISubOrchestrationFinishedEvent finishedEvent,
+            SubOrchestrationInstanceCreatedEvent createdEvent)
         {
-            if (orchestrationInstance == null || finishedEvent == null)
+            if (orchestrationInstance == null || finishedEvent == null || finishedEvent.ParentTraceContext == null || createdEvent == null)
             {
                 return null;
             }
@@ -186,9 +182,9 @@ namespace DurableTask.Core.Tracing
             }
 
             return ActivityTraceSource.StartActivity(
-                name: finishedEvent.Name,
+                name: createdEvent.Name,
                 kind: ActivityKind.Client,
-                startTime: (DateTimeOffset)finishedEvent.StartTime,
+                startTime: createdEvent.Timestamp,
                 parentContext: parentActivityContext,
                 tags: activityTags);
         }
@@ -197,7 +193,7 @@ namespace DurableTask.Core.Tracing
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 name: eventRaised.Name,
-                kind: ActivityKind.Internal,
+                kind: ActivityKind.Producer,
                 parentContext: Activity.Current?.Context ?? default,
                 tags: new KeyValuePair<string, object?>[]
                 {
@@ -205,6 +201,25 @@ namespace DurableTask.Core.Tracing
                     new("dtfx.instance_id", instance.InstanceId),
                     new("dtfx.execution_id", instance.ExecutionId),
                 });
+
+            return newActivity;
+        }
+
+        internal static Activity? CreateActivityForTimer(OrchestrationInstance instance, DateTime startTime, DateTime fireAt)
+        {
+            Activity? newActivity = ActivityTraceSource.StartActivity(
+                name: "Timer",
+                kind: ActivityKind.Internal,
+                startTime: startTime,
+                parentContext: Activity.Current?.Context ?? default);
+
+            if (newActivity is not null)
+            {
+                newActivity.AddTag("dtfx.type", "timer");
+                newActivity.AddTag("dtfx.instance_id", instance.InstanceId);
+                newActivity.AddTag("dtfx.execution_id", instance.ExecutionId);
+                newActivity.AddTag("dtfx.fire_at", fireAt.ToString("o"));
+            }
 
             return newActivity;
         }
@@ -221,15 +236,10 @@ namespace DurableTask.Core.Tracing
             EventRaisedEvent eventRaisedEvent,
             OrchestrationInstance instance)
         {
-            if (!eventRaisedEvent.TryGetParentTraceContext(out ActivityContext activityContext))
-            {
-                return null;
-            }
-
             return ActivityTraceSource.StartActivity(
                 name: eventRaisedEvent.Name,
                 kind: ActivityKind.Producer,
-                parentContext: activityContext,
+                parentContext: Activity.Current?.Context ?? default,
                 tags: new KeyValuePair<string, object?>[]
                 {
                     new("dtfx.type", "externalevent"),

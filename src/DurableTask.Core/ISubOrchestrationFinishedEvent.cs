@@ -10,22 +10,11 @@ namespace DurableTask.Core
         /// <summary>
         /// The name of the sub-orchestration.
         /// </summary>
-        string Name { get; set; }
+        int TaskScheduledId { get; }
 
         /// <summary>
         /// The W3C trace context associated with this event.
         /// </summary>
         DistributedTraceContext ParentTraceContext { get; set; }
-
-        /// <summary>
-        /// The start time of the sub-orchestration.
-        /// </summary>
-        DateTime StartTime { get; set; }
-
-        /// <summary>
-        /// Checks if the properties needed for distributed tracing are set. This is used to check
-        /// whether a span should be created or not.
-        /// </summary>
-        bool DistributedTracingPropertiesAreSet();
     }
 }

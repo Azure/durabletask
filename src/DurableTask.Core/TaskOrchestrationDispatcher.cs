@@ -307,6 +307,8 @@ namespace DurableTask.Core
                 workItem.NewMessages.Select(msg => msg.Event).OfType<ExecutionStartedEvent>().FirstOrDefault();
             OrchestrationState instanceState = null;
 
+            Activity traceActivity = TraceHelper.StartTraceActivityForExecution(startEvent);
+
             // Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
             if (!this.ReconcileMessagesWithState(workItem))
             {
@@ -323,7 +325,7 @@ namespace DurableTask.Core
             {
                 do
                 {
-                    Activity traceActivity = TraceHelper.StartTraceActivityForExecution(runtimeState.ExecutionStartedEvent);
+                    traceActivity = TraceHelper.StartTraceActivityForExecution(runtimeState.ExecutionStartedEvent);
 
                     continuedAsNew = false;
                     continuedAsNewMessage = null;
@@ -698,13 +700,21 @@ namespace DurableTask.Core
                     continue;
                 }
 
-                workItem.OrchestrationRuntimeState.AddEvent(message.Event);
-
-                if (message.Event is ISubOrchestrationFinishedEvent finishedEvent && finishedEvent.DistributedTracingPropertiesAreSet())
+                if (Activity.Current != null && message.Event is TimerFiredEvent timerFiredEvent)
                 {
-                    // We immediately publish the activity span for this sub-orchestration by creating the activity and immediately calling Dispose() on it.
-                    TraceHelper.StartTraceActivityForSubOrchestrationFinished(workItem.OrchestrationRuntimeState.OrchestrationInstance, finishedEvent)?.Dispose();
+                    // We immediately publish the activity span for this timer by creating the activity and immediately calling Dispose() on it.
+                    TraceHelper.CreateActivityForTimer(workItem.OrchestrationRuntimeState.OrchestrationInstance, message.Event.Timestamp, timerFiredEvent.FireAt)?.Dispose();
                 }
+
+                if (Activity.Current != null && message.Event is ISubOrchestrationFinishedEvent finishedEvent)
+                {
+                    SubOrchestrationInstanceCreatedEvent subOrchestrationScheduledEvent = (SubOrchestrationInstanceCreatedEvent)workItem.OrchestrationRuntimeState.Events.FirstOrDefault(x => x.EventId == finishedEvent.TaskScheduledId);
+
+                    // We immediately publish the activity span for this sub-orchestration by creating the activity and immediately calling Dispose() on it.
+                    TraceHelper.StartTraceActivityForSubOrchestrationFinished(workItem.OrchestrationRuntimeState.OrchestrationInstance, finishedEvent, subOrchestrationScheduledEvent)?.Dispose();
+                }
+
+                workItem.OrchestrationRuntimeState.AddEvent(message.Event);
             }
 
             return true;
@@ -784,9 +794,7 @@ namespace DurableTask.Core
 
                     if (Activity.Current != null)
                     {
-                        subOrchestrationCompletedEvent.Name = runtimeState.ExecutionStartedEvent.Name;
                         subOrchestrationCompletedEvent.ParentTraceContext = runtimeState.ExecutionStartedEvent.ParentTraceContext;
-                        subOrchestrationCompletedEvent.StartTime = runtimeState.ExecutionStartedEvent.Timestamp;
                     }
 
                     taskMessage.Event = subOrchestrationCompletedEvent;
@@ -801,9 +809,7 @@ namespace DurableTask.Core
 
                     if (Activity.Current != null)
                     {
-                        subOrchestrationFailedEvent.Name = runtimeState.ExecutionStartedEvent.Name;
                         subOrchestrationFailedEvent.ParentTraceContext = runtimeState.ExecutionStartedEvent.ParentTraceContext;
-                        subOrchestrationFailedEvent.StartTime = runtimeState.ExecutionStartedEvent.Timestamp;
                     }
 
                     taskMessage.Event = subOrchestrationFailedEvent;
@@ -876,9 +882,11 @@ namespace DurableTask.Core
         {
             var taskMessage = new TaskMessage();
 
+            var fireAtTime = createTimerOrchestratorAction.FireAt;
+
             var timerCreatedEvent = new TimerCreatedEvent(createTimerOrchestratorAction.Id)
             {
-                FireAt = createTimerOrchestratorAction.FireAt
+                FireAt = fireAtTime
             };
 
             runtimeState.AddEvent(timerCreatedEvent);
@@ -886,7 +894,7 @@ namespace DurableTask.Core
             taskMessage.Event = new TimerFiredEvent(-1)
             {
                 TimerId = createTimerOrchestratorAction.Id,
-                FireAt = createTimerOrchestratorAction.FireAt
+                FireAt = fireAtTime
             };
 
             this.logHelper.CreatingTimer(
@@ -970,8 +978,6 @@ namespace DurableTask.Core
 
             // Distributed Tracing: start a new trace activity derived from the orchestration
             // for an EventRaisedEvent (external event)
-            eventRaisedEvent.SetParentTraceContext(parentTraceActivity);
-
             using Activity traceActivity = TraceHelper.StartTraceActivityForEventRaised(eventRaisedEvent, runtimeState.OrchestrationInstance);
 
             this.logHelper.RaisingEvent(runtimeState.OrchestrationInstance, historyEvent);

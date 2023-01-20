@@ -63,20 +63,6 @@ namespace DurableTask.Core.History
 
         /// <inheritdoc/>
         [DataMember]
-        public string Name { get; set; }
-
-        /// <inheritdoc/>
-        [DataMember]
         public DistributedTraceContext ParentTraceContext { get; set; }
-
-        /// <inheritdoc/>
-        [DataMember]
-        public DateTime StartTime { get; set; }
-
-        /// <inheritdoc/>
-        public bool DistributedTracingPropertiesAreSet()
-        {
-            return Name != null && ParentTraceContext != null && StartTime != null;
-        }
     }
 }
