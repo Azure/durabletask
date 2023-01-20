@@ -35,7 +35,7 @@ Represents enqueueing a new orchestration via TaskHubClient to the backend.
 
 | Span Property | Span Value |
 |---|---|
-| Name  | `create_orchestration||{orchestrationName}(||{orchestrationVersion})?`  |
+| Name  | `create_orchestration\|\|{orchestrationName}(\|\|{orchestrationVersion})?`  |
 | Kind  | Producer  |
 | Start  | Before submitting the new orchestration to the backend  |
 | End  | After the orchestration has been submitted to the backend  |
@@ -63,7 +63,7 @@ Represents enqueueing and waiting for a sub-orchestration to complete
 
 | Span Property | Span Value |
 |---|---|
-| Name   | `orchestration||{orchestrationName}(||{orchestrationVersion})?`   |
+| Name   | `orchestration\|\|{orchestrationName}(\|\|{orchestrationVersion})?`   |
 | Kind   | Standard: Client<br />Fire and forget: Producer  |
 | Start   | When the parent orchestration enqueues a message to execute the sub\-orchestration  |
 | End   | Standard: When the parent orchestration is notified that the sub\-orchestration completed\.<br />Fire and forget: After the sub\-orchestration started event is enqueued  |
@@ -90,7 +90,7 @@ Represents enqueueing a new orchestration via TaskHubClient to the backend
 
 | Span Property | Span Value |
 |---|---|
-| Name   | `orchestration||{orchestrationName}(||{orchestrationVersion})?`   |
+| Name   | `orchestration\|\|{orchestrationName}(\|\|{orchestrationVersion})?`   |
 | Kind   | Server   |
 | Start   | Before the orchestration starts executing\.  |
 | End   | After the orchestration has finished executing\.   |
@@ -118,7 +118,7 @@ Represents enqueueing an activity
 
 | Span Property | Span Value |
 |---|---|
-| Name   | `activity||{activityName}(||{orchestrationVersion})?`   |
+| Name   | `activity\|\|{activityName}(\|\|{orchestrationVersion})?`   |
 | Kind   | Client   |
 | Start   | Before enqueuing the activity  |
 | End   | After the activity has finished executing\.   |
@@ -145,7 +145,7 @@ Represents the activity executing
 
 | Span Property | Span Value |
 |---|---|
-| Name   | `activity||{activityName}(|| {orchestrationVersion})?`   |
+| Name   | `activity\|\|{activityName}(\|\| {orchestrationVersion})?`   |
 | Kind   | Server   |
 | Start   | Before the activity starts executing\.  |
 | End   | After the activity has finished executing\.   |
@@ -200,7 +200,7 @@ Represents sending an event to an orchestration
 
 | Span Property | Span Value |
 |---|---|
-| Name    | `orchestration_event||{orchestration_name}`  |
+| Name    | `orchestration_event\|\|{orchestration_name}`  |
 | Kind    | Producer |
 | Start    | Before sending the event  |
 | End    | From client: when the event has been sent <br />From worker: when the event message has been created \(this will have a negligible duration, but we want a span for a link\) |
