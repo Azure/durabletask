@@ -21,6 +21,7 @@ namespace DurableTask.Core.Tracing
     using System.Reflection;
     using DurableTask.Core.Common;
     using DurableTask.Core.History;
+    using DurableTask.Core.Serializing;
 
     /// <summary>
     ///     Helper class for logging/tracing
@@ -167,26 +168,32 @@ namespace DurableTask.Core.Tracing
                 finishedEvent.ParentTraceContext.TraceState,
                 out ActivityContext parentActivityContext);
 
-            List<KeyValuePair<string, object?>> activityTags = new List<KeyValuePair<string, object?>>
+            Activity? activity = ActivityTraceSource.StartActivity(
+                name: createdEvent.Name,
+                kind: ActivityKind.Client,
+                startTime: createdEvent.Timestamp,
+                parentContext: parentActivityContext);
+
+            if (activity == null)
             {
-                new("dtfx.type", "orchestrator"),
-                new("dtfx.instance_id", orchestrationInstance.InstanceId),
-                new("dtfx.execution_id", orchestrationInstance.ExecutionId),
-            };
+                return null;
+            }
+
+            activity.SetTag("dtfx.type", "orchestrator");
+            activity.SetTag("dtfx.instance_id", orchestrationInstance.InstanceId);
+            activity.SetTag("dtfx.execution_id", orchestrationInstance.ExecutionId);
 
             // Adding additional tags for a SubOrchestrationInstanceFailedEvent
             if (finishedEvent is SubOrchestrationInstanceFailedEvent failedEvent)
             {
-                activityTags.Add(new KeyValuePair<string, object?>("otel.status_code", "ERROR"));
-                activityTags.Add(new KeyValuePair<string, object?>("dtfx.details", failedEvent.Details));
+                Exception cause = Utils.RetrieveCause(failedEvent.Details, new JsonDataConverter());
+
+                activity.SetTag("otel.status_code", "ERROR");
+                activity.SetTag("otel.status_description", cause?.Message);
+                activity.SetTag("exception.type", cause?.GetType());
             }
 
-            return ActivityTraceSource.StartActivity(
-                name: createdEvent.Name,
-                kind: ActivityKind.Client,
-                startTime: createdEvent.Timestamp,
-                parentContext: parentActivityContext,
-                tags: activityTags);
+            return activity;            
         }
 
         internal static Activity? CreateActivityForNewEventRaised(EventRaisedEvent eventRaised, OrchestrationInstance instance)
