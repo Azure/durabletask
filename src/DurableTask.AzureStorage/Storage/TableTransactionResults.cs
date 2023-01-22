@@ -15,7 +15,6 @@ namespace DurableTask.AzureStorage.Storage
 {
     using System;
     using System.Collections.Generic;
-    using System.Linq;
     using Azure;
 
     sealed class TableTransactionResults
@@ -34,18 +33,5 @@ namespace DurableTask.AzureStorage.Storage
         public int ElapsedMilliseconds => (int)this.Elapsed.TotalMilliseconds;
 
         public int RequestCount { get; }
-
-        public TableTransactionResults Add(TableTransactionResults other)
-        {
-            if (other == null)
-            {
-                throw new ArgumentNullException(nameof(other));
-            }
-
-            return new TableTransactionResults(
-                this.Responses.Concat(other.Responses).ToList(),
-                this.Elapsed + other.Elapsed,
-                this.RequestCount + other.RequestCount);
-        }
     }
 }

@@ -71,27 +71,36 @@ namespace DurableTask.AzureStorage.Storage
         public AsyncPageable<Blob> ListBlobsAsync(string? prefix = null, CancellationToken cancellationToken = default)
         {
             return new AsyncPageableProjection<BlobItem, Blob>(
-                this.blobContainerClient
-                    .GetBlobsAsync(BlobTraits.Metadata, BlobStates.None, prefix, cancellationToken)
-                    .DecorateFailure(),
-                x => this.GetBlobReference(x.Name));
+                this.blobContainerClient.GetBlobsAsync(BlobTraits.Metadata, BlobStates.None, prefix, cancellationToken),
+                x => this.GetBlobReference(x.Name)).DecorateFailure();
         }
 
         public async Task<string> AcquireLeaseAsync(TimeSpan leaseInterval, string leaseId, CancellationToken cancellationToken = default)
         {
-            BlobLease lease = await this.blobContainerClient.GetBlobLeaseClient(leaseId).AcquireAsync(leaseInterval, cancellationToken: cancellationToken).DecorateFailure();
+            BlobLease lease = await this.blobContainerClient
+                .GetBlobLeaseClient(leaseId)
+                .AcquireAsync(leaseInterval, cancellationToken: cancellationToken)
+                .DecorateFailure();
+
             return lease.LeaseId;
         }
 
         public async Task<string> ChangeLeaseAsync(string proposedLeaseId, string currentLeaseId, CancellationToken cancellationToken = default)
         {
-            BlobLease lease = await this.blobContainerClient.GetBlobLeaseClient(currentLeaseId).ChangeAsync(proposedLeaseId, cancellationToken: cancellationToken).DecorateFailure();
+            BlobLease lease = await this.blobContainerClient
+                .GetBlobLeaseClient(currentLeaseId)
+                .ChangeAsync(proposedLeaseId, cancellationToken: cancellationToken)
+                .DecorateFailure();
+
             return lease.LeaseId;
         }
 
         public Task RenewLeaseAsync(string leaseId, CancellationToken cancellationToken = default)
         {
-            return this.blobContainerClient.GetBlobLeaseClient(leaseId).RenewAsync(cancellationToken: cancellationToken).DecorateFailure();
+            return this.blobContainerClient
+                .GetBlobLeaseClient(leaseId)
+                .RenewAsync(cancellationToken: cancellationToken)
+                .DecorateFailure();
         }
     }
 }

@@ -44,7 +44,6 @@ namespace DurableTask.AzureStorage.Storage
         public async Task<int> GetApproximateMessagesCountAsync(CancellationToken cancellationToken = default)
         {
             QueueProperties properties = await this.queueClient.GetPropertiesAsync(cancellationToken).DecorateFailure();
-
             return properties.ApproximateMessagesCount;
         }
 

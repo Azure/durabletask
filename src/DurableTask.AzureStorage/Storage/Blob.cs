@@ -43,12 +43,13 @@ namespace DurableTask.AzureStorage.Storage
             }
 
             string blobString = blobUri.AbsoluteUri;
-            if (blobString.IndexOf(blobString, StringComparison.Ordinal) != 0)
+            if (blobString.IndexOf(serviceString, StringComparison.Ordinal) != 0)
             {
                 throw new ArgumentException("Blob is not present in the storage account", nameof(blobUri));
             }
 
             // Create a relative URI by removing the service's address
+            // ie. <service>/<container>/<blob> -> <container>/<blob>
             string remaining = blobString.Substring(serviceString.Length);
             int containerEnd = remaining.IndexOf('/');
             if (containerEnd == -1)
@@ -93,13 +94,13 @@ namespace DurableTask.AzureStorage.Storage
                 conditions = new BlobRequestConditions { LeaseId = leaseId };
             }
 
-            using var buffer = new MemoryStream(Encoding.UTF8.GetBytes(content));
+            using var buffer = new MemoryStream(Encoding.UTF8.GetBytes(content), writable: false);
             await this.blockBlobClient.UploadAsync(buffer, conditions: conditions, cancellationToken: cancellationToken).DecorateFailure();
         }
 
         public async Task UploadFromByteArrayAsync(byte[] buffer, int index, int byteCount, CancellationToken cancellationToken = default)
         {
-            using var stream = new MemoryStream(buffer, index, byteCount);
+            using var stream = new MemoryStream(buffer, index, byteCount, writable: false);
             await this.blockBlobClient.UploadAsync(stream, cancellationToken: cancellationToken).DecorateFailure();
         }
 
@@ -118,24 +119,38 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task<string> AcquireLeaseAsync(TimeSpan leaseInterval, string leaseId, CancellationToken cancellationToken = default)
         {
-            BlobLease lease = await this.blockBlobClient.GetBlobLeaseClient(leaseId).AcquireAsync(leaseInterval, cancellationToken: cancellationToken).DecorateFailure();
+            BlobLease lease = await this.blockBlobClient
+                .GetBlobLeaseClient(leaseId)
+                .AcquireAsync(leaseInterval, cancellationToken: cancellationToken)
+                .DecorateFailure();
+
             return lease.LeaseId;
         }
 
         public async Task<string> ChangeLeaseAsync(string proposedLeaseId, string currentLeaseId, CancellationToken cancellationToken = default)
         {
-            BlobLease lease = await this.blockBlobClient.GetBlobLeaseClient(currentLeaseId).ChangeAsync(proposedLeaseId, cancellationToken: cancellationToken).DecorateFailure();
+            BlobLease lease = await this.blockBlobClient
+                .GetBlobLeaseClient(currentLeaseId)
+                .ChangeAsync(proposedLeaseId, cancellationToken: cancellationToken)
+                .DecorateFailure();
+
             return lease.LeaseId;
         }
 
         public Task RenewLeaseAsync(string leaseId, CancellationToken cancellationToken = default)
         {
-            return this.blockBlobClient.GetBlobLeaseClient(leaseId).RenewAsync(cancellationToken: cancellationToken).DecorateFailure();
+            return this.blockBlobClient
+                .GetBlobLeaseClient(leaseId)
+                .RenewAsync(cancellationToken: cancellationToken)
+                .DecorateFailure();
         }
 
         public Task ReleaseLeaseAsync(string leaseId, CancellationToken cancellationToken = default)
         {
-            return this.blockBlobClient.GetBlobLeaseClient(leaseId).ReleaseAsync(cancellationToken: cancellationToken).DecorateFailure();
+            return this.blockBlobClient
+                .GetBlobLeaseClient(leaseId)
+                .ReleaseAsync(cancellationToken: cancellationToken)
+                .DecorateFailure();
         }
     }
 }
