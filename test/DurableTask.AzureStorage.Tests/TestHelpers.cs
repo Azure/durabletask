@@ -23,7 +23,6 @@ namespace DurableTask.AzureStorage.Tests
 
     static class TestHelpers
     {
-
         public static TestOrchestrationHost GetTestOrchestrationHost(
             bool enableExtendedSessions,
             int extendedSessionTimeoutInSeconds = 30,
@@ -34,11 +33,11 @@ namespace DurableTask.AzureStorage.Tests
 
             var settings = new AzureStorageOrchestrationServiceSettings
             {
-                StorageConnectionString = storageConnectionString,
-                TaskHubName = GetTestTaskHubName(),
-                ExtendedSessionsEnabled = enableExtendedSessions,
                 ExtendedSessionIdleTimeout = TimeSpan.FromSeconds(extendedSessionTimeoutInSeconds),
+                ExtendedSessionsEnabled = enableExtendedSessions,
                 FetchLargeMessageDataEnabled = fetchLargeMessages,
+                StorageAccountClientProvider = new StorageAccountClientProvider(storageConnectionString),
+                TaskHubName = GetTestTaskHubName(),
 
                 // Setting up a logger factory to enable the new DurableTask.Core logs
                 // TODO: Add a logger provider so we can collect these logs in memory.

@@ -15,7 +15,6 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
 {
     using System;
     using System.Collections.Generic;
-    using System.Text;
     using System.Threading.Tasks;
     using DurableTask.AzureServiceFabric.Exceptions;
     using DurableTask.Core;

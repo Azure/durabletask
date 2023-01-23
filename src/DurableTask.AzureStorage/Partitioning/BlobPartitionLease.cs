@@ -13,24 +13,25 @@
 
 namespace DurableTask.AzureStorage.Partitioning
 {
+    using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Storage;
     using Newtonsoft.Json;
 
-    class BlobLease : Lease
+    class BlobPartitionLease : Lease
     {
-        public BlobLease()
+        public BlobPartitionLease()
             : base()
         {
         }
 
-        public BlobLease(Blob leaseBlob)
+        public BlobPartitionLease(Blob leaseBlob)
             : this()
         {
             this.Blob = leaseBlob;
         }
 
-        public BlobLease(BlobLease source)
+        public BlobPartitionLease(BlobPartitionLease source)
             : base(source)
         {
             this.Blob = source.Blob;
@@ -39,7 +40,9 @@ namespace DurableTask.AzureStorage.Partitioning
         [JsonIgnore]
         public Blob Blob { get; set; }
 
-        [JsonIgnore]
-        public override bool IsExpired => !Blob.IsLeased;
+        public override async Task<bool> IsExpiredAsync(CancellationToken cancellationToken = default)
+        {
+            return !await this.Blob.IsLeasedAsync(cancellationToken);
+        }
     }
 }

@@ -19,10 +19,11 @@ namespace DurableTask.AzureStorage
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using Azure;
+    using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
-    using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using DurableTask.Core.History;
@@ -228,9 +229,9 @@ namespace DurableTask.AzureStorage
             // Terminology:
             // "Local"  -> the instance ID info comes from the local copy of the message we're examining
             // "Remote" -> the instance ID info comes from the Instances table that we're querying
-            IList<OrchestrationState> instances = await this.trackingStore.GetStateAsync(instanceIds);
-            IDictionary<string, OrchestrationState> remoteOrchestrationsById =
-                instances.ToDictionary(o => o.OrchestrationInstance.InstanceId);
+            IAsyncEnumerable<OrchestrationState> instances = this.trackingStore.GetStateAsync(instanceIds, cancellationToken);
+            IDictionary<string, OrchestrationState> remoteOrchestrationsById = 
+                await instances.ToDictionaryAsync(o => o.OrchestrationInstance.InstanceId, cancellationToken);
 
             foreach (MessageData message in executionStartedMessages)
             {
@@ -290,7 +291,7 @@ namespace DurableTask.AzureStorage
                         this.settings.TaskHubName,
                         msg.TaskMessage.Event.EventType.ToString(),
                         Utils.GetTaskEventId(msg.TaskMessage.Event),
-                        msg.OriginalQueueMessage.Id,
+                        msg.OriginalQueueMessage.MessageId,
                         msg.TaskMessage.OrchestrationInstance.InstanceId,
                         msg.TaskMessage.OrchestrationInstance.ExecutionId,
                         controlQueue.Name,
@@ -329,7 +330,7 @@ namespace DurableTask.AzureStorage
             }
 
             QueueMessage queueMessage = msg.OriginalQueueMessage;
-            if (queueMessage.DequeueCount <= 1 || !queueMessage.NextVisibleTime.HasValue)
+            if (queueMessage.DequeueCount <= 1 || !queueMessage.NextVisibleOn.HasValue)
             {
                 // We can't use the initial insert time and instead must rely on a re-insertion time,
                 // which is only available to use after the first dequeue count.
@@ -338,7 +339,7 @@ namespace DurableTask.AzureStorage
 
             // This calculation assumes that the value of ControlQueueVisibilityTimeout did not change
             // in any meaningful way between the time the message was inserted and now.
-            DateTime latestReinsertionTime = queueMessage.NextVisibleTime.Value.Subtract(this.settings.ControlQueueVisibilityTimeout).DateTime;
+            DateTime latestReinsertionTime = queueMessage.NextVisibleOn.Value.Subtract(this.settings.ControlQueueVisibilityTimeout).DateTime;
             return latestReinsertionTime > remoteInstance.CreatedTime;
         }
 
@@ -681,7 +682,7 @@ namespace DurableTask.AzureStorage
                 }
             }
 
-            public string? ETag { get; set; }
+            public ETag? ETag { get; set; }
             public DateTime LastCheckpointTime { get; set; }
         }
     }

@@ -13,15 +13,15 @@
 #nullable enable
 namespace DurableTask.AzureStorage.Storage
 {
-    using System.Collections.Generic;
-    using Microsoft.WindowsAzure.Storage.Table;
+    using System;
+    using Azure.Core.Pipeline;
 
-    class TableResultResponseInfo
+    static class OperationContext
     {
-        public long ElapsedMilliseconds { get; set; }
-
-        public int RequestCount { get; set; }
-
-        public IList<TableResult>? TableResults { get; set; }
+        public static IDisposable CreateClientRequestScope(Guid? clientRequestId = null)
+        {
+            clientRequestId ??= Guid.NewGuid();
+            return HttpPipeline.CreateClientRequestIdScope(clientRequestId.ToString());
+        }
     }
 }

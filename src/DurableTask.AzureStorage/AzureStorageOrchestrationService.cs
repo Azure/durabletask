@@ -22,6 +22,9 @@ namespace DurableTask.AzureStorage
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+    using Azure;
+    using Azure.Storage.Blobs.Models;
+    using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
@@ -31,7 +34,6 @@ namespace DurableTask.AzureStorage
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using DurableTask.Core.Query;
-    using Microsoft.WindowsAzure.Storage;
     using Newtonsoft.Json;
 
     /// <summary>
@@ -40,7 +42,7 @@ namespace DurableTask.AzureStorage
     public sealed class AzureStorageOrchestrationService :
         IOrchestrationService,
         IOrchestrationServiceClient,
-        IDisposable, 
+        IDisposable,
         IOrchestrationServiceQueryClient,
         IOrchestrationServicePurgeClient
     {
@@ -63,7 +65,7 @@ namespace DurableTask.AzureStorage
         readonly ITrackingStore trackingStore;
 
         readonly ResettableLazy<Task> taskHubCreator;
-        readonly BlobLeaseManager leaseManager;
+        readonly BlobPartitionLeaseManager leaseManager;
         readonly AppLeaseManager appLeaseManager;
         readonly OrchestrationSessionManager orchestrationSessionManager;
         readonly IPartitionManager partitionManager;
@@ -206,11 +208,11 @@ namespace DurableTask.AzureStorage
             return queueName;
         }
 
-        internal static BlobLeaseManager GetBlobLeaseManager(
+        internal static BlobPartitionLeaseManager GetBlobLeaseManager(
             AzureStorageClient azureStorageClient,
             string leaseType)
         {
-            return new BlobLeaseManager(
+            return new BlobPartitionLeaseManager(
                 azureStorageClient,
                 leaseContainerName: azureStorageClient.Settings.TaskHubName.ToLowerInvariant() + "-leases",
                 leaseType: leaseType);
@@ -481,21 +483,21 @@ namespace DurableTask.AzureStorage
                 this.stats.ActiveActivityExecutions.Value);
         }
 
-        internal async Task OnIntentLeaseAquiredAsync(BlobLease lease)
+        internal async Task OnIntentLeaseAquiredAsync(BlobPartitionLease lease)
         {
             var controlQueue = new ControlQueue(this.azureStorageClient, lease.PartitionId, this.messageManager);
             await controlQueue.CreateIfNotExistsAsync();
             this.orchestrationSessionManager.ResumeListeningIfOwnQueue(lease.PartitionId, controlQueue, this.shutdownSource.Token);
         }
 
-        internal Task OnIntentLeaseReleasedAsync(BlobLease lease, CloseReason reason)
+        internal Task OnIntentLeaseReleasedAsync(BlobPartitionLease lease, CloseReason reason)
         {
             // Mark the queue as released so it will stop grabbing new messages.
             this.orchestrationSessionManager.ReleaseQueue(lease.PartitionId, reason, "Intent LeaseCollectionBalancer");
             return Utils.CompletedTask;
         }
 
-        internal async Task OnOwnershipLeaseAquiredAsync(BlobLease lease)
+        internal async Task OnOwnershipLeaseAquiredAsync(BlobPartitionLease lease)
         {
             var controlQueue = new ControlQueue(this.azureStorageClient, lease.PartitionId, this.messageManager);
             await controlQueue.CreateIfNotExistsAsync();
@@ -504,16 +506,16 @@ namespace DurableTask.AzureStorage
             this.allControlQueues[lease.PartitionId] = controlQueue;
         }
 
-        internal Task OnOwnershipLeaseReleasedAsync(BlobLease lease, CloseReason reason)
+        internal Task OnOwnershipLeaseReleasedAsync(BlobPartitionLease lease, CloseReason reason)
         {
             this.orchestrationSessionManager.RemoveQueue(lease.PartitionId, reason, "Ownership LeaseCollectionBalancer");
             return Utils.CompletedTask;
         }
 
         // Used for testing
-        internal Task<IEnumerable<BlobLease>> ListBlobLeasesAsync()
+        internal async Task<IEnumerable<BlobPartitionLease>> ListBlobLeasesAsync()
         {
-            return this.partitionManager.GetOwnershipBlobLeases();
+            return await this.partitionManager.GetOwnershipBlobLeases().ToListAsync();
         }
 
         internal static async Task<Queue[]> GetControlQueuesAsync(
@@ -527,7 +529,7 @@ namespace DurableTask.AzureStorage
 
             string taskHub = azureStorageClient.Settings.TaskHubName;
 
-            BlobLeaseManager inactiveLeaseManager = GetBlobLeaseManager(azureStorageClient, "inactive");
+            BlobPartitionLeaseManager inactiveLeaseManager = GetBlobLeaseManager(azureStorageClient, "inactive");
 
             TaskHubInfo hubInfo = await inactiveLeaseManager.GetOrCreateTaskHubInfoAsync(
                 GetTaskHubInfo(taskHub, defaultPartitionCount),
@@ -610,7 +612,7 @@ namespace DurableTask.AzureStorage
                                 session.ControlQueue.Name,
                                 message.TaskMessage.Event.EventType.ToString(),
                                 Utils.GetTaskEventId(message.TaskMessage.Event),
-                                message.OriginalQueueMessage.Id,
+                                message.OriginalQueueMessage.MessageId,
                                 message.Episode.GetValueOrDefault(-1),
                                 session.LastCheckpointTime);
                             outOfOrderMessages.Add(message);
@@ -648,7 +650,7 @@ namespace DurableTask.AzureStorage
                     orchestrationWorkItem = new TaskOrchestrationWorkItem
                     {
                         InstanceId = session.Instance.InstanceId,
-                        LockedUntilUtc = session.CurrentMessageBatch.Min(msg => msg.OriginalQueueMessage.NextVisibleTime.Value.UtcDateTime),
+                        LockedUntilUtc = session.CurrentMessageBatch.Min(msg => msg.OriginalQueueMessage.NextVisibleOn.Value.UtcDateTime),
                         NewMessages = session.CurrentMessageBatch.Select(m => m.TaskMessage).ToList(),
                         OrchestrationRuntimeState = session.RuntimeState,
                         Session = this.settings.ExtendedSessionsEnabled ? session : null,
@@ -900,10 +902,10 @@ namespace DurableTask.AzureStorage
                 Utils.GetTaskEventId(taskMessage.Event),
                 taskMessage.OrchestrationInstance.InstanceId,
                 taskMessage.OrchestrationInstance.ExecutionId,
-                queueMessage.Id,
-                Math.Max(0, (int)DateTimeOffset.UtcNow.Subtract(queueMessage.InsertionTime.Value).TotalMilliseconds),
+                queueMessage.MessageId,
+                Math.Max(0, (int)DateTimeOffset.UtcNow.Subtract(queueMessage.InsertedOn.Value).TotalMilliseconds),
                 queueMessage.DequeueCount,
-                queueMessage.NextVisibleTime.GetValueOrDefault().DateTime.ToString("o"),
+                queueMessage.NextVisibleOn.GetValueOrDefault().DateTime.ToString("o"),
                 data.TotalMessageSizeBytes,
                 data.QueueName /* PartitionId */,
                 data.SequenceNumber,
@@ -1066,26 +1068,23 @@ namespace DurableTask.AzureStorage
                     this.orchestrationSessionManager.AddMessageToPendingOrchestration(session.ControlQueue, messages, session.TraceActivityId, CancellationToken.None);
                 }
             }
-            catch (Exception e)
+            catch (RequestFailedException rfe) when (rfe.Status == (int)HttpStatusCode.PreconditionFailed)
             {
                 // Precondition failure is expected to be handled internally and logged as a warning.
-                if ((e as StorageException)?.RequestInformation?.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
-                {
-                    // The orchestration dispatcher will handle this exception by abandoning the work item
-                    throw new SessionAbortedException();
-                }
-                else
-                {
-                    // TODO: https://github.com/Azure/azure-functions-durable-extension/issues/332
-                    //       It's possible that history updates may have been partially committed at this point.
-                    //       If so, what are the implications of this as far as DurableTask.Core are concerned?
-                    this.settings.Logger.OrchestrationProcessingFailure(
-                        this.azureStorageClient.TableAccountName,
-                        this.settings.TaskHubName,
-                        instanceId,
-                        executionId,
-                        e.ToString());
-                }
+                // The orchestration dispatcher will handle this exception by abandoning the work item
+                throw new SessionAbortedException("Aborting execution due to failed precondition.", rfe);
+            }
+            catch (Exception e)
+            {
+                // TODO: https://github.com/Azure/azure-functions-durable-extension/issues/332
+                //       It's possible that history updates may have been partially committed at this point.
+                //       If so, what are the implications of this as far as DurableTask.Core are concerned?
+                this.settings.Logger.OrchestrationProcessingFailure(
+                    this.azureStorageClient.TableAccountName,
+                    this.settings.TaskHubName,
+                    instanceId,
+                    executionId,
+                    e.ToString());
 
                 throw;
             }
@@ -1401,7 +1400,7 @@ namespace DurableTask.AzureStorage
                 {
                     Id = message.Id,
                     TaskMessage = session.MessageData.TaskMessage,
-                    LockedUntilUtc = message.OriginalQueueMessage.NextVisibleTime.Value.UtcDateTime,
+                    LockedUntilUtc = message.OriginalQueueMessage.NextVisibleOn.Value.UtcDateTime,
 
                     TraceContextBase = requestTraceContext
                 };
@@ -1649,7 +1648,10 @@ namespace DurableTask.AzureStorage
         {
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
-            return await this.trackingStore.GetStateAsync(instanceId, allExecutions, fetchInput: true);
+            return new OrchestrationState[]
+            {
+                await this.trackingStore.GetStateAsync(instanceId, allExecutions, fetchInput: true).FirstOrDefaultAsync(),
+            };
         }
 
         /// <summary>
@@ -1677,7 +1679,7 @@ namespace DurableTask.AzureStorage
         {
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
-            return await this.trackingStore.GetStateAsync(instanceId, allExecutions, fetchInput);
+            return await this.trackingStore.GetStateAsync(instanceId, allExecutions, fetchInput).ToListAsync();
         }
 
         /// <summary>
@@ -1687,7 +1689,7 @@ namespace DurableTask.AzureStorage
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(CancellationToken cancellationToken = default(CancellationToken))
         {
             await this.EnsureTaskHubAsync();
-            return await this.trackingStore.GetStateAsync(cancellationToken);
+            return await this.trackingStore.GetStateAsync(cancellationToken).ToListAsync();
         }
 
         /// <summary>
@@ -1701,7 +1703,7 @@ namespace DurableTask.AzureStorage
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default(CancellationToken))
         {
             await this.EnsureTaskHubAsync();
-            return await this.trackingStore.GetStateAsync(createdTimeFrom, createdTimeTo, runtimeStatus, cancellationToken);
+            return await this.trackingStore.GetStateAsync(createdTimeFrom, createdTimeTo, runtimeStatus, cancellationToken).ToListAsync();
         }
 
         /// <summary>
@@ -1717,7 +1719,14 @@ namespace DurableTask.AzureStorage
         public async Task<DurableStatusQueryResult> GetOrchestrationStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken))
         {
             await this.EnsureTaskHubAsync();
-            return await this.trackingStore.GetStateAsync(createdTimeFrom, createdTimeTo, runtimeStatus, top, continuationToken, cancellationToken);
+            Page<OrchestrationState> page = await this.trackingStore
+                .GetStateAsync(createdTimeFrom, createdTimeTo, runtimeStatus, cancellationToken)
+                .AsPages(continuationToken, top)
+                .FirstOrDefaultAsync();
+
+            return page != null
+                ? new DurableStatusQueryResult { ContinuationToken = page.ContinuationToken, OrchestrationState = page.Values }
+                : new DurableStatusQueryResult { OrchestrationState = Array.Empty<OrchestrationState>() };
         }
 
         /// <summary>
@@ -1731,7 +1740,14 @@ namespace DurableTask.AzureStorage
         public async Task<DurableStatusQueryResult> GetOrchestrationStateAsync(OrchestrationInstanceStatusQueryCondition condition, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken))
         {
             await this.EnsureTaskHubAsync();
-            return await this.trackingStore.GetStateAsync(condition, top, continuationToken, cancellationToken);
+            Page<OrchestrationState> page = await this.trackingStore
+                .GetStateAsync(condition, cancellationToken)
+                .AsPages(continuationToken, top)
+                .FirstOrDefaultAsync();
+
+            return page != null
+                ? new DurableStatusQueryResult { ContinuationToken = page.ContinuationToken, OrchestrationState = page.Values }
+                : new DurableStatusQueryResult { OrchestrationState = Array.Empty<OrchestrationState>() };
         }
 
         /// <summary>
@@ -1757,7 +1773,7 @@ namespace DurableTask.AzureStorage
         /// <param name="reason">The reason for rewinding.</param>
         public async Task RewindTaskOrchestrationAsync(string instanceId, string reason)
         {
-            var queueIds = await this.trackingStore.RewindHistoryAsync(instanceId, new List<string>(), default(CancellationToken));
+            List<string> queueIds = await this.trackingStore.RewindHistoryAsync(instanceId).ToListAsync();
 
             foreach (string id in queueIds)
             {
@@ -1977,16 +1993,6 @@ namespace DurableTask.AzureStorage
             }
 
             return new OrchestrationQueryResult(results, statusContext.ContinuationToken);
-        }
-
-        class PendingMessageBatch
-        {
-            public string OrchestrationInstanceId { get; set; }
-            public string OrchestrationExecutionId { get; set; }
-
-            public List<MessageData> Messages { get; set; } = new List<MessageData>();
-
-            public OrchestrationRuntimeState Orchestrationstate { get; set; }
         }
 
         class ResettableLazy<T>

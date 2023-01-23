@@ -15,6 +15,7 @@ namespace DurableTask.AzureStorage.Tracking
 {
     using System;
     using System.Collections.Generic;
+    using Azure;
     using DurableTask.Core.History;
 
     class OrchestrationHistory
@@ -29,7 +30,7 @@ namespace DurableTask.AzureStorage.Tracking
         {
         }
 
-        public OrchestrationHistory(IList<HistoryEvent> historyEvents, DateTime lastCheckpointTime, string eTag)
+        public OrchestrationHistory(IList<HistoryEvent> historyEvents, DateTime lastCheckpointTime, ETag? eTag)
         {
             this.Events = historyEvents ?? throw new ArgumentNullException(nameof(historyEvents));
             this.LastCheckpointTime = lastCheckpointTime;
@@ -38,7 +39,7 @@ namespace DurableTask.AzureStorage.Tracking
 
         public IList<HistoryEvent> Events { get; }
 
-        public string ETag { get; }
+        public ETag? ETag { get; }
 
         public DateTime LastCheckpointTime { get; }
     }

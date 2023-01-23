@@ -14,30 +14,31 @@
 namespace DurableTask.AzureStorage.Partitioning
 {
     using System.Collections.Generic;
+    using System.Threading;
     using System.Threading.Tasks;
 
     interface ILeaseManager<T> where T : Lease
     {
-        Task<bool> LeaseStoreExistsAsync();
+        Task<bool> LeaseStoreExistsAsync(CancellationToken cancellationToken = default);
 
-        Task<bool> CreateLeaseStoreIfNotExistsAsync(TaskHubInfo eventHubInfo, bool checkIfStale = true);
+        Task<bool> CreateLeaseStoreIfNotExistsAsync(TaskHubInfo eventHubInfo, bool checkIfStale = true, CancellationToken cancellationToken = default);
 
-        Task<IEnumerable<T>> ListLeasesAsync();
+        IAsyncEnumerable<T> ListLeasesAsync(CancellationToken cancellationToken = default);
 
-        Task CreateLeaseIfNotExistAsync(string partitionId);
+        Task CreateLeaseIfNotExistAsync(string partitionId, CancellationToken cancellationToken = default);
 
-        Task<T> GetLeaseAsync(string partitionId);
+        Task<T> GetLeaseAsync(string partitionId, CancellationToken cancellationToken = default);
 
-        Task<bool> RenewAsync(T lease);
+        Task<bool> RenewAsync(T lease, CancellationToken cancellationToken = default);
 
-        Task<bool> AcquireAsync(T lease, string owner);
+        Task<bool> AcquireAsync(T lease, string owner, CancellationToken cancellationToken = default);
 
-        Task<bool> ReleaseAsync(T lease);
+        Task<bool> ReleaseAsync(T lease, CancellationToken cancellationToken = default);
 
-        Task DeleteAsync(T lease);
+        Task DeleteAsync(T lease, CancellationToken cancellationToken = default);
 
-        Task DeleteAllAsync();
+        Task DeleteAllAsync(CancellationToken cancellationToken = default);
 
-        Task<bool> UpdateAsync(T lease);
+        Task<bool> UpdateAsync(T lease, CancellationToken cancellationToken = default);
     }
 }

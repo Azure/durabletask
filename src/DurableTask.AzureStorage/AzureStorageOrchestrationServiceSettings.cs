@@ -10,18 +10,16 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.AzureStorage
 {
     using System;
-    using DurableTask.AzureStorage.Partitioning;
+    using System.Runtime.Serialization;
+    using Azure.Data.Tables;
     using DurableTask.AzureStorage.Logging;
+    using DurableTask.AzureStorage.Partitioning;
     using DurableTask.Core;
     using Microsoft.Extensions.Logging;
-    using Microsoft.WindowsAzure.Storage.Queue;
-    using Microsoft.WindowsAzure.Storage.Table;
-    using System.Runtime.Serialization;
-    using System.Threading.Tasks;
 
     /// <summary>
     /// Settings that impact the runtime behavior of the <see cref="AzureStorageOrchestrationService"/>.
@@ -32,7 +30,7 @@ namespace DurableTask.AzureStorage
 
         internal static readonly TimeSpan DefaultMaxQueuePollingInterval = TimeSpan.FromSeconds(30);
 
-        LogHelper logHelper;
+        LogHelper? logHelper;
 
         /// <summary>
         /// Gets or sets the name of the app.
@@ -57,41 +55,17 @@ namespace DurableTask.AzureStorage
         public TimeSpan ControlQueueVisibilityTimeout { get; set; } = TimeSpan.FromMinutes(5);
 
         /// <summary>
-        /// Gets or sets the <see cref="QueueRequestOptions"/> that are provided to all internal 
-        /// usage of <see cref="CloudQueue"/> APIs for the control queue.
-        /// </summary>
-        [Obsolete("ControlQueueRequestOptions is deprecated. If you still need to configure QueueRequestOptions please open an issue at https://github.com/Azure/durabletask with the specific configurations options you need.")]
-        public QueueRequestOptions ControlQueueRequestOptions { get; set; }
-
-        /// <summary>
         /// Gets or sets the visibility timeout of dequeued work item queue messages. The default is 5 minutes.
         /// </summary>
         public TimeSpan WorkItemQueueVisibilityTimeout { get; set; } = TimeSpan.FromMinutes(5);
 
         /// <summary>
-        /// Gets or sets the <see cref="QueueRequestOptions"/> that are provided to all internal 
-        /// usage of <see cref="CloudQueue"/> APIs for the work item queue.
-        /// </summary>
-        [Obsolete("WorkItemQueueRequestOptions is deprecated. If you still need to configure QueueRequestOptions please open an issue at https://github.com/Azure/durabletask with the specific configurations options you need.")]
-        public QueueRequestOptions WorkItemQueueRequestOptions { get; set; }
-
-        /// <summary>
-        /// Gets or sets the <see cref="TableRequestOptions"/> that are provided to all internal
-        /// usage of the <see cref="CloudTable"/> APIs for the history table.
-        /// </summary>
-        [Obsolete("HistoryTableRequestOptions is deprecated. If you still need to configure TableRequestOptions please open an issue at https://github.com/Azure/durabletask with the specific configurations options you need.")]
-        public TableRequestOptions HistoryTableRequestOptions { get; set; }
-
-        /// <summary>
-        /// Gets or sets the Azure Storage connection string.
-        /// </summary>
-        public string StorageConnectionString { get; set; }
-
-        /// <summary>
         /// Gets or sets the prefix of the TrackingStore table name.
-        /// This property is only used when we have TrackingStoreStorageAccountDetails.
-        /// The default is "DurableTask"
         /// </summary>
+        /// <remarks>
+        /// This property is only used when the value of the property <see cref="TrackingServiceClientProvider"/>
+        /// is not <see langword="null"/>. The default is <c>"DurableTask"</c>.
+        /// </remarks>
         public string TrackingStoreNamePrefix { get; set; } = "DurableTask";
 
         /// <summary>
@@ -181,17 +155,19 @@ namespace DurableTask.AzureStorage
         public AppLeaseOptions AppLeaseOptions { get; set; } = AppLeaseOptions.DefaultOptions;
 
         /// <summary>
-        /// Gets or sets the Azure Storage Account details
-        /// If provided, this is used to connect to Azure Storage
+        /// Gets or sets the client provider for the Azure Storage Account services used by the Durable Task Framework.
         /// </summary>
-        public StorageAccountDetails StorageAccountDetails { get; set; }
+        public StorageAccountClientProvider? StorageAccountClientProvider { get; set; }
 
         /// <summary>
-        /// Gets or sets the Storage Account Details for Tracking Store.
-        /// In case of null, StorageAccountDetails is applied. 
+        /// Gets or sets the storage provider for Azure Table Storage, which is used for the Tracking Store
+        /// that records the progress of orchestrations and entities.
         /// </summary>
-        public StorageAccountDetails TrackingStoreStorageAccountDetails { get; set; }
-        
+        /// <remarks>
+        /// If the value is <see langword="null"/>, then the <see cref="StorageAccountClientProvider"/> is used instead.
+        /// </remarks>
+        public IStorageServiceClientProvider<TableServiceClient, TableClientOptions>? TrackingServiceClientProvider { get; set; }
+
         /// <summary>
         ///  Should we carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
         /// </summary>
@@ -224,36 +200,9 @@ namespace DurableTask.AzureStorage
         public bool DisableExecutionStartedDeduplication { get; set; }
 
         /// <summary>
-        /// Gets or sets an optional function to be executed before the app is recycled. Reason for shutdown is passed as a string parameter.
-        /// This can be used to perform any pending cleanup tasks or just do a graceful shutdown.
-        /// The function returns a <see cref="bool"/>. If 'true' is returned <see cref="Environment.FailFast(string)"/> is executed, if 'false' is returned,
-        /// process kill is skipped.
-        /// A wait time of 35 seconds will be given for the task to finish, if the task does not finish in required time, <see cref="Environment.FailFast(string)"/> will be executed.
+        /// Returns bool indicating is the <see cref="TrackingServiceClientProvider"/> has been set.
         /// </summary>
-        /// <remarks>Skipping process kill by returning false might have negative consequences if since Storage SDK might be in deadlock. Ensure if you return
-        /// false a process shutdown is executed by you.</remarks>
-        public Func<string, Task<bool>> OnImminentFailFast { get; set; } = (message) => Task.FromResult(true);
-
-        /// <summary>
-        /// Gets or sets the  number of times we allow the timeout to be hit before recycling the app. We set this
-        /// to a fixed value to prevent building up an infinite number of deadlocked tasks and leak resources.
-        /// </summary>
-        public int MaxNumberOfTimeoutsBeforeRecycle { get; set; } = 5;
-
-        /// <summary>
-        /// Gets or sets the number of seconds before a request to Azure Storage is considered as timed out.
-        /// </summary>
-        public TimeSpan StorageRequestsTimeout { get; set; } = TimeSpan.FromMinutes(2);
-
-        /// <summary>
-        /// Gets or sets the window duration (in seconds) in which we count the number of timed out request before recycling the app.
-        /// </summary>
-        public TimeSpan StorageRequestsTimeoutCooldown { get; set; } = TimeSpan.FromMinutes(5);
-
-        /// <summary>
-        /// Returns bool indicating is the TrackingStoreStorageAccount has been set.
-        /// </summary>
-        public bool HasTrackingStoreStorageAccount => this.TrackingStoreStorageAccountDetails != null;
+        public bool HasTrackingStoreStorageAccount => this.TrackingServiceClientProvider != null;
 
         internal string HistoryTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}History" : $"{this.TaskHubName}History";
 

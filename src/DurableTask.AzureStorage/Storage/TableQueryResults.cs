@@ -10,27 +10,27 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
-using System;
-using Azure;
-using DurableTask.Core;
-
-namespace DurableTask.AzureStorage.Tracking
+#nullable enable
+namespace DurableTask.AzureStorage.Storage
 {
-    class InstanceStatus
-    {
-        public InstanceStatus(OrchestrationState state)
-            : this(state, null)
-        { }
+    using System;
+    using System.Collections.Generic;
 
-        public InstanceStatus(OrchestrationState state, ETag? eTag)
+    sealed class TableQueryResults<T>
+    {
+        public TableQueryResults(IReadOnlyList<T> entities, TimeSpan elapsed, int requestCount)
         {
-            this.State = state ?? throw new ArgumentNullException(nameof(state));
-            this.ETag = eTag ?? ETag.All;
+            this.Entities = entities ?? throw new ArgumentNullException(nameof(entities));
+            this.Elapsed = elapsed;
+            this.RequestCount = requestCount;
         }
 
-        public OrchestrationState State { get; }
+        public IReadOnlyList<T> Entities { get; }
 
-        public ETag ETag { get; }
+        public TimeSpan Elapsed { get; }
+
+        public int ElapsedMilliseconds => (int)this.Elapsed.TotalMilliseconds;
+
+        public int RequestCount { get; }
     }
 }

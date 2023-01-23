@@ -14,12 +14,13 @@
 namespace DurableTask.AzureStorage
 {
     using System;
-    using Microsoft.WindowsAzure.Storage.Table;
+    using Azure;
+    using Azure.Data.Tables;
 
     /// <summary>
     /// Table Entity Representation of an Orchestration Instance's Status
     /// </summary>
-    class OrchestrationInstanceStatus : TableEntity
+    class OrchestrationInstanceStatus : ITableEntity
     {
         public string ExecutionId { get; set; }
         public string Name { get; set; }
@@ -33,5 +34,9 @@ namespace DurableTask.AzureStorage
         public string RuntimeStatus { get; set; }
         public DateTime? ScheduledStartTime { get; set; }
         public int Generation { get; set; }
+        public string PartitionKey { get; set; }
+        public string RowKey { get; set; }
+        public DateTimeOffset? Timestamp { get; set; }
+        public ETag ETag { get; set; }
     }
 }
