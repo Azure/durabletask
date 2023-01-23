@@ -212,23 +212,6 @@ namespace DurableTask.Core.Tracing
             return newActivity;
         }
 
-        internal static Activity? CreateActivityForFireAndForgetSubOrchestration(SubOrchestrationInstanceCreatedEvent createdEvent, OrchestrationInstance instance, Activity parentActivity)
-        {
-            Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: createdEvent.Name,
-                kind: ActivityKind.Producer,
-                parentContext: parentActivity.Context);
-
-            if (newActivity != null)
-            {
-                newActivity.SetTag("dtfx.type", "orchestration");
-                newActivity.SetTag("dtfx.instance_id", instance.InstanceId);
-                newActivity.SetTag("dtfx.execution_id", instance.ExecutionId);
-            }
-
-            return newActivity;
-        }
-
         internal static Activity? CreateActivityForTimer(OrchestrationInstance instance, DateTime startTime, DateTime fireAt)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
