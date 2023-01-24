@@ -154,7 +154,7 @@ namespace DurableTask.Core.Tracing
         /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
         /// </returns>
         internal static Activity? StartTraceActivityForSubOrchestrationFinished(
-            OrchestrationInstance orchestrationInstance,
+            OrchestrationInstance? orchestrationInstance,
             SubOrchestrationInstanceCreatedEvent createdEvent,
             bool subOrchestrationFailed = false)
         {
@@ -175,8 +175,8 @@ namespace DurableTask.Core.Tracing
             }
 
             activity.SetTag("dtfx.type", "orchestrator");
-            activity.SetTag("dtfx.instance_id", orchestrationInstance.InstanceId);
-            activity.SetTag("dtfx.execution_id", orchestrationInstance.ExecutionId);
+            activity.SetTag("dtfx.instance_id", orchestrationInstance?.InstanceId);
+            activity.SetTag("dtfx.execution_id", orchestrationInstance?.ExecutionId);
 
             // Adding additional tags for a SubOrchestrationInstanceFailedEvent
             if (subOrchestrationFailed)
@@ -203,7 +203,7 @@ namespace DurableTask.Core.Tracing
             return newActivity;
         }
 
-        internal static Activity? CreateActivityForTimer(OrchestrationInstance instance, DateTime startTime, DateTime fireAt)
+        internal static Activity? CreateActivityForTimer(OrchestrationInstance? instance, DateTime startTime, DateTime fireAt)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 name: "Timer",
@@ -214,8 +214,8 @@ namespace DurableTask.Core.Tracing
             if (newActivity is not null)
             {
                 newActivity.AddTag("dtfx.type", "timer");
-                newActivity.AddTag("dtfx.instance_id", instance.InstanceId);
-                newActivity.AddTag("dtfx.execution_id", instance.ExecutionId);
+                newActivity.AddTag("dtfx.instance_id", instance?.InstanceId);
+                newActivity.AddTag("dtfx.execution_id", instance?.ExecutionId);
                 newActivity.AddTag("dtfx.fire_at", fireAt.ToString("o"));
             }
 
@@ -232,7 +232,7 @@ namespace DurableTask.Core.Tracing
         /// </returns>
         internal static Activity? StartTraceActivityForEventRaised(
             EventRaisedEvent eventRaisedEvent,
-            OrchestrationInstance instance)
+            OrchestrationInstance? instance)
         {
             return ActivityTraceSource.StartActivity(
                 name: eventRaisedEvent.Name,
@@ -241,8 +241,8 @@ namespace DurableTask.Core.Tracing
                 tags: new KeyValuePair<string, object?>[]
                 {
                     new("dtfx.type", "externalevent"),
-                    new("dtfx.instance_id", instance.InstanceId),
-                    new("dtfx.execution_id", instance.ExecutionId)
+                    new("dtfx.instance_id", instance?.InstanceId),
+                    new("dtfx.execution_id", instance?.ExecutionId)
                 });
         }
 

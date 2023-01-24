@@ -14,10 +14,14 @@
 namespace DurableTask.Core
 {
     using System;
+    using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Linq;
     using System.Reflection;
+    using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.Core.Exceptions;
     using DurableTask.Core.Logging;
     using DurableTask.Core.Middleware;
     using Microsoft.Extensions.Logging;
@@ -124,6 +128,23 @@ namespace DurableTask.Core
         public TaskActivityDispatcher TaskActivityDispatcher => this.activityDispatcher;
 
         /// <summary>
+        /// Gets or sets the error propagation behavior when an activity or orchestration fails with an unhandled exception.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Use caution when making changes to this property over the lifetime of an application. In-flight orchestrations
+        /// could fail unexpectedly if there is any logic that depends on a particular behavior of exception propagation.
+        /// For example, setting <see cref="ErrorPropagationMode.UseFailureDetails"/> causes
+        /// <see cref="OrchestrationException.FailureDetails"/> to be populated in <see cref="TaskFailedException"/> and
+        /// <see cref="SubOrchestrationFailedException"/> but also causes the <see cref="Exception.InnerException"/> 
+        /// property to be <c>null</c> for these exception types.
+        /// </para><para>
+        /// This property must be set before the worker is started. Otherwise it will have no effect.
+        /// </para>
+        /// </remarks>
+        public ErrorPropagationMode ErrorPropagationMode { get; set; }
+
+        /// <summary>
         /// Adds a middleware delegate to the orchestration dispatch pipeline.
         /// </summary>
         /// <param name="middleware">Delegate to invoke whenever a message is dispatched to an orchestration.</param>
@@ -162,12 +183,14 @@ namespace DurableTask.Core
                     this.orchestrationService,
                     this.orchestrationManager,
                     this.orchestrationDispatchPipeline,
-                    this.logHelper);
+                    this.logHelper,
+                    this.ErrorPropagationMode);
                 this.activityDispatcher = new TaskActivityDispatcher(
                     this.orchestrationService,
                     this.activityManager,
                     this.activityDispatchPipeline,
-                    this.logHelper);
+                    this.logHelper,
+                    this.ErrorPropagationMode);
 
                 await this.orchestrationService.StartAsync();
                 await this.orchestrationDispatcher.StartAsync();
@@ -333,10 +356,31 @@ namespace DurableTask.Core
         /// </param>
         public TaskHubWorker AddTaskActivitiesFromInterface<T>(T activities, bool useFullyQualifiedMethodNames)
         {
-            Type @interface = typeof(T);
+            return this.AddTaskActivitiesFromInterface(typeof(T), activities, useFullyQualifiedMethodNames);
+        }
+
+        /// <summary>
+        ///     Infers and adds every method in the specified interface T on the
+        ///     passed in object as a different TaskActivity with Name set to the method name
+        ///     and version set to an empty string. Methods can then be invoked from task orchestrations
+        ///     by calling ScheduleTask(name, version) with name as the method name and string.Empty as the version.
+        /// </summary>
+        /// <param name="interface">Interface type.</param>
+        /// <param name="activities">Object that implements the <paramref name="interface"/> interface</param>
+        /// <param name="useFullyQualifiedMethodNames">
+        ///     If true, the method name translation from the interface contains
+        ///     the interface name, if false then only the method name is used
+        /// </param>
+        public TaskHubWorker AddTaskActivitiesFromInterface(Type @interface, object activities, bool useFullyQualifiedMethodNames = false)
+        {
             if (!@interface.IsInterface)
             {
                 throw new Exception("Contract can only be an interface.");
+            }
+
+            if (!@interface.IsAssignableFrom(activities.GetType()))
+            {
+                throw new ArgumentException($"{activities.GetType().FullName} does not implement {@interface.FullName}", nameof(activities));
             }
 
             foreach (MethodInfo methodInfo in @interface.GetMethods())
@@ -346,6 +390,91 @@ namespace DurableTask.Core
                     new NameValueObjectCreator<TaskActivity>(
                         NameVersionHelper.GetDefaultName(methodInfo, useFullyQualifiedMethodNames),
                         NameVersionHelper.GetDefaultVersion(methodInfo), taskActivity);
+                this.activityManager.Add(creator);
+            }
+
+            return this;
+        }
+
+        /// <summary>
+        ///     Infers and adds every method in the specified interface or class T on the
+        ///     passed in object as a different TaskActivity with Name set to the method name
+        ///     and version set to an empty string. Methods can then be invoked from task orchestrations
+        ///     by calling ScheduleTask(name, version) with name as the method name and string.Empty as the version.
+        /// </summary>
+        /// <typeparam name="T">The interface or non-sealed class type.</typeparam>
+        /// <param name="activities">Object that implements or inherits <typeparamref name="T"/>.</param>
+        /// <param name="useFullyQualifiedMethodNames">
+        ///     If true, the method name translation from the interface contains
+        ///     the interface name, if false then only the method name is used
+        /// </param>
+        /// <param name="includeInternalMethods">A flag indicating whether internal methods from the custom type should be included.</param>
+        /// <remarks>
+        ///  If <paramref name="includeInternalMethods"/> is set to true,
+        ///  <see cref="System.Runtime.CompilerServices.InternalsVisibleToAttribute"/> must be set on the assembly containing
+        ///  the <typeparamref name="T"/> for 'DynamicProxyGenAssembly2' assembly.
+        /// </remarks>
+        public TaskHubWorker AddTaskActivitiesFromInterfaceOrClass<T>(object activities, bool useFullyQualifiedMethodNames = false, bool includeInternalMethods = false)
+        {
+            return this.AddTaskActivitiesFromInterfaceOrClass(typeof(T), activities, useFullyQualifiedMethodNames, includeInternalMethods);
+        }
+
+        /// <summary>
+        ///     Infers and adds every method in the specified interface or class T on the
+        ///     passed in object as a different TaskActivity with Name set to the method name
+        ///     and version set to an empty string. Methods can then be invoked from task orchestrations
+        ///     by calling ScheduleTask(name, version) with name as the method name and string.Empty as the version.
+        /// </summary>
+        /// <param name="interfaceOrClass">The interface or non-sealed class type.</param>
+        /// <param name="activities">Object that implements or inherits the <paramref name="interfaceOrClass"/>.</param>
+        /// <param name="useFullyQualifiedMethodNames">
+        ///     If true, the method name translation from the interface contains
+        ///     the interface name, if false then only the method name is used
+        /// </param>
+        /// <param name="includeInternalMethods">A flag indicating whether internal methods from the custom type should be included.</param>
+        /// <remarks>
+        ///  If <paramref name="includeInternalMethods"/> is set to true,
+        ///  <see cref="System.Runtime.CompilerServices.InternalsVisibleToAttribute"/> must be set on the assembly containing
+        ///  the <paramref name="interfaceOrClass"/> for 'DynamicProxyGenAssembly2' assembly.
+        /// </remarks>
+        public TaskHubWorker AddTaskActivitiesFromInterfaceOrClass(Type interfaceOrClass, object activities, bool useFullyQualifiedMethodNames = false, bool includeInternalMethods = false)
+        {
+            if (interfaceOrClass.IsClass && interfaceOrClass.IsSealed)
+            {
+                throw new ArgumentException("Custom type cannot be a sealed class.");
+            }
+
+            if (!interfaceOrClass.IsInterface && !interfaceOrClass.IsClass)
+            {
+                throw new ArgumentException("Custom type must be an interface or non-sealed class.");
+            }
+
+            if (!interfaceOrClass.IsAssignableFrom(activities.GetType()))
+            {
+                throw new ArgumentException($"{activities.GetType().FullName} does not implement {interfaceOrClass.FullName}", nameof(activities));
+            }
+
+            if (includeInternalMethods && !interfaceOrClass.Assembly.GetCustomAttributes<InternalsVisibleToAttribute>().Where(attribute => string.Equals(attribute.AssemblyName, "DynamicProxyGenAssembly2")).Any())
+            {
+                throw new InvalidOperationException(
+                    $"'{nameof(InternalsVisibleToAttribute)}' must be defined on assembly '{interfaceOrClass.Assembly.FullName}' when '{nameof(includeInternalMethods)}' is set to true.");
+            }
+
+            IEnumerable<MethodInfo> methods = includeInternalMethods switch
+            {
+                true => interfaceOrClass.GetMethods(BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic).Where(m => !m.IsFamily),
+                false => interfaceOrClass.GetMethods(BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Instance),
+            };
+
+            foreach (MethodInfo methodInfo in methods)
+            {
+                TaskActivity taskActivity = new ReflectionBasedTaskActivity(activities, methodInfo);
+                ObjectCreator<TaskActivity> creator =
+                    new NameValueObjectCreator<TaskActivity>(
+                        NameVersionHelper.GetDefaultName(methodInfo, useFullyQualifiedMethodNames),
+                        NameVersionHelper.GetDefaultVersion(methodInfo),
+                        taskActivity);
+
                 this.activityManager.Add(creator);
             }
 

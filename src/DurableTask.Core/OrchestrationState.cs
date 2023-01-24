@@ -108,10 +108,22 @@ namespace DurableTask.Core
         public string Version;
 
         /// <summary>
+        /// The orchestration generation. Reused instanceIds will increment this value.
+        /// </summary>
+        [DataMember]
+        public int? Generation;
+
+        /// <summary>
         /// Gets or sets date to start the orchestration
         /// </summary>
         [DataMember]
         public DateTime? ScheduledStartTime { get; set; }
+
+        /// <summary>
+        /// Gets or sets failure details associated with the orchestration.
+        /// </summary>
+        [DataMember]
+        public FailureDetails FailureDetails { get; set; }
 
         /// <summary>
         /// Clear input and/or output fields. Creates a shallow copy since
@@ -138,6 +150,7 @@ namespace DurableTask.Core
                 if (clearOutput)
                 {
                     copy.Output = null;
+                    copy.FailureDetails = null;
                 }
 
                 return copy;

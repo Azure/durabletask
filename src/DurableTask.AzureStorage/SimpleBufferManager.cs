@@ -26,6 +26,7 @@ namespace DurableTask.AzureStorage
     {
         internal const int MaxBufferSize = 1024 * 1024; //  1 MB
         const int DefaultBufferSize = 64 * 1024;        // 64 KB
+        public const int SmallBufferSize = 1024;        //  1 KB
 
         /// <summary>
         /// Shared singleton instance of <see cref="SimpleBufferManager"/>.

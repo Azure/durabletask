@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core.History
 {
     using System;
@@ -25,7 +25,7 @@ namespace DurableTask.Core.History
     [KnownType(nameof(KnownTypes))]
     public abstract class HistoryEvent : IExtensibleDataObject
     {
-        private static IReadOnlyCollection<Type> knownTypes;
+        private static IReadOnlyCollection<Type>? knownTypes;
 
         /// <summary>
         /// List of all event classes, for use by the DataContractSerializer
@@ -52,7 +52,6 @@ namespace DurableTask.Core.History
         /// </summary>
         internal HistoryEvent()
         {
-            IsPlayed = false;
             Timestamp = DateTime.UtcNow;
         }
 
@@ -63,7 +62,6 @@ namespace DurableTask.Core.History
         protected HistoryEvent(int eventId)
         {
             EventId = eventId;
-            IsPlayed = false;
             Timestamp = DateTime.UtcNow;
         }
 
@@ -94,7 +92,6 @@ namespace DurableTask.Core.History
         /// <summary>
         /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
         /// </summary>
-        public ExtensionDataObject ExtensionData { get; set; }
-
+        public ExtensionDataObject? ExtensionData { get; set; }
     }
 }

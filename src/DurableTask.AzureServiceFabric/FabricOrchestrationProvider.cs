@@ -15,9 +15,9 @@ namespace DurableTask.AzureServiceFabric
 {
     using System;
     using System.Threading;
-
-    using DurableTask.Core;
     using DurableTask.AzureServiceFabric.Stores;
+    using DurableTask.Core;
+    using DurableTask.Core.Query;
     using Microsoft.ServiceFabric.Data;
 
     /// <summary>
@@ -34,7 +34,6 @@ namespace DurableTask.AzureServiceFabric
     {
         readonly FabricOrchestrationService orchestrationService;
         readonly FabricOrchestrationServiceClient orchestrationClient;
-        readonly FabricProviderClient fabricProviderClient;
         readonly CancellationTokenSource cancellationTokenSource;
 
         internal FabricOrchestrationProvider(IReliableStateManager stateManager, FabricOrchestrationProviderSettings settings)
@@ -44,7 +43,6 @@ namespace DurableTask.AzureServiceFabric
             var instanceStore = new FabricOrchestrationInstanceStore(stateManager, cancellationTokenSource.Token);
             this.orchestrationService = new FabricOrchestrationService(stateManager, sessionProvider, instanceStore, settings, cancellationTokenSource);
             this.orchestrationClient = new FabricOrchestrationServiceClient(stateManager, sessionProvider, instanceStore);
-            this.fabricProviderClient = new FabricProviderClient(stateManager, sessionProvider);
         }
 
         /// <summary>
@@ -63,6 +61,18 @@ namespace DurableTask.AzureServiceFabric
         /// <see cref="IOrchestrationServiceClient"/> instance that can be used for constructing <see cref="TaskHubClient"/>.
         /// </summary>
         public IOrchestrationServiceClient OrchestrationServiceClient
+        {
+            get
+            {
+                EnsureValidInstance();
+                return this.orchestrationClient;
+            }
+        }
+
+        /// <summary>
+        /// <see cref="IFabricProviderClient"/> instance that can be used for debugging />.
+        /// </summary>
+        public IFabricProviderClient FabricProviderClient
         {
             get
             {

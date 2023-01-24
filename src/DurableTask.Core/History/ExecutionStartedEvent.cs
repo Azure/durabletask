@@ -102,6 +102,12 @@ namespace DurableTask.Core.History
         [DataMember]
         public DateTime? ScheduledStartTime { get; set; }
 
+        /// <summary>
+        /// Gets or sets the generation of the orchestration
+        /// </summary>
+        [DataMember]
+        public int? Generation { get; set; }
+
         // Used for Continue-as-New scenarios
         internal void SetParentTraceContext(ExecutionStartedEvent parent)
         {

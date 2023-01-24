@@ -33,8 +33,9 @@ namespace DurableTask.AzureStorage.Tests
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Table;
     using Moq;
+    using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
-#if !NET461
+#if !NET462
     using OpenTelemetry;
     using OpenTelemetry.Trace;
 #endif
@@ -198,6 +199,51 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.IsNull(queryResult.ContinuationToken);
                 await host.StopAsync();
             }
+        }
+
+        [TestMethod]
+        public async Task GetInstanceIdsByPrefix()
+        {
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false);
+            string instanceIdPrefixGuid = "0abb6ebb-d712-453a-97c4-6c7c1f78f49f";
+
+            string[] instanceIds = new[]
+            {
+                instanceIdPrefixGuid,
+                instanceIdPrefixGuid + "_0_Foo",
+                instanceIdPrefixGuid + "_1_Bar",
+                instanceIdPrefixGuid + "_Foo",
+                instanceIdPrefixGuid + "_Bar",
+            };
+
+            // Create multiple instances that we'll try to query back
+            await host.StartAsync();
+
+            TestOrchestrationClient client;
+            foreach (string instanceId in instanceIds)
+            {
+                client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), input: "Greetings!", instanceId);
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+            }
+
+            // Add one more instance which shouldn't get picked up
+            client = await host.StartOrchestrationAsync(
+                typeof(Orchestrations.Echo),
+                input: "Greetings!",
+                instanceId: $"Foo_{instanceIdPrefixGuid}");
+            await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+
+            DurableStatusQueryResult queryResult = await host.service.GetOrchestrationStateAsync(
+                new OrchestrationInstanceStatusQueryCondition()
+                {
+                    InstanceIdPrefix = instanceIdPrefixGuid,
+                },
+                top: instanceIds.Length,
+                continuationToken: null);
+            Assert.AreEqual(instanceIds.Length, queryResult.OrchestrationState.Count());
+            Assert.IsNull(queryResult.ContinuationToken);
+
+            await host.StopAsync();
         }
 
         [TestMethod]
@@ -517,7 +563,7 @@ namespace DurableTask.AzureStorage.Tests
             CloudBlobContainer cloudBlobContainer = cloudBlobClient.GetContainerReference(containerName);
             await cloudBlobContainer.CreateIfNotExistsAsync();
             CloudBlobDirectory instanceDirectory = cloudBlobContainer.GetDirectoryReference(directoryName);
-            int blobCount = 0;
+            var blobs = new List<IListBlobItem>();
             BlobContinuationToken blobContinuationToken = null;
             do
             {
@@ -531,13 +577,18 @@ namespace DurableTask.AzureStorage.Tests
                             options: null,
                             operationContext: context,
                             cancellationToken: timeoutToken);
-                }); ;
+                });
                 
                 blobContinuationToken = results.ContinuationToken;
-                blobCount += results.Results.Count();
+                blobs.AddRange(results.Results);
             } while (blobContinuationToken != null);
 
-            return blobCount;
+            Trace.TraceInformation(
+                "Found {0} blobs: {1}{2}",
+                blobs.Count,
+                Environment.NewLine,
+                string.Join(Environment.NewLine, blobs.Select(b => b.Uri)));
+            return blobs.Count;
         }
 
 
@@ -874,6 +925,73 @@ namespace DurableTask.AzureStorage.Tests
 
                 Assert.AreEqual(OrchestrationStatus.Terminated, status?.OrchestrationStatus);
                 Assert.AreEqual("sayōnara", status?.Output);
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates the Suspend-Resume functionality.
+        /// </summary>
+        [TestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task SuspendResumeOrchestration(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                string originalStatus = "OGstatus";
+                string suspendReason = "sleepyOrch";
+                string changedStatus = "newStatus";
+
+                await host.StartAsync();
+                var client = await host.StartOrchestrationAsync(typeof(Test.Orchestrations.NextExecution), originalStatus);
+                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
+
+                // Test case 1: Suspend changes the status Running->Suspended
+                await client.SuspendAsync(suspendReason);
+                var status = await client.WaitForStatusChange(TimeSpan.FromSeconds(10), OrchestrationStatus.Suspended);
+                Assert.AreEqual(OrchestrationStatus.Suspended, status?.OrchestrationStatus);
+                Assert.AreEqual(suspendReason, status?.Output);
+
+                // Test case 2: external event does not go through
+                await client.RaiseEventAsync("changeStatusNow", changedStatus);
+                status = await client.GetStatusAsync();
+                Assert.AreEqual(originalStatus, JToken.Parse(status?.Status));
+
+                // Test case 3: external event now goes through
+                await client.ResumeAsync("wakeUp");
+                status  = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual(changedStatus, JToken.Parse(status?.Status));
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// Test that a suspended orchestration can be terminated.
+        /// </summary>
+        [TestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task TerminateSuspendedOrchestration(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Counter), 0);
+                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
+
+                await client.SuspendAsync("suspend");
+                await client.WaitForStatusChange(TimeSpan.FromSeconds(10), OrchestrationStatus.Suspended);
+
+                await client.TerminateAsync("terminate");
+
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+
+                Assert.AreEqual(OrchestrationStatus.Terminated, status?.OrchestrationStatus);
+                Assert.AreEqual("terminate", status?.Output);
 
                 await host.StopAsync();
             }
@@ -1253,7 +1371,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 // Empty string input should result in ArgumentNullException in the orchestration code.
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.TryCatchLoop), 5);
-                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(15));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.AreEqual(5, JToken.Parse(status?.Output));
@@ -1409,6 +1527,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.AreEqual(message, JToken.Parse(status?.Output));
+                Assert.AreEqual(message, JToken.Parse(status.Input));
 
                 await host.StopAsync();
             }
@@ -1477,6 +1596,10 @@ namespace DurableTask.AzureStorage.Tests
                     client.InstanceId,
                     status?.Output,
                     Encoding.UTF8.GetByteCount(message));
+
+                Assert.IsTrue(status.Output.EndsWith("-Result.json.gz"));
+                Assert.IsTrue(status.Input.EndsWith("-Input.json.gz"));
+
                 await host.StopAsync();
             }
         }
@@ -1529,6 +1652,32 @@ namespace DurableTask.AzureStorage.Tests
 
                 await host.StopAsync();
             }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates that orchestrations with > 60KB of tag data can be run successfully.
+        /// </summary>
+        [TestMethod]
+        public async Task LargeOrchestrationTags()
+        {
+            const int largeMessageSize = 64 * 1024;
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false, fetchLargeMessages: true);
+            await host.StartAsync();
+
+            string bigMessage = this.GenerateMediumRandomStringPayload(largeMessageSize, utf8ByteSize: 1, utf16ByteSize: 2).ToString();
+            var bigTags = new Dictionary<string, string> { { "BigTag", bigMessage } };
+            var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), "Hello, world!", tags: bigTags);
+            var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+            Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+            // TODO: Uncomment these assertions as part of https://github.com/Azure/durabletask/issues/840.
+            ////Assert.IsNotNull(status?.Tags);
+            ////Assert.AreEqual(bigTags.Count, status.Tags.Count);
+            ////Assert.IsTrue(bigTags.TryGetValue("BigTag", out string actualMessage));
+            ////Assert.AreEqual(bigMessage, actualMessage);
+
+            await host.StopAsync();
         }
 
         /// <summary>
@@ -2083,7 +2232,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-#if !NET461
+#if !NET462
         /// <summary>
         /// End-to-end test which validates a simple orchestrator function that calls an activity function
         /// and checks the OpenTelemetry trace information
@@ -2967,15 +3116,16 @@ namespace DurableTask.AzureStorage.Tests
                 // HACK: This is just a hack to communicate result of orchestration back to test
                 public static bool OkResult;
 
-                private const string ChannelName = "conversation";
+                private static string ChannelName = Guid.NewGuid().ToString();
 
                 public async override Task<string> RunTask(OrchestrationContext context, string input)
                 {
                     var responderId = $"@{typeof(Responder).FullName}";
                     var responderInstance = new OrchestrationInstance() { InstanceId = responderId };
+                    var requestInformation = new RequestInformation { InstanceId = context.OrchestrationInstance.InstanceId, RequestId = ChannelName };
 
-                    // send the id of this orchestration to a not-yet-started orchestration
-                    context.SendEvent(responderInstance, ChannelName, context.OrchestrationInstance.InstanceId);
+                    // send the RequestInformation containing RequestId and Instanceid of this orchestration to a not-yet-started orchestration
+                    context.SendEvent(responderInstance, ChannelName, requestInformation);
 
                     // wait for a response event 
                     var message = await tcs.Task;
@@ -2987,6 +3137,13 @@ namespace DurableTask.AzureStorage.Tests
                     return "OK";
                 }
 
+                public class RequestInformation
+                {
+                    [JsonProperty("id")]
+                    public string RequestId { get; set; }
+                    public string InstanceId { get; set; }
+                }
+
                 public override void OnEvent(OrchestrationContext context, string name, string input)
                 {
                     if (name == ChannelName)
@@ -2995,7 +3152,7 @@ namespace DurableTask.AzureStorage.Tests
                     }
                 }
 
-                public class Responder : TaskOrchestration<string, string>
+                public class Responder : TaskOrchestration<string, string, RequestInformation, string>
                 {
                     private readonly TaskCompletionSource<string> tcs
                         = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
@@ -3020,11 +3177,11 @@ namespace DurableTask.AzureStorage.Tests
                         return "this return value is not observed by anyone";
                     }
 
-                    public override void OnEvent(OrchestrationContext context, string name, string input)
+                    public override void OnEvent(OrchestrationContext context, string name, RequestInformation input)
                     {
                         if (name == ChannelName)
                         {
-                            tcs.TrySetResult(input);
+                            tcs.TrySetResult(input.InstanceId);
                         }
                     }
                 }

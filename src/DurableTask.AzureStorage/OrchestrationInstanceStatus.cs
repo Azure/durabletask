@@ -32,5 +32,6 @@ namespace DurableTask.AzureStorage
         public DateTime? CompletedTime { get; set; }
         public string RuntimeStatus { get; set; }
         public DateTime? ScheduledStartTime { get; set; }
+        public int Generation { get; set; }
     }
 }

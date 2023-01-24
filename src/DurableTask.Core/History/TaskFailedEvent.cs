@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core.History
 {
     using System.Runtime.Serialization;
@@ -27,14 +27,27 @@ namespace DurableTask.Core.History
         /// <param name="eventId">The event id of the history event</param>
         /// <param name="taskScheduledId">The scheduled parent instance event id</param>
         /// <param name="reason">The task failure reason</param>
-        /// <param name="details">Details of the task failure</param>
-        public TaskFailedEvent(int eventId, int taskScheduledId, string reason, string details)
+        /// <param name="details">Serialized details of the task failure</param>
+        /// <param name="failureDetails">Structured details of the task failure.</param>
+        public TaskFailedEvent(int eventId, int taskScheduledId, string? reason, string? details, FailureDetails? failureDetails)
             : base(eventId)
         {
             TaskScheduledId = taskScheduledId;
             Reason = reason;
             Details = details;
+            FailureDetails = failureDetails;
         }
+
+        /// <inheritdoc cref="TaskFailedEvent(int, int, string?, string?, FailureDetails?)"/>
+        public TaskFailedEvent(int eventId, int taskScheduledId, string? reason, string? details)
+            : this(eventId, taskScheduledId, reason, details, failureDetails: null)
+        {
+        }
+
+        // Needed for deserialization
+        private TaskFailedEvent()
+            : base(-1)
+        { }
 
         /// <summary>
         /// Gets the event type
@@ -51,12 +64,18 @@ namespace DurableTask.Core.History
         /// Gets the task failure reason
         /// </summary>
         [DataMember]
-        public string Reason { get; private set; }
+        public string? Reason { get; private set; }
 
         /// <summary>
         /// Gets details of the task failure
         /// </summary>
         [DataMember]
-        public string Details { get; private set; }
+        public string? Details { get; private set; }
+
+        /// <summary>
+        /// Gets the structured details of the task failure.
+        /// </summary>
+        [DataMember]
+        public FailureDetails? FailureDetails { get; private set; }
     }
 }

@@ -10,20 +10,22 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core.Logging
 {
     using System;
     using System.Collections.Generic;
+    using System.Text;
     using DurableTask.Core.Command;
+    using DurableTask.Core.Common;
     using DurableTask.Core.History;
     using Microsoft.Extensions.Logging;
 
     class LogHelper
     {
-        readonly ILogger log;
+        readonly ILogger? log;
 
-        public LogHelper(ILogger log)
+        public LogHelper(ILogger? log)
         {
             // null is okay
             this.log = log;
@@ -92,7 +94,6 @@ namespace DurableTask.Core.Logging
                 this.WriteStructuredLog(new LogEvents.DispatcherStarting(context));
             }
         }
-
 
         /// <summary>
         /// Logs that a work item dispatcher has stopped running.
@@ -317,6 +318,32 @@ namespace DurableTask.Core.Logging
         }
 
         /// <summary>
+        /// Logs that an instance is being scheduled to be suspended.
+        /// </summary>
+        /// <param name="instance">The instance to be suspended.</param>
+        /// <param name="reason">The user-specified reason for the suspension.</param>
+        internal void SuspendingInstance(OrchestrationInstance instance, string reason)
+        {
+            if (this.IsStructuredLoggingEnabled)
+            {
+                this.WriteStructuredLog(new LogEvents.SuspendingInstance(instance, reason));
+            }
+        }
+
+        /// <summary>
+        /// Logs that an instance is being scheduled to be resumed.
+        /// </summary>
+        /// <param name="instance">The instance to be resumed.</param>
+        /// <param name="reason">The user-specified reason for the resumption.</param>
+        internal void ResumingInstance(OrchestrationInstance instance, string reason)
+        {
+            if (this.IsStructuredLoggingEnabled)
+            {
+                this.WriteStructuredLog(new LogEvents.ResumingInstance(instance, reason));
+            }
+        }
+
+        /// <summary>
         /// Logs that the client is waiting for an instance to reach a terminal state.
         /// </summary>
         /// <param name="instance">The instance being awaited.</param>
@@ -334,7 +361,7 @@ namespace DurableTask.Core.Logging
         /// </summary>
         /// <param name="instanceId">The ID of the instance.</param>
         /// <param name="executionId">The execution ID of the instance, if applicable.</param>
-        internal void FetchingInstanceState(string instanceId, string executionId = null)
+        internal void FetchingInstanceState(string instanceId, string? executionId = null)
         {
             if (this.IsStructuredLoggingEnabled)
             {
@@ -613,9 +640,43 @@ namespace DurableTask.Core.Logging
         }
         #endregion
 
-        void WriteStructuredLog(ILogEvent logEvent, Exception exception = null)
+        void WriteStructuredLog(ILogEvent logEvent, Exception? exception = null)
         {
             this.log?.LogDurableEvent(logEvent, exception);
+        }
+
+        internal static string GetRedactedExceptionDetails(Exception? exception)
+        {
+            if (exception == null)
+            {
+                return string.Empty;
+            }
+
+            // Redact the exception message since its possible to contain sensitive information (PII, secrets, etc.)
+            // Exception.ToString() code: https://referencesource.microsoft.com/#mscorlib/system/exception.cs,e2e19f4ed8da81aa
+            // Example output for a method chain of Foo() --> Bar() --> Baz() --> (exception):
+            // System.ApplicationException: [Redacted]
+            //     ---> System.Exception: [Redacted]
+            //     ---> System.InvalidOperationException: [Redacted]
+            //     at UserQuery.<Main>g__Baz|4_3() in C:\Users\xxx\AppData\Local\Temp\LINQPad7\_wrmpjfpn\hjvskp\LINQPadQuery:line 68
+            //     at UserQuery.<Main>g__Bar|4_2() in C:\Users\xxx\AppData\Local\Temp\LINQPad7\_wrmpjfpn\hjvskp\LINQPadQuery:line 58
+            //     --- End of inner exception stack trace ---
+            //     at UserQuery.<Main>g__Bar|4_2() in C:\Users\xxx\AppData\Local\Temp\LINQPad7\_wrmpjfpn\hjvskp\LINQPadQuery:line 62
+            //     at UserQuery.<Main>g__Foo|4_1() in C:\Users\xxx\AppData\Local\Temp\LINQPad7\_wrmpjfpn\hjvskp\LINQPadQuery:line 46
+            //     --- End of inner exception stack trace ---
+            //     at UserQuery.<Main>g__Foo|4_1() in C:\Users\xxx\AppData\Local\Temp\LINQPad7\_wrmpjfpn\hjvskp\LINQPadQuery:line 50
+            //     at UserQuery.Main() in C:\Users\xxx\AppData\Local\Temp\LINQPad7\_wrmpjfpn\hjvskp\LINQPadQuery:line 4
+            var sb = new StringBuilder(capacity: 1024);
+            sb.Append(exception.GetType().FullName).Append(": ").Append("[Redacted]");
+            if (exception.InnerException != null)
+            {
+                // Recursive
+                sb.AppendLine().Append(" ---> ").AppendLine(GetRedactedExceptionDetails(exception.InnerException));
+                sb.Append("   --- End of inner exception stack trace ---");
+            }
+
+            sb.AppendLine().Append(exception.StackTrace);
+            return sb.ToString();
         }
     }
 }

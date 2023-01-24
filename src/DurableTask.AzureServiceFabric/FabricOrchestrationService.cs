@@ -246,11 +246,15 @@ namespace DurableTask.AzureServiceFabric
 
                             if (orchestratorMessages?.Count > 0)
                             {
-                                if (workItem.OrchestrationRuntimeState?.ParentInstance != null)
-                                {
-                                    sessionsToEnqueue = await this.orchestrationProvider.TryAppendMessageBatchAsync(txn, orchestratorMessages.Select(tm => new TaskMessageItem(tm)));
-                                }
-                                else
+                                // Commenting this code to allow nested (multi-level) suborchestrations
+                                // If the suborchestration has orchestration messages then we need process them under suborchestration's
+                                // session provider except for another suborchestration called from current suborchestraiton.
+
+                                //if (workItem.OrchestrationRuntimeState?.ParentInstance != null)
+                                //{
+                                //    sessionsToEnqueue = await this.orchestrationProvider.TryAppendMessageBatchAsync(txn, orchestratorMessages.Select(tm => new TaskMessageItem(tm)));
+                                //}
+                                //else
                                 {
                                     await this.orchestrationProvider.AppendMessageBatchAsync(txn, orchestratorMessages.Select(tm => new TaskMessageItem(tm)));
                                     sessionsToEnqueue = orchestratorMessages.Select(m => m.OrchestrationInstance).ToList();

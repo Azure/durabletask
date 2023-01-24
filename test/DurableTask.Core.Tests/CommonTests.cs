@@ -19,6 +19,7 @@ namespace DurableTask.Core.Tests
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using DurableTask.Core.Common;
     using DurableTask.Core.Tracing;
+    using Newtonsoft.Json;
 
     [TestClass]
     public class CommonTests
@@ -35,6 +36,44 @@ namespace DurableTask.Core.Tests
             {
                 Assert.IsFalse(DateTime.FromFileTimeUtc(0).IsSet());
             }
+        }
+
+        /// <summary>
+        /// Test that the SerializeToJson utility ignores the default/global serialization config.
+        /// This ensures that users may not influence our own serialization by setting modifying global settings.
+        /// </summary>
+        [TestMethod]
+        public void DefaultJsonConvertSettingsAreIgnored()
+        {
+            // set default Newtonsoft.JSON settings to drop default values (i.e 0 for numbers)
+            var previousDefaultSettings = JsonConvert.DefaultSettings;
+
+            JsonSerializerSettings globalSettings = new()
+            {
+                DefaultValueHandling = DefaultValueHandling.Ignore,
+            };
+
+            try
+            {
+                JsonConvert.DefaultSettings = () => globalSettings;
+
+                // create object to serialize. Set EventId to 0 so it may get dropped
+                var messageData = new TestUtils.DummyMessage(eventId: 0, "payload");
+
+                // serialize with global settings, and then with the serialization utility
+                var jsonStrFromGlobalSettings = JsonConvert.SerializeObject(messageData);
+                var jsonStrFromUtils = Utils.SerializeToJson(messageData);
+
+                // global serializer is expected to drop EventId, but the utility serializer doesn't.
+                Assert.IsFalse(jsonStrFromGlobalSettings.Contains("EventId"));
+                Assert.IsTrue(jsonStrFromUtils.Contains("EventId"));
+            }
+            finally
+            {
+                // restore default settings
+                JsonConvert.DefaultSettings = previousDefaultSettings;
+            }
+
         }
 
         [TestMethod]

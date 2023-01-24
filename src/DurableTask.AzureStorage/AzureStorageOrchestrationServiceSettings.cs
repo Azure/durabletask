@@ -97,7 +97,7 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Gets or sets the name of the task hub. This value is used to group related storage resources.
         /// </summary>
-        public string TaskHubName { get; set; }
+        public string TaskHubName { get; set; } = "Default";
 
         /// <summary>
         /// Gets or sets the maximum number of work items that can be processed concurrently on a single node.
@@ -233,6 +233,22 @@ namespace DurableTask.AzureStorage
         /// <remarks>Skipping process kill by returning false might have negative consequences if since Storage SDK might be in deadlock. Ensure if you return
         /// false a process shutdown is executed by you.</remarks>
         public Func<string, Task<bool>> OnImminentFailFast { get; set; } = (message) => Task.FromResult(true);
+
+        /// <summary>
+        /// Gets or sets the  number of times we allow the timeout to be hit before recycling the app. We set this
+        /// to a fixed value to prevent building up an infinite number of deadlocked tasks and leak resources.
+        /// </summary>
+        public int MaxNumberOfTimeoutsBeforeRecycle { get; set; } = 5;
+
+        /// <summary>
+        /// Gets or sets the number of seconds before a request to Azure Storage is considered as timed out.
+        /// </summary>
+        public TimeSpan StorageRequestsTimeout { get; set; } = TimeSpan.FromMinutes(2);
+
+        /// <summary>
+        /// Gets or sets the window duration (in seconds) in which we count the number of timed out request before recycling the app.
+        /// </summary>
+        public TimeSpan StorageRequestsTimeoutCooldown { get; set; } = TimeSpan.FromMinutes(5);
 
         /// <summary>
         /// Returns bool indicating is the TrackingStoreStorageAccount has been set.

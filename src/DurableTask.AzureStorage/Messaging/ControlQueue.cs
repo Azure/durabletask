@@ -143,7 +143,8 @@ namespace DurableTask.AzureStorage.Messaging
                                     messageData.TaskMessage.OrchestrationInstance.InstanceId,
                                     messageData.TaskMessage.OrchestrationInstance.ExecutionId,
                                     this.Name,
-                                    queueMessage.DequeueCount);
+                                    queueMessage.DequeueCount,
+                                    queueMessage.PopReceipt);
                             }
 
                             batchMessages.Add(messageData);
@@ -183,7 +184,7 @@ namespace DurableTask.AzureStorage.Messaging
                     }
                 }
 
-                this.Release(CloseReason.Shutdown, "ControlQueue GetMessagesAsync");
+                this.Release(CloseReason.Shutdown, $"ControlQueue GetMessagesAsync cancelled by: {(this.releaseCancellationToken.IsCancellationRequested ? "control queue released token cancelled" : "")} {(cancellationToken.IsCancellationRequested ? "shutdown token cancelled" : "")}");
                 return EmptyMessageList;
             }
         }
@@ -214,16 +215,19 @@ namespace DurableTask.AzureStorage.Messaging
 
         public void Release(CloseReason? reason, string caller)
         {
-            this.releaseTokenSource.Cancel();
+            if (!this.IsReleased)
+            {
+                this.releaseTokenSource.Cancel();
 
-            this.IsReleased = true;
+                this.IsReleased = true;
 
-            this.settings.Logger.PartitionManagerInfo(
-                this.storageAccountName,
-                this.settings.TaskHubName,
-                this.settings.WorkerId,
-                this.Name,
-                $"{caller} is releasing lease on {this.Name} for reason: {reason}");
+                this.settings.Logger.PartitionManagerInfo(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    this.settings.WorkerId,
+                    this.Name,
+                    $"{caller} is releasing partition {this.Name} for reason: {reason}");
+            }
         }
 
         public virtual void Dispose()

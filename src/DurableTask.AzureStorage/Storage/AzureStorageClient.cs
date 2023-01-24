@@ -18,6 +18,7 @@ namespace DurableTask.AzureStorage.Storage
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
     using Microsoft.WindowsAzure.Storage;
+    using Microsoft.WindowsAzure.Storage.Auth;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Microsoft.WindowsAzure.Storage.Table;
@@ -25,7 +26,6 @@ namespace DurableTask.AzureStorage.Storage
     class AzureStorageClient
     {
         static readonly TimeSpan StorageMaximumExecutionTime = TimeSpan.FromMinutes(2);
-        readonly CloudStorageAccount account;
         readonly CloudBlobClient blobClient;
         readonly CloudQueueClient queueClient;
         readonly CloudTableClient tableClient;
@@ -39,10 +39,11 @@ namespace DurableTask.AzureStorage.Storage
 
         public AzureStorageClient(CloudStorageAccount account, AzureStorageOrchestrationServiceSettings settings)
         {
-            this.account = account;
             this.Settings = settings;
 
-            this.StorageAccountName = account.Credentials.AccountName ?? settings.StorageAccountDetails.AccountName;
+            this.BlobAccountName = GetAccountName(account.Credentials, settings, account.BlobStorageUri, "blob");
+            this.QueueAccountName = GetAccountName(account.Credentials, settings, account.QueueStorageUri, "queue");
+            this.TableAccountName = GetAccountName(account.Credentials, settings, account.TableStorageUri, "table");
             this.Stats = new AzureStorageOrchestrationServiceStats();
             this.queueClient = account.CreateCloudQueueClient();
             this.queueClient.BufferManager = SimpleBufferManager.Shared;
@@ -70,7 +71,11 @@ namespace DurableTask.AzureStorage.Storage
 
         public AzureStorageOrchestrationServiceStats Stats { get; }
 
-        public string StorageAccountName { get; }
+        public string BlobAccountName { get; }
+
+        public string QueueAccountName { get; }
+
+        public string TableAccountName { get; }
 
         public Blob GetBlobReference(string container, string blobName, string? blobDirectory = null)
         {
@@ -101,14 +106,34 @@ namespace DurableTask.AzureStorage.Storage
             return new Table(this, this.tableClient, tableName);
         }
 
+        public Task<T> MakeBlobStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string? clientRequestId = null) =>
+            this.MakeStorageRequest<T>(storageRequest, BlobAccountName, operationName, clientRequestId);
 
-        public async Task<T> MakeStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string? clientRequestId = null)
+        public Task<T> MakeQueueStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string? clientRequestId = null) =>
+            this.MakeStorageRequest<T>(storageRequest, QueueAccountName, operationName, clientRequestId);
+
+        public Task<T> MakeTableStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string operationName, string? clientRequestId = null) =>
+            this.MakeStorageRequest<T>(storageRequest, TableAccountName, operationName, clientRequestId);
+
+        public Task MakeBlobStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string operationName, string? clientRequestId = null, bool force = false) =>
+            this.MakeStorageRequest(storageRequest, BlobAccountName, operationName, clientRequestId, force);
+
+        public Task MakeQueueStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string operationName, string? clientRequestId = null) =>
+            this.MakeStorageRequest(storageRequest, QueueAccountName, operationName, clientRequestId);
+
+        public Task MakeTableStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string operationName, string? clientRequestId = null) =>
+            this.MakeStorageRequest(storageRequest, TableAccountName, operationName, clientRequestId);
+
+        private async Task<T> MakeStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string accountName, string operationName, string? clientRequestId = null, bool force = false)
         {
-            await requestThrottleSemaphore.WaitAsync();
+            if (!force)
+            {
+                await requestThrottleSemaphore.WaitAsync();
+            }
 
             try
             {
-                return await TimeoutHandler.ExecuteWithTimeout<T>(operationName, this.StorageAccountName, this.Settings, storageRequest, this.Stats, clientRequestId);
+                return await TimeoutHandler.ExecuteWithTimeout<T>(operationName, accountName, this.Settings, storageRequest, this.Stats, clientRequestId);
             }
             catch (StorageException ex)
             {
@@ -116,19 +141,23 @@ namespace DurableTask.AzureStorage.Storage
             }
             finally
             {
-                requestThrottleSemaphore.Release();
+                if (!force)
+                {
+                    requestThrottleSemaphore.Release();
+                }
             }
         }
 
-        public async Task MakeStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string operationName, string? clientRequestId = null)
-        {
-            await this.MakeStorageRequest((context, cancellationToken) => WrapFunctionWithReturnType(storageRequest, context, cancellationToken), operationName, clientRequestId);
-        }
+        private Task MakeStorageRequest(Func<OperationContext, CancellationToken, Task> storageRequest, string accountName, string operationName, string? clientRequestId = null, bool force = false) =>
+            this.MakeStorageRequest<object?>((context, cancellationToken) => WrapFunctionWithReturnType(storageRequest, context, cancellationToken), accountName, operationName, clientRequestId, force);
 
         private static async Task<object?> WrapFunctionWithReturnType(Func<OperationContext, CancellationToken, Task> storageRequest, OperationContext context, CancellationToken cancellationToken)
         {
             await storageRequest(context, cancellationToken);
             return null;
         }
+
+        private static string GetAccountName(StorageCredentials credentials, AzureStorageOrchestrationServiceSettings settings, StorageUri serviceUri, string service) =>
+            credentials.AccountName ?? settings.StorageAccountDetails?.AccountName ?? serviceUri.GetAccountName(service) ?? "(unknown)";
     }
 }

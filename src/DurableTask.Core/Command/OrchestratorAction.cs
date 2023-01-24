@@ -10,16 +10,25 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core.Command
 {
     using Newtonsoft.Json;
 
+    /// <summary>
+    /// Defines a set of base properties for an orchestrator action.
+    /// </summary>
     [JsonConverter(typeof(OrchestrationActionConverter))]
-    internal abstract class OrchestratorAction
+    public abstract class OrchestratorAction
     {
+        /// <summary>
+        /// The task ID associated with this orchestrator action.
+        /// </summary>
         public int Id { get; set; }
 
+        /// <summary>
+        /// The type of the orchestrator action.
+        /// </summary>
         public abstract OrchestratorActionType OrchestratorActionType { get; }
     }
 }

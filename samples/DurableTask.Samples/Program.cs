@@ -22,6 +22,9 @@ namespace DurableTask.Samples
     using System.IO;
     using System.Linq;
     using System.Threading;
+    using DurableTask.AzureStorage;
+    using DurableTask.Core;
+    using DurableTask.Core.Tracing;
     using DurableTask.Samples.AverageCalculator;
     using DurableTask.Samples.Common.WorkItems;
     using DurableTask.Samples.Cron;
@@ -31,10 +34,6 @@ namespace DurableTask.Samples
     using DurableTask.Samples.Replat;
     using DurableTask.Samples.Signal;
     using DurableTask.Samples.SumOfSquares;
-    using DurableTask.Core;
-    using DurableTask.Core.Tracing;
-    using DurableTask.ServiceBus;
-    using DurableTask.ServiceBus.Tracking;
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging;
 
     internal class Program
@@ -51,17 +50,18 @@ namespace DurableTask.Samples
 
             if (CommandLine.Parser.Default.ParseArgumentsStrict(args, ArgumentOptions))
             {
-                string serviceBusConnectionString = GetSetting("ServiceBusConnectionString");
                 string storageConnectionString = GetSetting("StorageConnectionString");
                 string taskHubName = ConfigurationManager.AppSettings["taskHubName"];
 
-                IOrchestrationServiceInstanceStore instanceStore = new AzureTableInstanceStore(taskHubName, storageConnectionString);
+                var settings = new AzureStorageOrchestrationServiceSettings
+                {
+                    StorageAccountDetails = new StorageAccountDetails { ConnectionString = storageConnectionString },
+                    TaskHubName = taskHubName,
+                };
 
-                var orchestrationServiceAndClient =
-                    new ServiceBusOrchestrationService(serviceBusConnectionString, taskHubName, instanceStore, null, null);
-
+                var orchestrationServiceAndClient = new AzureStorageOrchestrationService(settings);
                 var taskHubClient = new TaskHubClient(orchestrationServiceAndClient);
-                var taskHub = new TaskHubWorker(orchestrationServiceAndClient);
+                var taskHubWorker = new TaskHubWorker(orchestrationServiceAndClient);
                 
                 if (ArgumentOptions.CreateHub)
                 {
@@ -161,7 +161,7 @@ namespace DurableTask.Samples
                 {
                     try
                     {
-                        taskHub.AddTaskOrchestrations(
+                        taskHubWorker.AddTaskOrchestrations(
                             typeof(GreetingsOrchestration),
                             typeof(GreetingsOrchestration2), 
                             typeof(CronOrchestration),
@@ -172,10 +172,10 @@ namespace DurableTask.Samples
                             typeof(SumOfSquaresOrchestration)
                             );
 
-                        taskHub.AddTaskOrchestrations(
+                        taskHubWorker.AddTaskOrchestrations(
                             new NameValueObjectCreator<TaskOrchestration>("SumOfSquaresOrchestration", "V1", typeof(SumOfSquaresOrchestration)));
                         
-                        taskHub.AddTaskActivities(
+                        taskHubWorker.AddTaskActivities(
                             new GetUserTask(), 
                             new SendGreetingTask(), 
                             new CronTask(), 
@@ -187,10 +187,10 @@ namespace DurableTask.Samples
                             new SumOfSquaresTask()
                             );
 
-                        taskHub.AddTaskActivitiesFromInterface<IManagementSqlOrchestrationTasks>(new ManagementSqlOrchestrationTasks());
-                        taskHub.AddTaskActivitiesFromInterface<IMigrationTasks>(new MigrationTasks());
+                        taskHubWorker.AddTaskActivitiesFromInterface<IManagementSqlOrchestrationTasks>(new ManagementSqlOrchestrationTasks());
+                        taskHubWorker.AddTaskActivitiesFromInterface<IMigrationTasks>(new MigrationTasks());
 
-                        taskHub.StartAsync().Wait();
+                        taskHubWorker.StartAsync().Wait();
 
                         Console.WriteLine("Waiting up to 60 seconds for completion.");
 
@@ -200,7 +200,7 @@ namespace DurableTask.Samples
                         Console.WriteLine("Press any key to quit.");
                         Console.ReadLine();
 
-                        taskHub.StopAsync(true).Wait();
+                        taskHubWorker.StopAsync(true).Wait();
                     }
                     catch (Exception e)
                     {

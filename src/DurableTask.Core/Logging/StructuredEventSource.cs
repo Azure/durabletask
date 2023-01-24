@@ -342,6 +342,46 @@ namespace DurableTask.Core.Logging
             }
         }
 
+        [Event(EventIds.SuspendingInstance, Level = EventLevel.Informational, Version = 1)]
+        internal void SuspendingInstance(
+            string InstanceId,
+            string ExecutionId,
+            string Details,
+            string AppName,
+            string ExtensionVersion)
+        {
+            if (this.IsEnabled(EventLevel.Informational))
+            {
+                this.WriteEvent(
+                    EventIds.SuspendingInstance,
+                    InstanceId,
+                    ExecutionId ?? string.Empty,
+                    Details ?? string.Empty,
+                    AppName,
+                    ExtensionVersion);
+            }
+        }
+
+        [Event(EventIds.ResumingInstance, Level = EventLevel.Informational, Version = 1)]
+        internal void ResumingInstance(
+            string InstanceId,
+            string ExecutionId,
+            string Details,
+            string AppName,
+            string ExtensionVersion)
+        {
+            if (this.IsEnabled(EventLevel.Informational))
+            {
+                this.WriteEvent(
+                    EventIds.ResumingInstance,
+                    InstanceId,
+                    ExecutionId ?? string.Empty,
+                    Details ?? string.Empty,
+                    AppName,
+                    ExtensionVersion);
+            }
+        }
+
         [Event(EventIds.WaitingForInstance, Level = EventLevel.Informational, Version = 1)]
         internal void WaitingForInstance(
             string InstanceId,
