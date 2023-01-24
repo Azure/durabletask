@@ -15,10 +15,12 @@ namespace DurableTask.AzureStorage.Messaging
 {
     using System;
     using System.Collections.Generic;
+    using System.IO;
     using System.Linq;
     using System.Threading.Tasks;
     using DurableTask.Core;
     using DurableTask.Core.History;
+    using Newtonsoft.Json;
 
     sealed class OrchestrationSession : SessionBase, IOrchestrationSession
     {
@@ -136,7 +138,8 @@ namespace DurableTask.AzureStorage.Messaging
                 message.TaskMessage.Event.EventType != EventType.TaskFailed &&
                 message.TaskMessage.Event.EventType != EventType.SubOrchestrationInstanceCompleted &&
                 message.TaskMessage.Event.EventType != EventType.SubOrchestrationInstanceFailed &&
-                message.TaskMessage.Event.EventType != EventType.TimerFired)
+                message.TaskMessage.Event.EventType != EventType.TimerFired &&
+                !(message.TaskMessage.Event.EventType == EventType.EventRaised && Core.Common.Entities.IsEntityInstance(message.Sender.InstanceId) && !Core.Common.Entities.IsEntityInstance(this.Instance.InstanceId)))
             {
                 // The above message types are the only ones that can potentially be considered out-of-order.
                 return false;
@@ -175,8 +178,51 @@ namespace DurableTask.AzureStorage.Messaging
                 }
             }
 
+            if (message.TaskMessage.Event.EventType == EventType.EventRaised)
+            {
+                // This EventRaised message is a response to an EventSent message.
+                var requestId = ((EventRaisedEvent)message.TaskMessage.Event).Name;
+                if (requestId != null)
+                {
+                    HistoryEvent mostRecentTaskEvent = this.RuntimeState.Events.FirstOrDefault(e => e.EventType == EventType.EventSent && FindRequestId(((EventSentEvent)e).Input)?.ToString() == requestId);
+                    if (mostRecentTaskEvent != null)
+                    {
+                        return false;
+                    }
+                }
+            }
+
             // The message is out of order and cannot be handled by the current session.
             return true;
+        }
+
+        Guid? FindRequestId(string input)
+        {
+            try
+            {
+                JsonTextReader reader = new JsonTextReader(new StringReader(input));
+                reader.Read(); // JsonToken.StartObject
+                while (reader.Read() && reader.TokenType == JsonToken.PropertyName)
+                {
+                    switch (reader.Value)
+                    {
+                        case "$type":
+                        case "op":
+                        case "signal":
+                        case "input":
+                            reader.Read(); // skip these, they may appear before the id
+                            continue;
+                        case "id":
+                            return Guid.Parse(reader.ReadAsString());
+                        default:
+                            break;
+                    }
+                }
+            }
+            catch
+            {
+            }
+            return null;
         }
 
         bool IsNonexistantInstance()

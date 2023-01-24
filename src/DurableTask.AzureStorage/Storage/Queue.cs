@@ -45,10 +45,16 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task AddMessageAsync(QueueMessage queueMessage, TimeSpan? visibilityDelay, Guid? clientRequestId = null)
         {
-            await this.azureStorageClient.MakeStorageRequest(
+            // Infinite time to live
+            TimeSpan? timeToLive = TimeSpan.FromSeconds(-1);
+#if NET462
+            // WindowsAzure.Storage 7.2.1 does not allow infinite time to live. Passing in null will default the time to live to 7 days.
+            timeToLive = null;
+#endif
+            await this.azureStorageClient.MakeQueueStorageRequest(
                 (context, cancellationToken) => this.cloudQueue.AddMessageAsync(
                     queueMessage.CloudQueueMessage,
-                    null /* timeToLive */,
+                    timeToLive,
                     visibilityDelay,
                     null,
                     context),
@@ -60,7 +66,7 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task UpdateMessageAsync(QueueMessage queueMessage, TimeSpan visibilityTimeout, Guid? clientRequestId = null)
         {
-            await this.azureStorageClient.MakeStorageRequest(
+            await this.azureStorageClient.MakeQueueStorageRequest(
                 (context, cancellationToken) => this.cloudQueue.UpdateMessageAsync(
                     queueMessage.CloudQueueMessage,
                     visibilityTimeout,
@@ -75,7 +81,7 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task DeleteMessageAsync(QueueMessage queueMessage, Guid? clientRequestId = null)
         {
-            await this.azureStorageClient.MakeStorageRequest(
+            await this.azureStorageClient.MakeQueueStorageRequest(
                 (context, cancellationToken) => this.cloudQueue.DeleteMessageAsync(
                     queueMessage.CloudQueueMessage,
                     null,
@@ -86,7 +92,7 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task<QueueMessage?> GetMessageAsync(TimeSpan visibilityTimeout, CancellationToken callerCancellationToken)
         {
-            var cloudQueueMessage = await this.azureStorageClient.MakeStorageRequest<CloudQueueMessage>(
+            var cloudQueueMessage = await this.azureStorageClient.MakeQueueStorageRequest<CloudQueueMessage>(
                 async (context, timeoutCancellationToken) =>
                 {
                     using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCancellationToken, timeoutCancellationToken))
@@ -111,28 +117,28 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task<bool> ExistsAsync()
         {
-            return await this.azureStorageClient.MakeStorageRequest<bool>(
+            return await this.azureStorageClient.MakeQueueStorageRequest<bool>(
                 (context, cancellationToken) => this.cloudQueue.ExistsAsync(null, context, cancellationToken),
                 "Queue Exists");
         }
 
         public async Task<bool> CreateIfNotExistsAsync()
         {
-            return await this.azureStorageClient.MakeStorageRequest<bool>(
+            return await this.azureStorageClient.MakeQueueStorageRequest<bool>(
                 (context, cancellationToken) => this.cloudQueue.CreateIfNotExistsAsync(null, context, cancellationToken),
                 "Queue Create");
         }
 
         public async Task<bool> DeleteIfExistsAsync()
         {
-            return await this.azureStorageClient.MakeStorageRequest<bool>(
+            return await this.azureStorageClient.MakeQueueStorageRequest<bool>(
                 (context, cancellationToken) => this.cloudQueue.DeleteIfExistsAsync(null, context, cancellationToken),
                 "Queue Delete");
         }
 
         public async Task<IEnumerable<QueueMessage>> GetMessagesAsync(int batchSize, TimeSpan visibilityTimeout, CancellationToken callerCancellationToken)
         {
-            var cloudQueueMessages = await this.azureStorageClient.MakeStorageRequest<IEnumerable<CloudQueueMessage>>(
+            var cloudQueueMessages = await this.azureStorageClient.MakeQueueStorageRequest<IEnumerable<CloudQueueMessage>>(
                 async (context, timeoutCancellationToken) =>
                 {
                     using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCancellationToken, timeoutCancellationToken))
@@ -159,14 +165,14 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task FetchAttributesAsync()
         {
-            await this.azureStorageClient.MakeStorageRequest(
+            await this.azureStorageClient.MakeQueueStorageRequest(
                 (context, cancellationToken) => this.cloudQueue.FetchAttributesAsync(null, context, cancellationToken),
                 "Queue FetchAttributes");
         }
 
         public async Task<IEnumerable<QueueMessage>> PeekMessagesAsync(int batchSize)
         {
-            var cloudQueueMessages = await this.azureStorageClient.MakeStorageRequest<IEnumerable<CloudQueueMessage>>(
+            var cloudQueueMessages = await this.azureStorageClient.MakeQueueStorageRequest<IEnumerable<CloudQueueMessage>>(
                 (context, cancellationToken) => this.cloudQueue.PeekMessagesAsync(batchSize, null, context, cancellationToken),
                 "Queue PeekMessages");
 

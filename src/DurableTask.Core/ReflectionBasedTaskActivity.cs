@@ -14,6 +14,8 @@
 namespace DurableTask.Core
 {
     using System;
+    using System.Collections.Generic;
+    using System.Linq;
     using System.Reflection;
     using System.Threading.Tasks;
     using DurableTask.Core.Common;
@@ -27,6 +29,7 @@ namespace DurableTask.Core
     public class ReflectionBasedTaskActivity : TaskActivity
     {
         private DataConverter dataConverter;
+        private readonly Type[] genericArguments;
 
         /// <summary>
         /// Creates a new ReflectionBasedTaskActivity based on an activity object and method info
@@ -35,9 +38,10 @@ namespace DurableTask.Core
         /// <param name="methodInfo">The Reflection.methodInfo for invoking the method on the activity object</param>
         public ReflectionBasedTaskActivity(object activityObject, MethodInfo methodInfo)
         {
-            DataConverter = new JsonDataConverter();
+            DataConverter = JsonDataConverter.Default;
             ActivityObject = activityObject;
             MethodInfo = methodInfo;
+            genericArguments = methodInfo.GetGenericArguments();
         }
 
         /// <summary>
@@ -79,7 +83,7 @@ namespace DurableTask.Core
         {
             var jArray = Utils.ConvertToJArray(input);
 
-            int parameterCount = jArray.Count;
+            int parameterCount = jArray.Count - this.genericArguments.Length;
             ParameterInfo[] methodParameters = MethodInfo.GetParameters();
             if (methodParameters.Length < parameterCount)
             {
@@ -88,45 +92,23 @@ namespace DurableTask.Core
                     .WithFailureSource(MethodInfoString());
             }
 
-            var inputParameters = new object[methodParameters.Length];
-            for (var i = 0; i < methodParameters.Length; i++)
-            {
-                Type parameterType = methodParameters[i].ParameterType;
-                if (i < parameterCount)
-                {
-                    JToken jToken = jArray[i];
-                    if (jToken is JValue jValue)
-                    {
-                        inputParameters[i] = jValue.ToObject(parameterType);
-                    }
-                    else
-                    {
-                        string serializedValue = jToken.ToString();
-                        inputParameters[i] = DataConverter.Deserialize(serializedValue, parameterType);
-                    }
-                }
-                else
-                {
-                    if (methodParameters[i].HasDefaultValue)
-                    {
-                        inputParameters[i] = Type.Missing;
-                    }
-                    else
-                    {
-                        inputParameters[i] = parameterType.IsValueType ? Activator.CreateInstance(parameterType) : null;
-                    }
-                }
-            }
+            Type[] genericTypeArguments = this.GetGenericTypeArguments(jArray);
+            object[] inputParameters = this.GetInputParameters(jArray, parameterCount, methodParameters, genericTypeArguments);
 
-            string serializedReturn;
+            string serializedReturn = string.Empty;
+            Exception exception = null;
             try
             {
-                object invocationResult = InvokeActivity(inputParameters);
+                object invocationResult = InvokeActivity(inputParameters, genericTypeArguments);
                 if (invocationResult is Task invocationTask)
                 {
-                    if (MethodInfo.ReturnType.IsGenericType)
+                    if (this.MethodInfo.ReturnType.IsGenericType)
                     {
-                        serializedReturn = DataConverter.Serialize(await ((dynamic)invocationTask));
+                        await invocationTask;
+
+                        Type returnType = Utils.GetGenericReturnType(this.MethodInfo, genericTypeArguments);
+                        PropertyInfo resultProperty = typeof(Task<>).MakeGenericType(returnType).GetProperty("Result");
+                        serializedReturn = this.DataConverter.Serialize(resultProperty.GetValue(invocationTask));
                     }
                     else
                     {
@@ -141,16 +123,29 @@ namespace DurableTask.Core
             }
             catch (TargetInvocationException e)
             {
-                Exception realException = e.InnerException ?? e;
-                string details = Utils.SerializeCause(realException, DataConverter);
-                throw new TaskFailureException(realException.Message, details)
-                    .WithFailureSource(MethodInfoString());
+                exception = e.InnerException ?? e;
             }
             catch (Exception e) when (!Utils.IsFatal(e))
             {
-                string details = Utils.SerializeCause(e, DataConverter);
-                throw new TaskFailureException(e.Message, e, details)
-                    .WithFailureSource(MethodInfoString());
+                exception = e;
+            }
+
+            if (exception != null)
+            {
+                string details = null;
+                FailureDetails failureDetails = null;
+                if (context.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions)
+                {
+                    details = Utils.SerializeCause(exception, DataConverter);
+                }
+                else
+                {
+                    failureDetails = new FailureDetails(exception);
+                }
+
+                throw new TaskFailureException(exception.Message, exception, details)
+                    .WithFailureSource(MethodInfoString())
+                    .WithFailureDetails(failureDetails);
             }
 
             return serializedReturn;
@@ -166,9 +161,76 @@ namespace DurableTask.Core
             return MethodInfo.Invoke(ActivityObject, inputParameters);
         }
 
+        /// <summary>
+        /// Invokes the target method on the activity object with supplied parameters
+        /// </summary>
+        /// <param name="inputParameters">The methods' input parameters.</param>
+        /// <param name="genericTypeParameters">The methods' generic parameters.</param>
+        public virtual object InvokeActivity(object[] inputParameters, Type[] genericTypeParameters)
+        {
+            if (genericTypeParameters.Any())
+            {
+                return MethodInfo.MakeGenericMethod(genericTypeParameters).Invoke(ActivityObject, inputParameters);
+            }
+
+            return MethodInfo.Invoke(ActivityObject, inputParameters);
+        }
+
         string MethodInfoString()
         {
             return $"{MethodInfo.ReflectedType?.FullName}.{MethodInfo.Name}";
+        }
+
+        private Type[] GetGenericTypeArguments(JArray jArray)
+        {
+            List<Type> genericParameters = new List<Type>(this.genericArguments.Length);
+
+            for (int i = jArray.Count - this.genericArguments.Length; i < jArray.Count; i++)
+            {
+                Utils.TypeMetadata typeMetadata = jArray[i].ToObject<Utils.TypeMetadata>();
+                genericParameters.Add(Assembly.Load(typeMetadata.AssemblyName).GetType(typeMetadata.FullyQualifiedTypeName));
+            }
+
+            return genericParameters.ToArray();
+        }
+
+        private object[] GetInputParameters(JArray jArray, int parameterCount, ParameterInfo[] methodParameters, Type[] genericArguments)
+        {
+            var inputParameters = new object[methodParameters.Length];
+            for (var i = 0; i < methodParameters.Length; i++)
+            {
+                Type parameterType = Utils.ConvertFromGenericType(
+                    this.MethodInfo.GetGenericArguments(),
+                    genericArguments,
+                    methodParameters[i].ParameterType);
+
+                if (i < parameterCount)
+                {
+                    JToken jToken = jArray[i];
+                    if (jToken is JValue jValue)
+                    {
+                        inputParameters[i] = jValue.ToObject(parameterType);
+                    }
+                    else
+                    {
+                        string serializedValue = jToken.ToString();
+                        inputParameters[i] = this.DataConverter.Deserialize(serializedValue, parameterType);
+                    }
+                }
+                else
+                {
+                    if (methodParameters[i].HasDefaultValue)
+                    {
+                        inputParameters[i] = Type.Missing;
+                    }
+                    else
+                    {
+                        inputParameters[i] = parameterType.IsValueType ? Activator.CreateInstance(parameterType) : null;
+                    }
+                }
+            }
+
+            return inputParameters;
         }
     }
 }

@@ -44,7 +44,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
         {
             get
             {
-                var applicationPath = Path.Combine(Directory.GetCurrentDirectory(), @"..\..\..\..\TestFabricApplication\TestApplication");
+                var applicationPath = Path.Combine(Directory.GetCurrentDirectory(), @"..\..\..\..\..\TestFabricApplication\TestApplication");
 
                 if (!Directory.Exists(applicationPath))
                 {

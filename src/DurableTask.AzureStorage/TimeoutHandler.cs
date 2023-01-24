@@ -24,13 +24,9 @@ namespace DurableTask.AzureStorage
     // The TimeoutHandler class is based off of the similar Azure Functions fix seen here: https://github.com/Azure/azure-webjobs-sdk/pull/2291
     internal static class TimeoutHandler
     {
-        // The number of times we allow the timeout to be hit before recycling the app. We set this
-        // to a fixed value to prevent building up an infinite number of deadlocked tasks and leak resources.
-        private const int MaxNumberOfTimeoutsBeforeRecycle = 5;
-
-        private static readonly TimeSpan DefaultTimeout = TimeSpan.FromMinutes(2);
-
         private static int NumTimeoutsHit = 0;
+
+        private static DateTime LastTimeoutHit = DateTime.MinValue;
 
         /// <summary>
         /// Process kill action. This is exposed here to allow override from tests.
@@ -56,7 +52,7 @@ namespace DurableTask.AzureStorage
             {
                 using (var cts = new CancellationTokenSource())
                 {
-                    Task timeoutTask = Task.Delay(DefaultTimeout, cts.Token);
+                    Task timeoutTask = Task.Delay(settings.StorageRequestsTimeout, cts.Token);
                     Task<T> operationTask = operation(context, cts.Token);
 
                     if (stats != null)
@@ -67,11 +63,24 @@ namespace DurableTask.AzureStorage
 
                     if (Equals(timeoutTask, completedTask))
                     {
-                        NumTimeoutsHit++;
-                        string taskHubName = settings?.TaskHubName;
-                        if (NumTimeoutsHit < MaxNumberOfTimeoutsBeforeRecycle)
+                        // If more less than DefaultTimeoutCooldown passed, increase timeouts count
+                        // otherwise, reset the count to 1, since this is the first timeout we receive
+                        // after a long (enough) while
+                        if (LastTimeoutHit + settings.StorageRequestsTimeoutCooldown > DateTime.UtcNow)
                         {
-                            string message = $"The operation '{operationName}' with id '{context.ClientRequestID}' did not complete in '{DefaultTimeout}'. Hit {NumTimeoutsHit} out of {MaxNumberOfTimeoutsBeforeRecycle} allowed timeouts. Retrying the operation.";
+                            NumTimeoutsHit++;
+                        }
+                        else
+                        {
+                            NumTimeoutsHit = 1;
+                        }
+
+                        LastTimeoutHit = DateTime.UtcNow;
+
+                        string taskHubName = settings?.TaskHubName;
+                        if (NumTimeoutsHit < settings.MaxNumberOfTimeoutsBeforeRecycle)
+                        {
+                            string message = $"The operation '{operationName}' with id '{context.ClientRequestID}' did not complete in '{settings.StorageRequestsTimeout}'. Hit {NumTimeoutsHit} out of {settings.MaxNumberOfTimeoutsBeforeRecycle} allowed timeouts. Retrying the operation.";
                             settings.Logger.GeneralWarning(account ?? "", taskHubName ?? "", message);
 
                             cts.Cancel();
@@ -79,7 +88,7 @@ namespace DurableTask.AzureStorage
                         }
                         else
                         {
-                            string message = $"The operation '{operationName}' with id '{context.ClientRequestID}' did not complete in '{DefaultTimeout}'. Hit maximum number ({MaxNumberOfTimeoutsBeforeRecycle}) of timeouts. Terminating the process to mitigate potential deadlock.";
+                            string message = $"The operation '{operationName}' with id '{context.ClientRequestID}' did not complete in '{settings.StorageRequestsTimeout}'. Hit maximum number ({settings.MaxNumberOfTimeoutsBeforeRecycle}) of timeouts. Terminating the process to mitigate potential deadlock.";
                             settings.Logger.GeneralError(account ?? "", taskHubName ?? "", message);
 
                             // Delay to ensure the ETW event gets written

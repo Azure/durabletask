@@ -39,6 +39,7 @@ namespace DurableTask.AzureStorage
         readonly AzureStorageClient azureStorageClient;
         readonly BlobContainer blobContainer;
         readonly JsonSerializerSettings taskMessageSerializerSettings;
+        readonly JsonSerializer serializer;
 
         bool containerInitialized;
 
@@ -59,6 +60,7 @@ namespace DurableTask.AzureStorage
                 Binder = new TypeNameSerializationBinder(),
 #endif
             };
+            this.serializer = JsonSerializer.Create(taskMessageSerializerSettings);
 
             if (this.settings.UseDataContractSerialization)
             {
@@ -88,7 +90,7 @@ namespace DurableTask.AzureStorage
 
         public async Task<string> SerializeMessageDataAsync(MessageData messageData)
         {
-            string rawContent = JsonConvert.SerializeObject(messageData, this.taskMessageSerializerSettings);
+            string rawContent = Utils.SerializeToJson(serializer, messageData);
             messageData.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(rawContent);
             MessageFormatFlags messageFormat = this.GetMessageFormatFlags(messageData);
 
@@ -102,10 +104,10 @@ namespace DurableTask.AzureStorage
 
                 // Create a "wrapper" message which has the blob name but not a task message.
                 var wrapperMessageData = new MessageData { CompressedBlobName = blobName };
-                return JsonConvert.SerializeObject(wrapperMessageData, this.taskMessageSerializerSettings);
+                return Utils.SerializeToJson(serializer, wrapperMessageData);
             }
 
-            return JsonConvert.SerializeObject(messageData, this.taskMessageSerializerSettings);
+            return Utils.SerializeToJson(serializer, messageData);
         }
 
         /// <summary>
@@ -116,9 +118,9 @@ namespace DurableTask.AzureStorage
         /// <returns>Actual string representation of message.</returns>
         public async Task<string> FetchLargeMessageIfNecessary(string message)
         {
-            if (Uri.IsWellFormedUriString(message, UriKind.Absolute))
+            if (TryGetLargeMessageReference(message, out Uri blobUrl))
             {
-                return await this.DownloadAndDecompressAsBytesAsync(new Uri(message));
+                return await this.DownloadAndDecompressAsBytesAsync(blobUrl);
             }
             else
             {
@@ -126,25 +128,35 @@ namespace DurableTask.AzureStorage
             }
         }
 
+        internal static bool TryGetLargeMessageReference(string messagePayload, out Uri blobUrl)
+        {
+            return Uri.TryCreate(messagePayload, UriKind.Absolute, out blobUrl);
+        }
+
         public async Task<MessageData> DeserializeQueueMessageAsync(QueueMessage queueMessage, string queueName)
         {
-            MessageData envelope = JsonConvert.DeserializeObject<MessageData>(
-                queueMessage.Message,
-                this.taskMessageSerializerSettings);
+            MessageData envelope = this.DeserializeMessageData(queueMessage.Message);
 
             if (!string.IsNullOrEmpty(envelope.CompressedBlobName))
             {
                 string decompressedMessage = await this.DownloadAndDecompressAsBytesAsync(envelope.CompressedBlobName);
-                envelope = JsonConvert.DeserializeObject<MessageData>(
-                    decompressedMessage,
-                    this.taskMessageSerializerSettings);
+                envelope = this.DeserializeMessageData(decompressedMessage);
                 envelope.MessageFormat = MessageFormatFlags.StorageBlob;
+                envelope.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(decompressedMessage);
+            }
+            else
+            {
+                envelope.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(queueMessage.Message);
             }
 
             envelope.OriginalQueueMessage = queueMessage;
-            envelope.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(queueMessage.Message);
             envelope.QueueName = queueName;
             return envelope;
+        }
+
+        internal MessageData DeserializeMessageData(string json)
+        {
+            return Utils.DeserializeFromJson<MessageData>(this.serializer, json);
         }
 
         public Task CompressAndUploadAsBytesAsync(byte[] payloadBuffer, string blobName)
@@ -269,22 +281,25 @@ namespace DurableTask.AzureStorage
             return $"{instanceId}/message-{activityId}-{eventType}.json.gz";
         }
 
-        public async Task DeleteLargeMessageBlobs(string sanitizedInstanceId)
+        public async Task<int> DeleteLargeMessageBlobs(string sanitizedInstanceId)
         {
-            if (!await this.blobContainer.ExistsAsync())
+            int storageOperationCount = 1;
+            if (await this.blobContainer.ExistsAsync())
             {
-                return;
+                IEnumerable<Blob> blobList = await this.blobContainer.ListBlobsAsync(sanitizedInstanceId);
+                storageOperationCount++;
+
+                var blobForDeletionTaskList = new List<Task>();
+                foreach (Blob blob in blobList)
+                {
+                    blobForDeletionTaskList.Add(blob.DeleteIfExistsAsync());
+                }
+
+                await Task.WhenAll(blobForDeletionTaskList);
+                storageOperationCount += blobForDeletionTaskList.Count;
             }
 
-            IEnumerable<Blob> blobList = await this.blobContainer.ListBlobsAsync(sanitizedInstanceId);
-
-            var blobForDeletionTaskList = new List<Task>();
-            foreach (Blob blob in blobList)
-            {
-                blobForDeletionTaskList.Add(blob.DeleteIfExistsAsync());
-            }
-
-            await Task.WhenAll(blobForDeletionTaskList);
+            return storageOperationCount;
         }
     }
 

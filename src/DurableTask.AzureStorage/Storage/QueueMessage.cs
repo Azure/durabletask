@@ -43,5 +43,7 @@ namespace DurableTask.AzureStorage.Storage
         public DateTimeOffset? InsertionTime => this.CloudQueueMessage.InsertionTime;
 
         public DateTimeOffset? NextVisibleTime => this.CloudQueueMessage.NextVisibleTime;
+
+        public string PopReceipt => this.CloudQueueMessage.PopReceipt;
     }
 }

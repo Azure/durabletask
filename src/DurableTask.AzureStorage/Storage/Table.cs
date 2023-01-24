@@ -47,21 +47,21 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task<bool> CreateIfNotExistsAsync()
         {
-            return await this.azureStorageClient.MakeStorageRequest<bool>(
+            return await this.azureStorageClient.MakeTableStorageRequest<bool>(
                 (context, cancellationToken) => this.cloudTable.CreateIfNotExistsAsync(null, context, cancellationToken),
                 "Table Create");
         }
 
         public async Task<bool> DeleteIfExistsAsync()
         {
-            return await this.azureStorageClient.MakeStorageRequest<bool>(
+            return await this.azureStorageClient.MakeTableStorageRequest<bool>(
                 (context, cancellationToken) => this.cloudTable.DeleteIfExistsAsync(null, context, cancellationToken),
                 "Table Delete");
         }
 
         public async Task<bool> ExistsAsync()
         {
-            return await this.azureStorageClient.MakeStorageRequest<bool>(
+            return await this.azureStorageClient.MakeTableStorageRequest<bool>(
                 (context, cancellationToken) => this.cloudTable.ExistsAsync(null, context, cancellationToken),
                 "Table Exists");
         }
@@ -110,7 +110,7 @@ namespace DurableTask.AzureStorage.Storage
 
         private async Task ExecuteAsync(TableOperation operation, string operationType)
         {
-            var storageTableResult = await this.azureStorageClient.MakeStorageRequest<TableResult>(
+            var storageTableResult = await this.azureStorageClient.MakeTableStorageRequest<TableResult>(
                 (context, cancellationToken) => this.cloudTable.ExecuteAsync(operation, null, context, cancellationToken),
                 "Table Execute " + operationType);
 
@@ -169,7 +169,7 @@ namespace DurableTask.AzureStorage.Storage
             var stopwatch = new Stopwatch();
             long elapsedMilliseconds = 0;
 
-            var batchResults = await this.azureStorageClient.MakeStorageRequest(
+            var batchResults = await this.azureStorageClient.MakeTableStorageRequest(
                 (context, timeoutToken) => this.cloudTable.ExecuteBatchAsync(batchOperation, null, context, timeoutToken),
                 "Table BatchExecute " + batchType);
 
@@ -199,15 +199,13 @@ namespace DurableTask.AzureStorage.Storage
             {
                 stopwatch.Start();
 
-                var segment = await this.azureStorageClient.MakeStorageRequest(
+                TableQuerySegment<T> segment = await this.azureStorageClient.MakeTableStorageRequest(
                     async (context, timeoutCancellationToken) =>
                     {
-                        using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCancellationToken, timeoutCancellationToken))
-                        {
-                            return await this.cloudTable.ExecuteQuerySegmentedAsync(query, tableContinuationToken, null, context, finalLinkedCts.Token);
-                        }
+                        using var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCancellationToken, timeoutCancellationToken);
+                        return await this.cloudTable.ExecuteQuerySegmentedAsync(query, tableContinuationToken, null, context, finalLinkedCts.Token);
                     },
-                "Table ExecuteQuerySegmented");
+                    "Table ExecuteQuerySegmented");
 
                 stopwatch.Stop();
                 elapsedMilliseconds += stopwatch.ElapsedMilliseconds;
@@ -215,6 +213,10 @@ namespace DurableTask.AzureStorage.Storage
                 requestCount++;
 
                 results.AddRange(segment);
+                if (query.TakeCount > 0 && results.Count >= query.TakeCount)
+                {
+                    break;
+                }
 
                 tableContinuationToken = segment.ContinuationToken;
                 if (tableContinuationToken == null || callerCancellationToken.IsCancellationRequested)
@@ -248,7 +250,7 @@ namespace DurableTask.AzureStorage.Storage
             if (!string.IsNullOrEmpty(continuationToken))
             {
                 var tokenContent = Encoding.UTF8.GetString(Convert.FromBase64String(continuationToken));
-                tableContinuationToken = JsonConvert.DeserializeObject<TableContinuationToken>(tokenContent);
+                tableContinuationToken = Utils.DeserializeFromJson<TableContinuationToken>(tokenContent);
             }
 
             var stopwatch = new Stopwatch();
@@ -256,7 +258,7 @@ namespace DurableTask.AzureStorage.Storage
 
             stopwatch.Start();
 
-            var segment = await this.azureStorageClient.MakeStorageRequest(
+            var segment = await this.azureStorageClient.MakeTableStorageRequest(
                 async (context, timeoutCancellationToken) =>
                 {
                     using (var finalLinkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCancellationToken, timeoutCancellationToken))
@@ -275,7 +277,7 @@ namespace DurableTask.AzureStorage.Storage
             string? newContinuationToken = null;
             if (segment.ContinuationToken != null)
             {
-                string tokenJson = JsonConvert.SerializeObject(segment.ContinuationToken);
+                string tokenJson = Utils.SerializeToJson(segment.ContinuationToken);
                 newContinuationToken = Convert.ToBase64String(Encoding.UTF8.GetBytes(tokenJson));
             }
 

@@ -213,6 +213,7 @@ namespace DurableTask.Emulator
                     Name = ee.Name,
                     Input = ee.Input,
                     ScheduledStartTime = ee.ScheduledStartTime,
+                    Tags = ee.Tags,
                 };
 
                 ed.Add(creationMessage.OrchestrationInstance.ExecutionId, newState);

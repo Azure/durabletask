@@ -635,6 +635,78 @@ namespace DurableTask.Core.Logging
                     Utils.PackageVersion);
         }
 
+        internal class SuspendingInstance : StructuredLogEvent, IEventSourceEvent
+        {
+            public SuspendingInstance(OrchestrationInstance instance, string reason)
+            {
+                this.InstanceId = instance.InstanceId;
+                this.ExecutionId = instance.ExecutionId;
+                this.Details = reason;
+            }
+
+            [StructuredLogField]
+            public string InstanceId { get; }
+
+            [StructuredLogField]
+            public string ExecutionId { get; }
+
+            [StructuredLogField]
+            public string Details { get; }
+
+            public override EventId EventId => new EventId(
+                EventIds.SuspendingInstance,
+                nameof(EventIds.SuspendingInstance));
+
+            public override LogLevel Level => LogLevel.Information;
+
+            protected override string CreateLogMessage() =>
+                $"Suspending instance '{this.InstanceId}': {this.Details}";
+
+            void IEventSourceEvent.WriteEventSource() =>
+                StructuredEventSource.Log.SuspendingInstance(
+                    this.InstanceId,
+                    this.ExecutionId,
+                    this.Details,
+                    Utils.AppName,
+                    Utils.PackageVersion);
+        }
+
+        internal class ResumingInstance : StructuredLogEvent, IEventSourceEvent
+        {
+            public ResumingInstance(OrchestrationInstance instance, string reason)
+            {
+                this.InstanceId = instance.InstanceId;
+                this.ExecutionId = instance.ExecutionId;
+                this.Details = reason;
+            }
+
+            [StructuredLogField]
+            public string InstanceId { get; }
+
+            [StructuredLogField]
+            public string ExecutionId { get; }
+
+            [StructuredLogField]
+            public string Details { get; }
+
+            public override EventId EventId => new EventId(
+                EventIds.ResumingInstance,
+                nameof(EventIds.ResumingInstance));
+
+            public override LogLevel Level => LogLevel.Information;
+
+            protected override string CreateLogMessage() =>
+                $"Resuming instance '{this.InstanceId}': {this.Details}";
+
+            void IEventSourceEvent.WriteEventSource() =>
+                StructuredEventSource.Log.ResumingInstance(
+                    this.InstanceId,
+                    this.ExecutionId,
+                    this.Details,
+                    Utils.AppName,
+                    Utils.PackageVersion);
+        }
+
         internal class WaitingForInstance : StructuredLogEvent, IEventSourceEvent
         {
             public WaitingForInstance(OrchestrationInstance instance, TimeSpan timeout)
@@ -1203,6 +1275,8 @@ namespace DurableTask.Core.Logging
 
         internal class TaskActivityFailure : StructuredLogEvent, IEventSourceEvent
         {
+            readonly Exception exception;
+
             public TaskActivityFailure(
                 OrchestrationInstance instance,
                 string name,
@@ -1214,6 +1288,7 @@ namespace DurableTask.Core.Logging
                 this.Name = name;
                 this.TaskEventId = taskEvent.EventId;
                 this.Details = exception.ToString();
+                this.exception = exception;
             }
 
             [StructuredLogField]
@@ -1246,7 +1321,7 @@ namespace DurableTask.Core.Logging
                     this.ExecutionId,
                     this.Name,
                     this.TaskEventId,
-                    this.Details,
+                    Utils.RedactUserCodeExceptions ? LogHelper.GetRedactedExceptionDetails(this.exception) : this.Details, // We have to be extra guarded about logging user exceptions to EventSource (ETW)
                     Utils.AppName,
                     Utils.PackageVersion);
         }

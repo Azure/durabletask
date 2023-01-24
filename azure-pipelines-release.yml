@@ -2,7 +2,9 @@ trigger: none
 pr: none
 
 pool:
-  vmImage: 'windows-latest'
+  name: '1ES-Hosted-DurableTaskFramework'
+  demands:
+    - ImageOverride -equals MMS2022TLS
 
 steps:
 # Start by restoring all the dependencies. This needs to be its own task
@@ -13,17 +15,61 @@ steps:
   inputs:
     command: restore
     verbosityRestore: Minimal
-    projects: 'src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln'
+    projects: |
+      src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln
+      src/DurableTask.Emulator/DurableTask.Emulator.csproj
+      src/DurableTask.ServiceBus/DurableTask.ServiceBus.csproj
+      src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj
 
 # Build the filtered solution in release mode, specifying the continuous integration flag.
 - task: VSBuild@1
-  displayName: 'Build'
+  displayName: 'Build (AzureStorage)'
   inputs:
     solution: 'src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln'
     vsVersion: '16.0'
     logFileVerbosity: minimal
     configuration: Release
-    msbuildArgs: /p:GITHUB_RUN_NUMBER=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+    msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+- task: VSBuild@1
+  displayName: 'Build (Emulator)'
+  inputs:
+    solution: 'src/DurableTask.Emulator/DurableTask.Emulator.csproj'
+    vsVersion: '16.0'
+    logFileVerbosity: minimal
+    configuration: Release
+    msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+- task: VSBuild@1
+  displayName: 'Build (ServiceBus)'
+  inputs:
+    solution: 'src/DurableTask.ServiceBus/DurableTask.ServiceBus.csproj'
+    vsVersion: '16.0'
+    logFileVerbosity: minimal
+    configuration: Release
+    msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+- task: VSBuild@1
+  displayName: 'Build (AzureServiceFabric)'
+  inputs:
+    solution: 'src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj'
+    vsVersion: '16.0'
+    logFileVerbosity: minimal
+    configuration: Release
+    platform: x64
+    msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+- task: UseDotNet@2
+  displayName: 'Use the .NET Core 2.1 SDK (required for build signing)'
+  inputs:
+    packageType: 'sdk'
+    version: '2.1.x'
+
+# Manifest Generator Task
+- task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+  displayName: 'Manifest Generator '
+  inputs:
+    BuildDropPath: '$(System.DefaultWorkingDirectory)'
 
 # Authenticode sign all the DLLs with the Microsoft certificate.
 # This appears to be an in-place signing job, which is convenient.
@@ -60,6 +106,7 @@ steps:
 
 # Packaging needs to be a separate step from build.
 # This will automatically pick up the signed DLLs.
+
 - task: DotNetCoreCLI@2
   displayName: Generate nuget packages
   inputs:
@@ -69,6 +116,38 @@ steps:
     nobuild: true
     packDirectory: $(build.artifactStagingDirectory)
     packagesToPack: 'src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln'
+
+
+- task: DotNetCoreCLI@2
+  displayName: Generate nuget packages
+  inputs:
+    command: pack
+    verbosityPack: Minimal
+    configuration: Release
+    nobuild: true
+    packDirectory: $(build.artifactStagingDirectory)
+    packagesToPack: 'src/DurableTask.Emulator/DurableTask.Emulator.csproj'
+
+- task: DotNetCoreCLI@2
+  displayName: Generate nuget packages
+  inputs:
+    command: pack
+    verbosityPack: Minimal
+    configuration: Release
+    nobuild: true
+    packDirectory: $(build.artifactStagingDirectory)
+    packagesToPack: 'src/DurableTask.ServiceBus/DurableTask.ServiceBus.csproj'
+
+# - task: DotNetCoreCLI@2
+#   displayName: Generate nuget packages
+#   inputs:
+#     command: pack
+#     verbosityPack: Minimal
+#     configuration: Release
+#     nobuild: true
+#     packDirectory: $(build.artifactStagingDirectory)
+#     packagesToPack: 'src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj'
+#     buildProperties: 'Platform=x64'
 
 # Digitally sign all the nuget packages with the Microsoft certificate.
 # This appears to be an in-place signing job, which is convenient.

@@ -69,6 +69,8 @@ namespace DurableTask.Core.Exceptions
         /// </summary>
         public string Details { get; set; }
 
+        internal FailureDetails FailureDetails { get; set; }
+
         /// <summary>
         /// Gets object data for use by serialization.
         /// </summary>

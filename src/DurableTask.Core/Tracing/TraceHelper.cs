@@ -159,7 +159,7 @@ namespace DurableTask.Core.Tracing
             return newActivity;
         }
 
-        internal static Activity? CreateActivityForTimer(OrchestrationInstance instance, DateTime startTime, DateTime fireAt)
+        internal static Activity? CreateActivityForTimer(OrchestrationInstance? instance, DateTime startTime, DateTime fireAt)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 name: "Timer",
@@ -170,8 +170,8 @@ namespace DurableTask.Core.Tracing
             if (newActivity is not null)
             {
                 newActivity.AddTag("dtfx.type", "timer");
-                newActivity.AddTag("dtfx.instance_id", instance.InstanceId);
-                newActivity.AddTag("dtfx.execution_id", instance.ExecutionId);
+                newActivity.AddTag("dtfx.instance_id", instance?.InstanceId);
+                newActivity.AddTag("dtfx.execution_id", instance?.ExecutionId);
                 newActivity.AddTag("dtfx.fire_at", fireAt.ToString("o"));
             }
 
@@ -188,7 +188,7 @@ namespace DurableTask.Core.Tracing
         /// </returns>
         internal static Activity? StartTraceActivityForEventRaised(
             EventRaisedEvent eventRaisedEvent,
-            OrchestrationInstance instance)
+            OrchestrationInstance? instance)
         {
             return ActivityTraceSource.StartActivity(
                 name: eventRaisedEvent.Name,
@@ -197,8 +197,8 @@ namespace DurableTask.Core.Tracing
                 tags: new KeyValuePair<string, object?>[]
                 {
                     new("dtfx.type", "externalevent"),
-                    new("dtfx.instance_id", instance.InstanceId),
-                    new("dtfx.execution_id", instance.ExecutionId)
+                    new("dtfx.instance_id", instance?.InstanceId),
+                    new("dtfx.execution_id", instance?.ExecutionId)
                 });
         }
 

@@ -18,11 +18,14 @@ namespace DurableTask.AzureServiceFabric
     using System.Threading.Tasks;
 
     using DurableTask.Core;
+    using DurableTask.Core.Query;
 
     /// <summary>
     /// Provides additional useful functionality which is not available through <see cref="TaskHubClient"/>.
+    /// NOTE: This direct interface is meant for debugging/testing purposes only.
+    /// TODO: Enable this functionality via <see cref="IOrchestrationServiceQueryClient"/> if this is helpful for other providers
     /// </summary>
-    internal interface IFabricProviderClient
+    public interface IFabricProviderClient
     {
         /// <summary>
         /// Gets all the orchestration instances which are currently running or pending.

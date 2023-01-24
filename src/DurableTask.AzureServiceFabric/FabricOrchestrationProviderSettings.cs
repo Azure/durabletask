@@ -15,6 +15,7 @@ namespace DurableTask.AzureServiceFabric
 {
     using DurableTask.Core;
     using DurableTask.Core.Settings;
+    using Microsoft.Extensions.Logging;
 
     /// <summary>
     /// Provides settings for service fabric based custom provider implementations
@@ -50,5 +51,10 @@ namespace DurableTask.AzureServiceFabric
         ///     Settings to configure the Task Activity Dispatcher
         /// </summary>
         public TaskActivityDispatcherSettings TaskActivityDispatcherSettings { get; set; }
+
+        /// <summary>
+        /// Gets or sets the optional <see cref="ILoggerFactory"/> to use for diagnostic logging.
+        /// </summary>
+        public ILoggerFactory LoggerFactory { get; set; }
     }
 }
