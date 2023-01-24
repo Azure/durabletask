@@ -149,14 +149,14 @@ namespace DurableTask.Core.Tracing
         /// </summary>
         /// <param name="orchestrationInstance">The associated orchestration instance metadata.</param>
         /// <param name="createdEvent">The related sub-orchestration created event.</param>
-        /// <param name="subOrchestrationFailed">Specifies if the sub-orchestration failed.</param>
+        /// <param name="failedEvent">The sub-orchestration failed event.</param>
         /// <returns>
         /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
         /// </returns>
         internal static Activity? StartTraceActivityForSubOrchestrationFinished(
             OrchestrationInstance? orchestrationInstance,
             SubOrchestrationInstanceCreatedEvent createdEvent,
-            bool subOrchestrationFailed = false)
+            SubOrchestrationInstanceFailedEvent? failedEvent = null)
         {
             if (orchestrationInstance == null || createdEvent == null)
             {
@@ -179,10 +179,17 @@ namespace DurableTask.Core.Tracing
             activity.SetTag("dtfx.execution_id", orchestrationInstance?.ExecutionId);
 
             // Adding additional tags for a SubOrchestrationInstanceFailedEvent
-            if (subOrchestrationFailed)
+            if (failedEvent != null)
             {
                 activity.SetTag("otel.status_code", "ERROR");
+
+                FailureDetails? failureDetails = failedEvent.FailureDetails;
+                if (failureDetails != null)
+                {
+                    activity.SetTag("otel.status_description", failureDetails.ErrorMessage);
+                }
             }
+
 
             return activity;            
         }
