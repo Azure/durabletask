@@ -21,7 +21,7 @@ namespace DurableTask.Core.History
     /// A history event for sub orchestration instance completion
     /// </summary>
     [DataContract]
-    public class SubOrchestrationInstanceCompletedEvent : HistoryEvent, ISubOrchestrationFinishedEvent
+    public class SubOrchestrationInstanceCompletedEvent : HistoryEvent
     {
         /// <summary>
         /// Create a new SubOrchestrationInstanceCompletedEvent with the supplied params
@@ -52,9 +52,5 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public string Result { get; private set; }
-
-        /// <inheritdoc/>
-        [DataMember]
-        public DistributedTraceContext ParentTraceContext { get; set; }
     }
 }

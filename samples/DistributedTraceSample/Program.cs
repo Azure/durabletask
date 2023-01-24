@@ -129,9 +129,9 @@ namespace OpenTelemetrySample
                 string result = "";
                 result += await context.CreateSubOrchestrationInstance<string>(typeof(HelloSequence), null);
                 result += await context.ScheduleTask<string>(typeof(SayHello), "Tokyo");
-                Task<string> fanOut = context.CreateSubOrchestrationInstance<string>(typeof(HelloFanOut), null);
+                Task<string> parallelTask = context.CreateSubOrchestrationInstance<string>(typeof(HelloFanOut), null);
                 result += await context.CreateSubOrchestrationInstance<string>(typeof(HelloSequence), null);
-                result += await fanOut;
+                result += await parallelTask;
 
                 return result;
             }

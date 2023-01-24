@@ -148,31 +148,26 @@ namespace DurableTask.Core.Tracing
         /// Starts a new trace activity for suborchestration execution.
         /// </summary>
         /// <param name="orchestrationInstance">The associated orchestration instance metadata.</param>
-        /// <param name="finishedEvent">The sub-orchestration event. Represents a sub-orchestration completing or failing.</param>
         /// <param name="createdEvent">The related sub-orchestration created event.</param>
+        /// <param name="subOrchestrationFailed">Specifies if the sub-orchestration failed.</param>
         /// <returns>
         /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
         /// </returns>
         internal static Activity? StartTraceActivityForSubOrchestrationFinished(
             OrchestrationInstance orchestrationInstance,
-            ISubOrchestrationFinishedEvent finishedEvent,
-            SubOrchestrationInstanceCreatedEvent createdEvent)
+            SubOrchestrationInstanceCreatedEvent createdEvent,
+            bool subOrchestrationFailed = false)
         {
-            if (orchestrationInstance == null || finishedEvent == null || finishedEvent.ParentTraceContext == null || createdEvent == null)
+            if (orchestrationInstance == null || createdEvent == null)
             {
                 return null;
             }
-
-            ActivityContext.TryParse(
-                finishedEvent.ParentTraceContext.TraceParent,
-                finishedEvent.ParentTraceContext.TraceState,
-                out ActivityContext parentActivityContext);
 
             Activity? activity = ActivityTraceSource.StartActivity(
                 name: createdEvent.Name,
                 kind: ActivityKind.Client,
                 startTime: createdEvent.Timestamp,
-                parentContext: parentActivityContext);
+                parentContext: Activity.Current?.Context ?? default);
 
             if (activity == null)
             {
@@ -184,13 +179,9 @@ namespace DurableTask.Core.Tracing
             activity.SetTag("dtfx.execution_id", orchestrationInstance.ExecutionId);
 
             // Adding additional tags for a SubOrchestrationInstanceFailedEvent
-            if (finishedEvent is SubOrchestrationInstanceFailedEvent failedEvent)
+            if (subOrchestrationFailed)
             {
-                Exception cause = Utils.RetrieveCause(failedEvent.Details, new JsonDataConverter());
-
                 activity.SetTag("otel.status_code", "ERROR");
-                activity.SetTag("otel.status_description", cause?.Message);
-                activity.SetTag("exception.type", cause?.GetType());
             }
 
             return activity;            
