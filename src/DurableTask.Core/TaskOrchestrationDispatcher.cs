@@ -759,7 +759,7 @@ namespace DurableTask.Core
                         SubOrchestrationInstanceCreatedEvent subOrchestrationCreatedEvent = (SubOrchestrationInstanceCreatedEvent)workItem.OrchestrationRuntimeState.Events.FirstOrDefault(x => x.EventId == subOrchestrationInstanceFailedEvent.TaskScheduledId);
 
                         // We immediately publish the activity span for this sub-orchestration by creating the activity and immediately calling Dispose() on it.
-                        TraceHelper.StartTraceActivityForSubOrchestrationFinished(workItem.OrchestrationRuntimeState.OrchestrationInstance, subOrchestrationCreatedEvent)?.Dispose();
+                        TraceHelper.StartTraceActivityForSubOrchestrationFinished(workItem.OrchestrationRuntimeState.OrchestrationInstance, subOrchestrationCreatedEvent, subOrchestrationInstanceFailedEvent)?.Dispose();
                     }
                 }
 
