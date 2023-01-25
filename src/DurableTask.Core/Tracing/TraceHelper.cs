@@ -31,16 +31,6 @@ namespace DurableTask.Core.Tracing
 
         static readonly ActivitySource ActivityTraceSource = new ActivitySource(Source);
 
-        private static readonly Action<Activity, string> s_spanIdSet;
-        private static readonly Action<Activity, string> s_idSet;
-
-        static TraceHelper()
-        {
-            BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
-            s_spanIdSet = typeof(Activity).GetField("_spanId", flags).CreateSetter<Activity, string>();
-            s_idSet = typeof(Activity).GetField("_id", flags).CreateSetter<Activity, string>();
-        }
-
         internal static Activity? CreateActivityForNewOrchestration(ExecutionStartedEvent startEvent)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
@@ -99,8 +89,8 @@ namespace DurableTask.Core.Tracing
 
             if (startEvent.ParentTraceContext.Id != null && startEvent.ParentTraceContext.SpanId != null)
             {
-                s_idSet(activity, startEvent.ParentTraceContext.Id!);
-                s_spanIdSet(activity, startEvent.ParentTraceContext.SpanId!);
+                activity.SetId(startEvent.ParentTraceContext.Id!);
+                activity.SetSpanId(startEvent.ParentTraceContext.SpanId!);
             }
             else
             {
