@@ -1,26 +1,27 @@
 # DurableTask Distributed Tracing Specification
+**Status**: [Experimental](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/document-status.md)
 
 ## Overview
-This document is to serve as a specification for distributed tracing in DurableTask Framework. This will include a list of all spans, their attributes, and detailed information about what constitutes each respective span.
+This document serves as a specification for distributed tracing in the DurableTask Framework. It includes a list of all spans, their attributes, and detailed information about what constitutes each respective span. We want to gather community feedback and encourage any comments with suggestions and questions. 
 
 ## References
-- [Open Telemetry Trace Semantic Conventions](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions "Open Telemetry Trace Semantic Conventions") – various trace semantic conventions we will be referencing throughout this document. Particularly, we will be pulling in some attributes defined in these files.
+- [Open Telemetry Trace Semantic Conventions](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions "Open Telemetry Trace Semantic Conventions") – various trace semantic conventions we  reference throughout this document. Particularly, we pull in some attributes defined in these files.
 
 ## Specification
 The following only applies to DurableTask.Core
 
 ### Attributes
-These attributes are all new, defined by us, and specific to DurableTask Framework. All attributes here will begin with the “durabletask” prefix.
+These attributes are all new, defined by us, and specific to DurableTask Framework. All attributes here begin with the “durabletask” prefix.
 
 Name | Type | Description | Requirement Level
 ---|---|---|---
 durabletask.type | string | The type of durable event occurring. Options: “activity”, “orchestration”, “timer”, “event” | Required
-durabletask.task.name | string | The name of the durable task being invoked. This is the name it was queued with, not necessarily the name of the handler class/type. | Required
-durabletask.task.version | string | The version of the task being ran.  | Conditionally Required [1]
-durabletask.task.instance_id |  string | The execution ID of the task being ran. This will be unique for all tasks. | Required [2]
-durabletask.task.execution_id | string | The execution ID of the task being ran. This will be unique for all tasks. | Required [2]
+durabletask.task.name | string | The name of the durable task being invoked. This is the name it was scheduled with, not necessarily the name of the handler class/type. | Required
+durabletask.task.version | string | The version of the task being executed.  | Conditionally Required [1]
+durabletask.task.instance_id |  string | The execution ID of the task being ran. This is unique for all tasks. | Required [2]
+durabletask.task.execution_id | string | The execution ID of the task being ran. This is unique for all tasks. | Required [2]
 durabletask.task.task_id | integer | The ID / index of the task within the orchestration. | Conditionally required
-durabletask.task.result | string | The terminal status of a task. Options: “Succeeded”, “Failed”, “Terminated”, "Suspended" | Required
+durabletask.task.result | string | The terminal status of a task. Options: “Succeeded”, “Failed”, “Terminated” | Required
 durabletask.event.name | string | The name of the event being raised. | Required
 durabletask.event.instance_id | string | The target orchestration instance ID of a raised event. | Required
 
@@ -37,8 +38,8 @@ Represents enqueueing a new orchestration via TaskHubClient to the backend.
 |---|---|
 | Name  | `create_orchestration\|\|{orchestrationName}(\|\|{orchestrationVersion})?`  |
 | Kind  | Producer  |
-| Start  | Before submitting the new orchestration to the backend  |
-| End  | After the orchestration has been submitted to the backend  |
+| Start  | Timestamp before submitting the new orchestration to the backend  |
+| End  | Timestamp after the orchestration has been submitted to the backend  |
 | Status  | OK – successfully enqueued<br />Error – failed to enqueue for any reason  |
 | Status Description  | On failure – exception message which caused failure  |
 | Links  | None  |
@@ -65,8 +66,8 @@ Represents enqueueing and waiting for a sub-orchestration to complete
 |---|---|
 | Name   | `orchestration\|\|{orchestrationName}(\|\|{orchestrationVersion})?`   |
 | Kind   | Standard: Client<br />Fire and forget: Producer  |
-| Start   | When the parent orchestration enqueues a message to execute the sub\-orchestration  |
-| End   | Standard: When the parent orchestration is notified that the sub\-orchestration completed\.<br />Fire and forget: After the sub\-orchestration started event is enqueued  |
+| Start   | Timestamp of when the parent orchestration enqueues a message to execute the sub\-orchestration  |
+| End   | Standard: Timestamp of when the parent orchestration is notified that the sub\-orchestration completed\.<br />Fire and forget: Timestamp after the sub\-orchestration started event is enqueued  |
 | Status   | OK – successfully enqueued<br />Error – failed to enqueue for any reason   |
 | Links   | None   |
 | Events   | TBD   |
@@ -92,8 +93,8 @@ Represents enqueueing a new orchestration via TaskHubClient to the backend
 |---|---|
 | Name   | `orchestration\|\|{orchestrationName}(\|\|{orchestrationVersion})?`   |
 | Kind   | Server   |
-| Start   | Before the orchestration starts executing\.  |
-| End   | After the orchestration has finished executing\.   |
+| Start   | Timestamp before the orchestration starts executing\.  |
+| End   | Timestamp after the orchestration has finished executing\.   |
 | Status   | OK – successfully completed<br />Error – failed  |
 | Links   | Spans from “Sending an Event”\.  |
 | Events   | Received events – name of the event, and timestamp of the first time this event has been played  |
@@ -120,8 +121,8 @@ Represents enqueueing an activity
 |---|---|
 | Name   | `activity\|\|{activityName}(\|\|{orchestrationVersion})?`   |
 | Kind   | Client   |
-| Start   | Before enqueuing the activity  |
-| End   | After the activity has finished executing\.   |
+| Start   | Timestamp before enqueuing the activity  |
+| End   | Timestamp after the activity has finished executing\.   |
 | Status   | OK – successfully enqueued<br />Error – failed to enqueue for any reason   |
 | Links   | None   |
 | Events   | TBD   |
@@ -147,8 +148,8 @@ Represents the activity executing
 |---|---|
 | Name   | `activity\|\|{activityName}(\|\| {orchestrationVersion})?`   |
 | Kind   | Server   |
-| Start   | Before the activity starts executing\.  |
-| End   | After the activity has finished executing\.   |
+| Start   | Timestamp before the activity starts executing\.  |
+| End   | Timestamp after the activity has finished executing\.   |
 | Status   | OK – successfully completed<br />Error – failed  |
 | Links   | None   |
 | Events   | TBD   |
@@ -175,8 +176,8 @@ Represents the Durable Timer
 |---|---|
 | Name    | `timer`    |
 | Kind    | Internal    |
-| Start    | When the timer is created   |
-| End    | When the TimerFired event is processed    |
+| Start    | Timestamp of when the timer is created   |
+| End    | Timestamp of when the TimerFired event is processed    |
 | Status    | OK – timer successfully completed<br />Error – timer cancellation   |
 | Links    | None    |
 | Events    | TBD    |
@@ -202,8 +203,8 @@ Represents sending an event to an orchestration
 |---|---|
 | Name    | `orchestration_event\|\|{orchestration_name}`  |
 | Kind    | Producer |
-| Start    | Before sending the event  |
-| End    | From client: when the event has been sent <br />From worker: when the event message has been created \(this will have a negligible duration, but we want a span for a link\) |
+| Start    | Timestamp efore sending the event  |
+| End    | From client: Timestamp of when the event has been sent <br />From worker: Timestamp of when the event message has been created \(this has a negligible duration, but we want a span for a link\) |
 | Status    | OK – event sent<br />Error – event failed to send  |
 | Links    | None    |
 | Events    | None  |
@@ -216,6 +217,6 @@ Attributes:
 |---|---|
 | durabletask.type    | “event”    |
 | durabletask.event.name  | The name of the event being sent.  |
-| durabletask.event.instance_id  | The instance ID of the target orchestration (the one receiving the event).    |
+| durabletask.event.target_instance_id  | The instance ID of the target orchestration (the one receiving the event).    |
 | durabletask.task.instance_id    | Instance ID of the orchestration that is sending the event. Not present if sent from the client.  |
 | durabletask.task.execution_id   | Execution ID of the orchestration that is sending the event. Not present if sent from the client. |
