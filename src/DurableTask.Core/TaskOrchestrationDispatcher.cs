@@ -843,9 +843,18 @@ namespace DurableTask.Core
                 }
             }
 
-            DistributedTraceActivity.Current?.SetTag("dtfx.runtime_status", runtimeState.OrchestrationStatus.ToString());
-            DistributedTraceActivity.Current?.Stop();
-            DistributedTraceActivity.Current = null;
+            if (DistributedTraceActivity.Current != null)
+            {
+                if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Failed)
+                {
+                    FailureDetails? failureDetails = runtimeState.FailureDetails;
+                    DistributedTraceActivity.Current?.SetStatus(ActivityStatusCode.Error, failureDetails?.ErrorMessage);
+                }
+
+                DistributedTraceActivity.Current?.SetTag("dtfx.runtime_status", runtimeState.OrchestrationStatus.ToString());
+                DistributedTraceActivity.Current?.Stop();
+                DistributedTraceActivity.Current = null;
+            }
 
             return null;
         }

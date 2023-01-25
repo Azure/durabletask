@@ -43,6 +43,8 @@ namespace OpenTelemetrySample
                 await GetOrchestrationServiceAndClient();
 
             using TaskHubWorker worker = new TaskHubWorker(service);
+            worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
+
             worker.AddTaskOrchestrations(typeof(HelloSequence));
             worker.AddTaskOrchestrations(typeof(HelloFanOut));
             worker.AddTaskActivities(typeof(SayHello));
@@ -51,6 +53,9 @@ namespace OpenTelemetrySample
             worker.AddTaskOrchestrations(typeof(EventConversationOrchestration));
             worker.AddTaskOrchestrations(typeof(EventConversationOrchestration.Responder));
             worker.AddTaskOrchestrations(typeof(HelloSequenceWithTimer));
+            worker.AddTaskOrchestrations(typeof(HelloSequenceException));
+            worker.AddTaskActivities(typeof(ThrowException));
+
             await worker.StartAsync();
 
             TaskHubClient client = new TaskHubClient(serviceClient);
@@ -63,6 +68,15 @@ namespace OpenTelemetrySample
             await client.WaitForOrchestrationAsync(helloSeqInstance, TimeSpan.FromMinutes(5));
 
             Console.WriteLine("Done with Hello Sequence!");
+
+            // Hello Sequence throws exception
+            OrchestrationInstance helloSeqExceptionInstance = await client.CreateOrchestrationInstanceAsync(
+                typeof(HelloSequenceException),
+                input: null);
+            await client.WaitForOrchestrationAsync(helloSeqExceptionInstance, TimeSpan.FromMinutes(5));
+
+            Console.WriteLine("Done with Hello Sequence Exception!");
+
 
             // Hello Sequence with Timer
             OrchestrationInstance helloSeqWithTimerInstance = await client.CreateOrchestrationInstanceAsync(typeof(HelloSequenceWithTimer), null);
@@ -134,6 +148,27 @@ namespace OpenTelemetrySample
             {
                 Thread.Sleep(1000);
                 return $"Hello, {input}!";
+            }
+        }
+
+        class HelloSequenceException : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                string output = "";
+                output += await context.ScheduleTask<string>(typeof(SayHello), "Tokyo") + ", ";
+                output += await context.ScheduleTask<string>(typeof(SayHello), "London") + ", ";
+                output += await context.ScheduleTask<string>(typeof(ThrowException), "This is an invalid operation.") + ", ";
+                output += await context.ScheduleTask<string>(typeof(SayHello), "Seattle");
+                return output;
+            }
+        }
+
+        class ThrowException : TaskActivity<string, string>
+        {
+            protected override string Execute(TaskContext context, string input)
+            {
+                throw new InvalidOperationException(input);
             }
         }
 
