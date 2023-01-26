@@ -115,7 +115,8 @@ namespace DurableTask.AzureStorage.Tracking
                 CreatedTime = executionStartedEvent.Timestamp,
                 LastUpdatedTime = DateTime.UtcNow,
                 CompletedTime = Core.Common.DateTimeUtils.MinDateTime,
-                ScheduledStartTime = executionStartedEvent.ScheduledStartTime
+                ScheduledStartTime = executionStartedEvent.ScheduledStartTime,
+                Generation = executionStartedEvent.Generation
             };
 
             var orchestrationStateEntity = new OrchestrationStateInstanceEntity()

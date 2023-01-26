@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core
 {
     using System;
@@ -25,16 +25,25 @@ namespace DurableTask.Core
     /// </summary>
     public class OrchestrationRuntimeState
     {
+        private OrchestrationStatus orchestrationStatus;
+
         /// <summary>
-        /// List of all history events for this runtime state
+        /// List of all history events for this runtime state.
+        /// Note that this list is frequently a combination of <see cref="PastEvents"/> and <see cref="NewEvents"/>, but not always.
         /// </summary>
         public IList<HistoryEvent> Events { get; }
 
         /// <summary>
-        /// List of new events added during an execution to keep track of the new events that were added during a particular execution 
-        /// should not be serialized
+        /// List of new events added during an execution to keep track of the new events that were added during a particular execution.
+        /// Should not be serialized.
+        /// This list is NOT guaranteed to be a subset of <see cref="Events"/>.
         /// </summary>
         public IList<HistoryEvent> NewEvents { get; }
+
+        /// <summary>
+        /// A subset of <see cref="Events"/> that contains only events that have been previously played and should not be serialized.
+        /// </summary>
+        public IList<HistoryEvent> PastEvents { get; }
 
         readonly ISet<int> completedEventIds;
 
@@ -46,7 +55,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Gets the execution completed event
         /// </summary>
-        public ExecutionCompletedEvent ExecutionCompletedEvent { get; set; }
+        public ExecutionCompletedEvent? ExecutionCompletedEvent { get; set; }
 
         /// <summary>
         /// Size of the serialized state (uncompressed)
@@ -56,7 +65,7 @@ namespace DurableTask.Core
         /// <summary>
         /// The string status of the runtime state
         /// </summary>
-        public string Status;
+        public string? Status;
 
         /// <summary>
         /// Creates a new instance of the OrchestrationRuntimeState
@@ -70,11 +79,13 @@ namespace DurableTask.Core
         /// Creates a new instance of the OrchestrationRuntimeState with the supplied events
         /// </summary>
         /// <param name="events">List of events for this runtime state</param>
-        public OrchestrationRuntimeState(IList<HistoryEvent> events)
+        public OrchestrationRuntimeState(IList<HistoryEvent>? events)
         {
-            Events = new List<HistoryEvent>();
+            Events = events != null ? new List<HistoryEvent>(events.Count) : new List<HistoryEvent>();
+            PastEvents = events != null ? new List<HistoryEvent>(events.Count) : new List<HistoryEvent>();
             NewEvents = new List<HistoryEvent>();
             completedEventIds = new HashSet<int>();
+            orchestrationStatus = OrchestrationStatus.Running;
 
             if (events != null && events.Count > 0)
             {
@@ -88,7 +99,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Gets the execution started event
         /// </summary>
-        public ExecutionStartedEvent ExecutionStartedEvent
+        public ExecutionStartedEvent? ExecutionStartedEvent
         {
             get; private set;
         }
@@ -96,14 +107,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Gets the created time of the ExecutionStartedEvent
         /// </summary>
-        public DateTime CreatedTime
-        {
-            get
-            {
-                Debug.Assert(ExecutionStartedEvent != null);
-                return ExecutionStartedEvent.Timestamp;
-            }
-        }
+        public DateTime CreatedTime => GetExecutionStartedEventOrThrow().Timestamp;
 
         /// <summary>
         /// Gets the created time of the ExecutionCompletedEvent if completed else a safe (from timezone shift) max datetime
@@ -113,49 +117,37 @@ namespace DurableTask.Core
         /// <summary>
         /// Gets the serialized input of the ExecutionStartedEvent
         /// </summary>
-        public string Input
-        {
-            get
-            {
-                Debug.Assert(ExecutionStartedEvent != null);
-                return ExecutionStartedEvent.Input;
-            }
-        }
+        public string? Input => GetExecutionStartedEventOrThrow().Input;
 
         /// <summary>
         /// Gets the serialized output of the ExecutionCompletedEvent if completed else null
         /// </summary>
-        public string Output => ExecutionCompletedEvent?.Result;
+        public string? Output => ExecutionCompletedEvent?.FailureDetails?.ToString() ?? ExecutionCompletedEvent?.Result;
 
         /// <summary>
-        /// Gets the orchestration name of the ExecutionStartedEvent
+        /// Gets the structured failure details for this orchestration.
         /// </summary>
-        public string Name
-        {
-            get
-            {
-                Debug.Assert(ExecutionStartedEvent != null);
-                return ExecutionStartedEvent.Name;
-            }
-        }
+        /// <remarks>
+        /// This property is set only when the orchestration fails and <see cref="TaskHubWorker.ErrorPropagationMode"/>
+        /// is set to <see cref="ErrorPropagationMode.UseFailureDetails"/>.
+        /// </remarks>
+        public FailureDetails? FailureDetails => ExecutionCompletedEvent?.FailureDetails;
+
+        /// <summary>
+        /// Gets the orchestration name from the ExecutionStartedEvent
+        /// </summary>
+        public string Name => GetExecutionStartedEventOrThrow().Name;
 
         /// <summary>
         /// Gets the orchestration version of the ExecutionStartedEvent
         /// </summary>
-        public string Version
-        {
-            get
-            {
-                Debug.Assert(ExecutionStartedEvent != null);
-                return ExecutionStartedEvent.Version;
-            }
-        }
+        public string Version => GetExecutionStartedEventOrThrow().Version;
 
         /// <summary>
         /// Gets the tags from the ExecutionStartedEvent
         /// </summary>
-        // This gets called by json.net for deserialization, we can't assert if there is no ExecutionStartedEvent
-        public IDictionary<string, string> Tags => ExecutionStartedEvent?.Tags;
+        // This gets called by json.net for deserialization, we can't throw if there is no ExecutionStartedEvent
+        public IDictionary<string, string>? Tags => ExecutionStartedEvent?.Tags;
 
         /// <summary>
         /// Gets the status of the orchestration
@@ -165,26 +157,32 @@ namespace DurableTask.Core
         {
             get
             {
-                Debug.Assert(ExecutionStartedEvent != null);
+                GetExecutionStartedEventOrThrow();
 
-                if (ExecutionCompletedEvent != null)
-                {
-                    return ExecutionCompletedEvent.OrchestrationStatus;
-                }
-
-                return OrchestrationStatus.Running;
+                return orchestrationStatus;
             }
         }
 
         /// <summary>
         /// Gets the OrchestrationInstance of the ExecutionStartedEvent else null
         /// </summary>
-        public OrchestrationInstance OrchestrationInstance => ExecutionStartedEvent?.OrchestrationInstance;
+        public OrchestrationInstance? OrchestrationInstance => ExecutionStartedEvent?.OrchestrationInstance;
 
         /// <summary>
         /// Gets the ParentInstance of the ExecutionStartedEvent else null
         /// </summary>
-        public ParentInstance ParentInstance => ExecutionStartedEvent?.ParentInstance;
+        public ParentInstance? ParentInstance => ExecutionStartedEvent?.ParentInstance;
+
+        /// <summary>
+        /// Gets a value indicating whether the orchestration state is valid.
+        /// </summary>
+        /// <remarks>
+        /// An invalid orchestration runtime state means that the history is somehow corrupted.
+        /// </remarks>
+        public bool IsValid => 
+            this.Events.Count == 0 ||
+            this.Events.Count == 1 && this.Events[0].EventType == EventType.OrchestratorStarted ||
+            this.ExecutionStartedEvent != null;
 
         /// <summary>
         /// Adds a new history event to the Events list and NewEvents list
@@ -193,6 +191,17 @@ namespace DurableTask.Core
         public void AddEvent(HistoryEvent historyEvent)
         {
             AddEvent(historyEvent, true);
+        }
+
+        ExecutionStartedEvent GetExecutionStartedEventOrThrow()
+        {
+            ExecutionStartedEvent? executionStartedEvent = this.ExecutionStartedEvent;
+            if (executionStartedEvent == null)
+            {
+                throw new InvalidOperationException("An ExecutionStarted event is required.");
+            }
+
+            return executionStartedEvent;
         }
 
         /// <summary>
@@ -213,6 +222,10 @@ namespace DurableTask.Core
             {
                 NewEvents.Add(historyEvent);
             }
+            else
+            {
+                PastEvents.Add(historyEvent);
+            }
 
             SetMarkerEvents(historyEvent);
         }
@@ -225,8 +238,8 @@ namespace DurableTask.Core
             {
                 TraceHelper.Trace(TraceEventType.Warning, 
                     "OrchestrationRuntimeState-DuplicateEvent", 
-                    "The orchestration {0} has already seen a completed task with id {1}.",
-                    this.OrchestrationInstance.InstanceId,
+                    "The orchestration '{0}' has already seen a completed task with id {1}.",
+                    this.OrchestrationInstance?.InstanceId ?? "",
                     historyEvent.EventId);
                 return true;
             }
@@ -254,6 +267,18 @@ namespace DurableTask.Core
                 }
 
                 ExecutionCompletedEvent = completedEvent;
+                orchestrationStatus = completedEvent.OrchestrationStatus;
+            }
+            else if (historyEvent is ExecutionSuspendedEvent)
+            {
+                orchestrationStatus = OrchestrationStatus.Suspended;
+            }
+            else if (historyEvent is ExecutionResumedEvent)
+            {
+                if (ExecutionCompletedEvent == null)
+                {
+                    orchestrationStatus = OrchestrationStatus.Running;
+                }
             }
         }
 

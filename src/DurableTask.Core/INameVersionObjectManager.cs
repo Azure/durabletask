@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core
 {
     /// <summary>
@@ -30,6 +30,6 @@ namespace DurableTask.Core
         /// <param name="name">Name of the class to return the creator for</param>
         /// <param name="version">Version of the class to return the creator for</param>
         /// <returns>Class instance based on the matching creator class for the supplied name and version</returns>
-        T GetObject(string name, string version);
+        T? GetObject(string name, string? version);
     }
 }

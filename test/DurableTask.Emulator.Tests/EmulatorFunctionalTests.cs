@@ -14,7 +14,9 @@
 namespace DurableTask.Emulator.Tests
 {
     using System;
+    using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core;
@@ -277,5 +279,46 @@ namespace DurableTask.Emulator.Tests
 
         ////    await orchestrationService.StopAsync();
         ////}
+
+        [TestMethod]
+        public async Task MockOrchestrationTagsTest()
+        {
+            var orchestrationService = new LocalOrchestrationService();
+
+            var worker = new TaskHubWorker(orchestrationService);
+
+            var orchestrationType = typeof(SimplestGreetingsOrchestration);
+            await worker.AddTaskOrchestrations(orchestrationType)
+                .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
+                .StartAsync();
+
+            var client = new TaskHubClient(orchestrationService);
+
+            var instanceId = Guid.NewGuid().ToString("N");
+            var tags = new Dictionary<string, string>
+            {
+                { "tag1", "value1" },
+                { "tag2", "value2" },
+            };
+
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(NameVersionHelper.GetDefaultName(orchestrationType),
+                NameVersionHelper.GetDefaultVersion(orchestrationType), instanceId, input: null, tags);
+            Assert.AreEqual(instanceId, id.InstanceId);
+
+            OrchestrationState state = await client.GetOrchestrationStateAsync(id);
+            AssertTagsEqual(tags, state.Tags);
+
+            state = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(30), CancellationToken.None);
+            AssertTagsEqual(tags, state.Tags);
+
+            await worker.StopAsync(true);
+        }
+
+        private static void AssertTagsEqual(IDictionary<string, string> expectedTags, IDictionary<string, string> actualTags)
+        {
+            Assert.IsNotNull(actualTags);
+            Assert.AreEqual(expectedTags.Count, actualTags.Count);
+            Assert.IsTrue(expectedTags.All(tag => actualTags.TryGetValue(tag.Key, out var value) && value == tag.Value));
+        }
     }
 }

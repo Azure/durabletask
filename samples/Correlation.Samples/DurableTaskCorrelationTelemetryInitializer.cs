@@ -21,7 +21,6 @@ namespace Correlation.Samples
     using System.Linq;
     using DurableTask.Core;
     using DurableTask.Core.Settings;
-    using ImpromptuInterface;
     using Microsoft.ApplicationInsights.Channel;
     using Microsoft.ApplicationInsights.Common;
     using Microsoft.ApplicationInsights.DataContracts;

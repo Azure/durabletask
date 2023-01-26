@@ -43,7 +43,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="serviceClient">Object implementing the <see cref="IOrchestrationServiceClient"/> interface </param>
         public TaskHubClient(IOrchestrationServiceClient serviceClient)
-            : this(serviceClient, new JsonDataConverter())
+            : this(serviceClient, JsonDataConverter.Default)
         {
         }
 
@@ -66,7 +66,7 @@ namespace DurableTask.Core
         public TaskHubClient(IOrchestrationServiceClient serviceClient, DataConverter dataConverter = null, ILoggerFactory loggerFactory = null)
         {
             this.ServiceClient = serviceClient ?? throw new ArgumentNullException(nameof(serviceClient));
-            this.defaultConverter = dataConverter ?? new JsonDataConverter();
+            this.defaultConverter = dataConverter ?? JsonDataConverter.Default;
             this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
         }
 
@@ -730,6 +730,52 @@ namespace DurableTask.Core
 
             this.logHelper.TerminatingInstance(orchestrationInstance, reason);
             await this.ServiceClient.ForceTerminateTaskOrchestrationAsync(orchestrationInstance.InstanceId, reason);
+        }
+
+        /// <summary>
+        ///     Suspend the specified orchestration instance with a reason.
+        /// </summary>
+        /// <param name="orchestrationInstance">Instance to suspend</param>
+        /// <param name="reason">Reason for suspending the instance</param>
+        public async Task SuspendInstanceAsync(OrchestrationInstance orchestrationInstance, string reason = null)
+        {
+            if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
+            {
+                throw new ArgumentException("orchestrationInstance");
+            }
+
+            this.logHelper.SuspendingInstance(orchestrationInstance, reason);
+
+            var taskMessage = new TaskMessage
+            {
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = orchestrationInstance.InstanceId },
+                Event = new ExecutionSuspendedEvent(-1, reason)
+            };
+
+            await this.ServiceClient.SendTaskOrchestrationMessageAsync(taskMessage);
+        }
+
+        /// <summary>
+        ///     Resume the specified orchestration instance with a reason.
+        /// </summary>
+        /// <param name="orchestrationInstance">Instance to resume</param>
+        /// <param name="reason">Reason for resuming the instance</param>
+        public async Task ResumeInstanceAsync(OrchestrationInstance orchestrationInstance, string reason = null)
+        {
+            if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
+            {
+                throw new ArgumentException("orchestrationInstance");
+            }
+
+            this.logHelper.ResumingInstance(orchestrationInstance, reason);
+
+            var taskMessage = new TaskMessage
+            {
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = orchestrationInstance.InstanceId },
+                Event = new ExecutionResumedEvent(-1, reason)
+            };
+
+            await this.ServiceClient.SendTaskOrchestrationMessageAsync(taskMessage);
         }
 
         /// <summary>

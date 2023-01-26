@@ -24,6 +24,11 @@ namespace DurableTask.Core.Serializing
     /// </summary>
     public class JsonDataConverter : DataConverter
     {
+        /// <summary>
+        /// Default JsonDataConverter
+        /// </summary>
+        public static readonly JsonDataConverter Default = new JsonDataConverter();
+
         readonly JsonSerializer serializer;
 
         /// <summary>
@@ -76,14 +81,14 @@ namespace DurableTask.Core.Serializing
             }
 
             var sb = new StringBuilder(0x100);
-            var textWriter = new StringWriter(sb, CultureInfo.InvariantCulture);
+            using (var textWriter = new StringWriter(sb, CultureInfo.InvariantCulture))
             using (var writer = new JsonTextWriter(textWriter))
             {
                 writer.Formatting = (formatted ? Formatting.Indented : Formatting.None);
                 this.serializer.Serialize(writer, value);
+            
+                return textWriter.ToString();
             }
-
-            return textWriter.ToString();
         }
 
         /// <summary>
@@ -99,9 +104,11 @@ namespace DurableTask.Core.Serializing
                 return null;
             }
 
-            var reader = new StringReader(data);
-
-            return this.serializer.Deserialize(new JsonTextReader(reader), objectType);
+            using (var reader = new StringReader(data))
+            using (var jsonTextReader = new JsonTextReader(reader))
+            {
+                return this.serializer.Deserialize(jsonTextReader, objectType);
+            }
         }
     }
 }

@@ -56,5 +56,8 @@ namespace DurableTask.Core.Logging
         public const int RenewActivityMessageStarting = 65;
         public const int RenewActivityMessageCompleted = 66;
         public const int RenewActivityMessageFailed = 67;
+
+        public const int SuspendingInstance = 68;
+        public const int ResumingInstance = 69;
     }
 }

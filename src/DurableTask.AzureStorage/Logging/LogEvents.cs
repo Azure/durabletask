@@ -138,6 +138,7 @@ namespace DurableTask.AzureStorage.Logging
                 long sizeInBytes,
                 string partitionId,
                 long sequenceNumber,
+                string popReceipt,
                 int episode)
             {
                 this.RelatedActivityId = relatedActivityId;
@@ -154,6 +155,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.SizeInBytes = sizeInBytes;
                 this.PartitionId = partitionId;
                 this.SequenceNumber = sequenceNumber;
+                this.PopReceipt = popReceipt;
                 this.Episode = episode;
             }
 
@@ -199,6 +201,9 @@ namespace DurableTask.AzureStorage.Logging
             public long SequenceNumber { get; }
 
             [StructuredLogField]
+            public string PopReceipt { get; }
+
+            [StructuredLogField]
             public int Episode { get; }
 
             public override EventId EventId => new EventId(
@@ -229,6 +234,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.SizeInBytes,
                 this.PartitionId,
                 this.SequenceNumber,
+                this.PopReceipt,
                 this.Episode,
                 Utils.AppName,
                 Utils.ExtensionVersion);
@@ -245,7 +251,8 @@ namespace DurableTask.AzureStorage.Logging
                 string instanceId,
                 string executionId,
                 string partitionId,
-                long sequenceNumber)
+                long sequenceNumber,
+                string popReceipt)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
@@ -256,6 +263,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId = executionId;
                 this.PartitionId = partitionId;
                 this.SequenceNumber = sequenceNumber;
+                this.PopReceipt = popReceipt;
             }
 
             [StructuredLogField]
@@ -285,6 +293,9 @@ namespace DurableTask.AzureStorage.Logging
             [StructuredLogField]
             public long SequenceNumber { get; }
 
+            [StructuredLogField]
+            public string PopReceipt { get; }
+
             public override EventId EventId => new EventId(
                 EventIds.DeletingMessage,
                 nameof(EventIds.DeletingMessage));
@@ -307,6 +318,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId,
                 this.PartitionId,
                 this.SequenceNumber,
+                this.PopReceipt,
                 Utils.AppName,
                 Utils.ExtensionVersion);
         }
@@ -323,6 +335,7 @@ namespace DurableTask.AzureStorage.Logging
                 string executionId,
                 string partitionId,
                 long sequenceNumber,
+                string popReceipt,
                 int visibilityTimeoutSeconds)
             {
                 this.Account = account;
@@ -334,6 +347,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId = executionId;
                 this.PartitionId = partitionId;
                 this.SequenceNumber = sequenceNumber;
+                this.PopReceipt = popReceipt;
                 this.VisibilityTimeoutSeconds = visibilityTimeoutSeconds;
             }
 
@@ -365,6 +379,9 @@ namespace DurableTask.AzureStorage.Logging
             public long SequenceNumber { get; }
 
             [StructuredLogField]
+            public string PopReceipt { get; }
+
+            [StructuredLogField]
             public int VisibilityTimeoutSeconds { get; }
 
             public override EventId EventId => new EventId(
@@ -390,6 +407,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId,
                 this.PartitionId,
                 this.SequenceNumber,
+                this.PopReceipt,
                 this.VisibilityTimeoutSeconds,
                 Utils.AppName,
                 Utils.ExtensionVersion);
@@ -443,7 +461,8 @@ namespace DurableTask.AzureStorage.Logging
                 string partitionId,
                 string eventType,
                 int taskEventId,
-                string details)
+                string details,
+                string popReceipt)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
@@ -454,6 +473,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId = executionId;
                 this.PartitionId = partitionId;
                 this.Details = details;
+                this.PopReceipt = popReceipt;
             }
 
             [StructuredLogField]
@@ -483,6 +503,9 @@ namespace DurableTask.AzureStorage.Logging
             [StructuredLogField]
             public string Details { get; }
 
+            [StructuredLogField]
+            public string PopReceipt { get; }
+
             public override EventId EventId => new EventId(
                 EventIds.MessageGone,
                 nameof(EventIds.MessageGone));
@@ -505,6 +528,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId,
                 this.PartitionId,
                 this.Details,
+                this.PopReceipt,
                 Utils.AppName,
                 Utils.ExtensionVersion);
         }
@@ -557,7 +581,8 @@ namespace DurableTask.AzureStorage.Logging
                 string instanceId,
                 string executionId,
                 string partitionId,
-                int dequeueCount)
+                int dequeueCount,
+                string popReceipt)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
@@ -568,6 +593,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId = executionId;
                 this.PartitionId = partitionId;
                 this.DequeueCount = dequeueCount;
+                this.PopReceipt = popReceipt;
             }
 
             [StructuredLogField]
@@ -597,6 +623,9 @@ namespace DurableTask.AzureStorage.Logging
             [StructuredLogField]
             public int DequeueCount { get; }
 
+            [StructuredLogField]
+            public string PopReceipt { get; }
+
             public override EventId EventId => new EventId(
                 EventIds.DuplicateMessageDetected,
                 nameof(EventIds.DuplicateMessageDetected));
@@ -621,6 +650,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId,
                 this.PartitionId,
                 this.DequeueCount,
+                this.PopReceipt,
                 Utils.AppName,
                 Utils.ExtensionVersion);
         }
@@ -980,6 +1010,7 @@ namespace DurableTask.AzureStorage.Logging
                 string eventType,
                 int taskEventId,
                 string messageId,
+                string popReceipt,
                 int visibilityTimeoutSeconds)
             {
                 this.Account = account;
@@ -990,6 +1021,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.EventType = eventType;
                 this.TaskEventId = taskEventId;
                 this.MessageId = messageId;
+                this.PopReceipt = popReceipt;
                 this.VisibilityTimeoutSeconds = visibilityTimeoutSeconds;
             }
 
@@ -1018,6 +1050,9 @@ namespace DurableTask.AzureStorage.Logging
             public string MessageId { get; }
 
             [StructuredLogField]
+            public string PopReceipt { get; }
+
+            [StructuredLogField]
             public int VisibilityTimeoutSeconds { get; }
 
             public override EventId EventId => new EventId(
@@ -1042,6 +1077,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.EventType,
                 this.TaskEventId,
                 this.MessageId,
+                this.PopReceipt,
                 this.VisibilityTimeoutSeconds,
                 Utils.AppName,
                 Utils.ExtensionVersion);
@@ -1503,13 +1539,15 @@ namespace DurableTask.AzureStorage.Logging
                 string taskHub,
                 string workerName,
                 string partitionId,
-                string token)
+                string token,
+                string leaseType)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
                 this.WorkerName = workerName;
                 this.PartitionId = partitionId;
                 this.Token = token;
+                this.LeaseType = leaseType;
             }
 
             [StructuredLogField]
@@ -1527,6 +1565,9 @@ namespace DurableTask.AzureStorage.Logging
             [StructuredLogField]
             public string Token { get; }
 
+            [StructuredLogField]
+            public string LeaseType { get; }
+
             public override EventId EventId => new EventId(
                 EventIds.StartingLeaseRenewal,
                 nameof(EventIds.StartingLeaseRenewal));
@@ -1534,7 +1575,7 @@ namespace DurableTask.AzureStorage.Logging
             public override LogLevel Level => LogLevel.Debug;
 
             protected override string CreateLogMessage() =>
-                $"{this.PartitionId}: Starting lease renewal with token {this.Token}";
+                $"{this.PartitionId}: Starting {this.LeaseType} lease renewal with token {this.Token}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.StartingLeaseRenewal(
                 this.Account,
@@ -1542,6 +1583,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.WorkerName,
                 this.PartitionId,
                 this.Token,
+                this.LeaseType,
                 Utils.AppName,
                 Utils.ExtensionVersion);
         }
@@ -1555,6 +1597,7 @@ namespace DurableTask.AzureStorage.Logging
                 string partitionId,
                 bool success,
                 string token,
+                string leaseType,
                 string details)
             {
                 this.Account = account;
@@ -1563,6 +1606,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.PartitionId = partitionId;
                 this.Success = success;
                 this.Token = token;
+                this.LeaseType = leaseType;
                 this.Details = details;
             }
 
@@ -1585,6 +1629,9 @@ namespace DurableTask.AzureStorage.Logging
             public string Token { get; }
 
             [StructuredLogField]
+            public string LeaseType { get; }
+
+            [StructuredLogField]
             public string Details { get; }
 
             public override EventId EventId => new EventId(
@@ -1594,7 +1641,7 @@ namespace DurableTask.AzureStorage.Logging
             public override LogLevel Level => LogLevel.Debug;
 
             protected override string CreateLogMessage() =>
-                $"{this.PartitionId}: Lease renewal with token {this.Token} {(this.Success ? "succeeded" : "failed")}";
+                $"{this.PartitionId}: {this.LeaseType} lease renewal with token {this.Token} {(this.Success ? "succeeded" : "failed")}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseRenewalResult(
                 this.Account,
@@ -1603,6 +1650,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.PartitionId,
                 this.Success,
                 this.Token,
+                this.LeaseType,
                 this.Details,
                 Utils.AppName,
                 Utils.ExtensionVersion);
@@ -1616,6 +1664,7 @@ namespace DurableTask.AzureStorage.Logging
                 string workerName,
                 string partitionId,
                 string token,
+                string leaseType,
                 string details)
             {
                 this.Account = account;
@@ -1623,6 +1672,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.WorkerName = workerName;
                 this.PartitionId = partitionId;
                 this.Token = token;
+                this.LeaseType = leaseType;
                 this.Details = details;
             }
 
@@ -1642,6 +1692,9 @@ namespace DurableTask.AzureStorage.Logging
             public string Token { get; }
 
             [StructuredLogField]
+            public string LeaseType { get; }
+
+            [StructuredLogField]
             public string Details { get; }
 
             public override EventId EventId => new EventId(
@@ -1651,7 +1704,7 @@ namespace DurableTask.AzureStorage.Logging
             public override LogLevel Level => LogLevel.Information;
 
             protected override string CreateLogMessage() =>
-                $"{this.PartitionId}: Lease renewal with token {this.Token} failed: {this.Details}";
+                $"{this.PartitionId}: {this.LeaseType} lease renewal with token {this.Token} failed: {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseRenewalFailed(
                 this.Account,
@@ -1659,6 +1712,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.WorkerName,
                 this.PartitionId,
                 this.Token,
+                this.LeaseType,
                 this.Details,
                 Utils.AppName,
                 Utils.ExtensionVersion);
@@ -1670,12 +1724,14 @@ namespace DurableTask.AzureStorage.Logging
                 string account,
                 string taskHub,
                 string workerName,
-                string partitionId)
+                string partitionId,
+                string leaseType)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
                 this.WorkerName = workerName;
                 this.PartitionId = partitionId;
+                this.LeaseType = leaseType;
             }
 
             [StructuredLogField]
@@ -1690,19 +1746,23 @@ namespace DurableTask.AzureStorage.Logging
             [StructuredLogField]
             public string PartitionId { get; }
 
+            [StructuredLogField]
+            public string LeaseType { get; }
+
             public override EventId EventId => new EventId(
                 EventIds.LeaseAcquisitionStarted,
                 nameof(EventIds.LeaseAcquisitionStarted));
 
             public override LogLevel Level => LogLevel.Information;
 
-            protected override string CreateLogMessage() => $"{this.PartitionId}: Attempting to acquire lease";
+            protected override string CreateLogMessage() => $"{this.PartitionId}: Attempting to acquire {this.LeaseType} lease";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseAcquisitionStarted(
                 this.Account,
                 this.TaskHub,
                 this.WorkerName,
                 this.PartitionId,
+                this.LeaseType,
                 Utils.AppName,
                 Utils.ExtensionVersion);
         }
@@ -1713,12 +1773,14 @@ namespace DurableTask.AzureStorage.Logging
                 string account,
                 string taskHub,
                 string workerName,
-                string partitionId)
+                string partitionId,
+                string leaseType)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
                 this.WorkerName = workerName;
                 this.PartitionId = partitionId;
+                this.LeaseType = leaseType;
             }
 
             [StructuredLogField]
@@ -1733,19 +1795,23 @@ namespace DurableTask.AzureStorage.Logging
             [StructuredLogField]
             public string PartitionId { get; }
 
+            [StructuredLogField]
+            public string LeaseType { get; }
+
             public override EventId EventId => new EventId(
                 EventIds.LeaseAcquisitionSucceeded,
                 nameof(EventIds.LeaseAcquisitionSucceeded));
 
             public override LogLevel Level => LogLevel.Information;
 
-            protected override string CreateLogMessage() => $"{this.PartitionId}: Successfully acquired lease";
+            protected override string CreateLogMessage() => $"{this.PartitionId}: Successfully acquired {this.LeaseType} lease";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseAcquisitionSucceeded(
                 this.Account,
                 this.TaskHub,
                 this.WorkerName,
                 this.PartitionId,
+                this.LeaseType,
                 Utils.AppName,
                 Utils.ExtensionVersion);
         }
@@ -1756,12 +1822,14 @@ namespace DurableTask.AzureStorage.Logging
                 string account,
                 string taskHub,
                 string workerName,
-                string partitionId)
+                string partitionId,
+                string leaseType)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
                 this.WorkerName = workerName;
                 this.PartitionId = partitionId;
+                this.LeaseType = leaseType;
             }
 
             [StructuredLogField]
@@ -1776,19 +1844,23 @@ namespace DurableTask.AzureStorage.Logging
             [StructuredLogField]
             public string PartitionId { get; }
 
+            [StructuredLogField]
+            public string LeaseType { get; }
+
             public override EventId EventId => new EventId(
                 EventIds.LeaseAcquisitionFailed,
                 nameof(EventIds.LeaseAcquisitionFailed));
 
             public override LogLevel Level => LogLevel.Information;
 
-            protected override string CreateLogMessage() => $"{this.PartitionId}: Failed to acquire lease";
+            protected override string CreateLogMessage() => $"{this.PartitionId}: Failed to acquire {this.LeaseType} lease";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseAcquisitionFailed(
                 this.Account,
                 this.TaskHub,
                 this.WorkerName,
                 this.PartitionId,
+                this.LeaseType,
                 Utils.AppName,
                 Utils.ExtensionVersion);
         }
@@ -1800,12 +1872,14 @@ namespace DurableTask.AzureStorage.Logging
                 string taskHub,
                 string workerName,
                 string fromWorkerName,
+                string leaseType,
                 string partitionId)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
                 this.WorkerName = workerName;
                 this.FromWorkerName = fromWorkerName;
+                this.LeaseType = leaseType;
                 this.PartitionId = partitionId;
             }
 
@@ -1822,6 +1896,9 @@ namespace DurableTask.AzureStorage.Logging
             public string FromWorkerName { get; }
 
             [StructuredLogField]
+            public string LeaseType { get; }
+
+            [StructuredLogField]
             public string PartitionId { get; }
 
             public override EventId EventId => new EventId(
@@ -1831,13 +1908,14 @@ namespace DurableTask.AzureStorage.Logging
             public override LogLevel Level => LogLevel.Information;
 
             protected override string CreateLogMessage() =>
-                $"{this.PartitionId}: Attempting to steal lease from {this.FromWorkerName}";
+                $"{this.PartitionId}: Attempting to steal {this.LeaseType} lease from {this.FromWorkerName}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.AttemptingToStealLease(
                 this.Account,
                 this.TaskHub,
                 this.WorkerName,
                 this.FromWorkerName,
+                this.LeaseType,
                 this.PartitionId,
                 Utils.AppName,
                 Utils.ExtensionVersion);
@@ -1850,12 +1928,14 @@ namespace DurableTask.AzureStorage.Logging
                 string taskHub,
                 string workerName,
                 string fromWorkerName,
+                string leaseType,
                 string partitionId)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
                 this.WorkerName = workerName;
                 this.FromWorkerName = fromWorkerName;
+                this.LeaseType = leaseType;
                 this.PartitionId = partitionId;
             }
 
@@ -1872,6 +1952,9 @@ namespace DurableTask.AzureStorage.Logging
             public string FromWorkerName { get; }
 
             [StructuredLogField]
+            public string LeaseType { get; }
+            
+            [StructuredLogField]
             public string PartitionId { get; }
 
             public override EventId EventId => new EventId(
@@ -1881,13 +1964,14 @@ namespace DurableTask.AzureStorage.Logging
             public override LogLevel Level => LogLevel.Information;
 
             protected override string CreateLogMessage() =>
-                $"{this.PartitionId}: Successfully stole lease from {this.FromWorkerName}";
+                $"{this.PartitionId}: Successfully stole {this.LeaseType} lease from {this.FromWorkerName}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseStealingSucceeded(
                 this.Account,
                 this.TaskHub,
                 this.WorkerName,
                 this.FromWorkerName,
+                this.LeaseType,
                 this.PartitionId,
                 Utils.AppName,
                 Utils.ExtensionVersion);
@@ -1899,12 +1983,14 @@ namespace DurableTask.AzureStorage.Logging
                 string account,
                 string taskHub,
                 string workerName,
-                string partitionId)
+                string partitionId,
+                string leaseType)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
                 this.WorkerName = workerName;
                 this.PartitionId = partitionId;
+                this.LeaseType = leaseType;
             }
 
             [StructuredLogField]
@@ -1919,19 +2005,23 @@ namespace DurableTask.AzureStorage.Logging
             [StructuredLogField]
             public string PartitionId { get; }
 
+            [StructuredLogField]
+            public string LeaseType { get; }
+
             public override EventId EventId => new EventId(
                 EventIds.LeaseStealingFailed,
                 nameof(EventIds.LeaseStealingFailed));
 
             public override LogLevel Level => LogLevel.Information;
 
-            protected override string CreateLogMessage() => $"{this.PartitionId}: Failed to steal lease";
+            protected override string CreateLogMessage() => $"{this.PartitionId}: Failed to steal {this.LeaseType} lease";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseStealingFailed(
                 this.Account,
                 this.TaskHub,
                 this.WorkerName,
                 this.PartitionId,
+                this.LeaseType,
                 Utils.AppName,
                 Utils.ExtensionVersion);
         }
@@ -1992,13 +2082,15 @@ namespace DurableTask.AzureStorage.Logging
                 string taskHub,
                 string workerName,
                 string partitionId,
-                string token)
+                string token,
+                string leaseType)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
                 this.WorkerName = workerName;
                 this.PartitionId = partitionId;
                 this.Token = token;
+                this.LeaseType = leaseType;
             }
 
             [StructuredLogField]
@@ -2016,13 +2108,16 @@ namespace DurableTask.AzureStorage.Logging
             [StructuredLogField]
             public string Token { get; }
 
+            [StructuredLogField]
+            public string LeaseType { get; }
+
             public override EventId EventId => new EventId(
                 EventIds.LeaseRemoved,
                 nameof(EventIds.LeaseRemoved));
 
             public override LogLevel Level => LogLevel.Information;
 
-            protected override string CreateLogMessage() => $"{this.PartitionId}: {this.WorkerName} has released its lease";
+            protected override string CreateLogMessage() => $"{this.PartitionId}: {this.WorkerName} has released its {this.LeaseType} lease";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseRemoved(
                 this.Account,
@@ -2030,6 +2125,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.WorkerName,
                 this.PartitionId,
                 this.Token,
+                this.LeaseType,
                 Utils.AppName,
                 Utils.ExtensionVersion);
         }
@@ -2041,13 +2137,15 @@ namespace DurableTask.AzureStorage.Logging
                 string taskHub,
                 string workerName,
                 string partitionId,
-                string token)
+                string token,
+                string leaseType)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
                 this.WorkerName = workerName;
                 this.PartitionId = partitionId;
                 this.Token = token;
+                this.LeaseType = leaseType;
             }
 
             [StructuredLogField]
@@ -2065,6 +2163,9 @@ namespace DurableTask.AzureStorage.Logging
             [StructuredLogField]
             public string Token { get; }
 
+            [StructuredLogField]
+            public string LeaseType { get; }
+
             public override EventId EventId => new EventId(
                 EventIds.LeaseRemovalFailed,
                 nameof(EventIds.LeaseRemovalFailed));
@@ -2072,7 +2173,7 @@ namespace DurableTask.AzureStorage.Logging
             public override LogLevel Level => LogLevel.Warning;
 
             protected override string CreateLogMessage() =>
-                $"{this.PartitionId}: {this.WorkerName} failed to release its lease due to a conflict";
+                $"{this.PartitionId}: {this.WorkerName} failed to release its {this.LeaseType} lease due to a conflict";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.LeaseRemovalFailed(
                 this.Account,
@@ -2080,6 +2181,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.WorkerName,
                 this.PartitionId,
                 this.Token,
+                this.LeaseType,
                 Utils.AppName,
                 Utils.ExtensionVersion);
         }

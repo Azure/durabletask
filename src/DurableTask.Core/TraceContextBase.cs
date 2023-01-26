@@ -18,6 +18,7 @@ namespace DurableTask.Core
     using System.Diagnostics;
     using System.Linq;
     using System.Reflection;
+    using DurableTask.Core.Common;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
 
@@ -26,6 +27,8 @@ namespace DurableTask.Core
     /// </summary>
     public abstract class TraceContextBase
     {
+        private static readonly JsonSerializer serializer;
+
         /// <summary>
         /// Default constructor 
         /// </summary>
@@ -42,8 +45,10 @@ namespace DurableTask.Core
                 PreserveReferencesHandling = PreserveReferencesHandling.Objects,
                 ReferenceLoopHandling = ReferenceLoopHandling.Serialize,
             };
+
+            serializer = JsonSerializer.Create(CustomJsonSerializerSettings);   
         }
-       
+
         /// <summary>
         /// Start time of this telemetry
         /// </summary>
@@ -90,12 +95,13 @@ namespace DurableTask.Core
         [JsonIgnore]
         static JsonSerializerSettings CustomJsonSerializerSettings { get; }
 
+
         /// <summary>
         /// Serializable Json string of TraceContext
         /// </summary>
         [JsonIgnore]
-        public string SerializableTraceContext => 
-            JsonConvert.SerializeObject(this, CustomJsonSerializerSettings);
+        public string SerializableTraceContext =>
+            Utils.SerializeToJson(serializer, this);
 
         /// <summary>
         /// Telemetry.Id Used for sending telemetry. refer this URL
@@ -185,10 +191,10 @@ namespace DurableTask.Core
             }
 
             // De-serialize the object now that we now it's safe
-            var restored = JsonConvert.DeserializeObject(
+            var restored = Utils.DeserializeFromJson(
+                serializer,
                 json,
-                traceContextType,
-                CustomJsonSerializerSettings) as TraceContextBase;
+                traceContextType) as TraceContextBase;
             restored.OrchestrationTraceContexts = new Stack<TraceContextBase>(restored.OrchestrationTraceContexts);
             return restored;
         }

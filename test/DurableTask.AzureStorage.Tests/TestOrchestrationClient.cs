@@ -95,6 +95,27 @@ namespace DurableTask.AzureStorage.Tests
             throw new TimeoutException($"Orchestration '{this.orchestrationType.Name}' with instance ID '{this.instanceId}' failed to start.");
         }
 
+        internal async Task<OrchestrationState> WaitForStatusChange(TimeSpan timeout, OrchestrationStatus expectedStatus)
+        {
+            timeout = AdjustTimeout(timeout);
+
+            Stopwatch sw = Stopwatch.StartNew();
+            do
+            {
+                OrchestrationState state = await this.GetStatusAsync();
+                if (state != null && state.OrchestrationStatus == expectedStatus)
+                {
+                    Trace.TraceInformation($"Status has changed to: {state.OrchestrationStatus}).");
+                    return state;
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(1));
+
+            } while (sw.Elapsed < timeout);
+
+            throw new TimeoutException($"Orchestration '{this.orchestrationType.Name}' with instance ID '{this.instanceId}' failed to change its status to '{expectedStatus}'.");
+        }
+
         public async Task<OrchestrationState> GetStatusAsync()
         {
             OrchestrationState state = await this.client.GetOrchestrationStateAsync(this.instanceId);
@@ -134,6 +155,22 @@ namespace DurableTask.AzureStorage.Tests
 
             var instance = new OrchestrationInstance { InstanceId = this.instanceId };
             return this.client.TerminateInstanceAsync(instance, reason);
+        }
+
+        public Task SuspendAsync(string reason)
+        {
+            Trace.TraceInformation($"Suspending instance {this.instanceId} with reason = {reason}.");
+
+            var instance = new OrchestrationInstance { InstanceId = this.instanceId };
+            return this.client.SuspendInstanceAsync(instance, reason);
+        }
+
+        public Task ResumeAsync(string reason)
+        {
+            Trace.TraceInformation($"Resuming instance {this.instanceId} with reason = {reason}.");
+
+            var instance = new OrchestrationInstance { InstanceId = this.instanceId };
+            return this.client.ResumeInstanceAsync(instance, reason);
         }
 
         public Task RewindAsync(string reason)

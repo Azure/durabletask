@@ -30,12 +30,14 @@ namespace DurableTask.AzureServiceFabric
     using Microsoft.ServiceFabric.Data;
 
     using Newtonsoft.Json;
+    using DurableTask.Core.Serializing;
 
-    class FabricOrchestrationServiceClient : IOrchestrationServiceClient
+    class FabricOrchestrationServiceClient : IOrchestrationServiceClient, IFabricProviderClient
     {
         readonly IReliableStateManager stateManager;
         readonly IFabricOrchestrationServiceInstanceStore instanceStore;
         readonly SessionProvider orchestrationProvider;
+        readonly JsonDataConverter formattingConverter = new JsonDataConverter(new JsonSerializerSettings() { Formatting = Formatting.Indented });
 
         public FabricOrchestrationServiceClient(IReliableStateManager stateManager, SessionProvider orchestrationProvider, IFabricOrchestrationServiceInstanceStore instanceStore)
         {
@@ -200,6 +202,25 @@ namespace DurableTask.AzureServiceFabric
             var state = await this.instanceStore.WaitForOrchestrationAsync(instanceId, timeout);
             return state?.State;
         }
+        #endregion
+
+        #region IFabricProviderClient
+        public async Task<IEnumerable<OrchestrationInstance>> GetRunningOrchestrationsAsync()
+        {
+            var sessions = await this.orchestrationProvider.GetSessions();
+            return sessions.Select(s => s.SessionId);
+        }
+
+        public async Task<string> GetOrchestrationRuntimeStateAsync(string instanceId)
+        {
+            var session = await this.orchestrationProvider.GetSession(instanceId);
+            if (session == null)
+            {
+                throw new ArgumentException($"There is no running or pending Orchestration with the instanceId {instanceId}");
+            }
+            return this.formattingConverter.Serialize(session.SessionState);
+        }
+
         #endregion
 
         Task WriteExecutionStartedEventToInstanceStore(ITransaction tx, ExecutionStartedEvent startEvent)

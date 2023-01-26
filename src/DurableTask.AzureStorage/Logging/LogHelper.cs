@@ -74,6 +74,7 @@ namespace DurableTask.AzureStorage.Logging
             long sizeInBytes,
             string partitionId,
             long sequenceNumber,
+            string popReceipt,
             int episode)
         {
             var logEvent = new LogEvents.ReceivedMessage(
@@ -91,6 +92,7 @@ namespace DurableTask.AzureStorage.Logging
                 sizeInBytes,
                 partitionId,
                 sequenceNumber,
+                popReceipt,
                 episode);
             this.WriteStructuredLog(logEvent);
         }
@@ -104,7 +106,8 @@ namespace DurableTask.AzureStorage.Logging
             string instanceId,
             string executionId,
             string partitionId,
-            long sequenceNumber)
+            long sequenceNumber,
+            string popReceipt)
         {
             var logEvent = new LogEvents.DeletingMessage(
                 account,
@@ -115,7 +118,8 @@ namespace DurableTask.AzureStorage.Logging
                 instanceId,
                 executionId,
                 partitionId,
-                sequenceNumber);
+                sequenceNumber,
+                popReceipt);
             this.WriteStructuredLog(logEvent);
         }
 
@@ -129,6 +133,7 @@ namespace DurableTask.AzureStorage.Logging
             string executionId,
             string partitionId,
             long sequenceNumber,
+            string popReceipt,
             int visibilityTimeoutSeconds)
         {
             var logEvent = new LogEvents.AbandoningMessage(
@@ -141,6 +146,7 @@ namespace DurableTask.AzureStorage.Logging
                 executionId,
                 partitionId,
                 sequenceNumber,
+                popReceipt,
                 visibilityTimeoutSeconds);
             this.WriteStructuredLog(logEvent);
         }
@@ -166,7 +172,8 @@ namespace DurableTask.AzureStorage.Logging
             string partitionId,
             string eventType,
             int taskEventId,
-            string details)
+            string details,
+            string popReceipt)
         {
             var logEvent = new LogEvents.MessageGone(
                 account,
@@ -177,7 +184,8 @@ namespace DurableTask.AzureStorage.Logging
                 partitionId,
                 eventType,
                 taskEventId,
-                details);
+                details,
+                popReceipt);
             this.WriteStructuredLog(logEvent);
         }
 
@@ -202,7 +210,8 @@ namespace DurableTask.AzureStorage.Logging
             string instanceId,
             string executionId,
             string partitionId,
-            int dequeueCount)
+            int dequeueCount,
+            string popReceipt)
         {
             var logEvent = new LogEvents.DuplicateMessageDetected(
                 account,
@@ -213,7 +222,8 @@ namespace DurableTask.AzureStorage.Logging
                 instanceId,
                 executionId,
                 partitionId,
-                dequeueCount);
+                dequeueCount,
+                popReceipt);
             this.WriteStructuredLog(logEvent);
         }
 
@@ -336,6 +346,7 @@ namespace DurableTask.AzureStorage.Logging
             string eventType,
             int taskEventId,
             string messageId,
+            string popReceipt,
             int visibilityTimeoutSeconds)
         {
             var logEvent = new LogEvents.RenewingMessage(
@@ -347,6 +358,7 @@ namespace DurableTask.AzureStorage.Logging
                 eventType,
                 taskEventId,
                 messageId,
+                popReceipt,
                 visibilityTimeoutSeconds);
             this.WriteStructuredLog(logEvent);
         }
@@ -496,14 +508,16 @@ namespace DurableTask.AzureStorage.Logging
             string taskHub,
             string workerName,
             string partitionId,
-            string token)
+            string token,
+            string leaseType)
         {
             var logEvent = new LogEvents.StartingLeaseRenewal(
                 account,
                 taskHub,
                 workerName,
                 partitionId,
-                token);
+                token,
+                leaseType);
             this.WriteStructuredLog(logEvent);
         }
 
@@ -514,6 +528,7 @@ namespace DurableTask.AzureStorage.Logging
             string partitionId,
             bool success,
             string token,
+            string leaseType,
             string details)
         {
             var logEvent = new LogEvents.LeaseRenewalResult(
@@ -523,6 +538,7 @@ namespace DurableTask.AzureStorage.Logging
                 partitionId,
                 success,
                 token,
+                leaseType,
                 details);
             this.WriteStructuredLog(logEvent);
         }
@@ -533,6 +549,7 @@ namespace DurableTask.AzureStorage.Logging
             string workerName,
             string partitionId,
             string token,
+            string leaseType,
             string details)
         {
             var logEvent = new LogEvents.LeaseRenewalFailed(
@@ -541,6 +558,7 @@ namespace DurableTask.AzureStorage.Logging
                 workerName,
                 partitionId,
                 token,
+                leaseType,
                 details);
             this.WriteStructuredLog(logEvent);
         }
@@ -549,13 +567,15 @@ namespace DurableTask.AzureStorage.Logging
             string account,
             string taskHub,
             string workerName,
-            string partitionId)
+            string partitionId,
+            string leaseType)
         {
             var logEvent = new LogEvents.LeaseAcquisitionStarted(
                 account,
                 taskHub,
                 workerName,
-                partitionId);
+                partitionId,
+                leaseType);
             this.WriteStructuredLog(logEvent);
         }
 
@@ -563,13 +583,15 @@ namespace DurableTask.AzureStorage.Logging
             string account,
             string taskHub,
             string workerName,
-            string partitionId)
+            string partitionId,
+            string leaseType)
         {
             var logEvent = new LogEvents.LeaseAcquisitionSucceeded(
                 account,
                 taskHub,
                 workerName,
-                partitionId);
+                partitionId,
+                leaseType);
             this.WriteStructuredLog(logEvent);
         }
 
@@ -577,13 +599,15 @@ namespace DurableTask.AzureStorage.Logging
             string account,
             string taskHub,
             string workerName,
-            string partitionId)
+            string partitionId,
+            string leaseType)
         {
             var logEvent = new LogEvents.LeaseAcquisitionFailed(
                 account,
                 taskHub,
                 workerName,
-                partitionId);
+                partitionId,
+                leaseType);
             this.WriteStructuredLog(logEvent);
         }
 
@@ -592,6 +616,7 @@ namespace DurableTask.AzureStorage.Logging
             string taskHub,
             string workerName,
             string fromWorkerName,
+            string leaseType,
             string partitionId)
         {
             var logEvent = new LogEvents.AttemptingToStealLease(
@@ -599,6 +624,7 @@ namespace DurableTask.AzureStorage.Logging
                 taskHub,
                 workerName,
                 fromWorkerName,
+                leaseType,
                 partitionId);
             this.WriteStructuredLog(logEvent);
         }
@@ -608,6 +634,7 @@ namespace DurableTask.AzureStorage.Logging
             string taskHub,
             string workerName,
             string fromWorkerName,
+            string leaseType,
             string partitionId)
         {
             var logEvent = new LogEvents.LeaseStealingSucceeded(
@@ -615,6 +642,7 @@ namespace DurableTask.AzureStorage.Logging
                 taskHub,
                 workerName,
                 fromWorkerName,
+                leaseType,
                 partitionId);
             this.WriteStructuredLog(logEvent);
         }
@@ -623,13 +651,15 @@ namespace DurableTask.AzureStorage.Logging
             string account,
             string taskHub,
             string workerName,
-            string partitionId)
+            string partitionId,
+            string leaseType)
         {
             var logEvent = new LogEvents.LeaseStealingFailed(
                 account,
                 taskHub,
                 workerName,
-                partitionId);
+                partitionId,
+                leaseType);
             this.WriteStructuredLog(logEvent);
         }
 
@@ -654,14 +684,16 @@ namespace DurableTask.AzureStorage.Logging
             string taskHub,
             string workerName,
             string partitionId,
-            string token)
+            string token,
+            string leaseType)
         {
             var logEvent = new LogEvents.LeaseRemoved(
                 account,
                 taskHub,
                 workerName,
                 partitionId,
-                token);
+                token,
+                leaseType);
             this.WriteStructuredLog(logEvent);
         }
 
@@ -670,14 +702,16 @@ namespace DurableTask.AzureStorage.Logging
             string taskHub,
             string workerName,
             string partitionId,
-            string token)
+            string token,
+            string leaseType)
         {
             var logEvent = new LogEvents.LeaseRemovalFailed(
                 account,
                 taskHub,
                 workerName,
                 partitionId,
-                token);
+                token,
+                leaseType);
             this.WriteStructuredLog(logEvent);
         }
 
