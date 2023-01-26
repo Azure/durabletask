@@ -13,9 +13,7 @@
 
 namespace DurableTask.Core.History
 {
-    using System;
     using System.Runtime.Serialization;
-    using DurableTask.Core.Tracing;
 
     /// <summary>
     /// A history event for sub orchestration instance completion

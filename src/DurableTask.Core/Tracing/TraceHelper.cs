@@ -153,14 +153,14 @@ namespace DurableTask.Core.Tracing
         /// <returns>
         /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
         /// </returns>
-        internal static Activity? StartTraceActivityForSubOrchestrationFinished(
+        internal static void EmitTraceActivityForSubOrchestrationFinished(
             OrchestrationInstance? orchestrationInstance,
             SubOrchestrationInstanceCreatedEvent createdEvent,
             SubOrchestrationInstanceFailedEvent? failedEvent = null)
         {
             if (orchestrationInstance == null || createdEvent == null)
             {
-                return null;
+                return;
             }
 
             Activity? activity = ActivityTraceSource.StartActivity(
@@ -171,7 +171,7 @@ namespace DurableTask.Core.Tracing
 
             if (activity == null)
             {
-                return null;
+                return;
             }
 
             activity.SetTag("dtfx.type", "orchestrator");
@@ -190,8 +190,7 @@ namespace DurableTask.Core.Tracing
                 }
             }
 
-
-            return activity;            
+            activity.Dispose();
         }
 
         internal static Activity? CreateActivityForNewEventRaised(EventRaisedEvent eventRaised, OrchestrationInstance instance)
@@ -210,7 +209,7 @@ namespace DurableTask.Core.Tracing
             return newActivity;
         }
 
-        internal static Activity? CreateActivityForTimer(OrchestrationInstance? instance, DateTime startTime, DateTime fireAt)
+        internal static void EmitTraceActivityForTimer(OrchestrationInstance? instance, DateTime startTime, DateTime fireAt)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 name: "Timer",
@@ -224,9 +223,9 @@ namespace DurableTask.Core.Tracing
                 newActivity.AddTag("dtfx.instance_id", instance?.InstanceId);
                 newActivity.AddTag("dtfx.execution_id", instance?.ExecutionId);
                 newActivity.AddTag("dtfx.fire_at", fireAt.ToString("o"));
-            }
 
-            return newActivity;
+                newActivity.Dispose();
+            }
         }
 
         /// <summary>
