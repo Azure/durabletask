@@ -21,6 +21,7 @@ namespace DurableTask.Core.Tracing
     using System.Reflection;
     using DurableTask.Core.Common;
     using DurableTask.Core.History;
+    using DurableTask.Core.Serializing;
 
     /// <summary>
     ///     Helper class for logging/tracing
@@ -79,9 +80,9 @@ namespace DurableTask.Core.Tracing
             }
 
             string activityName = startEvent.Name;
-            ActivityKind activityKind = ActivityKind.Internal;
-
+            ActivityKind activityKind = ActivityKind.Server;
             DateTimeOffset startTime = startEvent.ParentTraceContext.ActivityStartTime ?? default;
+
             Activity? activity = ActivityTraceSource.StartActivity(
                 name: activityName,
                 kind: activityKind,
@@ -143,6 +144,55 @@ namespace DurableTask.Core.Tracing
                 });
         }
 
+        /// <summary>
+        /// Starts a new trace activity for suborchestration execution.
+        /// </summary>
+        /// <param name="orchestrationInstance">The associated orchestration instance metadata.</param>
+        /// <param name="createdEvent">The related sub-orchestration created event.</param>
+        /// <param name="failedEvent">The sub-orchestration failed event.</param>
+        /// <returns>
+        /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
+        /// </returns>
+        internal static void EmitTraceActivityForSubOrchestrationFinished(
+            OrchestrationInstance? orchestrationInstance,
+            SubOrchestrationInstanceCreatedEvent createdEvent,
+            SubOrchestrationInstanceFailedEvent? failedEvent = null)
+        {
+            if (orchestrationInstance == null || createdEvent == null)
+            {
+                return;
+            }
+
+            Activity? activity = ActivityTraceSource.StartActivity(
+                name: createdEvent.Name,
+                kind: ActivityKind.Client,
+                startTime: createdEvent.Timestamp,
+                parentContext: Activity.Current?.Context ?? default);
+
+            if (activity == null)
+            {
+                return;
+            }
+
+            activity.SetTag("dtfx.type", "orchestrator");
+            activity.SetTag("dtfx.instance_id", orchestrationInstance?.InstanceId);
+            activity.SetTag("dtfx.execution_id", orchestrationInstance?.ExecutionId);
+
+            // Adding additional tags for a SubOrchestrationInstanceFailedEvent
+            if (failedEvent != null)
+            {
+                activity.SetTag("otel.status_code", "ERROR");
+
+                FailureDetails? failureDetails = failedEvent.FailureDetails;
+                if (failureDetails != null)
+                {
+                    activity.SetTag("otel.status_description", failureDetails.ErrorMessage);
+                }
+            }
+
+            activity.Dispose();
+        }
+
         internal static Activity? CreateActivityForNewEventRaised(EventRaisedEvent eventRaised, OrchestrationInstance instance)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
@@ -159,7 +209,7 @@ namespace DurableTask.Core.Tracing
             return newActivity;
         }
 
-        internal static Activity? CreateActivityForTimer(OrchestrationInstance? instance, DateTime startTime, DateTime fireAt)
+        internal static void EmitTraceActivityForTimer(OrchestrationInstance? instance, DateTime startTime, DateTime fireAt)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 name: "Timer",
@@ -173,9 +223,9 @@ namespace DurableTask.Core.Tracing
                 newActivity.AddTag("dtfx.instance_id", instance?.InstanceId);
                 newActivity.AddTag("dtfx.execution_id", instance?.ExecutionId);
                 newActivity.AddTag("dtfx.fire_at", fireAt.ToString("o"));
-            }
 
-            return newActivity;
+                newActivity.Dispose();
+            }
         }
 
         /// <summary>
