@@ -46,10 +46,12 @@ namespace OpenTelemetrySample
             worker.AddTaskOrchestrations(typeof(HelloSubOrch));
             worker.AddTaskOrchestrations(typeof(HelloSequence));
             worker.AddTaskOrchestrations(typeof(HelloFanOut));
+            worker.AddTaskOrchestrations(typeof(HelloFanOutWithException));
             worker.AddTaskOrchestrations(typeof(ExceptionSubOrch));
             worker.AddTaskOrchestrations(typeof(ExceptionOrchestration));
             worker.AddTaskActivities(typeof(SayHello));
             worker.AddTaskActivities(typeof(GetRequestResultMessageActivity));
+            worker.AddTaskActivities(typeof(ExceptionActivity));
             worker.AddTaskOrchestrations(typeof(GetRequestionDecisionOrchestration));
             worker.AddTaskOrchestrations(typeof(EventConversationOrchestration));
             worker.AddTaskOrchestrations(typeof(EventConversationOrchestration.Responder));
@@ -67,7 +69,6 @@ namespace OpenTelemetrySample
 
             Console.WriteLine("Done with Hello Sequence!");
 
-            
             // Hello Fan Out Fan In
             OrchestrationInstance helloFanOutFanInInstance = await client.CreateOrchestrationInstanceAsync(
                 typeof(HelloFanOut),
@@ -75,6 +76,14 @@ namespace OpenTelemetrySample
             await client.WaitForOrchestrationAsync(helloFanOutFanInInstance, TimeSpan.FromMinutes(5));
 
             Console.WriteLine("Done with Hello Fan Out Fan In!");
+
+            // Hello Fan Out Fan In with failed Activity
+            OrchestrationInstance helloFanOutFanInActivityExceptionInstance = await client.CreateOrchestrationInstanceAsync(
+                typeof(HelloFanOutWithException),
+                input: null);
+            await client.WaitForOrchestrationAsync(helloFanOutFanInActivityExceptionInstance, TimeSpan.FromMinutes(5));
+
+            Console.WriteLine("Done with Hello Fan Out Fan In with failed Activity!");
 
             // Sub orchestrations
             OrchestrationInstance helloSubOrchInstance = await client.CreateOrchestrationInstanceAsync(
@@ -194,12 +203,33 @@ namespace OpenTelemetrySample
             }
         }
 
+        class HelloFanOutWithException : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                string[] results = await Task.WhenAll(
+                    context.ScheduleTask<string>(typeof(SayHello), "Tokyo"),
+                    context.ScheduleTask<string>(typeof(ExceptionActivity), ""),
+                    context.ScheduleTask<string>(typeof(SayHello), "Seattle"));
+
+                return string.Join(", ", results);
+            }
+        }
+
         class SayHello : TaskActivity<string, string>
         {
             protected override string Execute(TaskContext context, string input)
             {
                 Thread.Sleep(1000);
                 return $"Hello, {input}!";
+            }
+        }
+
+        class ExceptionActivity : TaskActivity<string, string>
+        {
+            protected override string Execute(TaskContext context, string input)
+            {
+                throw new Exception();
             }
         }
 

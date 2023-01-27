@@ -768,7 +768,14 @@ namespace DurableTask.Core
                     TaskScheduledEvent taskScheduledEvent = (TaskScheduledEvent)workItem.OrchestrationRuntimeState.Events.FirstOrDefault(x => x.EventId == taskCompletedEvent.TaskScheduledId);
 
                     // We immediately publish the activity span for this task by creating the activity and immediately calling Dispose() on it.
-                    TraceHelper.CreateActivityforTaskCompleted(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent)?.Dispose();
+                    TraceHelper.EmitActivityforTaskFinished(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent);
+                }
+                else if (message.Event is TaskFailedEvent taskFailedEvent)
+                {
+                    TaskScheduledEvent taskScheduledEvent = (TaskScheduledEvent)workItem.OrchestrationRuntimeState.Events.FirstOrDefault(x => x.EventId == taskFailedEvent.TaskScheduledId);
+
+                    // We immediately publish the activity span for this task by creating the activity and immediately calling Dispose() on it.
+                    TraceHelper.EmitActivityforTaskFinished(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent, taskFailedEvent);
                 }
 
                 workItem.OrchestrationRuntimeState.AddEvent(message.Event);

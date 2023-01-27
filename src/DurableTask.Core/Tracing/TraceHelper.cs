@@ -228,11 +228,11 @@ namespace DurableTask.Core.Tracing
             }
         }
 
-        internal static Activity? CreateActivityforTaskCompleted(OrchestrationInstance? instance, TaskScheduledEvent taskScheduledEvent)
+        internal static void EmitActivityforTaskFinished(OrchestrationInstance? instance, TaskScheduledEvent taskScheduledEvent, TaskFailedEvent? taskFailedEvent = null)
         {
             if (!taskScheduledEvent.TryGetParentTraceContext(out ActivityContext activityContext))
             {
-                return null;
+                return;
             }
 
             Activity? newActivity = ActivityTraceSource.StartActivity(
@@ -241,14 +241,27 @@ namespace DurableTask.Core.Tracing
                 startTime: taskScheduledEvent.Timestamp,
                 parentContext: activityContext);
 
-            if (newActivity != null)
+            if (newActivity == null)
             {
-                newActivity.AddTag("dtfx.type", "activity");
-                newActivity.AddTag("dtfx.instance_id", instance?.InstanceId);
-                newActivity.AddTag("dtfx.execution_id", instance?.ExecutionId);
+                return;
             }
 
-            return newActivity;
+            newActivity.AddTag("dtfx.type", "activity");
+            newActivity.AddTag("dtfx.instance_id", instance?.InstanceId);
+            newActivity.AddTag("dtfx.execution_id", instance?.ExecutionId);
+
+            if (taskFailedEvent != null)
+            {
+                newActivity.SetTag("otel.status_code", "ERROR");
+
+                FailureDetails? failureDetails = taskFailedEvent.FailureDetails;
+                if (failureDetails != null)
+                {
+                    newActivity.SetTag("otel.status_description", failureDetails.ErrorMessage);
+                }
+            }
+
+            newActivity.Dispose();
         }
 
         /// <summary>
