@@ -230,6 +230,11 @@ namespace DurableTask.Core.Tracing
 
         internal static void EmitActivityforTaskFinished(OrchestrationInstance? instance, TaskScheduledEvent taskScheduledEvent, TaskFailedEvent? taskFailedEvent = null)
         {
+            if (taskScheduledEvent == null)
+            {
+                return;
+            }
+
             if (!taskScheduledEvent.TryGetParentTraceContext(out ActivityContext activityContext))
             {
                 return;
