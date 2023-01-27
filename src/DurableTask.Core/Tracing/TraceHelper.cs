@@ -228,19 +228,24 @@ namespace DurableTask.Core.Tracing
             }
         }
 
-        internal static Activity? CreateActivityforTaskCompleted(OrchestrationInstance instance, TaskScheduledEvent taskScheduledEvent)
+        internal static Activity? CreateActivityforTaskCompleted(OrchestrationInstance? instance, TaskScheduledEvent taskScheduledEvent)
         {
+            if (!taskScheduledEvent.TryGetParentTraceContext(out ActivityContext activityContext))
+            {
+                return null;
+            }
+
             Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: taskScheduledEvent.Name,
+                name: taskScheduledEvent.Name ?? "",
                 kind: ActivityKind.Client,
                 startTime: taskScheduledEvent.Timestamp,
-                parentContext: Activity.Current?.Context ?? default);
+                parentContext: activityContext);
 
             if (newActivity != null)
             {
                 newActivity.AddTag("dtfx.type", "activity");
-                newActivity.AddTag("dtfx.instance_id", instance.InstanceId);
-                newActivity.AddTag("dtfx.execution_id", instance.ExecutionId);
+                newActivity.AddTag("dtfx.instance_id", instance?.InstanceId);
+                newActivity.AddTag("dtfx.execution_id", instance?.ExecutionId);
             }
 
             return newActivity;

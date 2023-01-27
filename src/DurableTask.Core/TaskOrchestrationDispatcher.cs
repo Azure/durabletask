@@ -763,7 +763,7 @@ namespace DurableTask.Core
                     }
                 }
 
-                if (Activity.Current != null && message.Event is TaskCompletedEvent taskCompletedEvent)
+                if (message.Event is TaskCompletedEvent taskCompletedEvent)
                 {
                     TaskScheduledEvent taskScheduledEvent = (TaskScheduledEvent)workItem.OrchestrationRuntimeState.Events.FirstOrDefault(x => x.EventId == taskCompletedEvent.TaskScheduledId);
 
@@ -904,8 +904,6 @@ namespace DurableTask.Core
                 version: scheduleTaskOrchestratorAction.Version,
                 input: scheduleTaskOrchestratorAction.Input);
 
-            // We add the parent trace context to the activity message
-            // but don't need to include it in the history.
             scheduledEvent.SetParentTraceContext(parentTraceActivity);
 
             taskMessage.Event = scheduledEvent;
@@ -919,6 +917,8 @@ namespace DurableTask.Core
                     name: scheduleTaskOrchestratorAction.Name,
                     version: scheduleTaskOrchestratorAction.Version);
             }
+
+            scheduledEvent.SetParentTraceContext(parentTraceActivity);
 
             this.logHelper.SchedulingActivity(
                 runtimeState.OrchestrationInstance!,

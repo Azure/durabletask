@@ -67,6 +67,15 @@ namespace OpenTelemetrySample
 
             Console.WriteLine("Done with Hello Sequence!");
 
+            
+            // Hello Fan Out Fan In
+            OrchestrationInstance helloFanOutFanInInstance = await client.CreateOrchestrationInstanceAsync(
+                typeof(HelloFanOut),
+                input: null);
+            await client.WaitForOrchestrationAsync(helloFanOutFanInInstance, TimeSpan.FromMinutes(5));
+
+            Console.WriteLine("Done with Hello Fan Out Fan In!");
+
             // Sub orchestrations
             OrchestrationInstance helloSubOrchInstance = await client.CreateOrchestrationInstanceAsync(
                 typeof(HelloSubOrch),
