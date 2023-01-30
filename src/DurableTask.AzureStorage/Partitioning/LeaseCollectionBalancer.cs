@@ -133,6 +133,9 @@ namespace DurableTask.AzureStorage.Partitioning
                 return;
             }
 
+            // This is the graceful/cooperative shutdown task. If this Task completes,
+            // then the worker has completed all its pending work items and should willingly
+            // give away its ownership leases
             Task shutdownTask = Task.Run(async () =>
             {
                 if (this.takerTask != null)
@@ -154,6 +157,9 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.leaseRenewerCancellationTokenSource = null;
             });
 
+            // Time out task puts allows us to recover from a stuck worker scenario.
+            // If this timeout is met, we forcibly terminate the process to free up
+            // its leases.
             var timeoutTask = Task.Delay(options.OwnershipLeaseReleaseTimeout);
 
             var winner = await Task.WhenAny(shutdownTask, timeoutTask);
