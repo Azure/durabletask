@@ -38,6 +38,12 @@ namespace DurableTask.AzureStorage.Partitioning
         public TimeSpan LeaseInterval { get; set; } = TimeSpan.FromSeconds(30);
 
         /// <summary>
+        /// Maximum alloted time to wait for a worker to release its ownership lease. If this timeout is met,
+        /// the worker will be forcibly terminated so that its lease may be load balanced.
+        /// </summary>
+        public TimeSpan OwnershipLeaseReleaseTimeout { get; set; } = TimeSpan.FromMinutes(10);
+
+        /// <summary>
         /// Determines whether or not this set of leases should utilize lease stealing logic for rebalancing
         /// during scale-out operations.
         /// </summary>

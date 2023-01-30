@@ -154,7 +154,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.leaseRenewerCancellationTokenSource = null;
             });
 
-            var timeoutTask = Task.Delay(TimeSpan.FromMinutes(30));
+            var timeoutTask = Task.Delay(options.OwnershipLeaseReleaseTimeout);
 
             var winner = await Task.WhenAny(shutdownTask, timeoutTask);
             if (winner == timeoutTask)
