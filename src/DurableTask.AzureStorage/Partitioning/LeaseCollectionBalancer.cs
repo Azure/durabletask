@@ -133,24 +133,37 @@ namespace DurableTask.AzureStorage.Partitioning
                 return;
             }
 
-            if (this.takerTask != null)
+            Task shutdownTask = Task.Run(async () =>
             {
-                this.leaseTakerCancellationTokenSource.Cancel();
-                await this.takerTask;
-            }
+                if (this.takerTask != null)
+                {
+                    this.leaseTakerCancellationTokenSource.Cancel();
+                    await this.takerTask;
+                }
 
-            await this.ShutdownAsync();
-            this.shutdownComplete = true;
+                await this.ShutdownAsync();
+                this.shutdownComplete = true;
 
-            if (this.renewTask != null)
+                if (this.renewTask != null)
+                {
+                    this.leaseRenewerCancellationTokenSource.Cancel();
+                    await this.renewTask;
+                }
+
+                this.leaseTakerCancellationTokenSource = null;
+                this.leaseRenewerCancellationTokenSource = null;
+            });
+
+            var timeoutTask = Task.Delay(TimeSpan.FromMinutes(30));
+
+            var winner = await Task.WhenAny(shutdownTask, timeoutTask);
+            if (winner == timeoutTask)
             {
-                this.leaseRenewerCancellationTokenSource.Cancel();
-                await this.renewTask;
+                Environment.FailFast("Process will be forceably shut down after 30 minutes");
             }
-
-            this.leaseTakerCancellationTokenSource = null;
-            this.leaseRenewerCancellationTokenSource = null;
         }
+
+
 
         public Task<IDisposable> SubscribeAsync(
             Func<T, Task> leaseAquiredDelegate,
