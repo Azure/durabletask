@@ -165,7 +165,14 @@ namespace DurableTask.AzureStorage.Partitioning
             var winner = await Task.WhenAny(shutdownTask, timeoutTask);
             if (winner == timeoutTask)
             {
-                Environment.FailFast("Process will be forcibly shut down");
+                this.settings.Logger.PartitionManagerError(
+                    this.accountName,
+                    this.taskHub,
+                    this.workerName,
+                    string.Empty,
+                    "Worker took too long to shut down. Initiating forceful shutdown to prevent lease balacning starvation");
+
+                Environment.FailFast("Process was forcibly shut down");
             }
         }
 
@@ -532,6 +539,14 @@ namespace DurableTask.AzureStorage.Partitioning
                     // Consider the lease as renewed.  Maybe lease store outage is causing the lease to not get renewed.
                     renewed = true;
                 }
+
+                var leaseState = renewed ? "renewed" : "lost";
+                this.settings.Logger.PartitionManagerWarning(
+                    this.accountName,
+                    this.taskHub,
+                    this.workerName,
+                    lease.PartitionId,
+                    $"Encountered exception while renewing {this.leaseType} lease. The lease will be considered {leaseState}. Execption: {ex}");
             }
 
             this.settings.Logger.LeaseRenewalResult(
@@ -747,9 +762,15 @@ namespace DurableTask.AzureStorage.Partitioning
                             lease.Token,
                             this.leaseType);
                     }
-                    catch (LeaseLostException)
+                    catch (LeaseLostException ex)
                     {
-                        // We have already shutdown the processor so we can ignore any LeaseLost at this point
+                        // We have already shutdown the processor so we log this as a warning instead of an error
+                        this.settings.Logger.PartitionManagerWarning(
+                            this.accountName,
+                            this.taskHub,
+                            this.workerName,
+                            lease.PartitionId,
+                            $"Encountered exception while releasing {this.leaseType} lease: {ex}");
                     }
                     catch (Exception ex)
                     {
