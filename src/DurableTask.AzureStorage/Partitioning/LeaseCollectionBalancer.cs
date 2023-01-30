@@ -159,7 +159,7 @@ namespace DurableTask.AzureStorage.Partitioning
             var winner = await Task.WhenAny(shutdownTask, timeoutTask);
             if (winner == timeoutTask)
             {
-                Environment.FailFast("Process will be forceably shut down");
+                Environment.FailFast("Process will be forcibly shut down");
             }
         }
 
