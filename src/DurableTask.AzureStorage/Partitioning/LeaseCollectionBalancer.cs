@@ -133,6 +133,13 @@ namespace DurableTask.AzureStorage.Partitioning
                 return;
             }
 
+            this.settings.Logger.PartitionManagerInfo(
+                this.accountName,
+                this.taskHub,
+                this.workerName,
+                string.Empty,
+                "Waiting for lease resources to be released");
+
             // This is the graceful/cooperative shutdown task. If this Task completes,
             // then the worker has completed all its pending work items and should willingly
             // give away its ownership leases
@@ -173,6 +180,15 @@ namespace DurableTask.AzureStorage.Partitioning
                     "Worker took too long to shut down. Initiating forceful shutdown to prevent lease balacning starvation");
 
                 Environment.FailFast("Process was forcibly shut down");
+            }
+            else
+            {
+                this.settings.Logger.PartitionManagerInfo(
+                    this.accountName,
+                    this.taskHub,
+                    this.workerName,
+                    string.Empty,
+                    "Lease resources were gracefully released.");
             }
         }
 
