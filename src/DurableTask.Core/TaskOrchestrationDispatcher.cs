@@ -855,13 +855,9 @@ namespace DurableTask.Core
 
                     taskMessage.Event = subOrchestrationFailedEvent;
 
-                    if (DistributedTraceActivity.Current != null)
+                    if (DistributedTraceActivity.Current != null && completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Failed)
                     {
-                        if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Failed)
-                        {
-                            FailureDetails? failureDetails = runtimeState.FailureDetails;
-                            DistributedTraceActivity.Current?.SetStatus(ActivityStatusCode.Error, failureDetails?.ErrorMessage);
-                        }
+                        AddFailureDetailstoActivity(runtimeState);
                     }
                 }
 
@@ -878,8 +874,7 @@ namespace DurableTask.Core
             {
                 if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Failed)
                 {
-                    FailureDetails? failureDetails = runtimeState.FailureDetails;
-                    DistributedTraceActivity.Current?.SetStatus(ActivityStatusCode.Error, failureDetails?.ErrorMessage);
+                    AddFailureDetailstoActivity(runtimeState);
                 }
 
                 ResetDistributedTraceActivity(runtimeState);
@@ -893,6 +888,12 @@ namespace DurableTask.Core
             DistributedTraceActivity.Current?.SetTag("dtfx.runtime_status", runtimeState.OrchestrationStatus.ToString());
             DistributedTraceActivity.Current?.Stop();
             DistributedTraceActivity.Current = null;
+        }
+
+        private void AddFailureDetailstoActivity(OrchestrationRuntimeState runtimeState)
+        {
+            FailureDetails? failureDetails = runtimeState.FailureDetails;
+            DistributedTraceActivity.Current?.SetStatus(ActivityStatusCode.Error, failureDetails?.ErrorMessage);
         }
 
         TaskMessage ProcessScheduleTaskDecision(

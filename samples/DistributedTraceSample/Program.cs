@@ -65,12 +65,19 @@ namespace OpenTelemetrySample
 
             // Hello Sequence
             OrchestrationInstance helloSeqInstance = await client.CreateOrchestrationInstanceAsync(
-                typeof(HelloFanOut),
-                //typeof(HelloSequence),
+                typeof(HelloSequence),
                 input: null);
             await client.WaitForOrchestrationAsync(helloSeqInstance, TimeSpan.FromMinutes(5));
 
             Console.WriteLine("Done with Hello Sequence!");
+
+            // Hello Fan Out
+            OrchestrationInstance helloFanOutInstance = await client.CreateOrchestrationInstanceAsync(
+                typeof(HelloFanOut),
+                input: null);
+            await client.WaitForOrchestrationAsync(helloSeqInstance, TimeSpan.FromMinutes(5));
+
+            Console.WriteLine("Done with Hello Fan Out!");
 
             // Hello Sequence throws exception
             OrchestrationInstance helloSeqExceptionInstance = await client.CreateOrchestrationInstanceAsync(
