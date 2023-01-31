@@ -45,8 +45,11 @@ namespace OpenTelemetrySample
             using TaskHubWorker worker = new TaskHubWorker(service);
             worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
 
+            worker.AddTaskOrchestrations(typeof(HelloSubOrch));
             worker.AddTaskOrchestrations(typeof(HelloSequence));
             worker.AddTaskOrchestrations(typeof(HelloFanOut));
+            worker.AddTaskOrchestrations(typeof(ExceptionSubOrch));
+            worker.AddTaskOrchestrations(typeof(ExceptionOrchestration));
             worker.AddTaskActivities(typeof(SayHello));
             worker.AddTaskActivities(typeof(GetRequestResultMessageActivity));
             worker.AddTaskOrchestrations(typeof(GetRequestionDecisionOrchestration));
@@ -77,6 +80,21 @@ namespace OpenTelemetrySample
 
             Console.WriteLine("Done with Hello Sequence Exception!");
 
+            // Sub orchestrations
+            OrchestrationInstance helloSubOrchInstance = await client.CreateOrchestrationInstanceAsync(
+                typeof(HelloSubOrch),
+                input: null);
+            await client.WaitForOrchestrationAsync(helloSubOrchInstance, TimeSpan.FromMinutes(5));
+
+            Console.WriteLine("Done with Hello Sub-orchestration!");
+
+            // Sub orchestration failure
+            OrchestrationInstance helloSubOrchFailedInstance = await client.CreateOrchestrationInstanceAsync(
+                typeof(ExceptionSubOrch),
+                input: null);
+            await client.WaitForOrchestrationAsync(helloSubOrchFailedInstance, TimeSpan.FromMinutes(5));
+
+            Console.WriteLine("Done with Hello Sub-orchestration with failed sub-orchestration!");
 
             // Hello Sequence with Timer
             OrchestrationInstance helloSeqWithTimerInstance = await client.CreateOrchestrationInstanceAsync(typeof(HelloSequenceWithTimer), null);
@@ -115,6 +133,44 @@ namespace OpenTelemetrySample
             IOrchestrationServiceClient client = (IOrchestrationServiceClient)service;
             await service.CreateIfNotExistsAsync();
             return (service, client);
+        }
+
+        class HelloSubOrch : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                string result = "";
+                result += await context.CreateSubOrchestrationInstance<string>(typeof(HelloSequence), null);
+                result += await context.ScheduleTask<string>(typeof(SayHello), "Tokyo");
+                Task<string> parallelTask = context.CreateSubOrchestrationInstance<string>(typeof(HelloFanOut), null);
+                result += await context.CreateSubOrchestrationInstance<string>(typeof(HelloSequence), null);
+                result += await parallelTask;
+
+                return result;
+            }
+        }
+
+        class ExceptionSubOrch : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                string result = "";
+                result += await context.CreateSubOrchestrationInstance<string>(typeof(HelloSequence), null);
+                result += await context.ScheduleTask<string>(typeof(SayHello), "Tokyo");
+                Task<string> fanOut = context.CreateSubOrchestrationInstance<string>(typeof(ExceptionOrchestration), null);
+                result += await context.CreateSubOrchestrationInstance<string>(typeof(HelloSequence), null);
+                result += await fanOut;
+
+                return result;
+            }
+        }
+
+        class ExceptionOrchestration : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                throw new Exception();
+            }
         }
 
         class HelloSequence : TaskOrchestration<string, string>
