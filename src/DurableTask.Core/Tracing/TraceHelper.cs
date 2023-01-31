@@ -230,6 +230,8 @@ namespace DurableTask.Core.Tracing
 
         internal static void EmitActivityforTaskFinished(OrchestrationInstance? instance, TaskScheduledEvent taskScheduledEvent, TaskFailedEvent? taskFailedEvent = null)
         {
+            // We immediately publish the activity span for this task by creating the activity and immediately calling Dispose() on it.
+
             if (taskScheduledEvent == null)
             {
                 return;

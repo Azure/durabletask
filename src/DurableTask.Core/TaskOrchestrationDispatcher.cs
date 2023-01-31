@@ -766,15 +766,11 @@ namespace DurableTask.Core
                 if (message.Event is TaskCompletedEvent taskCompletedEvent)
                 {
                     TaskScheduledEvent taskScheduledEvent = (TaskScheduledEvent)workItem.OrchestrationRuntimeState.Events.LastOrDefault(x => x.EventId == taskCompletedEvent.TaskScheduledId);
-
-                    // We immediately publish the activity span for this task by creating the activity and immediately calling Dispose() on it.
                     TraceHelper.EmitActivityforTaskFinished(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent);
                 }
                 else if (message.Event is TaskFailedEvent taskFailedEvent)
                 {
                     TaskScheduledEvent taskScheduledEvent = (TaskScheduledEvent)workItem.OrchestrationRuntimeState.Events.LastOrDefault(x => x.EventId == taskFailedEvent.TaskScheduledId);
-
-                    // We immediately publish the activity span for this task by creating the activity and immediately calling Dispose() on it.
                     TraceHelper.EmitActivityforTaskFinished(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent, taskFailedEvent);
                 }
 
@@ -923,9 +919,9 @@ namespace DurableTask.Core
                     eventId: scheduleTaskOrchestratorAction.Id,
                     name: scheduleTaskOrchestratorAction.Name,
                     version: scheduleTaskOrchestratorAction.Version);
-            }
 
-            scheduledEvent.SetParentTraceContext(parentTraceActivity);
+                scheduledEvent.SetParentTraceContext(parentTraceActivity);
+            }
 
             this.logHelper.SchedulingActivity(
                 runtimeState.OrchestrationInstance!,
