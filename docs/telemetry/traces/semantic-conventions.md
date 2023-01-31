@@ -2,23 +2,23 @@
 **Status**: [Experimental](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/document-status.md)
 
 ## Overview
-This document serves as a specification for distributed tracing in the DurableTask Framework. It includes a list of all spans, their attributes, and detailed information about what constitutes each respective span. We want to gather community feedback and encourage any comments with suggestions and questions. 
+This document serves as a specification for Distributed Tracing in the DurableTask Framework. It includes a list of all spans, their attributes, and detailed information about what constitutes each respective span. We want to gather community feedback and encourage any comments with suggestions and questions. 
 
 ## References
-- [Open Telemetry Trace Semantic Conventions](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions "Open Telemetry Trace Semantic Conventions") – various trace semantic conventions we  reference throughout this document. Particularly, we pull in some attributes defined in these files.
+- [Open Telemetry Trace Semantic Conventions](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions "Open Telemetry Trace Semantic Conventions") – various trace semantic conventions we reference throughout this document. Particularly, we pull in some attributes defined in these files.
 
 ## Specification
-The following only applies to DurableTask.Core
+The following only applies to `DurableTask.Core`
 
 ### Attributes
-These attributes are all new, defined by us, and specific to DurableTask Framework. All attributes here begin with the “durabletask” prefix.
+These attributes are all new, defined by us, and specific to DurableTask. All attributes here begin with the “durabletask” prefix.
 
 Name | Type | Description | Requirement Level
 ---|---|---|---
 durabletask.type | string | The type of durable event occurring. Options: “activity”, “orchestration”, “timer”, “event” | Required
 durabletask.task.name | string | The name of the durable task being invoked. This is the name it was scheduled with, not necessarily the name of the handler class/type. | Required
 durabletask.task.version | string | The version of the task being executed.  | Conditionally Required [1]
-durabletask.task.instance_id |  string | The execution ID of the task being ran. This is unique for all tasks. | Required [2]
+durabletask.task.instance_id |  string | The instance ID of the task being ran. This is unique for all tasks. | Required [2]
 durabletask.task.execution_id | string | The execution ID of the task being ran. This is unique for all tasks. | Required [2]
 durabletask.task.task_id | integer | The ID / index of the task within the orchestration. | Conditionally required
 durabletask.task.result | string | The terminal status of a task. Options: “Succeeded”, “Failed”, “Terminated” | Required
@@ -27,7 +27,7 @@ durabletask.event.instance_id | string | The target orchestration instance ID of
 
 [1] durabletask.task.version may be omitted when version is null. 
 
-[2] When instance ID or execution ID is not available (e.g. activities) use the parent orchestration's instance ID
+[2] When instance ID is not available (e.g. activities) use the parent orchestration's instance ID
 
 ### Spans
 #### Client – Starting an Orchestration
