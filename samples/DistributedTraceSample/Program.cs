@@ -48,16 +48,17 @@ namespace OpenTelemetrySample
             worker.AddTaskOrchestrations(typeof(HelloSubOrch));
             worker.AddTaskOrchestrations(typeof(HelloSequence));
             worker.AddTaskOrchestrations(typeof(HelloFanOut));
+            worker.AddTaskOrchestrations(typeof(HelloFanOutWithException));
             worker.AddTaskOrchestrations(typeof(ExceptionSubOrch));
             worker.AddTaskOrchestrations(typeof(ExceptionOrchestration));
             worker.AddTaskActivities(typeof(SayHello));
             worker.AddTaskActivities(typeof(GetRequestResultMessageActivity));
+            worker.AddTaskActivities(typeof(ExceptionActivity));
             worker.AddTaskOrchestrations(typeof(GetRequestionDecisionOrchestration));
             worker.AddTaskOrchestrations(typeof(EventConversationOrchestration));
             worker.AddTaskOrchestrations(typeof(EventConversationOrchestration.Responder));
             worker.AddTaskOrchestrations(typeof(HelloSequenceWithTimer));
             worker.AddTaskOrchestrations(typeof(HelloSequenceException));
-            worker.AddTaskActivities(typeof(ThrowException));
 
             await worker.StartAsync();
 
@@ -71,14 +72,6 @@ namespace OpenTelemetrySample
 
             Console.WriteLine("Done with Hello Sequence!");
 
-            // Hello Fan Out
-            OrchestrationInstance helloFanOutInstance = await client.CreateOrchestrationInstanceAsync(
-                typeof(HelloFanOut),
-                input: null);
-            await client.WaitForOrchestrationAsync(helloSeqInstance, TimeSpan.FromMinutes(5));
-
-            Console.WriteLine("Done with Hello Fan Out!");
-
             // Hello Sequence throws exception
             OrchestrationInstance helloSeqExceptionInstance = await client.CreateOrchestrationInstanceAsync(
                 typeof(HelloSequenceException),
@@ -86,6 +79,22 @@ namespace OpenTelemetrySample
             await client.WaitForOrchestrationAsync(helloSeqExceptionInstance, TimeSpan.FromMinutes(5));
 
             Console.WriteLine("Done with Hello Sequence Exception!");
+
+            // Hello Fan Out Fan In
+            OrchestrationInstance helloFanOutFanInInstance = await client.CreateOrchestrationInstanceAsync(
+                typeof(HelloFanOut),
+                input: null);
+            await client.WaitForOrchestrationAsync(helloFanOutFanInInstance, TimeSpan.FromMinutes(5));
+
+            Console.WriteLine("Done with Hello Fan Out Fan In!");
+
+            // Hello Fan Out Fan In with failed Activity
+            OrchestrationInstance helloFanOutFanInActivityExceptionInstance = await client.CreateOrchestrationInstanceAsync(
+                typeof(HelloFanOutWithException),
+                input: null);
+            await client.WaitForOrchestrationAsync(helloFanOutFanInActivityExceptionInstance, TimeSpan.FromMinutes(5));
+
+            Console.WriteLine("Done with Hello Fan Out Fan In with failed Activity!");
 
             // Sub orchestrations
             OrchestrationInstance helloSubOrchInstance = await client.CreateOrchestrationInstanceAsync(
@@ -205,6 +214,19 @@ namespace OpenTelemetrySample
             }
         }
 
+        class HelloFanOutWithException : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                string[] results = await Task.WhenAll(
+                    context.ScheduleTask<string>(typeof(SayHello), "Tokyo"),
+                    context.ScheduleTask<string>(typeof(ExceptionActivity), ""),
+                    context.ScheduleTask<string>(typeof(SayHello), "Seattle"));
+
+                return string.Join(", ", results);
+            }
+        }
+
         class SayHello : TaskActivity<string, string>
         {
             protected override string Execute(TaskContext context, string input)
@@ -221,13 +243,12 @@ namespace OpenTelemetrySample
                 string output = "";
                 output += await context.ScheduleTask<string>(typeof(SayHello), "Tokyo") + ", ";
                 output += await context.ScheduleTask<string>(typeof(SayHello), "London") + ", ";
-                output += await context.ScheduleTask<string>(typeof(ThrowException), "This is an invalid operation.") + ", ";
+                output += await context.ScheduleTask<string>(typeof(ExceptionActivity), "This is an invalid operation.") + ", ";
                 output += await context.ScheduleTask<string>(typeof(SayHello), "Seattle");
                 return output;
             }
         }
-
-        class ThrowException : TaskActivity<string, string>
+        class ExceptionActivity : TaskActivity<string, string>
         {
             protected override string Execute(TaskContext context, string input)
             {

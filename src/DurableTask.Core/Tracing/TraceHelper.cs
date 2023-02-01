@@ -123,7 +123,7 @@ namespace DurableTask.Core.Tracing
 
             return ActivityTraceSource.StartActivity(
                 name: $"{scheduledEvent.Name} (#{scheduledEvent.EventId})",
-                kind: ActivityKind.Internal,
+                kind: ActivityKind.Server,
                 parentContext: activityContext,
                 tags: new KeyValuePair<string, object?>[]
                 {
@@ -216,6 +216,49 @@ namespace DurableTask.Core.Tracing
 
                 newActivity.Dispose();
             }
+        }
+
+        internal static void EmitActivityforTaskFinished(OrchestrationInstance? instance, TaskScheduledEvent taskScheduledEvent, TaskFailedEvent? taskFailedEvent = null)
+        {
+            // We immediately publish the activity span for this task by creating the activity and immediately calling Dispose() on it.
+
+            if (taskScheduledEvent == null)
+            {
+                return;
+            }
+
+            if (!taskScheduledEvent.TryGetParentTraceContext(out ActivityContext activityContext))
+            {
+                return;
+            }
+
+            Activity? newActivity = ActivityTraceSource.StartActivity(
+                name: taskScheduledEvent.Name ?? "",
+                kind: ActivityKind.Client,
+                startTime: taskScheduledEvent.Timestamp,
+                parentContext: activityContext);
+
+            if (newActivity == null)
+            {
+                return;
+            }
+
+            newActivity.AddTag("dtfx.type", "activity");
+            newActivity.AddTag("dtfx.instance_id", instance?.InstanceId);
+            newActivity.AddTag("dtfx.execution_id", instance?.ExecutionId);
+
+            if (taskFailedEvent != null)
+            {
+                newActivity.SetTag("otel.status_code", "ERROR");
+
+                FailureDetails? failureDetails = taskFailedEvent.FailureDetails;
+                if (failureDetails != null)
+                {
+                    newActivity.SetTag("otel.status_description", failureDetails.ErrorMessage);
+                }
+            }
+
+            newActivity.Dispose();
         }
 
         /// <summary>
