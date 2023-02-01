@@ -57,6 +57,7 @@ namespace DurableTask.AzureStorage.Tracking
             "Details",
             "Correlation",
             "FailureDetails",
+            "Tags",
         };
 
         readonly string storageAccountName;
@@ -534,7 +535,36 @@ namespace DurableTask.AzureStorage.Tracking
 
             if (this.settings.FetchLargeMessageDataEnabled)
             {
-                orchestrationState.Input = await this.messageManager.FetchLargeMessageIfNecessary(orchestrationState.Input);
+                if (MessageManager.TryGetLargeMessageReference(orchestrationState.Input, out Uri blobUrl))
+                {
+                    string json = await this.messageManager.DownloadAndDecompressAsBytesAsync(blobUrl);
+
+                    // Depending on which blob this is, we interpret it differently.
+                    if (blobUrl.AbsolutePath.EndsWith("ExecutionStarted.json.gz"))
+                    {
+                        // The downloaded content is an ExecutedStarted message payload that
+                        // was created when the orchestration was started.
+                        MessageData msg = this.messageManager.DeserializeMessageData(json);
+                        if (msg?.TaskMessage?.Event is ExecutionStartedEvent startEvent)
+                        {
+                            orchestrationState.Input = startEvent.Input;
+                        }
+                        else
+                        {
+                            this.settings.Logger.GeneralWarning(
+                                this.storageAccountName,
+                                this.taskHubName,
+                                $"Orchestration input blob URL '{blobUrl}' contained unrecognized data.",
+                                instanceId);
+                        }
+                    }
+                    else
+                    {
+                        // The downloaded content is the raw input JSON
+                        orchestrationState.Input = json;
+                    }
+                }
+
                 orchestrationState.Output = await this.messageManager.FetchLargeMessageIfNecessary(orchestrationState.Output);
             }
 
@@ -790,7 +820,7 @@ namespace DurableTask.AzureStorage.Tracking
         public override async Task<bool> SetNewExecutionAsync(
             ExecutionStartedEvent executionStartedEvent,
             string eTag,
-            string inputStatusOverride)
+            string inputPayloadOverride)
         {
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(executionStartedEvent.OrchestrationInstance.InstanceId);
             DynamicTableEntity entity = new DynamicTableEntity(sanitizedInstanceId, "")
@@ -798,7 +828,7 @@ namespace DurableTask.AzureStorage.Tracking
                 ETag = eTag,
                 Properties =
                 {
-                    ["Input"] = new EntityProperty(inputStatusOverride ?? executionStartedEvent.Input),
+                    ["Input"] = new EntityProperty(inputPayloadOverride ?? executionStartedEvent.Input),
                     ["CreatedTime"] = new EntityProperty(executionStartedEvent.Timestamp),
                     ["Name"] = new EntityProperty(executionStartedEvent.Name),
                     ["Version"] = new EntityProperty(executionStartedEvent.Version),

@@ -20,9 +20,7 @@ namespace DurableTask.ServiceBus.Tests
     using System.Linq;
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
-    using DurableTask.Core.Tests;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using DurableTask.Core.Common;
 
     [TestClass]
     public class SampleScenarioTests
@@ -304,7 +302,7 @@ namespace DurableTask.ServiceBus.Tests
 
             // generate a large string as the orchestration input;
             // make it random so that it won't be compressed too much.
-            string largeInput = TestUtils.GenerateRandomString(1000 * 1024);
+            string largeInput = TestHelpers.GenerateRandomString(1000 * 1024);
             OrchestrationInstance id = await this.client.CreateOrchestrationInstanceAsync(typeof(LargeInputOutputOrchestration), largeInput);
 
             bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);

@@ -16,6 +16,7 @@ namespace DurableTask.ServiceBus.Tests
     using System;
     using System.Configuration;
     using System.Diagnostics.Tracing;
+    using System.Text;
     using System.Threading.Tasks;
     using DurableTask.Core;
     using DurableTask.Core.Common;
@@ -328,6 +329,18 @@ namespace DurableTask.ServiceBus.Tests
             }
 
             throw new AssertFailedException($"{errorMessage}. Expected {typeof(TException).ToString()} exception but no exception is thrown");
+        }
+
+        public static string GenerateRandomString(int length)
+        {
+            var result = new StringBuilder(length);
+            while (result.Length < length)
+            {
+                // Use GUIDs so these don't compress well
+                result.Append(Guid.NewGuid().ToString("N"));
+            }
+
+            return result.ToString(0, length);
         }
     }
 }

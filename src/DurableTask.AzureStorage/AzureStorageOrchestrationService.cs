@@ -1586,22 +1586,25 @@ namespace DurableTask.AzureStorage
             }
 
             ControlQueue controlQueue = await this.GetControlQueueAsync(creationMessage.OrchestrationInstance.InstanceId);
-            MessageData internalMessage = await this.SendTaskOrchestrationMessageInternalAsync(
+            MessageData startMessage = await this.SendTaskOrchestrationMessageInternalAsync(
                 EmptySourceInstance,
                 controlQueue,
                 creationMessage);
 
-            // CompressedBlobName either has a blob path for large messages or is null.
-            string inputStatusOverride = null;
-            if (internalMessage.CompressedBlobName != null)
+            string inputPayloadOverride = null;
+            if (startMessage.CompressedBlobName != null)
             {
-                inputStatusOverride = this.messageManager.GetBlobUrl(internalMessage.CompressedBlobName);
+                // The input of the orchestration is changed to be a URL to a compressed blob, which
+                // is the input queue message. When fetching the orchestration instance status, that
+                // blob will be downloaded, decompressed, and the ExecutionStartedEvent.Input value
+                // will be returned as the input value.
+                inputPayloadOverride = this.messageManager.GetBlobUrl(startMessage.CompressedBlobName);
             }
 
             await this.trackingStore.SetNewExecutionAsync(
                 executionStartedEvent,
                 existingInstance?.ETag,
-                inputStatusOverride);
+                inputPayloadOverride);
         }
 
         /// <summary>
