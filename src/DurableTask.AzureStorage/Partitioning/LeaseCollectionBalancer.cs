@@ -167,7 +167,8 @@ namespace DurableTask.AzureStorage.Partitioning
             // Time out task puts allows us to recover from a stuck worker scenario.
             // If this timeout is met, we forcibly terminate the process to free up
             // its leases.
-            var timeoutTask = Task.Delay(options.OwnershipLeaseReleaseTimeout);
+            var timeout = options.LeaseBalancerShutdownTimeout;
+            var timeoutTask = Task.Delay(timeout);
 
             var winner = await Task.WhenAny(shutdownTask, timeoutTask);
             if (winner == timeoutTask)
@@ -177,9 +178,9 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.taskHub,
                     this.workerName,
                     string.Empty,
-                    "Worker took too long to shut down. Initiating forceful shutdown to prevent lease balacning starvation");
+                    "Lease balancer took too long to shut down. Initiating forceful shutdown of the worker process");
 
-                Environment.FailFast("Process was forcibly shut down");
+                Environment.FailFast($"Process was forcibly shut down due to a {timeout} timeout expiration while shutting down the lease manager");
             }
             else
             {
@@ -188,7 +189,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.taskHub,
                     this.workerName,
                     string.Empty,
-                    "Lease resources were gracefully released.");
+                    "Lease balancer was successfully stopped");
             }
         }
 
