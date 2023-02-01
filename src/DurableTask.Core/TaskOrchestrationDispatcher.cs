@@ -763,6 +763,17 @@ namespace DurableTask.Core
                     }
                 }
 
+                if (message.Event is TaskCompletedEvent taskCompletedEvent)
+                {
+                    TaskScheduledEvent taskScheduledEvent = (TaskScheduledEvent)workItem.OrchestrationRuntimeState.Events.LastOrDefault(x => x.EventId == taskCompletedEvent.TaskScheduledId);
+                    TraceHelper.EmitActivityforTaskFinished(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent);
+                }
+                else if (message.Event is TaskFailedEvent taskFailedEvent)
+                {
+                    TaskScheduledEvent taskScheduledEvent = (TaskScheduledEvent)workItem.OrchestrationRuntimeState.Events.LastOrDefault(x => x.EventId == taskFailedEvent.TaskScheduledId);
+                    TraceHelper.EmitActivityforTaskFinished(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent, taskFailedEvent);
+                }
+
                 workItem.OrchestrationRuntimeState.AddEvent(message.Event);
             }
 
@@ -896,8 +907,6 @@ namespace DurableTask.Core
                 version: scheduleTaskOrchestratorAction.Version,
                 input: scheduleTaskOrchestratorAction.Input);
 
-            // We add the parent trace context to the activity message
-            // but don't need to include it in the history.
             scheduledEvent.SetParentTraceContext(parentTraceActivity);
 
             taskMessage.Event = scheduledEvent;
@@ -910,6 +919,8 @@ namespace DurableTask.Core
                     eventId: scheduleTaskOrchestratorAction.Id,
                     name: scheduleTaskOrchestratorAction.Name,
                     version: scheduleTaskOrchestratorAction.Version);
+
+                scheduledEvent.SetParentTraceContext(parentTraceActivity);
             }
 
             this.logHelper.SchedulingActivity(
