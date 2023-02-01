@@ -206,7 +206,7 @@ namespace DurableTask.Core
                                 : null;
                             responseEvent = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details, new FailureDetails(e));
 
-                            traceActivity?.SetStatus(ActivityStatusCode.Error, details);
+                            traceActivity?.SetStatus(ActivityStatusCode.Error, e.Message);
 
                             this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, (TaskFailedEvent)responseEvent, e);
                         }
@@ -224,7 +224,7 @@ namespace DurableTask.Core
                     string? details = this.IncludeDetails ? e.Details : null;
                     var failureEvent = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details, e.FailureDetails);
 
-                    traceActivity?.SetStatus(ActivityStatusCode.Error, details);
+                    traceActivity?.SetStatus(ActivityStatusCode.Error, e.Message);
 
                     this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, failureEvent, e);
                     CorrelationTraceClient.Propagate(() => CorrelationTraceClient.TrackException(e));

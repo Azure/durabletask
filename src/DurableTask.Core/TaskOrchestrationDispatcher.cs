@@ -855,7 +855,7 @@ namespace DurableTask.Core
 
                     taskMessage.Event = subOrchestrationFailedEvent;
 
-                    if (DistributedTraceActivity.Current != null && completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Failed)
+                    if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Failed)
                     {
                         AddFailureDetailstoActivity(runtimeState);
                     }
@@ -870,15 +870,12 @@ namespace DurableTask.Core
                 }
             }
 
-            if (DistributedTraceActivity.Current != null)
+            if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Failed)
             {
-                if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Failed)
-                {
-                    AddFailureDetailstoActivity(runtimeState);
-                }
-
-                ResetDistributedTraceActivity(runtimeState);
+                AddFailureDetailstoActivity(runtimeState);
             }
+
+            ResetDistributedTraceActivity(runtimeState);
 
             return null;
         }
