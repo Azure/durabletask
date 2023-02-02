@@ -164,7 +164,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.leaseRenewerCancellationTokenSource = null;
             });
 
-            // Time out task puts allows us to recover from a stuck worker scenario.
+            // Time out task allows us to recover from a stuck worker scenario.
             // If this timeout is met, we forcibly terminate the process to free up
             // its leases.
             var timeout = options.LeaseBalancerShutdownTimeout;
