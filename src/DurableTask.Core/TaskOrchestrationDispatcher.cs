@@ -759,7 +759,7 @@ namespace DurableTask.Core
                         SubOrchestrationInstanceCreatedEvent subOrchestrationCreatedEvent = (SubOrchestrationInstanceCreatedEvent)workItem.OrchestrationRuntimeState.Events.FirstOrDefault(x => x.EventId == subOrchestrationInstanceFailedEvent.TaskScheduledId);
 
                         // We immediately publish the activity span for this sub-orchestration by creating the activity and immediately calling Dispose() on it.
-                        TraceHelper.EmitTraceActivityForSubOrchestrationFinished(workItem.OrchestrationRuntimeState.OrchestrationInstance, subOrchestrationCreatedEvent, subOrchestrationInstanceFailedEvent);
+                        TraceHelper.EmitTraceActivityForSubOrchestrationFinished(workItem.OrchestrationRuntimeState.OrchestrationInstance, subOrchestrationCreatedEvent, subOrchestrationInstanceFailedEvent, this.errorPropagationMode);
                     }
                 }
 
@@ -771,7 +771,7 @@ namespace DurableTask.Core
                 else if (message.Event is TaskFailedEvent taskFailedEvent)
                 {
                     TaskScheduledEvent taskScheduledEvent = (TaskScheduledEvent)workItem.OrchestrationRuntimeState.Events.LastOrDefault(x => x.EventId == taskFailedEvent.TaskScheduledId);
-                    TraceHelper.EmitActivityforTaskFinished(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent, taskFailedEvent);
+                    TraceHelper.EmitActivityforTaskFinished(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent, taskFailedEvent, this.errorPropagationMode);
                 }
 
                 workItem.OrchestrationRuntimeState.AddEvent(message.Event);
@@ -868,7 +868,7 @@ namespace DurableTask.Core
 
                     if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Failed)
                     {
-                        AddFailureDetailstoActivity(runtimeState);
+                        AddFailureDetailstoActivity(runtimeState, completeOrchestratorAction.Details);
                     }
                 }
 
@@ -883,7 +883,7 @@ namespace DurableTask.Core
 
             if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Failed)
             {
-                AddFailureDetailstoActivity(runtimeState);
+                AddFailureDetailstoActivity(runtimeState, completeOrchestratorAction.Details);
             }
 
             ResetDistributedTraceActivity(runtimeState);
@@ -898,10 +898,20 @@ namespace DurableTask.Core
             DistributedTraceActivity.Current = null;
         }
 
-        private void AddFailureDetailstoActivity(OrchestrationRuntimeState runtimeState)
+        private void AddFailureDetailstoActivity(OrchestrationRuntimeState runtimeState, string? details = null)
         {
-            FailureDetails? failureDetails = runtimeState.FailureDetails;
-            DistributedTraceActivity.Current?.SetStatus(ActivityStatusCode.Error, failureDetails?.ErrorMessage);
+            string? statusDescription = "";
+            if (errorPropagationMode == ErrorPropagationMode.UseFailureDetails)
+            {
+                FailureDetails? failureDetails = runtimeState.FailureDetails;
+                statusDescription = failureDetails?.ErrorMessage;
+            }
+            else if (errorPropagationMode == ErrorPropagationMode.SerializeExceptions)
+            {
+                statusDescription = JsonDataConverter.Default.Deserialize<Exception>(details).Message;
+            }
+
+            DistributedTraceActivity.Current?.SetStatus(ActivityStatusCode.Error, statusDescription);
         }
 
         TaskMessage ProcessScheduleTaskDecision(

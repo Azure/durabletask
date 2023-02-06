@@ -140,13 +140,15 @@ namespace DurableTask.Core.Tracing
         /// <param name="orchestrationInstance">The associated orchestration instance metadata.</param>
         /// <param name="createdEvent">The related sub-orchestration created event.</param>
         /// <param name="failedEvent">The sub-orchestration failed event.</param>
+        /// <param name="errorPropagationMode">Specifies how to handle exceptions.</param>
         /// <returns>
         /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
         /// </returns>
         internal static void EmitTraceActivityForSubOrchestrationFinished(
             OrchestrationInstance? orchestrationInstance,
             SubOrchestrationInstanceCreatedEvent createdEvent,
-            SubOrchestrationInstanceFailedEvent? failedEvent = null)
+            SubOrchestrationInstanceFailedEvent? failedEvent = null,
+            ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
         {
             if (orchestrationInstance == null || createdEvent == null)
             {
@@ -172,11 +174,18 @@ namespace DurableTask.Core.Tracing
             if (failedEvent != null)
             {
                 activity.SetTag("otel.status_code", "ERROR");
-
-                FailureDetails? failureDetails = failedEvent.FailureDetails;
-                if (failureDetails != null)
+                if (errorPropagationMode == ErrorPropagationMode.SerializeExceptions)
                 {
-                    activity.SetTag("otel.status_description", failureDetails.ErrorMessage);
+                    string exceptionMessage = JsonDataConverter.Default.Deserialize<Exception>(failedEvent.Details).Message;
+                    activity.SetTag("otel.status_description", exceptionMessage);
+                }
+                else if (errorPropagationMode == ErrorPropagationMode.UseFailureDetails)
+                {
+                    FailureDetails? failureDetails = failedEvent.FailureDetails;
+                    if (failureDetails != null)
+                    {
+                        activity.SetTag("otel.status_description", failureDetails.ErrorMessage);
+                    }
                 }
             }
 
@@ -218,7 +227,7 @@ namespace DurableTask.Core.Tracing
             }
         }
 
-        internal static void EmitActivityforTaskFinished(OrchestrationInstance? instance, TaskScheduledEvent taskScheduledEvent, TaskFailedEvent? taskFailedEvent = null)
+        internal static void EmitActivityforTaskFinished(OrchestrationInstance? instance, TaskScheduledEvent taskScheduledEvent, TaskFailedEvent? taskFailedEvent = null, ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
         {
             // We immediately publish the activity span for this task by creating the activity and immediately calling Dispose() on it.
 
@@ -251,11 +260,20 @@ namespace DurableTask.Core.Tracing
             {
                 newActivity.SetTag("otel.status_code", "ERROR");
 
-                FailureDetails? failureDetails = taskFailedEvent.FailureDetails;
-                if (failureDetails != null)
+                if (errorPropagationMode == ErrorPropagationMode.SerializeExceptions)
                 {
-                    newActivity.SetTag("otel.status_description", failureDetails.ErrorMessage);
+                    string exceptionMessage = JsonDataConverter.Default.Deserialize<Exception>(taskFailedEvent.Details).Message;
+                    newActivity.SetTag("otel.status_description", exceptionMessage);
                 }
+                else if (errorPropagationMode == ErrorPropagationMode.UseFailureDetails)
+                {
+                    FailureDetails? failureDetails = taskFailedEvent.FailureDetails;
+                    if (failureDetails != null)
+                    {
+                        newActivity.SetTag("otel.status_description", failureDetails.ErrorMessage);
+                    }
+                }
+
             }
 
             newActivity.Dispose();

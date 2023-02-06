@@ -43,6 +43,7 @@ namespace OpenTelemetrySample
                 await GetOrchestrationServiceAndClient();
 
             using TaskHubWorker worker = new TaskHubWorker(service);
+            // worker.ErrorPropagationMode = ErrorPropagationMode.SerializeExceptions;
             worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
 
             worker.AddTaskOrchestrations(typeof(HelloSubOrch));
@@ -61,6 +62,12 @@ namespace OpenTelemetrySample
             worker.AddTaskOrchestrations(typeof(HelloSequenceException));
 
             await worker.StartAsync();
+
+            // Uncomment the next 2 lines if ErrorPropagationMode is SerializeExceptions and
+            // you would like to emit exception details
+
+            // worker.TaskActivityDispatcher.IncludeDetails = true;
+            // worker.TaskOrchestrationDispatcher.IncludeDetails = true;
 
             TaskHubClient client = new TaskHubClient(serviceClient);
 
@@ -111,7 +118,7 @@ namespace OpenTelemetrySample
             await client.WaitForOrchestrationAsync(helloSubOrchFailedInstance, TimeSpan.FromMinutes(5));
 
             Console.WriteLine("Done with Hello Sub-orchestration with failed sub-orchestration!");
-
+            
             // Hello Sequence with Timer
             OrchestrationInstance helloSeqWithTimerInstance = await client.CreateOrchestrationInstanceAsync(typeof(HelloSequenceWithTimer), null);
             await client.WaitForOrchestrationAsync(helloSeqWithTimerInstance, TimeSpan.FromMinutes(5));
@@ -173,7 +180,7 @@ namespace OpenTelemetrySample
                 string result = "";
                 result += await context.CreateSubOrchestrationInstance<string>(typeof(HelloSequence), null);
                 result += await context.ScheduleTask<string>(typeof(SayHello), "Tokyo");
-                Task<string> fanOut = context.CreateSubOrchestrationInstance<string>(typeof(ExceptionOrchestration), null);
+                Task<string> fanOut = context.CreateSubOrchestrationInstance<string>(typeof(ExceptionOrchestration), "activity threw an exception");
                 result += await context.CreateSubOrchestrationInstance<string>(typeof(HelloSequence), null);
                 result += await fanOut;
 
@@ -185,7 +192,7 @@ namespace OpenTelemetrySample
         {
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
-                throw new Exception();
+                throw new Exception(input);
             }
         }
 
