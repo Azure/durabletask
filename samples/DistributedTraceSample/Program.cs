@@ -118,7 +118,7 @@ namespace OpenTelemetrySample
             await client.WaitForOrchestrationAsync(helloSubOrchFailedInstance, TimeSpan.FromMinutes(5));
 
             Console.WriteLine("Done with Hello Sub-orchestration with failed sub-orchestration!");
-            
+
             // Hello Sequence with Timer
             OrchestrationInstance helloSeqWithTimerInstance = await client.CreateOrchestrationInstanceAsync(typeof(HelloSequenceWithTimer), null);
             await client.WaitForOrchestrationAsync(helloSeqWithTimerInstance, TimeSpan.FromMinutes(5));
