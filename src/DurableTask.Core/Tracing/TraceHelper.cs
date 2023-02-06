@@ -173,20 +173,21 @@ namespace DurableTask.Core.Tracing
             // Adding additional tags for a SubOrchestrationInstanceFailedEvent
             if (failedEvent != null)
             {
-                activity.SetTag("otel.status_code", "ERROR");
+                string? statusDescription = "";
                 if (errorPropagationMode == ErrorPropagationMode.SerializeExceptions)
                 {
-                    string exceptionMessage = JsonDataConverter.Default.Deserialize<Exception>(failedEvent.Details).Message;
-                    activity.SetTag("otel.status_description", exceptionMessage);
+                    statusDescription = JsonDataConverter.Default.Deserialize<Exception>(failedEvent.Details).Message;
                 }
                 else if (errorPropagationMode == ErrorPropagationMode.UseFailureDetails)
                 {
                     FailureDetails? failureDetails = failedEvent.FailureDetails;
                     if (failureDetails != null)
                     {
-                        activity.SetTag("otel.status_description", failureDetails.ErrorMessage);
+                        statusDescription = failureDetails.ErrorMessage;
                     }
                 }
+
+                activity.SetStatus(ActivityStatusCode.Error, statusDescription);
             }
 
             activity.Dispose();
@@ -258,22 +259,22 @@ namespace DurableTask.Core.Tracing
 
             if (taskFailedEvent != null)
             {
-                newActivity.SetTag("otel.status_code", "ERROR");
+                string? statusDescription = "";
 
                 if (errorPropagationMode == ErrorPropagationMode.SerializeExceptions)
                 {
-                    string exceptionMessage = JsonDataConverter.Default.Deserialize<Exception>(taskFailedEvent.Details).Message;
-                    newActivity.SetTag("otel.status_description", exceptionMessage);
+                    statusDescription = JsonDataConverter.Default.Deserialize<Exception>(taskFailedEvent.Details).Message;
                 }
                 else if (errorPropagationMode == ErrorPropagationMode.UseFailureDetails)
                 {
                     FailureDetails? failureDetails = taskFailedEvent.FailureDetails;
                     if (failureDetails != null)
                     {
-                        newActivity.SetTag("otel.status_description", failureDetails.ErrorMessage);
+                        statusDescription = failureDetails.ErrorMessage;
                     }
                 }
 
+                newActivity.SetStatus(ActivityStatusCode.Error, statusDescription);
             }
 
             newActivity.Dispose();
