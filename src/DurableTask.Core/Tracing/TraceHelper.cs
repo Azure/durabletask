@@ -134,7 +134,7 @@ namespace DurableTask.Core.Tracing
                 });
         }
 
-        internal static Activity? CreateTraceActivityForSubOrchestrationFinished(
+        internal static Activity? CreateTraceActivityForSubOrchestration(
             OrchestrationInstance? orchestrationInstance,
             SubOrchestrationInstanceCreatedEvent createdEvent)
         {
@@ -165,7 +165,7 @@ namespace DurableTask.Core.Tracing
             OrchestrationInstance? orchestrationInstance,
             SubOrchestrationInstanceCreatedEvent createdEvent)
         {
-            Activity? activity = CreateTraceActivityForSubOrchestrationFinished(orchestrationInstance, createdEvent);
+            Activity? activity = CreateTraceActivityForSubOrchestration(orchestrationInstance, createdEvent);
 
             activity?.Dispose();
         }
@@ -176,7 +176,7 @@ namespace DurableTask.Core.Tracing
             SubOrchestrationInstanceFailedEvent? failedEvent,
             ErrorPropagationMode errorPropagationMode)
         {
-            Activity? activity = CreateTraceActivityForSubOrchestrationFinished(orchestrationInstance, createdEvent);
+            Activity? activity = CreateTraceActivityForSubOrchestration(orchestrationInstance, createdEvent);
 
             if (activity is null)
             {
@@ -240,7 +240,7 @@ namespace DurableTask.Core.Tracing
             }
         }
 
-        internal static Activity? CreateTraceActivityForTaskFinished(
+        internal static Activity? CreateTraceActivityForTask(
             OrchestrationInstance? instance,
             TaskScheduledEvent taskScheduledEvent)
         {
@@ -276,7 +276,7 @@ namespace DurableTask.Core.Tracing
             OrchestrationInstance? orchestrationInstance,
             TaskScheduledEvent taskScheduledEvent)
         {
-            Activity? activity = CreateTraceActivityForTaskFinished(orchestrationInstance, taskScheduledEvent);
+            Activity? activity = CreateTraceActivityForTask(orchestrationInstance, taskScheduledEvent);
 
             activity?.Dispose();
         }
@@ -287,7 +287,7 @@ namespace DurableTask.Core.Tracing
             TaskFailedEvent? taskFailedEvent,
             ErrorPropagationMode errorPropagationMode)
         {
-            Activity? activity = CreateTraceActivityForTaskFinished(orchestrationInstance, taskScheduledEvent);
+            Activity? activity = CreateTraceActivityForTask(orchestrationInstance, taskScheduledEvent);
 
             if (activity is null)
             {
