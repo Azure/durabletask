@@ -43,6 +43,9 @@ namespace OpenTelemetrySample
                 await GetOrchestrationServiceAndClient();
 
             using TaskHubWorker worker = new TaskHubWorker(service);
+            // worker.ErrorPropagationMode = ErrorPropagationMode.SerializeExceptions;
+            worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
+
             worker.AddTaskOrchestrations(typeof(HelloSubOrch));
             worker.AddTaskOrchestrations(typeof(HelloSequence));
             worker.AddTaskOrchestrations(typeof(HelloFanOut));
@@ -56,18 +59,33 @@ namespace OpenTelemetrySample
             worker.AddTaskOrchestrations(typeof(EventConversationOrchestration));
             worker.AddTaskOrchestrations(typeof(EventConversationOrchestration.Responder));
             worker.AddTaskOrchestrations(typeof(HelloSequenceWithTimer));
+            worker.AddTaskOrchestrations(typeof(HelloSequenceException));
+
             await worker.StartAsync();
+
+            // Uncomment the next 2 lines if ErrorPropagationMode is SerializeExceptions and
+            // you would like to emit exception details
+
+            // worker.TaskActivityDispatcher.IncludeDetails = true;
+            // worker.TaskOrchestrationDispatcher.IncludeDetails = true;
 
             TaskHubClient client = new TaskHubClient(serviceClient);
 
             // Hello Sequence
             OrchestrationInstance helloSeqInstance = await client.CreateOrchestrationInstanceAsync(
-                //typeof(HelloFanOut),
                 typeof(HelloSequence),
                 input: null);
             await client.WaitForOrchestrationAsync(helloSeqInstance, TimeSpan.FromMinutes(5));
 
             Console.WriteLine("Done with Hello Sequence!");
+
+            // Hello Sequence throws exception
+            OrchestrationInstance helloSeqExceptionInstance = await client.CreateOrchestrationInstanceAsync(
+                typeof(HelloSequenceException),
+                input: null);
+            await client.WaitForOrchestrationAsync(helloSeqExceptionInstance, TimeSpan.FromMinutes(5));
+
+            Console.WriteLine("Done with Hello Sequence Exception!");
 
             // Hello Fan Out Fan In
             OrchestrationInstance helloFanOutFanInInstance = await client.CreateOrchestrationInstanceAsync(
@@ -162,7 +180,7 @@ namespace OpenTelemetrySample
                 string result = "";
                 result += await context.CreateSubOrchestrationInstance<string>(typeof(HelloSequence), null);
                 result += await context.ScheduleTask<string>(typeof(SayHello), "Tokyo");
-                Task<string> fanOut = context.CreateSubOrchestrationInstance<string>(typeof(ExceptionOrchestration), null);
+                Task<string> fanOut = context.CreateSubOrchestrationInstance<string>(typeof(ExceptionOrchestration), "activity threw an exception");
                 result += await context.CreateSubOrchestrationInstance<string>(typeof(HelloSequence), null);
                 result += await fanOut;
 
@@ -174,7 +192,7 @@ namespace OpenTelemetrySample
         {
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
-                throw new Exception();
+                throw new Exception(input);
             }
         }
 
@@ -225,11 +243,23 @@ namespace OpenTelemetrySample
             }
         }
 
+        class HelloSequenceException : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                string output = "";
+                output += await context.ScheduleTask<string>(typeof(SayHello), "Tokyo") + ", ";
+                output += await context.ScheduleTask<string>(typeof(SayHello), "London") + ", ";
+                output += await context.ScheduleTask<string>(typeof(ExceptionActivity), "This is an invalid operation.") + ", ";
+                output += await context.ScheduleTask<string>(typeof(SayHello), "Seattle");
+                return output;
+            }
+        }
         class ExceptionActivity : TaskActivity<string, string>
         {
             protected override string Execute(TaskContext context, string input)
             {
-                throw new Exception();
+                throw new InvalidOperationException(input);
             }
         }
 

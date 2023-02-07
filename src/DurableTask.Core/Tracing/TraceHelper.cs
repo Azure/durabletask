@@ -32,16 +32,6 @@ namespace DurableTask.Core.Tracing
 
         static readonly ActivitySource ActivityTraceSource = new ActivitySource(Source);
 
-        private static readonly Action<Activity, string> s_spanIdSet;
-        private static readonly Action<Activity, string> s_idSet;
-
-        static TraceHelper()
-        {
-            BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
-            s_spanIdSet = typeof(Activity).GetField("_spanId", flags).CreateSetter<Activity, string>();
-            s_idSet = typeof(Activity).GetField("_id", flags).CreateSetter<Activity, string>();
-        }
-
         internal static Activity? CreateActivityForNewOrchestration(ExecutionStartedEvent startEvent)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
@@ -100,8 +90,8 @@ namespace DurableTask.Core.Tracing
 
             if (startEvent.ParentTraceContext.Id != null && startEvent.ParentTraceContext.SpanId != null)
             {
-                s_idSet(activity, startEvent.ParentTraceContext.Id!);
-                s_spanIdSet(activity, startEvent.ParentTraceContext.SpanId!);
+                activity.SetId(startEvent.ParentTraceContext.Id!);
+                activity.SetSpanId(startEvent.ParentTraceContext.SpanId!);
             }
             else
             {
@@ -144,23 +134,13 @@ namespace DurableTask.Core.Tracing
                 });
         }
 
-        /// <summary>
-        /// Starts a new trace activity for suborchestration execution.
-        /// </summary>
-        /// <param name="orchestrationInstance">The associated orchestration instance metadata.</param>
-        /// <param name="createdEvent">The related sub-orchestration created event.</param>
-        /// <param name="failedEvent">The sub-orchestration failed event.</param>
-        /// <returns>
-        /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
-        /// </returns>
-        internal static void EmitTraceActivityForSubOrchestrationFinished(
+        internal static Activity? CreateTraceActivityForSubOrchestration(
             OrchestrationInstance? orchestrationInstance,
-            SubOrchestrationInstanceCreatedEvent createdEvent,
-            SubOrchestrationInstanceFailedEvent? failedEvent = null)
+            SubOrchestrationInstanceCreatedEvent createdEvent)
         {
             if (orchestrationInstance == null || createdEvent == null)
             {
-                return;
+                return null;
             }
 
             Activity? activity = ActivityTraceSource.StartActivity(
@@ -171,26 +151,58 @@ namespace DurableTask.Core.Tracing
 
             if (activity == null)
             {
-                return;
+                return null;
             }
 
             activity.SetTag("dtfx.type", "orchestrator");
             activity.SetTag("dtfx.instance_id", orchestrationInstance?.InstanceId);
             activity.SetTag("dtfx.execution_id", orchestrationInstance?.ExecutionId);
 
-            // Adding additional tags for a SubOrchestrationInstanceFailedEvent
-            if (failedEvent != null)
-            {
-                activity.SetTag("otel.status_code", "ERROR");
+            return activity;
+        }
 
-                FailureDetails? failureDetails = failedEvent.FailureDetails;
-                if (failureDetails != null)
-                {
-                    activity.SetTag("otel.status_description", failureDetails.ErrorMessage);
-                }
+        internal static void EmitTraceActivityForSubOrchestrationCompleted(
+            OrchestrationInstance? orchestrationInstance,
+            SubOrchestrationInstanceCreatedEvent createdEvent)
+        {
+            Activity? activity = CreateTraceActivityForSubOrchestration(orchestrationInstance, createdEvent);
+
+            activity?.Dispose();
+        }
+
+        internal static void EmitTraceActivityForSubOrchestrationFailed(
+            OrchestrationInstance? orchestrationInstance,
+            SubOrchestrationInstanceCreatedEvent createdEvent,
+            SubOrchestrationInstanceFailedEvent? failedEvent,
+            ErrorPropagationMode errorPropagationMode)
+        {
+            Activity? activity = CreateTraceActivityForSubOrchestration(orchestrationInstance, createdEvent);
+
+            if (activity is null)
+            {
+                return;
             }
 
-            activity.Dispose();
+            if (failedEvent != null)
+            {
+                string statusDescription = "";
+                if (errorPropagationMode == ErrorPropagationMode.SerializeExceptions)
+                {
+                    statusDescription = JsonDataConverter.Default.Deserialize<Exception>(failedEvent.Details).Message;
+                }
+                else if (errorPropagationMode == ErrorPropagationMode.UseFailureDetails)
+                {
+                    FailureDetails? failureDetails = failedEvent.FailureDetails;
+                    if (failureDetails != null)
+                    {
+                        statusDescription = failureDetails.ErrorMessage;
+                    }
+                }
+
+                activity?.SetStatus(ActivityStatusCode.Error, statusDescription);
+            }
+
+            activity?.Dispose();
         }
 
         internal static Activity? CreateActivityForNewEventRaised(EventRaisedEvent eventRaised, OrchestrationInstance instance)
@@ -228,18 +240,18 @@ namespace DurableTask.Core.Tracing
             }
         }
 
-        internal static void EmitActivityforTaskFinished(OrchestrationInstance? instance, TaskScheduledEvent taskScheduledEvent, TaskFailedEvent? taskFailedEvent = null)
+        internal static Activity? CreateTraceActivityForTask(
+            OrchestrationInstance? instance,
+            TaskScheduledEvent taskScheduledEvent)
         {
-            // We immediately publish the activity span for this task by creating the activity and immediately calling Dispose() on it.
-
             if (taskScheduledEvent == null)
             {
-                return;
+                return null;
             }
 
             if (!taskScheduledEvent.TryGetParentTraceContext(out ActivityContext activityContext))
             {
-                return;
+                return null;
             }
 
             Activity? newActivity = ActivityTraceSource.StartActivity(
@@ -250,25 +262,59 @@ namespace DurableTask.Core.Tracing
 
             if (newActivity == null)
             {
-                return;
+                return null;
             }
 
             newActivity.AddTag("dtfx.type", "activity");
             newActivity.AddTag("dtfx.instance_id", instance?.InstanceId);
             newActivity.AddTag("dtfx.execution_id", instance?.ExecutionId);
 
-            if (taskFailedEvent != null)
-            {
-                newActivity.SetTag("otel.status_code", "ERROR");
+            return newActivity;
+        }
 
-                FailureDetails? failureDetails = taskFailedEvent.FailureDetails;
-                if (failureDetails != null)
-                {
-                    newActivity.SetTag("otel.status_description", failureDetails.ErrorMessage);
-                }
+        internal static void EmitTraceActivityForTaskCompleted(
+            OrchestrationInstance? orchestrationInstance,
+            TaskScheduledEvent taskScheduledEvent)
+        {
+            Activity? activity = CreateTraceActivityForTask(orchestrationInstance, taskScheduledEvent);
+
+            activity?.Dispose();
+        }
+
+        internal static void EmitTraceActivityForTaskFailed(
+            OrchestrationInstance? orchestrationInstance,
+            TaskScheduledEvent taskScheduledEvent,
+            TaskFailedEvent? taskFailedEvent,
+            ErrorPropagationMode errorPropagationMode)
+        {
+            Activity? activity = CreateTraceActivityForTask(orchestrationInstance, taskScheduledEvent);
+
+            if (activity is null)
+            {
+                return;
             }
 
-            newActivity.Dispose();
+            if (taskFailedEvent != null)
+            {
+                string statusDescription = "";
+
+                if (errorPropagationMode == ErrorPropagationMode.SerializeExceptions)
+                {
+                    statusDescription = JsonDataConverter.Default.Deserialize<Exception>(taskFailedEvent.Details).Message;
+                }
+                else if (errorPropagationMode == ErrorPropagationMode.UseFailureDetails)
+                {
+                    FailureDetails? failureDetails = taskFailedEvent.FailureDetails;
+                    if (failureDetails != null)
+                    {
+                        statusDescription = failureDetails.ErrorMessage;
+                    }
+                }
+
+                activity?.SetStatus(ActivityStatusCode.Error, statusDescription);
+            }
+
+            activity?.Dispose();
         }
 
         /// <summary>

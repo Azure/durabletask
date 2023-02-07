@@ -205,6 +205,9 @@ namespace DurableTask.Core
                                 ? $"Unhandled exception while executing task: {e}"
                                 : null;
                             responseEvent = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details, new FailureDetails(e));
+
+                            traceActivity?.SetStatus(ActivityStatusCode.Error, e.Message);
+
                             this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, (TaskFailedEvent)responseEvent, e);
                         }
 
@@ -220,12 +223,17 @@ namespace DurableTask.Core
                     TraceHelper.TraceExceptionInstance(TraceEventType.Error, "TaskActivityDispatcher-ProcessTaskFailure", taskMessage.OrchestrationInstance, e);
                     string? details = this.IncludeDetails ? e.Details : null;
                     var failureEvent = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details, e.FailureDetails);
+
+                    traceActivity?.SetStatus(ActivityStatusCode.Error, e.Message);
+
                     this.logHelper.TaskActivityFailure(orchestrationInstance, scheduledEvent.Name, failureEvent, e);
                     CorrelationTraceClient.Propagate(() => CorrelationTraceClient.TrackException(e));
                     result = new ActivityExecutionResult { ResponseEvent = failureEvent };
                 }
                 catch (Exception middlewareException) when (!Utils.IsFatal(middlewareException))
                 {
+                    traceActivity?.SetStatus(ActivityStatusCode.Error, middlewareException.Message);
+
                     // These are considered retriable
                     this.logHelper.TaskActivityDispatcherError(workItem, $"Unhandled exception in activity middleware pipeline: {middlewareException}");
                     throw;

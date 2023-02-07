@@ -752,26 +752,26 @@ namespace DurableTask.Core
                         SubOrchestrationInstanceCreatedEvent subOrchestrationCreatedEvent = (SubOrchestrationInstanceCreatedEvent)workItem.OrchestrationRuntimeState.Events.FirstOrDefault(x => x.EventId == subOrchestrationInstanceCompletedEvent.TaskScheduledId);
 
                         // We immediately publish the activity span for this sub-orchestration by creating the activity and immediately calling Dispose() on it.
-                        TraceHelper.EmitTraceActivityForSubOrchestrationFinished(workItem.OrchestrationRuntimeState.OrchestrationInstance, subOrchestrationCreatedEvent);
+                        TraceHelper.EmitTraceActivityForSubOrchestrationCompleted(workItem.OrchestrationRuntimeState.OrchestrationInstance, subOrchestrationCreatedEvent);
                     }
                     else if (historyEvent is SubOrchestrationInstanceFailedEvent subOrchestrationInstanceFailedEvent)
                     {
                         SubOrchestrationInstanceCreatedEvent subOrchestrationCreatedEvent = (SubOrchestrationInstanceCreatedEvent)workItem.OrchestrationRuntimeState.Events.FirstOrDefault(x => x.EventId == subOrchestrationInstanceFailedEvent.TaskScheduledId);
 
                         // We immediately publish the activity span for this sub-orchestration by creating the activity and immediately calling Dispose() on it.
-                        TraceHelper.EmitTraceActivityForSubOrchestrationFinished(workItem.OrchestrationRuntimeState.OrchestrationInstance, subOrchestrationCreatedEvent, subOrchestrationInstanceFailedEvent);
+                        TraceHelper.EmitTraceActivityForSubOrchestrationFailed(workItem.OrchestrationRuntimeState.OrchestrationInstance, subOrchestrationCreatedEvent, subOrchestrationInstanceFailedEvent, this.errorPropagationMode);
                     }
                 }
 
                 if (message.Event is TaskCompletedEvent taskCompletedEvent)
                 {
                     TaskScheduledEvent taskScheduledEvent = (TaskScheduledEvent)workItem.OrchestrationRuntimeState.Events.LastOrDefault(x => x.EventId == taskCompletedEvent.TaskScheduledId);
-                    TraceHelper.EmitActivityforTaskFinished(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent);
+                    TraceHelper.EmitTraceActivityForTaskCompleted(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent);
                 }
                 else if (message.Event is TaskFailedEvent taskFailedEvent)
                 {
                     TaskScheduledEvent taskScheduledEvent = (TaskScheduledEvent)workItem.OrchestrationRuntimeState.Events.LastOrDefault(x => x.EventId == taskFailedEvent.TaskScheduledId);
-                    TraceHelper.EmitActivityforTaskFinished(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent, taskFailedEvent);
+                    TraceHelper.EmitTraceActivityForTaskFailed(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent, taskFailedEvent, this.errorPropagationMode);
                 }
 
                 workItem.OrchestrationRuntimeState.AddEvent(message.Event);
@@ -865,6 +865,11 @@ namespace DurableTask.Core
                     subOrchestrationFailedEvent.FailureDetails = completeOrchestratorAction.FailureDetails;
 
                     taskMessage.Event = subOrchestrationFailedEvent;
+
+                    if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Failed)
+                    {
+                        AddFailureDetailstoActivity(runtimeState, completeOrchestratorAction.Details);
+                    }
                 }
 
                 ResetDistributedTraceActivity(runtimeState);
@@ -874,6 +879,11 @@ namespace DurableTask.Core
                     taskMessage.OrchestrationInstance = runtimeState.ParentInstance.OrchestrationInstance;
                     return taskMessage;
                 }
+            }
+
+            if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Failed)
+            {
+                AddFailureDetailstoActivity(runtimeState, completeOrchestratorAction.Details);
             }
 
             ResetDistributedTraceActivity(runtimeState);
@@ -886,6 +896,22 @@ namespace DurableTask.Core
             DistributedTraceActivity.Current?.SetTag("dtfx.runtime_status", runtimeState.OrchestrationStatus.ToString());
             DistributedTraceActivity.Current?.Stop();
             DistributedTraceActivity.Current = null;
+        }
+
+        private void AddFailureDetailstoActivity(OrchestrationRuntimeState runtimeState, string? details = null)
+        {
+            string? statusDescription = "";
+            if (errorPropagationMode == ErrorPropagationMode.UseFailureDetails)
+            {
+                FailureDetails? failureDetails = runtimeState.FailureDetails;
+                statusDescription = failureDetails?.ErrorMessage;
+            }
+            else if (errorPropagationMode == ErrorPropagationMode.SerializeExceptions)
+            {
+                statusDescription = JsonDataConverter.Default.Deserialize<Exception>(details).Message;
+            }
+
+            DistributedTraceActivity.Current?.SetStatus(ActivityStatusCode.Error, statusDescription);
         }
 
         TaskMessage ProcessScheduleTaskDecision(
