@@ -3,11 +3,11 @@
 This sample explains how the OpenTelemetrySample project is configured with Distributed Tracing and emits trace information to the following telemetry exporters: Console, Application Insights, and ZipKin. The following steps can be used to configure your own app as well.
 
 ## Prerequisites
-If you would like to emit traces to Application Insights then create an Application Insights resource in the Azure Portal. If you would like to emit traces to Zipkin, then follow the instructions (here)[https://zipkin.io/pages/quickstart.html] to start a local instance. 
+If you would like to emit traces to Application Insights then create an Application Insights resource in the Azure Portal. If you would like to emit traces to Zipkin, then follow the instructions [here](https://zipkin.io/pages/quickstart.html) to start a local instance.
 
 ## Telemetry Exporter Packages
 
-The following packages are added to OpenTelemetrySample.csproj so the app can emit traces to the console, App Insights, and Zipkin. You can also configure other telemetry exporters by adding those packages.
+The following package references are added to OpenTelemetrySample.csproj so that the app can emit traces to the console, Application Insights, and Zipkin. You can also configure other telemetry exporters by adding those packages.
 
 ```
 <ItemGroup>
@@ -34,11 +34,11 @@ using var tracerProvider = Sdk.CreateTracerProviderBuilder()
     .Build();
 ```
 
-For Application Insights, an app setting with the name `AZURE_MONITOR_CONNECTION_STRING`. If the you are running this locally, then add an environment variable. If you are running this in Azure, then add an app setting under **Configuration**. The value should be the Application Insights resource connection string.
+For Application Insights, add an app setting with the name `AZURE_MONITOR_CONNECTION_STRING`. If you are running this locally, then add an environment variable. If you are running this in Azure, then add an app setting under **Configuration** in the portal. The value should be the Application Insights resource connection string.
 
 ## Run the application
 
-Run the app to execute the orchestrations and emit the traces.
+Run the sample app to execute the orchestrations and emit the traces.
 
 ## Looking through the traces
 
