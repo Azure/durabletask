@@ -36,7 +36,7 @@ Represents enqueueing a new orchestration via TaskHubClient to the backend.
 
 | Span Property | Span Value |
 |---|---|
-| Name  | `create_orchestration\|\|{orchestrationName}(\|\|{orchestrationVersion})?`  |
+| Name  | `create_orchestration:{orchestrationName}(@{orchestrationVersion})?`  |
 | Kind  | Producer  |
 | Start  | Timestamp before submitting the new orchestration to the backend  |
 | End  | Timestamp after the orchestration has been submitted to the backend  |
@@ -64,7 +64,7 @@ Represents enqueueing and waiting for a sub-orchestration to complete
 
 | Span Property | Span Value |
 |---|---|
-| Name   | `orchestration\|\|{orchestrationName}(\|\|{orchestrationVersion})?`   |
+| Name   | `orchestration:{orchestrationName}(@{orchestrationVersion})?`   |
 | Kind   | Standard: Client<br />Fire and forget: Producer  |
 | Start   | Timestamp of when the parent orchestration enqueues a message to execute the sub\-orchestration  |
 | End   | Standard: Timestamp of when the parent orchestration is notified that the sub\-orchestration completed\.<br />Fire and forget: Timestamp after the sub\-orchestration started event is enqueued  |
@@ -91,7 +91,7 @@ Represents enqueueing a new orchestration via TaskHubClient to the backend
 
 | Span Property | Span Value |
 |---|---|
-| Name   | `orchestration\|\|{orchestrationName}(\|\|{orchestrationVersion})?`   |
+| Name   | `orchestration:{orchestrationName}(@{orchestrationVersion})?`   |
 | Kind   | Server   |
 | Start   | Timestamp before the orchestration starts executing\.  |
 | End   | Timestamp after the orchestration has finished executing\.   |
@@ -119,7 +119,7 @@ Represents enqueueing an activity
 
 | Span Property | Span Value |
 |---|---|
-| Name   | `activity\|\|{activityName}(\|\|{orchestrationVersion})?`   |
+| Name   | `activity:{activityName}(@{orchestrationVersion})?`   |
 | Kind   | Client   |
 | Start   | Timestamp before enqueuing the activity  |
 | End   | Timestamp after the activity has finished executing\.   |
@@ -146,7 +146,7 @@ Represents the activity executing
 
 | Span Property | Span Value |
 |---|---|
-| Name   | `activity\|\|{activityName}(\|\| {orchestrationVersion})?`   |
+| Name   | `activity:{activityName}(@{orchestrationVersion})?`   |
 | Kind   | Server   |
 | Start   | Timestamp before the activity starts executing\.  |
 | End   | Timestamp after the activity has finished executing\.   |
@@ -162,8 +162,8 @@ Attributes:
 |---|---|
 | durabletask.type   | “activity”   |
 | durabletask.task.name   | Name of the activity   |
-| durabletask.task.version   | Version of the related orchestration enqueued. Omitted if null version.   |
-| durabletask.task.instance_id   | Instance ID of the related orchestration   |
+| durabletask.task.version   | Version of the invoked orchestration enqueued. Omitted if null version.   |
+| durabletask.task.instance_id   | Instance ID of the invoked orchestration   |
 | durabletask.task.task_id   | ID of the current task  |
 | exception.*   | Exception details on failure |
 
@@ -190,8 +190,8 @@ Attributes:
 |---|---|
 | durabletask.type    | “timer”    |
 | durabletask.fire_at  | Configured FireAt time displayed in ISO 8601 format  |
-| durabletask.task.version    | Version of the related orchestration enqueued. Omitted if null version.    |
-| durabletask.task.instance_id    | Instance ID of the related orchestration    |
+| durabletask.task.version    | Version of the invoked orchestration enqueued. Omitted if null version.    |
+| durabletask.task.instance_id    | Instance ID of the invoked orchestration    |
 | durabletask.task.task_id   | ID of the current task |
 
 
@@ -201,7 +201,7 @@ Represents sending an event to an orchestration
 
 | Span Property | Span Value |
 |---|---|
-| Name    | `orchestration_event\|\|{orchestration_name}`  |
+| Name    | `orchestration_event:{orchestration_name}`  |
 | Kind    | Producer |
 | Start    | Timestamp efore sending the event  |
 | End    | From client: Timestamp of when the event has been sent <br />From worker: Timestamp of when the event message has been created \(this has a negligible duration, but we want a span for a link\) |
