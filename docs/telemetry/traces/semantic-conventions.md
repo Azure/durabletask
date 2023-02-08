@@ -162,8 +162,8 @@ Attributes:
 |---|---|
 | durabletask.type   | “activity”   |
 | durabletask.task.name   | Name of the activity   |
-| durabletask.task.version   | Version of the invoked orchestration enqueued. Omitted if null version.   |
-| durabletask.task.instance_id   | Instance ID of the invoked orchestration   |
+| durabletask.task.version   | Version of the invoking orchestration enqueued. Omitted if null version.   |
+| durabletask.task.instance_id   | Instance ID of the invoking orchestration   |
 | durabletask.task.task_id   | ID of the current task  |
 | exception.*   | Exception details on failure |
 
@@ -190,8 +190,8 @@ Attributes:
 |---|---|
 | durabletask.type    | “timer”    |
 | durabletask.fire_at  | Configured FireAt time displayed in ISO 8601 format  |
-| durabletask.task.version    | Version of the invoked orchestration enqueued. Omitted if null version.    |
-| durabletask.task.instance_id    | Instance ID of the invoked orchestration    |
+| durabletask.task.version    | Version of the invoking orchestration enqueued. Omitted if null version.    |
+| durabletask.task.instance_id    | Instance ID of the invoking orchestration    |
 | durabletask.task.task_id   | ID of the current task |
 
 
