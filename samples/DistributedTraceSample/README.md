@@ -1,9 +1,13 @@
-# Distributed Tracing with Open Telemetry for Durable Task
+# Distributed Tracing with OpenTelemetry for Durable Task
+
+Enabling distributed tracing in Durable Task allows you to take a closer look at orchestrations and activities and investigate issues quicker.
+
+[OpenTelemetry](https://opentelemetry.io/) provides a way to collect and export telemetry to an observability tool. It is becoming the new standard for distributed tracing and is vendor neutral. Some examples of telemetry exporters that you could choose include Application Insights, Zipkin, Jaeger, and New Relic.
 
 This sample explains how the OpenTelemetrySample project is configured with Distributed Tracing and emits trace information to the following telemetry exporters: Console, Application Insights, and ZipKin. The following steps can be used to configure your own app as well.
 
 ## Prerequisites
-If you would like to emit traces to Application Insights then create an Application Insights resource in the Azure Portal. If you would like to emit traces to Zipkin, then follow the instructions [here](https://zipkin.io/pages/quickstart.html) to start a local instance.
+If you would like to emit traces to [Application Insights](https://learn.microsoft.com/en-us/azure/azure-monitor/app/app-insights-overview?tabs=net) then create an Application Insights resource in the Azure Portal. If you would like to emit traces to Zipkin, then follow the instructions [here](https://zipkin.io/pages/quickstart.html) to start a local instance.
 
 ## Telemetry Exporter Packages
 
@@ -12,8 +16,8 @@ The following package references are added to OpenTelemetrySample.csproj so that
 ```
 <ItemGroup>
     <PackageReference Include="OpenTelemetry.Exporter.Console" Version=""1.1.0 />
-    <PackageReference Include="OpenTelemetry.Exporter.Zipkin" Version="1.1.0" />
     <PackageReference Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.0.0-beta.3" />
+    <PackageReference Include="OpenTelemetry.Exporter.Zipkin" Version="1.1.0" />
 </ItemGroup>
 ```
 
