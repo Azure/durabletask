@@ -138,16 +138,16 @@ steps:
     packDirectory: $(build.artifactStagingDirectory)
     packagesToPack: 'src/DurableTask.ServiceBus/DurableTask.ServiceBus.csproj'
 
-# - task: DotNetCoreCLI@2
-#   displayName: Generate nuget packages
-#   inputs:
-#     command: pack
-#     verbosityPack: Minimal
-#     configuration: Release
-#     nobuild: true
-#     packDirectory: $(build.artifactStagingDirectory)
-#     packagesToPack: 'src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj'
-#     buildProperties: 'Platform=x64'
+- task: DotNetCoreCLI@2
+  displayName: Generate nuget packages
+  inputs:
+    command: pack
+    verbosityPack: Minimal
+    configuration: Release
+    nobuild: true
+    packDirectory: $(build.artifactStagingDirectory)
+    packagesToPack: 'src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj'
+    buildProperties: 'Platform=x64'
 
 # Digitally sign all the nuget packages with the Microsoft certificate.
 # This appears to be an in-place signing job, which is convenient.
