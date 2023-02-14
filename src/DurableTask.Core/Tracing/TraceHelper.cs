@@ -213,14 +213,14 @@ namespace DurableTask.Core.Tracing
         internal static Activity? CreateActivityForNewEventRaised(EventRaisedEvent eventRaised, OrchestrationInstance instance)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: eventRaised.Name,
+                name: CreateActivityName("orchestration_event", eventRaised.Name, null),
                 kind: ActivityKind.Producer,
                 parentContext: Activity.Current?.Context ?? default,
                 tags: new KeyValuePair<string, object?>[]
                 {
                     new("durabletask.type", "event"),
-                    new("durabletask.task.instance_id", instance.InstanceId),
-                    new("durabletask.task.execution_id", instance.ExecutionId),
+                    new("durabletask.task.name", eventRaised.Name),
+                    new("durabletask.event.target_instance_id", instance.InstanceId),
                 });
 
             return newActivity;
