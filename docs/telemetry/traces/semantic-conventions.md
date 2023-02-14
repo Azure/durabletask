@@ -4,12 +4,6 @@
 ## Overview
 This document serves as a specification for Distributed Tracing in the DurableTask Framework. It includes a list of all spans, their attributes, and detailed information about what constitutes each respective span. We want to gather community feedback and encourage any comments with suggestions and questions. 
 
-## References
-- [Open Telemetry Trace Semantic Conventions](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions "Open Telemetry Trace Semantic Conventions") – various trace semantic conventions we reference throughout this document. Particularly, we pull in some attributes defined in these files.
-
-## Specification
-The following only applies to `DurableTask.Core`
-
 ## Table of Contents
 1. [Attributes](#attributes)
 2. Spans <br>
@@ -20,6 +14,12 @@ The following only applies to `DurableTask.Core`
     e. [Worker: Running an Activity](#worker-running-an-activity)<br>
     f. [Worker: Timer](#worker-timer)<br>
     g. [Sending an Event](#sending-an-event)<br>
+    
+## References
+- [Open Telemetry Trace Semantic Conventions](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions "Open Telemetry Trace Semantic Conventions") – various trace semantic conventions we reference throughout this document. Particularly, we pull in some attributes defined in these files.
+
+## Specification
+The following only applies to `DurableTask.Core`
 
 ### Attributes
 These attributes are all new, defined by us, and specific to DurableTask. All attributes here begin with the “durabletask” prefix.
