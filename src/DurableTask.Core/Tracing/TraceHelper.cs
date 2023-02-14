@@ -272,7 +272,7 @@ namespace DurableTask.Core.Tracing
             }
 
             newActivity.AddTag("durabletask.type", "activity");
-            newActivity.AddTag("durabletask.task.name", "activity");
+            newActivity.AddTag("durabletask.task.name", taskScheduledEvent.Name);
             newActivity.AddTag("durabletask.task.version", taskScheduledEvent.Version);
             newActivity.AddTag("durabletask.task.instance_id", instance?.InstanceId);
             newActivity.AddTag("durabletask.task_id", taskScheduledEvent.EventId);
