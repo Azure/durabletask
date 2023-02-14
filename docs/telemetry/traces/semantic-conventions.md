@@ -10,6 +10,17 @@ This document serves as a specification for Distributed Tracing in the DurableTa
 ## Specification
 The following only applies to `DurableTask.Core`
 
+## Table of Contents
+1. [Attributes](#attributes)
+2. Spans <br>
+    a. [Client: Starting an Orchestration](#client-starting-an-orchestration)<br>
+    b. [Client: Starting a sub-orchestration](#client-starting-a-sub-orchestration)<br>
+    c. [Worker: Running an Orchestration](#worker-running-an-orchestration)<br>
+    d. [Worker: Starting an Activity](#worker-starting-an-activity)<br>
+    e. [Worker: Running an Activity](#worker-running-an-activity)<br>
+    f. [Worker: Timer](#worker-timer)<br>
+    g. [Sending an Event](#sending-an-event)<br>
+
 ### Attributes
 These attributes are all new, defined by us, and specific to DurableTask. All attributes here begin with the “durabletask” prefix.
 
@@ -30,7 +41,7 @@ durabletask.event.instance_id | string | The target orchestration instance ID of
 [2] When instance ID is not available (e.g. activities) use the parent orchestration's instance ID
 
 ### Spans
-#### Client – Starting an Orchestration
+#### Client: Starting an Orchestration
 
 Represents enqueueing a new orchestration via TaskHubClient to the backend.
 
@@ -58,7 +69,7 @@ Attributes:
 | durabletask.task.execution_id  | Execution ID of the enqueued orchestration  |
 | exception.*  | Exception details on failure. |
 
-#### Client - Starting a sub-orchestration
+#### Client: Starting a sub-orchestration
 
 Represents enqueueing and waiting for a sub-orchestration to complete 
 
@@ -85,7 +96,7 @@ Attributes:
 | exception.*   | Exception details on failure |
 
 
-#### Worker – Running an Orchestration
+#### Worker: Running an Orchestration
 
 Represents enqueueing a new orchestration via TaskHubClient to the backend
 
@@ -113,7 +124,7 @@ Attributes:
 | exception.*   | Exception details on failure |
 
 
-#### Worker - Starting an Activity
+#### Worker: Starting an Activity
 
 Represents enqueueing an activity
 
@@ -140,7 +151,7 @@ Attributes:
 | durabletask.task.task_id   | ID of the current task  |
 | exception.*   | Exception details on failure |
 
-#### Worker - Running an Activity
+#### Worker: Running an Activity
 
 Represents the activity executing
 
@@ -168,7 +179,7 @@ Attributes:
 | exception.*   | Exception details on failure |
 
 
-#### Worker - Timer
+#### Worker: Timer
 
 Represents the Durable Timer
 
