@@ -745,7 +745,7 @@ namespace DurableTask.Core
                     if (historyEvent is TimerFiredEvent timerFiredEvent)
                     {
                         // We immediately publish the activity span for this timer by creating the activity and immediately calling Dispose() on it.
-                        TraceHelper.EmitTraceActivityForTimer(workItem.OrchestrationRuntimeState.OrchestrationInstance, message.Event.Timestamp, timerFiredEvent, workItem.OrchestrationRuntimeState.Version);
+                        TraceHelper.EmitTraceActivityForTimer(workItem.OrchestrationRuntimeState.OrchestrationInstance, message.Event.Timestamp, timerFiredEvent);
                     }
                     else if (historyEvent is SubOrchestrationInstanceCompletedEvent subOrchestrationInstanceCompletedEvent)
                     {
@@ -893,7 +893,7 @@ namespace DurableTask.Core
 
         private void ResetDistributedTraceActivity(OrchestrationRuntimeState runtimeState)
         {
-            DistributedTraceActivity.Current?.SetTag("durabletask.task.status", runtimeState.OrchestrationStatus.ToString());
+            TraceHelper.SetRuntimeStatusTag(runtimeState.OrchestrationStatus.ToString());
             DistributedTraceActivity.Current?.Stop();
             DistributedTraceActivity.Current = null;
         }

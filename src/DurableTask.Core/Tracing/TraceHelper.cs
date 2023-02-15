@@ -35,16 +35,20 @@ namespace DurableTask.Core.Tracing
         internal static Activity? CreateActivityForNewOrchestration(ExecutionStartedEvent startEvent)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: CreateActivityName("create_orchestration", startEvent.Name, startEvent.Version),
+                name: CreateSpanName("create_orchestration", startEvent.Name, startEvent.Version),
                 kind: ActivityKind.Producer);
 
             if (newActivity != null)
             {
                 newActivity.SetTag("durabletask.type", "orchestration");
                 newActivity.SetTag("durabletask.task.name", startEvent.Name);
-                newActivity.SetTag("durabletask.task.version", startEvent.Version);
                 newActivity.SetTag("durabletask.task.instance_id", startEvent.OrchestrationInstance.InstanceId);
                 newActivity.SetTag("durabletask.task.execution_id", startEvent.OrchestrationInstance.ExecutionId);
+
+                if (!string.IsNullOrEmpty(startEvent.Version))
+                {
+                    newActivity.SetTag("durabletask.task.version", startEvent.Version);
+                }
                 
                 startEvent.SetParentTraceContext(newActivity);
             }
@@ -71,7 +75,7 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            string activityName = CreateActivityName("orchestration", startEvent.Name, startEvent.Version);
+            string activityName = CreateSpanName("orchestration", startEvent.Name, startEvent.Version);
             ActivityKind activityKind = ActivityKind.Server;
             DateTimeOffset startTime = startEvent.ParentTraceContext.ActivityStartTime ?? default;
 
@@ -88,8 +92,12 @@ namespace DurableTask.Core.Tracing
 
             activity.SetTag("durabletask.type", "orchestration");
             activity.SetTag("durabletask.task.name", startEvent.Name);
-            activity.SetTag("durabletask.task.version", startEvent.Version);
             activity.SetTag("durabletask.task.instance_id", startEvent.OrchestrationInstance.InstanceId);
+
+            if (!string.IsNullOrEmpty(startEvent.Version))
+            {
+                activity.SetTag("durabletask.task.version", startEvent.Version);
+            }
 
             if (startEvent.ParentTraceContext.Id != null && startEvent.ParentTraceContext.SpanId != null)
             {
@@ -105,6 +113,11 @@ namespace DurableTask.Core.Tracing
 
             DistributedTraceActivity.Current = activity;
             return DistributedTraceActivity.Current;
+        }
+
+        internal static void SetRuntimeStatusTag(string runtimeStatus)
+        {
+            DistributedTraceActivity.Current?.SetTag("durabletask.task.status", runtimeStatus);
         }
 
         /// <summary>
@@ -124,18 +137,27 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            return ActivityTraceSource.StartActivity(
-                name: CreateActivityName("activity", scheduledEvent.Name, scheduledEvent.Version),
+            Activity? newActivity = ActivityTraceSource.StartActivity(
+                name: CreateSpanName("activity", scheduledEvent.Name, scheduledEvent.Version),
                 kind: ActivityKind.Client,
-                parentContext: activityContext,
-                tags: new KeyValuePair<string, object?>[]
-                {
-                    new("durabletask.type", "activity"),
-                    new("durabletask.task.name", scheduledEvent.Name),
-                    new("durabletask.task.version", scheduledEvent.Version),
-                    new("durabletask.task.instance_id", instance.InstanceId),
-                    new("durabletask.task.task_id", scheduledEvent.EventId),
-                });
+                parentContext: activityContext);
+
+            if (newActivity == null)
+            {
+                return null;
+            }
+
+            newActivity.SetTag("durabletask.type", "activity");
+            newActivity.SetTag("durabletask.task.name", scheduledEvent.Name);
+            newActivity.SetTag("durabletask.task.instance_id", instance.InstanceId);
+            newActivity.SetTag("durabletask.task.task_id", scheduledEvent.EventId);
+
+            if (!string.IsNullOrEmpty(scheduledEvent.Version))
+            {
+                newActivity.SetTag("durabletask.task.version", scheduledEvent.Version);
+            }
+
+            return newActivity;
         }
 
         internal static Activity? CreateTraceActivityForSubOrchestration(
@@ -148,7 +170,7 @@ namespace DurableTask.Core.Tracing
             }
 
             Activity? activity = ActivityTraceSource.StartActivity(
-                name: CreateActivityName("orchestration", createdEvent.Name, createdEvent.Version),
+                name: CreateSpanName("orchestration", createdEvent.Name, createdEvent.Version),
                 kind: ActivityKind.Client,
                 startTime: createdEvent.Timestamp,
                 parentContext: Activity.Current?.Context ?? default);
@@ -160,8 +182,12 @@ namespace DurableTask.Core.Tracing
 
             activity.SetTag("durabletask.type", "orchestration");
             activity.SetTag("durabletask.task.name", createdEvent.Name);
-            activity.SetTag("durabletask.task.version", createdEvent.Version);
             activity.SetTag("durabletask.task.instance_id", orchestrationInstance?.InstanceId);
+
+            if (!string.IsNullOrEmpty(createdEvent.Version))
+            {
+                activity.SetTag("durabletask.task.version", createdEvent.Version);
+            }
 
             return activity;
         }
@@ -213,7 +239,7 @@ namespace DurableTask.Core.Tracing
         internal static Activity? CreateActivityForNewEventRaised(EventRaisedEvent eventRaised, OrchestrationInstance instance)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: CreateActivityName("orchestration_event", eventRaised.Name, null),
+                name: CreateSpanName("orchestration_event", eventRaised.Name, null),
                 kind: ActivityKind.Producer,
                 parentContext: Activity.Current?.Context ?? default,
                 tags: new KeyValuePair<string, object?>[]
@@ -226,7 +252,7 @@ namespace DurableTask.Core.Tracing
             return newActivity;
         }
 
-        internal static void EmitTraceActivityForTimer(OrchestrationInstance? instance, DateTime startTime, TimerFiredEvent timerFiredEvent, string version)
+        internal static void EmitTraceActivityForTimer(OrchestrationInstance? instance, DateTime startTime, TimerFiredEvent timerFiredEvent)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 name: "timer",
@@ -238,9 +264,8 @@ namespace DurableTask.Core.Tracing
             {
                 newActivity.AddTag("durabletask.type", "timer");
                 newActivity.AddTag("durabletask.fire_at", timerFiredEvent.FireAt.ToString("o"));
-                newActivity.AddTag("durabletask.task.version", version);
                 newActivity.AddTag("durabletask.task.instance_id", instance?.InstanceId);
-                newActivity.AddTag("durabletask.task.task_id", timerFiredEvent.EventId);
+                newActivity.AddTag("durabletask.task.task_id", timerFiredEvent.TimerId);
 
                 newActivity.Dispose();
             }
@@ -261,7 +286,7 @@ namespace DurableTask.Core.Tracing
             }
 
             Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: CreateActivityName("activity", taskScheduledEvent.Name, taskScheduledEvent.Version),
+                name: CreateSpanName("activity", taskScheduledEvent.Name, taskScheduledEvent.Version),
                 kind: ActivityKind.Server,
                 startTime: taskScheduledEvent.Timestamp,
                 parentContext: activityContext);
@@ -273,9 +298,13 @@ namespace DurableTask.Core.Tracing
 
             newActivity.AddTag("durabletask.type", "activity");
             newActivity.AddTag("durabletask.task.name", taskScheduledEvent.Name);
-            newActivity.AddTag("durabletask.task.version", taskScheduledEvent.Version);
             newActivity.AddTag("durabletask.task.instance_id", instance?.InstanceId);
             newActivity.AddTag("durabletask.task_id", taskScheduledEvent.EventId);
+
+            if (!string.IsNullOrEmpty(taskScheduledEvent.Version))
+            {
+                newActivity.AddTag("durabletask.task.version", taskScheduledEvent.Version);
+            }
 
             return newActivity;
         }
@@ -339,30 +368,39 @@ namespace DurableTask.Core.Tracing
             OrchestrationInstance? instance,
             string? targetInstanceId)
         {
-            return ActivityTraceSource.StartActivity(
-                name: CreateActivityName("orchestration_event", eventRaisedEvent.Name, null),
+            Activity? newActivity = ActivityTraceSource.StartActivity(
+                name: CreateSpanName("orchestration_event", eventRaisedEvent.Name, null),
                 kind: ActivityKind.Producer,
-                parentContext: Activity.Current?.Context ?? default,
-                tags: new KeyValuePair<string, object?>[]
-                {
-                    new("durabletask.type", "event"),
-                    new("durabletask.event.name", eventRaisedEvent.Name),
-                    new("durabletask.event.target_instance_id", targetInstanceId),
-                    new("durabletask.task.instance_id", instance?.InstanceId),
-                    new("durabletask.task.execution_id", instance?.ExecutionId)
-                });
-        }
+                parentContext: Activity.Current?.Context ?? default);
 
-        private static string CreateActivityName(string spanDescription, string? taskName, string? taskVersion)
-        {
-            string activityName = $"{spanDescription}:{taskName}";
-
-            if (!string.IsNullOrEmpty(taskVersion))
+            if (newActivity == null)
             {
-                activityName += $"@({taskVersion})";
+                return null;
             }
 
-            return activityName;
+            newActivity.AddTag("durabletask.type", "event");
+            newActivity.AddTag("durabletask.task.name", eventRaisedEvent.Name);
+            newActivity.AddTag("durabletask.task.instance_id", instance?.InstanceId);
+            newActivity.AddTag("durabletask.task.execution_id", instance?.ExecutionId);
+
+            if (!string.IsNullOrEmpty(targetInstanceId))
+            {
+                newActivity.AddTag("durabletask.event.target_instance_id", targetInstanceId);
+            }
+
+            return newActivity;
+        }
+
+        static string CreateSpanName(string spanDescription, string? taskName, string? taskVersion)
+        {
+            if (!string.IsNullOrEmpty(taskVersion))
+            {
+                return $"{spanDescription}:{taskName}@({taskVersion})";
+            }
+            else
+            {
+                return $"{spanDescription}:{taskName}";
+            }
         }
 
         /// <summary>
