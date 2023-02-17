@@ -18,7 +18,6 @@ namespace DurableTask.Core.Tracing
     using System.Diagnostics;
     using System.Globalization;
     using System.Runtime.ExceptionServices;
-    using System.Reflection;
     using DurableTask.Core.Common;
     using DurableTask.Core.History;
     using DurableTask.Core.Serializing;
@@ -32,7 +31,14 @@ namespace DurableTask.Core.Tracing
 
         static readonly ActivitySource ActivityTraceSource = new ActivitySource(Source);
 
-        internal static Activity? CreateActivityForNewOrchestration(ExecutionStartedEvent startEvent)
+        /// <summary>
+        /// Starts a new trace activity for scheduling an orchestration from the client.
+        /// </summary>
+        /// <param name="startEvent">The orchestration's execution started event.</param>
+        /// <returns>
+        /// Returns a newly started <see cref="Activity"/> with orchestration-specific metadata.
+        /// </returns>
+        internal static Activity? StartActivityForNewOrchestration(ExecutionStartedEvent startEvent)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 name: CreateSpanName("create_orchestration", startEvent.Name, startEvent.Version),
@@ -40,10 +46,10 @@ namespace DurableTask.Core.Tracing
 
             if (newActivity != null)
             {
-                newActivity.SetTag("durabletask.type", "orchestration");
-                newActivity.SetTag("durabletask.task.name", startEvent.Name);
-                newActivity.SetTag("durabletask.task.instance_id", startEvent.OrchestrationInstance.InstanceId);
-                newActivity.SetTag("durabletask.task.execution_id", startEvent.OrchestrationInstance.ExecutionId);
+                newActivity.SetTag(Schema.Task.Type, "orchestration");
+                newActivity.SetTag(Schema.Task.Name, startEvent.Name);
+                newActivity.SetTag(Schema.Task.InstanceId, startEvent.OrchestrationInstance.InstanceId);
+                newActivity.SetTag(Schema.Task.ExecutionId, startEvent.OrchestrationInstance.ExecutionId);
 
                 if (!string.IsNullOrEmpty(startEvent.Version))
                 {
@@ -63,7 +69,7 @@ namespace DurableTask.Core.Tracing
         /// <returns>
         /// Returns a newly started <see cref="Activity"/> with orchestration-specific metadata.
         /// </returns>
-        internal static Activity? StartTraceActivityForExecution(ExecutionStartedEvent? startEvent)
+        internal static Activity? StartTraceActivityForOrchestrationExecution(ExecutionStartedEvent? startEvent)
         {
             if (startEvent == null)
             {
@@ -90,13 +96,13 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            activity.SetTag("durabletask.type", "orchestration");
-            activity.SetTag("durabletask.task.name", startEvent.Name);
-            activity.SetTag("durabletask.task.instance_id", startEvent.OrchestrationInstance.InstanceId);
+            activity.SetTag(Schema.Task.Type, "orchestration");
+            activity.SetTag(Schema.Task.Name, startEvent.Name);
+            activity.SetTag(Schema.Task.InstanceId, startEvent.OrchestrationInstance.InstanceId);
 
             if (!string.IsNullOrEmpty(startEvent.Version))
             {
-                activity.SetTag("durabletask.task.version", startEvent.Version);
+                activity.SetTag(Schema.Task.Version, startEvent.Version);
             }
 
             if (startEvent.ParentTraceContext.Id != null && startEvent.ParentTraceContext.SpanId != null)
@@ -115,20 +121,17 @@ namespace DurableTask.Core.Tracing
             return DistributedTraceActivity.Current;
         }
 
-        internal static void SetRuntimeStatusTag(string runtimeStatus)
-        {
-            DistributedTraceActivity.Current?.SetTag("durabletask.task.status", runtimeStatus);
-        }
 
         /// <summary>
-        /// Starts a new trace activity for (task) activity execution.
+        /// Starts a new trace activity for (task) activity that represents the time between when the task message
+        /// is enqueued and completes.
         /// </summary>
         /// <param name="scheduledEvent">The associated <see cref="TaskScheduledEvent"/>.</param>
         /// <param name="instance">The associated orchestration instance metadata.</param>
         /// <returns>
         /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
         /// </returns>
-        internal static Activity? StartTraceActivityForTask(
+        internal static Activity? StartTraceActivityForSchedulingTask(
             TaskScheduledEvent scheduledEvent,
             OrchestrationInstance instance)
         {
@@ -147,67 +150,93 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            newActivity.SetTag("durabletask.type", "activity");
-            newActivity.SetTag("durabletask.task.name", scheduledEvent.Name);
-            newActivity.SetTag("durabletask.task.instance_id", instance.InstanceId);
-            newActivity.SetTag("durabletask.task.task_id", scheduledEvent.EventId);
+            newActivity.SetTag(Schema.Task.Type, "activity");
+            newActivity.SetTag(Schema.Task.Name, scheduledEvent.Name);
+            newActivity.SetTag(Schema.Task.InstanceId, instance.InstanceId);
+            newActivity.SetTag(Schema.Task.TaskId, scheduledEvent.EventId);
 
             if (!string.IsNullOrEmpty(scheduledEvent.Version))
             {
-                newActivity.SetTag("durabletask.task.version", scheduledEvent.Version);
+                newActivity.SetTag(Schema.Task.Version, scheduledEvent.Version);
             }
 
             return newActivity;
         }
 
-        internal static Activity? CreateTraceActivityForSubOrchestration(
-            OrchestrationInstance? orchestrationInstance,
-            SubOrchestrationInstanceCreatedEvent createdEvent)
+        /// <summary>
+        /// Starts a new trace activity for (task) activity execution. 
+        /// </summary>
+        /// <param name="instance">The associated <see cref="OrchestrationInstance"/>.</param>
+        /// <param name="taskScheduledEvent">The associated <see cref="TaskScheduledEvent"/>.</param>
+        /// <returns>
+        /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
+        /// </returns>
+        internal static Activity? StartTraceActivityForTaskExecution(
+            OrchestrationInstance? instance,
+            TaskScheduledEvent taskScheduledEvent)
         {
-            if (orchestrationInstance == null || createdEvent == null)
+            if (taskScheduledEvent == null)
             {
                 return null;
             }
 
-            Activity? activity = ActivityTraceSource.StartActivity(
-                name: CreateSpanName("orchestration", createdEvent.Name, createdEvent.Version),
-                kind: ActivityKind.Client,
-                startTime: createdEvent.Timestamp,
-                parentContext: Activity.Current?.Context ?? default);
-
-            if (activity == null)
+            if (!taskScheduledEvent.TryGetParentTraceContext(out ActivityContext activityContext))
             {
                 return null;
             }
 
-            activity.SetTag("durabletask.type", "orchestration");
-            activity.SetTag("durabletask.task.name", createdEvent.Name);
-            activity.SetTag("durabletask.task.instance_id", orchestrationInstance?.InstanceId);
+            Activity? newActivity = ActivityTraceSource.StartActivity(
+                name: CreateSpanName("activity", taskScheduledEvent.Name, taskScheduledEvent.Version),
+                kind: ActivityKind.Server,
+                startTime: taskScheduledEvent.Timestamp,
+                parentContext: activityContext);
 
-            if (!string.IsNullOrEmpty(createdEvent.Version))
+            if (newActivity == null)
             {
-                activity.SetTag("durabletask.task.version", createdEvent.Version);
+                return null;
             }
 
-            return activity;
+            newActivity.AddTag(Schema.Task.Type, "activity");
+            newActivity.AddTag(Schema.Task.Name, taskScheduledEvent.Name);
+            newActivity.AddTag(Schema.Task.InstanceId, instance?.InstanceId);
+            newActivity.AddTag(Schema.Task.TaskId, taskScheduledEvent.EventId);
+
+            if (!string.IsNullOrEmpty(taskScheduledEvent.Version))
+            {
+                newActivity.AddTag(Schema.Task.Version, taskScheduledEvent.Version);
+            }
+
+            return newActivity;
         }
 
-        internal static void EmitTraceActivityForSubOrchestrationCompleted(
+        /// <summary>
+        /// Emits a new trace activity for a (task) activity that successfully completes.
+        /// </summary>
+        /// <param name="taskScheduledEvent">The associated <see cref="TaskScheduledEvent"/>.</param>
+        /// <param name="orchestrationInstance">The associated <see cref="OrchestrationInstance"/>.</param>
+        internal static void EmitTraceActivityForTaskCompleted(
             OrchestrationInstance? orchestrationInstance,
-            SubOrchestrationInstanceCreatedEvent createdEvent)
+            TaskScheduledEvent taskScheduledEvent)
         {
-            Activity? activity = CreateTraceActivityForSubOrchestration(orchestrationInstance, createdEvent);
+            Activity? activity = StartTraceActivityForTaskExecution(orchestrationInstance, taskScheduledEvent);
 
             activity?.Dispose();
         }
 
-        internal static void EmitTraceActivityForSubOrchestrationFailed(
+        /// <summary>
+        /// Emits a new trace activity for a (task) activity that fails.
+        /// </summary>
+        /// <param name="orchestrationInstance">The associated <see cref="OrchestrationInstance"/>.</param>
+        /// <param name="taskScheduledEvent">The associated <see cref="TaskScheduledEvent"/>.</param>
+        /// <param name="failedEvent">The associated <see cref="TaskFailedEvent"/>.</param>
+        /// <param name="errorPropagationMode">Specifies the method to propagate unhandled exceptions to parent orchestrations.</param>
+        internal static void EmitTraceActivityForTaskFailed(
             OrchestrationInstance? orchestrationInstance,
-            SubOrchestrationInstanceCreatedEvent createdEvent,
-            SubOrchestrationInstanceFailedEvent? failedEvent,
+            TaskScheduledEvent taskScheduledEvent,
+            TaskFailedEvent? failedEvent,
             ErrorPropagationMode errorPropagationMode)
         {
-            Activity? activity = CreateTraceActivityForSubOrchestration(orchestrationInstance, createdEvent);
+            Activity? activity = StartTraceActivityForTaskExecution(orchestrationInstance, taskScheduledEvent);
 
             if (activity is null)
             {
@@ -236,112 +265,92 @@ namespace DurableTask.Core.Tracing
             activity?.Dispose();
         }
 
-        internal static Activity? CreateActivityForNewEventRaised(EventRaisedEvent eventRaised, OrchestrationInstance instance)
+        /// <summary>
+        /// Starts a new trace activity for sub-orchestrations. Represents the time between enqueuing
+        /// the sub-orchestration message and it completing.
+        /// </summary>
+        /// <param name="orchestrationInstance">The associated <see cref="OrchestrationInstance"/>.</param>
+        /// <param name="createdEvent">The associated <see cref="SubOrchestrationInstanceCreatedEvent"/>.</param>
+        /// <returns>
+        /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
+        /// </returns>
+        internal static Activity? CreateTraceActivityForSchedulingSubOrchestration(
+            OrchestrationInstance? orchestrationInstance,
+            SubOrchestrationInstanceCreatedEvent createdEvent)
         {
-            Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: CreateSpanName("orchestration_event", eventRaised.Name, null),
-                kind: ActivityKind.Producer,
-                parentContext: Activity.Current?.Context ?? default,
-                tags: new KeyValuePair<string, object?>[]
-                {
-                    new("durabletask.type", "event"),
-                    new("durabletask.task.name", eventRaised.Name),
-                    new("durabletask.event.target_instance_id", instance.InstanceId),
-                });
+            if (orchestrationInstance == null || createdEvent == null)
+            {
+                return null;
+            }
 
-            return newActivity;
-        }
-
-        internal static void EmitTraceActivityForTimer(OrchestrationInstance? instance, DateTime startTime, TimerFiredEvent timerFiredEvent)
-        {
-            Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: "timer",
-                kind: ActivityKind.Internal,
-                startTime: startTime,
+            Activity? activity = ActivityTraceSource.StartActivity(
+                name: CreateSpanName("orchestration", createdEvent.Name, createdEvent.Version),
+                kind: ActivityKind.Client,
+                startTime: createdEvent.Timestamp,
                 parentContext: Activity.Current?.Context ?? default);
 
-            if (newActivity is not null)
+            if (activity == null)
             {
-                newActivity.AddTag("durabletask.type", "timer");
-                newActivity.AddTag("durabletask.fire_at", timerFiredEvent.FireAt.ToString("o"));
-                newActivity.AddTag("durabletask.task.instance_id", instance?.InstanceId);
-                newActivity.AddTag("durabletask.task.task_id", timerFiredEvent.TimerId);
-
-                newActivity.Dispose();
+                return null;
             }
+
+            activity.SetTag(Schema.Task.Type, "orchestration");
+            activity.SetTag(Schema.Task.Name, createdEvent.Name);
+            activity.SetTag(Schema.Task.InstanceId, orchestrationInstance?.InstanceId);
+
+            if (!string.IsNullOrEmpty(createdEvent.Version))
+            {
+                activity.SetTag(Schema.Task.Version, createdEvent.Version);
+            }
+
+            return activity;
         }
 
-        internal static Activity? CreateTraceActivityForTask(
-            OrchestrationInstance? instance,
-            TaskScheduledEvent taskScheduledEvent)
-        {
-            if (taskScheduledEvent == null)
-            {
-                return null;
-            }
-
-            if (!taskScheduledEvent.TryGetParentTraceContext(out ActivityContext activityContext))
-            {
-                return null;
-            }
-
-            Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: CreateSpanName("activity", taskScheduledEvent.Name, taskScheduledEvent.Version),
-                kind: ActivityKind.Server,
-                startTime: taskScheduledEvent.Timestamp,
-                parentContext: activityContext);
-
-            if (newActivity == null)
-            {
-                return null;
-            }
-
-            newActivity.AddTag("durabletask.type", "activity");
-            newActivity.AddTag("durabletask.task.name", taskScheduledEvent.Name);
-            newActivity.AddTag("durabletask.task.instance_id", instance?.InstanceId);
-            newActivity.AddTag("durabletask.task_id", taskScheduledEvent.EventId);
-
-            if (!string.IsNullOrEmpty(taskScheduledEvent.Version))
-            {
-                newActivity.AddTag("durabletask.task.version", taskScheduledEvent.Version);
-            }
-
-            return newActivity;
-        }
-
-        internal static void EmitTraceActivityForTaskCompleted(
+        /// <summary>
+        /// Emits a new trace activity for sub-orchestration execution when the sub-orchestration
+        /// completes successfully.
+        /// </summary>
+        /// <param name="orchestrationInstance">The associated <see cref="OrchestrationInstance"/>.</param>
+        /// <param name="createdEvent">The associated <see cref="SubOrchestrationInstanceCreatedEvent"/>.</param>
+        internal static void EmitTraceActivityForSubOrchestrationCompleted(
             OrchestrationInstance? orchestrationInstance,
-            TaskScheduledEvent taskScheduledEvent)
+            SubOrchestrationInstanceCreatedEvent createdEvent)
         {
-            Activity? activity = CreateTraceActivityForTask(orchestrationInstance, taskScheduledEvent);
+            Activity? activity = CreateTraceActivityForSchedulingSubOrchestration(orchestrationInstance, createdEvent);
 
             activity?.Dispose();
         }
 
-        internal static void EmitTraceActivityForTaskFailed(
+        /// <summary>
+        /// Emits a new trace activity for sub-orchestration execution when the sub-orchestration fails.
+        /// </summary>
+        /// <param name="orchestrationInstance">The associated <see cref="OrchestrationInstance"/>.</param>
+        /// <param name="createdEvent">The associated <see cref="SubOrchestrationInstanceCreatedEvent"/>.</param>
+        /// <param name="failedEvent">The associated <see cref="SubOrchestrationInstanceCreatedEvent"/>.</param>
+        /// <param name="errorPropagationMode">Specifies the method to propagate unhandled exceptions to parent orchestrations.</param>
+        internal static void EmitTraceActivityForSubOrchestrationFailed(
             OrchestrationInstance? orchestrationInstance,
-            TaskScheduledEvent taskScheduledEvent,
-            TaskFailedEvent? taskFailedEvent,
+            SubOrchestrationInstanceCreatedEvent createdEvent,
+            SubOrchestrationInstanceFailedEvent? failedEvent,
             ErrorPropagationMode errorPropagationMode)
         {
-            Activity? activity = CreateTraceActivityForTask(orchestrationInstance, taskScheduledEvent);
+            Activity? activity = CreateTraceActivityForSchedulingSubOrchestration(orchestrationInstance, createdEvent);
 
             if (activity is null)
             {
                 return;
             }
 
-            if (taskFailedEvent != null)
+            if (failedEvent != null)
             {
                 string statusDescription = "";
-
                 if (errorPropagationMode == ErrorPropagationMode.SerializeExceptions)
                 {
-                    statusDescription = JsonDataConverter.Default.Deserialize<Exception>(taskFailedEvent.Details).Message;
+                    statusDescription = JsonDataConverter.Default.Deserialize<Exception>(failedEvent.Details).Message;
                 }
                 else if (errorPropagationMode == ErrorPropagationMode.UseFailureDetails)
                 {
-                    FailureDetails? failureDetails = taskFailedEvent.FailureDetails;
+                    FailureDetails? failureDetails = failedEvent.FailureDetails;
                     if (failureDetails != null)
                     {
                         statusDescription = failureDetails.ErrorMessage;
@@ -355,15 +364,15 @@ namespace DurableTask.Core.Tracing
         }
 
         /// <summary>
-        /// Starts a new trace activity for (task) activity execution.
+        /// Emits a new trace activity for events created from the worker.
         /// </summary>
         /// <param name="eventRaisedEvent">The associated <see cref="EventRaisedEvent"/>.</param>
-        /// <param name="instance">The associated orchestration instance metadata.</param>
-        /// <param name="targetInstanceId">The instance id of the orchestration instance that will receive the event.</param>
+        /// <param name="instance">The associated <see cref="OrchestrationInstance"/>.</param>
+        /// <param name="targetInstanceId">The instance id of the orchestration that will receive the event.</param>
         /// <returns>
         /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
         /// </returns>
-        internal static Activity? StartTraceActivityForEventRaised(
+        internal static Activity? StartTraceActivityForEventRaisedFromWorker(
             EventRaisedEvent eventRaisedEvent,
             OrchestrationInstance? instance,
             string? targetInstanceId)
@@ -378,10 +387,10 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            newActivity.AddTag("durabletask.type", "event");
-            newActivity.AddTag("durabletask.task.name", eventRaisedEvent.Name);
-            newActivity.AddTag("durabletask.task.instance_id", instance?.InstanceId);
-            newActivity.AddTag("durabletask.task.execution_id", instance?.ExecutionId);
+            newActivity.AddTag(Schema.Task.Type, "event");
+            newActivity.AddTag(Schema.Task.Name, eventRaisedEvent.Name);
+            newActivity.AddTag(Schema.Task.InstanceId, instance?.InstanceId);
+            newActivity.AddTag(Schema.Task.ExecutionId, instance?.ExecutionId);
 
             if (!string.IsNullOrEmpty(targetInstanceId))
             {
@@ -389,6 +398,71 @@ namespace DurableTask.Core.Tracing
             }
 
             return newActivity;
+        }
+
+        /// <summary>
+        /// Creates a new trace activity for events created from the client.
+        /// </summary>
+        /// <param name="eventRaised">The associated <see cref="EventRaisedEvent"/>.</param>
+        /// <param name="instance">The associated <see cref="OrchestrationInstance"/>.</param>
+        /// <returns>
+        /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
+        /// </returns>
+        internal static Activity? StartActivityForNewEventRaisedFromClient(EventRaisedEvent eventRaised, OrchestrationInstance instance)
+        {
+            Activity? newActivity = ActivityTraceSource.StartActivity(
+                name: CreateSpanName("orchestration_event", eventRaised.Name, null),
+                kind: ActivityKind.Producer,
+                parentContext: Activity.Current?.Context ?? default,
+                tags: new KeyValuePair<string, object?>[]
+                {
+                    new(Schema.Task.Type, "event"),
+                    new(Schema.Task.Name, eventRaised.Name),
+                    new(Schema.Task.EventTargetInstanceId, instance.InstanceId),
+                });
+
+            return newActivity;
+        }
+
+        /// <summary>
+        /// Emits a new trace activity for timers.
+        /// </summary>
+        /// <param name="instance">The associated <see cref="OrchestrationInstance"/>.</param>
+        /// <param name="orchestrationName">The name of the orchestration invoking the timer.</param>
+        /// <param name="startTime">The timer's start time.</param>
+        /// <param name="timerFiredEvent">The associated <see cref="TimerFiredEvent"/>.</param>
+        internal static void EmitTraceActivityForTimer(
+            OrchestrationInstance? instance,
+            string orchestrationName,
+            DateTime startTime,
+            TimerFiredEvent timerFiredEvent)
+        {
+            Activity? newActivity = ActivityTraceSource.StartActivity(
+                name: "timer",
+                kind: ActivityKind.Internal,
+                startTime: startTime,
+                parentContext: Activity.Current?.Context ?? default);
+
+            if (newActivity is not null)
+            {
+                newActivity.AddTag(Schema.Task.Type, "timer");
+                newActivity.AddTag(Schema.Task.Name, orchestrationName);
+                newActivity.AddTag(Schema.Task.InstanceId, instance?.InstanceId);
+                newActivity.AddTag(Schema.Task.FireAt, timerFiredEvent.FireAt.ToString("o"));
+                newActivity.AddTag(Schema.Task.TaskId, timerFiredEvent.TimerId);
+
+                newActivity.Dispose();
+            }
+        }
+
+        internal static void SetRuntimeStatusTag(string runtimeStatus)
+        {
+            DistributedTraceActivity.Current?.SetTag(Schema.Task.Status, runtimeStatus);
+        }
+
+        internal static void AddErrorDetailsToSpan(Activity? activity, Exception e)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, e.Message.ToString());
         }
 
         static string CreateSpanName(string spanDescription, string? taskName, string? taskVersion)
