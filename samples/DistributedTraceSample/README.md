@@ -4,10 +4,10 @@ Enabling distributed tracing in Durable Task allows you to take a closer look at
 
 [OpenTelemetry](https://opentelemetry.io/) provides a way to collect and export telemetry to an observability tool. It is becoming the new standard for distributed tracing and is vendor neutral. Some examples of telemetry exporters that you could choose include Application Insights, Zipkin, Jaeger, and New Relic.
 
-This sample explains how the OpenTelemetrySample project is configured with Distributed Tracing and emits trace information to the following telemetry exporters: Console, Application Insights, and ZipKin. The following steps can be used to configure your own app as well.
+This sample explains how the OpenTelemetrySample project is configured with distributed tracing and emits trace information to the following telemetry exporters: Console, Application Insights, and ZipKin. The following steps can be used to configure your own app as well.
 
 ## Prerequisites
-If you would like to emit traces to [Application Insights](https://learn.microsoft.com/en-us/azure/azure-monitor/app/app-insights-overview?tabs=net) then create an Application Insights resource in the Azure Portal. If you would like to emit traces to Zipkin, then follow the instructions [here](https://zipkin.io/pages/quickstart.html) to start a local instance.
+If you would like to emit traces to [Application Insights](https://learn.microsoft.com/en-us/azure/azure-monitor/app/app-insights-overview?tabs=net), then create an Application Insights resource in the Azure Portal. If you would like to emit traces to Zipkin, then follow the instructions [here](https://zipkin.io/pages/quickstart.html) to start a local instance.
 
 ## Telemetry Exporter Packages
 
@@ -38,7 +38,7 @@ using var tracerProvider = Sdk.CreateTracerProviderBuilder()
     .Build();
 ```
 
-For Application Insights, add an app setting with the name `AZURE_MONITOR_CONNECTION_STRING`. If you are running this locally, then add an environment variable. If you are running this in Azure, then add an app setting under **Configuration** in the portal. The value should be the Application Insights resource connection string.
+For **Application Insights**, add an app setting with the name `AZURE_MONITOR_CONNECTION_STRING`. If you are running this locally, then add it as an environment variable. If you are running this in Azure, then add it under the **Configuration** page in the portal. The value should be the Application Insights resource connection string.
 
 ## Run the application
 
@@ -52,7 +52,7 @@ Traces emitted to the console should appear in the Visual Studio Debug Console. 
 ![Console Exporter](images/ConsoleExporter.png)
 
 ### Application Insights
-To view traces in Application Insights, navigate to your Application Insights resource, go to **Transaction Search**, click on an entry and a Gantt chart should appear showing a visual of the trace and the spans.
+To view traces in Application Insights, navigate to your Application Insights resource, go to **Transaction Search**, and click on an entry. Then, a Gantt chart should appear showing a visual of the trace and the spans.
 
 ![Application Insights Exporter](images/ApplicationInsightsExporter.png)
 
