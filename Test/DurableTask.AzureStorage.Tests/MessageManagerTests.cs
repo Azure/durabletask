@@ -25,13 +25,13 @@ namespace DurableTask.AzureStorage.Tests
         [DataRow("foo/bar/b@z.tar.gz")]
         public void GetBlobUrlUnescaped(string blob)
         {
-            const string container = "@entity12345";
             var settings = new AzureStorageOrchestrationServiceSettings
             {
                 StorageAccountClientProvider = new StorageAccountClientProvider("UseDevelopmentStorage=true"),
             };
 
-            var manager = new MessageManager(settings, new AzureStorageClient(settings), "@entity12345");
+            const string container = "@entity12345";
+            var manager = new MessageManager(settings, new AzureStorageClient(settings), container);
             Assert.AreEqual("http://127.0.0.1:10000/devstoreaccount1/" + container + "/" + blob, manager.GetBlobUrl(blob));
         }
     }
