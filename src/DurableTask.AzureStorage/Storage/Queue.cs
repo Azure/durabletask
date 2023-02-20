@@ -32,12 +32,10 @@ namespace DurableTask.AzureStorage.Storage
         {
             this.azureStorageClient = azureStorageClient;
             this.stats = this.azureStorageClient.Stats;
-            this.Name = queueName;
-
-            this.queueClient = queueServiceClient.GetQueueClient(this.Name);
+            this.queueClient = queueServiceClient.GetQueueClient(queueName);
         }
 
-        public string Name { get; }
+        public string Name => this.queueClient.Name;
 
         public Uri Uri => this.queueClient.Uri;
 

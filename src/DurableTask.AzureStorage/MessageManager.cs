@@ -233,7 +233,7 @@ namespace DurableTask.AzureStorage
 
         public string GetBlobUrl(string blobName)
         {
-            return this.blobContainer.GetBlobReference(blobName).AbsoluteUri;
+            return Uri.UnescapeDataString(this.blobContainer.GetBlobReference(blobName).Uri.AbsoluteUri);
         }
 
         public ArraySegment<byte> Decompress(Stream blobStream)

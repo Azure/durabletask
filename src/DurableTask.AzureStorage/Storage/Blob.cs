@@ -30,41 +30,27 @@ namespace DurableTask.AzureStorage.Storage
 
         public Blob(BlobServiceClient blobServiceClient, string containerName, string blobName)
         {
-            this.Name = blobName;
-            this.blockBlobClient = blobServiceClient.GetBlobContainerClient(containerName).GetBlockBlobClient(blobName);
+            this.blockBlobClient = blobServiceClient
+                .GetBlobContainerClient(containerName)
+                .GetBlockBlobClient(blobName);
         }
 
         public Blob(BlobServiceClient blobServiceClient, Uri blobUri)
         {
-            string serviceString = blobServiceClient.Uri.AbsoluteUri;
-            if (serviceString[serviceString.Length - 1] != '/')
-            {
-                serviceString += '/';
-            }
-
-            string blobString = blobUri.AbsoluteUri;
-            if (blobString.IndexOf(serviceString, StringComparison.Ordinal) != 0)
+            if (!blobUri.AbsoluteUri.StartsWith(blobServiceClient.Uri.AbsoluteUri, StringComparison.Ordinal))
             {
                 throw new ArgumentException("Blob is not present in the storage account", nameof(blobUri));
             }
 
-            // Create a relative URI by removing the service's address
-            // ie. <service>/<container>/<blob> -> <container>/<blob>
-            string remaining = blobString.Substring(serviceString.Length);
-            int containerEnd = remaining.IndexOf('/');
-            if (containerEnd == -1)
-            {
-                throw new ArgumentException("Missing blob container", nameof(blobUri));
-            }
-
+            var builder = new BlobUriBuilder(blobUri);
             this.blockBlobClient = blobServiceClient
-                .GetBlobContainerClient(remaining.Substring(0, containerEnd))
-                .GetBlockBlobClient(remaining.Substring(containerEnd + 1));
+                .GetBlobContainerClient(builder.BlobContainerName)
+                .GetBlockBlobClient(builder.BlobName);
         }
 
-        public string? Name { get; }
+        public string Name => this.blockBlobClient.Name;
 
-        public string AbsoluteUri => this.blockBlobClient.Uri.AbsoluteUri;
+        public Uri Uri => this.blockBlobClient.Uri;
 
         public async Task<bool> ExistsAsync(CancellationToken cancellationToken = default)
         {

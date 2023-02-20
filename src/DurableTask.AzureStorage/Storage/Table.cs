@@ -34,14 +34,13 @@ namespace DurableTask.AzureStorage.Storage
         public Table(AzureStorageClient azureStorageClient, TableServiceClient tableServiceClient, string tableName)
         {
             this.azureStorageClient = azureStorageClient;
-            this.Name = tableName;
             this.stats = this.azureStorageClient.Stats;
 
             this.tableServiceClient = tableServiceClient;
             this.tableClient = tableServiceClient.GetTableClient(tableName);
         }
 
-        public string Name { get; }
+        public string Name => this.tableClient.Name;
 
         internal Uri Uri => this.tableClient.Uri;
 

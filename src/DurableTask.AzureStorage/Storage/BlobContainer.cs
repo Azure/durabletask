@@ -14,15 +14,13 @@
 namespace DurableTask.AzureStorage.Storage
 {
     using System;
-    using System.Collections.Generic;
-    using System.IO;
-    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using Azure;
     using Azure.Storage.Blobs;
     using Azure.Storage.Blobs.Models;
     using Azure.Storage.Blobs.Specialized;
+    using DurableTask.AzureStorage.Net;
 
     class BlobContainer
     {
@@ -40,7 +38,7 @@ namespace DurableTask.AzureStorage.Storage
 
         public Blob GetBlobReference(string blobName, string? blobPrefix = null)
         {
-            string fullBlobName = blobPrefix != null ? Path.Combine(blobPrefix, blobName) : blobName;
+            string fullBlobName = blobPrefix != null ? UriPath.Combine(blobPrefix, blobName) : blobName;
             return this.azureStorageClient.GetBlobReference(this.containerName, fullBlobName);
         }
 
