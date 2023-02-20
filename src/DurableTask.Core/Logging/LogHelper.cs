@@ -523,6 +523,44 @@ namespace DurableTask.Core.Logging
                 this.WriteStructuredLog(new LogEvents.DiscardingMessage(workItem, message, reason));
             }
         }
+
+        /// <summary>
+        /// Logs that an orchestration work item renewal operation is starting.
+        /// </summary>
+        /// <param name="workItem">The work item to be renewed.</param>
+        internal void RenewOrchestrationWorkItemStarting(TaskOrchestrationWorkItem workItem)
+        {
+            if (this.IsStructuredLoggingEnabled)
+            {
+                this.WriteStructuredLog(new LogEvents.RenewOrchestrationWorkItemStarting(workItem));
+            }
+        }
+
+        /// <summary>
+        /// Logs that an orchestration work item renewal operation succeeded.
+        /// </summary>
+        /// <param name="workItem">The work item that was renewed.</param>
+        internal void RenewOrchestrationWorkItemCompleted(TaskOrchestrationWorkItem workItem)
+        {
+            if (this.IsStructuredLoggingEnabled)
+            {
+                this.WriteStructuredLog(new LogEvents.RenewOrchestrationWorkItemCompleted(workItem));
+            }
+        }
+
+        /// <summary>
+        /// Logs that an orchestration work item renewal operation failed.
+        /// </summary>
+        /// <param name="workItem">The work item that was to be renewed.</param>
+        /// <param name="exception">The renew failure exception.</param>
+        internal void RenewOrchestrationWorkItemFailed(TaskOrchestrationWorkItem workItem, Exception exception)
+        {
+            if (this.IsStructuredLoggingEnabled)
+            {
+                this.WriteStructuredLog(new LogEvents.RenewOrchestrationWorkItemFailed(workItem, exception), exception);
+            }
+        }
+
         #endregion
 
         #region Activity dispatcher

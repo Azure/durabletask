@@ -147,6 +147,35 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        /// <summary>
+        /// End-to-end test which runs a slow orchestrator that causes work item renewal
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task LongRunningOrchestrator(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
+                enableExtendedSessions,
+                modifySettingsAction: (AzureStorageOrchestrationServiceSettings settings) =>
+                {
+                    // set a short timeout so we can test that the renewal works
+                    settings.ControlQueueVisibilityTimeout = TimeSpan.FromSeconds(10);
+                }))
+            {
+                await host.StartAsync();
+
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.LongRunningOrchestrator), "0");
+                var status = await client.WaitForCompletionAsync(StandardTimeout);
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual("ok", JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
+
         [TestMethod]
         public async Task GetAllOrchestrationStatuses()
         {
@@ -2271,6 +2300,23 @@ namespace DurableTask.AzureStorage.Tests
                     }
 
                     return base.RunTask(context, n);
+                }
+            }
+
+            internal class LongRunningOrchestrator : TaskOrchestration<string, string>
+            {
+                public override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    Thread.Sleep(TimeSpan.FromSeconds(10));
+                    if (input == "0")
+                    {
+                        context.ContinueAsNew("1");
+                        return Task.FromResult("");
+                    }
+                    else
+                    {
+                        return Task.FromResult("ok");
+                    }
                 }
             }
 

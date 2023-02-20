@@ -59,5 +59,9 @@ namespace DurableTask.Core.Logging
 
         public const int SuspendingInstance = 68;
         public const int ResumingInstance = 69;
+
+        public const int RenewOrchestrationWorkItemStarting = 70;
+        public const int RenewOrchestrationWorkItemCompleted = 71;
+        public const int RenewOrchestrationWorkItemFailed = 72;
     }
 }

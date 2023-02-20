@@ -1546,5 +1546,88 @@ namespace DurableTask.Core.Logging
                     Utils.AppName,
                     Utils.PackageVersion);
         }
+
+        internal class RenewOrchestrationWorkItemStarting : StructuredLogEvent, IEventSourceEvent
+        {
+            public RenewOrchestrationWorkItemStarting(TaskOrchestrationWorkItem workItem)
+            {
+                this.InstanceId = workItem.InstanceId;
+            }
+
+            [StructuredLogField]
+            public string InstanceId { get; }
+
+            public override EventId EventId => new EventId(
+                EventIds.RenewOrchestrationWorkItemStarting,
+                nameof(EventIds.RenewOrchestrationWorkItemStarting));
+
+            public override LogLevel Level => LogLevel.Debug;
+
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Renewing orchestration work item";
+
+            void IEventSourceEvent.WriteEventSource() =>
+                StructuredEventSource.Log.RenewOrchestrationWorkItemStarting(
+                    this.InstanceId,
+                    Utils.AppName,
+                    Utils.PackageVersion);
+        }
+
+        internal class RenewOrchestrationWorkItemCompleted : StructuredLogEvent, IEventSourceEvent
+        {
+            public RenewOrchestrationWorkItemCompleted(TaskOrchestrationWorkItem workItem)
+            {
+                this.InstanceId = workItem.InstanceId;
+            }
+
+            [StructuredLogField]
+            public string InstanceId { get; }
+
+            public override EventId EventId => new EventId(
+                EventIds.RenewOrchestrationWorkItemCompleted,
+                nameof(EventIds.RenewOrchestrationWorkItemCompleted));
+
+            public override LogLevel Level => LogLevel.Debug;
+
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Renewed orchestration work item";
+
+            void IEventSourceEvent.WriteEventSource() =>
+                StructuredEventSource.Log.RenewOrchestrationWorkItemCompleted(
+                    this.InstanceId,
+                    Utils.AppName,
+                    Utils.PackageVersion);
+        }
+
+        internal class RenewOrchestrationWorkItemFailed : StructuredLogEvent, IEventSourceEvent
+        {
+            public RenewOrchestrationWorkItemFailed(TaskOrchestrationWorkItem workItem, Exception exception)
+            {
+                this.InstanceId = workItem.InstanceId;
+                this.Details = exception.ToString();
+            }
+
+            [StructuredLogField]
+            public string InstanceId { get; }
+
+            [StructuredLogField]
+            public string Details { get; }
+
+            public override EventId EventId => new EventId(
+                EventIds.RenewOrchestrationWorkItemFailed,
+                nameof(EventIds.RenewOrchestrationWorkItemFailed));
+
+            public override LogLevel Level => LogLevel.Warning;
+
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Failed to renew orchestration work item: {this.Details}";
+
+            void IEventSourceEvent.WriteEventSource() =>
+                StructuredEventSource.Log.RenewOrchestrationWorkItemFailed(
+                    this.InstanceId,
+                    this.Details,
+                    Utils.AppName,
+                    Utils.PackageVersion);
+        }
     }
 }
