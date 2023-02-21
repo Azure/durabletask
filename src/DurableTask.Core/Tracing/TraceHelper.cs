@@ -53,7 +53,7 @@ namespace DurableTask.Core.Tracing
 
                 if (!string.IsNullOrEmpty(startEvent.Version))
                 {
-                    newActivity.SetTag("durabletask.task.version", startEvent.Version);
+                    newActivity.SetTag(Schema.Task.Version, startEvent.Version);
                 }
                 
                 startEvent.SetParentTraceContext(newActivity);
@@ -394,7 +394,7 @@ namespace DurableTask.Core.Tracing
 
             if (!string.IsNullOrEmpty(targetInstanceId))
             {
-                newActivity.AddTag("durabletask.event.target_instance_id", targetInstanceId);
+                newActivity.AddTag(Schema.Task.EventTargetInstanceId, targetInstanceId);
             }
 
             return newActivity;
