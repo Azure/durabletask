@@ -124,7 +124,7 @@ namespace DurableTask.Core.Tracing
 
         /// <summary>
         /// Starts a new trace activity for (task) activity that represents the time between when the task message
-        /// is enqueued and completes.
+        /// is enqueued and when the response message is received.
         /// </summary>
         /// <param name="scheduledEvent">The associated <see cref="TaskScheduledEvent"/>.</param>
         /// <param name="instance">The associated orchestration instance metadata.</param>
