@@ -711,8 +711,16 @@ namespace DurableTask.Core
             };
 
             this.logHelper.RaisingEvent(orchestrationInstance, (EventRaisedEvent)taskMessage.Event);
-            
-            await this.ServiceClient.SendTaskOrchestrationMessageAsync(taskMessage);
+
+            try
+            {
+                await this.ServiceClient.SendTaskOrchestrationMessageAsync(taskMessage);
+            }
+            catch(Exception e)
+            {
+                TraceHelper.AddErrorDetailsToSpan(traceActivity, e);
+                throw;
+            }
         }
 
         /// <summary>
