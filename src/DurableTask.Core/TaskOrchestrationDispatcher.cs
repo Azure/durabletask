@@ -308,7 +308,7 @@ namespace DurableTask.Core
             ExecutionStartedEvent startEvent =
                 runtimeState.ExecutionStartedEvent ??
                 workItem.NewMessages.Select(msg => msg.Event).OfType<ExecutionStartedEvent>().FirstOrDefault();
-            Activity? traceActivity = TraceHelper.StartTraceActivityForExecution(startEvent);
+            Activity? traceActivity = TraceHelper.StartTraceActivityForOrchestrationExecution(startEvent);
 
             OrchestrationState? instanceState = null;
 
@@ -745,7 +745,7 @@ namespace DurableTask.Core
                     if (historyEvent is TimerFiredEvent timerFiredEvent)
                     {
                         // We immediately publish the activity span for this timer by creating the activity and immediately calling Dispose() on it.
-                        TraceHelper.EmitTraceActivityForTimer(workItem.OrchestrationRuntimeState.OrchestrationInstance, message.Event.Timestamp, (timerFiredEvent).FireAt);
+                        TraceHelper.EmitTraceActivityForTimer(workItem.OrchestrationRuntimeState.OrchestrationInstance, workItem.OrchestrationRuntimeState.Name, message.Event.Timestamp, timerFiredEvent);
                     }
                     else if (historyEvent is SubOrchestrationInstanceCompletedEvent subOrchestrationInstanceCompletedEvent)
                     {
@@ -893,7 +893,7 @@ namespace DurableTask.Core
 
         private void ResetDistributedTraceActivity(OrchestrationRuntimeState runtimeState)
         {
-            DistributedTraceActivity.Current?.SetTag("dtfx.runtime_status", runtimeState.OrchestrationStatus.ToString());
+            TraceHelper.SetRuntimeStatusTag(runtimeState.OrchestrationStatus.ToString());
             DistributedTraceActivity.Current?.Stop();
             DistributedTraceActivity.Current = null;
         }
@@ -1060,7 +1060,7 @@ namespace DurableTask.Core
 
             // Distributed Tracing: start a new trace activity derived from the orchestration
             // for an EventRaisedEvent (external event)
-            using Activity? traceActivity = TraceHelper.StartTraceActivityForEventRaised(eventRaisedEvent, runtimeState.OrchestrationInstance);
+            using Activity? traceActivity = TraceHelper.StartTraceActivityForEventRaisedFromWorker(eventRaisedEvent, runtimeState.OrchestrationInstance, sendEventAction.Instance?.InstanceId);
 
             this.logHelper.RaisingEvent(runtimeState.OrchestrationInstance!, historyEvent);
 
