@@ -22,7 +22,7 @@ namespace DurableTask.Core.Common
     /// <summary>
     /// Functionality for estimating the number of bytes of memory taken up by some commonly used objects.
     /// </summary>
-    public class SizeUtils
+    internal class SizeUtils
     {
         /// <summary>
         /// Returns the approximate number of bytes of memory used by the given orchestration state object.

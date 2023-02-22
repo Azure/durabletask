@@ -474,9 +474,23 @@ namespace DurableTask.AzureStorage
             {
                 if (batch.OrchestrationState == null)
                 {
-                    var state = await this.trackingStore.GetStateAsync(batch.OrchestrationInstanceId, batch.OrchestrationExecutionId, false);
+                    OrchestrationHistory history;
+                    if (this.settings.UseOrchestrationHistoryLoadThrottle)
+                    {
+                        OrchestrationState state = await this.trackingStore.GetStateAsync(
+                            batch.OrchestrationInstanceId, 
+                            batch.OrchestrationExecutionId, 
+                            false);
 
-                    OrchestrationHistory history = await this.memoryManager.GetHistoryEventsAsync(this.trackingStore, state, cancellationToken);
+                        history = await this.memoryManager.GetHistoryEventsAsync(this.trackingStore, state, cancellationToken);
+                    }
+                    else
+                    {
+                       history = await this.trackingStore.GetHistoryEventsAsync(
+                       batch.OrchestrationInstanceId,
+                       batch.OrchestrationExecutionId,
+                       cancellationToken);
+                    }
 
                     batch.OrchestrationState = new OrchestrationRuntimeState(history.Events);
                     batch.ETag = history.ETag;

@@ -2655,9 +2655,9 @@ namespace DurableTask.AzureStorage.Logging
                 Utils.ExtensionVersion);
         }
 
-        internal class ThrottlingOrchestrationHistory : StructuredLogEvent, IEventSourceEvent
+        internal class ThrottlingOrchestrationHistoryLoad : StructuredLogEvent, IEventSourceEvent
         {
-            public ThrottlingOrchestrationHistory(
+            public ThrottlingOrchestrationHistoryLoad(
                 string account,
                 string taskHub,
                 string instanceId,
@@ -2687,15 +2687,15 @@ namespace DurableTask.AzureStorage.Logging
             public string Details { get; }
 
             public override EventId EventId => new EventId(
-                EventIds.ThrottlingOrchestrationHistory,
-                nameof(EventIds.ThrottlingOrchestrationHistory));
+                EventIds.ThrottlingOrchestrationHistoryLoad,
+                nameof(EventIds.ThrottlingOrchestrationHistoryLoad));
 
             public override LogLevel Level => LogLevel.Information;
 
             protected override string CreateLogMessage() =>
                 $"Throttling orchestration history load for instance {this.InstanceId}: {this.Details})";
 
-            void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.ThrottlingOrchestrationHistory(
+            void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.ThrottlingOrchestrationHistoryLoad(
                 this.Account,
                 this.TaskHub,
                 this.InstanceId,

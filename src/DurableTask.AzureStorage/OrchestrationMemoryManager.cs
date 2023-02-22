@@ -11,31 +11,33 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
-using DurableTask.AzureStorage.Tracking;
-using DurableTask.Core;
-
 namespace DurableTask.AzureStorage
 {
+    using System.Diagnostics;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using DurableTask.AzureStorage.Tracking;
+    using DurableTask.Core;
+
     class OrchestrationMemoryManager
     {
         private AzureStorageOrchestrationServiceSettings settings;
         private string storageAccountName;
         private double messageVisibilityTimeout;
         private long totalMemoryBytes;
+        private long memoryBufferBytes;
         private long? adjustedTotalMemory;
         private long pendingMemory;
         private readonly object lockObject = new object();
 
-        public OrchestrationMemoryManager(AzureStorageOrchestrationServiceSettings settings, string storageAccountName, long memoryBufferBytes = 500000000)
+        public OrchestrationMemoryManager(AzureStorageOrchestrationServiceSettings settings, string storageAccountName)
         {
             this.settings = settings;
             this.storageAccountName = storageAccountName;
             this.messageVisibilityTimeout = settings.ControlQueueVisibilityTimeout.TotalMilliseconds;
-            this.totalMemoryBytes = settings.MemoryLimitBytes;
-            this.adjustedTotalMemory = this.totalMemoryBytes - memoryBufferBytes;
+            this.totalMemoryBytes = settings.TotalProcessMemoryBytes;
+            this.memoryBufferBytes = settings.MemoryBufferBytes;
+            this.adjustedTotalMemory = this.totalMemoryBytes - this.memoryBufferBytes;
             this.pendingMemory = 0;
         }
 
@@ -62,7 +64,7 @@ namespace DurableTask.AzureStorage
 
                 int delayInMs = 1000;
 
-                this.settings.Logger.ThrottlingOrchestrationHistory(
+                this.settings.Logger.ThrottlingOrchestrationHistoryLoad(
                    this.storageAccountName,
                    this.settings.TaskHubName,
                    instanceId,

@@ -867,14 +867,14 @@ namespace DurableTask.AzureStorage.Logging
             this.WriteStructuredLog(logEvent);
         }
 
-        internal void ThrottlingOrchestrationHistory(
+        internal void ThrottlingOrchestrationHistoryLoad(
             string account,
             string taskHub,
             string instanceId,
             string executionId,
             string details)
         {
-            var logEvent = new LogEvents.ThrottlingOrchestrationHistory(
+            var logEvent = new LogEvents.ThrottlingOrchestrationHistoryLoad(
                 account,
                 taskHub,
                 instanceId,

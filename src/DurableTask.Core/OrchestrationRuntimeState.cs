@@ -50,7 +50,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Compressed size of the serialized state
         /// </summary>
-        public long CompressedSize { get; set; }
+        public long CompressedSize;
 
         /// <summary>
         /// Gets the execution completed event
@@ -60,12 +60,12 @@ namespace DurableTask.Core
         /// <summary>
         /// Size of the serialized state (uncompressed)
         /// </summary>
-        public long Size { get; set; }
+        public long Size;
 
         /// <summary>
         /// The string status of the runtime state
         /// </summary>
-        public string? Status { get; set; }
+        public string? Status;
 
         /// <summary>
         /// Creates a new instance of the OrchestrationRuntimeState
