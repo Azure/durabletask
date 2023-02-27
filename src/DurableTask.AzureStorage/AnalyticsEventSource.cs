@@ -919,7 +919,8 @@ namespace DurableTask.AzureStorage
             int Episode,
             long LatencyMs,
             string AppName,
-            string ExtensionVersion)
+            string ExtensionVersion,
+            long? SizeInBytes)
         {
             this.WriteEvent(
                 EventIds.InstanceStatusUpdate,
@@ -931,7 +932,8 @@ namespace DurableTask.AzureStorage
                 Episode,
                 LatencyMs,
                 AppName,
-                ExtensionVersion);
+                ExtensionVersion,
+                SizeInBytes);
         }
 
         [Event(EventIds.FetchedInstanceStatus, Level = EventLevel.Informational, Version = 3)]

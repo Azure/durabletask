@@ -722,7 +722,8 @@ namespace DurableTask.AzureStorage.Logging
             string executionId,
             OrchestrationStatus runtimeStatus,
             int episode,
-            long latencyMs)
+            long latencyMs,
+            long? sizeInBytes)
         {
             var logEvent = new LogEvents.InstanceStatusUpdate(
                 account,
@@ -731,7 +732,8 @@ namespace DurableTask.AzureStorage.Logging
                 executionId,
                 runtimeStatus,
                 episode,
-                latencyMs);
+                latencyMs,
+                sizeInBytes);
             this.WriteStructuredLog(logEvent);
         }
 

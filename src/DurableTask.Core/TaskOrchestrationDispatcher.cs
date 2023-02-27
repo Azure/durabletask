@@ -547,8 +547,6 @@ namespace DurableTask.Core
                 instanceState.Status = runtimeState.Status;
             }
 
-            runtimeState.Size += SizeUtils.GetEstimatedSize(runtimeState);
-
             await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
                 workItem,
                 runtimeState,

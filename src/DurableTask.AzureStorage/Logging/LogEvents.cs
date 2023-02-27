@@ -2195,7 +2195,8 @@ namespace DurableTask.AzureStorage.Logging
                 string executionId,
                 OrchestrationStatus runtimeStatus,
                 int episode,
-                long latencyMs)
+                long latencyMs,
+                long? sizeInBytes)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
@@ -2227,6 +2228,9 @@ namespace DurableTask.AzureStorage.Logging
             [StructuredLogField]
             public long LatencyMs { get; }
 
+            [StructuredLogField]
+            public long SizeInBytes { get; }
+
             public override EventId EventId => new EventId(
                 EventIds.InstanceStatusUpdate,
                 nameof(EventIds.InstanceStatusUpdate));
@@ -2245,7 +2249,8 @@ namespace DurableTask.AzureStorage.Logging
                 this.Episode,
                 this.LatencyMs,
                 Utils.AppName,
-                Utils.ExtensionVersion);
+                Utils.ExtensionVersion,
+                this.SizeInBytes);
         }
 
         internal class FetchedInstanceStatus : StructuredLogEvent, IEventSourceEvent
