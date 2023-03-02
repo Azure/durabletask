@@ -3,6 +3,7 @@
 	<Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;net462</TargetFrameworks>
+	<PackageId>Microsoft.Azure.DurableTask.ApplicationInsights</PackageId>
 	<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 	<!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
 	<NoWarn>NU5125;NU5048</NoWarn>
@@ -10,8 +11,8 @@
 
   <!-- Version Info -->
   <PropertyGroup>
-	<MajorVersion>1</MajorVersion>
-	<MinorVersion>0</MinorVersion>
+	<MajorVersion>0</MajorVersion>
+	<MinorVersion>1</MinorVersion>
 	<PatchVersion>0</PatchVersion>
 
 	<VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
