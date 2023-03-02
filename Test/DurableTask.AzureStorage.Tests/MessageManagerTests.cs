@@ -32,7 +32,8 @@ namespace DurableTask.AzureStorage.Tests
 
             const string container = "@entity12345";
             var manager = new MessageManager(settings, new AzureStorageClient(settings), container);
-            Assert.AreEqual("http://127.0.0.1:10000/devstoreaccount1/" + container + "/" + blob, manager.GetBlobUrl(blob));
+            var expected = $"http://127.0.0.1:10000/devstoreaccount1/{container}/{blob}";
+            Assert.AreEqual(expected, manager.GetBlobUrl(blob));
         }
     }
 }

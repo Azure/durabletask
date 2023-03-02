@@ -38,16 +38,22 @@ namespace DurableTask.AzureStorage.Net
                 return path1;
             }
 
+            // Path1 ends with a '/'
+            // E.g. path1 = "foo/"
             if (path1[path1.Length - 1] == '/')
             {
-                return path2[0] == '/' ? path1 + path2.Substring(1) : path1 + path2;
+                return path2[0] == '/'
+                    ? path1 + path2.Substring(1) // E.g. Combine("foo/", "/bar") == "foo/bar"
+                    : path1 + path2;             // E.g. Combine("foo/", "bar") == "foo/bar"
             }
             else if (path2[0] == '/')
             {
+                // E.g. Combine("foo", "/bar") == "foo/bar"
                 return path1 + path2;
             }
             else
             {
+                // E.g. Combine("foo", "bar") == "foo/bar"
                 return path1 + '/' + path2;
             }
         }

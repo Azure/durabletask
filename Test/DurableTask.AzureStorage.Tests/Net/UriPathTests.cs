@@ -19,11 +19,15 @@ namespace DurableTask.AzureStorage.Net
     public class UriPathTests
     {
         [DataTestMethod]
+        [DataRow("", "", "")]
         [DataRow("", "bar/baz", "bar/baz")]
         [DataRow("foo", "", "foo")]
+        [DataRow("foo", "/", "foo/")]
         [DataRow("foo", "bar", "foo/bar")]
-        [DataRow("foo/", "bar", "foo/bar")]
         [DataRow("foo", "/bar", "foo/bar")]
+        [DataRow("foo/", "", "foo/")]
+        [DataRow("foo/", "/", "foo/")]
+        [DataRow("foo/", "bar", "foo/bar")]
         [DataRow("foo/", "/bar", "foo/bar")]
         [DataRow("/foo//", "//bar/baz", "/foo///bar/baz")]
         public void Combine(string path1, string path2, string expected)
