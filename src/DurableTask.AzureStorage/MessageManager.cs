@@ -138,7 +138,13 @@ namespace DurableTask.AzureStorage
 
         internal static bool TryGetLargeMessageReference(string messagePayload, out Uri blobUrl)
         {
-            return Uri.TryCreate(messagePayload, UriKind.Absolute, out blobUrl);
+            if (Uri.IsWellFormedUriString(messagePayload, UriKind.Absolute))
+            {
+                return Uri.TryCreate(messagePayload, UriKind.Absolute, out blobUrl);
+            }
+
+            blobUrl = null;
+            return false;
         }
 
         public async Task<MessageData> DeserializeQueueMessageAsync(QueueMessage queueMessage, string queueName, CancellationToken cancellationToken = default)
