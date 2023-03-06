@@ -112,6 +112,7 @@ namespace DurableTask.AzureStorage
                 && !controlQueue.IsReleased;
         }
 
+
         public bool IsControlQueueProcessingMessages(string partitionId)
         {
             return this.activeOrchestrationSessions.Values.Where(session => string.Equals(session.ControlQueue.Name, partitionId)).Any();

@@ -35,6 +35,7 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly LeaseObserverManager leaseObserverManager;
         readonly Func<string, bool> shouldAquireLeaseDelegate;
         readonly Func<string, bool> shouldRenewLeaseDelegate;
+        readonly OrchestrationSessionManager orchestrationSessionManager;
 
         int isStarted;
         bool shutdownComplete;
@@ -50,7 +51,8 @@ namespace DurableTask.AzureStorage.Partitioning
             ILeaseManager<T> leaseManager, 
             LeaseCollectionBalancerOptions options,
             Func<string, bool> shouldAquireLeaseDelegate = null,
-            Func<string, bool> shouldRenewLeaseDelegate = null)
+            Func<string, bool> shouldRenewLeaseDelegate = null,
+            OrchestrationSessionManager orchestrationSessionManager = null)
 
         {
             this.leaseType = leaseType;
@@ -67,6 +69,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.currentlyOwnedShards = new ConcurrentDictionary<string, T>();
             this.keepRenewingDuringClose = new ConcurrentDictionary<string, T>();
             this.leaseObserverManager = new LeaseObserverManager(this);
+            this.orchestrationSessionManager = orchestrationSessionManager;
         }
 
         private static bool DefaultLeaseDecisionDelegate(string leaseId)
@@ -127,24 +130,37 @@ namespace DurableTask.AzureStorage.Partitioning
 
         public async Task StopAsync()
         {
-            if (Interlocked.CompareExchange(ref this.isStarted, 0, 1) != 1)
-            {
-                //idempotent
-                return;
-            }
-
             this.settings.Logger.PartitionManagerInfo(
                 this.accountName,
                 this.taskHub,
                 this.workerName,
                 string.Empty,
-                "Waiting for lease resources to be released");
+                "Lease balancer has been requested to stop");
 
             // This is the graceful/cooperative shutdown task. If this Task completes,
             // then the worker has completed all its pending work items and should willingly
             // give away its ownership leases
             Task shutdownTask = Task.Run(async () =>
             {
+                if (Interlocked.CompareExchange(ref this.isStarted, 0, 1) != 1)
+                {
+                    this.settings.Logger.PartitionManagerInfo(
+                        this.accountName,
+                        this.taskHub,
+                        this.workerName,
+                        string.Empty,
+                        "Lease balancer is already stopping in another thread");
+                    //idempotent
+                    return;
+                }
+
+                this.settings.Logger.PartitionManagerInfo(
+                    this.accountName,
+                    this.taskHub,
+                    this.workerName,
+                    string.Empty,
+                    "Waiting for lease resources to be released");
+
                 if (this.takerTask != null)
                 {
                     this.leaseTakerCancellationTokenSource.Cancel();
@@ -565,6 +581,14 @@ namespace DurableTask.AzureStorage.Partitioning
                     lease.PartitionId,
                     $"Encountered exception while renewing {this.leaseType} lease. The lease will be considered {leaseState}. Execption: {ex}");
             }
+
+            var isReceivingMessages = this.orchestrationSessionManager?.IsControlQueueReceivingMessages(lease.PartitionId);
+            var isProcessingMessages = this.orchestrationSessionManager?.IsControlQueueProcessingMessages(lease.PartitionId);
+
+            errorMessage += $"|| isReceivingMessages: {isReceivingMessages}, isProcessingMessages {isProcessingMessages}," +
+                $"leaseTakerIsCancelled: {this.leaseTakerCancellationTokenSource.IsCancellationRequested}, " +
+                $"renewerIsCancelled: {this.leaseRenewerCancellationTokenSource.IsCancellationRequested}," +
+                $"isStarted: {this.isStarted}, shutdownComplete: {this.shutdownComplete}";
 
             this.settings.Logger.LeaseRenewalResult(
                 this.accountName,

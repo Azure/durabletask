@@ -417,6 +417,11 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         public async Task StopAsync(bool isForced)
         {
+            this.settings.Logger.GeneralWarning(
+                this.azureStorageClient.QueueAccountName,
+                this.settings.TaskHubName,
+                "Stopping Orchestration service");
+
             this.shutdownSource.Cancel();
             await this.statsLoop;
             await this.appLeaseManager.StopAsync();
