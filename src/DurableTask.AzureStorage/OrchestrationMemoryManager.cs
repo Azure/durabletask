@@ -126,7 +126,7 @@ namespace DurableTask.AzureStorage
             {
                 if (memoryReserved)
                 {
-                    this.FreeMemoryFromReserve(memorySize);
+                    this.FreeFromPendingMemory(memorySize);
                 }
             }
         }
@@ -155,7 +155,6 @@ namespace DurableTask.AzureStorage
                 this.settings.Logger.ThrottlingOrchestrationHistoryLoad(
                    this.storageAccountName,
                    this.taskHub,
-                    this.workerName,
                    instanceId,
                    executonId,
                    $"Not enough memory to load orchestrator history. Retrying in {delayInMs}ms. Total elapsed time: {elapsed}, Attempt number {attemptNumber}, Instance size: {bytesNeeded}, Currently allocated memory: {currentlyAllocatedMemory}, Pending orchestrator history memory: {this.pendingMemory}, MemoryLimitBytes: {this.totalMemoryBytes}");
@@ -168,7 +167,7 @@ namespace DurableTask.AzureStorage
             return false;
         }
 
-        void FreeMemoryFromReserve(long bytesToFree)
+        void FreeFromPendingMemory(long bytesToFree)
         {
             lock (this.lockObject)
             {
