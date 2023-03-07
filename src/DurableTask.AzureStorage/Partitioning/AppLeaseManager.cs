@@ -159,6 +159,13 @@ namespace DurableTask.AzureStorage.Partitioning
 
         public async Task StopAsync()
         {
+            this.settings.Logger.PartitionManagerInfo(
+                this.storageAccountName,
+                this.taskHub,
+                this.workerName,
+                this.appLeaseContainerName,
+                $"In AppLeaseManager's StopAsync. Is app lease enabled: {this.appLeaseIsEnabled}");
+
             if (this.appLeaseIsEnabled)
             {
                 await this.StopAppLeaseAsync();
@@ -249,8 +256,22 @@ namespace DurableTask.AzureStorage.Partitioning
 
         async Task StopAppLeaseAsync()
         {
+            this.settings.Logger.PartitionManagerInfo(
+                this.storageAccountName,
+                this.taskHub,
+                this.workerName,
+                this.appLeaseContainerName,
+                $"In StopAppLeaseAsync.");
+
             if (Interlocked.CompareExchange(ref this.appLeaseIsStarted, 0, 1) != 1)
             {
+                this.settings.Logger.PartitionManagerInfo(
+                    this.storageAccountName,
+                    this.taskHub,
+                    this.workerName,
+                    this.appLeaseContainerName,
+                    $"Skipping StopAppLeaseAsync due to idempotency check.");
+
                 //idempotent
                 return;
             }
