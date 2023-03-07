@@ -1106,6 +1106,23 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
+        [Event(EventIds.OrchestrationMemoryManagerInfo, Level = EventLevel.Informational, Version = 1)]
+        internal void OrchestrationMemoryManagerInfo(
+            string Account,
+            string TaskHub,
+            string Details,
+            string AppName,
+            string ExtensionVersion)
+        {
+            this.WriteEvent(
+               EventIds.OrchestrationMemoryManagerInfo,
+               Account,
+               TaskHub,
+               Details,
+               AppName,
+               ExtensionVersion);
+        }
+
         // Specifying tasks is necessary when using WriteEventWithRelatedActivityId
         // or else the "TaskName" property written to ETW is the name of the opcode instead
         // of the name of the trace method.

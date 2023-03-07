@@ -958,7 +958,7 @@ namespace DurableTask.AzureStorage.Tracking
                     ["CustomStatus"] = new EntityProperty(newRuntimeState.Status ?? "null"),
                     ["ExecutionId"] = new EntityProperty(executionId),
                     ["LastUpdatedTime"] = new EntityProperty(newEvents.Last().Timestamp),
-                    ["Size"] = new EntityProperty((long)newRuntimeState.Size),
+                    ["Size"] = new EntityProperty(newRuntimeState.Size),
                 }
             };
            

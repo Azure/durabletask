@@ -64,6 +64,7 @@ namespace DurableTask.AzureStorage
 
         readonly ResettableLazy<Task> taskHubCreator;
         readonly BlobLeaseManager leaseManager;
+        readonly OrchestrationMemoryManager memoryManager;
         readonly AppLeaseManager appLeaseManager;
         readonly OrchestrationSessionManager orchestrationSessionManager;
         readonly IPartitionManager partitionManager;
@@ -146,11 +147,14 @@ namespace DurableTask.AzureStorage
                 this.azureStorageClient,
                 "default");
 
+            this.memoryManager = new OrchestrationMemoryManager(this.settings, this.azureStorageClient.QueueAccountName);
+
             this.orchestrationSessionManager = new OrchestrationSessionManager(
                 this.azureStorageClient.QueueAccountName,
                 this.settings,
                 this.stats,
-                this.trackingStore);
+                this.trackingStore,
+                this.memoryManager);
 
             if (this.settings.UseLegacyPartitionManagement)
             {
@@ -404,6 +408,7 @@ namespace DurableTask.AzureStorage
             this.statsLoop = Task.Run(() => this.ReportStatsLoop(this.shutdownSource.Token));
 
             await this.appLeaseManager.StartAsync();
+            await this.memoryManager.StartAsync();
 
             this.isStarted = true;
         }
@@ -420,6 +425,7 @@ namespace DurableTask.AzureStorage
             this.shutdownSource.Cancel();
             await this.statsLoop;
             await this.appLeaseManager.StopAsync();
+            await this.memoryManager.StopAsync();
             this.isStarted = false;
         }
 

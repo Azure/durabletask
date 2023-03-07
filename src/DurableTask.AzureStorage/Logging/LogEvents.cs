@@ -2709,5 +2709,44 @@ namespace DurableTask.AzureStorage.Logging
                 Utils.AppName,
                 Utils.ExtensionVersion);
         }
+
+        internal class OrchestrationMemoryManagerInfo : StructuredLogEvent, IEventSourceEvent
+        {
+            private string account;
+            private string taskHub;
+            private string workerName;
+            private string details;
+
+            public OrchestrationMemoryManagerInfo(string account, string taskHub, string details)
+            {
+                this.Account = account;
+                this.TaskHub = taskHub;
+                this.Details = details;
+            }
+
+            [StructuredLogField]
+            public string Account { get; }
+
+            [StructuredLogField]
+            public string TaskHub { get; }
+
+            [StructuredLogField]
+            public string Details { get; }
+
+            public override EventId EventId => new EventId(
+                EventIds.OrchestrationMemoryManagerInfo,
+                nameof(EventIds.OrchestrationMemoryManagerInfo));
+
+            public override LogLevel Level => LogLevel.Information;
+
+            protected override string CreateLogMessage() => this.Details;
+
+            void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.OrchestrationMemoryManagerInfo(
+                this.Account,
+                this.TaskHub,
+                this.Details,
+                Utils.AppName,
+                Utils.ExtensionVersion);
+        }
     }
 }

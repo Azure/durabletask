@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage.Logging
 {
     using System;
+    using System.Security.Principal;
     using DurableTask.Core;
     using DurableTask.Core.Logging;
     using Microsoft.Extensions.Logging;
@@ -888,6 +889,18 @@ namespace DurableTask.AzureStorage.Logging
         void WriteStructuredLog(ILogEvent logEvent, Exception exception = null)
         {
             LoggingExtensions.LogDurableEvent(this.log, logEvent, exception);
+        }
+
+        internal void OrchestrationMemoryManagerInfo(
+            string account,
+            string taskHub,
+            string details)
+        {
+            var logEvent = new LogEvents.OrchestrationMemoryManagerInfo(
+                account,
+                taskHub,
+                details);
+            this.WriteStructuredLog(logEvent);
         }
     }
 }

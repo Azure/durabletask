@@ -56,5 +56,6 @@ namespace DurableTask.AzureStorage.Logging
         public const int ProcessingMessage = 140;
         public const int PurgeInstanceHistory = 141;
         public const int ThrottlingOrchestrationHistoryLoad = 142;
+        public const int OrchestrationMemoryManagerInfo = 143;
     }
 }

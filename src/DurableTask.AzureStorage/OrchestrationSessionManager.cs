@@ -47,7 +47,8 @@ namespace DurableTask.AzureStorage
             string queueAccountName,
             AzureStorageOrchestrationServiceSettings settings,
             AzureStorageOrchestrationServiceStats stats,
-            ITrackingStore trackingStore)
+            ITrackingStore trackingStore,
+            OrchestrationMemoryManager memoryManager)
         {
             this.storageAccountName = queueAccountName;
             this.settings = settings;
@@ -56,7 +57,7 @@ namespace DurableTask.AzureStorage
 
             this.fetchRuntimeStateQueue = new DispatchQueue(this.settings.MaxStorageOperationConcurrency);
 
-            this.memoryManager = new OrchestrationMemoryManager(settings, queueAccountName);
+            this.memoryManager = memoryManager;
         }
 
         internal IEnumerable<ControlQueue> Queues => this.ownedControlQueues.Values;
@@ -474,23 +475,10 @@ namespace DurableTask.AzureStorage
             {
                 if (batch.OrchestrationState == null)
                 {
-                    OrchestrationHistory history;
-                    if (this.settings.UseOrchestrationHistoryLoadThrottle)
-                    {
-                        OrchestrationState state = await this.trackingStore.GetStateAsync(
-                            batch.OrchestrationInstanceId, 
-                            batch.OrchestrationExecutionId, 
-                            false);
-
-                        history = await this.memoryManager.GetHistoryEventsAsync(this.trackingStore, state, cancellationToken);
-                    }
-                    else
-                    {
-                       history = await this.trackingStore.GetHistoryEventsAsync(
-                       batch.OrchestrationInstanceId,
-                       batch.OrchestrationExecutionId,
-                       cancellationToken);
-                    }
+                    OrchestrationHistory history = await this.memoryManager.GetHistoryEventsAsync(this.trackingStore,
+                            batch.OrchestrationInstanceId,
+                            batch.OrchestrationExecutionId,
+                            cancellationToken);
 
                     batch.OrchestrationState = new OrchestrationRuntimeState(history.Events);
                     batch.ETag = history.ETag;
