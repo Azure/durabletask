@@ -42,8 +42,8 @@ namespace DurableTask.AzureStorage
             this.storageAccountName = storageAccountName;
             this.taskHub = settings.TaskHubName;
             this.messageVisibilityTimeout = settings.ControlQueueVisibilityTimeout.TotalMilliseconds;
-            this.totalMemoryBytes = settings.TotalProcessMemoryBytes;
-            this.memoryBufferBytes = settings.MemoryBufferBytes;
+            this.totalMemoryBytes = settings.TotalProcessMemoryMBytes * 1024 * 1024;
+            this.memoryBufferBytes = settings.MemoryBufferMBytes * 1024 * 1024;
             this.adjustedTotalMemory = this.totalMemoryBytes - this.memoryBufferBytes;
             this.pendingMemory = 0;
         }

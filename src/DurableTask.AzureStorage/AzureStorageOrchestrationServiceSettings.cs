@@ -256,14 +256,14 @@ namespace DurableTask.AzureStorage
         public bool UseOrchestrationHistoryLoadThrottle { get; set; } = false;
 
         /// <summary>
-        /// Gets or sets the total process memory in bytes when using OrchestrationHistoryLoadThrottle.
+        /// Gets or sets the total process memory in MBytes when using OrchestrationHistoryLoadThrottle.
         /// </summary>
-        public long TotalProcessMemoryBytes { get; set; } = (long)(1.5 * 1024 * 1024 * 1024);
+        public int TotalProcessMemoryMBytes { get; set; } = (int)1.5 * 1024;
 
         /// <summary>
-        /// Gets or sets the memory buffer in bytes when using OrchestrationHistoryLoadThrottle, representing additional memory needed in an application at a given time when loading orchestration histories.
+        /// Gets or sets the memory buffer in MBytes when using OrchestrationHistoryLoadThrottle, representing additional memory needed in an application at a given time when loading orchestration histories.
         /// </summary>
-        public long MemoryBufferBytes { get; set; } = (long)(0.25 * 1024 * 1024 * 1024);
+        public int MemoryBufferMBytes { get; set; } = (int)0.25 * 1024;
 
         /// <summary>
         /// Returns bool indicating is the TrackingStoreStorageAccount has been set.
