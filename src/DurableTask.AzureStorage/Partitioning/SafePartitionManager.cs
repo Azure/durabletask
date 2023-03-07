@@ -139,6 +139,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         async Task IPartitionManager.StopAsync()
         {
+            this.settings.Logger.PartitionManagerInfo("", "", "", "", $"Stopping the SafePartitionManager");
             await this.intentLeaseCollectionManager.StopAsync();
             this.intentLeaseSubscription?.Dispose();
 
