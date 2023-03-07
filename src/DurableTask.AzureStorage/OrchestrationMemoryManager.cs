@@ -126,7 +126,7 @@ namespace DurableTask.AzureStorage
             {
                 if (memoryReserved)
                 {
-                    this.FreeFromPendingMemory(memorySize);
+                    this.FreeMemoryFromReserve(memorySize);
                 }
             }
         }
@@ -167,7 +167,7 @@ namespace DurableTask.AzureStorage
             return false;
         }
 
-        void FreeFromPendingMemory(long bytesToFree)
+        void FreeMemoryFromReserve(long bytesToFree)
         {
             lock (this.lockObject)
             {
