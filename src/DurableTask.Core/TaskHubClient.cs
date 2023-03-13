@@ -19,6 +19,7 @@ namespace DurableTask.Core
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.Core.Entities;
     using DurableTask.Core.History;
     using DurableTask.Core.Logging;
     using DurableTask.Core.Serializing;
@@ -31,6 +32,9 @@ namespace DurableTask.Core
     {
         readonly DataConverter defaultConverter;
         readonly LogHelper logHelper;
+
+        internal LogHelper LogHelper => this.logHelper;
+        internal DataConverter DefaultConverter => this.defaultConverter;
 
         /// <summary>
         /// The orchestration service client for this task hub client

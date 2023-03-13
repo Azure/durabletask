@@ -45,6 +45,8 @@ namespace DurableTask.AzureStorage.Tests
 
         public string InstanceId => this.instanceId;
 
+        public TaskHubClient InnerClient => client;
+
         public async Task<OrchestrationState> WaitForCompletionAsync(TimeSpan timeout)
         {
             timeout = AdjustTimeout(timeout);

@@ -18,6 +18,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Diagnostics;
     using System.Diagnostics.Tracing;
     using System.Threading.Tasks;
+    using DurableTask.Core;
     using DurableTask.Core.Logging;
     using Microsoft.Extensions.Logging;
 
@@ -28,6 +29,7 @@ namespace DurableTask.AzureStorage.Tests
             bool enableExtendedSessions,
             int extendedSessionTimeoutInSeconds = 30,
             bool fetchLargeMessages = true,
+            ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions,
             Action<AzureStorageOrchestrationServiceSettings>? modifySettingsAction = null)
         {
             string storageConnectionString = GetTestStorageAccountConnectionString();
@@ -48,7 +50,7 @@ namespace DurableTask.AzureStorage.Tests
             // Give the caller a chance to make test-specific changes to the settings
             modifySettingsAction?.Invoke(settings);
 
-            return new TestOrchestrationHost(settings);
+            return new TestOrchestrationHost(settings, errorPropagationMode);
         }
 
         public static string GetTestStorageAccountConnectionString()

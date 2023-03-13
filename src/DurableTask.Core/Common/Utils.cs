@@ -21,6 +21,7 @@ namespace DurableTask.Core.Common
     using System.Linq;
     using System.Reflection;
     using System.Runtime.ExceptionServices;
+    using System.Security.Cryptography;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
@@ -152,7 +153,7 @@ namespace DurableTask.Core.Common
         /// The default value comes from the WEBSITE_SITE_NAME environment variable, which is defined
         /// in Azure App Service. Other environments can use DTFX_APP_NAME to set this value.
         /// </remarks>
-        public static string AppName { get; set; } = 
+        public static string AppName { get; set; } =
             Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME") ??
             Environment.GetEnvironmentVariable("DTFX_APP_NAME") ??
             string.Empty;
@@ -624,6 +625,32 @@ namespace DurableTask.Core.Common
             }
         }
 
+        /// <summary>
+        /// Creates a determinstic Guid from a string using a hash function. This is a simple hash
+        /// meant to produce pseudo-random Guids, it is not meant to be cryptographically secure, 
+        /// and does not follow any formatting conventions for UUIDs (such as RFC 4122).
+        /// </summary>
+        /// <param name="stringToHash">The string to hash.</param>
+        /// <returns>A Guid constructed from the hash.</returns>
+        /// <exception cref="ArgumentException"></exception>
+        internal static Guid CreateGuidFromHash(string stringToHash)
+        {
+            if (string.IsNullOrEmpty(stringToHash))
+            {
+                throw new ArgumentException("string to hash must not be null or empty", nameof(stringToHash));
+            }
+
+            byte[] hashByteArray;
+            using (HashAlgorithm hashAlgorithm = (HashAlgorithm)SHA1.Create())
+            {
+                hashByteArray = hashAlgorithm.ComputeHash(Encoding.UTF8.GetBytes(stringToHash));
+            }
+
+            byte[] newGuidByteArray = new byte[16];
+            Array.Copy(hashByteArray, 0, newGuidByteArray, 0, 16);
+            return new Guid(newGuidByteArray);
+        }
+    
         /// <summary>
         /// Gets the generic return type for a specific <paramref name="methodInfo"/>.
         /// </summary>

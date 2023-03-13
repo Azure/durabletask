@@ -20,6 +20,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
     using DurableTask.Core;
+    using DurableTask.Core.Entities;
     using Microsoft.Extensions.Logging;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -32,8 +33,9 @@ namespace DurableTask.AzureStorage.Tests
         readonly TaskHubClient client;
         readonly HashSet<Type> addedOrchestrationTypes;
         readonly HashSet<Type> addedActivityTypes;
+        readonly HashSet<Type> addedEntityTypes;
 
-        public TestOrchestrationHost(AzureStorageOrchestrationServiceSettings settings)
+        public TestOrchestrationHost(AzureStorageOrchestrationServiceSettings settings, ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
         {
             this.service = new AzureStorageOrchestrationService(settings);
             this.service.CreateAsync().GetAwaiter().GetResult();
@@ -43,6 +45,9 @@ namespace DurableTask.AzureStorage.Tests
             this.client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
             this.addedOrchestrationTypes = new HashSet<Type>();
             this.addedActivityTypes = new HashSet<Type>();
+            this.addedEntityTypes = new HashSet<Type>();
+
+            worker.ErrorPropagationMode = errorPropagationMode;
         }
 
         public string TaskHub => this.settings.TaskHubName;
@@ -86,7 +91,7 @@ namespace DurableTask.AzureStorage.Tests
                 this.addedOrchestrationTypes.Add(orchestrationType);
             }
 
-            // Allow orchestration types to declare which activity types they depend on.
+            // Allow orchestration types to declare which activity and entity types they depend on.
             // CONSIDER: Make this a supported pattern in DTFx?
             KnownTypeAttribute[] knownTypes =
                 (KnownTypeAttribute[])orchestrationType.GetCustomAttributes(typeof(KnownTypeAttribute), false);
@@ -95,6 +100,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 bool orch = referencedKnownType.Type.IsSubclassOf(typeof(TaskOrchestration));
                 bool activ = referencedKnownType.Type.IsSubclassOf(typeof(TaskActivity));
+                bool entit = referencedKnownType.Type.IsSubclassOf(typeof(Core.Entities.TaskEntity));
                 if (orch && !this.addedOrchestrationTypes.Contains(referencedKnownType.Type))
                 {
                     this.worker.AddTaskOrchestrations(referencedKnownType.Type);
@@ -105,6 +111,12 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     this.worker.AddTaskActivities(referencedKnownType.Type);
                     this.addedActivityTypes.Add(referencedKnownType.Type);
+                }
+
+                else if (entit && !this.addedEntityTypes.Contains(referencedKnownType.Type))
+                {
+                    this.worker.AddTaskEntities(referencedKnownType.Type);
+                    this.addedEntityTypes.Add(referencedKnownType.Type);
                 }
             }
 
@@ -137,6 +149,17 @@ namespace DurableTask.AzureStorage.Tests
 
             Trace.TraceInformation($"Started {orchestrationType.Name}, Instance ID = {instance.InstanceId}");
             return new TestOrchestrationClient(this.client, orchestrationType, instance.InstanceId, creationTime);
+        }
+
+        public Task<TestEntityClient> GetEntityClientAsync(Type entityType, EntityId entityId)
+        {
+            if (!this.addedEntityTypes.Contains(entityType))
+            {
+                this.worker.AddTaskEntities(entityType);
+                this.addedEntityTypes.Add(entityType);
+            }
+
+            return Task.FromResult(new TestEntityClient(new TaskHubEntityClient(this.client), entityId));
         }
 
         public Task<TestInstance<TInput>> StartInlineOrchestration<TOutput, TInput>(

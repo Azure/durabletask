@@ -21,6 +21,8 @@ namespace DurableTask.Core
     using System.Threading.Tasks;
     using DurableTask.Core.Command;
     using DurableTask.Core.Common;
+    using DurableTask.Core.Entities;
+    using DurableTask.Core.Entities.OperationFormat;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using DurableTask.Core.Serializing;
@@ -31,6 +33,7 @@ namespace DurableTask.Core
         private readonly IDictionary<int, OpenTaskInfo> openTasks;
         private readonly IDictionary<int, OrchestratorAction> orchestratorActionsMap;
         private OrchestrationCompleteOrchestratorAction continueAsNew;
+        private OrchestrationEntityContext entityContext;
         private bool executionCompletedOrTerminated;
         private int idCounter;
         private readonly Queue<HistoryEvent> eventsWhileSuspended;
@@ -44,9 +47,16 @@ namespace DurableTask.Core
             continueAsNew.CarryoverEvents.Add(he);
         }
 
+        internal OrchestrationEntityContext EntityContext
+            => this.entityContext ?? (this.entityContext = new OrchestrationEntityContext(
+                    this.OrchestrationInstance.InstanceId,
+                    this.OrchestrationInstance.ExecutionId,
+                    this));
+
         public TaskOrchestrationContext(
             OrchestrationInstance orchestrationInstance,
             TaskScheduler taskScheduler,
+            EntityBackendInformation entityBackendInformation = null,
             ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
         {
             Utils.UnusedParameter(taskScheduler);
@@ -58,6 +68,7 @@ namespace DurableTask.Core
             this.ErrorDataConverter = JsonDataConverter.Default;
             OrchestrationInstance = orchestrationInstance;
             IsReplaying = false;
+            this.EntityBackendInformation = entityBackendInformation;
             ErrorPropagationMode = errorPropagationMode;
             this.eventsWhileSuspended = new Queue<HistoryEvent>();
         }
@@ -65,6 +76,28 @@ namespace DurableTask.Core
         public IEnumerable<OrchestratorAction> OrchestratorActions => this.orchestratorActionsMap.Values;
 
         public bool HasOpenTasks => this.openTasks.Count > 0;
+
+        public override bool IsInsideCriticalSection => this.entityContext?.IsInsideCriticalSection ?? false;
+
+        private void CheckEntitySupport()
+        {
+            if (this.EntityBackendInformation == null)
+            {
+                throw new InvalidOperationException("Entities are not supported by the configured persistence backend.");
+            }
+        }
+
+        public override IEnumerable<EntityId> GetAvailableEntities()
+        {
+            this.CheckEntitySupport();
+            if (this.entityContext != null)
+            {
+                foreach(var (name, key) in this.entityContext.GetAvailableEntities())
+                {
+                    yield return new EntityId(name, key);
+                }
+            }
+        }
 
         internal void ClearPendingActions()
         {
@@ -187,6 +220,93 @@ namespace DurableTask.Core
                 return this.MessageDataConverter.Deserialize<T>(serializedResult);
             }
         }
+
+        public override Task<TResult> CallEntityAsync<TResult>(EntityId entityId, string operationName, object input = null)
+        {
+            this.CheckEntitySupport();
+            (Guid operationId, string targetInstanceId, int taskId) = this.EntityOperationCore(entityId, operationName, input, false, null);
+            return this.entityContext.WaitForOperationResponseAsync<TResult>(operationId, taskId, targetInstanceId);
+        }
+
+        public override Task CallEntityAsync(EntityId entityId, string operationName, object input = null)
+        {
+            return this.CallEntityAsync<object>(entityId, operationName, input);
+        }
+
+        public override void SignalEntity(EntityId entityId, string operationName, object input = null)
+        {
+            this.CheckEntitySupport();
+            this.EntityOperationCore(entityId, operationName, input, true, null);
+        }
+
+        public override void SignalEntity(EntityId entityId, DateTime scheduledTimeUtc, string operationName, object input = null)
+        {
+            this.CheckEntitySupport();
+            this.EntityOperationCore(entityId, operationName, input, true, EntityBackendInformation.GetCappedScheduledTime(this.CurrentUtcDateTime, scheduledTimeUtc));
+        }
+
+        (Guid operationId, string targetInstanceId, int taskId) EntityOperationCore(EntityId entityId, string operationName, object input, bool oneWay, (DateTime original, DateTime capped)? scheduledTimeUtc = null)
+        {
+            OrchestrationInstance target = new OrchestrationInstance()
+            {
+                InstanceId = EntityId.GetInstanceIdFromEntityId(entityId),
+            };
+
+            if (!this.EntityContext.ValidateOperationTransition(target.InstanceId, oneWay, out string errorMessage))
+            {
+                throw new EntityLockingRulesViolationException(errorMessage);
+            }
+
+            int taskId = this.idCounter; // we are not incrementing the counter here because it will be incremented when calling this.SendEvent below
+            Guid operationId = Utils.CreateGuidFromHash(string.Concat(OrchestrationInstance.ExecutionId, ":", taskId));
+
+            string serializedInput = this.MessageDataConverter.Serialize(input);
+
+            (string name, object content) eventToSend
+                       = this.entityContext.EmitRequestMessage(target, operationName, oneWay, operationId, scheduledTimeUtc, serializedInput);
+
+            this.SendEvent(target, eventToSend.name, eventToSend.content);
+
+            return (operationId, target.InstanceId, taskId);
+        }
+
+        public override Task<IDisposable> LockEntitiesAsync(params EntityId[] entities)
+        {
+            this.CheckEntitySupport();
+
+            if (!this.EntityContext.ValidateAcquireTransition(out string errormsg))
+            {
+                throw new EntityLockingRulesViolationException(errormsg);
+            }
+
+            if (entities == null || entities.Length == 0)
+            {
+                throw new ArgumentException("The list of entities to lock must not be null or empty.", nameof(entities));
+            }
+
+            int taskId = this.idCounter; // we are not incrementing the counter here because it will be incremented when calling this.SendEvent below
+            Guid criticalSectionId = Utils.CreateGuidFromHash(string.Concat(OrchestrationInstance.ExecutionId, ":", taskId));
+
+            // send a message to the first entity to be acquired
+            (OrchestrationInstance target, string name, object content) eventToSend =
+                this.entityContext.EmitAcquireMessage(criticalSectionId, entities);
+
+            this.SendEvent(eventToSend.target, eventToSend.name, eventToSend.content);
+
+            return this.entityContext.WaitForLockResponseAsync(criticalSectionId, taskId);
+        }
+
+        internal void ExitCriticalSection()
+        {
+            if (this.entityContext != null)
+            {
+                foreach (var releaseMessage in this.entityContext.EmitLockReleaseMessages())
+                {
+                    this.SendEvent(releaseMessage.target, releaseMessage.eventName, releaseMessage.eventContent);
+                }
+            }
+        }
+
 
         public override void SendEvent(OrchestrationInstance orchestrationInstance, string eventName, object eventData)
         {
@@ -406,6 +526,12 @@ namespace DurableTask.Core
 
         public void HandleEventRaisedEvent(EventRaisedEvent eventRaisedEvent, bool skipCarryOverEvents, TaskOrchestration taskOrchestration)
         {
+            if (this.entityContext?.HandledAsEntityResponse(eventRaisedEvent, this) == true)
+            {
+                // this EventRaisedEvent was not an application-defined event, but an entity response
+                return; 
+            }
+
             if (skipCarryOverEvents || !this.HasContinueAsNew)
             {
                 taskOrchestration.RaiseEvent(this, eventRaisedEvent.Name, eventRaisedEvent.Input);
@@ -416,6 +542,47 @@ namespace DurableTask.Core
             }
         }
 
+        public void HandleEntityOperationCompletedEvent<T>(EventRaisedEvent eventRaisedEvent, int taskId, string instanceId, OperationResult operationResult, TaskCompletionSource<T> tcs)
+        {
+            T result;
+            if (operationResult.Result != null)
+            {
+                result = this.MessageDataConverter.Deserialize<T>(operationResult.Result);
+            }
+            else
+            {
+                result = default;
+            }
+            tcs.SetResult(result);
+        }
+
+        public void HandleEntityOperationFailedEvent<T>(EventRaisedEvent eventRaisedEvent, int taskId, string instanceId, OperationResult operationResult, TaskCompletionSource<T> tcs)
+        {
+            Exception cause = null;
+
+            // When using ErrorPropagationMode.SerializeExceptions the "cause" is deserialized from history.
+            // This isn't fully reliable because not all exception types can be serialized/deserialized.
+            if (this.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions && !string.IsNullOrEmpty(operationResult.Result))
+            {
+                try
+                {
+                    cause = this.ErrorDataConverter.Deserialize<Exception>(operationResult.Result);
+                }
+                catch (Exception converterException) when (!Utils.IsFatal(converterException))
+                {
+                    cause = new TaskFailedExceptionDeserializationException(operationResult.Result, converterException);
+                }
+            }
+
+            var exceptionForCallingOrchestration = new OperationFailedException(eventRaisedEvent.EventId, taskId, instanceId, eventRaisedEvent.Name, operationResult.ErrorMessage, cause);
+            
+            if (this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
+            {
+                exceptionForCallingOrchestration.FailureDetails = operationResult.FailureDetails;
+            }
+
+            tcs.SetException(exceptionForCallingOrchestration);
+        }
 
         public void HandleTaskCompletedEvent(TaskCompletedEvent completedEvent)
         {
@@ -497,8 +664,8 @@ namespace DurableTask.Core
                 // When using ErrorPropagationMode.UseFailureDetails we instead use FailureDetails to convey
                 // error information, which doesn't involve any serialization at all.
                 Exception cause = this.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions ?
-                    Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter) :
-                    null;
+                Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter) :
+                null;
 
                 var failedException = new SubOrchestrationFailedException(failedEvent.EventId, taskId, info.Name,
                     info.Version,
@@ -608,7 +775,7 @@ namespace DurableTask.Core
                     details = orchestrationFailureException.Details;
                 }
             }
-            else 
+            else
             {
                 if (this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
                 {
@@ -625,6 +792,10 @@ namespace DurableTask.Core
 
         public void CompleteOrchestration(string result, string details, OrchestrationStatus orchestrationStatus, FailureDetails failureDetails = null)
         {
+            // if we are still inside a critical section, we exit it before completing the orchestration
+            // so that the lock release messages are sent.
+            this.ExitCriticalSection(); 
+
             int id = this.idCounter++;
             OrchestrationCompleteOrchestratorAction completedOrchestratorAction;
             if (orchestrationStatus == OrchestrationStatus.Completed && this.continueAsNew != null)

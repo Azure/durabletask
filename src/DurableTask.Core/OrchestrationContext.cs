@@ -18,6 +18,9 @@ namespace DurableTask.Core
     using System.Threading;
     using System.Threading.Tasks;
     using Castle.DynamicProxy;
+    using DurableTask.Core.Entities;
+    using DurableTask.Core.Entities.OperationFormat;
+    using DurableTask.Core.Exceptions;
     using DurableTask.Core.Serializing;
 
     /// <summary>
@@ -66,6 +69,11 @@ namespace DurableTask.Core
         /// Gets or sets a value indicating how to propagate unhandled exception metadata.
         /// </summary>
         internal ErrorPropagationMode ErrorPropagationMode { get; set; }
+
+        /// <summary>
+        /// Information about backend entity support, or null if the configured backend does not support entities.
+        /// </summary>
+        internal EntityBackendInformation EntityBackendInformation { get; set; }
 
         /// <summary>
         ///     Create a proxy client class to schedule remote TaskActivities via a strongly typed interface.
@@ -368,6 +376,70 @@ namespace DurableTask.Core
         public abstract Task<T> CreateSubOrchestrationInstance<T>(string name, string version, string instanceId,
             object input, IDictionary<string, string> tags);
 
+        /// <summary>
+        /// Calls an operation on an entity and returns the result asynchronously.
+        /// </summary>
+        /// <typeparam name="TResult">The result type of the operation.</typeparam>
+        /// <param name="entityId">The target entity.</param>
+        /// <param name="operationName">The name of the operation.</param>
+        /// <param name="operationInput">The input for the operation.</param>
+        /// <exception cref="EntityLockingRulesViolationException">if the orchestration is inside a critical section and the lock for this entity is not available.</exception>
+        /// <returns>A task representing the result of the operation.</returns>
+        public abstract Task<TResult> CallEntityAsync<TResult>(Entities.EntityId entityId, string operationName, object operationInput = null);
+
+        /// <summary>
+        /// Calls an operation on an entity and waits for it to complete.
+        /// </summary>
+        /// <param name="entityId">The target entity.</param>
+        /// <param name="operationName">The name of the operation.</param>
+        /// <param name="operationInput">The input for the operation.</param>
+        /// <returns>A task representing the completion of the operation on the entity.</returns>
+        /// <exception cref="EntityLockingRulesViolationException">if the orchestration is inside a critical section and the lock for this entity is not available.</exception>
+        public abstract Task CallEntityAsync(Entities.EntityId entityId, string operationName, object operationInput = null);
+
+        /// <summary>
+        /// Signals an entity operation on the specified entity.
+        /// </summary>    
+        /// <param name="entityId">The entity ID of the target.</param>
+        /// <param name="operationName">The name of the operation.</param>
+        /// <param name="operationInput">The input for the operation.</param>
+        /// <exception cref="EntityLockingRulesViolationException">if the orchestration is inside a critical section that locked this entity.</exception>
+        public abstract void SignalEntity(Entities.EntityId entityId, string operationName, object operationInput = null);
+
+        /// <summary>
+        /// Signals an entity to perform an operation, at a specified time. Any result or exception is ignored (fire and forget).
+        /// </summary>
+        /// <param name="entityId">The entity ID of the target.</param>
+        /// <param name="scheduledTimeUtc">The time at which to start the operation.</param>
+        /// <param name="operationName">The name of the operation.</param>
+        /// <exception cref="EntityLockingRulesViolationException">if the orchestration is inside a critical section that locked this entity.</exception>
+        /// <param name="operationInput">The input for the operation.</param>
+        public abstract void SignalEntity(Entities.EntityId entityId, DateTime scheduledTimeUtc, string operationName, object operationInput = null);
+
+        /// <summary>
+        /// Locks one or more entities for the duration of the critical section.
+        /// </summary>
+        /// <remarks>
+        /// Locks can only be acquired if the current context is not already in a critical section.
+        /// </remarks>
+        /// <param name="entities">The entities whose locks should be acquired.</param>
+        /// <returns>A task that must be awaited prior to entering the critical section, and which returns a IDisposable that must be disposed after exiting the critical section.</returns>
+        /// <exception cref="EntityLockingRulesViolationException">if the context is already in a critical section.</exception>
+        public abstract Task<IDisposable> LockEntitiesAsync(params EntityId[] entities);
+
+        /// <summary>
+        /// Whether this orchestration is currently inside a critical section. Critical sections are entered when calling
+        /// <see cref="LockEntitiesAsync(EntityId[])"/>, and are exited when disposing the returned IDisposable.
+        /// </summary>
+        public abstract bool IsInsideCriticalSection { get; }
+
+        /// <summary>
+        /// Enumerates all the entities that can be called from within the current critical section. 
+        /// This set contains all the entities that were locked prior to entering the critical section,
+        /// and for which there is not currently an operation call pending.
+        /// </summary>
+        /// <returns>An enumeration of all the currently available entities.</returns>
+        public abstract IEnumerable<EntityId> GetAvailableEntities();
 
         /// <summary>
         ///     Raises an event for the specified orchestration instance, which eventually causes the OnEvent() method in the

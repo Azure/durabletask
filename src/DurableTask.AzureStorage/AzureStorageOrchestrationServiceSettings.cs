@@ -22,6 +22,7 @@ namespace DurableTask.AzureStorage
     using Microsoft.WindowsAzure.Storage.Table;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
+    using DurableTask.Core.Entities;
 
     /// <summary>
     /// Settings that impact the runtime behavior of the <see cref="AzureStorageOrchestrationService"/>.
@@ -274,5 +275,23 @@ namespace DurableTask.AzureStorage
                 return this.logHelper;
             }
         }
+
+        /// <summary>
+        /// Gets or sets the maximum number of entity operations that are processed as a single batch.
+        /// </summary>
+        /// <remarks>
+        /// Reducing this number can help to avoid timeouts in execution environments that impose time limitations on work items.
+        /// If set to 1, batching is disabled, and each operation executes as a separate work item.
+        /// </remarks>
+        /// <value>
+        /// A positive integer configured by the host.
+        /// </value>
+        public int? MaxEntityOperationBatchSize { get; set; } = null;
+
+        /// <summary>
+        /// Gets or sets the time window within which entity messages get deduplicated and reordered.
+        /// If set to zero, there is no sorting or deduplication, and all messages are just passed through.
+        /// </summary>
+        public int EntityMessageReorderWindowInMinutes { get; set; } = 30;
     }
 }

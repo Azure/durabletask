@@ -22,6 +22,7 @@ namespace DurableTask.Core
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core.Common;
+    using DurableTask.Core.Entities;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
 
@@ -43,21 +44,42 @@ namespace DurableTask.Core
         /// <param name="orchestrationRuntimeState"></param>
         /// <param name="taskOrchestration"></param>
         /// <param name="eventBehaviourForContinueAsNew"></param>
+        /// <param name="entityBackendInformation"></param>
         /// <param name="errorPropagationMode"></param>
         public TaskOrchestrationExecutor(
             OrchestrationRuntimeState orchestrationRuntimeState,
             TaskOrchestration taskOrchestration,
             BehaviorOnContinueAsNew eventBehaviourForContinueAsNew,
+            EntityBackendInformation? entityBackendInformation,
             ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
         {
             this.decisionScheduler = new SynchronousTaskScheduler();
             this.context = new TaskOrchestrationContext(
                 orchestrationRuntimeState.OrchestrationInstance,
                 this.decisionScheduler,
-                errorPropagationMode);
+                entityBackendInformation,
+                errorPropagationMode
+                );
             this.orchestrationRuntimeState = orchestrationRuntimeState;
             this.taskOrchestration = taskOrchestration;
             this.skipCarryOverEvents = eventBehaviourForContinueAsNew == BehaviorOnContinueAsNew.Ignore;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TaskOrchestrationExecutor"/> class.
+        /// This overload is needed only to avoid breaking changes because this is a public constructor.
+        /// </summary>
+        /// <param name="orchestrationRuntimeState"></param>
+        /// <param name="taskOrchestration"></param>
+        /// <param name="eventBehaviourForContinueAsNew"></param>
+        /// <param name="errorPropagationMode"></param>
+        public TaskOrchestrationExecutor(
+            OrchestrationRuntimeState orchestrationRuntimeState,
+            TaskOrchestration taskOrchestration,
+            BehaviorOnContinueAsNew eventBehaviourForContinueAsNew,
+            ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
+            : this(orchestrationRuntimeState, taskOrchestration, eventBehaviourForContinueAsNew, new EntityBackendInformation(), errorPropagationMode)
+        {
         }
 
         internal bool IsCompleted => this.result != null && (this.result.IsCompleted || this.result.IsFaulted);

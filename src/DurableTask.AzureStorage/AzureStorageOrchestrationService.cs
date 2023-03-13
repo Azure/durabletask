@@ -28,6 +28,7 @@ namespace DurableTask.AzureStorage
     using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
+    using DurableTask.Core.Entities;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using DurableTask.Core.Query;
@@ -42,7 +43,8 @@ namespace DurableTask.AzureStorage
         IOrchestrationServiceClient,
         IDisposable, 
         IOrchestrationServiceQueryClient,
-        IOrchestrationServicePurgeClient
+        IOrchestrationServicePurgeClient,
+        EntityBackendInformation.IInformationProvider
     {
         static readonly HistoryEvent[] EmptyHistoryEventList = new HistoryEvent[0];
 
@@ -267,6 +269,15 @@ namespace DurableTask.AzureStorage
 
         /// <inheritdoc />
         public int TaskOrchestrationDispatcherCount { get; } = 1;
+
+        EntityBackendInformation EntityBackendInformation.IInformationProvider.GetEntityBackendInformation()
+           => new EntityBackendInformation()
+           {
+               EntityMessageReorderWindow = TimeSpan.FromMinutes(this.settings.EntityMessageReorderWindowInMinutes),
+               MaxEntityOperationBatchSize = this.settings.MaxEntityOperationBatchSize,
+               SupportsImplicitEntityDeletion = false, // not supported by this backend
+               MaximumSignalDelayTime = TimeSpan.FromDays(6),
+           };
 
         #region Management Operations (Create/Delete/Start/Stop)
         /// <summary>

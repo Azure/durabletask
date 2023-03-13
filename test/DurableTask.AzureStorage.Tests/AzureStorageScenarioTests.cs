@@ -19,14 +19,18 @@ namespace DurableTask.AzureStorage.Tests
     using System.Diagnostics;
     using System.IO;
     using System.Linq;
+    using System.Reflection;
     using System.Runtime.Serialization;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
+    using DurableTask.Core.Entities;
+    using DurableTask.Core.Entities.OperationFormat;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
+    using DurableTask.Core.Serializing;
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging.Utility;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.WindowsAzure.Storage;
@@ -343,6 +347,661 @@ namespace DurableTask.AzureStorage.Tests
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.AreEqual("OK", JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task CallCounterEntityFromOrchestration(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                var entityId = new EntityId(nameof(Entities.Counter), Guid.NewGuid().ToString());
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.CallCounterEntity), entityId);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual("OK", JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task BatchedEntitySignals(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+            
+                int numIterations = 100;
+                var entityId = new EntityId(nameof(Entities.BatchEntity), Guid.NewGuid().ToString());
+                TestEntityClient client = await host.GetEntityClientAsync(typeof(Entities.BatchEntity), entityId);
+
+                // send a number of signals immediately after each other
+                List<Task> tasks = new List<Task>();
+                for (int i = 0; i < numIterations; i++)
+                {
+                    tasks.Add(client.SignalEntity(i.ToString()));
+                }
+
+                await Task.WhenAll(tasks);
+
+                var result = await client.WaitForEntityState<List<(int, int)>>( 
+                    timeout: Debugger.IsAttached ? TimeSpan.FromMinutes(5) : TimeSpan.FromSeconds(20),
+                    list => list.Count == numIterations ? null : $"waiting for {numIterations - list.Count} signals");
+
+                // validate the batching positions and sizes
+                int? cursize = null;
+                int curpos = 0;
+                int numBatches = 0;
+                foreach (var (position, size) in result)
+                {
+                    if (cursize == null)
+                    {
+                        cursize = size;
+                        curpos = 0;
+                        numBatches++;
+                    }
+
+                    Assert.AreEqual(curpos, position);
+
+                    if (++curpos == cursize)
+                    {
+                        cursize = null;
+                    }
+                }
+
+                // there should always be some batching going on
+                Assert.IsTrue(numBatches < numIterations);
+
+                await host.StopAsync();
+            }
+        }
+
+        [DataTestMethod]
+        public async Task CleanEntityStorage_OrphanedLock()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
+                enableExtendedSessions: false,
+                modifySettingsAction: (settings) => settings.EntityMessageReorderWindowInMinutes = 0))
+            {
+                await host.StartAsync();
+
+                // construct unique names for this test
+                string prefix = Guid.NewGuid().ToString("N").Substring(0, 6);
+                var orphanedEntityId = new EntityId(nameof(Entities.Counter), $"{prefix}-orphaned");
+                var orchestrationA = $"{prefix}-A";
+                var orchestrationB = $"{prefix}-B";
+
+                // run an orchestration A that leaves an orphaned lock
+                var clientA = await host.StartOrchestrationAsync(typeof(Orchestrations.LockThenFailReplay), (orphanedEntityId, true), orchestrationA);
+                var status = await clientA.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                // run an orchestration B that queues behind A for the lock (and thus gets stuck)
+                var clientB = await host.StartOrchestrationAsync(typeof(Orchestrations.LockThenFailReplay), (orphanedEntityId, false), orchestrationB);
+
+                // remove empty entity and release orphaned lock
+                var entityClient = new TaskHubEntityClient(clientA.InnerClient);
+                var response = await entityClient.CleanEntityStorageAsync(true, true, CancellationToken.None);
+                Assert.AreEqual(1, response.NumberOfOrphanedLocksRemoved);
+                Assert.AreEqual(0, response.NumberOfEmptyEntitiesRemoved);
+
+                // wait for orchestration B to complete, now that the lock has been released
+                status = await clientB.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                Assert.IsTrue(status.OrchestrationStatus == OrchestrationStatus.Completed);
+
+                // give the orchestration status time to be updated
+                await Task.Delay(TimeSpan.FromSeconds(20));
+
+                // clean again to remove the orphaned entity which is now empty also
+                response = await entityClient.CleanEntityStorageAsync(true, true, CancellationToken.None);
+                Assert.AreEqual(0, response.NumberOfOrphanedLocksRemoved);
+                Assert.AreEqual(1, response.NumberOfEmptyEntitiesRemoved);
+
+                await host.StopAsync();
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(1)]
+        [DataRow(120)]
+        public async Task CleanEntityStorage_EmptyEntities(int numReps)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
+                enableExtendedSessions: false,
+                modifySettingsAction: (settings) => settings.EntityMessageReorderWindowInMinutes = 0))
+            {
+                await host.StartAsync();
+
+                // construct unique names for this test
+                string prefix = Guid.NewGuid().ToString("N").Substring(0, 6);
+                EntityId[] entityIds = new EntityId[numReps];
+                for (int i = 0; i < entityIds.Length; i++)
+                {
+                    entityIds[i] = new EntityId("Counter", $"{prefix}-{i:D3}");
+                }
+
+                // create the empty entities
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.CreateEmptyEntities), entityIds);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                // account for delay in updating instance tables
+                await Task.Delay(TimeSpan.FromSeconds(20));
+
+                // remove all empty entities
+                var entityClient = new TaskHubEntityClient(client.InnerClient);
+                var response = await entityClient.CleanEntityStorageAsync(true, true, CancellationToken.None);
+                Assert.AreEqual(0, response.NumberOfOrphanedLocksRemoved);
+                Assert.AreEqual(numReps, response.NumberOfEmptyEntitiesRemoved);
+
+                await host.StopAsync();
+            }
+        }
+
+        [DataTestMethod]
+        public async Task EntityQueries()
+        {
+            var yesterday = DateTime.UtcNow.Subtract(TimeSpan.FromDays(1));
+            var tomorrow = DateTime.UtcNow.Add(TimeSpan.FromDays(1));
+
+            List<EntityId> entityIds = new List<EntityId>()
+            {
+                new EntityId("StringStore", "foo"),
+                new EntityId("StringStore", "bar"),
+                new EntityId("StringStore", "baz"),
+                new EntityId("StringStore2", "foo"),
+            };
+
+            var queries = new (TaskHubEntityClient.Query,Action<IList<TaskHubEntityClient.EntityStatus>>)[]
+            {
+                (new TaskHubEntityClient.Query
+                {
+                },
+                result =>
+                {
+                    Assert.AreEqual(4, result.Count);
+                }),
+
+                (new TaskHubEntityClient.Query
+                {
+                    EntityName = "StringStore",
+                    LastOperationFrom = yesterday,
+                    LastOperationTo = tomorrow,
+                    FetchState = false,
+                }, 
+                result =>
+                {
+                    Assert.AreEqual(3, result.Count);
+                    Assert.IsTrue(result[0].State == null);
+                }),
+
+                (new TaskHubEntityClient.Query
+                {
+                    EntityName = "StringStore",
+                    LastOperationFrom = yesterday,
+                    LastOperationTo = tomorrow,
+                    FetchState = true,
+                },
+                result =>
+                {
+                    Assert.AreEqual(3, result.Count);
+                    Assert.IsTrue(result[0].State != null);
+                }),
+
+                (new TaskHubEntityClient.Query
+                {
+                    EntityName = "StringStore",
+                    PageSize = 1,
+                },
+                result =>
+                {
+                   Assert.AreEqual(3, result.Count());
+                }),
+
+                (new TaskHubEntityClient.Query
+                {
+                    EntityName = "StringStore",
+                    PageSize = 2,
+                },
+                result =>
+                {
+                     Assert.AreEqual(3, result.Count());
+                }),
+
+                (new TaskHubEntityClient.Query
+                {
+                    EntityName = "noResult",
+                },
+                result =>
+                {
+                    Assert.AreEqual(0, result.Count());
+                }),
+
+                (new TaskHubEntityClient.Query
+                {
+                    EntityName = "noResult",
+                    LastOperationFrom = yesterday,
+                    LastOperationTo = tomorrow,
+                },
+                result =>
+                {
+                    Assert.AreEqual(0, result.Count());
+                }),
+
+                (new TaskHubEntityClient.Query
+                {
+                    LastOperationFrom = tomorrow,
+                },
+                result =>
+                {
+                    Assert.AreEqual(0, result.Count());
+                }),
+
+                (new TaskHubEntityClient.Query
+                {
+                    LastOperationTo = yesterday,
+                },
+                result =>
+                {
+                    Assert.AreEqual(0, result.Count());
+                }),
+
+                (new TaskHubEntityClient.Query
+                {
+                    InstanceIdPrefix = "StringStore",
+                },
+                result =>
+                {
+                    Assert.AreEqual(0, result.Count());
+                }),
+
+                 (new TaskHubEntityClient.Query
+                {
+                    InstanceIdPrefix = "@StringStore",
+                },
+                result =>
+                {
+                    Assert.AreEqual(0, result.Count());
+                }),
+
+                (new TaskHubEntityClient.Query
+                {
+                    InstanceIdPrefix = "@stringstore",
+                },
+                result =>
+                {
+                    Assert.AreEqual(4, result.Count());
+                }),
+
+                (new TaskHubEntityClient.Query
+                {
+                    InstanceIdPrefix = "@stringstore@",
+                },
+                result =>
+                {
+                    Assert.AreEqual(3, result.Count());
+                }),
+
+                (new TaskHubEntityClient.Query
+                {
+                    InstanceIdPrefix = "@stringstore",
+                    EntityName = "stringstore",
+                },
+                result =>
+                {
+                    Assert.AreEqual(3, result.Count());
+                }),
+
+                (new TaskHubEntityClient.Query
+                {
+                    InstanceIdPrefix = "@stringstore@",
+                    EntityName = "StringStore",
+                },
+                result =>
+                {
+                    Assert.AreEqual(3, result.Count());
+                }),
+
+                (new TaskHubEntityClient.Query
+                {
+                    InstanceIdPrefix = "@stringstore@b",
+                    EntityName = "StringStore",
+                },
+                result =>
+                {
+                    Assert.AreEqual(2, result.Count());
+                }),
+            };
+
+             await this.RunEntityQueries(queries, entityIds); 
+        }
+
+        [DataTestMethod]
+        public async Task EntityQueries_Deleted()
+        {
+            var queries = new (TaskHubEntityClient.Query, Action<IList<TaskHubEntityClient.EntityStatus>>)[]
+            {
+                (new TaskHubEntityClient.Query()
+                {
+                    IncludeDeleted = false,
+                },
+                result =>
+                {
+                    Assert.AreEqual(4, result.Count);
+                }),
+
+                (new TaskHubEntityClient.Query()
+                {
+                    IncludeDeleted = true,
+                },
+                result =>
+                {
+                    Assert.AreEqual(8, result.Count);
+                }),
+
+                (new TaskHubEntityClient.Query()
+                {
+                    IncludeDeleted = false,
+                    PageSize = 3,
+                },
+                result =>
+                {
+                    Assert.AreEqual(4, result.Count);
+                }),
+
+                (new TaskHubEntityClient.Query()
+                {
+                    IncludeDeleted = true,
+                    PageSize = 3,
+                },
+                result =>
+                {
+                    Assert.AreEqual(8, result.Count);
+                }),
+            };
+
+            List<EntityId> entityIds = new List<EntityId>()
+            {
+                new EntityId("StringStore", "foo"),
+                new EntityId("StringStore2", "bar"),
+                new EntityId("StringStore2", "baz"),
+                new EntityId("StringStore2", "foo"),
+                new EntityId("StringStore2", "ffo"),
+                new EntityId("StringStore2", "zzz"),
+                new EntityId("StringStore2", "aaa"),
+                new EntityId("StringStore2", "bbb"),
+            };
+
+            List<Type> orchestrations = new List<Type>()
+            {
+                typeof(Orchestrations.SignalAndCallStringStore),
+                typeof(Orchestrations.CallAndDeleteStringStore),
+                typeof(Orchestrations.SignalAndCallStringStore),
+                typeof(Orchestrations.CallAndDeleteStringStore),
+                typeof(Orchestrations.SignalAndCallStringStore),
+                typeof(Orchestrations.CallAndDeleteStringStore),
+                typeof(Orchestrations.SignalAndCallStringStore),
+                typeof(Orchestrations.CallAndDeleteStringStore),
+            };
+
+            await this.RunEntityQueries(queries, entityIds, orchestrations);       
+        }
+
+        private async Task RunEntityQueries(
+            (TaskHubEntityClient.Query, Action<IList<TaskHubEntityClient.EntityStatus>>)[] queries, 
+            IList<EntityId> entitiyIds, 
+            IList<Type> orchestrations = null)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+
+                TestOrchestrationClient client = null;
+
+                for (int i = 0; i < entitiyIds.Count; i++)
+                {
+                    EntityId id = entitiyIds[i];
+                    Type orchestration = orchestrations == null ? typeof(Orchestrations.SignalAndCallStringStore) : orchestrations[i];
+                    client = await host.StartOrchestrationAsync(orchestration, id);
+                    await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                }
+
+                // account for delay in updating instance tables
+                await Task.Delay(TimeSpan.FromSeconds(10));
+
+                for (int i = 0; i < queries.Count(); i++)
+                {
+                    var query = queries[i].Item1;
+                    var test = queries[i].Item2;
+                    var results = new List<TaskHubEntityClient.EntityStatus>();
+                    var entityClient = new TaskHubEntityClient(client.InnerClient);
+
+                    do
+                    {
+                        var result = await entityClient.ListEntitiesAsync(query, CancellationToken.None);
+
+                        // The result may return fewer records than the page size, but never more
+                        Assert.IsTrue(result.Entities.Count() <= query.PageSize);
+
+                        foreach (var element in result.Entities)
+                        {
+                            results.Add(element);
+                        }
+
+                        query.ContinuationToken = result.ContinuationToken;
+                    }
+                    while (query.ContinuationToken != null);
+
+                    test(results);
+                }
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates launching orchestrations from entities.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task EntityFireAndForget(bool extendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: extendedSessions))
+            {
+                await host.StartAsync();
+
+                var entityId = new EntityId(nameof(Entities.Launcher), Guid.NewGuid().ToString());
+
+                var client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.LaunchOrchestrationFromEntity),
+                    entityId);
+
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(90));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                var instanceId = (string) JToken.Parse(status?.Output);
+                Assert.IsTrue(instanceId != null);
+                var orchestrationState = (await client.InnerClient.GetOrchestrationStateAsync(instanceId, false)).FirstOrDefault();       
+                Assert.AreEqual(OrchestrationStatus.Completed, orchestrationState.OrchestrationStatus);
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates a simple entity scenario which sends a signal
+        /// to a relay which forwards it to counter, and polls until the signal is delivered.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task DurableEntity_SignalThenPoll(bool extendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: extendedSessions))
+            {
+                await host.StartAsync();
+
+                var relayEntityId = new EntityId("Relay", "");
+                var counterEntityId = new EntityId("Counter", Guid.NewGuid().ToString());
+
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.PollCounterEntity), counterEntityId);
+
+                var entityClient = new TaskHubEntityClient(client.InnerClient);
+                await entityClient.SignalEntityAsync(relayEntityId, "", (counterEntityId, "increment"));
+
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual("ok", (string)JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates an entity scenario where a "LockedTransfer" orchestration locks
+        /// two "Counter" entities, and then in parallel increments/decrements them, respectively, using
+        /// a read-modify-write pattern.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task DurableEntity_SingleLockedTransfer(bool extendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: extendedSessions))
+            {
+                await host.StartAsync();
+
+                var counter1 = new EntityId("Counter", Guid.NewGuid().ToString());
+                var counter2 = new EntityId("Counter", Guid.NewGuid().ToString());
+
+                var client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.LockedTransfer),
+                    (counter1, counter2));
+
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                // validate the state of the counters
+                var entityClient = new TaskHubEntityClient(client.InnerClient);
+                var response1 = await entityClient.ReadEntityStateAsync<int>(counter1);
+                var response2 = await entityClient.ReadEntityStateAsync<int>(counter2);
+                Assert.IsTrue(response1.EntityExists);
+                Assert.IsTrue(response2.EntityExists);
+                Assert.AreEqual(-1, response1.EntityState);
+                Assert.AreEqual(1, response2.EntityState);
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates an entity scenario where a a number of "LockedTransfer" orchestrations
+        /// concurrently operate on a number of entities, in a classical dining-philosophers configuration.
+        /// This showcases the deadlock prevention mechanism achieved by the sequential, ordered lock acquisition.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(false, 5)]
+        [DataRow(true, 5)]
+        public async Task DurableEntity_MultipleLockedTransfers(bool extendedSessions, int numberEntities)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: extendedSessions))
+            {
+                await host.StartAsync();
+
+                // create specified number of entities
+                var counters = new EntityId[numberEntities];
+                for (int i = 0; i < numberEntities; i++)
+                {
+                    counters[i] = new EntityId("Counter", Guid.NewGuid().ToString());
+                }
+
+                // in parallel, start one transfer per counter, each decrementing a counter and incrementing
+                // its successor (where the last one wraps around to the first)
+                // This is a pattern that would deadlock if we didn't order the lock acquisition.
+                var clients = new Task<TestOrchestrationClient>[numberEntities];
+                for (int i = 0; i < numberEntities; i++)
+                {
+                    clients[i] = host.StartOrchestrationAsync(
+                        typeof(Orchestrations.LockedTransfer),
+                        (counters[i], counters[(i + 1) % numberEntities]));
+                }
+
+                await Task.WhenAll(clients);
+
+                // in parallel, wait for all transfers to complete
+                var stati = new Task<OrchestrationState>[numberEntities];
+                for (int i = 0; i < numberEntities; i++)
+                {
+                    stati[i] = clients[i].Result.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+                }
+
+                await Task.WhenAll(stati);
+
+                // check that they all completed
+                for (int i = 0; i < numberEntities; i++)
+                {
+                    Assert.AreEqual(OrchestrationStatus.Completed, stati[i].Result.OrchestrationStatus);
+                }
+
+                // in parallel, read all the entity states
+                var entityClient = new TaskHubEntityClient(clients[0].Result.InnerClient);
+                var entityStates = new Task<TaskHubEntityClient.StateResponse<int>>[numberEntities];
+                for (int i = 0; i < numberEntities; i++)
+                {
+                    entityStates[i] = entityClient.ReadEntityStateAsync<int>(counters[i]);
+                }
+                await Task.WhenAll(entityStates);
+
+                // check that the counter states are all back to 0
+                // (since each participated in 2 transfers, one incrementing and one decrementing)
+                for (int i = 0; i < numberEntities; i++)
+                {
+                    Assert.IsTrue(entityStates[i].Result.EntityExists);
+                    Assert.AreEqual(0, entityStates[i].Result.EntityState);
+                }
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates exception handling in entity operations.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(false, false, false)]
+        [DataRow(false, true, false)]
+        [DataRow(true, false, false)]
+        [DataRow(true, true, false)]
+        [DataRow(false, false, true)]
+        public async Task CallFaultyEntity(bool extendedSessions, bool rollbackOnExceptions, bool useFailureDetails)
+        {
+            var errorPropagationMode = useFailureDetails ? ErrorPropagationMode.UseFailureDetails : ErrorPropagationMode.SerializeExceptions;
+
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
+                enableExtendedSessions: extendedSessions,
+                errorPropagationMode: errorPropagationMode))
+            {
+                await host.StartAsync();
+
+                var entityName = rollbackOnExceptions ? "FaultyEntityWithRollback" : "FaultyEntityWithoutRollback";
+                var entityId = new EntityId(entityName, Guid.NewGuid().ToString());
+
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.CallFaultyEntity), (entityId, rollbackOnExceptions, errorPropagationMode));
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(90));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual("\"ok\"", status?.Output);
 
                 await host.StopAsync();
             }
@@ -2675,6 +3334,503 @@ namespace DurableTask.AzureStorage.Tests
                         this.waitForOperationHandle.SetResult(input);
                     }
                 }
+            }           
+
+            [KnownType(typeof(Entities.Counter))]
+            public sealed class CallCounterEntity : TaskOrchestration<string, EntityId>
+            {
+                public override async Task<string> RunTask(OrchestrationContext context, EntityId entityId)
+                {
+                    await context.CallEntityAsync<int>(entityId, "set", 33);
+                    int result = await context.CallEntityAsync<int>(entityId, "get");
+
+                    if (result == 33)
+                    {
+                        return "OK";
+                    }
+                    else
+                    {
+                        return $"wrong result: {result} instead of 33";
+                    }
+                }
+            }
+
+            [KnownType(typeof(Entities.Counter))]
+            [KnownType(typeof(Entities.Relay))]
+            public sealed class PollCounterEntity : TaskOrchestration<string, EntityId>
+            {
+                public override async Task<string> RunTask(OrchestrationContext ctx, EntityId entityId)
+                {
+                    while (true)
+                    {
+                        var result = await ctx.CallEntityAsync<int>(entityId, "get");
+
+                        if (result != 0)
+                        {
+                            if (result == 1)
+                            {
+                                return "ok";
+                            }
+                            else
+                            {
+                                return $"fail: wrong entity state: expected 1, got {result}";
+                            }
+                        }
+
+                        await ctx.CreateTimer(DateTime.UtcNow + TimeSpan.FromSeconds(1), CancellationToken.None);
+                    }
+                }
+            }
+
+            [KnownType(typeof(Entities.Counter))]
+            public sealed class CreateEmptyEntities : TaskOrchestration<string, EntityId[]>
+            {
+                public override async Task<string> RunTask(OrchestrationContext context, EntityId[] entityIds)
+                {
+                    var tasks = new List<Task>();
+                    for (int i = 0; i < entityIds.Length; i++)
+                    {
+                        tasks.Add(context.CallEntityAsync(entityIds[i], "delete"));
+                    }
+
+                    await Task.WhenAll(tasks);
+                    return "ok";
+                }
+            }
+
+            [KnownType(typeof(Entities.Counter))]
+            [KnownType(typeof(Activities.Hello))]
+            public sealed class LockThenFailReplay : TaskOrchestration<string, (EntityId entityId, bool createNondeterminismFailure)>
+            {
+                public override async Task<string> RunTask(OrchestrationContext context, (EntityId entityId, bool createNondeterminismFailure) input)
+                {
+                    if (!(input.createNondeterminismFailure && context.IsReplaying))
+                    {
+                        await context.LockEntitiesAsync(input.entityId);
+
+                        await context.ScheduleTask<string>(typeof(Activities.Hello), "Tokyo");
+                    }
+
+                    return "ok";
+                }
+            }
+
+            [KnownType(typeof(Entities.Counter))]
+            public sealed class LockedTransfer : TaskOrchestration<(int, int), (EntityId, EntityId)>
+            {
+                public override async Task<(int, int)> RunTask(OrchestrationContext ctx, (EntityId, EntityId) input)
+                {
+                    var (from, to) = input;
+
+                    if (from.Equals(to))
+                    {
+                        throw new ArgumentException("from and to must be distinct");
+                    }
+
+                    if (ctx.IsInsideCriticalSection)
+                    {
+                        throw new Exception("test failed: lock context is incorrect");
+                    }
+
+                    int fromBalance;
+                    int toBalance;
+
+                    using (await ctx.LockEntitiesAsync(from, to))
+                    {
+                        if (!ctx.IsInsideCriticalSection)
+                        {
+                            throw new Exception("test failed: lock context is incorrect, must be in critical section");
+                        }
+
+                        var availableEntities = ctx.GetAvailableEntities().ToList();
+
+                        if (availableEntities.Count != 2 || !availableEntities.Contains(from) || !availableEntities.Contains(to))
+                        {
+                            throw new Exception("test failed: lock context is incorrect: available locks do not match");
+                        }
+
+                        // read balances in parallel
+                        var t1 = ctx.CallEntityAsync<int>(from, "get");
+
+                        availableEntities = ctx.GetAvailableEntities().ToList();
+                        if (availableEntities.Count != 1 || !availableEntities.Contains(to))
+                        {
+                            throw new Exception("test failed: lock context is incorrect: available locks wrong");
+                        }
+
+                        var t2 = ctx.CallEntityAsync<int>(to, "get");
+
+                        availableEntities = ctx.GetAvailableEntities().ToList();
+                        if (availableEntities.Count != 0)
+                        {
+                            throw new Exception("test failed: lock context is incorrect: available locks wrong");
+                        }
+
+                        fromBalance = await t1;
+                        toBalance = await t2;
+
+                        availableEntities = ctx.GetAvailableEntities().ToList();
+                        if (availableEntities.Count != 2 || !availableEntities.Contains(from) || !availableEntities.Contains(to))
+                        {
+                            throw new Exception("test failed: lock context is incorrect: available locks do not match");
+                        }
+
+                        // modify
+                        fromBalance--;
+                        toBalance++;
+
+                        // write balances in parallel
+                        var t3 = ctx.CallEntityAsync(from, "set", fromBalance);
+                        var t4 = ctx.CallEntityAsync(to, "set", toBalance);
+                        await t3;
+                        await t4;
+                    }
+
+                    if (ctx.IsInsideCriticalSection)
+                    {
+                        throw new Exception("test failed: lock context is incorrect");
+                    }
+
+                    return (fromBalance, toBalance);
+                }
+            }
+
+
+            [KnownType(typeof(Entities.StringStore))]
+            [KnownType(typeof(Entities.StringStore2))]
+            public sealed class SignalAndCallStringStore : TaskOrchestration<string, EntityId>
+            {
+                public override async Task<string> RunTask(OrchestrationContext ctx, EntityId entity)
+                {
+                    ctx.SignalEntity(entity, "set", "333");
+
+                    var result = await ctx.CallEntityAsync<string>(entity, "get");
+
+                    if (result != "333")
+                    {
+                        return $"fail: wrong entity state: expected 333, got {result}";
+                    }
+
+                    return "ok";
+                }
+            }
+
+            [KnownType(typeof(Entities.StringStore))]
+            [KnownType(typeof(Entities.StringStore2))]
+            public sealed class CallAndDeleteStringStore : TaskOrchestration<string, EntityId>
+            {
+                public override async Task<string> RunTask(OrchestrationContext ctx, EntityId entity)
+                {
+                    await ctx.CallEntityAsync(entity, "set", "333");
+
+                    await ctx.CallEntityAsync<string>(entity, "delete");
+
+                    return "ok";
+                }
+            }
+
+            [KnownType(typeof(Orchestrations.DelayedSignal))]
+            [KnownType(typeof(Entities.Launcher))]
+            public sealed class LaunchOrchestrationFromEntity : TaskOrchestration<string, EntityId>
+            {
+                public override async Task<string> RunTask(OrchestrationContext ctx, EntityId entityId)
+                {
+                    await ctx.CallEntityAsync(entityId, "launch", "hello");
+
+                    while (true)
+                    {
+                        var orchestrationId = await ctx.CallEntityAsync<string>(entityId, "get");
+
+                        if (orchestrationId != null)
+                        {
+                            return orchestrationId;
+                        }
+
+                        await ctx.CreateTimer(DateTime.UtcNow + TimeSpan.FromSeconds(1), CancellationToken.None);
+                    }
+                }
+            }
+
+            public sealed class DelayedSignal : TaskOrchestration<string, EntityId>
+            {
+                public override async Task<string> RunTask(OrchestrationContext ctx, EntityId entityId)
+                {
+                    await ctx.CreateTimer(ctx.CurrentUtcDateTime + TimeSpan.FromSeconds(.2), CancellationToken.None);
+
+                    ctx.SignalEntity(entityId, "done");
+
+                    return "";
+                }
+            }
+
+            [KnownType(typeof(Entities.FaultyEntityWithRollback))]
+            [KnownType(typeof(Entities.FaultyEntityWithoutRollback))]
+            public sealed class CallFaultyEntity : TaskOrchestration<string, (EntityId, bool, ErrorPropagationMode)>
+            {              
+                public override async Task<string> RunTask(OrchestrationContext ctx, (EntityId, bool, ErrorPropagationMode) input)
+                {
+                    (EntityId entityId, bool rollbackOnException, ErrorPropagationMode mode) = input;
+
+                    async Task ExpectException<TInner>(Task t)
+                    {
+                        try
+                        {
+                            await t;
+                            Assert.IsTrue(false, "expected exception");
+                        }
+                        catch (OperationFailedException e) 
+                        {
+                            if (mode == ErrorPropagationMode.SerializeExceptions)
+                            {
+                                Assert.IsTrue(e.InnerException != null && e.InnerException is TInner);
+                                Assert.IsTrue(e.FailureDetails == null);
+                            }
+                            else // check that we received the failure details instead of the exception
+                            {
+                                Assert.IsTrue(e.InnerException == null);
+                                Assert.IsTrue(e.FailureDetails != null);
+                                Assert.IsTrue(e.FailureDetails.ErrorType == typeof(TInner).FullName);
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            Assert.IsTrue(false, $"wrong exception: {e}");
+                        }
+                    }
+
+                    Task<int> Get() => ctx.CallEntityAsync<int>(entityId, "Get");
+                    Task Set(int val) => ctx.CallEntityAsync(entityId, "Set", val);
+                    Task SetThenThrow(int val) => ctx.CallEntityAsync(entityId, "SetThenThrow", val);
+                    Task SetToUnserializable() => ctx.CallEntityAsync(entityId, "SetToUnserializable");
+                    Task SetToUnDeserializable() => ctx.CallEntityAsync(entityId, "SetToUnDeserializable");
+                    Task DeleteThenThrow () => ctx.CallEntityAsync(entityId, "DeleteThenThrow"); 
+                    Task Delete() => ctx.CallEntityAsync(entityId, "Delete");
+                    
+
+                    async Task TestRollbackToNonexistent()
+                    {
+                        Assert.IsFalse(await ctx.CallEntityAsync<bool>(entityId, "exists"));
+                        await ExpectException<EntitySchedulerException>(SetToUnserializable());
+                        Assert.IsFalse(await ctx.CallEntityAsync<bool>(entityId, "exists"));
+                    }
+
+                    async Task TestNondeserializableState()
+                    {
+                        await SetToUnDeserializable();
+                        Assert.IsTrue(await ctx.CallEntityAsync<bool>(entityId, "exists"));
+                        await ExpectException<EntitySchedulerException>(Get());
+                        await ctx.CallEntityAsync<bool>(entityId, "deletewithoutreading");
+                        Assert.IsFalse(await ctx.CallEntityAsync<bool>(entityId, "exists"));
+                    }
+
+                    async Task TestSecondOperationRollback()
+                    {
+                        await Set(3);
+                        Assert.AreEqual(3, await Get());
+                        await ExpectException<Entities.FaultyEntity.SerializableKaboom>(SetThenThrow(333));
+                        if (rollbackOnException)
+                        {
+                            Assert.AreEqual(3, await Get());
+                        }
+                        else
+                        {
+                            Assert.AreEqual(333, await Get());
+                        }
+                        await Delete();
+                        Assert.IsFalse(await ctx.CallEntityAsync<bool>(entityId, "exists"));
+                    }
+
+                    async Task TestDeleteOperationRollback()
+                    {
+                        await Set(3);
+                        Assert.AreEqual(3, await Get());
+                        await ExpectException<Entities.FaultyEntity.SerializableKaboom>(SetThenThrow(333));
+                        if (rollbackOnException)
+                        {
+                            Assert.AreEqual(3, await Get());
+                        }
+                        else
+                        {
+                            Assert.AreEqual(333, await Get());
+                        }
+                        await ExpectException<Entities.FaultyEntity.SerializableKaboom>(DeleteThenThrow());
+                        if (rollbackOnException)
+                        {
+                            Assert.AreEqual(3, await Get());
+                        }
+                        else
+                        {
+                            Assert.AreEqual(0, await Get());
+                        }
+                        await Delete();
+                        Assert.IsFalse(await ctx.CallEntityAsync<bool>(entityId, "exists"));
+                    }
+
+                    async Task TestFirstOperationRollback()
+                    {
+                        await ExpectException<Entities.FaultyEntity.SerializableKaboom>(SetThenThrow(333));
+
+                        if (!rollbackOnException)
+                        { 
+                            Assert.IsTrue(await ctx.CallEntityAsync<bool>(entityId, "exists"));
+                            await Delete();
+                        }
+                        Assert.IsFalse(await ctx.CallEntityAsync<bool>(entityId, "exists"));
+                    }
+
+                    // we use this utility function to try to enforce that a bunch of signals is delivered as a single batch.
+                    // This is required for some of the tests here to work, since the batching affects the entity state management.
+                    // The "enforcement" mechanism we use is not 100% failsafe (it still makes timing assumptions about the provider)
+                    // but it should be more reliable than the original version of this test which failed quite frequently, as it was
+                    // simply assuming that signals that are sent at the same time are always processed as a batch.
+                    async Task ProcessAllSignalsInSingleBatch(Action sendSignals)
+                    {
+                        // first issue a signal that, when delivered, keeps the entity busy for a second
+                        ctx.SignalEntity(entityId, "delay", 1);
+
+                        // we now need to yield briefly so that the delay signal is sent before the others
+                        await ctx.CreateTimer(ctx.CurrentUtcDateTime + TimeSpan.FromMilliseconds(1), CancellationToken.None);
+
+                        // now send the signals in the batch. These should all arrive and get queued (inside the storage provider)
+                        // while the entity is executing the delay operation. Therefore, after the delay operation finishes,
+                        // all of the signals are processed in a single batch.
+                        sendSignals();
+                    }
+
+                    async Task TestRollbackInBatch1()
+                    {
+                        await ProcessAllSignalsInSingleBatch(() =>
+                        {
+                            ctx.SignalEntity(entityId, "Set", 42);
+                            ctx.SignalEntity(entityId, "SetThenThrow", 333);
+                            ctx.SignalEntity(entityId, "DeleteThenThrow");
+                        });
+
+                        if (rollbackOnException)
+                        {
+                            Assert.AreEqual(42, await Get());
+                        }
+                        else
+                        {
+                            Assert.IsFalse(await ctx.CallEntityAsync<bool>(entityId, "exists"));
+                            ctx.SignalEntity(entityId, "Set", 42);
+                        }
+                    }
+
+                    async Task TestRollbackInBatch2()
+                    {
+                        await ProcessAllSignalsInSingleBatch(() =>
+                        {
+                            ctx.SignalEntity(entityId, "Get");
+                            ctx.SignalEntity(entityId, "Set", 42);
+                            ctx.SignalEntity(entityId, "Delete");
+                            ctx.SignalEntity(entityId, "Set", 43);
+                            ctx.SignalEntity(entityId, "DeleteThenThrow");
+                        });
+
+                        if (rollbackOnException)
+                        {
+                            Assert.AreEqual(43, await Get());
+                        }
+                        else
+                        {
+                            Assert.IsFalse(await ctx.CallEntityAsync<bool>(entityId, "exists"));
+                        }
+                    }
+
+                    async Task TestRollbackInBatch3()
+                    {
+                        Task<int> getTask = null;
+
+                        await ProcessAllSignalsInSingleBatch(() =>
+                        {
+                            ctx.SignalEntity(entityId, "Set", 55);
+                            ctx.SignalEntity(entityId, "SetToUnserializable");
+                            getTask = ctx.CallEntityAsync<int>(entityId, "Get");
+                        });
+
+                        if (rollbackOnException)
+                        {
+                            Assert.AreEqual(55, await getTask);
+                            await Delete();
+                        }
+                        else
+                        {
+                            await ExpectException<EntitySchedulerException>(getTask);
+                            await ctx.CallEntityAsync<bool>(entityId, "deletewithoutreading");
+                        }
+                        Assert.IsFalse(await ctx.CallEntityAsync<bool>(entityId, "exists"));
+                    }
+
+                    async Task TestRollbackInBatch4()
+                    {
+                        Task<int> getTask = null; 
+                        
+                        await ProcessAllSignalsInSingleBatch(() =>
+                        {
+                            ctx.SignalEntity(entityId, "Set", 56);
+                            ctx.SignalEntity(entityId, "SetToUnDeserializable");
+                            ctx.SignalEntity(entityId, "SetThenThrow", 999);
+                            getTask = ctx.CallEntityAsync<int>(entityId, "Get");
+                        });
+
+                        if (rollbackOnException)
+                        {
+                            // we rolled back to an un-deserializable state
+                            await ExpectException<EntitySchedulerException>(getTask);
+                        }
+                        else
+                        {
+                            // we don't roll back the 999 when throwing
+                            Assert.AreEqual(999, await getTask);
+                        }
+
+                        await ctx.CallEntityAsync<bool>(entityId, "deletewithoutreading");
+                    }
+
+
+                    async Task TestRollbackInBatch5()
+                    {                      
+                        await ProcessAllSignalsInSingleBatch(() =>
+                        {
+                            ctx.SignalEntity(entityId, "Set", 1);
+                            ctx.SignalEntity(entityId, "Delete");
+                            ctx.SignalEntity(entityId, "Set", 2);
+                            ctx.SignalEntity(entityId, "Delete");
+                            ctx.SignalEntity(entityId, "SetThenThrow", 3);
+                        });
+
+                        if (rollbackOnException)
+                        {
+                            Assert.IsFalse(await ctx.CallEntityAsync<bool>(entityId, "exists"));
+                        }
+                        else
+                        {
+                            Assert.AreEqual(3, await Get()); // not rolled back
+                        }
+                    }
+
+                    try
+                    {
+                        await TestRollbackToNonexistent();
+                        await TestNondeserializableState();
+                        await TestSecondOperationRollback();
+                        await TestDeleteOperationRollback();
+                        await TestFirstOperationRollback();
+
+                        await TestRollbackInBatch1();
+                        await TestRollbackInBatch2();
+                        await TestRollbackInBatch3();
+                        await TestRollbackInBatch4();
+                        await TestRollbackInBatch5();
+
+                        return "ok";
+                    }
+                    catch (Exception e)
+                    {
+                        return e.ToString();
+                    }
+                }
             }
 
             internal class CharacterCounter : TaskOrchestration<Tuple<string, int>, Tuple<string, int>>
@@ -3073,6 +4229,342 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
         }
+
+        static class Entities
+        {
+            internal class Counter : TaskEntity<int>
+            {
+                public override int CreateInitialState(EntityContext<int> ctx)
+                {
+                    return 0;
+                }
+
+                public override ValueTask ExecuteOperationAsync(EntityContext<int> ctx)
+                {
+                    switch (ctx.OperationName)
+                    {
+                        case "get":
+                            ctx.Return(ctx.State);
+                            break;
+
+                        case "increment":
+                            ctx.State++;
+                            ctx.Return(ctx.State);
+                            break;
+
+                        case "add":
+                            ctx.State += ctx.GetInput<int>();
+                            ctx.Return(ctx.State);
+                            break;
+
+                        case "set":
+                            ctx.State = ctx.GetInput<int>();
+                            break;
+
+                        case "delete":
+                            ctx.DeleteState();
+                            break;
+                    }
+
+                    return default;
+                }
+            }
+
+            //-------------- An entity that forwards a signal -----------------
+
+            internal class Relay : TaskEntity<object>
+            {
+                public override ValueTask ExecuteOperationAsync(EntityContext<object> context)
+                {
+                    var (destination, operation) = context.GetInput<(EntityId, string)>();
+
+                    context.SignalEntity(destination, operation);
+
+                    return default;
+                }
+            }      
+
+            // -------------- An entity that records all batch positions and batch sizes -----------------
+            internal class BatchEntity : TaskEntity<List<(int,int)>>
+            {
+                public override List<(int, int)> CreateInitialState(EntityContext<List<(int, int)>> context)
+                    => new List<(int, int)>();
+
+                public override ValueTask ExecuteOperationAsync(EntityContext<List<(int, int)>> context)
+                {
+                    context.State.Add((context.BatchPosition, context.BatchSize));
+                    return default;
+                }         
+            }
+
+            //-------------- a very simple entity that stores a string -----------------
+            // it offers two operations:
+            // "set" (takes a string, assigns it to the current state, does not return anything)
+            // "get" (returns a string containing the current state)// An entity that records all batch positions and batch sizes
+            internal class StringStore : TaskEntity<string>
+            {
+                public override ValueTask ExecuteOperationAsync(EntityContext<string> context)
+                {
+                    switch (context.OperationName)
+                    {
+                        case "set":
+                            context.State = context.GetInput<string>();
+                            break;
+
+                        case "get":
+                            context.Return(context.State);
+                            break;
+
+                        default:
+                            throw new NotImplementedException("no such operation");
+                    }
+                    return default;
+                }
+            }
+
+            //-------------- a slightly less trivial version of the same -----------------
+            // as before with two differences:
+            // - "get" throws an exception if the entity does not already exist, i.e. state was not set to anything
+            // - a new operation "delete" deletes the entity, i.e. clears all state
+            internal class StringStore2 : TaskEntity<string>
+            {
+                public override ValueTask ExecuteOperationAsync(EntityContext<string> context)
+                {
+                    switch (context.OperationName)
+                    {
+                        case "delete":
+                            context.DeleteState();
+                            break;
+
+                        case "set":
+                            context.State = context.GetInput<string>();
+                            break;
+
+                        case "get":
+                            if (!context.HasState)
+                            {
+                                throw new InvalidOperationException("this entity does not like 'get' when it does not have state yet");
+                            }
+
+                            context.Return(context.State);
+                            break;
+
+                        default:
+                            throw new NotImplementedException("no such operation");
+                    }
+                    return default;
+                }
+            }
+
+            //-------------- An entity that launches an orchestration -----------------
+    
+            internal class Launcher : TaskEntity<Launcher.State>
+            {
+                public class State
+                {
+                    public string Id;
+                    public bool Done;
+                }
+               
+                public override State CreateInitialState(EntityContext<State> context) => new State();
+
+                public override ValueTask ExecuteOperationAsync(EntityContext<State> context)
+                {
+                    switch (context.OperationName)
+                    {
+                        case "launch":
+                            {
+                                context.State.Id = context.StartNewOrchestration(typeof(Orchestrations.DelayedSignal), input: context.EntityId);
+                                break;
+                            }
+
+                        case "done":
+                            {
+                                context.State.Done = true;
+                                break;
+                            }
+
+                        case "get":
+                            {
+                                context.Return(context.State.Done ? context.State.Id : null);
+                                break;
+                            }
+
+                        default:
+                            throw new NotImplementedException("no such entity operation");
+                    }
+
+                    return default;
+                }
+            }
+
+            //-------------- an entity that is designed to throw certain exceptions during operations, serialization, or deserialization -----------------
+
+            internal class FaultyEntityWithRollback : FaultyEntity
+            {
+                public override bool RollbackOnExceptions => true;
+                public override FaultyEntity CreateInitialState(EntityContext<FaultyEntity> context) => new FaultyEntityWithRollback();
+            }
+
+            internal class FaultyEntityWithoutRollback : FaultyEntity
+            {
+                public override bool RollbackOnExceptions => false;
+                public override FaultyEntity CreateInitialState(EntityContext<FaultyEntity> context) => new FaultyEntityWithoutRollback();
+            }
+
+            [JsonObject(MemberSerialization.OptIn)]
+            internal abstract class FaultyEntity : TaskEntity<FaultyEntity>
+            {
+                [JsonProperty]
+                public int Value { get; set; }
+
+                [JsonProperty()]
+                [JsonConverter(typeof(CustomJsonConverter))]
+                public object ObjectWithFaultySerialization { get; set; }
+
+                [JsonProperty]
+                public int NumberIncrementsSent { get; set; }
+
+                public override DataConverter ErrorDataConverter => new JsonDataConverter(new JsonSerializerSettings
+                {
+                    TypeNameHandling = TypeNameHandling.Objects,
+                    ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
+                });
+
+                public override ValueTask ExecuteOperationAsync(EntityContext<FaultyEntity> context)
+                {
+                    switch (context.OperationName)
+                    {
+                        case "exists":
+                            context.Return(context.HasState);
+                            break;
+
+                        case "deletewithoutreading":
+                            context.DeleteState();
+                            break;
+
+                        case "Get":
+                            if (!context.HasState)
+                            {
+                                context.Return(0);
+                            }
+                            else
+                            {
+                                context.Return(context.State.Value);
+                            }
+                            break;
+
+                        case "GetNumberIncrementsSent":
+                            context.Return(context.State.NumberIncrementsSent);
+                            break;
+
+                        case "Set":
+                            context.State.Value = context.GetInput<int>();
+                            break;
+
+                        case "SetToUnserializable":
+                            context.State.ObjectWithFaultySerialization = new UnserializableKaboom();
+                            break;
+
+                        case "SetToUnDeserializable":
+                            context.State.ObjectWithFaultySerialization = new UnDeserializableKaboom();
+                            break;
+
+                        case "SetThenThrow":
+                            context.State.Value = context.GetInput<int>();
+                            throw new FaultyEntity.SerializableKaboom();
+
+                        case "Send":
+                            Send();
+                            break;
+
+                        case "SendThenThrow":
+                            Send();
+                            throw new FaultyEntity.SerializableKaboom();
+
+                        case "SendThenMakeUnserializable":
+                            Send();
+                            context.State.ObjectWithFaultySerialization = new UnserializableKaboom();
+                            break;
+
+                        case "Delete":
+                            context.DeleteState();
+                            break;
+
+                        case "DeleteThenThrow":
+                            context.DeleteState();
+                            throw new FaultyEntity.SerializableKaboom();
+
+                        case "Throw":
+                            throw new FaultyEntity.SerializableKaboom();
+
+                        case "ThrowUnserializable":
+                            throw new FaultyEntity.UnserializableKaboom();
+
+                        case "ThrowUnDeserializable":
+                            throw new FaultyEntity.UnDeserializableKaboom();
+                    }
+                    return default;
+
+                    void Send()
+                    {
+                        var desc = $"{++context.State.NumberIncrementsSent}:{context.State.Value}";
+                        context.SignalEntity(context.GetInput<EntityId>(), desc);
+                    }
+                }
+
+                public class CustomJsonConverter : JsonConverter
+                {
+                    public override bool CanConvert(Type objectType)
+                    {
+                        return objectType == typeof(SerializableKaboom)
+                            || objectType == typeof(UnserializableKaboom)
+                            || objectType == typeof(UnDeserializableKaboom);
+                    }
+
+                    public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+                    {
+                        if (reader.TokenType == JsonToken.Null)
+                        {
+                            return null;
+                        }
+
+                        var typename = serializer.Deserialize<string>(reader);
+
+                        if (typename != nameof(SerializableKaboom))
+                        {
+                            throw new JsonSerializationException("purposefully designed to not be deserializable");
+                        }
+
+                        return new SerializableKaboom();
+                    }
+
+                    public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+                    {
+                        if (value is UnserializableKaboom)
+                        {
+                            throw new JsonSerializationException("purposefully designed to not be serializable");
+                        }
+
+                        serializer.Serialize(writer, value.GetType().Name);
+                    }
+                }
+
+                public class UnserializableKaboom : Exception
+                {
+                }
+
+                public class SerializableKaboom : Exception
+                {
+                }
+
+                public class UnDeserializableKaboom : Exception
+                {
+                }
+            }
+
+        }
+
 
         static class Activities
         {

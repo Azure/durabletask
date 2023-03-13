@@ -19,7 +19,7 @@ namespace DurableTask.Core
     using Newtonsoft.Json;
 
     /// <summary>
-    /// Details of an activity or orchestration failure.
+    /// Details of an activity, orchestration, or entity operation failure.
     /// </summary>
     [Serializable]
     public class FailureDetails : IEquatable<FailureDetails>
@@ -48,6 +48,17 @@ namespace DurableTask.Core
         /// <param name="e">The exception used to generate the failure details.</param>
         public FailureDetails(Exception e)
             : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, FromException(e.InnerException), false)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="FailureDetails"/> class from an exception object and
+        /// an explicitly specified inner exception.
+        /// </summary>
+        /// <param name="e">The exception used to generate the failure details.</param>
+        /// <param name="InnerException">The inner exception to use.</param>
+        public FailureDetails(Exception e, Exception InnerException)
+            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, FromException(InnerException), false)
         {
         }
 

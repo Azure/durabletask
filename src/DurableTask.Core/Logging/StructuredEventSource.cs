@@ -624,6 +624,102 @@ namespace DurableTask.Core.Logging
             }
         }
 
+        [Event(EventIds.EntityBatchExecuting, Level = EventLevel.Informational, Version = 1)]
+        internal void EntityBatchExecuting(
+            string InstanceId,
+            int OperationCount,
+            int EntityStateLength,
+            string AppName,
+            string ExtensionVersion)
+        {
+            if (this.IsEnabled(EventLevel.Informational))
+            {
+                // TODO: Use WriteEventCore for better performance
+                this.WriteEvent(
+                    EventIds.EntityBatchExecuting,
+                    InstanceId,
+                    OperationCount,
+                    EntityStateLength,
+                    AppName,
+                    ExtensionVersion);
+            }
+        }
+
+        [Event(EventIds.EntityBatchExecuted, Level = EventLevel.Informational, Version = 1)]
+        internal void EntityBatchExecuted(
+            string InstanceId,
+            int OperationCount,
+            int ResultCount,
+            int ErrorCount,
+            int ActionCount,
+            int EntityStateLength,
+            string AppName,
+            string ExtensionVersion)
+        {
+            if (this.IsEnabled(EventLevel.Informational))
+            {
+                // TODO: Use WriteEventCore for better performance
+                this.WriteEvent(
+                    EventIds.EntityBatchExecuted,
+                    InstanceId,
+                    OperationCount,
+                    ResultCount,
+                    ErrorCount,
+                    ActionCount,
+                    EntityStateLength,
+                    AppName,
+                    ExtensionVersion);
+            }
+        }
+
+        [Event(EventIds.EntityLockAcquired, Level = EventLevel.Informational, Version = 1)]
+        internal void EntityLockAcquired(
+            string EntityId,
+            string InstanceId,
+            string ExecutionId,
+            Guid CriticalSectionId,
+            int LockSetSize,
+            int Position,
+            string AppName,
+            string ExtensionVersion)
+        {
+            if (this.IsEnabled(EventLevel.Informational))
+            {
+                // TODO: Use WriteEventCore for better performance
+                this.WriteEvent(
+                    EventIds.EntityBatchExecuted,
+                    EntityId,
+                    InstanceId,
+                    ExecutionId,
+                    CriticalSectionId,
+                    LockSetSize,
+                    Position,
+                    AppName,
+                    ExtensionVersion);
+            }
+        }
+
+        [Event(EventIds.EntityLockReleased, Level = EventLevel.Informational, Version = 1)]
+        internal void EntityLockReleased(
+            string EntityId,
+            string InstanceId,
+            string Id,
+            string AppName,
+            string ExtensionVersion)
+        {
+            if (this.IsEnabled(EventLevel.Informational))
+            {
+                // TODO: Use WriteEventCore for better performance
+                this.WriteEvent(
+                    EventIds.EntityBatchExecuted,
+                    EntityId, 
+                    InstanceId,
+                    Id,
+                    AppName,
+                    ExtensionVersion);
+            }
+        }
+
         [Event(EventIds.TaskActivityStarting, Level = EventLevel.Informational, Version = 1)]
         internal void TaskActivityStarting(
             string InstanceId,
