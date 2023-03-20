@@ -588,11 +588,19 @@ namespace DurableTask.AzureStorage.Partitioning
             var inCurrentlyOwnedShards = this.currentlyOwnedShards.ContainsKey(lease.PartitionId);
             var inKeepRenewingDuringClose = this.keepRenewingDuringClose.ContainsKey(lease.PartitionId);
 
-            errorMessage += $"|| isReceivingMessages: {isReceivingMessages}, isProcessingMessages {isProcessingMessages}," +
-                $"leaseTakerIsCancelled: {this.leaseTakerCancellationTokenSource.IsCancellationRequested}, " +
-                $"renewerIsCancelled: {this.leaseRenewerCancellationTokenSource.IsCancellationRequested}," +
-                $"isStarted: {this.isStarted}, shutdownComplete: {this.shutdownComplete}, " +
-                $"inCurrentlyOwnedShards: {inCurrentlyOwnedShards}, inKeepRenewingDuringClose: {inKeepRenewingDuringClose}";
+            try
+            {
+                errorMessage += $"|| isReceivingMessages: {isReceivingMessages}, isProcessingMessages {isProcessingMessages}," +
+                    $"leaseTakerIsCancelled: {this.leaseTakerCancellationTokenSource?.IsCancellationRequested}, " +
+                    $"renewerIsCancelled: {this.leaseRenewerCancellationTokenSource?.IsCancellationRequested}," +
+                    $"isStarted: {this.isStarted}, shutdownComplete: {this.shutdownComplete}, " +
+                    $"inCurrentlyOwnedShards: {inCurrentlyOwnedShards}, inKeepRenewingDuringClose: {inKeepRenewingDuringClose}";
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"|| Error ocurred when generating telemetry: {ex}";
+            }
+
 
             this.settings.Logger.LeaseRenewalResult(
                 this.accountName,
