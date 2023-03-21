@@ -27,12 +27,13 @@ namespace DurableTask.Core.Entities
         /// <summary>
         /// Create an event to represent an entity signal.
         /// </summary>
+        /// <param name="targetInstance">The target instance.</param>
         /// <param name="requestId">A unique identifier for the request.</param>
         /// <param name="operationName">The name of the operation.</param>
         /// <param name="input">The serialized input for the operation.</param>
         /// <param name="scheduledTimeUtc">The time to schedule this signal, or null if not a scheduled signal</param>
-        /// <returns></returns>
-        public static (string eventName, object eventContent) EmitOperationSignal(Guid requestId, string operationName, string input, (DateTime original, DateTime capped)? scheduledTimeUtc)
+        /// <returns>The event to send.</returns>
+        public static EventToSend EmitOperationSignal(OrchestrationInstance targetInstance, Guid requestId, string operationName, string input, (DateTime original, DateTime capped)? scheduledTimeUtc)
         {
             var request = new RequestMessage()
             {
@@ -51,15 +52,16 @@ namespace DurableTask.Core.Entities
                 ? EntityMessageEventNames.ScheduledRequestMessageEventName(scheduledTimeUtc.Value.capped)
                 : EntityMessageEventNames.RequestMessageEventName;
 
-            return (eventName, jrequest);
+            return new EventToSend(eventName, jrequest, targetInstance);
         }
 
         /// <summary>
         /// Create an event to represent an entity unlock, which is called by clients to fix orphaned locks.
         /// </summary>
+        /// <param name="targetInstance">The target instance.</param>
         /// <param name="lockOwnerInstanceId">The instance id of the entity to be unlocked.</param>
-        /// <returns></returns>
-        public static (string eventName, object eventContent) EmitUnlockForOrphanedLock(string lockOwnerInstanceId)
+        /// <returns>The event to send.</returns>
+        public static EventToSend EmitUnlockForOrphanedLock(OrchestrationInstance targetInstance, string lockOwnerInstanceId)
         {
             var message = new ReleaseMessage()
             {
@@ -69,7 +71,7 @@ namespace DurableTask.Core.Entities
 
             var jmessage = JToken.FromObject(message, Serializer.InternalSerializer);
 
-            return (EntityMessageEventNames.ReleaseMessageEventName, jmessage);
+            return new EventToSend(EntityMessageEventNames.ReleaseMessageEventName, jmessage, targetInstance);
         }
 
         /// <summary>

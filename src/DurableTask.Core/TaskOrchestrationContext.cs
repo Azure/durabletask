@@ -249,7 +249,7 @@ namespace DurableTask.Core
         {
             OrchestrationInstance target = new OrchestrationInstance()
             {
-                InstanceId = EntityId.GetInstanceIdFromEntityId(entityId),
+                InstanceId = entityId.ToString(),
             };
 
             if (!this.EntityContext.ValidateOperationTransition(target.InstanceId, oneWay, out string errorMessage))
@@ -262,10 +262,9 @@ namespace DurableTask.Core
 
             string serializedInput = this.MessageDataConverter.Serialize(input);
 
-            (string name, object content) eventToSend
-                       = this.entityContext.EmitRequestMessage(target, operationName, oneWay, operationId, scheduledTimeUtc, serializedInput);
+            var eventToSend = this.entityContext.EmitRequestMessage(target, operationName, oneWay, operationId, scheduledTimeUtc, serializedInput);
 
-            this.SendEvent(target, eventToSend.name, eventToSend.content);
+            this.SendEvent(eventToSend.TargetInstance, eventToSend.EventName, eventToSend.EventContent);
 
             return (operationId, target.InstanceId, taskId);
         }
@@ -288,10 +287,9 @@ namespace DurableTask.Core
             Guid criticalSectionId = Utils.CreateGuidFromHash(string.Concat(OrchestrationInstance.ExecutionId, ":", taskId));
 
             // send a message to the first entity to be acquired
-            (OrchestrationInstance target, string name, object content) eventToSend =
-                this.entityContext.EmitAcquireMessage(criticalSectionId, entities);
+            EventToSend eventToSend = this.entityContext.EmitAcquireMessage(criticalSectionId, entities);
 
-            this.SendEvent(eventToSend.target, eventToSend.name, eventToSend.content);
+            this.SendEvent(eventToSend.TargetInstance, eventToSend.EventName, eventToSend.EventContent);
 
             return this.entityContext.WaitForLockResponseAsync(criticalSectionId, taskId);
         }
@@ -302,7 +300,7 @@ namespace DurableTask.Core
             {
                 foreach (var releaseMessage in this.entityContext.EmitLockReleaseMessages())
                 {
-                    this.SendEvent(releaseMessage.target, releaseMessage.eventName, releaseMessage.eventContent);
+                    this.SendEvent(releaseMessage.TargetInstance, releaseMessage.EventName, releaseMessage.EventContent);
                 }
             }
         }

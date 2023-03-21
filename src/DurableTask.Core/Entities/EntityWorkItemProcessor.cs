@@ -174,7 +174,7 @@ namespace DurableTask.Core.Entities
             if (request.Position < request.LockSet.Length)
             {
                 // send lock request to next entity in the lock set
-                var target = new OrchestrationInstance() { InstanceId = EntityId.GetInstanceIdFromEntityId(request.LockSet[request.Position]) };
+                var target = new OrchestrationInstance() { InstanceId = request.LockSet[request.Position].ToString() };
                 this.SendLockRequestMessage(target, request);
             }
             else
@@ -586,7 +586,7 @@ namespace DurableTask.Core.Entities
 
             this.logHelper.EntityBatchExecuting(request);
 
-            string entityName = EntityId.GetEntityIdFromInstanceId(this.instanceId).EntityName;
+            string entityName = EntityId.FromString(this.instanceId).EntityName;
             string entityVersion = string.Empty; // TODO consider whether we should support explicit versions
  
             // Get the TaskOrchestration implementation. If it's not found, it either means that the developer never

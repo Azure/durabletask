@@ -13,16 +13,15 @@
 namespace DurableTask.Core.Entities
 {
     using System;
+    using System.Runtime.Serialization;
     using Newtonsoft.Json;
 
     /// <summary>
     /// A unique identifier for an entity, consisting of entity name and entity key.
     /// </summary>
-    public struct EntityId : IEquatable<EntityId>, IComparable
+    [DataContract]
+    public readonly struct EntityId : IEquatable<EntityId>, IComparable
     {
-        [JsonIgnore]
-        private string schedulerId;
-
         /// <summary>
         /// Create an entity id for an entity.
         /// </summary>
@@ -35,41 +34,31 @@ namespace DurableTask.Core.Entities
                 throw new ArgumentNullException(nameof(entityName), "Invalid entity id: entity name must not be a null or empty string.");
             }
 
-            this.EntityName = entityName.ToLowerInvariant();
+            this.EntityName = entityName;
             this.EntityKey = entityKey ?? throw new ArgumentNullException(nameof(entityKey), "Invalid entity id: entity key must not be null.");
-            this.schedulerId = GetSchedulerId(this.EntityName, this.EntityKey);
         }
 
         /// <summary>
         /// The name for this class of entities.
         /// </summary>
-        [JsonProperty(PropertyName = "name", Required = Required.Always)]
-        public string EntityName { get; private set; } // do not remove set, is needed by Json Deserializer
+        [DataMember(Name = "name", IsRequired = true)]
+        public readonly string EntityName;
 
         /// <summary>
         /// The entity key. Uniquely identifies an entity among all entities of the same name.
         /// </summary>
-        [JsonProperty(PropertyName = "key", Required = Required.Always)]
-        public string EntityKey { get; private set; } // do not remove set, is needed by Json Deserializer
+        [DataMember(Name = "key", IsRequired = true)]
+        public readonly string EntityKey;
 
-        /// <summary>
-        /// Returns the instance ID for a given entity ID.
-        /// </summary>
-        /// <param name="entityId">The entity ID.</param>
-        /// <returns>The corresponding instance ID.</returns>
-        public static string GetInstanceIdFromEntityId(EntityId entityId)
+        /// <inheritdoc/>
+        public override string ToString()
         {
-            return GetSchedulerId(entityId.EntityName, entityId.EntityKey);
-        }
-
-        private static string GetSchedulerId(string entityName, string entityKey)
-        {
-            return $"@{entityName}@{entityKey}";
+            return $"@{this.EntityName}@{this.EntityKey}";
         }
 
         internal static string GetSchedulerIdPrefixFromEntityName(string entityName)
         {
-            return $"@{entityName.ToLowerInvariant()}@";
+            return $"@{entityName}@";
         }
 
         /// <summary>
@@ -77,26 +66,23 @@ namespace DurableTask.Core.Entities
         /// </summary>
         /// <param name="instanceId">The instance ID.</param>
         /// <returns>the corresponding entity ID.</returns>
-        public static EntityId GetEntityIdFromInstanceId(string instanceId)
+        public static EntityId FromString(string instanceId)
         {
+            if (instanceId == null)
+            {
+                throw new ArgumentNullException(nameof(instanceId));
+            }
             var pos = instanceId.IndexOf('@', 1);
+            if (pos <= 0)
+            {
+                throw new ArgumentException("instanceId is not a valid entityId", nameof(instanceId));
+            }
             var entityName = instanceId.Substring(1, pos - 1);
             var entityKey = instanceId.Substring(pos + 1);
             return new EntityId(entityName, entityKey);
         }
 
-        /// <inheritdoc/>
-        public override string ToString()
-        {
-            // The scheduler id could be null if the object was deserialized.
-            if (this.schedulerId == null)
-            {
-                this.schedulerId = GetInstanceIdFromEntityId(this);
-            }
-
-            return this.schedulerId;
-        }
-
+      
         /// <inheritdoc/>
         public override bool Equals(object obj)
         {
@@ -106,20 +92,20 @@ namespace DurableTask.Core.Entities
         /// <inheritdoc/>
         public bool Equals(EntityId other)
         {
-            return this.ToString().Equals(other.ToString());
+            return (this.EntityName,this.EntityKey).Equals((other.EntityName, other.EntityKey));
         }
 
         /// <inheritdoc/>
         public override int GetHashCode()
         {
-            return this.ToString().GetHashCode();
+            return (this.EntityName, this.EntityKey).GetHashCode();
         }
 
         /// <inheritdoc/>
         public int CompareTo(object obj)
         {
             var other = (EntityId)obj;
-            return this.ToString().CompareTo(other.ToString());
+            return (this.EntityName, this.EntityKey).CompareTo((other.EntityName, other.EntityKey));
         }
     }
 }

@@ -12,14 +12,16 @@
 //  ----------------------------------------------------------------------------------
 namespace DurableTask.Core.Entities.EventFormat
 {
+    using System.Runtime.Serialization;
     using Newtonsoft.Json;
 
+    [DataContract]
     internal class ReleaseMessage
     {
-        [JsonProperty(PropertyName = "parent")]
+        [DataMember(Name = "parent")]
         public string ParentInstanceId { get; set; }
 
-        [JsonProperty(PropertyName = "id")]
+        [DataMember(Name = "id")]
         public string Id { get; set; }
 
         public override string ToString()

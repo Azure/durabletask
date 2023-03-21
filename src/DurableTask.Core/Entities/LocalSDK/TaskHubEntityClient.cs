@@ -101,7 +101,7 @@ namespace DurableTask.Core
             }
 
             var guid = Guid.NewGuid(); // unique id for this request
-            var instanceId = EntityId.GetInstanceIdFromEntityId(entityId);
+            var instanceId = entityId.ToString();
             var instance = new OrchestrationInstance() { InstanceId = instanceId };
 
             string serializedInput = null;
@@ -110,17 +110,18 @@ namespace DurableTask.Core
                 serializedInput = this.messageDataConverter.Serialize(operationInput);
             }
 
-            (string name, object content) eventToSend = ClientEntityContext.EmitOperationSignal(
-               guid,
-               operationName,
-               serializedInput,
-               scheduledTime);
+            EventToSend eventToSend = ClientEntityContext.EmitOperationSignal(
+                instance,
+                guid,
+                operationName,
+                serializedInput,
+                scheduledTime);
  
-            string serializedEventContent = this.messageDataConverter.Serialize(eventToSend.content);
+            string serializedEventContent = this.messageDataConverter.Serialize(eventToSend.EventContent);
 
             var eventRaisedEvent = new EventRaisedEvent(-1, serializedEventContent)
             {
-                Name = eventToSend.name
+                Name = eventToSend.EventName
             };
 
             var taskMessage = new TaskMessage
@@ -142,7 +143,7 @@ namespace DurableTask.Core
         /// <returns>a response containing the current state of the entity.</returns>
         public async Task<StateResponse<T>> ReadEntityStateAsync<T>(EntityId entityId)
         {
-            var instanceId = EntityId.GetInstanceIdFromEntityId(entityId);
+            var instanceId = entityId.ToString();
 
             this.logHelper.FetchingInstanceState(instanceId);
             IList<OrchestrationState> stateList = await this.ServiceClient.GetOrchestrationStateAsync(instanceId, allExecutions:false);
@@ -287,7 +288,7 @@ namespace DurableTask.Core
                 {
                     return new EntityStatus()
                     {
-                        EntityId = EntityId.GetEntityIdFromInstanceId(orchestrationState.OrchestrationInstance.InstanceId),
+                        EntityId = EntityId.FromString(orchestrationState.OrchestrationInstance.InstanceId),
                         LastOperationTime = orchestrationState.CreatedTime,
                         State = state,
                     };
@@ -482,21 +483,21 @@ namespace DurableTask.Core
                     if (!lockOwnerIsStillRunning)
                     {
                         // the owner is not a running orchestration. Send a lock release.
-                        (string name, object content) eventToSend = ClientEntityContext.EmitUnlockForOrphanedLock(lockOwner);
-
-                        string serializedEventContent = this.messageDataConverter.Serialize(eventToSend.content);
-
-                        var eventRaisedEvent = new EventRaisedEvent(-1, serializedEventContent)
-                        {
-                            Name = eventToSend.name
-                        };
-
                         OrchestrationInstance targetInstance = new OrchestrationInstance()
                         {
                             InstanceId = instanceId,
                         };
 
-                        var taskMessage = new TaskMessage
+                        var eventToSend = ClientEntityContext.EmitUnlockForOrphanedLock(targetInstance, lockOwner);
+
+                        string serializedEventContent = this.messageDataConverter.Serialize(eventToSend.EventContent);
+
+                        var eventRaisedEvent = new EventRaisedEvent(-1, serializedEventContent)
+                        {
+                            Name = eventToSend.EventName
+                        };
+
+                       var taskMessage = new TaskMessage
                         {
                             OrchestrationInstance = targetInstance,
                             Event = eventRaisedEvent,

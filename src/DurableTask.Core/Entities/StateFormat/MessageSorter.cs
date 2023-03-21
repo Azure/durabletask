@@ -16,6 +16,7 @@ namespace DurableTask.Core.Entities.StateFormat
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Runtime.Serialization;
     using DurableTask.Core.Entities.EventFormat;
     using Newtonsoft.Json;
 
@@ -23,27 +24,28 @@ namespace DurableTask.Core.Entities.StateFormat
     /// provides message ordering and deduplication of request messages (operations or lock requests)
     /// that are sent to entities, from other entities, or from orchestrations.
     /// </summary>
+    [DataContract]
     internal class MessageSorter
     {
         // don't update the reorder window too often since the garbage collection incurs some overhead.
         private static readonly TimeSpan MinIntervalBetweenCollections = TimeSpan.FromSeconds(10);
 
-        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [DataMember(EmitDefaultValue = false)]
         public Dictionary<string, DateTime> LastSentToInstance { get; set; }
 
-        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [DataMember(EmitDefaultValue = false)]
         public Dictionary<string, ReceiveBuffer> ReceivedFromInstance { get; set; }
 
-        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [DataMember(EmitDefaultValue = false)]
         public DateTime ReceiveHorizon { get; set; }
 
-        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [DataMember(EmitDefaultValue = false)]
         public DateTime SendHorizon { get; set; }
 
         /// <summary>
         /// Used for testing purposes.
         /// </summary>
-        [JsonIgnore]
+        [IgnoreDataMember]
         internal int NumberBufferedRequests =>
             ReceivedFromInstance?.Select(kvp => kvp.Value.Buffered?.Count ?? 0).Sum() ?? 0;
 
@@ -256,15 +258,16 @@ namespace DurableTask.Core.Entities.StateFormat
             return false;
         }
 
+        [DataContract]
         public class ReceiveBuffer
         {
-            [JsonProperty]
+            [DataMember]
             public DateTime Last { get; set; }// last message delivered, or DateTime.Min if none
 
-            [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+            [DataMember(EmitDefaultValue = false)]
             public string ExecutionId { get; set; } // execution id of last message, if any
 
-            [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+            [DataMember(EmitDefaultValue = false)]
             public SortedDictionary<DateTime, RequestMessage> Buffered { get; set; }
         }
     }

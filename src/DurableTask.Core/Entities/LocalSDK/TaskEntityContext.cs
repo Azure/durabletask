@@ -258,7 +258,7 @@ namespace DurableTask.Core
 
             var action = new SendSignalOperationAction()
             {
-                InstanceId = EntityId.GetInstanceIdFromEntityId(entity),
+                InstanceId = entity.ToString(),
                 Name = operationName,
                 ScheduledTime = scheduledTimeUtc,
                 Input = null,

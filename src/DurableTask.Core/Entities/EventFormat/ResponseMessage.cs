@@ -13,21 +13,23 @@
 namespace DurableTask.Core.Entities.EventFormat
 {
     using System;
+    using System.Runtime.Serialization;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
- 
+
+    [DataContract]
     internal class ResponseMessage
     {
-        [JsonProperty(PropertyName = "result")]
+        [DataMember(Name = "result")]
         public string Result { get; set; }
 
-        [JsonProperty(PropertyName = "exceptionType", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [DataMember(Name = "exceptionType", EmitDefaultValue = false)]
         public string ErrorMessage { get; set; }
 
-        [JsonProperty(PropertyName = "failureDetails", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [DataMember(Name = "failureDetails", EmitDefaultValue = false)]
         public FailureDetails FailureDetails { get; set; }
 
-        [JsonIgnore]
+        [IgnoreDataMember]
         public bool IsErrorResult => this.ErrorMessage != null;
 
         public override string ToString()

@@ -13,88 +13,90 @@
 namespace DurableTask.Core.Entities.EventFormat
 {
     using System;
+    using System.Runtime.Serialization;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
 
     /// <summary>
     /// A message sent to an entity, such as operation, signal, lock, or continue messages.
     /// </summary>
+    [DataContract]
     internal class RequestMessage
     {
         /// <summary>
         /// The name of the operation being called (if this is an operation message) or <c>null</c>
         /// (if this is a lock request).
         /// </summary>
-        [JsonProperty(PropertyName = "op")]
+        [DataMember(Name = "op")]
         public string Operation { get; set; }
 
         /// <summary>
         /// Whether or not this is a one-way message.
         /// </summary>
-        [JsonProperty(PropertyName = "signal", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [DataMember(Name = "signal", EmitDefaultValue = false)]
         public bool IsSignal { get; set; }
 
         /// <summary>
         /// The operation input.
         /// </summary>
-        [JsonProperty(PropertyName = "input", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [DataMember(Name = "input", EmitDefaultValue = false)]
         public string Input { get; set; }
 
         /// <summary>
         /// A unique identifier for this operation.
         /// </summary>
-        [JsonProperty(PropertyName = "id", Required = Required.Always)]
+        [DataMember(Name = "id", IsRequired = true)]
         public Guid Id { get; set; }
 
         /// <summary>
         /// The parent instance that called this operation.
         /// </summary>
-        [JsonProperty(PropertyName = "parent", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [DataMember(Name = "parent", EmitDefaultValue = false)]
         public string ParentInstanceId { get; set; }
 
         /// <summary>
         /// The parent instance that called this operation.
         /// </summary>
-        [JsonProperty(PropertyName = "parentExecution", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [DataMember(Name = "parentExecution", EmitDefaultValue = false)]
         public string ParentExecutionId { get; set; }
 
         /// <summary>
         /// Optionally, a scheduled time at which to start the operation.
         /// </summary>
-        [JsonProperty(PropertyName = "due", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [DataMember(Name = "due", EmitDefaultValue = false)]
         public DateTime? ScheduledTime { get; set; }
 
         /// <summary>
         /// A timestamp for this request.
         /// Used for duplicate filtering and in-order delivery.
         /// </summary>
-        [JsonProperty]
+        [DataMember]
         public DateTime Timestamp { get; set; }
 
         /// <summary>
         /// A timestamp for the predecessor request in the stream, or DateTime.MinValue if none.
         /// Used for duplicate filtering and in-order delivery.
         /// </summary>
-        [JsonProperty]
+        [DataMember]
         public DateTime Predecessor { get; set; }
 
         /// <summary>
         /// For lock requests, the set of locks being acquired. Is sorted,
         /// contains at least one element, and has no repetitions.
         /// </summary>
-        [JsonProperty(PropertyName = "lockset", DefaultValueHandling = DefaultValueHandling.Ignore, TypeNameHandling = TypeNameHandling.None)]
+        [DataMember(Name = "lockset", EmitDefaultValue = false)]
         public EntityId[] LockSet { get; set; }
 
         /// <summary>
         /// For lock requests involving multiple locks, the message number.
         /// </summary>
-        [JsonProperty(PropertyName = "pos", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [DataMember(Name = "pos", EmitDefaultValue = false)]
         public int Position { get; set; }
 
         /// <summary>
         /// whether this message is a lock request
         /// </summary>
-        [JsonIgnore]
+        [DataMember]
         public bool IsLockRequest => LockSet != null;
 
         /// <inheritdoc/>

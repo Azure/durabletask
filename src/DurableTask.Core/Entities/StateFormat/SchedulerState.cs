@@ -14,52 +14,53 @@
 namespace DurableTask.Core.Entities.StateFormat
 {
     using System.Collections.Generic;
+    using System.Runtime.Serialization;
     using DurableTask.Core.Entities.EventFormat;
     using Newtonsoft.Json;
 
     /// <summary>
     /// The persisted state of an entity scheduler, as handed forward between ContinueAsNew instances.
     /// </summary>
-    [JsonObject(MemberSerialization.OptIn)]
+    [DataContract]
     internal class SchedulerState
     {
         /// <summary>
         /// Whether this entity exists or not.
         /// </summary>
-        [JsonProperty(PropertyName = "exists", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [DataMember(Name = "exists", EmitDefaultValue = false)]
         public bool EntityExists { get; set; }
 
         /// <summary>
         /// The last serialized entity state.
         /// </summary>
-        [JsonProperty(PropertyName = "state", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [DataMember(Name = "state", EmitDefaultValue = false)]
         public string EntityState { get; set; }
 
         /// <summary>
         /// The queue of waiting operations, or null if none.
         /// </summary>
-        [JsonProperty(PropertyName = "queue", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [DataMember(Name = "queue", EmitDefaultValue = false)]
         public Queue<RequestMessage> Queue { get; private set; }
 
         /// <summary>
         /// The instance id of the orchestration that currently holds the lock of this entity.
         /// </summary>
-        [JsonProperty(PropertyName = "lockedBy", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [DataMember(Name = "lockedBy", EmitDefaultValue = false)]
         public string LockedBy { get; set; }
 
         /// <summary>
         /// Whether processing on this entity is currently suspended.
         /// </summary>
-        [JsonProperty(PropertyName = "suspended", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [DataMember(Name = "suspended", EmitDefaultValue = false)]
         public bool Suspended { get; set; }
 
         /// <summary>
         /// The metadata used for reordering and deduplication of messages sent to entities.
         /// </summary>
-        [JsonProperty(PropertyName = "sorter", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [DataMember(Name = "sorter", EmitDefaultValue = false)]
         public MessageSorter MessageSorter { get; set; } = new MessageSorter();
 
-        [JsonIgnore]
+        [IgnoreDataMember]
         public bool IsEmpty => !EntityExists && (Queue == null || Queue.Count == 0) && LockedBy == null;
 
         internal void Enqueue(RequestMessage operationMessage)

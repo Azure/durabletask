@@ -109,7 +109,7 @@ namespace DurableTask.Core.Entities
 
             var entityContext = new TaskEntityContext<TState>(
                 this,
-                EntityId.GetEntityIdFromInstanceId(operations.InstanceId),
+                EntityId.FromString(operations.InstanceId),
                 options,
                 operations,
                 result);

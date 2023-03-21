@@ -110,7 +110,7 @@ namespace DurableTask.Core.Entities
         {
             if (this.IsInsideCriticalSection)
             {
-                var lockToUse = EntityId.GetEntityIdFromInstanceId(targetInstanceId);
+                var lockToUse = EntityId.FromString(targetInstanceId);
                 if (oneWay)
                 {
                     if (this.criticalSectionLocks.Contains(lockToUse))
@@ -171,7 +171,7 @@ namespace DurableTask.Core.Entities
         {
             if (this.IsInsideCriticalSection)
             {
-                var lockToUse = EntityId.GetEntityIdFromInstanceId(targetInstanceId);
+                var lockToUse = EntityId.FromString(targetInstanceId);
                 this.availableLocks.Add(lockToUse);
             }
         }
@@ -179,7 +179,7 @@ namespace DurableTask.Core.Entities
         /// <summary>
         /// Get release messages for all locks in the critical section, and release them
         /// </summary>
-        public IEnumerable<(OrchestrationInstance target, string eventName, object eventContent)> EmitLockReleaseMessages()
+        public IEnumerable<EventToSend> EmitLockReleaseMessages()
         {
             if (this.IsInsideCriticalSection)
             {
@@ -191,9 +191,9 @@ namespace DurableTask.Core.Entities
 
                 foreach (var entityId in this.criticalSectionLocks)
                 {
-                    var instance = new OrchestrationInstance() { InstanceId = EntityId.GetInstanceIdFromEntityId(entityId) };
+                    var instance = new OrchestrationInstance() { InstanceId = entityId.ToString() };
                     var jmessage = JObject.FromObject(message, Serializer.InternalSerializer);
-                    yield return (instance, EntityMessageEventNames.ReleaseMessageEventName, jmessage);
+                    yield return new EventToSend(EntityMessageEventNames.ReleaseMessageEventName, jmessage, instance);
                 }
 
                 this.criticalSectionLocks = null;
@@ -211,8 +211,8 @@ namespace DurableTask.Core.Entities
         /// <param name="operationId">A unique identifier for this request.</param>
         /// <param name="scheduledTimeUtc">A time for which to schedule the delivery, or null if this is not a scheduled message</param>
         /// <param name="input">The operation input</param>
-        /// <returns></returns>
-        public (string eventName, object eventContent) EmitRequestMessage(
+        /// <returns>The event to send.</returns>
+        public EventToSend EmitRequestMessage(
             OrchestrationInstance target,
             string operationName,
             bool oneWay,
@@ -236,7 +236,7 @@ namespace DurableTask.Core.Entities
             // we pre-serialize to JObject so we can avoid exposure to application-specific serialization settings 
             var jrequest = JObject.FromObject(request, Serializer.InternalSerializer);
 
-            return (eventName, jrequest);
+            return new EventToSend(eventName, jrequest, target);
         }
 
         /// <summary>
@@ -244,8 +244,8 @@ namespace DurableTask.Core.Entities
         /// </summary>
         /// <param name="lockRequestId">A unique request id.</param>
         /// <param name="entities">All the entities that are to be acquired.</param>
-        /// <returns></returns>
-        public (OrchestrationInstance target, string eventName, object eventContent) EmitAcquireMessage(Guid lockRequestId, EntityId[] entities)
+        /// <returns>The event to send.</returns>
+        public EventToSend EmitAcquireMessage(Guid lockRequestId, EntityId[] entities)
         {
             // All the entities in entity[] need to be locked, but to avoid deadlock, the locks have to be acquired
             // sequentially, in order. So, we send the lock request to the first entity; when the first lock
@@ -266,7 +266,7 @@ namespace DurableTask.Core.Entities
             }
 
             // send lock request to first entity in the lock set
-            var target = new OrchestrationInstance() { InstanceId = EntityId.GetInstanceIdFromEntityId(entities[0]) };
+            var target = new OrchestrationInstance() { InstanceId = entities[0].ToString() };
             var request = new RequestMessage()
             {
                 Id = lockRequestId,
@@ -285,7 +285,7 @@ namespace DurableTask.Core.Entities
             // we pre-serialize to JObject so we can avoid exposure to application-specific serialization settings
             var jrequest = JObject.FromObject(request, Serializer.InternalSerializer);
 
-            return (target, eventName, jrequest);
+            return new EventToSend(eventName, jrequest, target); 
         }
 
         /// <summary>
