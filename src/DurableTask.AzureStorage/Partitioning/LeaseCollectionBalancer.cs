@@ -582,17 +582,18 @@ namespace DurableTask.AzureStorage.Partitioning
                     $"Encountered exception while renewing {this.leaseType} lease. The lease will be considered {leaseState}. Execption: {ex}");
             }
 
-            var isReceivingMessages = this.orchestrationSessionManager?.IsControlQueueReceivingMessages(lease.PartitionId);
-            var isProcessingMessages = this.orchestrationSessionManager?.IsControlQueueProcessingMessages(lease.PartitionId);
-
-            var inCurrentlyOwnedShards = this.currentlyOwnedShards.ContainsKey(lease.PartitionId);
-            var inKeepRenewingDuringClose = this.keepRenewingDuringClose.ContainsKey(lease.PartitionId);
-
-            var leaseTakerIsCancelled = this.leaseTakerCancellationTokenSource?.IsCancellationRequested;
-            var renewerIsCancelled = this.leaseRenewerCancellationTokenSource?.IsCancellationRequested;
-
             try
             {
+                var isReceivingMessages = this.orchestrationSessionManager?.IsControlQueueReceivingMessages(lease.PartitionId);
+                var isProcessingMessages = this.orchestrationSessionManager?.IsControlQueueProcessingMessages(lease.PartitionId);
+
+                var inCurrentlyOwnedShards = this.currentlyOwnedShards.ContainsKey(lease.PartitionId);
+                var inKeepRenewingDuringClose = this.keepRenewingDuringClose.ContainsKey(lease.PartitionId);
+
+                var leaseTakerIsCancelled = this.leaseTakerCancellationTokenSource?.IsCancellationRequested;
+                var renewerIsCancelled = this.leaseRenewerCancellationTokenSource?.IsCancellationRequested;
+
+
                 errorMessage += $"|| isReceivingMessages: {isReceivingMessages}, isProcessingMessages {isProcessingMessages}," +
                     $"leaseTakerIsCancelled: {leaseTakerIsCancelled}, " +
                     $"renewerIsCancelled: {renewerIsCancelled}," +
