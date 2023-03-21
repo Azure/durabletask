@@ -81,6 +81,13 @@ namespace DurableTask.AzureStorage.Partitioning
 
         public async Task StartAsync()
         {
+            this.settings.Logger.PartitionManagerInfo(
+                this.storageAccountName,
+                this.taskHub,
+                this.workerName,
+                this.appLeaseContainerName,
+                $"Starting AppLeaseManager (StartAsync)");
+
             if (!this.appLeaseIsEnabled)
             {
                 this.starterTokenSource = new CancellationTokenSource();
@@ -128,6 +135,13 @@ namespace DurableTask.AzureStorage.Partitioning
 
         async Task AppLeaseManagerStarter(CancellationToken cancellationToken)
         {
+            this.settings.Logger.PartitionManagerInfo(
+                this.storageAccountName,
+                this.taskHub,
+                this.workerName,
+                this.appLeaseContainerName,
+                $"AppLeaseManagerStarter: thread start.");
+
             while (!cancellationToken.IsCancellationRequested)
             {
                 try
@@ -144,6 +158,12 @@ namespace DurableTask.AzureStorage.Partitioning
                 catch (OperationCanceledException)
                 {
                     // Catch OperationCanceledException to avoid logging an error if the Task.Delay was cancelled.
+                    this.settings.Logger.PartitionManagerInfo(
+                        this.storageAccountName,
+                        this.taskHub,
+                        this.workerName,
+                        this.appLeaseContainerName,
+                        $"AppLeaseManagerStarter: Task.Delay was cancelled");
                 }
                 catch (Exception e)
                 {
