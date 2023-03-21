@@ -151,6 +151,13 @@ namespace DurableTask.AzureStorage.Partitioning
                         await Task.Delay(this.settings.AppLeaseOptions.AcquireInterval, cancellationToken);
                     }
 
+                    this.settings.Logger.PartitionManagerInfo(
+                        this.storageAccountName,
+                        this.taskHub,
+                        this.workerName,
+                        this.appLeaseContainerName,
+                        $"AppLeaseManagerStarter: Acquired lease on interval {this.settings.AppLeaseOptions.AcquireInterval}. Starting app lease next. IsCancellationRequested = {cancellationToken.IsCancellationRequested}");
+
                     await this.StartAppLeaseAsync();
 
                     await this.shutdownCompletedEvent.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
@@ -260,6 +267,13 @@ namespace DurableTask.AzureStorage.Partitioning
 
         async Task StartAppLeaseAsync()
         {
+            this.settings.Logger.PartitionManagerInfo(
+                this.storageAccountName,
+                this.taskHub,
+                this.workerName,
+                this.appLeaseContainerName,
+                $"Executing StartAppLeaseAsync.");
+
             if (Interlocked.CompareExchange(ref this.appLeaseIsStarted, 1, 0) != 0)
             {
                 throw new InvalidOperationException("AppLeaseManager has already started");
