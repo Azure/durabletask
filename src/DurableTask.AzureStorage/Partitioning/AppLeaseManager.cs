@@ -140,10 +140,16 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.taskHub,
                 this.workerName,
                 this.appLeaseContainerName,
-                $"AppLeaseManagerStarter: thread start.");
+                $"Executing AppLeaseManagerStarter.");
 
             while (!cancellationToken.IsCancellationRequested)
             {
+                this.settings.Logger.PartitionManagerInfo(
+                    this.storageAccountName,
+                    this.taskHub,
+                    this.workerName,
+                    this.appLeaseContainerName,
+                    $"AppLeaseManagerStarter: loop - IsCancellationRequested = {cancellationToken.IsCancellationRequested}");
                 try
                 {
                     while (!await this.TryAquireAppLeaseAsync())
@@ -170,7 +176,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.taskHub,
                         this.workerName,
                         this.appLeaseContainerName,
-                        $"AppLeaseManagerStarter: Task.Delay was cancelled");
+                        $"AppLeaseManagerStarter: Task.Delay was cancelled. IsCancellationRequested = {cancellationToken.IsCancellationRequested}");
                 }
                 catch (Exception e)
                 {
@@ -182,6 +188,13 @@ namespace DurableTask.AzureStorage.Partitioning
                         $"Error in AppLeaseStarter task. Exception: {e}");
                 }
             }
+
+            this.settings.Logger.PartitionManagerInfo(
+                this.storageAccountName,
+                this.taskHub,
+                this.workerName,
+                this.appLeaseContainerName,
+                $"Executed AppLeaseManagerStarter.");
         }
 
         public async Task StopAsync()

@@ -115,8 +115,21 @@ namespace DurableTask.AzureStorage.Partitioning
 
         public async Task StartAsync()
         {
+            this.settings.Logger.PartitionManagerInfo(
+                this.accountName,
+                this.taskHub,
+                this.workerName,
+                string.Empty,
+                "Lease balancer has been requested to start");
+
             if (Interlocked.CompareExchange(ref this.isStarted, 1, 0) != 0)
             {
+                this.settings.Logger.PartitionManagerInfo(
+                    this.accountName,
+                    this.taskHub,
+                    this.workerName,
+                    string.Empty,
+                    "Lease balancer has already started.");
                 throw new InvalidOperationException($"{nameof(LeaseCollectionBalancer<T>)} has already started");
             }
 
@@ -126,6 +139,13 @@ namespace DurableTask.AzureStorage.Partitioning
 
             this.renewTask = await Task.Factory.StartNew(() => this.LeaseRenewer());
             this.takerTask = await Task.Factory.StartNew(() => this.LeaseTakerAsync());
+
+            this.settings.Logger.PartitionManagerInfo(
+                this.accountName,
+                this.taskHub,
+                this.workerName,
+                string.Empty,
+                "Lease balancer started.");
         }
 
         public async Task StopAsync()
