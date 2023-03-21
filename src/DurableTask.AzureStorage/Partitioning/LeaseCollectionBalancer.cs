@@ -588,11 +588,14 @@ namespace DurableTask.AzureStorage.Partitioning
             var inCurrentlyOwnedShards = this.currentlyOwnedShards.ContainsKey(lease.PartitionId);
             var inKeepRenewingDuringClose = this.keepRenewingDuringClose.ContainsKey(lease.PartitionId);
 
+            var leaseTakerIsCancelled = this.leaseTakerCancellationTokenSource?.IsCancellationRequested;
+            var renewerIsCancelled = this.leaseRenewerCancellationTokenSource?.IsCancellationRequested;
+
             try
             {
                 errorMessage += $"|| isReceivingMessages: {isReceivingMessages}, isProcessingMessages {isProcessingMessages}," +
-                    $"leaseTakerIsCancelled: {this.leaseTakerCancellationTokenSource?.IsCancellationRequested}, " +
-                    $"renewerIsCancelled: {this.leaseRenewerCancellationTokenSource?.IsCancellationRequested}," +
+                    $"leaseTakerIsCancelled: {leaseTakerIsCancelled}, " +
+                    $"renewerIsCancelled: {renewerIsCancelled}," +
                     $"isStarted: {this.isStarted}, shutdownComplete: {this.shutdownComplete}, " +
                     $"inCurrentlyOwnedShards: {inCurrentlyOwnedShards}, inKeepRenewingDuringClose: {inKeepRenewingDuringClose}";
             }
