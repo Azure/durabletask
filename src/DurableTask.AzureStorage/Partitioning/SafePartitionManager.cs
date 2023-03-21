@@ -60,7 +60,8 @@ namespace DurableTask.AzureStorage.Partitioning
                     AcquireInterval = settings.LeaseAcquireInterval,
                     RenewInterval = settings.LeaseRenewInterval,
                     LeaseInterval = settings.LeaseInterval,
-                });
+                },
+                orchestrationSessionManager: this.sessionManager);
 
             var currentlyOwnedIntentLeases = this.intentLeaseCollectionManager.GetCurrentlyOwnedLeases();
 
@@ -80,6 +81,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     LeaseInterval = TimeSpan.FromSeconds(15),
                     ShouldStealLeases = false
                 },
+                orchestrationSessionManager: this.sessionManager,
                 shouldAquireLeaseDelegate: leaseKey => currentlyOwnedIntentLeases.ContainsKey(leaseKey),
                 shouldRenewLeaseDelegate: leaseKey => currentlyOwnedIntentLeases.ContainsKey(leaseKey)
                                                       || this.sessionManager.IsControlQueueReceivingMessages(leaseKey)
