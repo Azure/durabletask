@@ -73,6 +73,8 @@ namespace DurableTask.AzureStorage
         Task statsLoop;
         CancellationTokenSource shutdownSource;
 
+        readonly Guid DTFxAsGUID;
+
         /// <summary>
         /// Initializes a new instance of the <see cref="AzureStorageOrchestrationService"/> class.
         /// </summary>
@@ -100,6 +102,7 @@ namespace DurableTask.AzureStorage
         /// <param name="customInstanceStore">Custom UserDefined Instance store to be used with the AzureStorageOrchestrationService</param>
         public AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings, IOrchestrationServiceInstanceStore customInstanceStore)
         {
+            this.DTFxAsGUID = new Guid();
             if (settings == null)
             {
                 throw new ArgumentNullException(nameof(settings));
@@ -387,6 +390,11 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         public async Task StartAsync()
         {
+            this.settings.Logger.GeneralWarning(
+                this.azureStorageClient.QueueAccountName,
+                this.settings.TaskHubName,
+                $"Stopping Orchestration service. DTFx.AS GUID = {this.DTFxAsGUID}");
+
             if (this.isStarted)
             {
                 throw new InvalidOperationException("The orchestration service has already started.");
@@ -420,7 +428,7 @@ namespace DurableTask.AzureStorage
             this.settings.Logger.GeneralWarning(
                 this.azureStorageClient.QueueAccountName,
                 this.settings.TaskHubName,
-                "Stopping Orchestration service");
+                $"Stopping Orchestration service. DTFx.AS GUID = {this.DTFxAsGUID}");
 
             this.shutdownSource.Cancel();
             await this.statsLoop;
@@ -502,6 +510,9 @@ namespace DurableTask.AzureStorage
 
         internal async Task OnOwnershipLeaseAquiredAsync(BlobLease lease)
         {
+            this.settings.Logger.PartitionManagerInfo(
+                "","","", lease.PartitionId,
+                $"OnOwnershipLeaseAcquiredAsync for {lease.PartitionId}, isCancellationRequested={this.shutdownSource?.Token.IsCancellationRequested}");
             var controlQueue = new ControlQueue(this.azureStorageClient, lease.PartitionId, this.messageManager);
             await controlQueue.CreateIfNotExistsAsync();
             this.orchestrationSessionManager.AddQueue(lease.PartitionId, controlQueue, this.shutdownSource.Token);

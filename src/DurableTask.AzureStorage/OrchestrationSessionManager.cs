@@ -17,6 +17,7 @@ namespace DurableTask.AzureStorage
     using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Runtime.Remoting.Lifetime;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Messaging;
@@ -59,6 +60,14 @@ namespace DurableTask.AzureStorage
 
         public void AddQueue(string partitionId, ControlQueue controlQueue, CancellationToken cancellationToken)
         {
+            this.settings.Logger.PartitionManagerWarning(
+                this.storageAccountName,
+                this.settings.TaskHubName,
+                this.settings.WorkerId,
+                partitionId,
+                $"AddQueue: {controlQueue.Name}. IsCancellationRequested={cancellationToken.IsCancellationRequested}");
+
+
             if (this.ownedControlQueues.TryAdd(partitionId, controlQueue))
             {
                 _ = Task.Run(() => this.DequeueLoop(partitionId, controlQueue, cancellationToken));
@@ -93,6 +102,10 @@ namespace DurableTask.AzureStorage
 
         public bool ResumeListeningIfOwnQueue(string partitionId, ControlQueue controlQueue, CancellationToken shutdownToken)
         {
+            this.settings.Logger.PartitionManagerInfo(
+            "", "", "", partitionId,
+            $"OnOwnershipLeaseAcquiredAsync for {partitionId}, isCancellationRequested={shutdownToken.IsCancellationRequested}");
+
             if (this.ownedControlQueues.TryGetValue(partitionId, out ControlQueue ownedControlQueue))
             {
                 if (ownedControlQueue.IsReleased)
@@ -124,7 +137,7 @@ namespace DurableTask.AzureStorage
                 this.settings.TaskHubName,
                 this.settings.WorkerId,
                 partitionId,
-                $"Started listening for messages on queue {controlQueue.Name}.");
+                $"Started listening for messages on queue {controlQueue.Name}. IsCancellationRequested={cancellationToken.IsCancellationRequested}");
 
             while (!controlQueue.IsReleased)
             {
@@ -171,7 +184,7 @@ namespace DurableTask.AzureStorage
                 this.settings.TaskHubName,
                 this.settings.WorkerId,
                 partitionId,
-                $"Stopped listening for messages on queue {controlQueue.Name}.");
+                $"Stopped listening for messages on queue {controlQueue.Name}. IsCancellationRequested={cancellationToken.IsCancellationRequested}");
         }
 
         /// <summary>
