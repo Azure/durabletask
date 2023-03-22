@@ -289,6 +289,20 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.appLeaseContainerName,
                 $"Executing StartAppLeaseAsync.");
 
+            _ = Task.Run(async () => { 
+                while(true)
+                {
+                    this.settings.Logger.PartitionManagerInfo(
+                    this.storageAccountName,
+                    this.taskHub,
+                    this.workerName,
+                    this.appLeaseContainerName,
+                    $"AppLease health ping. GUID = {this.appleaseguid}");
+
+                    await Task.Delay(TimeSpan.FromSeconds(30));
+                }
+            });
+
             if (Interlocked.CompareExchange(ref this.appLeaseIsStarted, 1, 0) != 0)
             {
                 throw new InvalidOperationException("AppLeaseManager has already started");
