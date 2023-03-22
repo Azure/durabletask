@@ -102,7 +102,7 @@ namespace DurableTask.AzureStorage
         /// <param name="customInstanceStore">Custom UserDefined Instance store to be used with the AzureStorageOrchestrationService</param>
         public AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings, IOrchestrationServiceInstanceStore customInstanceStore)
         {
-            this.DTFxAsGUID = new Guid();
+            this.DTFxAsGUID = Guid.NewGuid();
             if (settings == null)
             {
                 throw new ArgumentNullException(nameof(settings));
