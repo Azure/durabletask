@@ -48,6 +48,7 @@ namespace DurableTask.AzureStorage.Partitioning
         Task renewTask;
         CancellationTokenSource starterTokenSource;
         CancellationTokenSource leaseRenewerCancellationTokenSource;
+        readonly Guid appleaseguid;
 
         public AppLeaseManager(
             AzureStorageClient azureStorageClient,
@@ -77,6 +78,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
             this.isLeaseOwner = false;
             this.shutdownCompletedEvent = new AsyncManualResetEvent();
+            this.appleaseguid = Guid.NewGuid();
         }
 
         public async Task StartAsync()
@@ -142,7 +144,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.appLeaseContainerName,
                 $"Executing AppLeaseManagerStarter.");
 
-            while (!cancellationToken.IsCancellationRequested)
+            while (!cancellationToken.IsCancellationRequested || cancellationToken.IsCancellationRequested) // force applease to outlive shutdown
             {
                 this.settings.Logger.PartitionManagerInfo(
                     this.storageAccountName,
@@ -471,7 +473,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.taskHub,
                 this.workerName,
                 this.appLeaseContainerName,
-                $"Starting background renewal of app lease with interval: {this.options.RenewInterval}.");
+                $"Starting background renewal of app lease with interval: {this.options.RenewInterval}. GUID = {this.appleaseguid}");
 
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -571,6 +573,8 @@ namespace DurableTask.AzureStorage.Partitioning
                     renewed = true;
                 }
             }
+
+            errorMessage += $"| GUID = {this.appleaseguid}";
 
             this.settings.Logger.LeaseRenewalResult(
                 this.storageAccountName,
