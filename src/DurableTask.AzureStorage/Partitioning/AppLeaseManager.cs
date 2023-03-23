@@ -46,6 +46,7 @@ namespace DurableTask.AzureStorage.Partitioning
         bool isLeaseOwner;
         int appLeaseIsStarted;
         Task renewTask;
+        Task acquireTask;
         CancellationTokenSource starterTokenSource;
         CancellationTokenSource leaseRenewerCancellationTokenSource;
 
@@ -121,9 +122,14 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.starterTokenSource.Cancel();
                 this.starterTokenSource.Dispose();
             }
-            this.starterTokenSource = new CancellationTokenSource();
 
-            await Task.Factory.StartNew(() => this.AppLeaseManagerStarter(this.starterTokenSource.Token));
+            if (this.acquireTask != null)
+            {
+                await this.acquireTask;
+            }
+
+            this.starterTokenSource = new CancellationTokenSource();
+            this.acquireTask = await Task.Factory.StartNew(() => this.AppLeaseManagerStarter(this.starterTokenSource.Token));
         }
 
         async Task AppLeaseManagerStarter(CancellationToken cancellationToken)
@@ -267,6 +273,12 @@ namespace DurableTask.AzureStorage.Partitioning
 
             this.starterTokenSource.Cancel();
             this.shutdownCompletedEvent.Set();
+
+            if (this.acquireTask != null)
+            {
+                await this.acquireTask;
+            }
+
 
             this.leaseRenewerCancellationTokenSource?.Dispose();
         }
