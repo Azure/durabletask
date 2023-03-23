@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 
@@ -18,7 +19,7 @@ namespace DurableTask.ApplicationInsights
         private static readonly string OkStatusCodeTagValue = "OK";
         private static readonly string ErrorStatusCodeTagValue = "ERROR";
 
-        private static readonly Func<Activity, (ActivityStatusCode Status, string Description)> s_getStatus;
+        private static readonly Func<Activity, StatusTuple> s_getStatus;
 
         static DiagnosticActivityExtensions()
         {
@@ -63,7 +64,7 @@ namespace DurableTask.ApplicationInsights
             return status;
         }
 
-        private static Func<Activity, (ActivityStatusCode Status, string Description)> CreateGetStatus()
+        private static Func<Activity, StatusTuple> CreateGetStatus()
         {
             PropertyInfo getStatus = typeof(Activity).GetProperty("Status");
             if (getStatus is null)
@@ -71,17 +72,24 @@ namespace DurableTask.ApplicationInsights
                 return activity =>
                 {
                     ActivityStatusCode status = activity.GetOtelStatus(out string description);
-                    return (status, description);
+                    return new StatusTuple(status, description);
                 };
             }
 
+            /*
+                building expression tree to effectively perform:
+                activity => new StatusTuple((ActivityStatusCode)(int)activity.Status, activity.StatusDescription);
+            */
+
+            ConstructorInfo ctor = typeof(StatusTuple).GetConstructors().First(x => x.GetParameters().Length == 2);
             PropertyInfo getDescription = typeof(Activity).GetProperty("StatusDescription");
-            return activity =>
-            {
-                int s = (int)getStatus.GetValue(activity);
-                string d = (string)getDescription.GetValue(activity);
-                return ((ActivityStatusCode)s, d);
-            };
+            ParameterExpression activity = Expression.Parameter(typeof(Activity), "activity");
+            MemberExpression status = Expression.Property(activity, getStatus);
+            MemberExpression description = Expression.Property(activity, getDescription);
+            UnaryExpression convert = Expression.Convert(status, typeof(int));
+            convert = Expression.Convert(convert, typeof(ActivityStatusCode));
+            NewExpression result = Expression.New(ctor, convert, description);
+            return Expression.Lambda<Func<Activity, StatusTuple>>(result, activity).Compile();
         }
 
         private static bool TryGetStatusCodeForTagValue(string statusCodeTagValue, out ActivityStatusCode statusCode)
@@ -105,6 +113,28 @@ namespace DurableTask.ApplicationInsights
                 string _ when OkStatusCodeTagValue.Equals(statusCodeTagValue, StringComparison.OrdinalIgnoreCase) => ActivityStatusCode.OK,
                 _ => null,
             };
+        }
+
+        /// <summary>
+        /// Expression trees do not yet support ValueTuple, so we need to make one manually.
+        /// </summary>
+        private readonly struct StatusTuple
+        {
+            public StatusTuple(ActivityStatusCode status, string description)
+            {
+                this.Status = status;
+                this.Description = description;
+            }
+
+            public ActivityStatusCode Status { get; }
+
+            public string Description { get; }
+
+            public void Deconstruct(out ActivityStatusCode status, out string description)
+            {
+                status = this.Status;
+                description = this.Description;
+            }
         }
     }
 }

@@ -868,7 +868,8 @@ namespace DurableTask.Core
 
                     if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Failed)
                     {
-                        AddFailureDetailsToActivity(runtimeState, completeOrchestratorAction.Details);
+                        DistributedTraceActivity.Current?.SetStatus(
+                            ActivityStatusCode.Error, completeOrchestratorAction.Result);
                     }
                 }
 
@@ -883,7 +884,8 @@ namespace DurableTask.Core
 
             if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Failed)
             {
-                AddFailureDetailsToActivity(runtimeState, completeOrchestratorAction.Details);
+                DistributedTraceActivity.Current?.SetStatus(
+                    ActivityStatusCode.Error, completeOrchestratorAction.Result);
             }
 
             ResetDistributedTraceActivity(runtimeState);
@@ -896,22 +898,6 @@ namespace DurableTask.Core
             TraceHelper.SetRuntimeStatusTag(runtimeState.OrchestrationStatus.ToString());
             DistributedTraceActivity.Current?.Stop();
             DistributedTraceActivity.Current = null;
-        }
-
-        private void AddFailureDetailsToActivity(OrchestrationRuntimeState runtimeState, string? details = null)
-        {
-            string? statusDescription = "";
-            if (errorPropagationMode == ErrorPropagationMode.UseFailureDetails)
-            {
-                FailureDetails? failureDetails = runtimeState.FailureDetails;
-                statusDescription = failureDetails?.ErrorMessage;
-            }
-            else if (errorPropagationMode == ErrorPropagationMode.SerializeExceptions)
-            {
-                statusDescription = JsonDataConverter.Default.Deserialize<Exception>(details).Message;
-            }
-
-            DistributedTraceActivity.Current?.SetStatus(ActivityStatusCode.Error, statusDescription);
         }
 
         TaskMessage ProcessScheduleTaskDecision(
