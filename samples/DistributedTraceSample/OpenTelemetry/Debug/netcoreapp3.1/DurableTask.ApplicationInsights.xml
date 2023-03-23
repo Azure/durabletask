@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>DurableTask.ApplicationInsights</name>
+    </assembly>
+    <members>
+        <member name="T:DurableTask.ApplicationInsights.DurableTelemetryModule">
+            Telemetry Module to convert Activity events to App Insights API
+        </member>
+        <member name="M:DurableTask.ApplicationInsights.DurableTelemetryModule.Initialize(Microsoft.ApplicationInsights.Extensibility.TelemetryConfiguration)">
+            <inheritdoc/>
+        </member>
+    </members>
+</doc>
