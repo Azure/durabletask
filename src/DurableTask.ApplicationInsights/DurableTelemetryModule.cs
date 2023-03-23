@@ -12,21 +12,20 @@
 //  ----------------------------------------------------------------------------------
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.ApplicationInsights;
 using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.ApplicationInsights.Extensibility;
+using Microsoft.ApplicationInsights.Extensibility.Implementation;
 
 namespace DurableTask.ApplicationInsights
 {
     /// Telemetry Module to convert Activity events to App Insights API
     public sealed class DurableTelemetryModule : ITelemetryModule, IAsyncDisposable
     {
-        private const string DependencyTelemetryKey = "_tel";
-        private const string DependencyTypeInProc = "InProc";
-
         private TelemetryClient _telemetryClient;
         private ActivityListener _listener;
 
@@ -38,38 +37,7 @@ namespace DurableTask.ApplicationInsights
             _listener = new ActivityListener
             {
                 ShouldListenTo = source => source.Name.StartsWith("DurableTask"),
-                ActivityStarted = activity =>
-                {
-                    var dependency = _telemetryClient.StartOperation<DependencyTelemetry>(activity);
-                    dependency.Telemetry.Type = DependencyTypeInProc; // Required for proper rendering in App Insights.
-                    activity.SetCustomProperty(DependencyTelemetryKey, dependency);
-                },
-                ActivityStopped = activity =>
-                {
-                    // Check for Exceptions events
-                    foreach (ActivityEvent activityEvent in activity.Events)
-                    {
-                        // TrackExceptionTelemetryFromActivityEvent(activityEvent, _telemetryClient);
-                    }
-
-                    if (activity.GetCustomProperty(DependencyTelemetryKey) is IOperationHolder<DependencyTelemetry> dependencyHolder)
-                    {
-                        var dependency = dependencyHolder.Telemetry;
-
-                        foreach (var item in activity.Tags)
-                        {
-                            if (!dependency.Properties.ContainsKey(item.Key))
-                            {
-                                dependency.Properties[item.Key] = item.Value;
-                            }
-                        }
-
-                        dependency.Success = activity.GetStatus() != ActivityStatusCode.Error;
-
-                        _telemetryClient.StopOperation(dependencyHolder);
-                        dependencyHolder.Dispose();
-                    }
-                },
+                ActivityStopped = OnEndActivity,
                 Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
                 SampleUsingParentId = (ref ActivityCreationOptions<string> _) => ActivitySamplingResult.AllData
             };
@@ -77,13 +45,77 @@ namespace DurableTask.ApplicationInsights
             ActivitySource.AddActivityListener(_listener);
         }
 
+        void OnEndActivity(Activity activity)
+        {
+            if (!activity.IsAllDataRequested)
+            {
+                return;
+            }
+
+            OperationTelemetry telemetry = CreateTelemetry(activity);
+            _telemetryClient.Track(telemetry);
+        }
+
+        static OperationTelemetry CreateTelemetry(Activity activity)
+        {
+            OperationTelemetry telemetry;
+            ActivityStatusCode status = activity.GetStatus(out string description);
+            switch (activity.Kind)
+            {
+                case ActivityKind.Consumer or ActivityKind.Server:
+                    RequestTelemetry request = CreateTelemetryCore<RequestTelemetry>(activity);
+                    request.Success = status != ActivityStatusCode.Error;
+                    telemetry = request;
+                    break;
+                default:
+                    DependencyTelemetry dependency = CreateTelemetryCore<DependencyTelemetry>(activity);
+                    dependency.Success = status != ActivityStatusCode.Error;
+                    dependency.Type = activity.Kind is ActivityKind.Internal ? "InProc" : "DurableTask";
+                    telemetry = dependency;
+                    break;
+            }
+
+            telemetry.Properties["otel.status_description"] = description;
+            return telemetry;
+        }
+
+        static T CreateTelemetryCore<T>(Activity activity)
+            where T : OperationTelemetry, new()
+        {
+            T telemetry = new()
+            {
+                Name = activity.DisplayName,
+                Id = activity.SpanId.ToString(),
+                Timestamp = activity.StartTimeUtc,
+                Duration = activity.Duration,
+            };
+
+            telemetry.Context.Operation.Id = activity.RootId;
+            ActivitySpanId parentId = activity.ParentSpanId;
+            if (parentId != default)
+            {
+                telemetry.Context.Operation.ParentId = parentId.ToString();
+            }
+
+            foreach (KeyValuePair<string, string> item in activity.Baggage)
+            {
+                telemetry.Properties[item.Key] = item.Value;
+            }
+
+            foreach (KeyValuePair<string, object> item in activity.TagObjects)
+            {
+                telemetry.Properties[item.Key] = item.Value.ToString();
+            }
+
+            return telemetry;
+        }
+
         async ValueTask IAsyncDisposable.DisposeAsync()
         {
             _listener?.Dispose();
-
-            if (_telemetryClient != null)
+            if (_telemetryClient is not null)
             {
-                CancellationTokenSource cts = new CancellationTokenSource(millisecondsDelay: 5000);
+                using CancellationTokenSource cts = new(millisecondsDelay: 5000);
                 try
                 {
                     await _telemetryClient.FlushAsync(cts.Token);
@@ -92,13 +124,7 @@ namespace DurableTask.ApplicationInsights
                 {
                     // Ignore for now; potentially log this in the future.
                 }
-                finally
-                {
-                    cts.Dispose();
-                }
             }
-
-            GC.SuppressFinalize(this);
         }
     }
 }

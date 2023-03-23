@@ -76,6 +76,7 @@ namespace DurableTask.Core.Tracing
                     activity.SetTag("otel.status_description", description);
                 };
             }
+
             ParameterExpression targetExp = Expression.Parameter(typeof(Activity), "target");
             ParameterExpression status = Expression.Parameter(typeof(ActivityStatusCode), "status");
             ParameterExpression description = Expression.Parameter(typeof(string), "description");

@@ -868,7 +868,7 @@ namespace DurableTask.Core
 
                     if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Failed)
                     {
-                        AddFailureDetailstoActivity(runtimeState, completeOrchestratorAction.Details);
+                        AddFailureDetailsToActivity(runtimeState, completeOrchestratorAction.Details);
                     }
                 }
 
@@ -883,7 +883,7 @@ namespace DurableTask.Core
 
             if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Failed)
             {
-                AddFailureDetailstoActivity(runtimeState, completeOrchestratorAction.Details);
+                AddFailureDetailsToActivity(runtimeState, completeOrchestratorAction.Details);
             }
 
             ResetDistributedTraceActivity(runtimeState);
@@ -898,7 +898,7 @@ namespace DurableTask.Core
             DistributedTraceActivity.Current = null;
         }
 
-        private void AddFailureDetailstoActivity(OrchestrationRuntimeState runtimeState, string? details = null)
+        private void AddFailureDetailsToActivity(OrchestrationRuntimeState runtimeState, string? details = null)
         {
             string? statusDescription = "";
             if (errorPropagationMode == ErrorPropagationMode.UseFailureDetails)

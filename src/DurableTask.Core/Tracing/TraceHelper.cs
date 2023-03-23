@@ -142,7 +142,7 @@ namespace DurableTask.Core.Tracing
 
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 name: CreateSpanName("activity", scheduledEvent.Name, scheduledEvent.Version),
-                kind: ActivityKind.Client,
+                kind: ActivityKind.Server,
                 parentContext: activityContext);
 
             if (newActivity == null)
@@ -187,7 +187,7 @@ namespace DurableTask.Core.Tracing
 
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 name: CreateSpanName("activity", taskScheduledEvent.Name, taskScheduledEvent.Version),
-                kind: ActivityKind.Server,
+                kind: ActivityKind.Client,
                 startTime: taskScheduledEvent.Timestamp,
                 parentContext: activityContext);
 
@@ -218,6 +218,7 @@ namespace DurableTask.Core.Tracing
             OrchestrationInstance? orchestrationInstance,
             TaskScheduledEvent taskScheduledEvent)
         {
+            // The parent of this is the parent orchestration span ID. It should be the client span which started this
             Activity? activity = StartTraceActivityForTaskExecution(orchestrationInstance, taskScheduledEvent);
 
             activity?.Dispose();
@@ -248,6 +249,7 @@ namespace DurableTask.Core.Tracing
                 string statusDescription = "";
                 if (errorPropagationMode == ErrorPropagationMode.SerializeExceptions)
                 {
+                    // Null ref here if IncludeDetails is not enabled. Maybe failedEvent.Reason is good enough?
                     statusDescription = JsonDataConverter.Default.Deserialize<Exception>(failedEvent.Details).Message;
                 }
                 else if (errorPropagationMode == ErrorPropagationMode.UseFailureDetails)
@@ -316,6 +318,7 @@ namespace DurableTask.Core.Tracing
             OrchestrationInstance? orchestrationInstance,
             SubOrchestrationInstanceCreatedEvent createdEvent)
         {
+            // The parent of this is the parent orchestration span ID. It should be the client span which started this
             Activity? activity = CreateTraceActivityForSchedulingSubOrchestration(orchestrationInstance, createdEvent);
 
             activity?.Dispose();
@@ -346,7 +349,7 @@ namespace DurableTask.Core.Tracing
                 string statusDescription = "";
                 if (errorPropagationMode == ErrorPropagationMode.SerializeExceptions)
                 {
-                    statusDescription = JsonDataConverter.Default.Deserialize<Exception>(failedEvent.Details).Message;
+                    statusDescription = failedEvent.Reason ?? "Sub-orchestration failure";
                 }
                 else if (errorPropagationMode == ErrorPropagationMode.UseFailureDetails)
                 {
