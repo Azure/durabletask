@@ -77,6 +77,11 @@ namespace DurableTask.Core.Tracing
                 };
             }
 
+            /*
+                building expression tree to effectively perform:
+                (activity, status, description) => activity.SetStatus((ActivityStatusCode)(int)status, description);
+            */
+
             ParameterExpression targetExp = Expression.Parameter(typeof(Activity), "target");
             ParameterExpression status = Expression.Parameter(typeof(ActivityStatusCode), "status");
             ParameterExpression description = Expression.Parameter(typeof(string), "description");
