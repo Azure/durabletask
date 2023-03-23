@@ -279,7 +279,6 @@ namespace DurableTask.AzureStorage.Partitioning
                 await this.acquireTask;
             }
 
-
             this.leaseRenewerCancellationTokenSource?.Dispose();
         }
 
