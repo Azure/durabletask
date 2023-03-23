@@ -265,6 +265,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
             this.isLeaseOwner = false;
 
+            this.starterTokenSource.Cancel();
             this.shutdownCompletedEvent.Set();
 
             this.leaseRenewerCancellationTokenSource?.Dispose();
@@ -281,7 +282,7 @@ namespace DurableTask.AzureStorage.Partitioning
             }
             else
             {
-                leaseAcquired = await this.TryAquireLeaseAsync();
+                leaseAcquired = await this.TryAcquireLeaseAsync();
             }
 
             this.isLeaseOwner = leaseAcquired;
@@ -349,7 +350,7 @@ namespace DurableTask.AzureStorage.Partitioning
             return leaseAcquired;
         }
 
-        async Task<bool> TryAquireLeaseAsync()
+        async Task<bool> TryAcquireLeaseAsync()
         {
             bool leaseAcquired;
 
