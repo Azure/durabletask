@@ -165,6 +165,18 @@ namespace DurableTask.AzureStorage.Partitioning
 
         public async Task StopAsync()
         {
+            if (this.starterTokenSource != null)
+            {
+                this.starterTokenSource.Cancel();
+                this.starterTokenSource.Dispose();
+                this.starterTokenSource = null;
+            }
+
+            if (this.acquireTask != null)
+            {
+                await this.acquireTask;
+            }
+
             if (this.appLeaseIsEnabled)
             {
                 await this.StopAppLeaseAsync();
@@ -174,12 +186,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 await this.partitionManager.StopAsync();
             }
 
-            if (this.starterTokenSource != null)
-            {
-                this.starterTokenSource.Cancel();
-                this.starterTokenSource.Dispose();
-                this.starterTokenSource = null;
-            }
+
         }
 
         public async Task ForceChangeAppLeaseAsync()
@@ -271,13 +278,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
             this.isLeaseOwner = false;
 
-            this.starterTokenSource.Cancel();
             this.shutdownCompletedEvent.Set();
-
-            if (this.acquireTask != null)
-            {
-                await this.acquireTask;
-            }
 
             this.leaseRenewerCancellationTokenSource?.Dispose();
         }
