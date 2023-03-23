@@ -132,7 +132,7 @@ namespace DurableTask.AzureStorage.Partitioning
             {
                 try
                 {
-                    while (!await this.TryAquireAppLeaseAsync())
+                    while (!await this.TryAcquireAppLeaseAsync())
                     {
                         await Task.Delay(this.settings.AppLeaseOptions.AcquireInterval, cancellationToken);
                     }
@@ -271,7 +271,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.leaseRenewerCancellationTokenSource?.Dispose();
         }
 
-        async Task<bool> TryAquireAppLeaseAsync()
+        async Task<bool> TryAcquireAppLeaseAsync()
         {
             AppLeaseInfo appLeaseInfo = await this.GetAppLeaseInfoAsync();
 
