@@ -186,7 +186,6 @@ namespace DurableTask.AzureStorage.Partitioning
                 await this.partitionManager.StopAsync();
             }
 
-
         }
 
         public async Task ForceChangeAppLeaseAsync()
