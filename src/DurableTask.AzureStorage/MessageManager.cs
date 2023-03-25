@@ -355,7 +355,7 @@ namespace DurableTask.AzureStorage
 
         public static void BindToName(ICustomTypeBinder customBinder, Type serializedType, out string assemblyName, out string typeName)
         {
-            if (customBinder == null)
+            if (customBinder != null)
             {
                 customBinder.BindToName(serializedType, out assemblyName, out typeName);
             }
