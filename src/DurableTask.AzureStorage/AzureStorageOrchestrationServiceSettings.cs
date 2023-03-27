@@ -191,7 +191,7 @@ namespace DurableTask.AzureStorage
         /// In case of null, StorageAccountDetails is applied. 
         /// </summary>
         public StorageAccountDetails TrackingStoreStorageAccountDetails { get; set; }
-        
+
         /// <summary>
         ///  Should we carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
         /// </summary>
@@ -249,6 +249,11 @@ namespace DurableTask.AzureStorage
         /// Gets or sets the window duration (in seconds) in which we count the number of timed out request before recycling the app.
         /// </summary>
         public TimeSpan StorageRequestsTimeoutCooldown { get; set; } = TimeSpan.FromMinutes(5);
+
+        /// <summary>
+        /// Gets or Sets an optional custom type binder used when trying to deserialize queued messages
+        /// </summary>
+        public ICustomTypeBinder CustomMessageTypeBinder { get; set; }
 
         /// <summary>
         /// Returns bool indicating is the TrackingStoreStorageAccount has been set.
