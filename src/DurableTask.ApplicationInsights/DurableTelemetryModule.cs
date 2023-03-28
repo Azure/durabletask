@@ -105,6 +105,10 @@ namespace DurableTask.ApplicationInsights
             foreach (KeyValuePair<string, object> item in activity.TagObjects)
             {
                 telemetry.Properties[item.Key] = item.Value.ToString();
+                if (item.Key == "durabletask.task.status" && telemetry is RequestTelemetry request)
+                {
+                    request.ResponseCode = item.Value.ToString();
+                }
             }
 
             return telemetry;

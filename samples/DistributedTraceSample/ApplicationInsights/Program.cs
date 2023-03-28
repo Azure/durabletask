@@ -15,6 +15,7 @@ namespace ApplicationInsightsSample
 {
     using System;
     using System.Threading.Tasks;
+    using Azure.Monitor.OpenTelemetry.Exporter;
     using DurableTask.ApplicationInsights;
     using DurableTask.AzureStorage;
     using DurableTask.Core;
@@ -35,15 +36,8 @@ namespace ApplicationInsightsSample
                 {
                     services.TryAddEnumerable(ServiceDescriptor.Singleton<ITelemetryModule, DurableTelemetryModule>());
                     services.AddSingleton(GetOrchestrationService());
-                    services.AddApplicationInsightsTelemetryWorkerService();
-                    services.ConfigureTelemetryModule<DependencyTrackingTelemetryModule>((m, _) =>
-                    {
-                        m.EnableRequestIdHeaderInjectionInW3CMode = false;
-                        m.ExcludeComponentCorrelationHttpHeadersOnDomains.Add("core.windows.net");
-                        m.ExcludeComponentCorrelationHttpHeadersOnDomains.Add("127.0.0.1");
-                    });
-
-                    services.AddApplicationInsightsTelemetryProcessor<Processor>();
+                    AddApplicationInsights(services);
+                    //AddOtel(services);
                 })
                 .ConfigureTaskHubWorker(builder =>
                 {
@@ -56,26 +50,49 @@ namespace ApplicationInsightsSample
 
             await host.StartAsync();
             TaskHubClient client = host.Services.GetRequiredService<TaskHubClient>();
-
             OrchestrationInstance orchestrationInstance = await client.CreateOrchestrationInstanceAsync(
-                typeof(Orchestration),
-                input: null);
+                typeof(Orchestration), input: null);
             await client.WaitForOrchestrationAsync(orchestrationInstance, TimeSpan.FromMinutes(5));
 
             await host.StopAsync();
             host.Dispose();
+            await Task.Delay(10000); // wait 10s for flush
         }
 
         static IOrchestrationService GetOrchestrationService()
         {
             var settings = new AzureStorageOrchestrationServiceSettings
             {
-                TaskHubName = "appinsights4",
+                TaskHubName = "appinsightssample",
                 StorageConnectionString = "UseDevelopmentStorage=true",
             };
 
             IOrchestrationService service = new AzureStorageOrchestrationService(settings);
             return service;
+        }
+
+        static void AddOtel(IServiceCollection services)
+        {
+            services.AddOpenTelemetry()
+                .WithTracing(builder =>
+                {
+                    builder.AddSource("DurableTask");
+                    builder.AddAzureMonitorTraceExporter();
+                });
+
+            services.AddOptions<AzureMonitorExporterOptions>().BindConfiguration("AzureMonitor");
+        }
+
+        static void AddApplicationInsights(IServiceCollection services)
+        {
+            services.AddApplicationInsightsTelemetryWorkerService();
+            services.ConfigureTelemetryModule<DependencyTrackingTelemetryModule>((m, _) =>
+            {
+                m.EnableRequestIdHeaderInjectionInW3CMode = false;
+                m.ExcludeComponentCorrelationHttpHeadersOnDomains.Add("core.windows.net");
+                m.ExcludeComponentCorrelationHttpHeadersOnDomains.Add("127.0.0.1");
+            });
+            services.AddApplicationInsightsTelemetryProcessor<Processor>();
         }
 
         class Orchestration : TaskOrchestration<string, string>

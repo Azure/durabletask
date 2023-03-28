@@ -13,8 +13,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\DurableTask.AzureStorage\DurableTask.AzureStorage.csproj" />
-    <ProjectReference Include="..\..\src\DurableTask.Core\DurableTask.Core.csproj" />
+    <ProjectReference Include="..\..\..\src\DurableTask.AzureStorage\DurableTask.AzureStorage.csproj" />
+    <ProjectReference Include="..\..\..\src\DurableTask.Core\DurableTask.Core.csproj" />
   </ItemGroup>
 
 </Project>
