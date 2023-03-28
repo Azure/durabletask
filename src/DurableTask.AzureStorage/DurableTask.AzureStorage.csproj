@@ -23,14 +23,14 @@
     <MinorVersion>13</MinorVersion>
     <PatchVersion>6</PatchVersion>
 
-    <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)-preview1</VersionPrefix>
+    <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
     <FileVersion>$(VersionPrefix).0</FileVersion>
     <!-- FileVersionRevision is expected to be set by the CI. This is useful for distinguishing between multiple builds of the same version. -->
     <FileVersion Condition="'$(FileVersionRevision)' != ''">$(VersionPrefix).$(FileVersionRevision)</FileVersion>
     <!-- The assembly version is only the major/minor pair, making it easier to do in-place upgrades -->
     <AssemblyVersion>$(MajorVersion).$(MinorVersion).0.0</AssemblyVersion>
     <!-- This version is used as the nuget package version -->
-    <Version>$(VersionPrefix)</Version>
+    <Version>$(VersionPrefix)-preview1</Version>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
