@@ -63,7 +63,7 @@ namespace DurableTask.Core.Tests
                 // The exception should be deserializable
                 InvalidOperationException? e = JsonConvert.DeserializeObject<InvalidOperationException>(state.Output);
                 Assert.IsNotNull(e);
-                Assert.AreEqual("This is a test exception", e?.Message);
+                Assert.AreEqual("This is a test exception", e!.Message);
             }
             else if (mode == ErrorPropagationMode.UseFailureDetails)
             {
