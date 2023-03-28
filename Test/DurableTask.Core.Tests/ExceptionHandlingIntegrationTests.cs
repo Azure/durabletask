@@ -70,17 +70,17 @@ namespace DurableTask.Core.Tests
                 // The failure details should contain the relevant exception metadata
                 FailureDetails? details = JsonConvert.DeserializeObject<FailureDetails>(state.Output);
                 Assert.IsNotNull(details);
-                Assert.AreEqual(typeof(InvalidOperationException).FullName, details?.ErrorType);
-                Assert.IsTrue(details?.IsCausedBy<InvalidOperationException>() ?? false);
-                Assert.IsTrue(details?.IsCausedBy<Exception>() ?? false); // check that base types work too
-                Assert.AreEqual("This is a test exception", details?.ErrorMessage);
-                Assert.IsNotNull(details?.StackTrace);
+                Assert.AreEqual(typeof(InvalidOperationException).FullName, details!.ErrorType);
+                Assert.IsTrue(details.IsCausedBy<InvalidOperationException>());
+                Assert.IsTrue(details.IsCausedBy<Exception>()); // check that base types work too
+                Assert.AreEqual("This is a test exception", details.ErrorMessage);
+                Assert.IsNotNull(details.StackTrace);
 
                 // The callstack should be in the error details
                 string expectedCallstackSubstring = typeof(ThrowInvalidOperationException).FullName!.Replace('+', '.');
                 Assert.IsTrue(
-                    details?.StackTrace!.IndexOf(expectedCallstackSubstring) > 0,
-                    $"Expected to find {expectedCallstackSubstring} in the exception details. Actual: {details?.StackTrace}");
+                    details.StackTrace!.IndexOf(expectedCallstackSubstring) > 0,
+                    $"Expected to find {expectedCallstackSubstring} in the exception details. Actual: {details.StackTrace}");
             }
             else
             {
