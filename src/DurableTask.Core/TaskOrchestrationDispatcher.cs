@@ -919,13 +919,6 @@ namespace DurableTask.Core
                 version: scheduleTaskOrchestratorAction.Version,
                 input: scheduleTaskOrchestratorAction.Input);
 
-            ActivitySpanId clientSpanId;
-            if (parentTraceActivity != null)
-            {
-                clientSpanId = ActivitySpanId.CreateRandom();
-                scheduledEvent.ClientSpanId = clientSpanId.ToString();
-            }
-
             scheduledEvent.SetParentTraceContext(parentTraceActivity);
 
             taskMessage.Event = scheduledEvent;
@@ -938,11 +931,6 @@ namespace DurableTask.Core
                     eventId: scheduleTaskOrchestratorAction.Id,
                     name: scheduleTaskOrchestratorAction.Name,
                     version: scheduleTaskOrchestratorAction.Version);
-
-                if (parentTraceActivity != null)
-                {
-                    scheduledEvent.ClientSpanId = clientSpanId.ToString();
-                }
 
                 scheduledEvent.SetParentTraceContext(parentTraceActivity);
             }
