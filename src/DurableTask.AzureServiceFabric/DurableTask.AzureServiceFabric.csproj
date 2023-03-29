@@ -13,7 +13,9 @@
     <Description>Orchestration message and runtime state is stored in Azure Service Fabric reliable collections.</Description>
     <Authors>Microsoft</Authors>
     <Platforms>AnyCPU;x64</Platforms>
- </PropertyGroup>
+    <!-- To be removed on merge: Ignore warnings from preview DTFx.Core build -->
+    <NoWarn>NU5125;NU5048;NU5104</NoWarn>
+  </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
     <PackageReference Include="ImpromptuInterface" Version="6.2.2" />
@@ -44,7 +46,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
+    <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj"/>
   </ItemGroup>
 
   <ItemGroup Condition="'$(Configuration)'=='Release'">
