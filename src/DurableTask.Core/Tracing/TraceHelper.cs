@@ -123,15 +123,14 @@ namespace DurableTask.Core.Tracing
 
 
         /// <summary>
-        /// Starts a new trace activity for (task) activity that represents the time between when the task message
-        /// is enqueued and when the response message is received.
+        /// Starts a new trace activity for (task) activity execution. 
         /// </summary>
         /// <param name="scheduledEvent">The associated <see cref="TaskScheduledEvent"/>.</param>
         /// <param name="instance">The associated orchestration instance metadata.</param>
         /// <returns>
         /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
         /// </returns>
-        internal static Activity? StartTraceActivityForSchedulingTask(
+        internal static Activity? StartTraceActivityForTaskExecution(
             TaskScheduledEvent scheduledEvent,
             OrchestrationInstance instance)
         {
@@ -140,10 +139,13 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
+            ActivitySpanId clientSpanId = ActivitySpanId.CreateFromString(scheduledEvent.ClientSpanId?.ToCharArray());
+            ActivityContext parentContext = new ActivityContext(activityContext.TraceId, clientSpanId, activityContext.TraceFlags, activityContext.TraceState, activityContext.IsRemote);
+
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 name: CreateSpanName("activity", scheduledEvent.Name, scheduledEvent.Version),
                 kind: ActivityKind.Server,
-                parentContext: activityContext);
+                parentContext: parentContext);
 
             if (newActivity == null)
             {
@@ -164,14 +166,15 @@ namespace DurableTask.Core.Tracing
         }
 
         /// <summary>
-        /// Starts a new trace activity for (task) activity execution. 
+        /// Starts a new trace activity for (task) activity that represents the time between when the task message
+        /// is enqueued and when the response message is received.
         /// </summary>
         /// <param name="instance">The associated <see cref="OrchestrationInstance"/>.</param>
         /// <param name="taskScheduledEvent">The associated <see cref="TaskScheduledEvent"/>.</param>
         /// <returns>
         /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
         /// </returns>
-        internal static Activity? StartTraceActivityForTaskExecution(
+        internal static Activity? StartTraceActivityForSchedulingTask(
             OrchestrationInstance? instance,
             TaskScheduledEvent taskScheduledEvent)
         {
@@ -196,6 +199,8 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
+            newActivity.SetSpanId(taskScheduledEvent.ClientSpanId);
+
             newActivity.AddTag(Schema.Task.Type, "activity");
             newActivity.AddTag(Schema.Task.Name, taskScheduledEvent.Name);
             newActivity.AddTag(Schema.Task.InstanceId, instance?.InstanceId);
@@ -219,7 +224,7 @@ namespace DurableTask.Core.Tracing
             TaskScheduledEvent taskScheduledEvent)
         {
             // The parent of this is the parent orchestration span ID. It should be the client span which started this
-            Activity? activity = StartTraceActivityForTaskExecution(orchestrationInstance, taskScheduledEvent);
+            Activity? activity = StartTraceActivityForSchedulingTask(orchestrationInstance, taskScheduledEvent);
 
             activity?.Dispose();
         }
@@ -237,7 +242,7 @@ namespace DurableTask.Core.Tracing
             TaskFailedEvent? failedEvent,
             ErrorPropagationMode errorPropagationMode)
         {
-            Activity? activity = StartTraceActivityForTaskExecution(orchestrationInstance, taskScheduledEvent);
+            Activity? activity = StartTraceActivityForSchedulingTask(orchestrationInstance, taskScheduledEvent);
 
             if (activity is null)
             {
