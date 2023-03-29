@@ -142,7 +142,7 @@ namespace DurableTask.Core.Tracing
 
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 name: CreateSpanName("activity", scheduledEvent.Name, scheduledEvent.Version),
-                kind: ActivityKind.Server,
+                kind: ActivityKind.Client,
                 parentContext: activityContext);
 
             if (newActivity == null)
@@ -187,7 +187,7 @@ namespace DurableTask.Core.Tracing
 
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 name: CreateSpanName("activity", taskScheduledEvent.Name, taskScheduledEvent.Version),
-                kind: ActivityKind.Client,
+                kind: ActivityKind.Server,
                 startTime: taskScheduledEvent.Timestamp,
                 parentContext: activityContext);
 
