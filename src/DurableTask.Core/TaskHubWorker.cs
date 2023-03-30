@@ -314,7 +314,7 @@ namespace DurableTask.Core
             foreach (Type type in taskEntityTypes)
             {
                 ObjectCreator<TaskEntity> creator = new NameValueObjectCreator<TaskEntity>(
-                    type.Name.ToLowerInvariant(), // entity names are always case-normalized
+                    type.Name,
                     string.Empty,
                     type);
                 
