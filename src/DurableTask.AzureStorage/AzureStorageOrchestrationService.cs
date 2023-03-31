@@ -1923,7 +1923,7 @@ namespace DurableTask.AzureStorage
         //       be supported: https://github.com/Azure/azure-functions-durable-extension/issues/1
         async Task<ControlQueue> GetControlQueueAsync(string instanceId)
         {
-            uint partitionIndex = Fnv1aHashHelper.ComputeHash(instanceId) % (uint)this.settings.PartitionCount;
+            uint partitionIndex = DurableTask.Core.Common.Fnv1aHashHelper.ComputeHash(instanceId) % (uint)this.settings.PartitionCount;
             string queueName = GetControlQueueName(this.settings.TaskHubName, (int)partitionIndex);
 
             ControlQueue cachedQueue;

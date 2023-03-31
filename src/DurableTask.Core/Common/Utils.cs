@@ -640,17 +640,25 @@ namespace DurableTask.Core.Common
                 throw new ArgumentException("string to hash must not be null or empty", nameof(stringToHash));
             }
 
-            byte[] hashByteArray;
-            using (HashAlgorithm hashAlgorithm = (HashAlgorithm)SHA1.Create())
-            {
-                hashByteArray = hashAlgorithm.ComputeHash(Encoding.UTF8.GetBytes(stringToHash));
-            }
-
-            byte[] newGuidByteArray = new byte[16];
-            Array.Copy(hashByteArray, 0, newGuidByteArray, 0, 16);
-            return new Guid(newGuidByteArray);
+            var bytes = Encoding.UTF8.GetBytes(stringToHash);
+            uint hash1 = Fnv1aHashHelper.ComputeHash(bytes, 0xdf0dd395);
+            uint hash2 = Fnv1aHashHelper.ComputeHash(bytes, 0xa19df4df);
+            uint hash3 = Fnv1aHashHelper.ComputeHash(bytes, 0xc88599c5);
+            uint hash4 = Fnv1aHashHelper.ComputeHash(bytes, 0xe24e3e64);
+            return new Guid(
+                hash1,
+                (ushort)(hash2 & 0xFFFF),
+                (ushort)((hash2 >> 16) & 0xFFFF),
+                (byte)(hash3 & 0xFF),
+                (byte)((hash3 >> 8) & 0xFF),
+                (byte)((hash3 >> 16) & 0xFF),
+                (byte)((hash3 >> 24) & 0xFF),
+                (byte)(hash4 & 0xFF),
+                (byte)((hash4 >> 8) & 0xFF),
+                (byte)((hash4 >> 16) & 0xFF),
+                (byte)((hash4 >> 24) & 0xFF));
         }
-    
+
         /// <summary>
         /// Gets the generic return type for a specific <paramref name="methodInfo"/>.
         /// </summary>

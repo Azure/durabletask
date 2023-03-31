@@ -14,15 +14,14 @@
 namespace DurableTask.AzureStorage
 {
     using System;
+    using System.Runtime.Serialization;
+    using System.Threading.Tasks;
     using DurableTask.AzureStorage.Partitioning;
     using DurableTask.AzureStorage.Logging;
     using DurableTask.Core;
     using Microsoft.Extensions.Logging;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Microsoft.WindowsAzure.Storage.Table;
-    using System.Runtime.Serialization;
-    using System.Threading.Tasks;
-    using DurableTask.Core.Entities;
 
     /// <summary>
     /// Settings that impact the runtime behavior of the <see cref="AzureStorageOrchestrationService"/>.
