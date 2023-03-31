@@ -629,31 +629,21 @@ namespace DurableTask.AzureStorage.Tests
                 },
                 result =>
                 {
-                    Assert.AreEqual(0, result.Count());
-                }),
-
-                (new TaskHubEntityClient.Query
-                {
-                    InstanceIdPrefix = "@stringstore",
-                },
-                result =>
-                {
                     Assert.AreEqual(4, result.Count());
                 }),
 
                 (new TaskHubEntityClient.Query
                 {
-                    InstanceIdPrefix = "@stringstore@",
-                },
-                result =>
-                {
-                    Assert.AreEqual(3, result.Count());
-                }),
-
-                (new TaskHubEntityClient.Query
-                {
                     InstanceIdPrefix = "@stringstore",
-                    EntityName = "stringstore",
+                },
+                result =>
+                {
+                    Assert.AreEqual(0, result.Count());
+                }),
+
+                (new TaskHubEntityClient.Query
+                {
+                    InstanceIdPrefix = "@StringStore@",
                 },
                 result =>
                 {
@@ -662,7 +652,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 (new TaskHubEntityClient.Query
                 {
-                    InstanceIdPrefix = "@stringstore@",
+                    InstanceIdPrefix = "@StringStore",
                     EntityName = "StringStore",
                 },
                 result =>
@@ -672,7 +662,17 @@ namespace DurableTask.AzureStorage.Tests
 
                 (new TaskHubEntityClient.Query
                 {
-                    InstanceIdPrefix = "@stringstore@b",
+                    InstanceIdPrefix = "@StringStore@",
+                    EntityName = "StringStore",
+                },
+                result =>
+                {
+                    Assert.AreEqual(3, result.Count());
+                }),
+
+                (new TaskHubEntityClient.Query
+                {
+                    InstanceIdPrefix = "@StringStore@b",
                     EntityName = "StringStore",
                 },
                 result =>
@@ -4550,14 +4550,17 @@ namespace DurableTask.AzureStorage.Tests
                     }
                 }
 
+                [JsonObject]
                 public class UnserializableKaboom : Exception
                 {
                 }
 
+                [JsonObject]
                 public class SerializableKaboom : Exception
                 {
                 }
 
+                [JsonObject]
                 public class UnDeserializableKaboom : Exception
                 {
                 }
