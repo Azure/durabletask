@@ -139,7 +139,7 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            ActivitySpanId clientSpanId = ActivitySpanId.CreateFromString(scheduledEvent.ClientSpanId?.ToCharArray());
+            ActivitySpanId clientSpanId = string.IsNullOrEmpty(scheduledEvent.ClientSpanId) ? default : ActivitySpanId.CreateFromString(scheduledEvent.ClientSpanId.AsSpan());
             ActivityContext parentContext = new ActivityContext(activityContext.TraceId, clientSpanId, activityContext.TraceFlags, activityContext.TraceState, activityContext.IsRemote);
 
             Activity? newActivity = ActivityTraceSource.StartActivity(
@@ -190,7 +190,7 @@ namespace DurableTask.Core.Tracing
 
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 name: CreateSpanName("activity", taskScheduledEvent.Name, taskScheduledEvent.Version),
-                kind: ActivityKind.Server,
+                kind: ActivityKind.Client,
                 startTime: taskScheduledEvent.Timestamp,
                 parentContext: activityContext);
 
