@@ -55,5 +55,15 @@ namespace DurableTask.Core
                     activity.TraceStateString);
             }
         }
+
+        internal static void SetParentTraceContext(this ISupportsDurableTraceContext wrapper, ActivityContext activityContext)
+        {
+            if (activityContext != null)
+            {
+                wrapper.ParentTraceContext = new DistributedTraceContext(
+                    "00"+"-"+activityContext.TraceId.ToString()+"-"+activityContext.SpanId.ToString()+"-01",
+                    activityContext.TraceState?.ToString());
+            }
+        }
     }
 }

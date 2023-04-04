@@ -933,14 +933,15 @@ namespace DurableTask.Core
                 version: scheduleTaskOrchestratorAction.Version,
                 input: scheduleTaskOrchestratorAction.Input);
 
-            ActivitySpanId clientSpanId;
+            ActivitySpanId clientSpanId = ActivitySpanId.CreateRandom();
+
             if (parentTraceActivity != null)
             {
-                clientSpanId = ActivitySpanId.CreateRandom();
-                scheduledEvent.ClientSpanId = clientSpanId.ToString();
+                ActivityContext activityContext = new(parentTraceActivity.TraceId, clientSpanId, parentTraceActivity.ActivityTraceFlags, parentTraceActivity.TraceStateString);
+                scheduledEvent.SetParentTraceContext(activityContext);
             }
 
-            scheduledEvent.SetParentTraceContext(parentTraceActivity);
+
 
             taskMessage.Event = scheduledEvent;
             taskMessage.OrchestrationInstance = runtimeState.OrchestrationInstance;
@@ -955,10 +956,9 @@ namespace DurableTask.Core
 
                 if (parentTraceActivity != null)
                 {
-                    scheduledEvent.ClientSpanId = clientSpanId.ToString();
+                    ActivityContext activityContext = new(parentTraceActivity.TraceId, clientSpanId, parentTraceActivity.ActivityTraceFlags, parentTraceActivity.TraceStateString);
+                    scheduledEvent.SetParentTraceContext(activityContext);
                 }
-
-                scheduledEvent.SetParentTraceContext(parentTraceActivity);
             }
 
             this.logHelper.SchedulingActivity(

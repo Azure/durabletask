@@ -84,11 +84,5 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public DistributedTraceContext? ParentTraceContext { get; set; }
-
-        /// <summary>
-        /// The W3C span id associated with this task's client span.
-        /// </summary>
-        [DataMember]
-        public string? ClientSpanId { get; set; }
     }
 }

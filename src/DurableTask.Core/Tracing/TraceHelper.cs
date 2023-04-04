@@ -139,19 +139,16 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            ActivitySpanId clientSpanId = string.IsNullOrEmpty(scheduledEvent.ClientSpanId) ? default : ActivitySpanId.CreateFromString(scheduledEvent.ClientSpanId.AsSpan());
-            ActivityContext parentContext = new ActivityContext(activityContext.TraceId, clientSpanId, activityContext.TraceFlags, activityContext.TraceState, activityContext.IsRemote);
-
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 name: CreateSpanName("activity", scheduledEvent.Name, scheduledEvent.Version),
                 kind: ActivityKind.Server,
-                parentContext: parentContext);
+                parentContext: activityContext);
 
             if (newActivity == null)
             {
                 return null;
             }
-
+            
             newActivity.SetTag(Schema.Task.Type, "activity");
             newActivity.SetTag(Schema.Task.Name, scheduledEvent.Name);
             newActivity.SetTag(Schema.Task.InstanceId, instance.InstanceId);
@@ -183,23 +180,22 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            if (!taskScheduledEvent.TryGetParentTraceContext(out ActivityContext activityContext))
-            {
-                return null;
-            }
-
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 name: CreateSpanName("activity", taskScheduledEvent.Name, taskScheduledEvent.Version),
                 kind: ActivityKind.Client,
                 startTime: taskScheduledEvent.Timestamp,
-                parentContext: activityContext);
+                parentContext: Activity.Current?.Context ?? default);
 
             if (newActivity == null)
             {
                 return null;
             }
 
-            newActivity.SetSpanId(taskScheduledEvent.ClientSpanId);
+            if (taskScheduledEvent.ParentTraceContext != null)
+            {
+                ActivityContext.TryParse(taskScheduledEvent.ParentTraceContext.TraceParent, taskScheduledEvent.ParentTraceContext?.TraceState, out ActivityContext parentContext);
+                newActivity.SetSpanId(parentContext.SpanId.ToString());
+            }
 
             newActivity.AddTag(Schema.Task.Type, "activity");
             newActivity.AddTag(Schema.Task.Name, taskScheduledEvent.Name);
