@@ -34,6 +34,8 @@ namespace DurableTask.ApplicationInsights
         {
             _telemetryClient = new TelemetryClient(configuration);
 
+            // ActivitySamplingResult.AllData means that the ActivityListener is going to collect all of the data
+            // for any Activity that's sent to the "DurableTask" source. It isn't going to exclude any data.
             _listener = new ActivityListener
             {
                 ShouldListenTo = source => source.Name.StartsWith("DurableTask"),
