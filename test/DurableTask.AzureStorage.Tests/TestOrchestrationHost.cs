@@ -100,7 +100,8 @@ namespace DurableTask.AzureStorage.Tests
             {
                 bool orch = referencedKnownType.Type.IsSubclassOf(typeof(TaskOrchestration));
                 bool activ = referencedKnownType.Type.IsSubclassOf(typeof(TaskActivity));
-                bool entit = referencedKnownType.Type.IsSubclassOf(typeof(Core.Entities.TaskEntity));
+                bool entit = referencedKnownType.Type.IsSubclassOf(typeof(TaskEntity));
+
                 if (orch && !this.addedOrchestrationTypes.Contains(referencedKnownType.Type))
                 {
                     this.worker.AddTaskOrchestrations(referencedKnownType.Type);

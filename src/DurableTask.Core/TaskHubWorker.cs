@@ -37,6 +37,8 @@ namespace DurableTask.Core
         readonly INameVersionObjectManager<TaskOrchestration> orchestrationManager;
         readonly INameVersionObjectManager<TaskEntity> entityManager;
 
+        readonly IEntityOrchestrationService entityOrchestrationService;
+
         readonly DispatchMiddlewarePipeline orchestrationDispatchPipeline = new DispatchMiddlewarePipeline();
         readonly DispatchMiddlewarePipeline entityDispatchPipeline = new DispatchMiddlewarePipeline();
         readonly DispatchMiddlewarePipeline activityDispatchPipeline = new DispatchMiddlewarePipeline();
@@ -50,10 +52,16 @@ namespace DurableTask.Core
         // ReSharper disable once InconsistentNaming (avoid breaking change)
         public IOrchestrationService orchestrationService { get; }
 
+        /// <summary>
+        /// Indicates whether the configured backend supports entities.
+        /// </summary>
+        public bool SupportsEntities => this.entityOrchestrationService != null;
+
         volatile bool isStarted;
 
         TaskActivityDispatcher activityDispatcher;
-        TaskOrchestrationDispatcher orchestrationDispatcher; // used for both orchestrations and entities
+        TaskOrchestrationDispatcher orchestrationDispatcher;
+        TaskEntityDispatcher entityDispatcher;
 
         /// <summary>
         ///     Create a new TaskHubWorker with given OrchestrationService
@@ -64,7 +72,7 @@ namespace DurableTask.Core
                   orchestrationService,
                   new NameVersionObjectManager<TaskOrchestration>(),
                   new NameVersionObjectManager<TaskActivity>(),
-                  new NameVersionObjectManager<TaskEntity>())
+                  new NameObjectManager<TaskEntity>())
         {
         }
 
@@ -79,7 +87,7 @@ namespace DurableTask.Core
                   orchestrationService,
                   new NameVersionObjectManager<TaskOrchestration>(),
                   new NameVersionObjectManager<TaskActivity>(),
-                  new NameVersionObjectManager<TaskEntity>(),
+                  new NameObjectManager<TaskEntity>(),
                   loggerFactory)
         {
         }
@@ -126,10 +134,12 @@ namespace DurableTask.Core
             this.entityManager = entityObjectManager ?? throw new ArgumentException("entityObjectManager");
             this.orchestrationService = orchestrationService ?? throw new ArgumentException("orchestrationService");
             this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
+            this.entityOrchestrationService = orchestrationService as IEntityOrchestrationService;
+            this.entityOrchestrationService?.ProcessEntitiesSeparately(); // lets the backend know that this worker wants them separately
         }
 
         /// <summary>
-        /// Gets the orchestration and entity dispatcher
+        /// Gets the orchestration dispatcher
         /// </summary>
         public TaskOrchestrationDispatcher TaskOrchestrationDispatcher => this.orchestrationDispatcher;
 
@@ -137,6 +147,11 @@ namespace DurableTask.Core
         /// Gets the task activity dispatcher
         /// </summary>
         public TaskActivityDispatcher TaskActivityDispatcher => this.activityDispatcher;
+
+        /// <summary>
+        /// Gets the entity dispatcher
+        /// </summary>
+        public TaskEntityDispatcher TaskEntityDispatcher => this.entityDispatcher;
 
         /// <summary>
         /// Gets or sets the error propagation behavior when an activity or orchestration fails with an unhandled exception.
@@ -202,9 +217,7 @@ namespace DurableTask.Core
                 this.orchestrationDispatcher = new TaskOrchestrationDispatcher(
                     this.orchestrationService,
                     this.orchestrationManager,
-                    this.entityManager,
                     this.orchestrationDispatchPipeline,
-                    this.entityDispatchPipeline,
                     this.logHelper,
                     this.ErrorPropagationMode);
                 this.activityDispatcher = new TaskActivityDispatcher(
@@ -214,9 +227,24 @@ namespace DurableTask.Core
                     this.logHelper,
                     this.ErrorPropagationMode);
 
+                if (this.SupportsEntities)
+                {
+                    this.entityDispatcher = new TaskEntityDispatcher(
+                        this.orchestrationService,
+                        this.entityManager,
+                        this.entityDispatchPipeline,
+                        this.logHelper,
+                        this.ErrorPropagationMode);
+                }
+
                 await this.orchestrationService.StartAsync();
                 await this.orchestrationDispatcher.StartAsync();
                 await this.activityDispatcher.StartAsync();
+
+                if (this.SupportsEntities)
+                {
+                    await this.entityDispatcher.StartAsync();
+                }
 
                 this.logHelper.TaskHubWorkerStarted(sw.Elapsed);
                 this.isStarted = true;
@@ -255,6 +283,7 @@ namespace DurableTask.Core
                     {
                         this.orchestrationDispatcher.StopAsync(isForced),
                         this.activityDispatcher.StopAsync(isForced),
+                        this.SupportsEntities ? this.entityDispatcher.StopAsync(isForced) : Task.CompletedTask,
                     };
 
                     await Task.WhenAll(dispatcherShutdowns);

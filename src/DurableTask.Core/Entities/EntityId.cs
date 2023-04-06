@@ -34,26 +34,26 @@ namespace DurableTask.Core.Entities
                 throw new ArgumentNullException(nameof(entityName), "Invalid entity id: entity name must not be a null or empty string.");
             }
 
-            this.EntityName = entityName;
-            this.EntityKey = entityKey ?? throw new ArgumentNullException(nameof(entityKey), "Invalid entity id: entity key must not be null.");
+            this.Name = entityName;
+            this.Key = entityKey ?? throw new ArgumentNullException(nameof(entityKey), "Invalid entity id: entity key must not be null.");
         }
 
         /// <summary>
         /// The name for this class of entities.
         /// </summary>
         [DataMember(Name = "name", IsRequired = true)]
-        public readonly string EntityName;
+        public readonly string Name;
 
         /// <summary>
         /// The entity key. Uniquely identifies an entity among all entities of the same name.
         /// </summary>
         [DataMember(Name = "key", IsRequired = true)]
-        public readonly string EntityKey;
+        public readonly string Key;
 
         /// <inheritdoc/>
         public override string ToString()
         {
-            return $"@{this.EntityName}@{this.EntityKey}";
+            return $"@{this.Name}@{this.Key}";
         }
 
         internal static string GetSchedulerIdPrefixFromEntityName(string entityName)
@@ -92,20 +92,20 @@ namespace DurableTask.Core.Entities
         /// <inheritdoc/>
         public bool Equals(EntityId other)
         {
-            return (this.EntityName,this.EntityKey).Equals((other.EntityName, other.EntityKey));
+            return (this.Name,this.Key).Equals((other.Name, other.Key));
         }
 
         /// <inheritdoc/>
         public override int GetHashCode()
         {
-            return (this.EntityName, this.EntityKey).GetHashCode();
+            return (this.Name, this.Key).GetHashCode();
         }
 
         /// <inheritdoc/>
         public int CompareTo(object obj)
         {
             var other = (EntityId)obj;
-            return (this.EntityName, this.EntityKey).CompareTo((other.EntityName, other.EntityKey));
+            return (this.Name, this.Key).CompareTo((other.Name, other.Key));
         }
     }
 }

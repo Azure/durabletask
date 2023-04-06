@@ -14,6 +14,7 @@
 namespace DurableTask.Core
 {
     using DurableTask.Core.Entities;
+    using DurableTask.Core.Serializing;
     using System;
     using System.Reflection;
     using System.Threading.Tasks;
@@ -22,17 +23,12 @@ namespace DurableTask.Core
     /// Context for an entity, which is available to the application code while it is executing entity operations.
     /// </summary>
     /// <typeparam name="TState">The JSON-serializable type of the entity state.</typeparam>
-    public abstract class EntityContext<TState>
+    public abstract class EntityContext<TState> 
     {
         /// <summary>
-        /// Gets the name of the currently executing entity.
+        /// Gives access to various options to control entity execution.
         /// </summary>
-        public abstract string EntityName { get; }
-
-        /// <summary>
-        /// Gets the key of the currently executing entity.
-        /// </summary>
-        public abstract string EntityKey { get; }
+        public abstract EntityExecutionOptions EntityExecutionOptions { get; }
 
         /// <summary>
         /// Gets the id of the currently executing entity.
@@ -88,7 +84,7 @@ namespace DurableTask.Core
         /// An operation invocation on an entity includes an operation name, which states what
         /// operation to perform, and optionally an operation input.
         /// </remarks>
-        public abstract TInput GetInput<TInput>();
+        public virtual TInput GetInput<TInput>() => (TInput)this.GetInput(typeof(TInput));
 
         /// <summary>
         /// Gets the input for this operation, as a deserialized value.
@@ -100,12 +96,6 @@ namespace DurableTask.Core
         /// operation to perform, and optionally an operation input.
         /// </remarks>
         public abstract object GetInput(Type inputType);
-
-        /// <summary>
-        /// Returns the given result to the caller of this operation.
-        /// </summary>
-        /// <param name="result">the result to return.</param>
-        public abstract void Return(object result);
 
         /// <summary>
         /// Signals an entity to perform an operation, without waiting for a response. Any result or exception is ignored (fire and forget).
@@ -125,7 +115,7 @@ namespace DurableTask.Core
         public abstract void SignalEntity(EntityId entity, DateTime scheduledTimeUtc, string operationName, object operationInput = null);
 
         /// <summary>
-        /// Schedules an orchestration function with the given name and version for execution./>.
+        /// Schedules an orchestration function with the given name and version for execution.
         /// Any result or exception is ignored (fire and forget).
         /// </summary>
         /// <param name="name">The name of the orchestrator, as specified by the ObjectCreator.</param>
@@ -136,7 +126,7 @@ namespace DurableTask.Core
         public abstract string StartNewOrchestration(string name, string version, object input, string instanceId = null);
 
         /// <summary>
-        /// Schedules an orchestration function with the given type for execution./>.
+        /// Schedules an orchestration function with the given type for execution.
         /// Any result or exception is ignored (fire and forget).
         /// </summary>
         /// <param name="orchestrationType">Type of the TaskOrchestration derived class to instantiate</param>

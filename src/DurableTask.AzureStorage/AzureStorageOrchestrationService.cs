@@ -44,7 +44,7 @@ namespace DurableTask.AzureStorage
         IDisposable, 
         IOrchestrationServiceQueryClient,
         IOrchestrationServicePurgeClient,
-        EntityBackendInformation.IInformationProvider
+        IEntityOrchestrationService
     {
         static readonly HistoryEvent[] EmptyHistoryEventList = new HistoryEvent[0];
 
@@ -270,7 +270,9 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         public int TaskOrchestrationDispatcherCount { get; } = 1;
 
-        EntityBackendInformation EntityBackendInformation.IInformationProvider.GetEntityBackendInformation()
+        #region IEntityOrchestrationService
+
+        EntityBackendInformation IEntityOrchestrationService.GetEntityBackendInformation()
            => new EntityBackendInformation()
            {
                EntityMessageReorderWindow = TimeSpan.FromMinutes(this.settings.EntityMessageReorderWindowInMinutes),
@@ -278,6 +280,35 @@ namespace DurableTask.AzureStorage
                SupportsImplicitEntityDeletion = false, // not supported by this backend
                MaximumSignalDelayTime = TimeSpan.FromDays(6),
            };
+
+        void IEntityOrchestrationService.ProcessEntitiesSeparately()
+        {
+            this.orchestrationSessionManager.ProcessEntitiesSeparately = true;
+        }
+
+        Task<TaskOrchestrationWorkItem> IEntityOrchestrationService.LockNextOrchestrationWorkItemAsync(
+          TimeSpan receiveTimeout,
+          CancellationToken cancellationToken)
+        {
+            if (!orchestrationSessionManager.ProcessEntitiesSeparately)
+            {
+                throw new InvalidOperationException("backend was not configured for separate entity processing");
+            }
+            return this.LockNextTaskOrchestrationWorkItemAsync(false, cancellationToken);
+        }
+
+        Task<TaskOrchestrationWorkItem> IEntityOrchestrationService.LockNextEntityWorkItemAsync(
+           TimeSpan receiveTimeout,
+           CancellationToken cancellationToken)
+        {
+            if (!orchestrationSessionManager.ProcessEntitiesSeparately)
+            {
+                throw new InvalidOperationException("backend was not configured for separate entity processing");
+            }
+            return this.LockNextTaskOrchestrationWorkItemAsync(true, cancellationToken);
+        }
+
+        #endregion
 
         #region Management Operations (Create/Delete/Start/Stop)
         /// <summary>
@@ -568,9 +599,14 @@ namespace DurableTask.AzureStorage
 
         #region Orchestration Work Item Methods
         /// <inheritdoc />
-        public async Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(
+        public Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(
             TimeSpan receiveTimeout,
             CancellationToken cancellationToken)
+        {
+            return LockNextTaskOrchestrationWorkItemAsync(false, cancellationToken);
+        }
+
+        async Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(bool entitiesOnly, CancellationToken cancellationToken)
         {
             Guid traceActivityId = StartNewLogicalTraceScope(useExisting: true);
 
@@ -584,7 +620,7 @@ namespace DurableTask.AzureStorage
                 try
                 {
                     // This call will block until the next session is ready
-                    session = await this.orchestrationSessionManager.GetNextSessionAsync(linkedCts.Token);
+                    session = await this.orchestrationSessionManager.GetNextSessionAsync(entitiesOnly, linkedCts.Token);
                     if (session == null)
                     {
                         return null;

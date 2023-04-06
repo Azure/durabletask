@@ -77,7 +77,7 @@ namespace DurableTask.Core.Entities
             {
                 foreach(var e in this.availableLocks)
                 {
-                    yield return (e.EntityName, e.EntityKey);
+                    yield return (e.Name, e.Key);
                 }
             }
         }

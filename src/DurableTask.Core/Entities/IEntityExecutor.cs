@@ -10,20 +10,20 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using DurableTask.Core.Entities.OperationFormat;
 
 namespace DurableTask.Core.Entities
 {
-    using System.Threading.Tasks;
-    using DurableTask.Core.Entities.OperationFormat;
-
     /// <summary>
-    /// Abstract base class for entities. 
+    /// Untyped interface for processing batches of entity operations.
     /// </summary>
-    /// <remarks>To implement task entities, use the subclass <see cref="TaskEntity{TState}"/>.</remarks>
-    public abstract class TaskEntity
+    public interface IEntityExecutor
     {
         /// <summary>
-        /// Internal untyped interface for entity batch operations.
+        /// processes a batch of entity opreations
         /// </summary>
         internal abstract Task<OperationBatchResult> ExecuteOperationBatchAsync(OperationBatchRequest operations, EntityExecutionOptions options);
     }

@@ -276,14 +276,15 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Gets or sets the maximum number of entity operations that are processed as a single batch.
+        /// Gets or sets the limit on the number of entity operations that should be processed as a single batch.
+        /// A null value indicates that no particular limit should be enforced.
         /// </summary>
         /// <remarks>
-        /// Reducing this number can help to avoid timeouts in execution environments that impose time limitations on work items.
+        /// Limiting the batch size can help to avoid timeouts in execution environments that impose time limitations on work items.
         /// If set to 1, batching is disabled, and each operation executes as a separate work item.
         /// </remarks>
         /// <value>
-        /// A positive integer configured by the host.
+        /// A positive integer, or null.
         /// </value>
         public int? MaxEntityOperationBatchSize { get; set; } = null;
 

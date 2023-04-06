@@ -20,45 +20,13 @@ namespace DurableTask.Core.Entities
     public class EntityBackendInformation
     {
         /// <summary>
-        /// Get the entity options specified by the orchestration service, or the default options if the service does not specify options.
-        /// </summary>
-        /// <param name="orchestrationService">The orchestration service.</param>
-        /// <param name="entityBackendInformation">The options that the provider specifies.</param>
-        /// <returns>The entity options</returns>
-        public static bool BackendSupportsEntities(IOrchestrationService orchestrationService, out EntityBackendInformation entityBackendInformation)
-        {
-            if (orchestrationService is IInformationProvider optionsProvider)
-            {
-                entityBackendInformation = optionsProvider.GetEntityBackendInformation();
-                return true;
-            }
-            else
-            {
-                entityBackendInformation = null;
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Interface for objects that provide entity backend information. 
-        /// </summary>
-        public interface IInformationProvider
-        {
-            /// <summary>
-            /// The entity backend info.
-            /// </summary>
-            /// <returns>The entity backend information object.</returns>
-            EntityBackendInformation GetEntityBackendInformation();
-        }
-
-        /// <summary>
         /// The time window within which entity messages should be deduplicated and reordered.
         /// This is zero for providers that already guarantee exactly-once and ordered delivery.
         /// </summary>
         public TimeSpan EntityMessageReorderWindow { get; set; }
 
         /// <summary>
-        /// The maximum number of entity operations that should be processed as a single batch.
+        /// A limit on the number of entity operations that should be processed as a single batch, or null if there is no limit.
         /// </summary>
         public int? MaxEntityOperationBatchSize { get; set; } 
 
@@ -78,15 +46,15 @@ namespace DurableTask.Core.Entities
         /// <param name="nowUtc"></param>
         /// <param name="scheduledUtcTime"></param>
         /// <returns></returns>
-        public (DateTime original, DateTime capped) GetCappedScheduledTime(DateTime nowUtc, DateTime scheduledUtcTime)
+        public DateTime GetCappedScheduledTime(DateTime nowUtc, DateTime scheduledUtcTime)
         {
             if ((scheduledUtcTime - nowUtc) <= this.MaximumSignalDelayTime)
             {
-                return (scheduledUtcTime, scheduledUtcTime);
+                return scheduledUtcTime;
             }
             else
             {
-                return (scheduledUtcTime, nowUtc + this.MaximumSignalDelayTime);
+                return nowUtc + this.MaximumSignalDelayTime;
             }
         }
     }

@@ -242,7 +242,8 @@ namespace DurableTask.Core
         public override void SignalEntity(EntityId entityId, DateTime scheduledTimeUtc, string operationName, object input = null)
         {
             this.CheckEntitySupport();
-            this.EntityOperationCore(entityId, operationName, input, true, EntityBackendInformation.GetCappedScheduledTime(this.CurrentUtcDateTime, scheduledTimeUtc));
+            DateTime cappedTime = EntityBackendInformation.GetCappedScheduledTime(this.CurrentUtcDateTime, scheduledTimeUtc);
+            this.EntityOperationCore(entityId, operationName, input, true, (scheduledTimeUtc, cappedTime));
         }
 
         (Guid operationId, string targetInstanceId, int taskId) EntityOperationCore(EntityId entityId, string operationName, object input, bool oneWay, (DateTime original, DateTime capped)? scheduledTimeUtc = null)

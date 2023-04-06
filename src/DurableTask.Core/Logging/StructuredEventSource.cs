@@ -687,7 +687,7 @@ namespace DurableTask.Core.Logging
             {
                 // TODO: Use WriteEventCore for better performance
                 this.WriteEvent(
-                    EventIds.EntityBatchExecuted,
+                    EventIds.EntityLockAcquired,
                     EntityId,
                     InstanceId,
                     ExecutionId,
@@ -711,7 +711,7 @@ namespace DurableTask.Core.Logging
             {
                 // TODO: Use WriteEventCore for better performance
                 this.WriteEvent(
-                    EventIds.EntityBatchExecuted,
+                    EventIds.EntityLockReleased,
                     EntityId, 
                     InstanceId,
                     Id,

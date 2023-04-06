@@ -51,6 +51,7 @@ namespace DurableTask.Core
                 throw new InvalidOperationException($"{nameof(TaskHubEntityClient)}.{name} is not supported because the chosen backend does not support entities.");
             }
         }
+
         private void CheckQuerySupport(string name)
         {
             if (this.queryClient == null)
@@ -58,6 +59,7 @@ namespace DurableTask.Core
                 throw new InvalidOperationException($"{nameof(TaskHubEntityClient)}.{name} is not supported because the chosen backend does not implement {nameof(IOrchestrationServiceQueryClient)}.");
             }
         }
+
         private void CheckPurgeSupport(string name)
         {
             if (this.purgeClient == null)
@@ -77,7 +79,7 @@ namespace DurableTask.Core
             this.messageDataConverter = client.DefaultConverter;
             this.stateDataConverter = stateDataConverter ?? client.DefaultConverter;
             this.logHelper = client.LogHelper;
-            this.backendInformation = (client.ServiceClient as EntityBackendInformation.IInformationProvider)?.GetEntityBackendInformation();
+            this.backendInformation = (client.ServiceClient as IEntityOrchestrationService)?.GetEntityBackendInformation();
             this.queryClient = client.ServiceClient as IOrchestrationServiceQueryClient;
             this.purgeClient = client.ServiceClient as IOrchestrationServicePurgeClient;
         }
@@ -97,7 +99,9 @@ namespace DurableTask.Core
             (DateTime original, DateTime capped)? scheduledTime = null;
             if (scheduledTimeUtc.HasValue)
             {
-                scheduledTime = this.backendInformation.GetCappedScheduledTime(DateTime.UtcNow, scheduledTimeUtc.Value.ToUniversalTime());
+                DateTime original = scheduledTimeUtc.Value.ToUniversalTime();
+                DateTime capped = this.backendInformation.GetCappedScheduledTime(DateTime.UtcNow, original);
+                scheduledTime = (original, capped);
             }
 
             var guid = Guid.NewGuid(); // unique id for this request
@@ -463,8 +467,8 @@ namespace DurableTask.Core
 
                 async Task DeleteIdleOrchestrationEntity(OrchestrationState state)
                 {
-                    await this.purgeClient.PurgeInstanceStateAsync(state.OrchestrationInstance.InstanceId);
-                    Interlocked.Increment(ref finalResult.NumberOfEmptyEntitiesRemoved);
+                    var purgeResult = await this.purgeClient.PurgeInstanceStateAsync(state.OrchestrationInstance.InstanceId);
+                    Interlocked.Add(ref finalResult.NumberOfEmptyEntitiesRemoved, purgeResult.DeletedInstanceCount);
                 }
 
                 async Task CheckForOrphanedLockAndFixIt(string instanceId, string lockOwner)

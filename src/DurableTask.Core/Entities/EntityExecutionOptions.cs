@@ -12,6 +12,7 @@
 //  ----------------------------------------------------------------------------------
 
 using System;
+using DurableTask.Core.Serializing;
 
 namespace DurableTask.Core.Entities
 {    
@@ -20,6 +21,28 @@ namespace DurableTask.Core.Entities
     /// </summary>
     public class EntityExecutionOptions
     {
+        /// <summary>
+        /// The data converter used for converting inputs and outputs for operations.
+        /// </summary>
+        public DataConverter MessageDataConverter { get; set; } = JsonDataConverter.Default;
+
+        /// <summary>
+        /// The data converter used for the entity state.
+        /// </summary>
+        public DataConverter StateDataConverter { get; set; } = JsonDataConverter.Default;
+
+        /// <summary>
+        /// The data converter used for exceptions.
+        /// </summary>
+        public DataConverter ErrorDataConverter { get; set; } = JsonDataConverter.Default;
+
+        /// <summary>
+        /// If true, all effects of an entity operation (all state changes and all actions) are rolled back
+        /// if the entity operation completes with an exception.
+        /// Implementations may override this setting.
+        /// </summary>
+        public bool RollbackOnExceptions { get; set; } = true;
+
         /// <summary>
         /// Information about backend entity support.
         /// </summary>

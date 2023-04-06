@@ -838,13 +838,16 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
-        /// End-to-end test which validates a simple entity scenario which sends a signal
-        /// to a relay which forwards it to counter, and polls until the signal is delivered.
+        /// End-to-end test which validates two simple entity scenarios:
+        /// a) send a signal to a counter, then poll until the signal is delivered.
+        /// b) same, but send the signal indirectly via a relay entity.
         /// </summary>
         [DataTestMethod]
-        [DataRow(false)]
-        [DataRow(true)]
-        public async Task DurableEntity_SignalThenPoll(bool extendedSessions)
+        [DataRow(false, false)]
+        [DataRow(true, false)]
+        [DataRow(false, true)]
+        [DataRow(true, true)]
+        public async Task DurableEntity_SignalThenPoll(bool extendedSessions, bool viaRelay)
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: extendedSessions))
             {
@@ -854,9 +857,16 @@ namespace DurableTask.AzureStorage.Tests
                 var counterEntityId = new EntityId("Counter", Guid.NewGuid().ToString());
 
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.PollCounterEntity), counterEntityId);
-
                 var entityClient = new TaskHubEntityClient(client.InnerClient);
-                await entityClient.SignalEntityAsync(relayEntityId, "", (counterEntityId, "increment"));
+
+                if (viaRelay)
+                {
+                    await entityClient.SignalEntityAsync(relayEntityId, "", (counterEntityId, "increment"));
+                }
+                else
+                {
+                    await entityClient.SignalEntityAsync(counterEntityId, "increment");
+                }
 
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
@@ -4239,34 +4249,32 @@ namespace DurableTask.AzureStorage.Tests
                     return 0;
                 }
 
-                public override ValueTask ExecuteOperationAsync(EntityContext<int> ctx)
+                public override ValueTask<object> ExecuteOperationAsync(EntityContext<int> ctx)
                 {
                     switch (ctx.OperationName)
                     {
                         case "get":
-                            ctx.Return(ctx.State);
-                            break;
+                            return new ValueTask<object>(ctx.State);
 
                         case "increment":
                             ctx.State++;
-                            ctx.Return(ctx.State);
-                            break;
+                            return new ValueTask<object>(ctx.State);
 
                         case "add":
                             ctx.State += ctx.GetInput<int>();
-                            ctx.Return(ctx.State);
-                            break;
+                            return new ValueTask<object>(ctx.State);
 
                         case "set":
                             ctx.State = ctx.GetInput<int>();
-                            break;
+                            return default;
 
                         case "delete":
                             ctx.DeleteState();
-                            break;
-                    }
+                            return default;
 
-                    return default;
+                        default:
+                            throw new InvalidOperationException($"unknown operation: {ctx.OperationName}");
+                    }
                 }
             }
 
@@ -4274,7 +4282,7 @@ namespace DurableTask.AzureStorage.Tests
 
             internal class Relay : TaskEntity<object>
             {
-                public override ValueTask ExecuteOperationAsync(EntityContext<object> context)
+                public override ValueTask<object> ExecuteOperationAsync(EntityContext<object> context)
                 {
                     var (destination, operation) = context.GetInput<(EntityId, string)>();
 
@@ -4290,7 +4298,7 @@ namespace DurableTask.AzureStorage.Tests
                 public override List<(int, int)> CreateInitialState(EntityContext<List<(int, int)>> context)
                     => new List<(int, int)>();
 
-                public override ValueTask ExecuteOperationAsync(EntityContext<List<(int, int)>> context)
+                public override ValueTask<object> ExecuteOperationAsync(EntityContext<List<(int, int)>> context)
                 {
                     context.State.Add((context.BatchPosition, context.BatchSize));
                     return default;
@@ -4303,22 +4311,20 @@ namespace DurableTask.AzureStorage.Tests
             // "get" (returns a string containing the current state)// An entity that records all batch positions and batch sizes
             internal class StringStore : TaskEntity<string>
             {
-                public override ValueTask ExecuteOperationAsync(EntityContext<string> context)
+                public override ValueTask<object> ExecuteOperationAsync(EntityContext<string> context)
                 {
                     switch (context.OperationName)
                     {
                         case "set":
                             context.State = context.GetInput<string>();
-                            break;
+                            return default;
 
                         case "get":
-                            context.Return(context.State);
-                            break;
+                            return new ValueTask<object>(context.State);
 
                         default:
                             throw new NotImplementedException("no such operation");
                     }
-                    return default;
                 }
             }
 
@@ -4328,17 +4334,17 @@ namespace DurableTask.AzureStorage.Tests
             // - a new operation "delete" deletes the entity, i.e. clears all state
             internal class StringStore2 : TaskEntity<string>
             {
-                public override ValueTask ExecuteOperationAsync(EntityContext<string> context)
+                public override ValueTask<object> ExecuteOperationAsync(EntityContext<string> context)
                 {
                     switch (context.OperationName)
                     {
                         case "delete":
                             context.DeleteState();
-                            break;
+                            return default;
 
                         case "set":
                             context.State = context.GetInput<string>();
-                            break;
+                            return default;
 
                         case "get":
                             if (!context.HasState)
@@ -4346,13 +4352,11 @@ namespace DurableTask.AzureStorage.Tests
                                 throw new InvalidOperationException("this entity does not like 'get' when it does not have state yet");
                             }
 
-                            context.Return(context.State);
-                            break;
+                            return new ValueTask<object>(context.State);
 
                         default:
                             throw new NotImplementedException("no such operation");
                     }
-                    return default;
                 }
             }
 
@@ -4368,33 +4372,30 @@ namespace DurableTask.AzureStorage.Tests
                
                 public override State CreateInitialState(EntityContext<State> context) => new State();
 
-                public override ValueTask ExecuteOperationAsync(EntityContext<State> context)
+                public override ValueTask<object> ExecuteOperationAsync(EntityContext<State> context)
                 {
                     switch (context.OperationName)
                     {
                         case "launch":
                             {
                                 context.State.Id = context.StartNewOrchestration(typeof(Orchestrations.DelayedSignal), input: context.EntityId);
-                                break;
+                                return default;
                             }
 
                         case "done":
                             {
                                 context.State.Done = true;
-                                break;
+                                return default;
                             }
 
                         case "get":
                             {
-                                context.Return(context.State.Done ? context.State.Id : null);
-                                break;
+                                return new ValueTask<object>(context.State.Done ? context.State.Id : null);
                             }
 
                         default:
                             throw new NotImplementedException("no such entity operation");
                     }
-
-                    return default;
                 }
             }
 
@@ -4402,13 +4403,21 @@ namespace DurableTask.AzureStorage.Tests
 
             internal class FaultyEntityWithRollback : FaultyEntity
             {
-                public override bool RollbackOnExceptions => true;
+                public override ValueTask<object> ExecuteOperationAsync(EntityContext<FaultyEntity> context)
+                {
+                    context.EntityExecutionOptions.RollbackOnExceptions = true;
+                    return base.ExecuteOperationAsync(context);
+                }
                 public override FaultyEntity CreateInitialState(EntityContext<FaultyEntity> context) => new FaultyEntityWithRollback();
             }
 
             internal class FaultyEntityWithoutRollback : FaultyEntity
             {
-                public override bool RollbackOnExceptions => false;
+                public override ValueTask<object> ExecuteOperationAsync(EntityContext<FaultyEntity> context)
+                {
+                    context.EntityExecutionOptions.RollbackOnExceptions = false;
+                    return base.ExecuteOperationAsync(context);
+                }
                 public override FaultyEntity CreateInitialState(EntityContext<FaultyEntity> context) => new FaultyEntityWithoutRollback();
             }
 
@@ -4425,50 +4434,49 @@ namespace DurableTask.AzureStorage.Tests
                 [JsonProperty]
                 public int NumberIncrementsSent { get; set; }
 
-                public override DataConverter ErrorDataConverter => new JsonDataConverter(new JsonSerializerSettings
+                DataConverter ErrorDataConverter = new JsonDataConverter(new JsonSerializerSettings
                 {
                     TypeNameHandling = TypeNameHandling.Objects,
                     ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
                 });
 
-                public override ValueTask ExecuteOperationAsync(EntityContext<FaultyEntity> context)
+                public override ValueTask<object> ExecuteOperationAsync(EntityContext<FaultyEntity> context)
                 {
+                    context.EntityExecutionOptions.ErrorDataConverter = this.ErrorDataConverter;
+
                     switch (context.OperationName)
                     {
                         case "exists":
-                            context.Return(context.HasState);
-                            break;
+                            return new ValueTask<object>(context.HasState);
 
                         case "deletewithoutreading":
                             context.DeleteState();
-                            break;
+                            return default;
 
                         case "Get":
                             if (!context.HasState)
                             {
-                                context.Return(0);
+                                return new ValueTask<object>(0);
                             }
                             else
                             {
-                                context.Return(context.State.Value);
+                                return new ValueTask<object>(context.State.Value);
                             }
-                            break;
 
                         case "GetNumberIncrementsSent":
-                            context.Return(context.State.NumberIncrementsSent);
-                            break;
+                            return new ValueTask<object>(context.State.NumberIncrementsSent);
 
                         case "Set":
                             context.State.Value = context.GetInput<int>();
-                            break;
+                            return default;
 
                         case "SetToUnserializable":
                             context.State.ObjectWithFaultySerialization = new UnserializableKaboom();
-                            break;
+                            return default;
 
                         case "SetToUnDeserializable":
                             context.State.ObjectWithFaultySerialization = new UnDeserializableKaboom();
-                            break;
+                            return default;
 
                         case "SetThenThrow":
                             context.State.Value = context.GetInput<int>();
@@ -4476,7 +4484,7 @@ namespace DurableTask.AzureStorage.Tests
 
                         case "Send":
                             Send();
-                            break;
+                            return default;
 
                         case "SendThenThrow":
                             Send();
@@ -4485,11 +4493,11 @@ namespace DurableTask.AzureStorage.Tests
                         case "SendThenMakeUnserializable":
                             Send();
                             context.State.ObjectWithFaultySerialization = new UnserializableKaboom();
-                            break;
+                            return default;
 
                         case "Delete":
                             context.DeleteState();
-                            break;
+                            return default;
 
                         case "DeleteThenThrow":
                             context.DeleteState();
@@ -4503,8 +4511,10 @@ namespace DurableTask.AzureStorage.Tests
 
                         case "ThrowUnDeserializable":
                             throw new FaultyEntity.UnDeserializableKaboom();
+
+                        default:
+                            throw new NotImplementedException("no such entity operation");
                     }
-                    return default;
 
                     void Send()
                     {
@@ -4565,7 +4575,6 @@ namespace DurableTask.AzureStorage.Tests
                 {
                 }
             }
-
         }
 
 

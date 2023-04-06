@@ -29,13 +29,13 @@ namespace DurableTask.Core
         /// <summary>
         /// The list of actions resulting from the orchestrator execution.
         /// </summary>
-        [DataMember(Name = "actions")]
+        [JsonProperty("actions")]
         public IEnumerable<OrchestratorAction> Actions { get; set; } = Array.Empty<OrchestratorAction>();
 
         /// <summary>
         /// The custom status, if any, of the orchestrator.
         /// </summary>
-        [DataMember(Name = "customStatus")]
+        [JsonProperty("customStatus")]
         public string? CustomStatus { get; set; }
 
         /// <summary>
