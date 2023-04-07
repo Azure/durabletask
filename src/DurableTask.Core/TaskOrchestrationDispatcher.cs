@@ -941,8 +941,6 @@ namespace DurableTask.Core
                 scheduledEvent.SetParentTraceContext(activityContext);
             }
 
-
-
             taskMessage.Event = scheduledEvent;
             taskMessage.OrchestrationInstance = runtimeState.OrchestrationInstance;
             taskMessage.OrchestrationExecutionContext = GetOrchestrationExecutionContext(runtimeState);

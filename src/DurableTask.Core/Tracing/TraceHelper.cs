@@ -148,7 +148,7 @@ namespace DurableTask.Core.Tracing
             {
                 return null;
             }
-            
+
             newActivity.SetTag(Schema.Task.Type, "activity");
             newActivity.SetTag(Schema.Task.Name, scheduledEvent.Name);
             newActivity.SetTag(Schema.Task.InstanceId, instance.InstanceId);
