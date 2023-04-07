@@ -351,6 +351,7 @@ namespace DurableTask.Core
                     Name = subOrchestrationInstanceCreatedEvent.Name,
                     Version = subOrchestrationInstanceCreatedEvent.Version,
                     Input = "[..snipped..]",
+                    ClientSpanId = subOrchestrationInstanceCreatedEvent.ClientSpanId,
                 };
             }
             else if (evt is SubOrchestrationInstanceCompletedEvent subOrchestrationInstanceCompletedEvent)

@@ -1018,6 +1018,9 @@ namespace DurableTask.Core
                 historyEvent.Input = createSubOrchestrationAction.Input;
             }
 
+            ActivitySpanId clientSpanId = ActivitySpanId.CreateRandom();
+            historyEvent.ClientSpanId = clientSpanId.ToString();
+
             runtimeState.AddEvent(historyEvent);
 
             var taskMessage = new TaskMessage();
@@ -1041,7 +1044,11 @@ namespace DurableTask.Core
                 Version = createSubOrchestrationAction.Version
             };
 
-            startedEvent.SetParentTraceContext(parentTraceActivity);
+            if (parentTraceActivity != null)
+            {
+                ActivityContext activityContext = new ActivityContext(parentTraceActivity.TraceId, clientSpanId, parentTraceActivity.ActivityTraceFlags, parentTraceActivity.TraceStateString);
+                startedEvent.SetParentTraceContext(activityContext);
+            }
 
             this.logHelper.SchedulingOrchestration(startedEvent);
 

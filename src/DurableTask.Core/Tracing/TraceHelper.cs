@@ -296,6 +296,8 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
+            activity.SetSpanId(createdEvent.ClientSpanId);
+
             activity.SetTag(Schema.Task.Type, "orchestration");
             activity.SetTag(Schema.Task.Name, createdEvent.Name);
             activity.SetTag(Schema.Task.InstanceId, orchestrationInstance?.InstanceId);
