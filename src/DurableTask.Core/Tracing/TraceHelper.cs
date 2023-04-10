@@ -193,8 +193,10 @@ namespace DurableTask.Core.Tracing
 
             if (taskScheduledEvent.ParentTraceContext != null)
             {
-                ActivityContext.TryParse(taskScheduledEvent.ParentTraceContext.TraceParent, taskScheduledEvent.ParentTraceContext?.TraceState, out ActivityContext parentContext);
-                newActivity.SetSpanId(parentContext.SpanId.ToString());
+                if (ActivityContext.TryParse(taskScheduledEvent.ParentTraceContext.TraceParent, taskScheduledEvent.ParentTraceContext?.TraceState, out ActivityContext parentContext))
+                {
+                    newActivity.SetSpanId(parentContext.SpanId.ToString());
+                }
             }
 
             newActivity.AddTag(Schema.Task.Type, "activity");

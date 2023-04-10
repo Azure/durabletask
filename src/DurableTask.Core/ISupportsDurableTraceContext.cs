@@ -60,8 +60,9 @@ namespace DurableTask.Core
         {
             if (activityContext != null)
             {
+                // TODO: update trace flags casting to handle 2 digits
                 wrapper.ParentTraceContext = new DistributedTraceContext(
-                    "00-" + activityContext.TraceId.ToString() + "-" + activityContext.SpanId.ToString() + "-0" + ((int)activityContext.TraceFlags),
+                    $"00-{activityContext.TraceId}-{activityContext.SpanId}-0{activityContext.TraceFlags:d}",
                     activityContext.TraceState);
             }
         }
