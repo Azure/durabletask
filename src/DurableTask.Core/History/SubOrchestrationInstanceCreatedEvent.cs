@@ -58,5 +58,11 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public string Input { get; set; }
+
+        /// <summary>
+        /// Gets or sets the sub orchestration's client span Id
+        /// </summary>
+        [DataMember]
+        public string ClientSpanId { get; set; }
     }
 }

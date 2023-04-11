@@ -919,7 +919,13 @@ namespace DurableTask.Core
                 version: scheduleTaskOrchestratorAction.Version,
                 input: scheduleTaskOrchestratorAction.Input);
 
-            scheduledEvent.SetParentTraceContext(parentTraceActivity);
+            ActivitySpanId clientSpanId = ActivitySpanId.CreateRandom();
+
+            if (parentTraceActivity != null)
+            {
+                ActivityContext activityContext = new(parentTraceActivity.TraceId, clientSpanId, parentTraceActivity.ActivityTraceFlags, parentTraceActivity.TraceStateString);
+                scheduledEvent.SetParentTraceContext(activityContext);
+            }
 
             taskMessage.Event = scheduledEvent;
             taskMessage.OrchestrationInstance = runtimeState.OrchestrationInstance;
@@ -932,7 +938,11 @@ namespace DurableTask.Core
                     name: scheduleTaskOrchestratorAction.Name,
                     version: scheduleTaskOrchestratorAction.Version);
 
-                scheduledEvent.SetParentTraceContext(parentTraceActivity);
+                if (parentTraceActivity != null)
+                {
+                    ActivityContext activityContext = new(parentTraceActivity.TraceId, clientSpanId, parentTraceActivity.ActivityTraceFlags, parentTraceActivity.TraceStateString);
+                    scheduledEvent.SetParentTraceContext(activityContext);
+                }
             }
 
             this.logHelper.SchedulingActivity(
@@ -992,6 +1002,9 @@ namespace DurableTask.Core
                 historyEvent.Input = createSubOrchestrationAction.Input;
             }
 
+            ActivitySpanId clientSpanId = ActivitySpanId.CreateRandom();
+            historyEvent.ClientSpanId = clientSpanId.ToString();
+
             runtimeState.AddEvent(historyEvent);
 
             var taskMessage = new TaskMessage();
@@ -1015,7 +1028,11 @@ namespace DurableTask.Core
                 Version = createSubOrchestrationAction.Version
             };
 
-            startedEvent.SetParentTraceContext(parentTraceActivity);
+            if (parentTraceActivity != null)
+            {
+                ActivityContext activityContext = new ActivityContext(parentTraceActivity.TraceId, clientSpanId, parentTraceActivity.ActivityTraceFlags, parentTraceActivity.TraceStateString);
+                startedEvent.SetParentTraceContext(activityContext);
+            }
 
             this.logHelper.SchedulingOrchestration(startedEvent);
 

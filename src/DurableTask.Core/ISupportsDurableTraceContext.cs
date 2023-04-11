@@ -55,5 +55,16 @@ namespace DurableTask.Core
                     activity.TraceStateString);
             }
         }
+
+        internal static void SetParentTraceContext(this ISupportsDurableTraceContext wrapper, ActivityContext activityContext)
+        {
+            if (activityContext != null)
+            {
+                // TODO: update trace flags casting to handle 2 digits
+                wrapper.ParentTraceContext = new DistributedTraceContext(
+                    $"00-{activityContext.TraceId}-{activityContext.SpanId}-0{activityContext.TraceFlags:d}",
+                    activityContext.TraceState);
+            }
+        }
     }
 }
