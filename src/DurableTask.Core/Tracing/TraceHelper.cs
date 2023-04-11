@@ -249,21 +249,7 @@ namespace DurableTask.Core.Tracing
 
             if (failedEvent != null)
             {
-                string statusDescription = "";
-                if (errorPropagationMode == ErrorPropagationMode.SerializeExceptions)
-                {
-                    // Null ref here if IncludeDetails is not enabled. Maybe failedEvent.Reason is good enough?
-                    statusDescription = JsonDataConverter.Default.Deserialize<Exception>(failedEvent.Details).Message;
-                }
-                else if (errorPropagationMode == ErrorPropagationMode.UseFailureDetails)
-                {
-                    FailureDetails? failureDetails = failedEvent.FailureDetails;
-                    if (failureDetails != null)
-                    {
-                        statusDescription = failureDetails.ErrorMessage;
-                    }
-                }
-
+                string statusDescription = failedEvent.Reason ?? "Unknown task failure";
                 activity?.SetStatus(ActivityStatusCode.Error, statusDescription);
             }
 
@@ -351,20 +337,7 @@ namespace DurableTask.Core.Tracing
 
             if (failedEvent != null)
             {
-                string statusDescription = "";
-                if (errorPropagationMode == ErrorPropagationMode.SerializeExceptions)
-                {
-                    statusDescription = failedEvent.Reason ?? "Sub-orchestration failure";
-                }
-                else if (errorPropagationMode == ErrorPropagationMode.UseFailureDetails)
-                {
-                    FailureDetails? failureDetails = failedEvent.FailureDetails;
-                    if (failureDetails != null)
-                    {
-                        statusDescription = failureDetails.ErrorMessage;
-                    }
-                }
-
+                string statusDescription = failedEvent.Reason ?? "Unkown sub-orchestration failure";
                 activity?.SetStatus(ActivityStatusCode.Error, statusDescription);
             }
 
