@@ -11,32 +11,34 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.ApplicationInsights;
-using Microsoft.ApplicationInsights.DataContracts;
-using Microsoft.ApplicationInsights.Extensibility;
-using Microsoft.ApplicationInsights.Extensibility.Implementation;
-
 namespace DurableTask.ApplicationInsights
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using Microsoft.ApplicationInsights;
+    using Microsoft.ApplicationInsights.DataContracts;
+    using Microsoft.ApplicationInsights.Extensibility;
+    using Microsoft.ApplicationInsights.Extensibility.Implementation;
+
+    /// <summary>
     /// Telemetry Module to convert Activity events to App Insights API
+    /// </summary>
     public sealed class DurableTelemetryModule : ITelemetryModule, IAsyncDisposable
     {
-        private TelemetryClient _telemetryClient;
-        private ActivityListener _listener;
+        private TelemetryClient telemetryClient;
+        private ActivityListener listener;
 
         /// <inheritdoc/>
         public void Initialize(TelemetryConfiguration configuration)
         {
-            _telemetryClient = new TelemetryClient(configuration);
+            this.telemetryClient = new TelemetryClient(configuration);
 
             // ActivitySamplingResult.AllData means that the ActivityListener is going to collect all of the data
             // for any Activity that's sent to the "DurableTask" source. It isn't going to exclude any data.
-            _listener = new ActivityListener
+            this.listener = new ActivityListener
             {
                 ShouldListenTo = source => source.Name.StartsWith("DurableTask"),
                 ActivityStopped = OnEndActivity,
@@ -44,7 +46,7 @@ namespace DurableTask.ApplicationInsights
                 SampleUsingParentId = (ref ActivityCreationOptions<string> _) => ActivitySamplingResult.AllData
             };
 
-            ActivitySource.AddActivityListener(_listener);
+            ActivitySource.AddActivityListener(this.listener);
         }
 
         void OnEndActivity(Activity activity)
@@ -55,7 +57,7 @@ namespace DurableTask.ApplicationInsights
             }
 
             OperationTelemetry telemetry = CreateTelemetry(activity);
-            _telemetryClient.Track(telemetry);
+            this.telemetryClient.Track(telemetry);
         }
 
         static OperationTelemetry CreateTelemetry(Activity activity)
@@ -118,13 +120,13 @@ namespace DurableTask.ApplicationInsights
 
         async ValueTask IAsyncDisposable.DisposeAsync()
         {
-            _listener?.Dispose();
-            if (_telemetryClient is not null)
+            this.listener?.Dispose();
+            if (this.telemetryClient != null)
             {
                 using CancellationTokenSource cts = new(millisecondsDelay: 5000);
                 try
                 {
-                    await _telemetryClient.FlushAsync(cts.Token);
+                    await this.telemetryClient.FlushAsync(cts.Token);
                 }
                 catch
                 {

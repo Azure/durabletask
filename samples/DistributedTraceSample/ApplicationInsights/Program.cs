@@ -15,7 +15,6 @@ namespace ApplicationInsightsSample
 {
     using System;
     using System.Threading.Tasks;
-    using Azure.Monitor.OpenTelemetry.Exporter;
     using DurableTask.ApplicationInsights;
     using DurableTask.AzureStorage;
     using DurableTask.Core;
@@ -37,7 +36,6 @@ namespace ApplicationInsightsSample
                     services.TryAddEnumerable(ServiceDescriptor.Singleton<ITelemetryModule, DurableTelemetryModule>());
                     services.AddSingleton(GetOrchestrationService());
                     AddApplicationInsights(services);
-                    //AddOtel(services);
                 })
                 .ConfigureTaskHubWorker(builder =>
                 {
@@ -63,24 +61,11 @@ namespace ApplicationInsightsSample
         {
             var settings = new AzureStorageOrchestrationServiceSettings
             {
-                TaskHubName = "appinsightssample",
+                TaskHubName = "AppInsightsSample",
                 StorageConnectionString = "UseDevelopmentStorage=true",
             };
-
             IOrchestrationService service = new AzureStorageOrchestrationService(settings);
             return service;
-        }
-
-        static void AddOtel(IServiceCollection services)
-        {
-            services.AddOpenTelemetry()
-                .WithTracing(builder =>
-                {
-                    builder.AddSource("DurableTask");
-                    builder.AddAzureMonitorTraceExporter();
-                });
-
-            services.AddOptions<AzureMonitorExporterOptions>().BindConfiguration("AzureMonitor");
         }
 
         static void AddApplicationInsights(IServiceCollection services)

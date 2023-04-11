@@ -1,11 +1,24 @@
-﻿using System;
-using System.Diagnostics;
-using System.Linq;
-using System.Linq.Expressions;
-using System.Reflection;
+﻿//  ----------------------------------------------------------------------------------
+//  Copyright Microsoft Corporation
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//  http://www.apache.org/licenses/LICENSE-2.0
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//  ----------------------------------------------------------------------------------
 
 namespace DurableTask.ApplicationInsights
 {
+    using System;
+    using System.Diagnostics;
+    using System.Linq;
+    using System.Linq.Expressions;
+    using System.Reflection;
+
     internal enum ActivityStatusCode
     {
         Unset = 0,
@@ -15,16 +28,11 @@ namespace DurableTask.ApplicationInsights
 
     internal static class DiagnosticActivityExtensions
     {
-        private static readonly string UnsetStatusCodeTagValue = "UNSET";
-        private static readonly string OkStatusCodeTagValue = "OK";
-        private static readonly string ErrorStatusCodeTagValue = "ERROR";
+        private const string UnsetStatusCodeTagValue = "UNSET";
+        private const string OkStatusCodeTagValue = "OK";
+        private const string ErrorStatusCodeTagValue = "ERROR";
 
-        private static readonly Func<Activity, StatusTuple> s_getStatus;
-
-        static DiagnosticActivityExtensions()
-        {
-            s_getStatus = CreateGetStatus();
-        }
+        private static readonly Func<Activity, StatusTuple> s_getStatus = CreateGetStatus();
 
         public static ActivityStatusCode GetStatus(this Activity activity) => activity.GetStatus(out _);
 
@@ -56,8 +64,6 @@ namespace DurableTask.ApplicationInsights
                     case "otel.status_description":
                         statusDescription = tag.Value;
                         break;
-                    default:
-                        continue;
                 }
             }
 

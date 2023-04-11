@@ -16,14 +16,10 @@ namespace ApplicationInsightsSample
 
         public void Process(ITelemetry item)
         {
-            if (item is DependencyTelemetry d && d.Target.StartsWith("127.0.0.1"))
+            // Filters out storage access spans so Gantt chart is easier to read
+            if (item is DependencyTelemetry d && d.Target.Contains("core.windows.net"))
             {
                 return;
-            }
-
-            if (item is RequestTelemetry request && request.Name.StartsWith("orchestration"))
-            {
-
             }
 
             _next.Process(item);
