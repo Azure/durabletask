@@ -18,30 +18,28 @@ namespace DurableTask.AzureStorage
     using Azure.Core;
     using Azure.Data.Tables;
     using Azure.Storage.Blobs;
-    using Azure.Storage.Queues;
 
     /// <summary>
-    /// Represents a client provider for the services exposed by an Azure Storage Account.
+    /// Represents a client provider for the services used to track the execution of Durable Tasks.
     /// </summary>
-    public sealed class StorageAccountClientProvider : TrackingServiceClientProvider
+    public class TrackingServiceClientProvider
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="StorageAccountClientProvider"/> class that returns
+        /// Initializes a new instance of the <see cref="TrackingServiceClientProvider"/> class that returns
         /// service clients using the given <paramref name="connectionString"/>.
         /// </summary>
         /// <param name="connectionString">An Azure Storage connection string.</param>
         /// <exception cref="ArgumentNullException">
         /// <paramref name="connectionString"/> is <see langword="null"/> or consists entirely of white space characters.
         /// </exception>
-        public StorageAccountClientProvider(string connectionString)
+        public TrackingServiceClientProvider(string connectionString)
             : this(
                   StorageServiceClientProvider.ForBlob(connectionString),
-                  StorageServiceClientProvider.ForQueue(connectionString),
                   StorageServiceClientProvider.ForTable(connectionString))
         { }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="StorageAccountClientProvider"/> class that returns
+        /// Initializes a new instance of the <see cref="TrackingServiceClientProvider"/> class that returns
         /// service clients using the given <paramref name="accountName"/> and credential.
         /// </summary>
         /// <param name="accountName">An Azure Storage account name.</param>
@@ -54,54 +52,54 @@ namespace DurableTask.AzureStorage
         /// <para>-or-</para>
         /// <para><paramref name="tokenCredential"/> is <see langword="null"/>.</para>
         /// </exception>
-        public StorageAccountClientProvider(string accountName, TokenCredential tokenCredential)
+        public TrackingServiceClientProvider(string accountName, TokenCredential tokenCredential)
             : this(
                   StorageServiceClientProvider.ForBlob(accountName, tokenCredential),
-                  StorageServiceClientProvider.ForQueue(accountName, tokenCredential),
                   StorageServiceClientProvider.ForTable(accountName, tokenCredential))
         { }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="StorageAccountClientProvider"/> class that returns
+        /// Initializes a new instance of the <see cref="TrackingServiceClientProvider"/> class that returns
         /// service clients using the given service URIs and credential.
         /// </summary>
         /// <param name="blobServiceUri">An Azure Blob Storage service URI.</param>
-        /// <param name="queueServiceUri">An Azure Queue Storage service URI.</param>
         /// <param name="tableServiceUri">An Azure Table Storage service URI.</param>
         /// <param name="tokenCredential">A token credential for accessing the storage services.</param>
         /// <exception cref="ArgumentNullException">
-        /// <paramref name="blobServiceUri"/>, <paramref name="queueServiceUri"/>,
-        /// <paramref name="tableServiceUri"/>, or <paramref name="tokenCredential"/> is <see langword="null"/>.
+        /// <paramref name="blobServiceUri"/>, <paramref name="tableServiceUri"/>,
+        /// or <paramref name="tokenCredential"/> is <see langword="null"/>.
         /// </exception>
-        public StorageAccountClientProvider(Uri blobServiceUri, Uri queueServiceUri, Uri tableServiceUri, TokenCredential tokenCredential)
+        public TrackingServiceClientProvider(Uri blobServiceUri, Uri tableServiceUri, TokenCredential tokenCredential)
             : this(
                   StorageServiceClientProvider.ForBlob(blobServiceUri, tokenCredential),
-                  StorageServiceClientProvider.ForQueue(queueServiceUri, tokenCredential),
                   StorageServiceClientProvider.ForTable(tableServiceUri, tokenCredential))
         { }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="StorageAccountClientProvider"/> class that returns
+        /// Initializes a new instance of the <see cref="TrackingServiceClientProvider"/> class that returns
         /// service clients using the given client providers.
         /// </summary>
         /// <param name="blob">An Azure Blob Storage service client provider.</param>
-        /// <param name="queue">An Azure Queue Storage service client provider.</param>
         /// <param name="table">An Azure Table Storage service client provider.</param>
         /// <exception cref="ArgumentNullException">
-        /// <paramref name="blob"/>, <paramref name="queue"/>, or <paramref name="table"/> is <see langword="null"/>.
+        /// <paramref name="blob"/> or <paramref name="table"/> is <see langword="null"/>.
         /// </exception>
-        public StorageAccountClientProvider(
+        public TrackingServiceClientProvider(
             IStorageServiceClientProvider<BlobServiceClient, BlobClientOptions> blob,
-            IStorageServiceClientProvider<QueueServiceClient, QueueClientOptions> queue,
             IStorageServiceClientProvider<TableServiceClient, TableClientOptions> table)
-            : base(blob, table)
         {
-            this.Queue = queue ?? throw new ArgumentNullException(nameof(queue));
+            this.Blob = blob ?? throw new ArgumentNullException(nameof(blob));
+            this.Table = table ?? throw new ArgumentNullException(nameof(table));
         }
 
         /// <summary>
-        /// Gets the client provider for Azure Queue Storage.
+        /// Gets the client provider for Azure Blob Storage.
         /// </summary>
-        public IStorageServiceClientProvider<QueueServiceClient, QueueClientOptions> Queue { get; }
+        public IStorageServiceClientProvider<BlobServiceClient, BlobClientOptions> Blob { get; }
+
+        /// <summary>
+        /// Gets the client provider for Azure Table Storage.
+        /// </summary>
+        public IStorageServiceClientProvider<TableServiceClient, TableClientOptions> Table { get; }
     }
 }

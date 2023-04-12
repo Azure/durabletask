@@ -150,7 +150,7 @@ namespace DurableTask.AzureStorage
         public bool UseAppLease { get; set; } = true;
 
         /// <summary>
-        /// If UseAppLease is true, gets or sets the AppLeaaseOptions used for acquiring the lease to start the application.
+        /// If UseAppLease is true, gets or sets the AppLeaseOptions used for acquiring the lease to start the application.
         /// </summary>
         public AppLeaseOptions AppLeaseOptions { get; set; } = AppLeaseOptions.DefaultOptions;
 
@@ -160,13 +160,12 @@ namespace DurableTask.AzureStorage
         public StorageAccountClientProvider? StorageAccountClientProvider { get; set; }
 
         /// <summary>
-        /// Gets or sets the storage provider for Azure Table Storage, which is used for the Tracking Store
-        /// that records the progress of orchestrations and entities.
+        /// Gets or sets the optional client provider for the Tracking Store that records the progress of orchestrations and entities.
         /// </summary>
         /// <remarks>
         /// If the value is <see langword="null"/>, then the <see cref="StorageAccountClientProvider"/> is used instead.
         /// </remarks>
-        public IStorageServiceClientProvider<TableServiceClient, TableClientOptions>? TrackingServiceClientProvider { get; set; }
+        public TrackingServiceClientProvider? TrackingServiceClientProvider { get; set; }
 
         /// <summary>
         ///  Should we carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
@@ -198,6 +197,11 @@ namespace DurableTask.AzureStorage
         /// Gets or sets a value indicating whether to disable the ExecutionStarted de-duplication logic.
         /// </summary>
         public bool DisableExecutionStartedDeduplication { get; set; }
+
+        /// <summary>
+        /// Gets or sets an optional custom type binder used when trying to deserialize queued messages.
+        /// </summary>
+        public ICustomTypeBinder? CustomMessageTypeBinder { get; set; }
 
         /// <summary>
         /// Returns bool indicating is the <see cref="TrackingServiceClientProvider"/> has been set.

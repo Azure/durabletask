@@ -46,13 +46,17 @@ namespace DurableTask.AzureStorage.Storage
             var timeoutPolicy = new LeaseTimeoutHttpPipelinePolicy(this.Settings.LeaseRenewInterval);
             var monitoringPolicy = new MonitoringHttpPipelinePolicy(this.Stats);
 
-            this.blobClient = CreateClient(settings.StorageAccountClientProvider.Blob, ConfigureClientPolicies);
             this.queueClient = CreateClient(settings.StorageAccountClientProvider.Queue, ConfigureClientPolicies);
-            this.tableClient = CreateClient(
-                settings.HasTrackingStoreStorageAccount
-                    ? settings.TrackingServiceClientProvider!
-                    : settings.StorageAccountClientProvider.Table,
-                ConfigureClientPolicies);
+            if (settings.HasTrackingStoreStorageAccount)
+            {
+                this.blobClient = CreateClient(settings.TrackingServiceClientProvider!.Blob, ConfigureClientPolicies);
+                this.tableClient = CreateClient(settings.TrackingServiceClientProvider!.Table, ConfigureClientPolicies);
+            }
+            else
+            {
+                this.blobClient = CreateClient(settings.StorageAccountClientProvider.Blob, ConfigureClientPolicies);
+                this.tableClient = CreateClient(settings.StorageAccountClientProvider.Table, ConfigureClientPolicies);
+            }
 
             void ConfigureClientPolicies<TClientOptions>(TClientOptions options) where TClientOptions : ClientOptions
             {
