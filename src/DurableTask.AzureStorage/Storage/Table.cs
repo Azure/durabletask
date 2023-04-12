@@ -42,7 +42,7 @@ namespace DurableTask.AzureStorage.Storage
 
         public string Name => this.tableClient.Name;
 
-        internal Uri Uri => this.tableClient.Uri;
+        internal Uri? Uri => this.tableClient.GetUri(); // TODO: Replace with Uri property
 
         public async Task<bool> CreateIfNotExistsAsync(CancellationToken cancellationToken = default)
         {
