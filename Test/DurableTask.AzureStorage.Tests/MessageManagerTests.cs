@@ -26,7 +26,6 @@ namespace DurableTask.AzureStorage.Tests
         [DataTestMethod]
         [DataRow("System.Collections.Generic.Dictionary`2[[System.String, System.Private.CoreLib],[System.String, System.Private.CoreLib]]")]
         [DataRow("System.Collections.Generic.Dictionary`2[[System.String, mscorlib],[System.String, mscorlib]]")]
-
         public void DeserializesStandardTypes(string dictionaryType)
         {
             // Given
@@ -101,10 +100,7 @@ namespace DurableTask.AzureStorage.Tests
                 });
 
             return new MessageManager(
-                new AzureStorageOrchestrationServiceSettings
-                {
-                    CustomMessageTypeBinder = binder
-                },
+                new AzureStorageOrchestrationServiceSettings { CustomMessageTypeBinder = binder },
                 azureStorageClient,
                 "$root");
         }
