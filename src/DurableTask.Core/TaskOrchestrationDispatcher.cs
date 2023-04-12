@@ -805,7 +805,7 @@ namespace DurableTask.Core
             out bool continuedAsNew)
         {
             ExecutionCompletedEvent executionCompletedEvent;
-            continuedAsNew = (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew);
+            continuedAsNew = (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew) && (runtimeState.OrchestrationStatus != OrchestrationStatus.Terminated);
             if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)
             {
                 executionCompletedEvent = new ContinueAsNewEvent(completeOrchestratorAction.Id,
@@ -819,7 +819,10 @@ namespace DurableTask.Core
                     completeOrchestratorAction.FailureDetails);
             }
 
-            runtimeState.AddEvent(executionCompletedEvent);
+            if (runtimeState.OrchestrationStatus != OrchestrationStatus.Terminated)
+            {
+                runtimeState.AddEvent(executionCompletedEvent);
+            }
 
             this.logHelper.OrchestrationCompleted(runtimeState, completeOrchestratorAction);
             TraceHelper.TraceInstance(
