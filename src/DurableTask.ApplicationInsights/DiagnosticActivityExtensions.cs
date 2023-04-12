@@ -72,6 +72,7 @@ namespace DurableTask.ApplicationInsights
 
         private static Func<Activity, StatusTuple> CreateGetStatus()
         {
+            // Returns null when the Status property isn't found.
             PropertyInfo getStatus = typeof(Activity).GetProperty("Status");
             if (getStatus is null)
             {

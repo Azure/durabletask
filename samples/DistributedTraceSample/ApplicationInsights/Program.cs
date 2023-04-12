@@ -73,9 +73,8 @@ namespace ApplicationInsightsSample
             services.AddApplicationInsightsTelemetryWorkerService();
             services.ConfigureTelemetryModule<DependencyTrackingTelemetryModule>((m, _) =>
             {
+                // Disabling Request-Ids in headers since we're using W3C protocol
                 m.EnableRequestIdHeaderInjectionInW3CMode = false;
-                m.ExcludeComponentCorrelationHttpHeadersOnDomains.Add("core.windows.net");
-                m.ExcludeComponentCorrelationHttpHeadersOnDomains.Add("127.0.0.1");
             });
             services.AddApplicationInsightsTelemetryProcessor<Processor>();
         }
