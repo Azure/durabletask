@@ -22,6 +22,7 @@ namespace DurableTask.Core
     using System.Threading.Tasks;
     using DurableTask.Core.Command;
     using DurableTask.Core.Common;
+    using DurableTask.Core.Entities;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using DurableTask.Core.Logging;
@@ -43,6 +44,8 @@ namespace DurableTask.Core
         readonly LogHelper logHelper;
         ErrorPropagationMode errorPropagationMode;
         readonly NonBlockingCountdownLock concurrentSessionLock;
+        readonly IEntityOrchestrationService? entityOrchestrationService;
+        readonly EntityBackendProperties? entityBackendProperties;
 
         internal TaskOrchestrationDispatcher(
             IOrchestrationService orchestrationService,
@@ -56,6 +59,8 @@ namespace DurableTask.Core
             this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
             this.logHelper = logHelper ?? throw new ArgumentNullException(nameof(logHelper));
             this.errorPropagationMode = errorPropagationMode;
+            this.entityOrchestrationService = orchestrationService as IEntityOrchestrationService;
+            this.entityBackendProperties = this.entityOrchestrationService?.GetEntityBackendProperties();
 
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskOrchestrationDispatcher",
@@ -113,7 +118,15 @@ namespace DurableTask.Core
         /// <returns>A new TaskOrchestrationWorkItem</returns>
         protected Task<TaskOrchestrationWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
-            return this.orchestrationService.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, cancellationToken);
+            if (this.entityOrchestrationService != null)
+            {
+                // we call the entity interface to make sure we are receiving only true orchestrations here
+                return this.entityOrchestrationService.LockNextOrchestrationWorkItemAsync(receiveTimeout, cancellationToken);
+            }
+            else
+            {
+                return this.orchestrationService.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, cancellationToken);
+            }
         }
 
 
@@ -309,14 +322,14 @@ namespace DurableTask.Core
             {
                 // start a task to run RenewUntil
                 renewTask = Task.Factory.StartNew(
-                    () => this.RenewUntil(workItem, renewCancellationTokenSource.Token),
+                    () => RenewUntil(workItem, this.orchestrationService, this.logHelper, nameof(TaskOrchestrationDispatcher), renewCancellationTokenSource.Token),
                     renewCancellationTokenSource.Token);
             }
 
             try
             {
                 // Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
-                if (!this.ReconcileMessagesWithState(workItem))
+                if (!ReconcileMessagesWithState(workItem, "TaskOrchestrationDispatcher", logHelper))
                 {
                     // TODO : mark an orchestration as faulted if there is data corruption
                     this.logHelper.DroppingOrchestrationWorkItem(workItem, "Received work-item for an invalid orchestration");
@@ -574,7 +587,6 @@ namespace DurableTask.Core
                 instanceState.Status = runtimeState.Status;
             }
 
-
             await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
                 workItem,
                 runtimeState,
@@ -597,10 +609,10 @@ namespace DurableTask.Core
             return new OrchestrationExecutionContext { OrchestrationTags = runtimeState.Tags ?? new Dictionary<string, string>(capacity: 0) };
         }
 
-        TimeSpan MinRenewalInterval = TimeSpan.FromSeconds(5); // prevents excessive retries if clocks are off
-        TimeSpan MaxRenewalInterval = TimeSpan.FromSeconds(30);
+        static TimeSpan MinRenewalInterval = TimeSpan.FromSeconds(5); // prevents excessive retries if clocks are off
+        static TimeSpan MaxRenewalInterval = TimeSpan.FromSeconds(30);
 
-        async Task RenewUntil(TaskOrchestrationWorkItem workItem, CancellationToken cancellationToken)
+        internal static async Task RenewUntil(TaskOrchestrationWorkItem workItem, IOrchestrationService orchestrationService, LogHelper logHelper, string dispatcher, CancellationToken cancellationToken)
         {
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -623,16 +635,16 @@ namespace DurableTask.Core
 
                 try
                 {
-                    this.logHelper.RenewOrchestrationWorkItemStarting(workItem);
-                    TraceHelper.Trace(TraceEventType.Information, "TaskOrchestrationDispatcher-RenewWorkItemStarting", "Renewing work item for instance {0}", workItem.InstanceId);
-                    await this.orchestrationService.RenewTaskOrchestrationWorkItemLockAsync(workItem);
-                    this.logHelper.RenewOrchestrationWorkItemCompleted(workItem);
-                    TraceHelper.Trace(TraceEventType.Information, "TaskOrchestrationDispatcher-RenewWorkItemCompleted", "Successfully renewed work item for instance {0}", workItem.InstanceId);
+                    logHelper.RenewOrchestrationWorkItemStarting(workItem);
+                    TraceHelper.Trace(TraceEventType.Information, $"{dispatcher}-RenewWorkItemStarting", "Renewing work item for instance {0}", workItem.InstanceId);
+                    await orchestrationService.RenewTaskOrchestrationWorkItemLockAsync(workItem);
+                    logHelper.RenewOrchestrationWorkItemCompleted(workItem);
+                    TraceHelper.Trace(TraceEventType.Information, $"{dispatcher}-RenewWorkItemCompleted", "Successfully renewed work item for instance {0}", workItem.InstanceId);
                 }
                 catch (Exception exception) when (!Utils.IsFatal(exception))
                 {
-                    this.logHelper.RenewOrchestrationWorkItemFailed(workItem, exception);
-                    TraceHelper.TraceException(TraceEventType.Warning, "TaskOrchestrationDispatcher-RenewWorkItemFailed", exception, "Failed to renew work item for instance {0}", workItem.InstanceId);
+                    logHelper.RenewOrchestrationWorkItemFailed(workItem, exception);
+                    TraceHelper.TraceException(TraceEventType.Warning, $"{dispatcher}-RenewWorkItemFailed", exception, "Failed to renew work item for instance {0}", workItem.InstanceId);
                 }
             }
         }
@@ -677,7 +689,8 @@ namespace DurableTask.Core
                     runtimeState,
                     taskOrchestration,
                     this.orchestrationService.EventBehaviourForContinueAsNew,
-                    this.errorPropagationMode);
+                    this.entityBackendProperties,
+                    this.errorPropagationMode); ;
                 OrchestratorExecutionResult resultFromOrchestrator = executor.Execute();
                 dispatchContext.SetProperty(resultFromOrchestrator);
                 return CompletedTask;
@@ -719,8 +732,10 @@ namespace DurableTask.Core
         /// Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
         /// </summary>
         /// <param name="workItem">A batch of work item messages.</param>
+        /// <param name="dispatcher">The name of the dispatcher, used for tracing.</param>
+        /// <param name="logHelper">The log helper.</param>
         /// <returns>True if workItem should be processed further. False otherwise.</returns>
-        bool ReconcileMessagesWithState(TaskOrchestrationWorkItem workItem)
+        internal static bool ReconcileMessagesWithState(TaskOrchestrationWorkItem workItem, string dispatcher, LogHelper logHelper)
         {
             foreach (TaskMessage message in workItem.NewMessages)
             {
@@ -729,7 +744,7 @@ namespace DurableTask.Core
                 {
                     throw TraceHelper.TraceException(
                         TraceEventType.Error,
-                        "TaskOrchestrationDispatcher-OrchestrationInstanceMissing",
+                        $"{dispatcher}-OrchestrationInstanceMissing",
                         new InvalidOperationException("Message does not contain any OrchestrationInstance information"));
                 }
 
@@ -747,10 +762,10 @@ namespace DurableTask.Core
                     return false;
                 }
 
-                this.logHelper.ProcessingOrchestrationMessage(workItem, message);
+                logHelper.ProcessingOrchestrationMessage(workItem, message);
                 TraceHelper.TraceInstance(
                     TraceEventType.Information,
-                    "TaskOrchestrationDispatcher-ProcessEvent",
+                    $"{dispatcher}-ProcessEvent",
                     orchestrationInstance,
                     "Processing new event with Id {0} and type {1}",
                     message.Event.EventId,
@@ -761,10 +776,10 @@ namespace DurableTask.Core
                     if (workItem.OrchestrationRuntimeState.ExecutionStartedEvent != null)
                     {
                         // this was caused due to a dupe execution started event, swallow this one
-                        this.logHelper.DroppingOrchestrationMessage(workItem, message, "Duplicate start event");
+                        logHelper.DroppingOrchestrationMessage(workItem, message, "Duplicate start event");
                         TraceHelper.TraceInstance(
                             TraceEventType.Warning,
-                            "TaskOrchestrationDispatcher-DuplicateStartEvent",
+                            $"{dispatcher}-DuplicateStartEvent",
                             orchestrationInstance,
                             "Duplicate start event.  Ignoring event with Id {0} and type {1} ",
                             message.Event.EventId,
@@ -778,13 +793,13 @@ namespace DurableTask.Core
                              workItem.OrchestrationRuntimeState.OrchestrationInstance?.ExecutionId))
                 {
                     // eat up any events for previous executions
-                    this.logHelper.DroppingOrchestrationMessage(
+                    logHelper.DroppingOrchestrationMessage(
                         workItem,
                         message,
                         $"ExecutionId of event ({orchestrationInstance.ExecutionId}) does not match current executionId");
                     TraceHelper.TraceInstance(
                         TraceEventType.Warning,
-                        "TaskOrchestrationDispatcher-ExecutionIdMismatch",
+                        $"{dispatcher}-ExecutionIdMismatch",
                         orchestrationInstance,
                         "ExecutionId of event does not match current executionId.  Ignoring event with Id {0} and type {1} ",
                         message.Event.EventId,
@@ -1036,7 +1051,7 @@ namespace DurableTask.Core
             };
         }
  
-        class NonBlockingCountdownLock
+        internal class NonBlockingCountdownLock
         {
             int available;
 

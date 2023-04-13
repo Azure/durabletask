@@ -18,6 +18,8 @@ namespace DurableTask.Core.Logging
     using System.Text;
     using DurableTask.Core.Command;
     using DurableTask.Core.Common;
+    using DurableTask.Core.Entities;
+    using DurableTask.Core.Entities.OperationFormat;
     using DurableTask.Core.History;
     using Microsoft.Extensions.Logging;
 
@@ -558,6 +560,58 @@ namespace DurableTask.Core.Logging
             if (this.IsStructuredLoggingEnabled)
             {
                 this.WriteStructuredLog(new LogEvents.RenewOrchestrationWorkItemFailed(workItem, exception), exception);
+            }
+        }
+
+
+        /// <summary>
+        /// Logs that an entity operation batch is about to start executing.
+        /// </summary>
+        /// <param name="request">The batch request.</param>
+        internal void EntityBatchExecuting(OperationBatchRequest request)
+        {
+            if (this.IsStructuredLoggingEnabled)
+            {
+                this.WriteStructuredLog(new LogEvents.EntityBatchExecuting(request));
+            }
+        }
+
+        /// <summary>
+        /// Logs that an entity operation batch completed its execution.
+        /// </summary>
+        /// <param name="request">The batch request.</param>
+        /// <param name="result">The batch result.</param>
+        internal void EntityBatchExecuted(OperationBatchRequest request, OperationBatchResult result)
+        {
+            if (this.IsStructuredLoggingEnabled)
+            {
+                this.WriteStructuredLog(new LogEvents.EntityBatchExecuted(request, result));
+            }
+        }
+
+        /// <summary>
+        /// Logs that an entity processed a lock acquire message.
+        /// </summary>
+        /// <param name="entityId">The entity id.</param>
+        /// <param name="message">The message.</param>
+        internal void EntityLockAcquired(string entityId, Core.Entities.EventFormat.RequestMessage message)
+        {
+            if (this.IsStructuredLoggingEnabled)
+            {
+                this.WriteStructuredLog(new LogEvents.EntityLockAcquired(entityId, message));
+            }
+        }
+
+        /// <summary>
+        /// Logs that an entity processed a lock release message.
+        /// </summary>
+        /// <param name="entityId">The entity id.</param>
+        /// <param name="message">The message.</param>
+        internal void EntityLockReleased(string entityId, Core.Entities.EventFormat.ReleaseMessage message)
+        {
+            if (this.IsStructuredLoggingEnabled)
+            {
+                this.WriteStructuredLog(new LogEvents.EntityLockReleased(entityId, message));
             }
         }
 

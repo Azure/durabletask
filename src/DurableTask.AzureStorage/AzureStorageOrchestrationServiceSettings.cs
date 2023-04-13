@@ -14,14 +14,14 @@
 namespace DurableTask.AzureStorage
 {
     using System;
+    using System.Runtime.Serialization;
+    using System.Threading.Tasks;
     using DurableTask.AzureStorage.Partitioning;
     using DurableTask.AzureStorage.Logging;
     using DurableTask.Core;
     using Microsoft.Extensions.Logging;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Microsoft.WindowsAzure.Storage.Table;
-    using System.Runtime.Serialization;
-    using System.Threading.Tasks;
 
     /// <summary>
     /// Settings that impact the runtime behavior of the <see cref="AzureStorageOrchestrationService"/>.
@@ -110,6 +110,12 @@ namespace DurableTask.AzureStorage
         /// The default value is 100.
         /// </summary>
         public int MaxConcurrentTaskOrchestrationWorkItems { get; set; } = 100;
+
+        /// <summary>
+        /// Gets or sets the maximum number of entity operation batches that can be processed concurrently on a single node.
+        /// The default value is 100.
+        /// </summary>
+        public int MaxConcurrentTaskEntityWorkItems { get; set; } = 100;
 
         /// <summary>
         /// Gets or sets the maximum number of concurrent storage operations that can be executed in the context
@@ -274,5 +280,24 @@ namespace DurableTask.AzureStorage
                 return this.logHelper;
             }
         }
+
+        /// <summary>
+        /// Gets or sets the limit on the number of entity operations that should be processed as a single batch.
+        /// A null value indicates that no particular limit should be enforced.
+        /// </summary>
+        /// <remarks>
+        /// Limiting the batch size can help to avoid timeouts in execution environments that impose time limitations on work items.
+        /// If set to 1, batching is disabled, and each operation executes as a separate work item.
+        /// </remarks>
+        /// <value>
+        /// A positive integer, or null.
+        /// </value>
+        public int? MaxEntityOperationBatchSize { get; set; } = null;
+
+        /// <summary>
+        /// Gets or sets the time window within which entity messages get deduplicated and reordered.
+        /// If set to zero, there is no sorting or deduplication, and all messages are just passed through.
+        /// </summary>
+        public int EntityMessageReorderWindowInMinutes { get; set; } = 30;
     }
 }
