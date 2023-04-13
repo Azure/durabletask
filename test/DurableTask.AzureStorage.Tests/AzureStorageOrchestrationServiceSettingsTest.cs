@@ -21,10 +21,12 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public void TrackingStoreStorageAccountDetailsNotSet()
         {
-            var settings = new AzureStorageOrchestrationServiceSettings()
+            var settings = new AzureStorageOrchestrationServiceSettings
             {
                 TaskHubName = "foo",
             };
+
+            Assert.IsFalse(settings.HasTrackingStoreStorageAccount);
             Assert.AreEqual("fooHistory", settings.HistoryTableName);
             Assert.AreEqual("fooInstances", settings.InstanceTableName);
         }
@@ -32,12 +34,14 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public void TrackingStoreStorageAccountDetailsHasSet()
         {
-            var settings = new AzureStorageOrchestrationServiceSettings()
+            var settings = new AzureStorageOrchestrationServiceSettings
             {
                 TaskHubName = "foo",
                 TrackingStoreNamePrefix = "bar",
-                TrackingServiceClientProvider = StorageServiceClientProvider.ForTable("connectionString"),
+                TrackingServiceClientProvider = new TrackingServiceClientProvider("connectionString"),
             };
+
+            Assert.IsTrue(settings.HasTrackingStoreStorageAccount);
             Assert.AreEqual("barHistory", settings.HistoryTableName);
             Assert.AreEqual("barInstances", settings.InstanceTableName);
         }

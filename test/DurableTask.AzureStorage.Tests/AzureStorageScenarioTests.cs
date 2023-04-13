@@ -147,6 +147,35 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        /// <summary>
+        /// End-to-end test which runs a slow orchestrator that causes work item renewal
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task LongRunningOrchestrator(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
+                enableExtendedSessions,
+                modifySettingsAction: (AzureStorageOrchestrationServiceSettings settings) =>
+                {
+                    // set a short timeout so we can test that the renewal works
+                    settings.ControlQueueVisibilityTimeout = TimeSpan.FromSeconds(10);
+                }))
+            {
+                await host.StartAsync();
+
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.LongRunningOrchestrator), "0");
+                var status = await client.WaitForCompletionAsync(StandardTimeout);
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                Assert.AreEqual("ok", JToken.Parse(status?.Output));
+
+                await host.StopAsync();
+            }
+        }
+
+
         [TestMethod]
         public async Task GetAllOrchestrationStatuses()
         {
@@ -1664,6 +1693,33 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        /// <summary>
+        /// End-to-end test which validates that exception messages that are considered valid Urls in the Uri.TryCreate() method
+        /// are handled with an additional Uri format check
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task LargeTextMessagePayloads_URIFormatCheck(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions, fetchLargeMessages: true))
+            {
+                await host.StartAsync();
+
+                string message = this.GenerateMediumRandomStringPayload().ToString();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.ThrowException), "durabletask.core.exceptions.taskfailedexception: Task failed with an unhandled exception: This is an invalid operation.)");
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+
+                //Ensure that orchestration state querying also retrieves messages 
+                status = (await client.GetStateAsync(status.OrchestrationInstance.InstanceId)).First();
+
+                Assert.AreEqual(OrchestrationStatus.Failed, status?.OrchestrationStatus);
+                Assert.IsTrue(status?.Output.Contains("invalid operation") == true);
+
+                await host.StopAsync();
+            }
+        }
+
         private StringBuilder GenerateMediumRandomStringPayload(int numChars = 128*1024, short utf8ByteSize = 1, short utf16ByteSize = 2)
         {
             string Chars;
@@ -2274,6 +2330,23 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
+            internal class LongRunningOrchestrator : TaskOrchestration<string, string>
+            {
+                public override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    Thread.Sleep(TimeSpan.FromSeconds(10));
+                    if (input == "0")
+                    {
+                        context.ContinueAsNew("1");
+                        return Task.FromResult("");
+                    }
+                    else
+                    {
+                        return Task.FromResult("ok");
+                    }
+                }
+            }
+
             [KnownType(typeof(Activities.GetFileList))]
             [KnownType(typeof(Activities.GetFileSize))]
             internal class DiskUsage : TaskOrchestration<long, string>
@@ -2637,6 +2710,24 @@ namespace DurableTask.AzureStorage.Tests
                     {
                         this.waitForApprovalHandle.SetResult(approvalResult);
                     }
+                }
+            }
+
+            [KnownType(typeof(Activities.Throw))]
+            internal class ThrowException : TaskOrchestration<string, string>
+            {
+                public override async Task<string> RunTask(OrchestrationContext context, string message)
+                {
+                    if (string.IsNullOrEmpty(message))
+                    {
+                        // This throw happens directly in the orchestration.
+                        throw new Exception(message);
+                    }
+
+                    // This throw happens in the implementation of an activity.
+                    await context.ScheduleTask<string>(typeof(Activities.Throw), message);
+                    return null;
+
                 }
             }
 
