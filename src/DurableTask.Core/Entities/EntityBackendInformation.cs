@@ -17,7 +17,7 @@ namespace DurableTask.Core.Entities
     /// <summary>
     /// Entity processing characteristics that are controlled by the backend provider, i.e. the orchestration service.
     /// </summary>
-    public class EntityBackendInformation
+    public class EntityBackendProperties
     {
         /// <summary>
         /// The time window within which entity messages should be deduplicated and reordered.
@@ -28,7 +28,12 @@ namespace DurableTask.Core.Entities
         /// <summary>
         /// A limit on the number of entity operations that should be processed as a single batch, or null if there is no limit.
         /// </summary>
-        public int? MaxEntityOperationBatchSize { get; set; } 
+        public int? MaxEntityOperationBatchSize { get; set; }
+
+        /// <summary>
+        /// The maximum number of entity operation batches that can be processed concurrently on a single node.
+        /// </summary>
+        public int MaxConcurrentTaskEntityWorkItems { get; set; }
 
         /// <summary>
         /// Whether the backend supports implicit deletion, i.e. setting the entity scheduler state to null implicitly deletes the storage record.

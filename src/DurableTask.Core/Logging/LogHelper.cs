@@ -16,7 +16,6 @@ namespace DurableTask.Core.Logging
     using System;
     using System.Collections.Generic;
     using System.Text;
-    using System.Web;
     using DurableTask.Core.Command;
     using DurableTask.Core.Common;
     using DurableTask.Core.Entities;

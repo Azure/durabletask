@@ -39,7 +39,7 @@ namespace DurableTask.Core
         readonly IEntityOrchestrationService entityOrchestrationService;
         readonly WorkItemDispatcher<TaskOrchestrationWorkItem> dispatcher;
         readonly DispatchMiddlewarePipeline dispatchPipeline;
-        readonly EntityBackendInformation entityBackendInformation;
+        readonly EntityBackendProperties entityBackendProperties;
         readonly LogHelper logHelper;
         readonly ErrorPropagationMode errorPropagationMode;
         readonly TaskOrchestrationDispatcher.NonBlockingCountdownLock concurrentSessionLock;
@@ -58,7 +58,7 @@ namespace DurableTask.Core
             this.logHelper = logHelper ?? throw new ArgumentNullException(nameof(logHelper));
             this.errorPropagationMode = errorPropagationMode;
             this.entityOrchestrationService = (orchestrationService as IEntityOrchestrationService)!;
-            this.entityBackendInformation = entityOrchestrationService.GetEntityBackendInformation();
+            this.entityBackendProperties = entityOrchestrationService.GetEntityBackendProperties();
            
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskEntityDispatcher",
@@ -71,7 +71,7 @@ namespace DurableTask.Core
                 SafeReleaseWorkItem = orchestrationService.ReleaseTaskOrchestrationWorkItemAsync,
                 AbortWorkItem = orchestrationService.AbandonTaskOrchestrationWorkItemAsync,
                 DispatcherCount = orchestrationService.TaskOrchestrationDispatcherCount,
-                MaxConcurrentWorkItems = orchestrationService.MaxConcurrentTaskOrchestrationWorkItems,
+                MaxConcurrentWorkItems = this.entityBackendProperties.MaxConcurrentTaskEntityWorkItems,
                 LogHelper = logHelper,
             };
 
@@ -84,7 +84,7 @@ namespace DurableTask.Core
         /// <summary>
         /// The entity options configured, or null if the backend does not support entities.
         /// </summary>
-        public EntityBackendInformation EntityBackendInformation => this.entityBackendInformation;
+        public EntityBackendProperties EntityBackendProperties => this.entityBackendProperties;
 
         /// <summary>
         /// Starts the dispatcher to start getting and processing orchestration events
@@ -443,7 +443,7 @@ namespace DurableTask.Core
 
         string SerializeSchedulerStateForNextExecution(SchedulerState schedulerState)
         {
-            if (this.entityBackendInformation.SupportsImplicitEntityDeletion && schedulerState.IsEmpty && !schedulerState.Suspended)
+            if (this.entityBackendProperties.SupportsImplicitEntityDeletion && schedulerState.IsEmpty && !schedulerState.Suspended)
             {
                 // this entity scheduler is idle and the entity is deleted, so the instance and history can be removed from storage
                 // we convey this to the durability provider by issuing a continue-as-new with null input
@@ -525,7 +525,7 @@ namespace DurableTask.Core
                             else
                             {
                                 // run this through the message sorter to help with reordering and duplicate filtering
-                                deliverNow = schedulerState.MessageSorter.ReceiveInOrder(requestMessage, this.entityBackendInformation.EntityMessageReorderWindow);
+                                deliverNow = schedulerState.MessageSorter.ReceiveInOrder(requestMessage, this.entityBackendProperties.EntityMessageReorderWindow);
                             }
 
                             foreach (var message in deliverNow)
@@ -588,7 +588,7 @@ namespace DurableTask.Core
                 // stopping at lock requests or when the maximum batch size is reached
                 while (schedulerState.MayDequeue())
                 {
-                    if (batch.OperationCount == this.entityBackendInformation.MaxEntityOperationBatchSize)
+                    if (batch.OperationCount == this.entityBackendProperties.MaxEntityOperationBatchSize)
                     {
                         // we have reached the maximum batch size already
                         // insert a delay after this batch to ensure write back
@@ -728,20 +728,20 @@ namespace DurableTask.Core
             if (action.ScheduledTime.HasValue)
             {
                 DateTime original = action.ScheduledTime.Value;
-                DateTime capped = this.entityBackendInformation.GetCappedScheduledTime(DateTime.UtcNow, original);
+                DateTime capped = this.entityBackendProperties.GetCappedScheduledTime(DateTime.UtcNow, original);
                 eventName = EntityMessageEventNames.ScheduledRequestMessageEventName(capped);
             }
             else
             {
                 eventName = EntityMessageEventNames.RequestMessageEventName;
-                schedulerState.MessageSorter.LabelOutgoingMessage(message, action.InstanceId, DateTime.UtcNow, this.entityBackendInformation.EntityMessageReorderWindow);
+                schedulerState.MessageSorter.LabelOutgoingMessage(message, action.InstanceId, DateTime.UtcNow, this.entityBackendProperties.EntityMessageReorderWindow);
             }
             this.ProcessSendEventMessage(effects, destination, eventName, message);
         }
 
         void SendLockRequestMessage(WorkItemEffects effects, SchedulerState schedulerState, OrchestrationInstance target, RequestMessage message)
         {
-            schedulerState.MessageSorter.LabelOutgoingMessage(message, target.InstanceId, DateTime.UtcNow, this.entityBackendInformation.EntityMessageReorderWindow);
+            schedulerState.MessageSorter.LabelOutgoingMessage(message, target.InstanceId, DateTime.UtcNow, this.entityBackendProperties.EntityMessageReorderWindow);
             this.ProcessSendEventMessage(effects, target, EntityMessageEventNames.RequestMessageEventName, message);
         }
 
@@ -877,7 +877,7 @@ namespace DurableTask.Core
 
                 var options = new EntityExecutionOptions()
                 {
-                    EntityBackendInformation = this.entityBackendInformation,
+                    EntityBackendProperties = this.entityBackendProperties,
                     ErrorPropagationMode = this.errorPropagationMode,
                 };
 

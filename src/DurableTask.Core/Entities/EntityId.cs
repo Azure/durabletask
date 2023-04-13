@@ -73,9 +73,9 @@ namespace DurableTask.Core.Entities
                 throw new ArgumentNullException(nameof(instanceId));
             }
             var pos = instanceId.IndexOf('@', 1);
-            if (pos <= 0)
+            if ( pos <= 0 || instanceId[0] != '@')
             {
-                throw new ArgumentException("instanceId is not a valid entityId", nameof(instanceId));
+                throw new ArgumentException($"Instance ID '{instanceId}' is not a valid entity ID.", nameof(instanceId));
             }
             var entityName = instanceId.Substring(1, pos - 1);
             var entityKey = instanceId.Substring(pos + 1);

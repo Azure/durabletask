@@ -98,7 +98,8 @@ namespace DurableTask.Core
         /// <param name="orchestrationService">Reference the orchestration service implementation</param>
         /// <param name="orchestrationObjectManager">NameVersionObjectManager for Orchestrations</param>
         /// <param name="activityObjectManager">NameVersionObjectManager for Activities</param>
-        /// <param name="entityObjectManager">The <see cref="INameVersionObjectManager{TaskEntity}"/> for entities</param>
+        /// <param name="entityObjectManager">The NameVersionObjectManager for entities. The version is the entity key.</param>
+        /// <remarks></remarks>
         public TaskHubWorker(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskOrchestration> orchestrationObjectManager,
@@ -120,7 +121,7 @@ namespace DurableTask.Core
         /// <param name="orchestrationService">The orchestration service implementation</param>
         /// <param name="orchestrationObjectManager">The <see cref="INameVersionObjectManager{TaskOrchestration}"/> for orchestrations</param>
         /// <param name="activityObjectManager">The <see cref="INameVersionObjectManager{TaskActivity}"/> for activities</param>
-        /// <param name="entityObjectManager">The <see cref="INameVersionObjectManager{TaskEntity}"/> for entities</param>
+        /// <param name="entityObjectManager">The <see cref="INameVersionObjectManager{TaskEntity}"/> for entities. The version is the entity key.</param>
         /// <param name="loggerFactory">The <see cref="ILoggerFactory"/> to use for logging</param>
         public TaskHubWorker(
             IOrchestrationService orchestrationService,
@@ -134,8 +135,13 @@ namespace DurableTask.Core
             this.entityManager = entityObjectManager ?? throw new ArgumentException("entityObjectManager");
             this.orchestrationService = orchestrationService ?? throw new ArgumentException("orchestrationService");
             this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
-            this.entityOrchestrationService = orchestrationService as IEntityOrchestrationService;
-            this.entityOrchestrationService?.ProcessEntitiesSeparately(); // lets the backend know that this worker wants them separately
+
+            // if the backend supports entities, configure it to collect entity work items in a separate queue.
+            if (orchestrationService is IEntityOrchestrationService entityOrchestrationService)
+            {
+                this.entityOrchestrationService = entityOrchestrationService;
+                entityOrchestrationService.ProcessEntitiesSeparately();  
+            }
         }
 
         /// <summary>

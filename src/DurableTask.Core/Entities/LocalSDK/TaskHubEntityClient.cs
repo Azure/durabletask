@@ -35,7 +35,7 @@ namespace DurableTask.Core
         readonly DataConverter messageDataConverter;
         readonly DataConverter stateDataConverter;
         readonly LogHelper logHelper;
-        readonly EntityBackendInformation backendInformation;
+        readonly EntityBackendProperties backendProperties;
         readonly IOrchestrationServiceQueryClient queryClient;
         readonly IOrchestrationServicePurgeClient purgeClient;
 
@@ -46,7 +46,7 @@ namespace DurableTask.Core
 
         private void CheckEntitySupport(string name)
         {
-            if (this.backendInformation == null)
+            if (this.backendProperties == null)
             {
                 throw new InvalidOperationException($"{nameof(TaskHubEntityClient)}.{name} is not supported because the chosen backend does not support entities.");
             }
@@ -79,7 +79,7 @@ namespace DurableTask.Core
             this.messageDataConverter = client.DefaultConverter;
             this.stateDataConverter = stateDataConverter ?? client.DefaultConverter;
             this.logHelper = client.LogHelper;
-            this.backendInformation = (client.ServiceClient as IEntityOrchestrationService)?.GetEntityBackendInformation();
+            this.backendProperties = (client.ServiceClient as IEntityOrchestrationService)?.GetEntityBackendProperties();
             this.queryClient = client.ServiceClient as IOrchestrationServiceQueryClient;
             this.purgeClient = client.ServiceClient as IOrchestrationServicePurgeClient;
         }
@@ -100,7 +100,7 @@ namespace DurableTask.Core
             if (scheduledTimeUtc.HasValue)
             {
                 DateTime original = scheduledTimeUtc.Value.ToUniversalTime();
-                DateTime capped = this.backendInformation.GetCappedScheduledTime(DateTime.UtcNow, original);
+                DateTime capped = this.backendProperties.GetCappedScheduledTime(DateTime.UtcNow, original);
                 scheduledTime = (original, capped);
             }
 
@@ -409,7 +409,7 @@ namespace DurableTask.Core
         /// Removes empty entities from storage and releases orphaned locks.
         /// </summary>
         /// <remarks>An entity is considered empty, and is removed, if it has no state, is not locked, and has
-        /// been idle for more than <see cref="EntityBackendInformation.EntityMessageReorderWindow"/> minutes.
+        /// been idle for more than <see cref="EntityBackendProperties.EntityMessageReorderWindow"/> minutes.
         /// Locks are considered orphaned, and are released, if the orchestration that holds them is not in state <see cref="OrchestrationStatus.Running"/>. This
         /// should not happen under normal circumstances, but can occur if the orchestration instance holding the lock
         /// exhibits replay nondeterminism failures, or if it is explicitly purged.</remarks>
@@ -456,8 +456,8 @@ namespace DurableTask.Core
                     if (removeEmptyEntities)
                     {
                         bool isEmptyEntity = !status.EntityExists && status.LockedBy == null && status.QueueSize == 0;
-                        bool safeToRemoveWithoutBreakingMessageSorterLogic = (this.backendInformation.EntityMessageReorderWindow == TimeSpan.Zero) ?
-                            true : (now - state.LastUpdatedTime > this.backendInformation.EntityMessageReorderWindow);
+                        bool safeToRemoveWithoutBreakingMessageSorterLogic = (this.backendProperties.EntityMessageReorderWindow == TimeSpan.Zero) ?
+                            true : (now - state.LastUpdatedTime > this.backendProperties.EntityMessageReorderWindow);
                         if (isEmptyEntity && safeToRemoveWithoutBreakingMessageSorterLogic)
                         {
                             tasks.Add(DeleteIdleOrchestrationEntity(state));

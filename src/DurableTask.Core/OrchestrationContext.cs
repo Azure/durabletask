@@ -73,7 +73,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Information about backend entity support, or null if the configured backend does not support entities.
         /// </summary>
-        internal EntityBackendInformation EntityBackendInformation { get; set; }
+        internal EntityBackendProperties EntityBackendProperties { get; set; }
 
         /// <summary>
         ///     Create a proxy client class to schedule remote TaskActivities via a strongly typed interface.

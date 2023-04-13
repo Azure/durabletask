@@ -27,12 +27,12 @@ namespace DurableTask.Core.Entities
         /// <summary>
         /// The name of the event.
         /// </summary>
-        public readonly string EventName;
+        public readonly string EventName { get; }
 
         /// <summary>
         /// The content of the event.
         /// </summary>
-        public readonly object EventContent;
+        public readonly object EventContent { get; }
 
         /// <summary>
         /// The target instance for the event.

@@ -46,7 +46,7 @@ namespace DurableTask.Core.Entities
         /// <summary>
         /// Information about backend entity support.
         /// </summary>
-        internal EntityBackendInformation EntityBackendInformation { get; set; }
+        internal EntityBackendProperties EntityBackendProperties { get; set; }
 
         /// <summary>
         /// The mode that is used for propagating errors, as specified in the <see cref="TaskHubWorker"/>.

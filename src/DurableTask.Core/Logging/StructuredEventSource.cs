@@ -678,7 +678,7 @@ namespace DurableTask.Core.Logging
             string InstanceId,
             string ExecutionId,
             Guid CriticalSectionId,
-            int LockSetSize,
+            string LockSet,
             int Position,
             string AppName,
             string ExtensionVersion)
@@ -692,7 +692,7 @@ namespace DurableTask.Core.Logging
                     InstanceId,
                     ExecutionId,
                     CriticalSectionId,
-                    LockSetSize,
+                    LockSet,
                     Position,
                     AppName,
                     ExtensionVersion);

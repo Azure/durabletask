@@ -311,7 +311,7 @@ namespace DurableTask.Core.Entities
                     requestMessage,
                     instanceId,
                     this.innerContext.CurrentUtcDateTime,
-                    this.innerContext.EntityBackendInformation.EntityMessageReorderWindow);
+                    this.innerContext.EntityBackendProperties.EntityMessageReorderWindow);
 
                 eventName = EntityMessageEventNames.RequestMessageEventName;
             }

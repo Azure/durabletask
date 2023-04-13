@@ -112,6 +112,12 @@ namespace DurableTask.AzureStorage
         public int MaxConcurrentTaskOrchestrationWorkItems { get; set; } = 100;
 
         /// <summary>
+        /// Gets or sets the maximum number of entity operation batches that can be processed concurrently on a single node.
+        /// The default value is 100.
+        /// </summary>
+        public int MaxConcurrentTaskEntityWorkItems { get; set; } = 100;
+
+        /// <summary>
         /// Gets or sets the maximum number of concurrent storage operations that can be executed in the context
         /// of a single orchestration instance.
         /// </summary>

@@ -45,7 +45,7 @@ namespace DurableTask.Core
         ErrorPropagationMode errorPropagationMode;
         readonly NonBlockingCountdownLock concurrentSessionLock;
         readonly IEntityOrchestrationService? entityOrchestrationService;
-        readonly EntityBackendInformation? entityBackendInformation;
+        readonly EntityBackendProperties? entityBackendProperties;
 
         internal TaskOrchestrationDispatcher(
             IOrchestrationService orchestrationService,
@@ -60,7 +60,7 @@ namespace DurableTask.Core
             this.logHelper = logHelper ?? throw new ArgumentNullException(nameof(logHelper));
             this.errorPropagationMode = errorPropagationMode;
             this.entityOrchestrationService = orchestrationService as IEntityOrchestrationService;
-            this.entityBackendInformation = this.entityOrchestrationService?.GetEntityBackendInformation();
+            this.entityBackendProperties = this.entityOrchestrationService?.GetEntityBackendProperties();
 
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskOrchestrationDispatcher",
@@ -689,7 +689,7 @@ namespace DurableTask.Core
                     runtimeState,
                     taskOrchestration,
                     this.orchestrationService.EventBehaviourForContinueAsNew,
-                    this.entityBackendInformation,
+                    this.entityBackendProperties,
                     this.errorPropagationMode); ;
                 OrchestratorExecutionResult resultFromOrchestrator = executor.Execute();
                 dispatchContext.SetProperty(resultFromOrchestrator);

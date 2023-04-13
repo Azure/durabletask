@@ -24,8 +24,8 @@ namespace DurableTask.Core.Entities
         /// <summary>
         /// The entity orchestration service.
         /// </summary>
-        /// <returns>The entity backend information object.</returns>
-        EntityBackendInformation GetEntityBackendInformation();
+        /// <returns>An object containing properties of the entity backend.</returns>
+        EntityBackendProperties GetEntityBackendProperties();
 
         /// <summary>
         /// Configures the orchestration service backend so entities and orchestrations are kept in two separate queues, and can be fetched separately.

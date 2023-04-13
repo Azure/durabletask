@@ -272,8 +272,8 @@ namespace DurableTask.AzureStorage
 
         #region IEntityOrchestrationService
 
-        EntityBackendInformation IEntityOrchestrationService.GetEntityBackendInformation()
-           => new EntityBackendInformation()
+        EntityBackendProperties IEntityOrchestrationService.GetEntityBackendProperties()
+           => new EntityBackendProperties()
            {
                EntityMessageReorderWindow = TimeSpan.FromMinutes(this.settings.EntityMessageReorderWindowInMinutes),
                MaxEntityOperationBatchSize = this.settings.MaxEntityOperationBatchSize,

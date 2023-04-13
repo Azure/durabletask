@@ -56,7 +56,7 @@ namespace DurableTask.Core
         public TaskOrchestrationContext(
             OrchestrationInstance orchestrationInstance,
             TaskScheduler taskScheduler,
-            EntityBackendInformation entityBackendInformation = null,
+            EntityBackendProperties entityBackendProperties = null,
             ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
         {
             Utils.UnusedParameter(taskScheduler);
@@ -68,7 +68,7 @@ namespace DurableTask.Core
             this.ErrorDataConverter = JsonDataConverter.Default;
             OrchestrationInstance = orchestrationInstance;
             IsReplaying = false;
-            this.EntityBackendInformation = entityBackendInformation;
+            this.EntityBackendProperties = entityBackendProperties;
             ErrorPropagationMode = errorPropagationMode;
             this.eventsWhileSuspended = new Queue<HistoryEvent>();
         }
@@ -81,7 +81,7 @@ namespace DurableTask.Core
 
         private void CheckEntitySupport()
         {
-            if (this.EntityBackendInformation == null)
+            if (this.EntityBackendProperties == null)
             {
                 throw new InvalidOperationException("Entities are not supported by the configured persistence backend.");
             }
@@ -242,7 +242,7 @@ namespace DurableTask.Core
         public override void SignalEntity(EntityId entityId, DateTime scheduledTimeUtc, string operationName, object input = null)
         {
             this.CheckEntitySupport();
-            DateTime cappedTime = EntityBackendInformation.GetCappedScheduledTime(this.CurrentUtcDateTime, scheduledTimeUtc);
+            DateTime cappedTime = EntityBackendProperties.GetCappedScheduledTime(this.CurrentUtcDateTime, scheduledTimeUtc);
             this.EntityOperationCore(entityId, operationName, input, true, (scheduledTimeUtc, cappedTime));
         }
 

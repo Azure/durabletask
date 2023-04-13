@@ -22,6 +22,8 @@ namespace DurableTask.Core.Logging
     using DurableTask.Core.Entities.OperationFormat;
     using DurableTask.Core.History;
     using Microsoft.Extensions.Logging;
+    using Newtonsoft.Json;
+    using Newtonsoft.Json.Linq;
 
     /// <summary>
     /// This class defines all log events supported by DurableTask.Core.
@@ -1284,8 +1286,17 @@ namespace DurableTask.Core.Logging
                 this.InstanceId = message.ParentInstanceId;
                 this.ExecutionId = message.ParentExecutionId;
                 this.CriticalSectionId = message.Id;
-                this.LockSet = message.LockSet;
                 this.Position = message.Position;
+
+                if (message.LockSet != null)
+                {
+                    var jArray = new JArray();
+                    foreach (var id in message.LockSet)
+                    {
+                        jArray.Add((JToken) id.ToString());
+                    }
+                    this.LockSet = jArray.ToString(Formatting.None);
+                }
             }
 
             [StructuredLogField]
@@ -1301,7 +1312,7 @@ namespace DurableTask.Core.Logging
             public Guid CriticalSectionId { get; set; }
 
             [StructuredLogField]
-            public EntityId[] LockSet { get; set; }
+            public string LockSet { get; set; }
 
             [StructuredLogField]
             public int Position { get; set; }
@@ -1321,7 +1332,7 @@ namespace DurableTask.Core.Logging
                     this.InstanceId ?? string.Empty,
                     this.ExecutionId ?? string.Empty,
                     this.CriticalSectionId,
-                    this.LockSet.Length,
+                    this.LockSet ?? string.Empty,
                     this.Position,
                     Utils.AppName,
                     Utils.PackageVersion);

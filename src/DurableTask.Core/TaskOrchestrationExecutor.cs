@@ -44,20 +44,20 @@ namespace DurableTask.Core
         /// <param name="orchestrationRuntimeState"></param>
         /// <param name="taskOrchestration"></param>
         /// <param name="eventBehaviourForContinueAsNew"></param>
-        /// <param name="entityBackendInformation"></param>
+        /// <param name="entityBackendProperties"></param>
         /// <param name="errorPropagationMode"></param>
         public TaskOrchestrationExecutor(
             OrchestrationRuntimeState orchestrationRuntimeState,
             TaskOrchestration taskOrchestration,
             BehaviorOnContinueAsNew eventBehaviourForContinueAsNew,
-            EntityBackendInformation? entityBackendInformation,
+            EntityBackendProperties? entityBackendProperties,
             ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
         {
             this.decisionScheduler = new SynchronousTaskScheduler();
             this.context = new TaskOrchestrationContext(
                 orchestrationRuntimeState.OrchestrationInstance,
                 this.decisionScheduler,
-                entityBackendInformation,
+                entityBackendProperties,
                 errorPropagationMode
                 );
             this.orchestrationRuntimeState = orchestrationRuntimeState;
@@ -78,7 +78,7 @@ namespace DurableTask.Core
             TaskOrchestration taskOrchestration,
             BehaviorOnContinueAsNew eventBehaviourForContinueAsNew,
             ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
-            : this(orchestrationRuntimeState, taskOrchestration, eventBehaviourForContinueAsNew, new EntityBackendInformation(), errorPropagationMode)
+            : this(orchestrationRuntimeState, taskOrchestration, eventBehaviourForContinueAsNew, new EntityBackendProperties(), errorPropagationMode)
         {
         }
 
