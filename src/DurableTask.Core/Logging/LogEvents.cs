@@ -1290,12 +1290,7 @@ namespace DurableTask.Core.Logging
 
                 if (message.LockSet != null)
                 {
-                    var jArray = new JArray();
-                    foreach (var id in message.LockSet)
-                    {
-                        jArray.Add((JToken) id.ToString());
-                    }
-                    this.LockSet = jArray.ToString(Formatting.None);
+                    this.LockSet = string.Join(",", message.LockSet.Select(id => id.ToString()));
                 }
             }
 
