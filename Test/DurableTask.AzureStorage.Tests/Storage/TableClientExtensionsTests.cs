@@ -50,7 +50,7 @@ namespace DurableTask.AzureStorage.Tests.Storage
             client = new TableClient(new Uri("https://foo.table.core.windows.net/bar"));
             Assert.AreEqual(new Uri("https://foo.table.core.windows.net/bar"), client.GetUri());
 
-            client = new TableClient(new Uri("https://foo.table.core.windows.net/bar?sv=2019-12-12&ss=t&srt=s&sp=rwdlacu&se=2020-08-28T23:45:30Z&st=2020-08-26T15:45:30Z&spr=https&sig=mySig&tn=someTableName"));
+            client = new TableClient(new Uri("https://foo.table.core.windows.net/bar?sv=2019-12-12&ss=t&srt=s&sp=rwdlacu&se=2020-08-28T23:45:30Z&st=2020-08-26T15:45:30Z&spr=https&sig=mySig&tn=bar"));
             Assert.AreEqual(new Uri("https://foo.table.core.windows.net/bar"), client.GetUri());
         }
     }
