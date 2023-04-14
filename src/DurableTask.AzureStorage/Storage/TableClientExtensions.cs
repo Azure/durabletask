@@ -28,7 +28,9 @@ namespace DurableTask.AzureStorage.Storage
             }
 
             Uri? endpoint = GetEndpointFunc(tableClient);
-            return endpoint != null ? new TableUriBuilder(endpoint) { Tablename = tableClient.Name }.ToUri() : null;
+            return endpoint != null
+                ? new TableUriBuilder(endpoint) { Query = null, Sas = null, Tablename = tableClient.Name }.ToUri()
+                : null;
         }
 
         static readonly Func<TableClient, Uri?> GetEndpointFunc = CreateGetEndpointFunc();
