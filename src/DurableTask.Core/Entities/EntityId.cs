@@ -68,9 +68,9 @@ namespace DurableTask.Core.Entities
         /// <returns>the corresponding entity ID.</returns>
         public static EntityId FromString(string instanceId)
         {
-            if (instanceId == null)
+            if (string.IsNullOrEmpty(instanceId))
             {
-                throw new ArgumentNullException(nameof(instanceId));
+                throw new ArgumentException(nameof(instanceId));
             }
             var pos = instanceId.IndexOf('@', 1);
             if ( pos <= 0 || instanceId[0] != '@')
