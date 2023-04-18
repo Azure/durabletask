@@ -15,6 +15,7 @@ namespace DurableTask.Core.Entities
     using DurableTask.Core.Entities;
     using DurableTask.Core.Entities.EventFormat;
     using DurableTask.Core.Entities.OperationFormat;
+    using DurableTask.Core.Exceptions;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
     using System;

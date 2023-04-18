@@ -173,11 +173,6 @@ namespace DurableTask.Core
         public TaskActivityDispatcher TaskActivityDispatcher => this.activityDispatcher;
 
         /// <summary>
-        /// Gets the entity dispatcher
-        /// </summary>
-        public TaskEntityDispatcher TaskEntityDispatcher => this.entityDispatcher;
-
-        /// <summary>
         /// Gets or sets the error propagation behavior when an activity or orchestration fails with an unhandled exception.
         /// </summary>
         /// <remarks>

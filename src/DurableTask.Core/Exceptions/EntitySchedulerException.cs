@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-namespace DurableTask.Core.Entities
+namespace DurableTask.Core.Exceptions
 {
     using System;
     using System.Runtime.Serialization;
@@ -26,6 +26,15 @@ namespace DurableTask.Core.Entities
         /// Initializes a new instance of the <see cref="EntitySchedulerException"/> class.
         /// </summary>
         public EntitySchedulerException()
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="EntitySchedulerException"/> class.
+        /// </summary>
+        /// <param name="message">The message that describes the error.</param>
+        public EntitySchedulerException(string message)
+            : base(message)
         {
         }
 
