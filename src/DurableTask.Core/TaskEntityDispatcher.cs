@@ -159,12 +159,10 @@ namespace DurableTask.Core
                             isExtendedSession = this.concurrentSessionLock.Acquire();
                             if (!isExtendedSession)
                             {
-                                TraceHelper.Trace(TraceEventType.Verbose, "OnProcessWorkItemSession-MaxOperations", "Failed to acquire concurrent session lock.");
                                 break;
                             }
                         }
 
-                        TraceHelper.Trace(TraceEventType.Verbose, "OnProcessWorkItemSession-StartFetch", "Starting fetch of existing session.");
                         Stopwatch timer = Stopwatch.StartNew();
 
                         // Wait for new messages to arrive for the session. This call is expected to block (asynchronously)
@@ -175,10 +173,6 @@ namespace DurableTask.Core
                             break;
                         }
 
-                        TraceHelper.Trace(
-                            TraceEventType.Verbose,
-                            "OnProcessWorkItemSession-EndFetch",
-                            $"Fetched {workItem.NewMessages.Count} new message(s) after {timer.ElapsedMilliseconds} ms from existing session.");
                         workItem.OrchestrationRuntimeState.NewEvents.Clear();
                     }
                 }
@@ -186,10 +180,6 @@ namespace DurableTask.Core
                 {
                     if (isExtendedSession)
                     {
-                        TraceHelper.Trace(
-                            TraceEventType.Verbose,
-                            "OnProcessWorkItemSession-Release",
-                            $"Releasing extended session after {processCount} batch(es).");
                         this.concurrentSessionLock.Release();
                     }
                 }
@@ -199,7 +189,6 @@ namespace DurableTask.Core
                 // Either the orchestration or the orchestration service explicitly abandoned the session.
                 OrchestrationInstance instance = workItem.OrchestrationRuntimeState?.OrchestrationInstance ?? new OrchestrationInstance { InstanceId = workItem.InstanceId };
                 this.logHelper.OrchestrationAborted(instance, e.Message);
-                TraceHelper.TraceInstance(TraceEventType.Warning, "TaskOrchestrationDispatcher-ExecutionAborted", instance, "{0}", e.Message);
                 await this.orchestrationService.AbandonTaskOrchestrationWorkItemAsync(workItem);
             }
         }
@@ -255,11 +244,6 @@ namespace DurableTask.Core
                 {
                     // TODO : mark an orchestration as faulted if there is data corruption
                     this.logHelper.DroppingOrchestrationWorkItem(workItem, "Received work-item for an invalid orchestration");
-                    TraceHelper.TraceSession(
-                        TraceEventType.Error,
-                        "TaskEntityDispatcher-DeletedOrchestration",
-                        runtimeState.OrchestrationInstance?.InstanceId,
-                        "Received work-item for an invalid orchestration");
                 }
                 else
                 {

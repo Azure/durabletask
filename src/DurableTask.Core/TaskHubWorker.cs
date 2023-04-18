@@ -346,6 +346,11 @@ namespace DurableTask.Core
         /// <returns></returns>
         public TaskHubWorker AddTaskEntities(params Type[] taskEntityTypes)
         {
+            if (this.SupportsEntities)
+            {
+                throw new NotSupportedException("The configured backend does not support entities.");
+            }
+
             foreach (Type type in taskEntityTypes)
             {
                 ObjectCreator<TaskEntity> creator = new NameValueObjectCreator<TaskEntity>(
@@ -368,6 +373,11 @@ namespace DurableTask.Core
         /// </param>
         public TaskHubWorker AddTaskEntities(params ObjectCreator<TaskEntity>[] taskEntityCreators)
         {
+            if (this.SupportsEntities)
+            {
+                throw new NotSupportedException("The configured backend does not support entities.");
+            }
+
             foreach (ObjectCreator<TaskEntity> creator in taskEntityCreators)
             {
                 this.entityManager.Add(creator);

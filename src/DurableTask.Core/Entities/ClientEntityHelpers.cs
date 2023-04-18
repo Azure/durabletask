@@ -12,9 +12,8 @@
 //  ----------------------------------------------------------------------------------
 namespace DurableTask.Core.Entities
 {
+    using DurableTask.Core.Entities;
     using DurableTask.Core.Entities.EventFormat;
-    using DurableTask.Core.Entities.OperationFormat;
-    using DurableTask.Core.Entities.StateFormat;
     using Newtonsoft.Json.Linq;
     using Newtonsoft.Json;
     using System;
@@ -22,7 +21,7 @@ namespace DurableTask.Core.Entities
     /// <summary>
     /// Utility functions for clients that interact with entities, either by sending events or by accessing the entity state directly in storage
     /// </summary>
-    public static class ClientEntityContext
+    public static class ClientEntityHelpers
     {
         /// <summary>
         /// Create an event to represent an entity signal.

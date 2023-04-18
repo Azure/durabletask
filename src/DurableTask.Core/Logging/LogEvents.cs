@@ -1291,21 +1291,39 @@ namespace DurableTask.Core.Logging
                 }
             }
 
+            /// <summary>
+            /// The entity that is being locked.
+            /// </summary>
             [StructuredLogField]
             public string EntityId { get; }
 
+            /// <summary>
+            /// The instance ID of the orchestration that is executing the critical section.
+            /// </summary>
             [StructuredLogField]
             public string InstanceId { get; set; }
 
+            /// <summary>
+            /// The execution ID of the orchestration that is executing the critical section.
+            /// </summary>
             [StructuredLogField]
             public string ExecutionId { get; set; }
 
+            /// <summary>
+            /// The unique ID of the critical section that is acquiring this lock.
+            /// </summary>
             [StructuredLogField]
             public Guid CriticalSectionId { get; set; }
 
+            /// <summary>
+            /// The ordered set of locks that are being acquired for this critical section.
+            /// </summary>
             [StructuredLogField]
             public string LockSet { get; set; }
 
+            /// <summary>
+            /// Which of the locks in <see cref="LockSet"/> is being acquired.
+            /// </summary>
             [StructuredLogField]
             public int Position { get; set; }
 
@@ -1339,17 +1357,26 @@ namespace DurableTask.Core.Logging
             {
                 this.EntityId = entityId;
                 this.InstanceId = message.ParentInstanceId;
-                this.Id = message.Id;
+                this.CriticalSectionId = message.Id;
             }
 
+            /// <summary>
+            /// The entity that is being unlocked.
+            /// </summary>
             [StructuredLogField]
             public string EntityId { get; }
 
+            /// <summary>
+            /// The instance ID of the orchestration that is executing the critical section.
+            /// </summary>
             [StructuredLogField]
             public string InstanceId { get; set; }
 
+            /// <summary>
+            /// The unique ID of the critical section that is releasing the lock after completing.
+            /// </summary>
             [StructuredLogField]
-            public string Id { get; set; }
+            public string CriticalSectionId { get; set; }
 
             public override EventId EventId => new EventId(
                 EventIds.EntityLockReleased,
@@ -1358,13 +1385,13 @@ namespace DurableTask.Core.Logging
             public override LogLevel Level => LogLevel.Information;
 
             protected override string CreateLogMessage() =>
-                $"{this.EntityId}: released lock for orchestration instanceId={this.InstanceId} id={this.Id}";
+                $"{this.EntityId}: released lock for orchestration instanceId={this.InstanceId} criticalSectionId={this.CriticalSectionId}";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.EntityLockReleased(
                     this.EntityId,
                     this.InstanceId ?? string.Empty,
-                    this.Id ?? string.Empty,
+                    this.CriticalSectionId ?? string.Empty,
                     Utils.AppName,
                     Utils.PackageVersion);
         }

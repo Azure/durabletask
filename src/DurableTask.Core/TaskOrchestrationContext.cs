@@ -499,8 +499,8 @@ namespace DurableTask.Core
                 // When using ErrorPropagationMode.UseFailureDetails we instead use FailureDetails to convey
                 // error information, which doesn't involve any serialization at all.
                 Exception cause = this.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions ?
-                Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter) :
-                null;
+                    Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter) 
+                    : null;
 
                 var failedException = new SubOrchestrationFailedException(failedEvent.EventId, taskId, info.Name,
                     info.Version,

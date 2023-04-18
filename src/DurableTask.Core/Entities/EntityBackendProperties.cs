@@ -10,10 +10,10 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-using System;
-
 namespace DurableTask.Core.Entities
 {
+    using System;
+
     /// <summary>
     /// Entity processing characteristics that are controlled by the backend provider, i.e. the orchestration service.
     /// </summary>
