@@ -13,7 +13,6 @@
 #nullable enable
 namespace DurableTask.Core.Entities.OperationFormat
 {
-    using DurableTask.Core.Entities;
     using System.Collections.Generic;
 
     /// <summary>

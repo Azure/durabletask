@@ -10,12 +10,12 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-
 namespace DurableTask.Core.Entities
 {
+    using System;
+    using System.Threading;
+    using System.Threading.Tasks;
+
     /// <summary>
     /// Extends <see cref="IOrchestrationService"/> with methods that support processing of entities. 
     /// </summary>

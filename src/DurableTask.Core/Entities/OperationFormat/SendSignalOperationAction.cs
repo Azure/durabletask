@@ -13,9 +13,7 @@
 #nullable enable
 namespace DurableTask.Core.Entities.OperationFormat
 {
-    using Newtonsoft.Json;
     using System;
-    using System.Collections.Generic;
 
     /// <summary>
     /// Operation action for sending a signal.

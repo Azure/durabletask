@@ -11,10 +11,9 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Entities.StateFormat
+namespace DurableTask.Core.Entities
 {
     using System.Runtime.Serialization;
-    using Newtonsoft.Json;
 
     /// <summary>
     /// Information about the current status of an entity. Excludes potentially large data

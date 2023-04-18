@@ -10,15 +10,10 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
-using DurableTask.Core.Serializing;
-using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace DurableTask.Core.Entities
 {
+    using Newtonsoft.Json;
+
     internal static class Serializer
     {
         /// <summary>

@@ -14,7 +14,6 @@ namespace DurableTask.Core.Entities
 {
     using System;
     using System.Runtime.Serialization;
-    using Newtonsoft.Json;
 
     /// <summary>
     /// A unique identifier for an entity, consisting of entity name and entity key.

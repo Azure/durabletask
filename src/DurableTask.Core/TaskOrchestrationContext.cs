@@ -22,7 +22,6 @@ namespace DurableTask.Core
     using DurableTask.Core.Command;
     using DurableTask.Core.Common;
     using DurableTask.Core.Entities;
-    using DurableTask.Core.Entities.OperationFormat;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using DurableTask.Core.Serializing;

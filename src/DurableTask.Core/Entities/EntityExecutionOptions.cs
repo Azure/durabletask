@@ -10,12 +10,10 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
-using System;
-using DurableTask.Core.Serializing;
-
 namespace DurableTask.Core.Entities
-{    
+{
+    using DurableTask.Core.Serializing;
+
     /// <summary>
     /// Options that are used for configuring how a TaskEntity executes entity operations. 
     /// </summary>

@@ -14,8 +14,6 @@
 namespace DurableTask.Core.Entities.OperationFormat
 {
     using System;
-    using Newtonsoft.Json;
-    using Newtonsoft.Json.Linq;
 
     /// <summary>
     /// A request message sent to an entity when calling or signaling the entity.

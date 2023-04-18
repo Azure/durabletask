@@ -12,10 +12,7 @@
 //  ----------------------------------------------------------------------------------
 namespace DurableTask.Core.Entities.EventFormat
 {
-    using System;
     using System.Runtime.Serialization;
-    using Newtonsoft.Json;
-    using Newtonsoft.Json.Linq;
 
     [DataContract]
     internal class ResponseMessage

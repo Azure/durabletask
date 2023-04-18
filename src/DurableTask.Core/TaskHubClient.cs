@@ -19,7 +19,6 @@ namespace DurableTask.Core
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using DurableTask.Core.Entities;
     using DurableTask.Core.History;
     using DurableTask.Core.Logging;
     using DurableTask.Core.Serializing;

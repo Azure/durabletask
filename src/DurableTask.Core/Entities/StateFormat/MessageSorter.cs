@@ -11,14 +11,13 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Entities.StateFormat
+namespace DurableTask.Core.Entities
 {
     using System;
     using System.Collections.Generic;
     using System.Linq;
     using System.Runtime.Serialization;
     using DurableTask.Core.Entities.EventFormat;
-    using Newtonsoft.Json;
 
     /// <summary>
     /// provides message ordering and deduplication of request messages (operations or lock requests)

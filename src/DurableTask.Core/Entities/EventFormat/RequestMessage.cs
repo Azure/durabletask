@@ -14,8 +14,6 @@ namespace DurableTask.Core.Entities.EventFormat
 {
     using System;
     using System.Runtime.Serialization;
-    using Newtonsoft.Json;
-    using Newtonsoft.Json.Linq;
 
     /// <summary>
     /// A message sent to an entity, such as operation, signal, lock, or continue messages.

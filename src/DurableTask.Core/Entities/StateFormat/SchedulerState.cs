@@ -11,12 +11,11 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Entities.StateFormat
+namespace DurableTask.Core.Entities
 {
     using System.Collections.Generic;
     using System.Runtime.Serialization;
     using DurableTask.Core.Entities.EventFormat;
-    using Newtonsoft.Json;
 
     /// <summary>
     /// The persisted state of an entity scheduler, as handed forward between ContinueAsNew instances.

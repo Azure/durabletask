@@ -9,8 +9,8 @@ namespace DurableTask.Core.Tests
     using System.IO;
     using System.Linq;
     using System.Threading.Tasks;
+    using DurableTask.Core.Entities;
     using DurableTask.Core.Entities.EventFormat;
-    using DurableTask.Core.Entities.StateFormat;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]

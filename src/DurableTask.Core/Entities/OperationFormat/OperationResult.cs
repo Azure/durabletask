@@ -13,10 +13,6 @@
 #nullable enable
 namespace DurableTask.Core.Entities.OperationFormat
 {
-    using System;
-    using Newtonsoft.Json;
-    using Newtonsoft.Json.Linq;
-
     /// <summary>
     /// A response message sent by an entity to a caller after it executes an operation.
     /// </summary>

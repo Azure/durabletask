@@ -12,18 +12,14 @@
 //  ----------------------------------------------------------------------------------
 namespace DurableTask.Core.Entities
 {
-    using DurableTask.Core.Common;
+    using DurableTask.Core.Entities;
     using DurableTask.Core.Entities.EventFormat;
     using DurableTask.Core.Entities.OperationFormat;
-    using DurableTask.Core.Entities.StateFormat;
-    using DurableTask.Core.History;
-    using DurableTask.Core.Serializing;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
     using System;
     using System.Collections.Generic;
     using System.Linq;
-    using System.Threading.Tasks;
 
     /// <summary>
     /// Tracks the entity-related state of an orchestration. 

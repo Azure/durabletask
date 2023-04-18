@@ -12,13 +12,6 @@
 //  ----------------------------------------------------------------------------------
 namespace DurableTask.Core.Entities
 {
-    using DurableTask.Core.Entities.EventFormat;
-    using DurableTask.Core.Entities.OperationFormat;
-    using DurableTask.Core.Entities.StateFormat;
-    using Newtonsoft.Json.Linq;
-    using Newtonsoft.Json;
-    using System;
-
     /// <summary>
     /// The data associated with sending an event to an orchestration.
     /// </summary>

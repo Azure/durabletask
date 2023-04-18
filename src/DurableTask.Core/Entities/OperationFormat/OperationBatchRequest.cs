@@ -13,11 +13,8 @@
 #nullable enable
 namespace DurableTask.Core.Entities.OperationFormat
 {
-    using Newtonsoft.Json;
-    using System;
     using System.Collections.Generic;
-    using System.Text;
- 
+
     /// <summary>
     /// A request for execution of a batch of operations on an entity.
     /// </summary>

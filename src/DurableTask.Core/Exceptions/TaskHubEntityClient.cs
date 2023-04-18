@@ -15,7 +15,6 @@ namespace DurableTask.Core
 {
     using DurableTask.Core.Logging;
     using DurableTask.Core.Serializing;
-    using Microsoft.Extensions.Logging;
     using System;
     using System.Collections.Generic;
     using System.Threading.Tasks;
@@ -283,7 +282,7 @@ namespace DurableTask.Core
                 }
                 else if (orchestrationState.Status != null && orchestrationState.Status != "null")
                 {
-                    var entityStatus = new DurableTask.Core.Entities.StateFormat.EntityStatus();
+                    var entityStatus = new DurableTask.Core.Entities.EntityStatus();
                     JsonConvert.PopulateObject(orchestrationState.Status, entityStatus, Serializer.InternalSerializerSettings);
                     hasState = entityStatus.EntityExists;
                 }
@@ -445,7 +444,7 @@ namespace DurableTask.Core
                 List<Task> tasks = new List<Task>();
                 foreach (var state in page.OrchestrationState)
                 {
-                    var status = new DurableTask.Core.Entities.StateFormat.EntityStatus();
+                    var status = new DurableTask.Core.Entities.EntityStatus();
                     JsonConvert.PopulateObject(state.Status, status, Serializer.InternalSerializerSettings);
 
                     if (releaseOrphanedLocks && status.LockedBy != null)

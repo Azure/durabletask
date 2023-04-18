@@ -16,7 +16,6 @@ namespace DurableTask.Core.Common
     using DurableTask.Core.History;
     using System;
     using System.Collections.Generic;
-    using System.Text;
 
     /// <summary>
     /// Helpers for dealing with special naming conventions around auto-started orchestrations (entities)

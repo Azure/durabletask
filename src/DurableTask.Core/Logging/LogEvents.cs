@@ -18,12 +18,9 @@ namespace DurableTask.Core.Logging
     using System.Text;
     using DurableTask.Core.Command;
     using DurableTask.Core.Common;
-    using DurableTask.Core.Entities;
     using DurableTask.Core.Entities.OperationFormat;
     using DurableTask.Core.History;
     using Microsoft.Extensions.Logging;
-    using Newtonsoft.Json;
-    using Newtonsoft.Json.Linq;
 
     /// <summary>
     /// This class defines all log events supported by DurableTask.Core.

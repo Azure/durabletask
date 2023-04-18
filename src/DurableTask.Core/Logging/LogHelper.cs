@@ -17,8 +17,6 @@ namespace DurableTask.Core.Logging
     using System.Collections.Generic;
     using System.Text;
     using DurableTask.Core.Command;
-    using DurableTask.Core.Common;
-    using DurableTask.Core.Entities;
     using DurableTask.Core.Entities.OperationFormat;
     using DurableTask.Core.History;
     using Microsoft.Extensions.Logging;

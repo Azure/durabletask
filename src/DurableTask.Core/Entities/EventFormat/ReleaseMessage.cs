@@ -13,7 +13,6 @@
 namespace DurableTask.Core.Entities.EventFormat
 {
     using System.Runtime.Serialization;
-    using Newtonsoft.Json;
 
     [DataContract]
     internal class ReleaseMessage
