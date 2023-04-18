@@ -74,7 +74,7 @@ namespace DurableTask.Core
                 LogHelper = logHelper,
             };
 
-            // To avoid starvation, we only allow half of all concurrently execution orchestrations to
+            // To avoid starvation, we only allow half of all concurrently executing entities to
             // leverage extended sessions.
             var maxConcurrentSessions = (int)Math.Ceiling(this.dispatcher.MaxConcurrentWorkItems / 2.0);
             this.concurrentSessionLock = new TaskOrchestrationDispatcher.NonBlockingCountdownLock(maxConcurrentSessions);
@@ -86,7 +86,7 @@ namespace DurableTask.Core
         public EntityBackendProperties EntityBackendProperties => this.entityBackendProperties;
 
         /// <summary>
-        /// Starts the dispatcher to start getting and processing orchestration events
+        /// Starts the dispatcher to start getting and processing entity message batches
         /// </summary>
         public async Task StartAsync()
         {
@@ -94,7 +94,7 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        /// Stops the dispatcher to stop getting and processing orchestration events
+        /// Stops the dispatcher to stop getting and processing entity message batches
         /// </summary>
         /// <param name="forced">Flag indicating whether to stop gracefully or immediately</param>
         public async Task StopAsync(bool forced)
@@ -828,12 +828,11 @@ namespace DurableTask.Core
 
             var entityId = EntityId.FromString(instance.InstanceId);
             string entityName = entityId.Name;
-            string entityKey = entityId.Key;
 
-            // Get the TaskOrchestration implementation. If it's not found, it either means that the developer never
+            // Get the TaskEntity implementation. If it's not found, it either means that the developer never
             // registered it (which is an error, and we'll throw for this further down) or it could be that some custom
-            // middleware (e.g. out-of-process execution middleware) is intended to implement the orchestration logic.
-            TaskEntity taskEntity = this.objectManager.GetObject(entityName, entityKey);
+            // middleware (e.g. out-of-process execution middleware) is intended to implement the entity logic.
+            TaskEntity taskEntity = this.objectManager.GetObject(entityName, version: null);
 
             var dispatchContext = new DispatchMiddlewareContext();
             dispatchContext.SetProperty(request);
