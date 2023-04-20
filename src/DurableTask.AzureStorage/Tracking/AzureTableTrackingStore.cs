@@ -1241,7 +1241,10 @@ namespace DurableTask.AzureStorage.Tracking
                 throw new InvalidOperationException($"Could not compute the blob name for property {property}");
             }
 
-            string blobName = $"{sanitizedInstanceId}/history-{sequenceNumber}-{eventType}-{property}.json.gz";
+            // randomize the blob name to prevent accidental races in split-brain situations (#890)
+            uint random = (uint)(new Random()).Next();
+
+            string blobName = $"{sanitizedInstanceId}/history-{sequenceNumber}-{eventType}-{property}-{random:X8}.json.gz";
 
             return blobName;
         }
