@@ -116,7 +116,7 @@ namespace DurableTask.AzureServiceFabric.Stores
                                     }
                                     else
                                     {
-                                        // If the session state is cleared using ForceTerminateOrchestration + reason (cleanupstore) then we may endup with a stale entry in the queue
+                                        // If the session state is cleared using ForceTerminateOrchestration + reason (cleanupstore) then we may end up with a stale entry in the queue
                                         var errorMessage = $"Internal Server Error: Did not find the session object in reliable dictionary while having the session {returnInstanceId} in memory";
                                         ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
                                         reEnqueueOnException = false;
