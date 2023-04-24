@@ -131,8 +131,8 @@ namespace DurableTask.AzureServiceFabric
             {
                 using (var txn = this.stateManager.CreateTransaction())
                 {
-                    // DropSession does 2 things (like mentioned in the comments above) - remove the row from sessions dictionary
-                    // and delete the session messages dictionary. The second step is in a background thread and not part of transaction.
+                    // DropSession does 2 things : removs the row from sessions dictionary and delete the session messages dictionary.
+                    // The second step is in a background thread and not part of transaction.
                     // However even if this transaction failed but we ended up deleting session messages dictionary, that's ok - at
                     // that time, it should be an empty dictionary and we would have updated the runtime session state to full completed
                     // state in the transaction from Complete method. So the subsequent attempt would be able to complete the session.

@@ -149,12 +149,23 @@ namespace DurableTask.AzureServiceFabric
                 newMessages = await this.orchestrationProvider.ReceiveSessionMessagesAsync(currentSession);
 
                 var currentRuntimeState = new OrchestrationRuntimeState(currentSession.SessionState);
+
                 var workItem = new TaskOrchestrationWorkItem()
                 {
                     NewMessages = newMessages.Select(m => m.Value.TaskMessage).ToList(),
                     InstanceId = currentSession.SessionId.InstanceId,
                     OrchestrationRuntimeState = currentRuntimeState
                 };
+
+                // Do not return the orchestraiton if 'ExecutionStartedEvent' is missing.
+                // This can happen when an when an orchestration message like TerminateEvent is sent to an already finished orchestration
+                // TODO: Fix race this condition
+                if (currentRuntimeState.ExecutionStartedEvent == null)
+                {
+                    ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition($"Orchestration with no execution started event found: {currentSession.SessionId}");
+                    await this.DropOrchestrationAsync(workItem);
+                    return null;
+                }
 
                 if (newMessages.Count == 0)
                 {
@@ -344,6 +355,33 @@ namespace DurableTask.AzureServiceFabric
             {
                 await HandleCompletedOrchestration(workItem);
             }
+        }
+
+        // Caller should ensure the workItem has reached terminal state.
+        private async Task DropOrchestrationAsync(TaskOrchestrationWorkItem workItem)
+        {
+            await RetryHelper.ExecuteWithRetryOnTransient(async () =>
+            {
+                using (var txn = this.stateManager.CreateTransaction())
+                {
+                    // DropSession does 2 things (like mentioned in the comments above) - remove the row from sessions dictionary
+                    // and delete the session messages dictionary. The second step is in a background thread and not part of transaction.
+                    // However even if this transaction failed but we ended up deleting session messages dictionary, that's ok - at
+                    // that time, it should be an empty dictionary and we would have updated the runtime session state to full completed
+                    // state in the transaction from Complete method. So the subsequent attempt would be able to complete the session.
+                    await this.orchestrationProvider.DropSession(txn, workItem.OrchestrationRuntimeState.OrchestrationInstance);
+                    await txn.CommitAsync();
+                }
+            }, uniqueActionIdentifier: $"OrchestrationId = '{workItem.InstanceId}', Action = '{nameof(HandleCompletedOrchestration)}'");
+
+            this.instanceStore.OnOrchestrationCompleted(workItem.OrchestrationRuntimeState.OrchestrationInstance);
+
+            string message = string.Format("Orchestration with instanceId : '{0}' and executionId : '{1}' dropped due to state corruption (missing ExecutionStartedEvent)",
+                workItem.InstanceId,
+                workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId);
+            ServiceFabricProviderEventSource.Tracing.LogOrchestrationInformation(workItem.InstanceId,
+                workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId,
+                message);
         }
 
         // Caller should ensure the workItem has reached terminal state.

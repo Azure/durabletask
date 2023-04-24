@@ -87,6 +87,7 @@ namespace DurableTask.AzureServiceFabric.Stores
             if (!IsStopped())
             {
                 bool newItemsBeforeTimeout = true;
+                bool reEnqueueOnException = true;
                 while (newItemsBeforeTimeout)
                 {
                     if (this.fetchQueue.TryDequeue(out string returnInstanceId))
@@ -108,15 +109,17 @@ namespace DurableTask.AzureServiceFabric.Stores
                                         }
                                         else
                                         {
-                                            var errorMessage = $"Internal Server Error : Unexpected to dequeue the session {returnInstanceId} which was already locked before";
+                                            var errorMessage = $"Internal Server Error : Unexpected to dequeue the session {returnInstanceId} which was already locked before. Do not re-enture the item-without-session";
                                             ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
                                             throw new Exception(errorMessage);
                                         }
                                     }
                                     else
                                     {
+                                        // If the session state is cleared using ForceTerminateOrchestration + reason (cleanupstore) then we may endup with a stale entry in the queue
                                         var errorMessage = $"Internal Server Error: Did not find the session object in reliable dictionary while having the session {returnInstanceId} in memory";
                                         ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
+                                        reEnqueueOnException = false;
                                         throw new Exception(errorMessage);
                                     }
                                 }
@@ -124,7 +127,10 @@ namespace DurableTask.AzureServiceFabric.Stores
                         }
                         catch (Exception)
                         {
-                            this.fetchQueue.Enqueue(returnInstanceId);
+                            if (reEnqueueOnException)
+                            {
+                                this.fetchQueue.Enqueue(returnInstanceId);
+                            }
                             throw;
                         }
                     }
