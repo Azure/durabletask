@@ -1,4 +1,4 @@
-﻿//  ----------------------------------------------------------------------------------
+//  ----------------------------------------------------------------------------------
 //  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -16,9 +16,10 @@ namespace DurableTask.ServiceBus.Tracking
     using System;
     using System.IO;
     using System.Threading.Tasks;
+    using Azure.Core;
     using DurableTask.Core;
     using DurableTask.Core.Tracking;
-    using Microsoft.WindowsAzure.Storage;
+
 
     /// <summary>
     /// Azure blob storage to allow save and load large blobs, such as message and session, as a stream using Azure blob container.
@@ -45,9 +46,9 @@ namespace DurableTask.ServiceBus.Tracking
         /// </summary>
         /// <param name="hubName">The hub name for this store</param>
         /// <param name="cloudStorageAccount">Azure Cloud Storage Account</param>
-        public AzureStorageBlobStore(string hubName, CloudStorageAccount cloudStorageAccount)
+        public AzureStorageBlobStore(string hubName, Uri blobStorageUri, TokenCredential credential)
         {
-            this.blobClient = new BlobStorageClient(hubName, cloudStorageAccount);
+            this.blobClient = new BlobStorageClient(hubName, blobStorageUri, credential);
         }
 
         /// <summary>

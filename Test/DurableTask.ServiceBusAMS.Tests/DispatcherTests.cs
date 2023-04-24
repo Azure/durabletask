@@ -54,7 +54,7 @@ namespace DurableTask.ServiceBus.Tests
                 this.taskHubAlwaysCompression = TestHelpers.CreateTaskHubAlwaysCompression();
                 this.clientNoCompression = TestHelpers.CreateTaskHubClientNoCompression();
 
-                this.taskHub.orchestrationService.CreateAsync(true).Wait();
+                this.taskHub.orchestrationService.CreateAsync(false).Wait();
             }
         }
 
@@ -68,7 +68,7 @@ namespace DurableTask.ServiceBus.Tests
                 this.taskHubAlwaysCompression.StopAsync(true).Wait();
                 this.taskHubLegacyCompression.StopAsync(true).Wait();
                 this.fakeTaskHub.StopAsync(true).Wait();
-                this.taskHub.orchestrationService.DeleteAsync(true).Wait();
+                this.taskHub.orchestrationService.DeleteAsync(false).Wait();
             }
         }
 

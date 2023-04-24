@@ -1,4 +1,4 @@
-﻿//  ----------------------------------------------------------------------------------
+//  ----------------------------------------------------------------------------------
 //  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -16,8 +16,7 @@ namespace DurableTask.ServiceBus.Tracking
     using System;
     using System.Collections.Generic;
     using System.Globalization;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Table;
+    using Azure.Data.Tables;
     using DurableTask.Core.Tracking;
 
     /// <summary>
@@ -64,6 +63,7 @@ namespace DurableTask.ServiceBus.Tracking
             entity1.RowKey = AzureTableConstants.InstanceStateExactRowPrefix +
                              AzureTableConstants.JoinDelimiter + State.OrchestrationInstance.InstanceId +
                              AzureTableConstants.JoinDelimiter + State.OrchestrationInstance.ExecutionId;
+            entity1.ETag = ETag;
             return new [] { entity1 };
         }
 
@@ -71,10 +71,11 @@ namespace DurableTask.ServiceBus.Tracking
         /// Write an entity to a dictionary of entity properties
         /// </summary>
         /// <param name="operationContext">The operation context</param>
-        public override IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext)
+        public override IDictionary<string, object> WriteEntity()
         {
-            IDictionary<string, EntityProperty> returnValues = base.WriteEntity(operationContext);
-            returnValues.Add("JumpStartTime", new EntityProperty(JumpStartTime));
+            //TODO: operationContext
+            IDictionary<string, object> returnValues = base.WriteEntity();
+            returnValues.Add("JumpStartTime", JumpStartTime);
             return returnValues;
         }
 
@@ -83,12 +84,12 @@ namespace DurableTask.ServiceBus.Tracking
         /// </summary>
         /// <param name="properties">Dictionary of properties to read for the entity</param>
         /// <param name="operationContext">The operation context</param>
-        public override void ReadEntity(IDictionary<string, EntityProperty> properties,
-            OperationContext operationContext)
+        public override void ReadEntity(IDictionary<string, object> properties)
         {
-            base.ReadEntity(properties, operationContext);
+            //TODO: operationContext
+            base.ReadEntity(properties);
             JumpStartTime =
-                GetValue("JumpStartTime", properties, property => property.DateTimeOffsetValue)
+                GetValue("JumpStartTime", properties, property => property as DateTimeOffset?)
                     .GetValueOrDefault()
                     .DateTime;
         }

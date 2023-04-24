@@ -32,14 +32,14 @@ namespace DurableTask.ServiceBus.Tests
             this.client = TestHelpers.CreateTaskHubClient();
 
             this.taskHub = TestHelpers.CreateTaskHub();
-            this.taskHub.orchestrationService.CreateAsync(true).Wait();
+            this.taskHub.orchestrationService.CreateAsync(false).Wait();
         }
 
         [TestCleanup]
         public void TestCleanup()
         {
             this.taskHub.StopAsync(true).Wait();
-            this.taskHub.orchestrationService.DeleteAsync(true).Wait();
+            this.taskHub.orchestrationService.DeleteAsync(false).Wait();
         }
 
         #region Common TaskActivities

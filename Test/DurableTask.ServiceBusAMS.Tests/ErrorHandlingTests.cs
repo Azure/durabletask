@@ -36,7 +36,7 @@ namespace DurableTask.ServiceBus.Tests
 
             this.taskHub = TestHelpers.CreateTaskHub();
 
-            this.taskHub.orchestrationService.CreateAsync(true).Wait();
+            this.taskHub.orchestrationService.CreateAsync(false).Wait();
 
             this.taskHubNoCompression = TestHelpers.CreateTaskHubNoCompression();
         }
@@ -46,7 +46,7 @@ namespace DurableTask.ServiceBus.Tests
         {
             this.taskHub.StopAsync(true).Wait();
             this.taskHubNoCompression.StopAsync(true).Wait();
-            this.taskHub.orchestrationService.DeleteAsync(true).Wait();
+            this.taskHub.orchestrationService.DeleteAsync(false).Wait();
         }
 
         #region Retry Interceptor Tests

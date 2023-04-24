@@ -28,7 +28,7 @@ namespace DurableTask.ServiceBus.Tests
     using DurableTask.ServiceBus.Tracking;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging;
-    using ManagementClient = DurableTask.ServiceBus.Common.Abstraction.ManagementClient;
+    using Azure.Messaging.ServiceBus.Administration;
 
     public static class TestHelpers
     {
@@ -164,18 +164,18 @@ namespace DurableTask.ServiceBus.Tests
 
         public static async Task<long> GetOrchestratorQueueSizeInBytes()
         {
-            ManagementClient nsManager = new ManagementClient(ServiceBusConnectionString);
-            var queueDesc = await nsManager.GetQueueRuntimeInfoAsync(TaskHubName + "/orchestrator");
+            ServiceBusAdministrationClient nsManager = new ServiceBusAdministrationClient(ServiceBusConnectionString);
+            var queueDesc = await nsManager.GetQueueRuntimePropertiesAsync(TaskHubName + "/orchestrator");
 
-            return queueDesc.SizeInBytes;
+            return queueDesc.Value.ActiveMessageCount; ;
         }
 
         public static async Task<long> GetOrchestratorQueueMessageCount()
         {
-            ManagementClient nsManager = new ManagementClient(ServiceBusConnectionString);
-            var queueDesc = await nsManager.GetQueueRuntimeInfoAsync(TaskHubName + "/orchestrator");
+            ServiceBusAdministrationClient nsManager = new ServiceBusAdministrationClient(ServiceBusConnectionString);
+            var queueDesc = await nsManager.GetQueueRuntimePropertiesAsync(TaskHubName + "/orchestrator");
 
-            return queueDesc.MessageCount;
+            return queueDesc.Value.ActiveMessageCount;
         }
 
         public static async Task<bool> WaitForInstanceAsync(TaskHubClient taskHubClient, OrchestrationInstance instance,

@@ -17,7 +17,9 @@ namespace DurableTask.ServiceBus.Tests
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
+    using System.Linq;
     using System.Threading.Tasks;
+    using Azure.Data.Tables;
     using DurableTask.Core;
     using DurableTask.Core.History;
     using DurableTask.ServiceBus.Tracking;
@@ -36,14 +38,14 @@ namespace DurableTask.ServiceBus.Tests
         {
             var r = new Random();
             this.tableClient = new AzureTableClient("test00" + r.Next(0, 10000),
-                "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://127.0.0.1:10002/");
+                "");
             this.tableClient.CreateTableIfNotExistsAsync().Wait();
 
             this.client = TestHelpers.CreateTaskHubClient();
 
             this.taskHub = TestHelpers.CreateTaskHub();
 
-            this.taskHub.orchestrationService.CreateAsync(true).Wait();
+            this.taskHub.orchestrationService.CreateAsync(false).Wait();
         }
 
         [TestCleanup]
@@ -51,7 +53,7 @@ namespace DurableTask.ServiceBus.Tests
         {
             this.tableClient.DeleteTableIfExistsAsync().Wait();
             this.taskHub.StopAsync(true).Wait();
-            this.taskHub.orchestrationService.DeleteAsync(true).Wait();
+            this.taskHub.orchestrationService.DeleteAsync(false).Wait();
         }
 
         [TestMethod]
@@ -301,17 +303,19 @@ namespace DurableTask.ServiceBus.Tests
         IEnumerable<AzureTableOrchestrationHistoryEventEntity> CreateHistoryEntities(AzureTableClient azureTableClient, string instanceId,
             string genId, int count)
         {
-            var historyEntities = new List<AzureTableOrchestrationHistoryEventEntity>();
+            var entities = new List<AzureTableOrchestrationHistoryEventEntity>();
+
             for (var i = 0; i < count; i++)
             {
                 var eeStartedEvent = new ExecutionStartedEvent(-1, "EVENT_" + instanceId + "_" + genId + "_" + i);
 
-                historyEntities.Add(new AzureTableOrchestrationHistoryEventEntity(instanceId, genId, i, DateTime.Now,
-                    eeStartedEvent));
+                var entity = new AzureTableOrchestrationHistoryEventEntity(instanceId, genId, i, DateTime.Now,
+                    eeStartedEvent);
+                entities.Add(entity);
             }
 
-            azureTableClient.WriteEntitiesAsync(historyEntities).Wait();
-            return historyEntities;
+            azureTableClient.WriteEntitiesAsync(entities).Wait();
+            return entities;
         }
 
         IEnumerable<AzureTableOrchestrationStateEntity> CreateStateEntities(AzureTableClient azureTableClient, string instanceId, string genId)
@@ -333,9 +337,8 @@ namespace DurableTask.ServiceBus.Tests
                 Input = "INPUT_" + instanceId + "_" + genId,
                 Output = null
             };
-
-            entities.Add(new AzureTableOrchestrationStateEntity(runtimeState));
-            azureTableClient.WriteEntitiesAsync(entities).Wait();
+            tableClient.WriteEntitiesAsync(new AzureTableOrchestrationStateEntity(runtimeState)).Wait();
+               
             return entities;
         }
 

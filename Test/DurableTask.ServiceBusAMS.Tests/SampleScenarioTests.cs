@@ -43,7 +43,7 @@ namespace DurableTask.ServiceBus.Tests
                 this.fakeTaskHub = TestHelpers.CreateTaskHub();
 
                 this.taskHubNoCompression = TestHelpers.CreateTaskHubNoCompression();
-                this.taskHub.orchestrationService.CreateAsync(true).Wait();
+                this.taskHub.orchestrationService.CreateAsync(false).Wait();
             }
         }
 
@@ -55,7 +55,7 @@ namespace DurableTask.ServiceBus.Tests
                 this.taskHub.StopAsync(true).Wait();
                 this.taskHubNoCompression.StopAsync().Wait();
                 this.fakeTaskHub.StopAsync(true).Wait();
-                this.taskHub.orchestrationService.DeleteAsync(true).Wait();
+                this.taskHub.orchestrationService.DeleteAsync(false).Wait();
             }
         }
 

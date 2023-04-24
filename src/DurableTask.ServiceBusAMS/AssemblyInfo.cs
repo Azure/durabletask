@@ -15,6 +15,6 @@ using System.Runtime.CompilerServices;
 
 #if !SIGN_ASSEMBLY
 [assembly: InternalsVisibleTo("DurableTask.Framework.Tests")]
-[assembly: InternalsVisibleTo("DurableTask.ServiceBus.Tests")]
+[assembly: InternalsVisibleTo("DurableTask.ServiceBusAMS.Tests")]
 [assembly: InternalsVisibleTo("DurableTask.Stress.Tests")]
 #endif

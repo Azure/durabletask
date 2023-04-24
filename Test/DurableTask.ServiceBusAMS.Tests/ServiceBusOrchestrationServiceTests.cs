@@ -38,7 +38,7 @@ namespace DurableTask.ServiceBus.Tests
                 this.client = TestHelpers.CreateTaskHubClient();
 
                 this.taskHub = TestHelpers.CreateTaskHub(TimeSpan.FromSeconds(30));
-                this.taskHub.orchestrationService.CreateAsync(true).Wait();
+                this.taskHub.orchestrationService.CreateAsync(false).Wait();
             }
         }
 
@@ -48,7 +48,7 @@ namespace DurableTask.ServiceBus.Tests
             if (!TestContext.TestName.Contains("TestHost"))
             {
                 this.taskHub.StopAsync(true).Wait();
-                this.taskHub.orchestrationService.DeleteAsync(true).Wait();
+                this.taskHub.orchestrationService.DeleteAsync(false).Wait();
             }
         }
 

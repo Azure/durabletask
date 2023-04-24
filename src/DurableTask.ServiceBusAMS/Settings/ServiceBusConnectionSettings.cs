@@ -13,11 +13,10 @@
 
 namespace DurableTask.ServiceBus.Settings
 {
-#if NETSTANDARD2_0
-    using Microsoft.Azure.ServiceBus;
-    using Microsoft.Azure.ServiceBus.Primitives;
-#endif
+    using Azure.Core;
+    using Azure.Messaging.ServiceBus;
     using System;
+    using System.Net;
 
     /// <summary>
     /// Service Bus connection settings
@@ -37,21 +36,19 @@ namespace DurableTask.ServiceBus.Settings
             };
         }
 
-#if NETSTANDARD2_0
-
         /// <summary>
         /// Creates an instance of <see cref="ServiceBusConnectionSettings"/>
         /// </summary>
         /// <param name="namespaceHostName">Service Bus namespace host name</param>
-        /// <param name="tokenProvider">Service Bus authentication token provider</param>
+        /// <param name="tokenCredential">Service Bus authentication token credential</param>
         /// <param name="transportType">Service Bus messaging protocol</param>
         /// <returns></returns>
-        public static ServiceBusConnectionSettings Create(string namespaceHostName, ITokenProvider tokenProvider, TransportType transportType = TransportType.Amqp)
+        public static ServiceBusConnectionSettings Create(string namespaceHostName, TokenCredential tokenCredential, ServiceBusTransportType transportType = ServiceBusTransportType.AmqpTcp)
         {
             return new ServiceBusConnectionSettings
             {
-                Endpoint = new Uri($"sb://{namespaceHostName}/"),
-                TokenProvider = tokenProvider,
+                FullyQualifiedNamespace = namespaceHostName,
+                TokenCredential = tokenCredential,
                 TransportType = transportType
             };
         }
@@ -60,20 +57,18 @@ namespace DurableTask.ServiceBus.Settings
         /// Creates an instance of <see cref="ServiceBusConnectionSettings"/>
         /// </summary>
         /// <param name="serviceBusEndpoint">Service Bus endpoint</param>
-        /// <param name="tokenProvider">Service Bus authentication token provider</param>
+        /// <param name="tokenCredential">Service Bus authentication token credential</param>
         /// <param name="transportType">Service Bus messaging protocol</param>
         /// <returns></returns>
-        public static ServiceBusConnectionSettings Create(Uri serviceBusEndpoint, ITokenProvider tokenProvider, TransportType transportType = TransportType.Amqp)
+        public static ServiceBusConnectionSettings Create(Uri serviceBusEndpoint, TokenCredential tokenCredential, ServiceBusTransportType transportType = ServiceBusTransportType.AmqpTcp)
         {
             return new ServiceBusConnectionSettings
             {
-                Endpoint = serviceBusEndpoint,
-                TokenProvider = tokenProvider,
+                FullyQualifiedNamespace = serviceBusEndpoint.Host,
+                TokenCredential = tokenCredential,
                 TransportType = transportType
             };
         }
-
-#endif
 
         private ServiceBusConnectionSettings()
         {
@@ -84,23 +79,29 @@ namespace DurableTask.ServiceBus.Settings
         /// </summary>
         public string ConnectionString { get; private set; }
 
-#if NETSTANDARD2_0
+        public string FullyQualifiedNamespace { get; private set; }
 
         /// <summary>
         /// Service Bus endpoint
         /// </summary>
-        public Uri Endpoint { get; private set; }
+        public Uri Endpoint {
+            get
+            {
+                return new Uri($"sb:/{this.FullyQualifiedNamespace}/");
+            }
+        }
+
 
         /// <summary>
         /// Service Bus authentication token provider
         /// </summary>
-        public ITokenProvider TokenProvider { get; private set; }
+        public TokenCredential TokenCredential { get; private set; }
 
         /// <summary>
         /// Service Bus messaging protocol
         /// </summary>
-        public TransportType TransportType { get; private set; }
-#endif
+        public ServiceBusTransportType TransportType { get; private set; }
+
 
     }
 }

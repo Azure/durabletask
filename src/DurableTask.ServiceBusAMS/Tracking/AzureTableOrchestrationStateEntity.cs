@@ -1,4 +1,4 @@
-﻿//  ----------------------------------------------------------------------------------
+//  ----------------------------------------------------------------------------------
 //  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -18,8 +18,7 @@ namespace DurableTask.ServiceBus.Tracking
     using DurableTask.Core;
     using DurableTask.Core.Common;
     using DurableTask.Core.Serializing;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Table;
+    using Azure.Data.Tables;
 
     /// <summary>
     /// History Tracking Entity for an orchestration's state
@@ -69,33 +68,33 @@ namespace DurableTask.ServiceBus.Tracking
         /// Write an entity to a dictionary of entity properties
         /// </summary>
         /// <param name="operationContext">The operation context</param>
-        public override IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext)
+        public override IDictionary<string, object> WriteEntity()
         {
-            var returnValues = new Dictionary<string, EntityProperty>();
+            var returnValues = new Dictionary<string, object>();
 
-            returnValues.Add("InstanceId", new EntityProperty(State.OrchestrationInstance.InstanceId));
-            returnValues.Add("ExecutionId", new EntityProperty(State.OrchestrationInstance.ExecutionId));
+            returnValues.Add("InstanceId", State.OrchestrationInstance.InstanceId);
+            returnValues.Add("ExecutionId", State.OrchestrationInstance.ExecutionId);
 
             if (State.ParentInstance != null)
             {
-                returnValues.Add("ParentInstanceId", new EntityProperty(State.ParentInstance.OrchestrationInstance.InstanceId));
-                returnValues.Add("ParentExecutionId", new EntityProperty(State.ParentInstance.OrchestrationInstance.ExecutionId));
+                returnValues.Add("ParentInstanceId", State.ParentInstance.OrchestrationInstance.InstanceId);
+                returnValues.Add("ParentExecutionId", State.ParentInstance.OrchestrationInstance.ExecutionId);
             }
 
-            returnValues.Add("TaskTimeStamp", new EntityProperty(TaskTimeStamp));
-            returnValues.Add("Name", new EntityProperty(State.Name));
-            returnValues.Add("Version", new EntityProperty(State.Version));
-            returnValues.Add("Status", new EntityProperty(State.Status));
-            returnValues.Add("Tags", new EntityProperty(State.Tags != null ? this.dataConverter.Serialize(State.Tags) : null));
-            returnValues.Add("OrchestrationStatus", new EntityProperty(State.OrchestrationStatus.ToString()));
-            returnValues.Add("CreatedTime", new EntityProperty(State.CreatedTime));
-            returnValues.Add("CompletedTime", new EntityProperty(State.CompletedTime));
-            returnValues.Add("LastUpdatedTime", new EntityProperty(State.LastUpdatedTime));
-            returnValues.Add("Size", new EntityProperty(State.Size));
-            returnValues.Add("CompressedSize", new EntityProperty(State.CompressedSize));
-            returnValues.Add("Input", new EntityProperty(State.Input.Truncate(ServiceBusConstants.MaxStringLengthForAzureTableColumn)));
-            returnValues.Add("Output", new EntityProperty(State.Output.Truncate(ServiceBusConstants.MaxStringLengthForAzureTableColumn)));
-            returnValues.Add("ScheduledStartTime", new EntityProperty(State.ScheduledStartTime));
+            returnValues.Add("TaskTimeStamp", TaskTimeStamp);
+            returnValues.Add("Name", State.Name);
+            returnValues.Add("Version", State.Version);
+            returnValues.Add("Status", State.Status);
+            returnValues.Add("Tags", State.Tags != null ? this.dataConverter.Serialize(State.Tags) : null);
+            returnValues.Add("OrchestrationStatus", State.OrchestrationStatus.ToString());
+            returnValues.Add("CreatedTime", State.CreatedTime);
+            returnValues.Add("CompletedTime", State.CompletedTime);
+            returnValues.Add("LastUpdatedTime", State.LastUpdatedTime);
+            returnValues.Add("Size", State.Size);
+            returnValues.Add("CompressedSize", State.CompressedSize);
+            returnValues.Add("Input", State.Input.Truncate(ServiceBusConstants.MaxStringLengthForAzureTableColumn));
+            returnValues.Add("Output", State.Output.Truncate(ServiceBusConstants.MaxStringLengthForAzureTableColumn));
+            returnValues.Add("ScheduledStartTime", State.ScheduledStartTime);
 
             return returnValues;
         }
@@ -105,15 +104,14 @@ namespace DurableTask.ServiceBus.Tracking
         /// </summary>
         /// <param name="properties">Dictionary of properties to read for the entity</param>
         /// <param name="operationContext">The operation context</param>
-        public override void ReadEntity(IDictionary<string, EntityProperty> properties,
-            OperationContext operationContext)
+        public override void ReadEntity(IDictionary<string, object> properties)
         {
             State = new OrchestrationState
             {
                 OrchestrationInstance = new OrchestrationInstance
                 {
-                    InstanceId = GetValue("InstanceId", properties, property => property.StringValue),
-                    ExecutionId = GetValue("ExecutionId", properties, property => property.StringValue)
+                    InstanceId = GetValue("InstanceId", properties, property => property as String ),
+                    ExecutionId = GetValue("ExecutionId", properties, property => property as String)
                 },
                 ParentInstance = new ParentInstance
                 {
@@ -122,51 +120,51 @@ namespace DurableTask.ServiceBus.Tracking
                     Version = null,
                     OrchestrationInstance = new OrchestrationInstance
                     {
-                        InstanceId = GetValue("ParentInstanceId", properties, property => property.StringValue),
-                        ExecutionId = GetValue("ParentExecutionId", properties, property => property.StringValue)
+                        InstanceId = GetValue("ParentInstanceId", properties, property => property as String),
+                        ExecutionId = GetValue("ParentExecutionId", properties, property => property as String)
                     }
                 },
-                Name = GetValue("Name", properties, property => property.StringValue),
-                Version = GetValue("Version", properties, property => property.StringValue),
-                Status = GetValue("Status", properties, property => property.StringValue),
+                Name = GetValue("Name", properties, property => property as String),
+                Version = GetValue("Version", properties, property => property as String),
+                Status = GetValue("Status", properties, property => property as String),
                 Tags = GetTagsFromString(properties),
                 CreatedTime =
-                    GetValue("CreatedTime", properties, property => property.DateTimeOffsetValue)
+                    GetValue("CreatedTime", properties, property => property as DateTimeOffset?)
                         .GetValueOrDefault()
                         .DateTime,
                 CompletedTime =
-                    GetValue("CompletedTime", properties, property => property.DateTimeOffsetValue)
+                    GetValue("CompletedTime", properties, property => property as DateTimeOffset?)
                         .GetValueOrDefault()
                         .DateTime,
                 LastUpdatedTime =
-                    GetValue("LastUpdatedTime", properties, property => property.DateTimeOffsetValue)
+                    GetValue("LastUpdatedTime", properties, property => property as DateTimeOffset?)
                         .GetValueOrDefault()
                         .DateTime,
-                Size = GetValue("Size", properties, property => property.Int64Value).GetValueOrDefault(),
+                Size = GetValue("Size", properties, property => property as Int64?).GetValueOrDefault(),
                 CompressedSize =
-                    GetValue("CompressedSize", properties, property => property.Int64Value).GetValueOrDefault(),
-                Input = GetValue("Input", properties, property => property.StringValue),
-                Output = GetValue("Output", properties, property => property.StringValue),
-                ScheduledStartTime = GetValue("ScheduledStartTime", properties, property => property.DateTimeOffsetValue)
+                    GetValue("CompressedSize", properties, property => property as Int64?).GetValueOrDefault(),
+                Input = GetValue("Input", properties, property => property as String),
+                Output = GetValue("Output", properties, property => property as String),
+                ScheduledStartTime = GetValue("ScheduledStartTime", properties, property => property as DateTimeOffset?)
                     .GetValueOrDefault()
                     .DateTime,
             };
 
             TaskTimeStamp =
-                GetValue("TaskTimeStamp", properties, property => property.DateTimeOffsetValue)
+                GetValue("TaskTimeStamp", properties, property => property as DateTimeOffset?)
                     .GetValueOrDefault()
                     .DateTime;
 
-            string orchestrationStatusStr = GetValue("OrchestrationStatus", properties, property => property.StringValue);
+            string orchestrationStatusStr = GetValue("OrchestrationStatus", properties, property => property as String);
             if (!Enum.TryParse(orchestrationStatusStr, out State.OrchestrationStatus))
             {
                 throw new InvalidOperationException("Invalid status string in state " + orchestrationStatusStr);
             }
         }
 
-        private IDictionary<string, string> GetTagsFromString(IDictionary<string, EntityProperty> properties)
+        private IDictionary<string, string> GetTagsFromString(IDictionary<string, object> properties)
         {
-            string strTags = GetValue("Tags", properties, property => property.StringValue);
+            string strTags = GetValue("Tags", properties, property => property as String);
             if (string.IsNullOrWhiteSpace(strTags))
             {
                 return null;

@@ -1,4 +1,4 @@
-﻿//  ----------------------------------------------------------------------------------
+//  ----------------------------------------------------------------------------------
 //  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -15,10 +15,10 @@ namespace DurableTask.ServiceBus.Tracking
 {
     using System;
     using System.Collections.Generic;
+    using Azure.Data.Tables;
     using DurableTask.Core.History;
     using DurableTask.Core.Serializing;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Table;
+
     using Newtonsoft.Json;
 
     /// <summary>
@@ -61,7 +61,7 @@ namespace DurableTask.ServiceBus.Tracking
             string instanceId,
             string executionId,
             long sequenceNumber,
-            DateTime taskTimeStamp,
+            DateTimeOffset taskTimeStamp,
             HistoryEvent historyEvent)
         {
             InstanceId = instanceId;
@@ -114,7 +114,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// Write an entity to a dictionary of entity properties
         /// </summary>
         /// <param name="operationContext">The operation context</param>
-        public override IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext)
+        public override IDictionary<string, object> WriteEntity()
         {
             string serializedHistoryEvent = JsonConvert.SerializeObject(HistoryEvent, WriteJsonSettings);
 
@@ -129,12 +129,12 @@ namespace DurableTask.ServiceBus.Tracking
                     WriteJsonSettings);
             }
 
-            var returnValues = new Dictionary<string, EntityProperty>();
-            returnValues.Add("InstanceId", new EntityProperty(InstanceId));
-            returnValues.Add("ExecutionId", new EntityProperty(ExecutionId));
-            returnValues.Add("TaskTimeStamp", new EntityProperty(TaskTimeStamp));
-            returnValues.Add("SequenceNumber", new EntityProperty(SequenceNumber));
-            returnValues.Add("HistoryEvent", new EntityProperty(serializedHistoryEvent));
+            var returnValues = new Dictionary<string, object>();
+            returnValues.Add("InstanceId", InstanceId);
+            returnValues.Add("ExecutionId", ExecutionId);
+            returnValues.Add("TaskTimeStamp", TaskTimeStamp);
+            returnValues.Add("SequenceNumber", SequenceNumber);
+            returnValues.Add("HistoryEvent", serializedHistoryEvent);
 
             return returnValues;
         }
@@ -144,18 +144,17 @@ namespace DurableTask.ServiceBus.Tracking
         /// </summary>
         /// <param name="properties">Dictionary of properties to read for the entity</param>
         /// <param name="operationContext">The operation context</param>
-        public override void ReadEntity(IDictionary<string, EntityProperty> properties,
-            OperationContext operationContext)
+        public override void ReadEntity(IDictionary<string, object> properties)
         {
-            InstanceId = GetValue("InstanceId", properties, property => property.StringValue);
-            ExecutionId = GetValue("ExecutionId", properties, property => property.StringValue);
-            SequenceNumber = GetValue("SequenceNumber", properties, property => property.Int32Value).GetValueOrDefault();
+            InstanceId = GetValue("InstanceId", properties, property => property as String);
+            ExecutionId = GetValue("ExecutionId", properties, property => property as String);
+            SequenceNumber = GetValue("SequenceNumber", properties, property => property as Int32?).GetValueOrDefault();
             TaskTimeStamp =
-                GetValue("TaskTimeStamp", properties, property => property.DateTimeOffsetValue)
+                GetValue("TaskTimeStamp", properties, property => property as DateTimeOffset?)
                     .GetValueOrDefault()
                     .DateTime;
 
-            string serializedHistoryEvent = GetValue("HistoryEvent", properties, property => property.StringValue);
+            string serializedHistoryEvent = GetValue("HistoryEvent", properties, property => property as String);
             HistoryEvent = JsonConvert.DeserializeObject<HistoryEvent>(serializedHistoryEvent, ReadJsonSettings);
         }
 

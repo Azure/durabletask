@@ -21,8 +21,8 @@ namespace DurableTask.ServiceBus.Tests
     using System.Text;
     using System.Threading.Tasks;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using Microsoft.WindowsAzure.Storage.Blob;
     using DurableTask.ServiceBus.Tracking;
+    using Azure.Storage.Blobs.Models;
 
     [TestClass]
     public class BlobStorageClientTest
@@ -42,10 +42,10 @@ namespace DurableTask.ServiceBus.Tests
         [TestCleanup]
         public async Task TestCleanup()
         {
-            List<CloudBlobContainer> containers = (await this.blobStorageClient.ListContainers()).ToList();
+            List<BlobContainerItem> containers = (await this.blobStorageClient.ListContainers()).ToList();
             foreach (var container in containers)
             {
-                Assert.IsTrue(await container.DeleteIfExistsAsync());
+                Assert.IsTrue(await blobStorageClient.DeleteContainerIfExistsAsync(container));
             }
             containers = (await this.blobStorageClient.ListContainers()).ToList();
             Assert.AreEqual(0, containers.Count);
@@ -75,15 +75,17 @@ namespace DurableTask.ServiceBus.Tests
             var key2 = "message-20150517|b";
             var key3 = "message-20150518|c";
 
-            Stream stream = new MemoryStream(Encoding.UTF8.GetBytes(testContent));
+            MemoryStream stream = new MemoryStream(Encoding.UTF8.GetBytes(testContent));
             await this.blobStorageClient.UploadStreamBlobAsync(key1, stream);
+            stream.Position = 0;            
             await this.blobStorageClient.UploadStreamBlobAsync(key2, stream);
+            stream.Position = 0;
             await this.blobStorageClient.UploadStreamBlobAsync(key3, stream);
 
             var dateTime = new DateTime(2015, 05, 17);
             await this.blobStorageClient.DeleteExpiredContainersAsync(dateTime);
 
-            List<CloudBlobContainer> containers = (await this.blobStorageClient.ListContainers()).ToList();
+            List<BlobContainerItem> containers = (await this.blobStorageClient.ListContainers()).ToList();
             Assert.AreEqual(2, containers.Count);
             var sortedList = new List<string> {containers[0].Name, containers[1].Name};
             sortedList.Sort();

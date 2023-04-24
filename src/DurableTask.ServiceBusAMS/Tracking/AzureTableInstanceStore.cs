@@ -1,4 +1,4 @@
-﻿//  ----------------------------------------------------------------------------------
+//  ----------------------------------------------------------------------------------
 //  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -23,8 +23,9 @@ namespace DurableTask.ServiceBus.Tracking
     using DurableTask.Core.Common;
     using DurableTask.Core.Serializing;
     using DurableTask.Core.Tracking;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Table;
+    using Azure;
+    using Azure.Data.Tables;
+
 
     /// <summary>
     /// Azure Table Instance store provider to allow storage and lookup for orchestration state event history with query support
@@ -64,12 +65,12 @@ namespace DurableTask.ServiceBus.Tracking
         /// Creates a new AzureTableInstanceStore using the supplied hub name and cloud storage account
         /// </summary>
         /// <param name="hubName">The hub name for this instance store</param>
-        /// <param name="cloudStorageAccount">Cloud Storage Account</param>
-        public AzureTableInstanceStore(string hubName, CloudStorageAccount cloudStorageAccount)
+        /// <param name="tableServiceClient">Cloud Storage Account</param>
+        public AzureTableInstanceStore(string hubName, TableServiceClient tableServiceClient)
         {
-            if (cloudStorageAccount == null)
+            if (tableServiceClient == null)
             {
-                throw new ArgumentException("Invalid Cloud Storage Account", nameof(cloudStorageAccount));
+                throw new ArgumentException("Invalid Table Service Client", nameof(tableServiceClient));
             }
 
             if (string.IsNullOrWhiteSpace(hubName))
@@ -77,7 +78,7 @@ namespace DurableTask.ServiceBus.Tracking
                 throw new ArgumentException("Invalid hub name", nameof(hubName));
             }
 
-            this.tableClient = new AzureTableClient(hubName, cloudStorageAccount);
+            this.tableClient = new AzureTableClient(hubName, tableServiceClient);
 
             // Workaround an issue with Storage that throws exceptions for any date < 1600 so DateTime.Min cannot be used
             DateTimeUtils.SetMinDateTimeForStorageEmulator();
@@ -287,23 +288,24 @@ namespace DurableTask.ServiceBus.Tracking
         public async Task<OrchestrationStateQuerySegment> QueryOrchestrationStatesSegmentedAsync(
             OrchestrationStateQuery stateQuery, string continuationToken, int count)
         {
-            TableContinuationToken tokenObj = null;
+            IAsyncEnumerable<Page<AzureTableOrchestrationStateEntity>> pages =
+                this.tableClient.QueryOrchestrationStatesSegmented(stateQuery, continuationToken, count);
 
-            if (continuationToken != null)
-            {
-                tokenObj = DeserializeTableContinuationToken(continuationToken);
+            Page<AzureTableOrchestrationStateEntity> lastPage = null;
+            var results = new List<AzureTableOrchestrationStateEntity>();
+
+            await foreach (Page<AzureTableOrchestrationStateEntity> page in pages) {
+
+                results.AddRange(page.Values);
+                lastPage = page;
             }
-
-            TableQuerySegment<AzureTableOrchestrationStateEntity> results =
-                await this.tableClient.QueryOrchestrationStatesSegmentedAsync(stateQuery, tokenObj, count)
-                        .ConfigureAwait(false);
 
             return new OrchestrationStateQuerySegment
             {
-                Results = results.Results.Select(s => s.State),
-                ContinuationToken = results.ContinuationToken == null
+                Results = results.Select(s => s.State),
+                ContinuationToken = lastPage == null
                     ? null
-                    : SerializeTableContinuationToken(results.ContinuationToken)
+                    : lastPage.ContinuationToken,
             };
         }
 
@@ -315,37 +317,40 @@ namespace DurableTask.ServiceBus.Tracking
         /// <returns>The number of history events purged.</returns>
         public async Task<int> PurgeOrchestrationHistoryEventsAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {
-            TableContinuationToken continuationToken = null;
+            string continuationToken = null;
 
             var purgeCount = 0;
             do
             {
-                TableQuerySegment<AzureTableOrchestrationStateEntity> resultSegment =
-                    (await this.tableClient.QueryOrchestrationStatesSegmentedAsync(
+                IAsyncEnumerable<Page<AzureTableOrchestrationStateEntity>> pages =
+                    this.tableClient.QueryOrchestrationStatesSegmented(
                         new OrchestrationStateQuery()
                             .AddTimeRangeFilter(DateTimeUtils.MinDateTime, thresholdDateTimeUtc, timeRangeFilterType),
-                        continuationToken, 100)
-                        .ConfigureAwait(false));
+                        continuationToken, 100);
 
-                continuationToken = resultSegment.ContinuationToken;
+                Page<AzureTableOrchestrationStateEntity> lastPage = null;
+                
 
-                if (resultSegment.Results != null)
+                await foreach (var page in pages)
                 {
-                    await PurgeOrchestrationHistorySegmentAsync(resultSegment).ConfigureAwait(false);
-                    purgeCount += resultSegment.Results.Count;
+                    await PurgeOrchestrationHistorySegmentAsync(page).ConfigureAwait(false);
+                    purgeCount += page.Values.Count;
+                    lastPage = page;
                 }
+
+                continuationToken = lastPage?.ContinuationToken;
             } while (continuationToken != null);
 
             return purgeCount;
         }
 
         async Task PurgeOrchestrationHistorySegmentAsync(
-            TableQuerySegment<AzureTableOrchestrationStateEntity> orchestrationStateEntitySegment)
+            Page<AzureTableOrchestrationStateEntity> orchestrationStateEntitySegment)
         {
-            var stateEntitiesToDelete = new List<AzureTableOrchestrationStateEntity>(orchestrationStateEntitySegment.Results);
+            var stateEntitiesToDelete = new List<AzureTableOrchestrationStateEntity>(orchestrationStateEntitySegment.Values);
 
             var historyEntitiesToDelete = new ConcurrentBag<IEnumerable<AzureTableOrchestrationHistoryEventEntity>>();
-            await Task.WhenAll(orchestrationStateEntitySegment.Results.Select(
+            await Task.WhenAll(orchestrationStateEntitySegment.Values.Select(
                 entity => Task.Run(async () =>
                 {
                     IEnumerable<AzureTableOrchestrationHistoryEventEntity> historyEntities =
@@ -433,7 +438,7 @@ namespace DurableTask.ServiceBus.Tracking
                     InstanceId = workItemEntity.InstanceId,
                     ExecutionId = workItemEntity.ExecutionId,
                     SequenceNumber = workItemEntity.SequenceNumber,
-                    EventTimestamp = workItemEntity.TaskTimeStamp,
+                    EventTimestamp = workItemEntity.TaskTimeStamp.UtcDateTime,
                     HistoryEvent = workItemEntity.HistoryEvent
                 };
             }
@@ -459,32 +464,9 @@ namespace DurableTask.ServiceBus.Tracking
                 InstanceId = entity.InstanceId,
                 ExecutionId = entity.ExecutionId,
                 SequenceNumber = entity.SequenceNumber,
-                EventTimestamp = entity.TaskTimeStamp,
+                EventTimestamp = entity.TaskTimeStamp.UtcDateTime,
                 HistoryEvent = entity.HistoryEvent
             };
-        }
-
-        string SerializeTableContinuationToken(TableContinuationToken continuationToken)
-        {
-            if (continuationToken == null)
-            {
-                throw new ArgumentNullException(nameof(continuationToken));
-            }
-
-            string serializedToken = JsonDataConverter.Default.Serialize(continuationToken);
-            return Convert.ToBase64String(Encoding.Unicode.GetBytes(serializedToken));
-        }
-
-        TableContinuationToken DeserializeTableContinuationToken(string serializedContinuationToken)
-        {
-            if (string.IsNullOrWhiteSpace(serializedContinuationToken))
-            {
-                throw new ArgumentException("Invalid serializedContinuationToken");
-            }
-
-            byte[] tokenBytes = Convert.FromBase64String(serializedContinuationToken);
-
-            return JsonDataConverter.Default.Deserialize<TableContinuationToken>(Encoding.Unicode.GetString(tokenBytes));
         }
     }
 }

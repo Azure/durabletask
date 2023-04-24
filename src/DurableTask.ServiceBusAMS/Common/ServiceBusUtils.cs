@@ -1,4 +1,4 @@
-﻿//  ----------------------------------------------------------------------------------
+//  ----------------------------------------------------------------------------------
 //  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -20,6 +20,9 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     using System.Runtime.ExceptionServices;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
+    using Azure;
+    using Azure.Core.Serialization;
+    using Azure.Messaging.ServiceBus;
     using DurableTask.Core;
     using DurableTask.Core.Common;
     using DurableTask.Core.History;
@@ -28,20 +31,18 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     using DurableTask.Core.Tracking;
     using DurableTask.ServiceBus.Settings;
     using Newtonsoft.Json;
-#if NETSTANDARD2_0
-    using Microsoft.Azure.ServiceBus.InteropExtensions;
-#endif
+
 
     internal static class ServiceBusUtils
     {
         internal static readonly TimeSpan TokenTimeToLive = TimeSpan.FromDays(30);
 
-        public static Task<Message> GetBrokeredMessageFromObjectAsync(object serializableObject, CompressionSettings compressionSettings)
+        public static Task<ServiceBusMessage> GetBrokeredMessageFromObjectAsync(object serializableObject, CompressionSettings compressionSettings)
         {
             return GetBrokeredMessageFromObjectAsync(serializableObject, compressionSettings, new ServiceBusMessageSettings(), null, null, null, DateTimeUtils.MinDateTime);
         }
 
-        public static async Task<Message> GetBrokeredMessageFromObjectAsync(
+        public static async Task<ServiceBusMessage> GetBrokeredMessageFromObjectAsync(
             object serializableObject,
             CompressionSettings compressionSettings,
             ServiceBusMessageSettings messageSettings,
@@ -57,19 +58,9 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
             if (compressionSettings.Style == CompressionStyle.Legacy)
             {
-#if NETSTANDARD2_0
-                using (var ms = new MemoryStream())
-                {
-                    var serialiser = (XmlObjectSerializer)typeof(DataContractBinarySerializer<>)
-                        .MakeGenericType(serializableObject.GetType())
-                        .GetField("Instance")
-                        ?.GetValue(null);
-                    serialiser?.WriteObject(ms,serializableObject);
-                    return new Message(ms.ToArray()) { SessionId = instance?.InstanceId };
-                }
-#else
-                return new Message(serializableObject) { SessionId = instance?.InstanceId};
-#endif
+                var serializer = new JsonObjectSerializer();
+                var binaryData = await serializer.SerializeAsync(serializableObject);
+                return new ServiceBusMessage(binaryData);
             }
 
             if (messageSettings == null)
@@ -84,7 +75,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
             try
             {
-                Message brokeredMessage;
+                ServiceBusMessage brokeredMessage;
 
                 if (compressionSettings.Style == CompressionStyle.Always ||
                    (compressionSettings.Style == CompressionStyle.Threshold &&
@@ -138,24 +129,21 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             }
         }
 
-        static Message GenerateBrokeredMessageWithCompressionTypeProperty(Stream stream, string compressionType)
+        static ServiceBusMessage GenerateBrokeredMessageWithCompressionTypeProperty(Stream stream, string compressionType)
         {
-#if NETSTANDARD2_0
-            Message brokeredMessage;
+            ServiceBusMessage brokeredMessage;
             using (var ms = new MemoryStream())
             {
                 stream.CopyTo(ms);
-                brokeredMessage = new Message(ms.ToArray());
+                brokeredMessage = new ServiceBusMessage(ms.ToArray());
             }
-#else
-            var brokeredMessage = new Message(stream);
-#endif
-            brokeredMessage.UserProperties[FrameworkConstants.CompressionTypePropertyName] = compressionType;
+
+            brokeredMessage.ApplicationProperties[FrameworkConstants.CompressionTypePropertyName] = compressionType;
 
             return brokeredMessage;
         }
 
-        static async Task<Message> GenerateBrokeredMessageWithBlobKeyPropertyAsync(
+        static async Task<ServiceBusMessage> GenerateBrokeredMessageWithBlobKeyPropertyAsync(
             Stream stream,
             IOrchestrationServiceBlobStore orchestrationServiceBlobStore,
             OrchestrationInstance instance,
@@ -189,14 +177,14 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                 () => $"Saving the message stream in blob storage using key {blobKey}.");
             await orchestrationServiceBlobStore.SaveStreamAsync(blobKey, stream);
 
-            var brokeredMessage = new Message();
-            brokeredMessage.UserProperties[ServiceBusConstants.MessageBlobKey] = blobKey;
-            brokeredMessage.UserProperties[FrameworkConstants.CompressionTypePropertyName] = compressionType;
+            var brokeredMessage = new ServiceBusMessage();
+            brokeredMessage.ApplicationProperties[ServiceBusConstants.MessageBlobKey] = blobKey;
+            brokeredMessage.ApplicationProperties[FrameworkConstants.CompressionTypePropertyName] = compressionType;
 
             return brokeredMessage;
         }
 
-        public static async Task<T> GetObjectFromBrokeredMessageAsync<T>(Message message, IOrchestrationServiceBlobStore orchestrationServiceBlobStore)
+        public static async Task<T> GetObjectFromBrokeredMessageAsync<T>(ServiceBusReceivedMessage message, IOrchestrationServiceBlobStore orchestrationServiceBlobStore)
         {
             if (message == null)
             {
@@ -207,7 +195,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
             string compressionType = string.Empty;
 
-            if (message.UserProperties.TryGetValue(FrameworkConstants.CompressionTypePropertyName, out object compressionTypeObj))
+            if (message.ApplicationProperties.TryGetValue(FrameworkConstants.CompressionTypePropertyName, out object compressionTypeObj))
             {
                 compressionType = (string)compressionTypeObj;
             }
@@ -215,12 +203,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             if (string.IsNullOrWhiteSpace(compressionType))
             {
                 // no compression, legacy style
-#if NETSTANDARD2_0
-                using (var ms = new MemoryStream(message.Body))
-                    deserializedObject = (T)DataContractBinarySerializer<T>.Instance.ReadObject(ms);
-#else
-                deserializedObject = message.GetBody<T>();
-#endif
+                return message.Body.ToObject<T>(new JsonObjectSerializer());
             }
             else if (string.Equals(compressionType, FrameworkConstants.CompressionTypeGzipPropertyValue,
                 StringComparison.OrdinalIgnoreCase))
@@ -289,11 +272,11 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             }
         }
 
-        static Task<Stream> LoadMessageStreamAsync(Message message, IOrchestrationServiceBlobStore orchestrationServiceBlobStore)
+        static Task<Stream> LoadMessageStreamAsync(ServiceBusReceivedMessage message, IOrchestrationServiceBlobStore orchestrationServiceBlobStore)
         {
             string blobKey = string.Empty;
 
-            if (message.UserProperties.TryGetValue(ServiceBusConstants.MessageBlobKey, out object blobKeyObj))
+            if (message.ApplicationProperties.TryGetValue(ServiceBusConstants.MessageBlobKey, out object blobKeyObj))
             {
                 blobKey = (string)blobKeyObj;
             }
@@ -302,11 +285,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             {
                 // load the stream from the message directly if the blob key property is not set,
                 // i.e., it is not stored externally
-#if NETSTANDARD2_0
-                return Task.Run(() => new System.IO.MemoryStream(message.Body) as Stream);
-#else
-                return Task.Run(() => message.GetBody<Stream>());
-#endif
+                return Task.Run(() => message.Body.ToStream());
             }
 
             // if the blob key is set in the message property,
@@ -319,30 +298,30 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             return orchestrationServiceBlobStore.LoadStreamAsync(blobKey);
         }
 
-        public static void CheckAndLogDeliveryCount(string sessionId, IEnumerable<Message> messages, int maxDeliveryCount)
+        public static void CheckAndLogDeliveryCount(string sessionId, IEnumerable<ServiceBusReceivedMessage> messages, int maxDeliveryCount)
         {
-            foreach (Message message in messages)
+            foreach (ServiceBusReceivedMessage message in messages)
             {
                 CheckAndLogDeliveryCount(sessionId, message, maxDeliveryCount);
             }
         }
 
-        public static void CheckAndLogDeliveryCount(IEnumerable<Message> messages, int maxDeliveryCount)
+        public static void CheckAndLogDeliveryCount(IEnumerable<ServiceBusReceivedMessage> messages, int maxDeliveryCount)
         {
-            foreach (Message message in messages)
+            foreach (ServiceBusReceivedMessage message in messages)
             {
                 CheckAndLogDeliveryCount(message, maxDeliveryCount);
             }
         }
 
-        public static void CheckAndLogDeliveryCount(Message message, int maxDeliveryCount)
+        public static void CheckAndLogDeliveryCount(ServiceBusReceivedMessage message, int maxDeliveryCount)
         {
             CheckAndLogDeliveryCount(null, message, maxDeliveryCount);
         }
 
-        public static void CheckAndLogDeliveryCount(string sessionId, Message message, int maxDeliveryCount)
+        public static void CheckAndLogDeliveryCount(string sessionId, ServiceBusReceivedMessage message, int maxDeliveryCount)
         {
-            if (message.SystemProperties.DeliveryCount >= maxDeliveryCount - 2)
+            if (message.DeliveryCount >= maxDeliveryCount - 2)
             {
                 if (!string.IsNullOrWhiteSpace(sessionId))
                 {
@@ -352,7 +331,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                         sessionId,
                         "Delivery count for message with id {0} is {1}. Message will be deadlettered if processing continues to fail.",
                         message.MessageId,
-                        message.SystemProperties.DeliveryCount);
+                        message.DeliveryCount);
                 }
                 else
                 {
@@ -361,7 +340,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                         "MaxDeliveryCountApproaching",
                         "Delivery count for message with id {0} is {1}. Message will be deadlettered if processing continues to fail.",
                         message.MessageId, 
-                        message.SystemProperties.DeliveryCount);
+                        message.DeliveryCount);
                 }
             }
         }

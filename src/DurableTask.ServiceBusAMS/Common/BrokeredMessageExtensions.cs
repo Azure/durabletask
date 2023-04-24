@@ -14,6 +14,7 @@
 namespace DurableTask.ServiceBus.Common.Abstraction
 {
     using System;
+    using Azure.Messaging.ServiceBus;
     using DurableTask.Core.Common;
 
     /// <summary>
@@ -24,15 +25,15 @@ namespace DurableTask.ServiceBus.Common.Abstraction
         /// <summary>
         /// Returns delivery latency of the message
         /// </summary>        
-        public static double DeliveryLatency(this Message message)
+        public static double DeliveryLatency(this ServiceBusReceivedMessage message)
         {
             if (message == null)
             {
                 return 0;
             }
 
-            DateTime actualEnqueueTimeUtc = (!message.ScheduledEnqueueTimeUtc.IsSet()) ? message.SystemProperties.EnqueuedTimeUtc : message.ScheduledEnqueueTimeUtc;
-            return (DateTime.UtcNow - actualEnqueueTimeUtc).TotalMilliseconds;
+            DateTimeOffset actualEnqueueTimeUtc = (message.ScheduledEnqueueTime!=null) ? message.ScheduledEnqueueTime : message.EnqueuedTime;
+            return (DateTimeOffset.UtcNow - actualEnqueueTimeUtc).TotalMilliseconds;
         }
     }
 }
