@@ -158,7 +158,7 @@ namespace DurableTask.AzureServiceFabric
                 };
 
                 // Do not return the orchestration workitem if 'ExecutionStartedEvent' is missing.
-                // This can happen an orchestration message like TerminateEvent is sent to an already finished orchestration
+                // This can happen when an orchestration message like TerminateEvent is sent to an already finished orchestration
                 // TODO: Fix race this condition that introduced the bad orchestration
                 if (currentRuntimeState.ExecutionStartedEvent == null)
                 {
