@@ -1,0 +1,20 @@
+﻿{
+  "$type": "DurableTask.Core.History.ExecutionStartedEvent, DurableTask.Core",
+  "OrchestrationInstance": {
+    "$type": "DurableTask.Core.OrchestrationInstance, DurableTask.Core",
+    "InstanceId": "TestInstance",
+    "ExecutionId": "eda9e8417d3943c193ac6214481865e7"
+  },
+  "EventType": 0,
+  "ParentInstance": null,
+  "Name": "GenerationOrchestration",
+  "Version": "V2",
+  "Input": "null",
+  "Tags": {
+    "$type": "System.Collections.Generic.Dictionary`2[[System.String, mscorlib],[System.String, mscorlib]], mscorlib",
+    "versiontag": "sample_value"
+  },
+  "EventId": -1,
+  "IsPlayed": false,
+  "Timestamp": "2016-04-05T17:35:31.9062038Z"
+}
