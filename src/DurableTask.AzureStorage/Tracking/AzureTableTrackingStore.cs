@@ -86,6 +86,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             this.HistoryTable = this.azureStorageClient.GetTableReference(historyTableName);
             this.InstancesTable = this.azureStorageClient.GetTableReference(instancesTableName);
+            this.InstancesTableCache = new InstancesTableCache(this.settings);
 
             // Use reflection to learn all the different event types supported by DTFx.
             // This could have been hardcoded, but I generally try to avoid hardcoding of point-in-time DTFx knowledge.
@@ -116,6 +117,8 @@ namespace DurableTask.AzureStorage.Tracking
         internal Table HistoryTable { get; }
 
         internal Table InstancesTable { get; }
+
+        private InstancesTableCache InstancesTableCache;
 
         /// <inheritdoc />
         public override Task CreateAsync()
@@ -416,6 +419,23 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task<OrchestrationState?> GetStateAsync(string instanceId, string executionId, bool fetchInput)
         {
+            if (!fetchInput)
+            {
+                if (this.InstancesTableCache.TryGetInstanceInCache(instanceId, out DynamicTableEntity entity))
+                {
+                    OrchestrationState orchestrationState = await this.ConvertFromAsync(entity);
+
+                    this.settings.Logger.FetchedInstanceStatusFromCache(
+                        this.storageAccountName,
+                        this.taskHubName,
+                        instanceId,
+                        orchestrationState.OrchestrationInstance.ExecutionId ?? string.Empty,
+                        orchestrationState.Size);
+
+                    return orchestrationState;
+                }
+            }
+
             InstanceStatus? instanceStatus = await this.FetchInstanceStatusInternalAsync(instanceId, fetchInput);
             return instanceStatus?.State;
         }
@@ -741,6 +761,8 @@ namespace DurableTask.AzureStorage.Tracking
 
             await Task.WhenAll(tasks);
 
+            this.InstancesTableCache.RemoveFromCache(orchestrationInstanceStatus.PartitionKey);
+
             // This is for the instances table deletion
             storageRequests++;
 
@@ -863,6 +885,8 @@ namespace DurableTask.AzureStorage.Tracking
                     // This is the case for overwriting an existing instance.
                     await this.InstancesTable.ReplaceAsync(entity);
                 }
+
+                this.InstancesTableCache.AddToCache(entity);
             }
             catch (DurableTaskStorageException e) when (
                 e.HttpStatusCode == 409 /* Conflict */ ||
@@ -904,6 +928,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             Stopwatch stopwatch = Stopwatch.StartNew();
             await this.InstancesTable.MergeAsync(entity);
+            this.InstancesTableCache.UpdateCache(entity);
 
             // We don't have enough information to get the episode number.
             // It's also not important to have for this particular trace.
@@ -1106,6 +1131,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
             await this.InstancesTable.InsertOrMergeAsync(instanceEntity);
+            this.InstancesTableCache.AddToCache(instanceEntity);
 
             this.settings.Logger.InstanceStatusUpdate(
                 this.storageAccountName,

@@ -886,11 +886,6 @@ namespace DurableTask.AzureStorage.Logging
             this.WriteStructuredLog(logEvent);
         }
 
-        void WriteStructuredLog(ILogEvent logEvent, Exception exception = null)
-        {
-            LoggingExtensions.LogDurableEvent(this.log, logEvent, exception);
-        }
-
         internal void OrchestrationMemoryManagerInfo(
             string account,
             string taskHub,
@@ -901,6 +896,27 @@ namespace DurableTask.AzureStorage.Logging
                 taskHub,
                 details);
             this.WriteStructuredLog(logEvent);
+        }
+
+        internal void FetchedInstanceStatusFromCache(
+            string account,
+            string taskHub,
+            string instanceId,
+            string executionId,
+            long size)
+        {
+            var logEvent = new LogEvents.FetchedInstanceStatusFromCache(
+                account,
+                taskHub,
+                instanceId,
+                executionId,
+                size);
+            this.WriteStructuredLog(logEvent);
+        }
+
+        void WriteStructuredLog(ILogEvent logEvent, Exception exception = null)
+        {
+            LoggingExtensions.LogDurableEvent(this.log, logEvent, exception);
         }
     }
 }

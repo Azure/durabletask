@@ -54,10 +54,9 @@ namespace DurableTask.AzureStorage
             this.settings = settings;
             this.stats = stats;
             this.trackingStore = trackingStore;
+            this.memoryManager = memoryManager;
 
             this.fetchRuntimeStateQueue = new DispatchQueue(this.settings.MaxStorageOperationConcurrency);
-
-            this.memoryManager = memoryManager;
         }
 
         internal IEnumerable<ControlQueue> Queues => this.ownedControlQueues.Values;
@@ -479,6 +478,11 @@ namespace DurableTask.AzureStorage
                             batch.OrchestrationInstanceId,
                             batch.OrchestrationExecutionId,
                             cancellationToken);
+
+                    if (history == null)
+                    {
+                        return;
+                    }
 
                     batch.OrchestrationState = new OrchestrationRuntimeState(history.Events);
                     batch.ETag = history.ETag;

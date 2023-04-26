@@ -266,6 +266,11 @@ namespace DurableTask.AzureStorage
         public int MemoryBufferMBytes { get; set; } = (int)0.25 * 1024;
 
         /// <summary>
+        /// Sets Instance table cache size. Intance table cache records are stored without orchestrator input.
+        /// </summary>
+        public int InstanceTableCacheSize { get; set; } = 0;
+
+        /// <summary>
         /// Returns bool indicating is the TrackingStoreStorageAccount has been set.
         /// </summary>
         public bool HasTrackingStoreStorageAccount => this.TrackingStoreStorageAccountDetails != null;

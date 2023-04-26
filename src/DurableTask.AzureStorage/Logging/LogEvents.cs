@@ -2205,6 +2205,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.RuntimeStatus = runtimeStatus.ToString();
                 this.Episode = episode;
                 this.LatencyMs = latencyMs;
+                this.SizeInBytes = sizeInBytes;
             }
 
             [StructuredLogField]
@@ -2229,7 +2230,7 @@ namespace DurableTask.AzureStorage.Logging
             public long LatencyMs { get; }
 
             [StructuredLogField]
-            public long SizeInBytes { get; }
+            public long? SizeInBytes { get; }
 
             public override EventId EventId => new EventId(
                 EventIds.InstanceStatusUpdate,
@@ -2712,11 +2713,6 @@ namespace DurableTask.AzureStorage.Logging
 
         internal class OrchestrationMemoryManagerInfo : StructuredLogEvent, IEventSourceEvent
         {
-            private string account;
-            private string taskHub;
-            private string workerName;
-            private string details;
-
             public OrchestrationMemoryManagerInfo(string account, string taskHub, string details)
             {
                 this.Account = account;
@@ -2745,6 +2741,51 @@ namespace DurableTask.AzureStorage.Logging
                 this.Account,
                 this.TaskHub,
                 this.Details,
+                Utils.AppName,
+                Utils.ExtensionVersion);
+        }
+
+        internal class FetchedInstanceStatusFromCache : StructuredLogEvent, IEventSourceEvent
+        {
+            public FetchedInstanceStatusFromCache(string account, string taskHub, string instanceId, string executionId, long size)
+            {
+                this.Account = account;
+                this.TaskHub = taskHub;
+                this.InstanceId = instanceId;
+                this.ExecutionId = executionId;
+                this.Size = size;
+            }
+
+            [StructuredLogField]
+            public string Account { get; }
+
+            [StructuredLogField]
+            public string TaskHub { get; }
+
+            [StructuredLogField]
+            public string InstanceId { get; }
+
+            [StructuredLogField]
+            public string ExecutionId { get; }
+
+            [StructuredLogField]
+            public long Size { get; }
+
+            public override EventId EventId => new EventId(
+                EventIds.FetchedInstanceStatusFromCache,
+                nameof(EventIds.FetchedInstanceStatusFromCache));
+
+            public override LogLevel Level => LogLevel.Information;
+
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Fetched instance information from InstanceTableCache.";
+
+            void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.FetchedInstanceStatusFromCache(
+                this.Account,
+                this.TaskHub,
+                this.InstanceId,
+                this.ExecutionId,
+                this.Size,
                 Utils.AppName,
                 Utils.ExtensionVersion);
         }

@@ -1123,6 +1123,26 @@ namespace DurableTask.AzureStorage
                ExtensionVersion);
         }
 
+        internal void FetchedInstanceStatusFromCache(
+            string Account, 
+            string TaskHub, 
+            string InstanceId, 
+            string ExecutionId, 
+            long Size, 
+            string AppName, 
+            string ExtensionVersion)
+        {
+            this.WriteEvent(
+               EventIds.FetchedInstanceStatusFromCache,
+               Account,
+               TaskHub,
+               InstanceId,
+               ExecutionId,
+               Size,
+               AppName,
+               ExtensionVersion);
+        }
+
         // Specifying tasks is necessary when using WriteEventWithRelatedActivityId
         // or else the "TaskName" property written to ETW is the name of the opcode instead
         // of the name of the trace method.

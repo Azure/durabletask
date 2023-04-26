@@ -115,12 +115,17 @@ namespace DurableTask.AzureStorage
                     memorySize = state.Size;
                 }
 
-                OrchestrationHistory history = await trackingStore.GetHistoryEventsAsync(
+                if (memoryReserved || !this.settings.UseOrchestrationHistoryLoadThrottle)
+                {
+                    OrchestrationHistory history = await trackingStore.GetHistoryEventsAsync(
                    instanceId,
                    executionId,
                    cancellationToken);
 
-                return history;
+                    return history;
+                }
+
+                return null;
             }
             finally
             {
