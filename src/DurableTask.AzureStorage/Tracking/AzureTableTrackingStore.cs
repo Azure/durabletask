@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage.Tracking
 {
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
@@ -32,7 +33,7 @@ namespace DurableTask.AzureStorage.Tracking
     /// <summary>
     /// Tracking store for use with <see cref="AzureStorageOrchestrationService"/>. Uses Azure Tables and Azure Blobs to store runtime state.
     /// </summary>
-    class AzureTableTrackingStore : TrackingStoreBase
+    class AzureTableTrackingStore : TrackingStoreBase, ITrackingStoreWithExecutionData
     {
         const string NameProperty = "Name";
         const string InputProperty = "Input";
@@ -158,6 +159,7 @@ namespace DurableTask.AzureStorage.Tracking
             IList<HistoryEvent> historyEvents;
             string executionId;
             DynamicTableEntity sentinel = null;
+            TrackingStoreData trackingStoreData = new TrackingStoreData();
             if (tableEntities.Count > 0)
             {
                 // The most recent generation will always be in the first history event.
@@ -183,7 +185,7 @@ namespace DurableTask.AzureStorage.Tracking
                     }
 
                     // Some entity properties may be stored in blob storage.
-                    await this.DecompressLargeEntityProperties(entity);
+                    await this.DecompressLargeEntityProperties(entity, trackingStoreData.Blobs);
 
                     events.Add((HistoryEvent)this.tableEntityConverter.ConvertFromTableEntity(entity, GetTypeForTableEntity));
                 }
@@ -222,7 +224,7 @@ namespace DurableTask.AzureStorage.Tracking
                 eTagValue,
                 checkpointCompletionTime);
 
-            return new OrchestrationHistory(historyEvents, checkpointCompletionTime, eTagValue);
+            return new OrchestrationHistory(historyEvents, checkpointCompletionTime, eTagValue, trackingStoreData);
         }
 
         async Task<TableEntitiesResponseInfo<DynamicTableEntity>> GetHistoryEntitiesResponseInfoAsync(string instanceId, string expectedExecutionId, IList<string> projectionColumns,  CancellationToken cancellationToken = default(CancellationToken))
@@ -843,7 +845,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             // It is possible that the queue message was small enough to be written directly to a queue message,
             // not a blob, but is too large to be written to a table property.
-            await this.CompressLargeMessageAsync(entity);
+            await this.CompressLargeMessageAsync(entity, null);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
             try
@@ -923,16 +925,29 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task<string> UpdateStateAsync(
+        public override Task<string> UpdateStateAsync(
             OrchestrationRuntimeState newRuntimeState,
             OrchestrationRuntimeState oldRuntimeState,
             string instanceId,
             string executionId,
             string eTagValue)
         {
+            throw new NotSupportedException("Use the overload that includes trackingStoreData");
+        }
+
+        /// <inheritdoc />
+        public async Task<string> UpdateStateAsync(
+            OrchestrationRuntimeState newRuntimeState,
+            OrchestrationRuntimeState oldRuntimeState,
+            string instanceId,
+            string executionId,
+            string eTagValue,
+            object trackingStoreData)
+        {
             int estimatedBytes = 0;
             IList<HistoryEvent> newEvents = newRuntimeState.NewEvents;
             IList<HistoryEvent> allEvents = newRuntimeState.Events;
+            TrackingStoreData data = (TrackingStoreData) trackingStoreData;
 
             int episodeNumber = Utils.GetEpisodeNumber(newRuntimeState);
 
@@ -953,7 +968,15 @@ namespace DurableTask.AzureStorage.Tracking
                     ["LastUpdatedTime"] = new EntityProperty(newEvents.Last().Timestamp),
                 }
             };
-           
+
+            // check if we are replacing a previous execution with blobs; those will be deleted from the store after the update
+            List<string> blobsToDelete = null;
+            if (oldRuntimeState != newRuntimeState && data.Blobs.Count > 0)
+            {
+                blobsToDelete = data.Blobs;
+                data.Blobs = new List<string>();
+            }
+
             for (int i = 0; i < newEvents.Count; i++)
             {
                 bool isFinalEvent = i == newEvents.Count - 1;
@@ -969,7 +992,7 @@ namespace DurableTask.AzureStorage.Tracking
                 historyEntity.RowKey = sequenceNumber.ToString("X16");
                 historyEntity.Properties["ExecutionId"] = new EntityProperty(executionId);
 
-                await this.CompressLargeMessageAsync(historyEntity);
+                await this.CompressLargeMessageAsync(historyEntity, data.Blobs);
 
                 // Replacement can happen if the orchestration episode gets replayed due to a commit failure in one of the steps below.
                 historyEventBatch.InsertOrReplace(historyEntity);
@@ -1108,6 +1131,18 @@ namespace DurableTask.AzureStorage.Tracking
                 episodeNumber,
                 orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
 
+            // finally, delete orphaned blobs from the previous execution history.
+            // We had to wait until the new history has committed to make sure the blobs are no longer necessary.
+            if (blobsToDelete != null)
+            {
+                var tasks = new List<Task>();
+                foreach (var blobName in blobsToDelete)
+                {
+                    tasks.Add(this.messageManager.DeleteOrphanedBlobAsync(blobName));
+                }
+                await Task.WhenAll(tasks);
+            }
+
             return eTagValue;
         }
 
@@ -1177,7 +1212,7 @@ namespace DurableTask.AzureStorage.Tracking
             }
         }
 
-        async Task CompressLargeMessageAsync(DynamicTableEntity entity)
+        async Task CompressLargeMessageAsync(DynamicTableEntity entity, List<string> listOfBlobs)
         {
             foreach (string propertyName in VariableSizeEntityProperties)
             {
@@ -1194,11 +1229,14 @@ namespace DurableTask.AzureStorage.Tracking
                     string blobPropertyName = GetBlobPropertyName(propertyName);
                     entity.Properties.Add(blobPropertyName, new EntityProperty(blobName));
                     entity.Properties[propertyName].StringValue = string.Empty;
+
+                    // if necessary, keep track of all the blobs associated with this execution
+                    listOfBlobs?.Add(blobName);
                 }
             }
         }
 
-        async Task DecompressLargeEntityProperties(DynamicTableEntity entity)
+        async Task DecompressLargeEntityProperties(DynamicTableEntity entity, List<string> listOfBlobs)
         {
             // Check for entity properties stored in blob storage
             foreach (string propertyName in VariableSizeEntityProperties)
@@ -1210,6 +1248,9 @@ namespace DurableTask.AzureStorage.Tracking
                     string decompressedMessage = await this.messageManager.DownloadAndDecompressAsBytesAsync(blobName);
                     entity.Properties[propertyName] = new EntityProperty(decompressedMessage);
                     entity.Properties.Remove(blobPropertyName);
+
+                    // keep track of all the blobs associated with this execution
+                    listOfBlobs.Add(blobName);
                 }
             }
         }
@@ -1348,6 +1389,11 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             return false;
+        }
+
+        class TrackingStoreData
+        {
+            public List<string> Blobs { get; set; } = new List<string>();
         }
     }
 }
