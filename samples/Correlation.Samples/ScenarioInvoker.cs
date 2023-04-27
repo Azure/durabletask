@@ -25,7 +25,8 @@ namespace Correlation.Samples
     {
         public async Task ExecuteAsync(Type orchestratorType, object orchestratorInput, int timeoutSec)
         {
-            new TelemetryActivator().Initialize();
+            // needs APPINSIGHTS_INSTRUMENTATIONKEY in environment variable
+            // new TelemetryActivator().Initialize();
 
             using (
                 TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(false))

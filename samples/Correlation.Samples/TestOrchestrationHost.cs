@@ -20,6 +20,7 @@ namespace Correlation.Samples
     using System.Threading.Tasks;
     using DurableTask.AzureStorage;
     using DurableTask.Core;
+    using Microsoft.Extensions.Logging;
 
     internal sealed class TestOrchestrationHost : IDisposable
     {
@@ -33,13 +34,31 @@ namespace Correlation.Samples
         {
             try
             {
+                var loggerFactory = LoggerFactory.Create(
+                builder =>
+                {
+                    // Console logging requires Microsoft.Extensions.Logging.Console 
+                    builder.AddSimpleConsole(options =>
+                    {
+                        options.SingleLine = true;
+                        options.UseUtcTimestamp = true;
+                        options.TimestampFormat = "yyyy-mm-ddThh:mm:ss.ffffffZ ";
+                    });
+
+                    // File logging requires Serilog.Extensions.Logging.File
+                    builder.AddFile("Logs/{Date}.txt", minimumLevel: LogLevel.Trace);
+
+                    // App Insights logging requires Microsoft.Extensions.Logging.ApplicationInsights
+                    // Requires environment variable APPINSIGHTS_INSTRUMENTATIONKEY
+                    // builder.AddApplicationInsights(instrumentationKey);
+                });
                 var service = new AzureStorageOrchestrationService(settings);
                 service.CreateAsync().GetAwaiter().GetResult(); // I change Create to CreateIfNotExistsAsync for enabling execute without fail once per twice.
 
                 this.settings = settings;
 
-                this.worker = new TaskHubWorker(service);
-                this.client = new TaskHubClient(service);
+                this.worker = new TaskHubWorker(service, loggerFactory);
+                this.client = new TaskHubClient(service, loggerFactory: loggerFactory);
                 this.addedOrchestrationTypes = new HashSet<Type>();
                 this.addedActivityTypes = new HashSet<Type>();
             }

@@ -21,10 +21,10 @@ namespace Correlation.Samples
         static void Main(string[] args)
         {
             CorrelationSettings.Current.EnableDistributedTracing = true;
-            // InvokeScenario(typeof(HelloOrchestrator), "50", 50); // HelloWorldScenario.cs;
+            InvokeScenario(typeof(HelloOrchestrator), "50", 50); // HelloWorldScenario.cs;
             // InvokeScenario(typeof(SubOrchestratorOrchestration), "SubOrchestrationWorld", 50);  // SubOrchestratorScenario.cs;
             // InvokeScenario(typeof(RetryOrchestration), "Retry Scenario", 50); // RetryScenario.cs;
-            InvokeScenario(typeof(MultiLayeredOrchestrationWithRetryOrchestrator), "world", 50); // MultiLayerOrchestrationWithRetryScenario.cs;
+            // InvokeScenario(typeof(MultiLayeredOrchestrationWithRetryOrchestrator), "world", 50); // MultiLayerOrchestrationWithRetryScenario.cs;
             // InvokeScenario(typeof(FanOutFanInOrchestrator), "50", 50); // FanOutFanInScenario.cs;
             // InvokeScenario(typeof(ContinueAsNewOrchestration), "50", 50); // ContinueAsNewScenario.cs;
             // InvokeScenario(typeof(TerminatedOrchestration), "50", 50); // TerminationScenario.cs;
