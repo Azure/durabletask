@@ -61,16 +61,16 @@ namespace DurableTask.Core.Tests
             if (mode == ErrorPropagationMode.SerializeExceptions)
             {
                 // The exception should be deserializable
-                InvalidOperationException e = JsonConvert.DeserializeObject<InvalidOperationException>(state.Output);
+                InvalidOperationException? e = JsonConvert.DeserializeObject<InvalidOperationException>(state.Output);
                 Assert.IsNotNull(e);
-                Assert.AreEqual("This is a test exception", e.Message);
+                Assert.AreEqual("This is a test exception", e!.Message);
             }
             else if (mode == ErrorPropagationMode.UseFailureDetails)
             {
                 // The failure details should contain the relevant exception metadata
-                FailureDetails details = JsonConvert.DeserializeObject<FailureDetails>(state.Output);
+                FailureDetails? details = JsonConvert.DeserializeObject<FailureDetails>(state.Output);
                 Assert.IsNotNull(details);
-                Assert.AreEqual(typeof(InvalidOperationException).FullName, details.ErrorType);
+                Assert.AreEqual(typeof(InvalidOperationException).FullName, details!.ErrorType);
                 Assert.IsTrue(details.IsCausedBy<InvalidOperationException>());
                 Assert.IsTrue(details.IsCausedBy<Exception>()); // check that base types work too
                 Assert.AreEqual("This is a test exception", details.ErrorMessage);
