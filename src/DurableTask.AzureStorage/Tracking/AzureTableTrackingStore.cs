@@ -1285,7 +1285,7 @@ namespace DurableTask.AzureStorage.Tracking
             // randomize the blob name to prevent accidental races in split-brain situations (#890)
             uint random = (uint)(new Random()).Next();
 
-            string blobName = $"{sanitizedInstanceId}/history-{sequenceNumber}-{eventType}-{property}-{random:X8}.json.gz";
+            string blobName = $"{sanitizedInstanceId}/history-{sequenceNumber}-{eventType}-{random:X8}-{property}.json.gz";
 
             return blobName;
         }
