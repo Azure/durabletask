@@ -33,7 +33,7 @@ namespace DurableTask.AzureStorage.Tracking
     /// <summary>
     /// Tracking store for use with <see cref="AzureStorageOrchestrationService"/>. Uses Azure Tables and Azure Blobs to store runtime state.
     /// </summary>
-    class AzureTableTrackingStore : TrackingStoreBase, ITrackingStoreWithExecutionData
+    class AzureTableTrackingStore : TrackingStoreBase, ITrackingStore
     {
         const string NameProperty = "Name";
         const string InputProperty = "Input";
@@ -925,18 +925,7 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override Task<string> UpdateStateAsync(
-            OrchestrationRuntimeState newRuntimeState,
-            OrchestrationRuntimeState oldRuntimeState,
-            string instanceId,
-            string executionId,
-            string eTagValue)
-        {
-            throw new NotSupportedException("Use the overload that includes trackingStoreData");
-        }
-
-        /// <inheritdoc />
-        public async Task<string> UpdateStateAsync(
+        public override async Task<string> UpdateStateAsync(
             OrchestrationRuntimeState newRuntimeState,
             OrchestrationRuntimeState oldRuntimeState,
             string instanceId,
