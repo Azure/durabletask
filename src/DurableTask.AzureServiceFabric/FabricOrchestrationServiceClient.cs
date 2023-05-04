@@ -136,7 +136,6 @@ namespace DurableTask.AzureServiceFabric
                         state = new OrchestrationState()
                         {
                             OrchestrationInstance = orchestrationInstance,
-                            OrchestrationStatus = OrchestrationStatus.Terminated,
                             LastUpdatedTime = DateTime.UtcNow,
                         };
                     }
@@ -162,7 +161,7 @@ namespace DurableTask.AzureServiceFabric
 
                 this.instanceStore.OnOrchestrationCompleted(orchestrationInstance);
 
-                string message = string.Format($"{nameof(ForceTerminateTaskOrchestrationAsync)}: Terminated with reason '{reason}'");
+                string message = $"{nameof(ForceTerminateTaskOrchestrationAsync)}: Terminated with reason '{reason}'";
                 ServiceFabricProviderEventSource.Tracing.LogOrchestrationInformation(instanceId, latestExecutionId, message);
             }
             else

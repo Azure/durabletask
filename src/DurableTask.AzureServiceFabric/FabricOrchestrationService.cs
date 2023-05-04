@@ -352,7 +352,7 @@ namespace DurableTask.AzureServiceFabric
         {
             await CompleteOrchestrationAsync(workItem);
 
-            string message = string.Format($"{nameof(DropOrchestrationAsync)}: Dropped. Orchestration history: {JsonConvert.SerializeObject(workItem.OrchestrationRuntimeState.Events)}");
+            string message = $"{nameof(DropOrchestrationAsync)}: Dropped. Orchestration history: {JsonConvert.SerializeObject(workItem.OrchestrationRuntimeState.Events)}";
             ServiceFabricProviderEventSource.Tracing.LogOrchestrationInformation(workItem.InstanceId,
                 workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId,
                 message);

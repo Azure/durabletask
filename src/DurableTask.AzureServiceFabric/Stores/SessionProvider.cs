@@ -20,13 +20,10 @@ namespace DurableTask.AzureServiceFabric.Stores
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-
-    using DurableTask.Core;
     using DurableTask.AzureServiceFabric.TaskHelpers;
     using DurableTask.AzureServiceFabric.Tracing;
-
+    using DurableTask.Core;
     using Microsoft.ServiceFabric.Data;
-    using System.Windows.Forms;
 
     /// <summary>
     /// There are three interesting methods in this class that require some explanation.

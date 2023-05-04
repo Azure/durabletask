@@ -28,7 +28,7 @@ namespace DurableTask.AzureServiceFabric
             var runtimeState = workitem.OrchestrationRuntimeState;
             if (runtimeState == null)
             {
-                throw new ArgumentNullException("runtime");
+                throw new ArgumentNullException("runtimeState");
             }
 
             if (runtimeState.ExecutionStartedEvent != null)
