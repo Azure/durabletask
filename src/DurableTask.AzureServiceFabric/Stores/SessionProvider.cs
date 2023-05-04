@@ -26,6 +26,7 @@ namespace DurableTask.AzureServiceFabric.Stores
     using DurableTask.AzureServiceFabric.Tracing;
 
     using Microsoft.ServiceFabric.Data;
+    using System.Windows.Forms;
 
     /// <summary>
     /// There are three interesting methods in this class that require some explanation.
@@ -171,14 +172,22 @@ namespace DurableTask.AzureServiceFabric.Stores
 
         public async Task AppendMessageAsync(TaskMessageItem newMessage)
         {
-            await RetryHelper.ExecuteWithRetryOnTransient(async () =>
+            bool added = await RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
+                bool added = false;
                 using (var txn = this.StateManager.CreateTransaction())
                 {
-                    await this.AppendMessageAsync(txn, newMessage);
+                    added = await this.TryAppendMessageAsync(txn, newMessage);
                     await txn.CommitAsync();
                 }
+
+                return added;
             }, uniqueActionIdentifier: $"Orchestration = '{newMessage.TaskMessage.OrchestrationInstance}', Action = '{nameof(SessionProvider)}.{nameof(AppendMessageAsync)}'");
+
+            if (!added)
+            {
+                throw new InvalidOperationException($"No penidng or running orchestration found. Orchestration = '{newMessage.TaskMessage.OrchestrationInstance}', Action = 'AppendMessageAsync({newMessage.TaskMessage.Event.ToString()})'");
+            }
 
             this.TryEnqueueSession(newMessage.TaskMessage.OrchestrationInstance);
         }
@@ -201,6 +210,11 @@ namespace DurableTask.AzureServiceFabric.Stores
             }
 
             return false;
+        }
+
+        public async Task<bool> ContainsSessionAsync(ITransaction transaction, string instanceId)
+        {
+            return await this.Store.ContainsKeyAsync(transaction, instanceId);
         }
 
         public async Task<IList<OrchestrationInstance>> TryAppendMessageBatchAsync(ITransaction transaction, IEnumerable<TaskMessageItem> newMessages)

@@ -28,6 +28,7 @@ namespace DurableTask.AzureServiceFabric
     using DurableTask.AzureServiceFabric.TaskHelpers;
     using DurableTask.AzureServiceFabric.Tracing;
     using Microsoft.ServiceFabric.Data;
+    using Newtonsoft.Json;
 
     class FabricOrchestrationService : IOrchestrationService
     {
@@ -157,16 +158,6 @@ namespace DurableTask.AzureServiceFabric
                     OrchestrationRuntimeState = currentRuntimeState
                 };
 
-                // Do not return the orchestration workitem if 'ExecutionStartedEvent' is missing.
-                // This can happen when an orchestration message like TerminateEvent is sent to an already finished orchestration
-                // TODO: Fix the race condition that introduced the bad orchestration
-                if (currentRuntimeState.ExecutionStartedEvent == null)
-                {
-                    ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition($"Orchestration with no execution started event found: {currentSession.SessionId}");
-                    await this.DropOrchestrationAsync(workItem);
-                    return null;
-                }
-
                 if (newMessages.Count == 0)
                 {
                     if (currentRuntimeState.ExecutionStartedEvent == null)
@@ -178,7 +169,7 @@ namespace DurableTask.AzureServiceFabric
                     bool isComplete = this.IsOrchestrationComplete(currentRuntimeState.OrchestrationStatus);
                     if (isComplete)
                     {
-                        await this.HandleCompletedOrchestration(workItem);
+                        await this.HandleCompletedOrchestrationAsync(workItem);
                     }
 
                     this.orchestrationProvider.TryUnlockSession(currentSession.SessionId, isComplete: isComplete);
@@ -282,7 +273,7 @@ namespace DurableTask.AzureServiceFabric
 
                             if (workItem.OrchestrationRuntimeState.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)
                             {
-                                await HandleCompletedOrchestration(workItem);
+                                await HandleCompletedOrchestrationAsync(workItem);
                             }
 
                             // When an orchestration is completed, we need to drop the session which involves 2 steps (1) Removing the row from sessions
@@ -353,61 +344,24 @@ namespace DurableTask.AzureServiceFabric
 
             if (isComplete)
             {
-                await HandleCompletedOrchestration(workItem);
+                await HandleCompletedOrchestrationAsync(workItem);
             }
         }
 
-        private async Task DropOrchestrationAsync(TaskOrchestrationWorkItem workItem)
+        async Task DropOrchestrationAsync(TaskOrchestrationWorkItem workItem)
         {
-            await RetryHelper.ExecuteWithRetryOnTransient(async () =>
-            {
-                using (var txn = this.stateManager.CreateTransaction())
-                {
-                    // DropSession does 2 things (like mentioned in the comments above) - remove the row from sessions dictionary
-                    // and delete the session messages dictionary. The second step is in a background thread and not part of transaction.
-                    // However even if this transaction failed but we ended up deleting session messages dictionary, that's ok - at
-                    // that time, it should be an empty dictionary and we would have updated the runtime session state to full completed
-                    // state in the transaction from Complete method. So the subsequent attempt would be able to complete the session.
-                    await this.orchestrationProvider.DropSession(txn, workItem.OrchestrationRuntimeState.OrchestrationInstance);
-                    await txn.CommitAsync();
-                }
-            }, uniqueActionIdentifier: $"OrchestrationId = '{workItem.InstanceId}', Action = '{nameof(DropOrchestrationAsync)}'");
+            await CompleteOrchestrationAsync(workItem);
 
-            this.instanceStore.OnOrchestrationCompleted(workItem.OrchestrationRuntimeState.OrchestrationInstance);
-
-            string message = string.Format("Orchestration with instanceId : '{0}' and executionId : '{1}' dropped due to state corruption (missing ExecutionStartedEvent)",
-                workItem.InstanceId,
-                workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId);
+            string message = string.Format($"{nameof(DropOrchestrationAsync)}: Dropped. Orchestration history: {JsonConvert.SerializeObject(workItem.OrchestrationRuntimeState.Events)}");
             ServiceFabricProviderEventSource.Tracing.LogOrchestrationInformation(workItem.InstanceId,
                 workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId,
                 message);
         }
 
         // Caller should ensure the workItem has reached terminal state.
-        private async Task HandleCompletedOrchestration(TaskOrchestrationWorkItem workItem)
+        async Task HandleCompletedOrchestrationAsync(TaskOrchestrationWorkItem workItem)
         {
-            await RetryHelper.ExecuteWithRetryOnTransient(async () =>
-            {
-                using (var txn = this.stateManager.CreateTransaction())
-                {
-                    await this.instanceStore.WriteEntitiesAsync(txn, new InstanceEntityBase[]
-                    {
-                        new OrchestrationStateInstanceEntity()
-                        {
-                            State = Utils.BuildOrchestrationState(workItem.OrchestrationRuntimeState)
-                        }
-                    });
-                    // DropSession does 2 things (like mentioned in the comments above) - remove the row from sessions dictionary
-                    // and delete the session messages dictionary. The second step is in a background thread and not part of transaction.
-                    // However even if this transaction failed but we ended up deleting session messages dictionary, that's ok - at
-                    // that time, it should be an empty dictionary and we would have updated the runtime session state to full completed
-                    // state in the transaction from Complete method. So the subsequent attempt would be able to complete the session.
-                    await this.orchestrationProvider.DropSession(txn, workItem.OrchestrationRuntimeState.OrchestrationInstance);
-                    await txn.CommitAsync();
-                }
-            }, uniqueActionIdentifier: $"OrchestrationId = '{workItem.InstanceId}', Action = '{nameof(HandleCompletedOrchestration)}'");
-
-            this.instanceStore.OnOrchestrationCompleted(workItem.OrchestrationRuntimeState.OrchestrationInstance);
+            await CompleteOrchestrationAsync(workItem);
 
             string message = string.Format("Orchestration with instanceId : '{0}' and executionId : '{1}' Finished with the status {2} and result {3} in {4} seconds.",
                 workItem.InstanceId,
@@ -418,6 +372,32 @@ namespace DurableTask.AzureServiceFabric
             ServiceFabricProviderEventSource.Tracing.LogOrchestrationInformation(workItem.InstanceId,
                 workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId,
                 message);
+        }
+
+        async Task CompleteOrchestrationAsync(TaskOrchestrationWorkItem workItem)
+        {
+            await RetryHelper.ExecuteWithRetryOnTransient(async () =>
+            {
+                using (var txn = this.stateManager.CreateTransaction())
+                {
+                    await this.instanceStore.WriteEntitiesAsync(txn, new InstanceEntityBase[]
+                    {
+                        new OrchestrationStateInstanceEntity()
+                        {
+                            State = Utils.BuildOrchestrationState(workItem)
+                        }
+                    });
+                    // DropSession does 2 things (like mentioned in the comments above) - remove the row from sessions dictionary
+                    // and delete the session messages dictionary. The second step is in a background thread and not part of transaction.
+                    // However even if this transaction failed but we ended up deleting session messages dictionary, that's ok - at
+                    // that time, it should be an empty dictionary and we would have updated the runtime session state to full completed
+                    // state in the transaction from Complete method. So the subsequent attempt would be able to complete the session.
+                    await this.orchestrationProvider.DropSession(txn, workItem.OrchestrationRuntimeState.OrchestrationInstance);
+                    await txn.CommitAsync();
+                }
+            }, uniqueActionIdentifier: $"OrchestrationId = '{workItem.InstanceId}', Action = '{nameof(CompleteOrchestrationAsync)}'");
+
+            this.instanceStore.OnOrchestrationCompleted(workItem.OrchestrationRuntimeState.OrchestrationInstance);
         }
 
         public Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
@@ -434,17 +414,29 @@ namespace DurableTask.AzureServiceFabric
             return Task.CompletedTask;
         }
 
-        public Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
+        public async Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            bool isComplete = this.IsOrchestrationComplete(workItem.OrchestrationRuntimeState.OrchestrationStatus);
-
-            SessionInformation sessionInfo = TryRemoveSessionInfo(workItem.InstanceId);
-            if (sessionInfo != null)
+            try
             {
-                this.orchestrationProvider.TryUnlockSession(sessionInfo.Instance, isComplete: isComplete);
-            }
+                bool isComplete = this.IsOrchestrationComplete(workItem.OrchestrationRuntimeState.OrchestrationStatus);
 
-            return Task.CompletedTask;
+                SessionInformation sessionInfo = TryRemoveSessionInfo(workItem.InstanceId);
+                if (sessionInfo != null)
+                {
+                    this.orchestrationProvider.TryUnlockSession(sessionInfo.Instance, isComplete: isComplete);
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                // OrchestrationRuntimeState.OrchestrationStatus throws 'InvalidOperationException' if 'ExecutionStartedEvent' is missing.
+                // Do not return the orchestration workitem if 'ExecutionStartedEvent' is missing.
+                // This can happen when an orchestration message like TerminateEvent is sent to an already finished orchestration
+                if (workItem.OrchestrationRuntimeState.ExecutionStartedEvent == null)
+                {
+                    ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition($"InstanceId: '{workItem.InstanceId}', exception: {ex}. Dropping the bad orchestration to avoid noise.");
+                    await this.DropOrchestrationAsync(workItem);
+                }
+            }
         }
 
         public int TaskActivityDispatcherCount => this.settings.TaskActivityDispatcherSettings.DispatcherCount;
@@ -509,10 +501,28 @@ namespace DurableTask.AzureServiceFabric
             }
         }
 
-        public Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem)
+        public async Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem)
         {
-            this.activitiesProvider.Abandon(workItem.Id);
-            return Task.CompletedTask;
+            bool removed = false;
+            using (var txn = this.stateManager.CreateTransaction())
+            {
+                // Remove task activity if orchestration was already terminated or cleaned up
+                if (!await this.orchestrationProvider.ContainsSessionAsync(txn, workItem.TaskMessage.OrchestrationInstance.InstanceId))
+                {
+                    var errorMessage = $"Session doesn't exist. Orchestration = '{workItem.TaskMessage.OrchestrationInstance}', ActivityId = '{workItem.Id}', Action = '{nameof(AbandonTaskActivityWorkItemAsync)}'";
+                    ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
+                    await this.activitiesProvider.CompleteAsync(txn, workItem.Id);
+                    removed = true;
+                }
+
+                await txn.CommitAsync();
+            }
+
+            if (!removed)
+            {
+                // Re-Enqueue task activity
+                this.activitiesProvider.Abandon(workItem.Id);
+            }
         }
 
         public Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem)
