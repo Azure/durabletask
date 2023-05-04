@@ -18,19 +18,16 @@ namespace DurableTask.AzureServiceFabric
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-
-    using DurableTask.Core;
-    using DurableTask.Core.Exceptions;
-    using DurableTask.Core.History;
-    using DurableTask.Core.Tracking;
     using DurableTask.AzureServiceFabric.Stores;
     using DurableTask.AzureServiceFabric.TaskHelpers;
     using DurableTask.AzureServiceFabric.Tracing;
-
-    using Microsoft.ServiceFabric.Data;
-
-    using Newtonsoft.Json;
+    using DurableTask.Core;
+    using DurableTask.Core.Exceptions;
+    using DurableTask.Core.History;
     using DurableTask.Core.Serializing;
+    using DurableTask.Core.Tracking;
+    using Microsoft.ServiceFabric.Data;
+    using Newtonsoft.Json;
 
     class FabricOrchestrationServiceClient : IOrchestrationServiceClient, IFabricProviderClient
     {
@@ -124,28 +121,54 @@ namespace DurableTask.AzureServiceFabric
 
             if (latestExecutionId == null)
             {
-                throw new ArgumentException($"No execution id found for given instanceId {instanceId}, can only terminate the latest execution of a given orchestration");
+                throw new InvalidOperationException($"No execution id found for given instanceId {instanceId}, can only terminate the latest execution of a given orchestration");
             }
 
+            var orchestrationInstance = new OrchestrationInstance { InstanceId = instanceId, ExecutionId = latestExecutionId };
             if (reason?.Trim().StartsWith("CleanupStore", StringComparison.OrdinalIgnoreCase) == true)
             {
                 using (var txn = this.stateManager.CreateTransaction())
                 {
+                    var stateInstance = await this.instanceStore.GetOrchestrationStateAsync(instanceId, latestExecutionId);
+                    var state = stateInstance?.State;
+                    if (state == null)
+                    {
+                        state = new OrchestrationState()
+                        {
+                            OrchestrationInstance = orchestrationInstance,
+                            LastUpdatedTime = DateTime.UtcNow,
+                        };
+                    }
+
+                    state.OrchestrationStatus = OrchestrationStatus.Terminated;
+                    state.Output = $"Orchestration dropped with reason '{reason}'";
+
+                    await this.instanceStore.WriteEntitiesAsync(txn, new InstanceEntityBase[]
+                    {
+                        new OrchestrationStateInstanceEntity()
+                        {
+                            State = state
+                        }
+                    }); ;
                     // DropSession does 2 things : removes the row from sessions dictionary and delete the session messages dictionary.
                     // The second step is in a background thread and not part of transaction.
                     // However even if this transaction failed but we ended up deleting session messages dictionary, that's ok - at
                     // that time, it should be an empty dictionary and we would have updated the runtime session state to full completed
                     // state in the transaction from Complete method. So the subsequent attempt would be able to complete the session.
-                    var instance = new OrchestrationInstance { InstanceId = instanceId, ExecutionId = latestExecutionId };
-                    await this.orchestrationProvider.DropSession(txn, instance);
+                    await this.orchestrationProvider.DropSession(txn, orchestrationInstance);
                     await txn.CommitAsync();
                 }
+
+                this.instanceStore.OnOrchestrationCompleted(orchestrationInstance);
+
+                string message = $"{nameof(ForceTerminateTaskOrchestrationAsync)}: Terminated with reason '{reason}'";
+                ServiceFabricProviderEventSource.Tracing.LogOrchestrationInformation(instanceId, latestExecutionId, message);
             }
             else
             {
                 var taskMessage = new TaskMessage
                 {
-                    OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId, ExecutionId = latestExecutionId },
+                    OrchestrationInstance = orchestrationInstance,
                     Event = new ExecutionTerminatedEvent(-1, reason)
                 };
 

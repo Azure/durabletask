@@ -31,6 +31,7 @@ namespace DurableTask.AzureServiceFabric.Remote
 
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
+    using System.Web.Http.Results;
 
     /// <summary>
     /// Allows to interact with a remote IOrchestrationServiceClient
@@ -122,7 +123,8 @@ namespace DurableTask.AzureServiceFabric.Remote
             {
                 if (!response.IsSuccessStatusCode)
                 {
-                    throw new RemoteServiceException("Unable to terminate task instance", response.StatusCode);
+                    var message = await response.Content.ReadAsStringAsync();
+                    throw new RemoteServiceException($"Unable to terminate task instance. Error: {response.StatusCode}:{message}", response.StatusCode);
                 }
             }
         }

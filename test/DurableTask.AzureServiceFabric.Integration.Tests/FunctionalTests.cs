@@ -415,7 +415,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
             var testData = new TestOrchestrationData()
             {
                 NumberOfParallelTasks = 0,
-                NumberOfSerialTasks = 2,
+                NumberOfSerialTasks = 100,
                 MaxDelay = 5,
                 MinDelay = 5,
                 DelayUnit = TimeSpan.FromSeconds(1),
@@ -433,6 +433,53 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
 
             Assert.AreEqual(OrchestrationStatus.Terminated, result.OrchestrationStatus);
             Assert.AreEqual(reason, result.Output);
+        }
+
+        [TestMethod]
+        public async Task ForceTerminate_Already_Finished_Orchestration()
+        {
+            var testData = new TestOrchestrationData()
+            {
+                NumberOfParallelTasks = 0,
+                NumberOfSerialTasks = 2,
+                MaxDelay = 1,
+                MinDelay = 1,
+                DelayUnit = TimeSpan.FromMilliseconds(1),
+            };
+
+            var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), testData);
+            await Task.Delay(TimeSpan.FromSeconds(1));
+
+            var result = await this.taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(1));
+
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+
+            var reason = "Testing terminatiom of already finished orchestration";
+
+            await Assert.ThrowsExceptionAsync<RemoteServiceException>(() => this.taskHubClient.TerminateInstanceAsync(instance, reason));
+        }
+
+        [TestMethod]
+        public async Task ForceTerminate_With_CleanupStore()
+        {
+            var testData = new TestOrchestrationData()
+            {
+                NumberOfParallelTasks = 0,
+                NumberOfSerialTasks = 5,
+                MaxDelay = 5,
+                MinDelay = 5,
+                DelayUnit = TimeSpan.FromSeconds(1),
+            };
+
+            var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), testData);
+            await Task.Delay(TimeSpan.FromMilliseconds(1));
+
+            var reason = "CleanupStore";
+            await this.taskHubClient.TerminateInstanceAsync(instance, reason);
+            var result = await this.taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(1));
+
+            Assert.AreEqual(OrchestrationStatus.Terminated, result.OrchestrationStatus);
+            Assert.IsTrue(result.Output.Contains(reason));
         }
 
         [TestMethod]
