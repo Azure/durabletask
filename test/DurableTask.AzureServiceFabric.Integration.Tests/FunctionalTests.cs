@@ -415,7 +415,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
             var testData = new TestOrchestrationData()
             {
                 NumberOfParallelTasks = 0,
-                NumberOfSerialTasks = 5,
+                NumberOfSerialTasks = 100,
                 MaxDelay = 5,
                 MinDelay = 5,
                 DelayUnit = TimeSpan.FromSeconds(1),
