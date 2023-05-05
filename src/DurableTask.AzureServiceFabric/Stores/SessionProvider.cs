@@ -199,7 +199,7 @@ namespace DurableTask.AzureServiceFabric.Stores
 
         public async Task<bool> TryAppendMessageAsync(ITransaction transaction, TaskMessageItem newMessage)
         {
-            if (await this.Store.ContainsKeyAsync(transaction, newMessage.TaskMessage.OrchestrationInstance.InstanceId))
+            if (await this.ContainsSessionAsync(transaction, newMessage.TaskMessage.OrchestrationInstance))
             {
                 var sessionMessageProvider = await GetOrAddSessionMessagesInstance(newMessage.TaskMessage.OrchestrationInstance);
                 await sessionMessageProvider.SendBeginAsync(transaction, new Message<Guid, TaskMessageItem>(Guid.NewGuid(), newMessage));
@@ -209,9 +209,15 @@ namespace DurableTask.AzureServiceFabric.Stores
             return false;
         }
 
-        public async Task<bool> ContainsSessionAsync(ITransaction transaction, string instanceId)
+        public async Task<bool> ContainsSessionAsync(ITransaction transaction, OrchestrationInstance instance)
         {
-            return await this.Store.ContainsKeyAsync(transaction, instanceId);
+            var value = await this.Store.TryGetValueAsync(transaction, instance.InstanceId);
+            if (value.HasValue && OrchestrationInstanceComparer.Default.Equals(value.Value.SessionId, instance))
+            {
+                return true;
+            }
+
+            return false;
         }
 
         public async Task<IList<OrchestrationInstance>> TryAppendMessageBatchAsync(ITransaction transaction, IEnumerable<TaskMessageItem> newMessages)

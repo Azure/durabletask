@@ -354,7 +354,7 @@ namespace DurableTask.AzureServiceFabric
 
             string message = $"{nameof(DropOrchestrationAsync)}: Dropped. Orchestration history: {JsonConvert.SerializeObject(workItem.OrchestrationRuntimeState.Events)}";
             ServiceFabricProviderEventSource.Tracing.LogOrchestrationInformation(workItem.InstanceId,
-                workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId,
+                workItem.OrchestrationRuntimeState.OrchestrationInstance?.ExecutionId,
                 message);
         }
 
@@ -387,12 +387,21 @@ namespace DurableTask.AzureServiceFabric
                             State = Utils.BuildOrchestrationState(workItem)
                         }
                     });
+
+                    var instance = workItem.OrchestrationRuntimeState.OrchestrationInstance;
+                    if (instance == null)
+                    {
+                        // This condition happens when an orchestration message like ExecutionTerminatedEvent enqueued for an already completed orchestration 
+                        SessionInformation sessionInfo = this.GetSessionInfo(workItem.InstanceId);
+                        instance = sessionInfo.Instance;
+                    }
+
                     // DropSession does 2 things (like mentioned in the comments above) - remove the row from sessions dictionary
                     // and delete the session messages dictionary. The second step is in a background thread and not part of transaction.
                     // However even if this transaction failed but we ended up deleting session messages dictionary, that's ok - at
                     // that time, it should be an empty dictionary and we would have updated the runtime session state to full completed
                     // state in the transaction from Complete method. So the subsequent attempt would be able to complete the session.
-                    await this.orchestrationProvider.DropSession(txn, workItem.OrchestrationRuntimeState.OrchestrationInstance);
+                    await this.orchestrationProvider.DropSession(txn, instance);
                     await txn.CommitAsync();
                 }
             }, uniqueActionIdentifier: $"OrchestrationId = '{workItem.InstanceId}', Action = '{nameof(CompleteOrchestrationAsync)}'");
@@ -402,7 +411,7 @@ namespace DurableTask.AzureServiceFabric
 
         public Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            SessionInformation sessionInfo = TryRemoveSessionInfo(workItem.InstanceId);
+            SessionInformation sessionInfo = this.TryRemoveSessionInfo(workItem.InstanceId);
             if (sessionInfo == null)
             {
                 ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition($"{nameof(AbandonTaskOrchestrationWorkItemAsync)} : Could not get a session info object while trying to abandon session {workItem.InstanceId}");
@@ -507,7 +516,7 @@ namespace DurableTask.AzureServiceFabric
             using (var txn = this.stateManager.CreateTransaction())
             {
                 // Remove task activity if orchestration was already terminated or cleaned up
-                if (!await this.orchestrationProvider.ContainsSessionAsync(txn, workItem.TaskMessage.OrchestrationInstance.InstanceId))
+                if (!await this.orchestrationProvider.ContainsSessionAsync(txn, workItem.TaskMessage.OrchestrationInstance))
                 {
                     var errorMessage = $"Session doesn't exist. Orchestration = '{workItem.TaskMessage.OrchestrationInstance}', ActivityId = '{workItem.Id}', Action = '{nameof(AbandonTaskActivityWorkItemAsync)}'";
                     ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
