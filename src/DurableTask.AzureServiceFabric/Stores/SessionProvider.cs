@@ -352,7 +352,7 @@ namespace DurableTask.AzureServiceFabric.Stores
             }
         }
 
-        public async Task DropSession(ITransaction txn, OrchestrationInstance instance)
+        public async Task DropSessionAsync(ITransaction txn, OrchestrationInstance instance)
         {
             if (instance == null)
             {

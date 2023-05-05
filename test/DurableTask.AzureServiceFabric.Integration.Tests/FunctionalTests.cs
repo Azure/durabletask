@@ -483,6 +483,68 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
         }
 
         [TestMethod]
+        public async Task ForceTerminate_With_CleanupStore_Start_New_Orchestration_With_Same_InstanceId()
+        {
+            string instanceId = "ForceTerminate_With_CleanupStore_Start_New_Orchestration_With_Same_InstanceId";
+            var testData = new TestOrchestrationData()
+            {
+                NumberOfParallelTasks = 0,
+                NumberOfSerialTasks = 5,
+                MaxDelay = 5,
+                MinDelay = 5,
+                DelayUnit = TimeSpan.FromSeconds(1),
+            };
+
+            var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), instanceId, testData);
+            await Task.Delay(TimeSpan.FromMilliseconds(1));
+
+            var reason = "CleanupStore";
+            await this.taskHubClient.TerminateInstanceAsync(instance, reason);
+            var result = await this.taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(1));
+
+            Assert.AreEqual(OrchestrationStatus.Terminated, result.OrchestrationStatus);
+            Assert.IsTrue(result.Output.Contains(reason));
+
+            instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), instanceId, testData);
+            await Task.Delay(TimeSpan.FromMilliseconds(1));
+
+            result = await this.taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(1));
+
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+        }
+
+        [TestMethod]
+        public async Task ForceTerminate_And_Start_New_Orchestration_With_Same_InstanceId()
+        {
+            string instanceId = "ForceTerminate_And_Start_New_Orchestration_With_Same_InstanceId";
+            var testData = new TestOrchestrationData()
+            {
+                NumberOfParallelTasks = 0,
+                NumberOfSerialTasks = 5,
+                MaxDelay = 5,
+                MinDelay = 5,
+                DelayUnit = TimeSpan.FromSeconds(1),
+            };
+
+            var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), instanceId, testData);
+            await Task.Delay(TimeSpan.FromMilliseconds(1));
+
+            var reason = "ForceTerminate_And_Start_New_Orchestration_With_Same_InstanceId";
+            await this.taskHubClient.TerminateInstanceAsync(instance, reason);
+            var result = await this.taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(1));
+
+            Assert.AreEqual(OrchestrationStatus.Terminated, result.OrchestrationStatus);
+            Assert.IsTrue(result.Output.Contains(reason));
+
+            instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), instanceId, testData);
+            await Task.Delay(TimeSpan.FromMilliseconds(1));
+
+            result = await this.taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(1));
+
+            Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+        }
+
+        [TestMethod]
         public async Task Purge_Removes_State()
         {
             var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(SimpleOrchestrationWithTasks), null);
