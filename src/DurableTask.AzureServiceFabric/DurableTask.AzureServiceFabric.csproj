@@ -41,11 +41,14 @@
     <PackageReference Include="Microsoft.ServiceFabric.Services" Version="3.3.617" />
     <PackageReference Include="Microsoft.ServiceFabric" Version="6.4.617" />
     <PackageReference Include="System.Collections.Immutable" Version="1.2.0" />
+    <PackageReference Include="Microsoft.Azure.DurableTask.Core" Version="2.13.0" />
   </ItemGroup>
 
+  <!--
   <ItemGroup>
     <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
   </ItemGroup>
+-->
 
   <ItemGroup Condition="'$(Configuration)'=='Release'">
     <Content Include="..\..\_manifest\**">
