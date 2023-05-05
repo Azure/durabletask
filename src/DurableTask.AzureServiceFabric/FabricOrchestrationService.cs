@@ -516,7 +516,7 @@ namespace DurableTask.AzureServiceFabric
             using (var txn = this.stateManager.CreateTransaction())
             {
                 // Remove task activity if orchestration was already terminated or cleaned up
-                if (!await this.orchestrationProvider.ContainsSessionAsync(txn, workItem.TaskMessage.OrchestrationInstance.InstanceId))
+                if (!await this.orchestrationProvider.ContainsSessionAsync(txn, workItem.TaskMessage.OrchestrationInstance))
                 {
                     var errorMessage = $"Session doesn't exist. Orchestration = '{workItem.TaskMessage.OrchestrationInstance}', ActivityId = '{workItem.Id}', Action = '{nameof(AbandonTaskActivityWorkItemAsync)}'";
                     ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
