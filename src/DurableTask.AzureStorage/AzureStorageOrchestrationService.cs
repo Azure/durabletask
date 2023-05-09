@@ -1053,7 +1053,6 @@ namespace DurableTask.AzureStorage
             try
             {
                 session.ETag = await this.trackingStore.UpdateStateAsync(runtimeState, workItem.OrchestrationRuntimeState, instanceId, executionId, session.ETag, session.TrackingStoreData);
-                
                 // update the runtime state and execution id stored in the session
                 session.UpdateRuntimeState(runtimeState);
 

@@ -958,7 +958,7 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             };
 
-            // check if we are replacing a previous execution with blobs; those will be deleted from the store after the update
+            // check if we are replacing a previous execution with blobs; those will be deleted from the store after the update. This could occur in a ContinueAsNew scenario
             List<string> blobsToDelete = null;
             if (oldRuntimeState != newRuntimeState && data.Blobs.Count > 0)
             {
