@@ -261,7 +261,7 @@ namespace DurableTask.AzureStorage
         public int TotalProcessMemoryMBytes { get; set; } = (int)1.5 * 1024;
 
         /// <summary>
-        /// Gets or sets the memory buffer in MBytes when using OrchestrationHistoryLoadThrottle, representing additional memory needed in an application at a given time when loading orchestration histories.
+        /// Gets or sets the memory buffer in MBytes when using OrchestrationHistoryLoadThrottle, representing additional memory needed in an application at a given time other than orchestration histories.
         /// </summary>
         public int MemoryBufferMBytes { get; set; } = (int)0.25 * 1024;
 
