@@ -173,7 +173,11 @@ namespace DurableTask.AzureStorage
                 attemptNumber++;
             }
 
-            //Add Log
+            this.settings.Logger.GeneralWarning(
+                this.storageAccountName,
+                this.taskHub,
+                $"Unable to reserve memory for orchestration history load before message visibility timeout was reached. Message will be dequeued again and retried. Memory consumption is too high leading to message processing slowdowns.",
+                instanceId);
 
             return false;
         }
