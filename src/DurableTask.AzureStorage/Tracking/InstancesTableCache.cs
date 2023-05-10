@@ -17,15 +17,12 @@ namespace DurableTask.AzureStorage.Tracking
 
     class InstancesTableCache
     {
-        private AzureStorageOrchestrationServiceSettings settings;
-        private int numberOfRecords;
+        private const int NumberOfRecords = 2400;
         private MRUCache<string, DynamicTableEntity> mruCache;
 
-        public InstancesTableCache(AzureStorageOrchestrationServiceSettings settings)
+        public InstancesTableCache()
         {
-            this.settings = settings;
-            this.numberOfRecords = 2400; //settings.InstanceTableCacheSize;
-            this.mruCache = new MRUCache<string, DynamicTableEntity>(numberOfRecords);
+            this.mruCache = new MRUCache<string, DynamicTableEntity>(NumberOfRecords);
         }
 
         public void AddToCache(DynamicTableEntity entity)
@@ -44,7 +41,7 @@ namespace DurableTask.AzureStorage.Tracking
                     {
                         storedEntity.Properties[property.Key] = property.Value;
                     }
-                    else
+                    else if (property.Key != "Input")
                     {
                         storedEntity.Properties.Add(property.Key, property.Value);
                     }

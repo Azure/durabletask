@@ -27,7 +27,6 @@ namespace DurableTask.AzureStorage
         private string taskHub;
         private double messageVisibilityTimeout;
         private long totalMemoryBytes;
-        private long memoryBufferBytes;
         private long? adjustedTotalMemory;
         private long pendingMemory;
         private CancellationTokenSource currentMemoryCancellationTokenSource;
@@ -43,13 +42,18 @@ namespace DurableTask.AzureStorage
             this.taskHub = settings.TaskHubName;
             this.messageVisibilityTimeout = settings.ControlQueueVisibilityTimeout.TotalMilliseconds;
             this.totalMemoryBytes = settings.TotalProcessMemoryMBytes * 1024 * 1024;
-            this.memoryBufferBytes = settings.MemoryBufferMBytes * 1024 * 1024;
-            this.adjustedTotalMemory = this.totalMemoryBytes - this.memoryBufferBytes;
+            var memoryBufferBytes = settings.MemoryBufferMBytes * 1024 * 1024;
+            this.adjustedTotalMemory = this.totalMemoryBytes - memoryBufferBytes;
             this.pendingMemory = 0;
         }
 
         public async Task StartAsync()
         {
+            if (!this.settings.UseOrchestrationHistoryLoadThrottle)
+            {
+                return;
+            }
+
             if (Interlocked.CompareExchange(ref this.isStarted, 1, 0) != 0)
             {
                 throw new InvalidOperationException($"{nameof(OrchestrationMemoryManager)} has already started");
@@ -168,6 +172,8 @@ namespace DurableTask.AzureStorage
                 elapsed += delayInMs;
                 attemptNumber++;
             }
+
+            //Add Log
 
             return false;
         }

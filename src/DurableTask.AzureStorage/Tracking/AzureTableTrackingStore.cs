@@ -86,7 +86,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             this.HistoryTable = this.azureStorageClient.GetTableReference(historyTableName);
             this.InstancesTable = this.azureStorageClient.GetTableReference(instancesTableName);
-            this.InstancesTableCache = new InstancesTableCache(this.settings);
+            this.InstancesTableCache = new InstancesTableCache();
 
             // Use reflection to learn all the different event types supported by DTFx.
             // This could have been hardcoded, but I generally try to avoid hardcoding of point-in-time DTFx knowledge.

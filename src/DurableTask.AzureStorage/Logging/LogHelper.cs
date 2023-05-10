@@ -14,7 +14,6 @@
 namespace DurableTask.AzureStorage.Logging
 {
     using System;
-    using System.Security.Principal;
     using DurableTask.Core;
     using DurableTask.Core.Logging;
     using Microsoft.Extensions.Logging;
