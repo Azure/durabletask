@@ -216,7 +216,7 @@ namespace DurableTask.AzureStorage
             return DownloadAndDecompressAsBytesAsync(blob);
         }
 
-        public Task<bool> DeleteOrphanedBlobAsync(string blobName)
+        public Task<bool> DeleteBlobAsync(string blobName)
         {
             Blob blob = this.blobContainer.GetBlobReference(blobName);
             return blob.DeleteIfExistsAsync(); 

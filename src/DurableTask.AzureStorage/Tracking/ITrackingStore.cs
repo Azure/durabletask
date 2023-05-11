@@ -69,8 +69,8 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="instanceId">InstanceId for the Orchestration Update</param>
         /// <param name="executionId">ExecutionId for the Orchestration Update</param>
         /// <param name="eTag">The ETag value to use for safe updates</param>
-        /// <param name="trackingStoreData">The additional data that is maintained for this execution.</param>
-        Task<string> UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, string eTag, object trackingStoreData);
+        /// <param name="trackingStoreContext">Additional context for the execution that is maintained by the tracking store.</param>
+        Task<string> UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, string eTag, object trackingStoreContext);
 
         /// <summary>
         /// Get The Orchestration State for the Latest or All Executions

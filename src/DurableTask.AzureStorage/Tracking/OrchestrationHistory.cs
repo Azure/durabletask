@@ -30,17 +30,16 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         public OrchestrationHistory(IList<HistoryEvent> historyEvents, DateTime lastCheckpointTime, string eTag)
+            : this(historyEvents, lastCheckpointTime, eTag, null)
         {
-            this.Events = historyEvents ?? throw new ArgumentNullException(nameof(historyEvents));
-            this.LastCheckpointTime = lastCheckpointTime;
-            this.ETag = eTag;
         }
-        public OrchestrationHistory(IList<HistoryEvent> historyEvents, DateTime lastCheckpointTime, string eTag, object trackingStoreData)
+
+        public OrchestrationHistory(IList<HistoryEvent> historyEvents, DateTime lastCheckpointTime, string eTag, object trackingStoreContext)
         {
             this.Events = historyEvents ?? throw new ArgumentNullException(nameof(historyEvents));
             this.LastCheckpointTime = lastCheckpointTime;
             this.ETag = eTag;
-            this.TrackingStoreData = trackingStoreData;
+            this.TrackingStoreContext = trackingStoreContext;
         }
 
         public IList<HistoryEvent> Events { get; }
@@ -49,6 +48,6 @@ namespace DurableTask.AzureStorage.Tracking
 
         public DateTime LastCheckpointTime { get; }
 
-        public object TrackingStoreData { get; }
+        public object TrackingStoreContext { get; }
     }
 }
