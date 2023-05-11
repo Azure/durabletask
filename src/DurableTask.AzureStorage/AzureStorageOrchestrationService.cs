@@ -22,7 +22,6 @@ namespace DurableTask.AzureStorage
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
-    using Azure;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
@@ -524,7 +523,7 @@ namespace DurableTask.AzureStorage
         }
 
         //used for tablePartitionManager testing
-        internal Pageable<TableLease> ListTableLeases()
+        internal IEnumerable<TableLease> ListTableLeases()
         {
             return ((TablePartitionManager)this.partitionManager).GetTableLeases();
         }

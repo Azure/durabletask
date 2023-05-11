@@ -15,7 +15,6 @@ namespace DurableTask.AzureStorage.Partitioning
 {
     using System.Collections.Generic;
     using System.Threading.Tasks;
-    using Azure;
 
     interface IPartitionManager
     {

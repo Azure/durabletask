@@ -97,11 +97,6 @@ namespace DurableTask.AzureStorage.Partitioning
             await this.leaseCollectionManager.StartAsync();
         }
 
-        void myMethod()
-        {
-            Task.Run(() => this.leaseCollectionManager.StartAsync()); // start the task but not wait
-        }
-
         Task IPartitionManager.StopAsync()
         {
             return this.leaseCollectionManager.StopAsync();

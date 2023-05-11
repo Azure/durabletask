@@ -9,9 +9,6 @@
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using System.Text.Json;
-    using System.Collections.Concurrent;
-    using DurableTask.AzureStorage.Storage;
 
     /// <summary>
     /// Partition ManagerV3 is based on the Table storage.  
@@ -169,7 +166,7 @@
         /// internal use for testing . 
         /// </summary>
         /// <returns></returns>
-        internal Pageable<TableLease> GetTableLeases()
+        internal IEnumerable<TableLease> GetTableLeases()
         {
             var partitions = this.partitionTable.Query<TableLease>();
             return partitions;

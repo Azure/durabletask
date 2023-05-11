@@ -1,20 +1,12 @@
 ﻿
 namespace DurableTask.AzureStorage.Tests
 {
-    using Azure;
-    using Azure.Data.Tables;
-    using DurableTask.AzureStorage.Partitioning;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using Microsoft.WindowsAzure.Storage.Blob;
     using System.Collections.Generic;
     using System;
     using System.Diagnostics;
-    using System.Runtime.CompilerServices;
     using System.Threading.Tasks;
-
-    using System.Threading;
     using System.Linq;
-    using Microsoft.WindowsAzure.Storage;
 
     [TestClass]
     public class testTablePartitionManager
