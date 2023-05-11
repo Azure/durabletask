@@ -22,6 +22,7 @@ namespace DurableTask.AzureStorage
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+    using Azure;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
@@ -152,7 +153,13 @@ namespace DurableTask.AzureStorage
                 this.stats,
                 this.trackingStore);
 
-            if (this.settings.UseLegacyPartitionManagement)
+            if (this.settings.UseTablePartitionManagement)
+            {
+                this.partitionManager = new TablePartitionManager(
+                    this,
+                    this.settings);
+            }
+            else if (this.settings.UseLegacyPartitionManagement)
             {
                 this.partitionManager = new LegacyPartitionManager(
                     this,
@@ -514,6 +521,18 @@ namespace DurableTask.AzureStorage
         internal Task<IEnumerable<BlobLease>> ListBlobLeasesAsync()
         {
             return this.partitionManager.GetOwnershipBlobLeases();
+        }
+
+        //used for tablePartitionManager testing
+        internal Pageable<TableLease> ListTableLeases()
+        {
+            return ((TablePartitionManager)this.partitionManager).GetTableLeases();
+        }
+
+        //used for tablePartitionManager testing
+        internal void KillPartitionManagerLoop()
+        {
+            ((TablePartitionManager)this.partitionManager).KillLoop();
         }
 
         internal static async Task<Queue[]> GetControlQueuesAsync(

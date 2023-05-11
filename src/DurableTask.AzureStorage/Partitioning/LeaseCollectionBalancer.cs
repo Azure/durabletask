@@ -123,6 +123,8 @@ namespace DurableTask.AzureStorage.Partitioning
 
             this.renewTask = await Task.Factory.StartNew(() => this.LeaseRenewer());
             this.takerTask = await Task.Factory.StartNew(() => this.LeaseTakerAsync());
+
+            //return renewTask/takerTask; 
         }
 
         public async Task StopAsync()

@@ -209,6 +209,11 @@ namespace DurableTask.AzureStorage
         public bool UseLegacyPartitionManagement { get; set; } = false;
 
         /// <summary>
+        /// Use the TablePartitionManager.
+        /// </summary>
+        public bool UseTablePartitionManagement { get; set; } = false;
+
+        /// <summary>
         /// User serialization that will respect <see cref="IExtensibleDataObject"/>. Default is false.
         /// </summary>
         public bool UseDataContractSerialization { get; set; }

@@ -61,7 +61,8 @@ namespace DurableTask.AzureStorage.Tests
             bool testDeletion,
             bool deleteBeforeCreate = true,
             string workerId = "test",
-            bool useLegacyPartitionManagement = false)
+            bool useLegacyPartitionManagement = false,
+            bool useTablePartitionManagement = false)
         {
             string storageConnectionString = TestHelpers.GetTestStorageAccountConnectionString();
             var storageAccount = CloudStorageAccount.Parse(storageConnectionString);
@@ -74,6 +75,7 @@ namespace DurableTask.AzureStorage.Tests
                 WorkerId = workerId,
                 AppName = testName,
                 UseLegacyPartitionManagement = useLegacyPartitionManagement,
+                UseTablePartitionManagement = useTablePartitionManagement,
             };
 
             Trace.TraceInformation($"Task Hub name: {taskHubName}");
@@ -205,9 +207,9 @@ namespace DurableTask.AzureStorage.Tests
         /// REQUIREMENT: No two workers will ever process the same control queue.
         /// </summary>
         [TestMethod]
-        [DataRow(true, 30)]
-        [DataRow(false, 180)]
-        public async Task MultiWorkerLeaseMovement(bool useLegacyPartitionManagement, int timeoutInSeconds)
+        [DataRow(false,true, 30)]
+        [DataRow(false,false, 180)]
+        public async Task MultiWorkerLeaseMovement(bool useTablePartitionManagement, bool useLegacyPartitionManagement, int timeoutInSeconds)
         {
             const int MaxWorkerCount = 4;
 
@@ -228,7 +230,8 @@ namespace DurableTask.AzureStorage.Tests
                         testDeletion: false,
                         deleteBeforeCreate: i == 0,
                         workerId: workerIds[i],
-                        useLegacyPartitionManagement: useLegacyPartitionManagement);
+                        useLegacyPartitionManagement: useLegacyPartitionManagement,
+                        useTablePartitionManagement : useTablePartitionManagement);
                     await services[i].StartAsync();
                     currentWorkerCount++;
                 }
