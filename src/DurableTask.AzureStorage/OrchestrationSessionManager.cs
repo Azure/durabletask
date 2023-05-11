@@ -478,6 +478,7 @@ namespace DurableTask.AzureStorage
                     batch.OrchestrationState = new OrchestrationRuntimeState(history.Events);
                     batch.ETag = history.ETag;
                     batch.LastCheckpointTime = history.LastCheckpointTime;
+                    batch.TrackingStoreContext = history.TrackingStoreContext;
                 }
 
                 this.readyForProcessingQueue.Enqueue(node);
@@ -538,6 +539,7 @@ namespace DurableTask.AzureStorage
                             nextBatch.OrchestrationState,
                             nextBatch.ETag,
                             nextBatch.LastCheckpointTime,
+                            nextBatch.TrackingStoreContext,
                             this.settings.ExtendedSessionIdleTimeout,
                             traceActivityId);
 
@@ -683,6 +685,7 @@ namespace DurableTask.AzureStorage
 
             public string? ETag { get; set; }
             public DateTime LastCheckpointTime { get; set; }
+            public object? TrackingStoreContext { get; set; }
         }
     }
 }
