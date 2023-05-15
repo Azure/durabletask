@@ -12,9 +12,9 @@ namespace DurableTask.AzureStorage.Tests
     public class testTablePartitionManager
     {
 
-        string connection = "UseTablePartitionManagement = true"; 
+        string connection = TestHelpers.GetTestStorageAccountConnectionString(); 
 
-        [TestCategory("DisabledInCI")]
+        //[TestCategory("DisabledInCI")]
         [TestMethod]
         // Start with one worker and four partitions.
         // Test the worker could claim all the partitions in 5 seconds.
@@ -56,7 +56,7 @@ namespace DurableTask.AzureStorage.Tests
             await service.DeleteAsync();
         }
 
-        [TestCategory("DisabledInCI")]
+        //[TestCategory("DisabledInCI")]
         [TestMethod]
         //Starts with two workers and four partitions.
         //Test that one worker can acquire two partitions. 

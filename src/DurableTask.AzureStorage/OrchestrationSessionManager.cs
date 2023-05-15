@@ -174,6 +174,36 @@ namespace DurableTask.AzureStorage
                 $"Stopped listening for messages on queue {controlQueue.Name}.");
         }
 
+        public async Task DrainAsync(string partitionId, CloseReason reason, CancellationToken cancellationToken)
+        {
+            // Start the drain process, mark the queue released to stop listening to new msg
+            this.ReleaseQueue(partitionId, reason, this.settings.WorkerId);
+            try
+            {
+                // Wait for drain to complete
+                while (!cancellationToken.IsCancellationRequested && this.IsControlQueueProcessingMessages(partitionId))
+                {
+                    await Task.Delay(500, cancellationToken);
+                }
+            }
+            catch(Exception ex)
+            {
+                this.settings.Logger.PartitionManagerError(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    this.settings.WorkerId,
+                    partitionId,
+                    ex.Message
+                    );
+            }
+            finally
+            {
+                // Remove the partition from memory
+                this.RemoveQueue(partitionId, reason, this.settings.WorkerId);
+            }
+        }
+
+
         /// <summary>
         /// This method enumerates all the provided queue messages looking for ExecutionStarted messages. If any are found, it
         /// queries table storage to ensure that each message has a matching record in the Instances table. If not, this method

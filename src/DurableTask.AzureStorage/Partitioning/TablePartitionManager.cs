@@ -9,6 +9,7 @@
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using Microsoft.Extensions.Azure;
 
     /// <summary>
     /// Partition ManagerV3 is based on the Table storage.  
@@ -54,7 +55,7 @@
         /// <returns></returns>
         async Task IPartitionManager.StartAsync()
         {
-            this.tableLeaseManager = new TableLeaseManager(this.partitionTable, this.settings);
+            this.tableLeaseManager = new TableLeaseManager(this.partitionTable, this.service, this.settings);
 
             await Task.Factory.StartNew(() => this.PartitionManagerLoop(token));
             this.settings.Logger.PartitionManagerInfo(
@@ -185,13 +186,15 @@
         sealed class TableLeaseManager
         {
             string workerName;
+            AzureStorageOrchestrationService service;
             AzureStorageOrchestrationServiceSettings settings;
             TableClient myTable;
             Dictionary<string, Task> tasks;
 
-            public TableLeaseManager(TableClient table, AzureStorageOrchestrationServiceSettings settings)
+            public TableLeaseManager(TableClient table, AzureStorageOrchestrationService service, AzureStorageOrchestrationServiceSettings settings)
             {
                 this.myTable = table;
+                this.service = service;
                 this.settings = settings;
                 this.workerName = this.settings.WorkerId;
                 tasks = new Dictionary<string, Task>();
@@ -278,7 +281,7 @@
 
                             if (partition.IsDraining == false)
                             {
-                                DrainLease(partition);
+                                DrainLease(partition, CloseReason.LeaseLost);
                                 isDrainedLease = true;
                             }
                             else
@@ -336,7 +339,7 @@
                                 this.settings.TaskHubName,
                                 this.settings.WorkerId,
                                 partition.RowKey,
-                                $"Worker {this.settings.WorkerId}  starts draining {partition.RowKey}.");
+                                $"Worker {this.settings.WorkerId} starts draining {partition.RowKey}.");
                             }
                         }
                         catch (RequestFailedException ex) when (ex.Status == 412)
@@ -397,49 +400,44 @@
             }
 
 
-            public void ClaimLease(TableLease partition)
+            public void ClaimLease(TableLease lease)
             {
-                partition.CurrentOwner = workerName;
-                partition.NextOwner = null;
-                partition.OwnedSince = DateTime.UtcNow;
-                partition.LastRenewal = DateTime.UtcNow;
-                partition.ExpiresAt = DateTime.UtcNow.AddMinutes(1);
-                partition.IsDraining = false;
+                lease.CurrentOwner = workerName;
+                lease.NextOwner = null;
+                lease.OwnedSince = DateTime.UtcNow;
+                lease.LastRenewal = DateTime.UtcNow;
+                lease.ExpiresAt = DateTime.UtcNow.AddMinutes(1);
+                lease.IsDraining = false;
             }
-            public void DrainLease(TableLease partition)
+            public void DrainLease(TableLease lease, CloseReason reason)
             {
-                partition.IsDraining = true;
-
-                var task = Task.Run(() =>
+                Trace.TraceInformation(this.workerName + " starts draining");
+                lease.IsDraining = true;
+                var task = Task.Run(() => this.service.TableLeaseDrainAsync(lease, reason));
+                if (tasks.ContainsKey(lease.RowKey))
                 {
-                    Thread.CurrentThread.Name = partition.RowKey;
-                    Thread.Sleep(10000);
-                }
-                );
-                if (tasks.ContainsKey(partition.RowKey))
-                {
-                    tasks[partition.RowKey] = task;
+                    tasks[lease.RowKey] = task;
                 }
                 else
                 {
-                    tasks.Add(partition.RowKey, task);
+                    tasks.Add(lease.RowKey, task);
                 }
             }
 
-            public void ReleaseLease(TableLease partition)
+            public void ReleaseLease(TableLease lease)
             {
-                partition.IsDraining = false;
-                partition.CurrentOwner = null;
+                lease.IsDraining = false;
+                lease.CurrentOwner = null;
             }
-            public void RenewLease(TableLease partition) 
+            public void RenewLease(TableLease lease) 
             {
-                partition.ExpiresAt = DateTime.UtcNow.AddMinutes(1);
+                lease.ExpiresAt = DateTime.UtcNow.AddMinutes(1);
             }
 
 
-            public void StealLease(TableLease partition)
+            public void StealLease(TableLease lease)
             {
-                partition.NextOwner = workerName;
+                lease.NextOwner = workerName;
             }
 
             public async Task<bool> ShutDown()
@@ -458,7 +456,7 @@
                         
                         if (partition.IsDraining == false)
                         {
-                            DrainLease(partition);
+                            DrainLease(partition, CloseReason.Shutdown);
                             RenewLease(partition);
                             isDrainedLease = true;
                         }
