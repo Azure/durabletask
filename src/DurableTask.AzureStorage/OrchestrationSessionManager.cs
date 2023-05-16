@@ -186,14 +186,14 @@ namespace DurableTask.AzureStorage
                     await Task.Delay(500, cancellationToken);
                 }
             }
-            catch(Exception ex)
+            catch (OperationCanceledException)
             {
                 this.settings.Logger.PartitionManagerError(
                     this.storageAccountName,
                     this.settings.TaskHubName,
                     this.settings.WorkerId,
                     partitionId,
-                    ex.Message
+                    $"Timed-out waiting for the partition to finish draining."
                     );
             }
             finally

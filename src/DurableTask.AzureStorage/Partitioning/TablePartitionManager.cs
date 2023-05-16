@@ -1,6 +1,18 @@
-﻿namespace DurableTask.AzureStorage.Partitioning
+﻿//  ----------------------------------------------------------------------------------
+//  Copyright Microsoft Corporation
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//  http://www.apache.org/licenses/LICENSE-2.0
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//  ----------------------------------------------------------------------------------
+
+namespace DurableTask.AzureStorage.Partitioning
 {
-    // app lease manager change paritionmanager interface pass it  azurestorageorchstrationservice 
     using Azure.Data.Tables;
     using Azure;
     using System;
@@ -10,17 +22,18 @@
     using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.Extensions.Azure;
+    using DurableTask.AzureStorage.Storage;
 
     /// <summary>
     /// Partition ManagerV3 is based on the Table storage.  
     /// </summary>
     class TablePartitionManager : IPartitionManager
     {
+        //readonly AzureStorageClient azureStorageClient;
         readonly AzureStorageOrchestrationService service;
         readonly AzureStorageOrchestrationServiceSettings settings;
-        readonly CancellationTokenSource source;
-        readonly CancellationToken token;
-        readonly string workerName;
+        readonly CancellationTokenSource partitionManagerCancellationSource;
+        //readonly string storageAccountName;
 
         /// <summary>
         /// constructor to initiate new instances of TablePartitionManager
@@ -33,9 +46,7 @@
         {
             this.service = service;
             this.settings = settings;
-            this.workerName = this.settings.WorkerId;
-            this.source = new CancellationTokenSource();
-            this.token = this.source.Token;
+            this.partitionManagerCancellationSource = new CancellationTokenSource();
         }
 
         /// <summary>
@@ -57,12 +68,12 @@
         {
             this.tableLeaseManager = new TableLeaseManager(this.partitionTable, this.service, this.settings);
 
-            await Task.Factory.StartNew(() => this.PartitionManagerLoop(token));
+            await Task.Factory.StartNew(() => this.PartitionManagerLoop(this.partitionManagerCancellationSource.Token));
             this.settings.Logger.PartitionManagerInfo(
-                "",
+                "this.storageAccountName",
                 this.settings.TaskHubName,
                 this.settings.WorkerId,
-                "",
+                "",//empty partition id
                 $"Worker {this.settings.WorkerId} starts working.");
         }
 
@@ -70,18 +81,20 @@
         {
             while (!token.IsCancellationRequested)
             {
-                int timeToSleep = 15000;
+                TimeSpan timeToSleep = TimeSpan.FromSeconds(15);
                 try
                 {
                     var response = await this.tableLeaseManager.ReadAndWriteTable();
-                    if (response.workOnRelease || response.waitForPartition)
+                    if (response.WorkOnRelease || response.WaitForPartition)
                     {
-                        timeToSleep = 1000;
+                        // if the worker need to drain lease/ wait for others to drain, and ensures timely updates by checking table every one sec.
+                        timeToSleep = TimeSpan.FromSeconds(1);
                     }
                 }
                 catch
                 {
-                    timeToSleep = 0;
+                    // if the worker failed to update the table, re-read the table immediately without wait.
+                    timeToSleep = TimeSpan.FromSeconds(0);
                 }
 
                 await Task.Delay(timeToSleep, token);
@@ -95,9 +108,10 @@
         /// <returns></returns>
         async Task IPartitionManager.StopAsync()
         {
-            this.source.Cancel();
+            this.partitionManagerCancellationSource.Cancel();
+            partitionManagerCancellationSource.Dispose();
             this.settings.Logger.PartitionManagerInfo(
-                "",
+                "this.storageAccountName",
                 this.settings.TaskHubName,
                 this.settings.WorkerId,
                 "",
@@ -106,7 +120,7 @@
             await this.PartitionManagerStopLoop();
 
             this.settings.Logger.PartitionManagerInfo(
-                "",
+                "this.storageAccountName",
                 this.settings.TaskHubName,
                 this.settings.WorkerId,
                 "",
@@ -116,7 +130,8 @@
         async Task PartitionManagerStopLoop()
         {
             bool shouldRetry = false;
-            int timeToSleep = 1000;
+            //Shutting down is about draining all the lease and thus the worker checks table every one sec to ensure timely updates.
+            TimeSpan timeToSleep = TimeSpan.FromSeconds(1);
             
             while (!shouldRetry)
             {
@@ -126,7 +141,8 @@
                 }
                 catch
                 {
-                    timeToSleep = 0;
+                    //if the worker fails to update the table, re-read the table immediately withou wait.
+                    timeToSleep = TimeSpan.FromSeconds(0);
                 }
                 await Task.Delay(timeToSleep);
             }
@@ -134,8 +150,14 @@
 
         async Task IPartitionManager.CreateLeaseStore()
         {
-            string tableName = this.settings.AppName + "PartitionTable";
-            // will change later since managed identity can be different
+            string tableName = this.settings.AppName + "Partitions";
+            
+            //check if tableName has illegal symbol
+            if (tableName.Contains("-"))
+            {
+                tableName.Replace("-", string.Empty);
+            }
+            // the storageconnection string will change later since managed identity can be different
             var tableServiceClient = new TableServiceClient(this.settings.StorageConnectionString);
             await tableServiceClient.CreateTableIfNotExistsAsync(tableName);
             this.partitionTable = tableServiceClient.GetTableClient(tableName);
@@ -154,7 +176,12 @@
             }
             catch(RequestFailedException)
             {
-                //log info about that entity has already exists
+                this.settings.Logger.PartitionManagerError(
+                    "",
+                    this.settings.TaskHubName,
+                    this.settings.WorkerId,
+                    leaseName,
+                    $"The partition {leaseName} already exists in the table.");
             }
         }
         
@@ -173,22 +200,24 @@
             return partitions;
         }
 
+        //internal used for testing
         internal void KillLoop()
         {
-            this.source.Cancel();
+            this.partitionManagerCancellationSource.Cancel();
+            partitionManagerCancellationSource.Dispose();
         }
 
-        async Task IPartitionManager.DeleteLeases()
+        Task IPartitionManager.DeleteLeases()
         {
-            await this.partitionTable.DeleteAsync();
+            return this.partitionTable.DeleteAsync();
         }
 
         sealed class TableLeaseManager
         {
-            string workerName;
-            AzureStorageOrchestrationService service;
-            AzureStorageOrchestrationServiceSettings settings;
-            TableClient myTable;
+            readonly string workerName;
+            readonly AzureStorageOrchestrationService service;
+            readonly AzureStorageOrchestrationServiceSettings settings;
+            readonly TableClient myTable;
             Dictionary<string, Task> tasks;
 
             public TableLeaseManager(TableClient table, AzureStorageOrchestrationService service, AzureStorageOrchestrationServiceSettings settings)
@@ -197,7 +226,7 @@
                 this.service = service;
                 this.settings = settings;
                 this.workerName = this.settings.WorkerId;
-                tasks = new Dictionary<string, Task>();
+                this.tasks = new Dictionary<string, Task>();
             }
 
             public async Task<ReadTableReponse> ReadAndWriteTable()
@@ -258,7 +287,7 @@
                         if (partition.NextOwner == workerName)
                         {
                             leaseNum++;
-                            response.waitForPartition = true;
+                            response.WaitForPartition = true;
                         }
                     }
 
@@ -266,7 +295,7 @@
                     {
                         StealLease(partition);
                         isStealedLease = true;
-                        response.waitForPartition = true;
+                        response.WaitForPartition = true;
                     }
 
                     if (partition.CurrentOwner == workerName)
@@ -277,7 +306,7 @@
                         }
                         else
                         {
-                            response.workOnRelease = true;
+                            response.WorkOnRelease = true;
 
                             if (partition.IsDraining == false)
                             {
@@ -308,16 +337,17 @@
                             if(isClaimedLease)
                             {
                                 this.settings.Logger.PartitionManagerInfo(
-                                "",
-                                this.settings.TaskHubName,
-                                this.settings.WorkerId,
-                                partition.RowKey,
-                                $"Worker {this.settings.WorkerId} acquires the lease of {partition.RowKey}.");
+                                    // this attribute will be added and used after we implement the class AzureStorageClient later
+                                    "this.storageAccountName", 
+                                    this.settings.TaskHubName,
+                                    this.settings.WorkerId,
+                                    partition.RowKey,
+                                    $"Worker {this.settings.WorkerId} acquires the lease of {partition.RowKey}.");
                             }
                             if (isStealedLease)
                             {
                                 this.settings.Logger.PartitionManagerInfo(
-                                "",
+                                "this.storageAccountName",
                                 this.settings.TaskHubName,
                                 this.settings.WorkerId,
                                 partition.RowKey,
@@ -326,7 +356,7 @@
                             if (isReleasedLease)
                             {
                                 this.settings.Logger.PartitionManagerInfo(
-                                "",
+                                "this.storageAccountName",
                                 this.settings.TaskHubName,
                                 this.settings.WorkerId,
                                 partition.RowKey,
@@ -335,7 +365,7 @@
                             if(isDrainedLease)
                             {
                                 this.settings.Logger.PartitionManagerInfo(
-                                "",
+                                "this.storageAccountName",
                                 this.settings.TaskHubName,
                                 this.settings.WorkerId,
                                 partition.RowKey,
@@ -375,12 +405,12 @@
                                         {
                                             await myTable.UpdateEntityAsync(partition, etag, (TableUpdateMode)1);
                                             this.settings.Logger.PartitionManagerInfo(
-                                                "",
+                                                "this.storageAccountName",
                                                 this.settings.TaskHubName,
                                                 this.settings.WorkerId,
                                                 partition.RowKey,
                                                 $"Worker {this.settings.WorkerId} steals the lease of {partition.RowKey}.");
-                                            response.waitForPartition = true;
+                                            response.WaitForPartition = true;
                                         }
                                         catch (RequestFailedException ex) when (ex.Status == 412)
                                         {
@@ -411,7 +441,6 @@
             }
             public void DrainLease(TableLease lease, CloseReason reason)
             {
-                Trace.TraceInformation(this.workerName + " starts draining");
                 lease.IsDraining = true;
                 var task = Task.Run(() => this.service.TableLeaseDrainAsync(lease, reason));
                 if (tasks.ContainsKey(lease.RowKey))
@@ -480,20 +509,20 @@
                             if (isDrainedLease)
                             {
                                 this.settings.Logger.PartitionManagerInfo(
-                                                "",
-                                                this.settings.TaskHubName,
-                                                this.settings.WorkerId,
-                                                partition.RowKey,
-                                                $"Worker {this.settings.WorkerId} stats draining {partition.RowKey}.");
+                                     "this.storageAccountName",
+                                     this.settings.TaskHubName,
+                                     this.settings.WorkerId,
+                                     partition.RowKey,
+                                     $"Worker {this.settings.WorkerId} stats draining {partition.RowKey}.");
                             }
                             if (isReleasedLease)
                             {
                                 this.settings.Logger.PartitionManagerInfo(
-                                                "",
-                                                this.settings.TaskHubName,
-                                                this.settings.WorkerId,
-                                                partition.RowKey,
-                                                $"Worker {this.settings.WorkerId} releases the lease of {partition.RowKey}.");
+                                     "this.storageAccountName",
+                                     this.settings.TaskHubName,
+                                     this.settings.WorkerId,
+                                     partition.RowKey,
+                                     $"Worker {this.settings.WorkerId} releases the lease of {partition.RowKey}.");
                             }
                             
                         }
@@ -524,8 +553,8 @@
         /// </summary>
         class ReadTableReponse
         {
-            public bool workOnRelease { get; set; } = false;
-            public bool waitForPartition { get; set; } = false;
+            public bool WorkOnRelease { get; set; } = false;
+            public bool WaitForPartition { get; set; } = false;
         }
     }
 }

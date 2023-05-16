@@ -518,12 +518,9 @@ namespace DurableTask.AzureStorage
 
         internal async Task TableLeaseDrainAsync(TableLease lease, CloseReason reason)
         {
-            var source = new CancellationTokenSource();
-            var token = source.Token;
-            //suppose drain process could be finished in 30 sec in max. Cancel the drain in 30 sec
-            // in case it never finishes.
-            source.CancelAfter(30000); 
-            await this.orchestrationSessionManager.DrainAsync(lease.RowKey, reason, token);
+            using var cts = new CancellationTokenSource(delay: TimeSpan.FromSeconds(30));
+            await this.orchestrationSessionManager.DrainAsync(lease.RowKey, reason, cts.Token);
+            cts.Dispose();
         }
 
         // Used for testing
