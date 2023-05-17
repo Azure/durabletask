@@ -520,7 +520,6 @@ namespace DurableTask.AzureStorage
         {
             using var cts = new CancellationTokenSource(delay: TimeSpan.FromSeconds(30));
             await this.orchestrationSessionManager.DrainAsync(lease.RowKey, reason, cts.Token);
-            cts.Dispose();
         }
 
         // Used for testing

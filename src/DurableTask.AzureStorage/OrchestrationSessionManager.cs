@@ -16,6 +16,7 @@ namespace DurableTask.AzureStorage
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
@@ -26,6 +27,7 @@ namespace DurableTask.AzureStorage
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using DurableTask.Core.History;
+    using Newtonsoft.Json.Linq;
 
     class OrchestrationSessionManager : IDisposable
     {
@@ -174,13 +176,21 @@ namespace DurableTask.AzureStorage
                 $"Stopped listening for messages on queue {controlQueue.Name}.");
         }
 
+        /// <summary>
+        /// The drain process occurs when the lease is stolen or the worker is shutting down, 
+        /// prompting the worker to cease listening for new messages and it finishes processing all the existing information in memory.
+        /// </summary>
+        /// <param name="partitionId">The partition that is going to released.</param>
+        /// <param name="reason">Reason to trigger the drain proggress</param>
+        /// <param name="cancellationToken">Used to avoid time out</param>
+        /// <returns></returns>
         public async Task DrainAsync(string partitionId, CloseReason reason, CancellationToken cancellationToken)
         {
-            // Start the drain process, mark the queue released to stop listening to new msg
+            // Start the drain process, mark the queue released to stop listening for new message
             this.ReleaseQueue(partitionId, reason, this.settings.WorkerId);
             try
             {
-                // Wait for drain to complete
+                // Wait until all messages from this queue has been processed.
                 while (!cancellationToken.IsCancellationRequested && this.IsControlQueueProcessingMessages(partitionId))
                 {
                     await Task.Delay(500, cancellationToken);

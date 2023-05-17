@@ -209,7 +209,7 @@ namespace DurableTask.AzureStorage
         public bool UseLegacyPartitionManagement { get; set; } = false;
 
         /// <summary>
-        /// Use the TablePartitionManager.
+        /// Recommended partition management strategy for Azure Storage V2 accounts.
         /// </summary>
         public bool UseTablePartitionManagement { get; set; } = false;
 

@@ -24,7 +24,7 @@ namespace DurableTask.AzureStorage.Tests
     public class TestTablePartitionManager
     {
 
-        string connection = TestHelpers.GetTestStorageAccountConnectionString(); 
+        string connection = TestHelpers.GetTestStorageAccountConnectionString();
 
         //[TestCategory("DisabledInCI")]
         [TestMethod]
@@ -52,15 +52,12 @@ namespace DurableTask.AzureStorage.Tests
 
             bool isAllPartitionClaimed = false;
             stopwatch.Start();
-            while (stopwatch.Elapsed < timeout && !isAllPartitionClaimed)
+            while (!isAllPartitionClaimed)
             {
+                Assert.IsTrue(stopwatch.Elapsed < timeout, "Timeout expired!");
                 var partitions = service.ListTableLeases();
-                foreach (var partition in partitions)
-                {
-                    if (partition.CurrentOwner == null) break;
-                    Assert.AreEqual("0", partition.CurrentOwner);
-                    if (partition.RowKey == "controlqueue-03") isAllPartitionClaimed = true;
-                }
+                Assert.AreEqual(4, partitions.Count());
+                isAllPartitionClaimed = partitions.All(p => p.CurrentOwner == "0");
             }
 
             stopwatch.Stop();
@@ -102,33 +99,16 @@ namespace DurableTask.AzureStorage.Tests
             stopwatch.Start();
             bool isBalanced = false;
 
-            while (stopwatch.Elapsed < timeout && !isBalanced)
+            while (!isBalanced)
             {
-                int worker0PartitionNum = 0;
-                int worker1PartitionNum = 0;
+                Assert.IsTrue(stopwatch.Elapsed < timeout, "Timeout expired!");
                 var partitions = services[0].ListTableLeases();
-                bool ifLoopCompleted = true;
-                foreach (var partition in partitions)
-                {
-                    if (partition.CurrentOwner == null)
-                    {
-                        ifLoopCompleted = false;
-                        break;
-                    }
-                    if (partition.CurrentOwner == "0") worker0PartitionNum++;
-                    if (partition.CurrentOwner == "1") worker1PartitionNum++;
-                }
+                Assert.AreEqual(4, partitions.Count());
+                isBalanced = (partitions.Count(p => p.CurrentOwner == "0") == 2) &&
+                             (partitions.Count(p => p.CurrentOwner == "1") == 2);
 
-                if (ifLoopCompleted && (worker0PartitionNum == worker1PartitionNum))
-                {
-                    isBalanced = true;
-                    Assert.AreEqual(2, worker1PartitionNum);
-                    Assert.AreEqual(2, worker0PartitionNum);
-                }
             }
             stopwatch.Stop();
-            Assert.IsTrue(stopwatch.Elapsed <= timeout);
-            Assert.IsTrue(isBalanced);
 
             var stopTasks = services.Select(service => service.StopAsync());
             await Task.WhenAll(stopTasks);
@@ -169,37 +149,18 @@ namespace DurableTask.AzureStorage.Tests
             stopwatch.Start();
             bool isBalanced = false;
 
-            while (stopwatch.Elapsed < timeout && !isBalanced)
+            while (!isBalanced)
             {
-                int worker0PartitionNum = 0;
-                int worker1PartitionNum = 0;
-                int worker2PartitionNum = 0;
-                int worker3PartitionNum = 0;
-                bool ifLoopCompleted = true;
+                Assert.IsTrue(stopwatch.Elapsed < timeout, "Timeout expired!");
                 var partitions = services[0].ListTableLeases();
-                
-                foreach (var partition in partitions)
-                {
-                    if (partition.CurrentOwner == null)
-                        {
-                            ifLoopCompleted = false;
-                            break;
-                        }
-                    if (partition.CurrentOwner == "0") worker0PartitionNum++;
-                    if (partition.CurrentOwner == "1") worker1PartitionNum++;
-                    if (partition.CurrentOwner == "2") worker2PartitionNum++;
-                    if (partition.CurrentOwner == "3") worker3PartitionNum++;
-                }
-                
-                if (ifLoopCompleted && (worker0PartitionNum == worker1PartitionNum) && (worker2PartitionNum == worker3PartitionNum) && (worker0PartitionNum == worker2PartitionNum))
-                {
-                    isBalanced = true;
-                    Assert.AreEqual(1, worker0PartitionNum);
-                }
+                Assert.AreEqual(4, partitions.Count());
+                isBalanced = (partitions.Count(p => p.CurrentOwner == "0") == 1) &&
+                             (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
+                             (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
+                             (partitions.Count(p => p.CurrentOwner == "3") == 1);
+
             }
             stopwatch.Stop();
-            Assert.IsTrue(stopwatch.Elapsed <= timeout);
-            Assert.IsTrue(isBalanced);
 
             var stopTasks = services.Select(service => service.StopAsync());
             await Task.WhenAll(stopTasks);
@@ -242,38 +203,24 @@ namespace DurableTask.AzureStorage.Tests
             stopwatch.Start();
             bool isBalanced = false;
 
-            while (stopwatch.Elapsed < timeout && !isBalanced)
+            while (!isBalanced)
             {
-                int worker0PartitionNum = 0;
-                int worker1PartitionNum = 0;
-                int worker2PartitionNum = 0;
-                int worker3PartitionNum = 0;
-
+                Assert.IsTrue(stopwatch.Elapsed < timeout, "Timeout expired!");
                 var partitions = services[0].ListTableLeases();
-                foreach (var partition in partitions)
-                {
-                    if (partition.CurrentOwner == null) break;
-                    if (partition.CurrentOwner == "0") worker0PartitionNum++;
-                    if (partition.CurrentOwner == "1") worker1PartitionNum++;
-                    if (partition.CurrentOwner == "2") worker2PartitionNum++;
-                    if (partition.CurrentOwner == "3") worker3PartitionNum++;
-                    if ((worker0PartitionNum == worker1PartitionNum) && (worker2PartitionNum == worker3PartitionNum) && (worker0PartitionNum == worker2PartitionNum))
-                    {
-                        isBalanced = true;
-                        Assert.AreEqual(1, worker0PartitionNum);
-                    }
-                }
+                Assert.AreEqual(4, partitions.Count());
+                isBalanced = (partitions.Count(p => p.CurrentOwner == "0") == 1) &&
+                             (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
+                             (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
+                             (partitions.Count(p => p.CurrentOwner == "3") == 1);
+
             }
             stopwatch.Stop();
-            Assert.IsTrue(stopwatch.Elapsed <= timeout);
-            Assert.IsTrue(isBalanced);
-
             var stopTasks = services.Select(service => service.StopAsync());
             await Task.WhenAll(stopTasks);
             await services[0].DeleteAsync();
         }
 
-        [TestCategory("DisabledInCI")]
+        //[TestCategory("DisabledInCI")]
         [TestMethod]
         //Starts with four workers and four partitions. And then add four more workers.
         //Test that the added workers will do nothing. 
@@ -310,27 +257,17 @@ namespace DurableTask.AzureStorage.Tests
             }
 
             stopwatch.Start();
+            bool isDistributionChanged = false;
 
             while (stopwatch.Elapsed < timeout)
             {
-                int worker4PartitionNum = 0;
-                int worker5PartitionNum = 0;
-                int worker6PartitionNum = 0;
-                int worker7PartitionNum = 0;
-
                 var partitions = services[0].ListTableLeases();
-                foreach (var partition in partitions)
-                {
-                    if (partition.CurrentOwner == "4" || partition.NextOwner == "4") worker4PartitionNum++;
-                    if (partition.CurrentOwner == "5" || partition.NextOwner == "5") worker5PartitionNum++;
-                    if (partition.CurrentOwner == "6" || partition.NextOwner == "6") worker6PartitionNum++;
-                    if (partition.CurrentOwner == "7" || partition.NextOwner == "7") worker7PartitionNum++;
-                }
-
-                Assert.AreEqual(0, worker4PartitionNum);
-                Assert.AreEqual(0, worker5PartitionNum);
-                Assert.AreEqual(0, worker6PartitionNum);
-                Assert.AreEqual(0, worker7PartitionNum);
+                Assert.AreEqual(4, partitions.Count());
+                isDistributionChanged = (partitions.Count(p => p.CurrentOwner == "4" || p.NextOwner == "4") != 0) &&
+                             (partitions.Count(p => p.CurrentOwner == "5" || p.NextOwner == "5") != 0) &&
+                             (partitions.Count(p => p.CurrentOwner == "6" || p.NextOwner == "6") != 0) &&
+                             (partitions.Count(p => p.CurrentOwner == "7" || p.NextOwner == "7") != 0);
+                Assert.IsFalse(isDistributionChanged);
             }
             stopwatch.Stop();
 
@@ -345,7 +282,7 @@ namespace DurableTask.AzureStorage.Tests
         //Test that partitions will be rebalance between the three workers, which is one worker will have two, and the other two both have one. 
         public async Task TestScalingDownToThreeWorkers()
         {
-            TimeSpan timeout = TimeSpan.FromSeconds(10);
+            TimeSpan timeout = TimeSpan.FromSeconds(5);
             Stopwatch stopwatch = new Stopwatch();
 
             var services = new AzureStorageOrchestrationService[4];
@@ -374,58 +311,36 @@ namespace DurableTask.AzureStorage.Tests
             stopwatch.Start();
             bool isBalanced = false;
 
-            while (stopwatch.Elapsed < timeout && !isBalanced)
+            while (!isBalanced)
             {
-                int worker0PartitionNum = 0;
-                int worker1PartitionNum = 0;
-                int worker2PartitionNum = 0;
-
+                Assert.IsTrue(stopwatch.Elapsed < timeout, "Timeout expired!");
                 var partitions = services[0].ListTableLeases();
-                foreach (var partition in partitions)
-                {
-                    if (partition.CurrentOwner == null) break;
-                    if (partition.CurrentOwner == "0") worker0PartitionNum++;
-                    if (partition.CurrentOwner == "1") worker1PartitionNum++;
-                    if (partition.CurrentOwner == "2") worker2PartitionNum++; 
-                }
-
-                if (worker0PartitionNum == 2)
-                {
-                    isBalanced = true;
-                    Assert.AreEqual(1, worker1PartitionNum);
-                    Assert.AreEqual(1, worker2PartitionNum);
-                }
-
-                if (worker1PartitionNum == 2)
-                {
-                    isBalanced = true;
-                    Assert.AreEqual(1, worker0PartitionNum);
-                    Assert.AreEqual(1, worker2PartitionNum);
-                }
-
-                if (worker2PartitionNum == 2)
-                {
-                    isBalanced = true;
-                    Assert.AreEqual(1, worker1PartitionNum);
-                    Assert.AreEqual(1, worker0PartitionNum);
-                }
+                Assert.AreEqual(4, partitions.Count());
+                // One of the three active workers will have two leases, others remain one.
+                isBalanced = ((partitions.Count(p => p.CurrentOwner == "0") == 2) &&
+                             (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
+                             (partitions.Count(p => p.CurrentOwner == "2") == 1))
+                             ||((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
+                             (partitions.Count(p => p.CurrentOwner == "1") == 2) &&
+                             (partitions.Count(p => p.CurrentOwner == "2") == 1))
+                             || ((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
+                             (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
+                             (partitions.Count(p => p.CurrentOwner == "2") == 2));
             }
             stopwatch.Stop();
-            Assert.IsTrue(stopwatch.Elapsed <= timeout);
-            Assert.IsTrue(isBalanced);
 
             var stopTasks = services.Select(service => service.StopAsync());
             await Task.WhenAll(stopTasks);
             await services[0].DeleteAsync();
         }
 
-        [TestCategory("DisabledInCI")]
+        //[TestCategory("DisabledInCI")]
         [TestMethod]
         //Start with four workers and four partitions. And then sacle down to one workers.
         //Test that the left one worker will take the four partitions.
         public async Task TestScalingDownToOneWorkers()
         {
-            TimeSpan timeout = TimeSpan.FromSeconds(10);
+            TimeSpan timeout = TimeSpan.FromSeconds(5);
             Stopwatch stopwatch = new Stopwatch();
 
             var services = new AzureStorageOrchestrationService[4];
@@ -459,26 +374,15 @@ namespace DurableTask.AzureStorage.Tests
             stopwatch.Start();
             bool isBalanced = false;
 
-            while (stopwatch.Elapsed < timeout && !isBalanced)
+            while (!isBalanced)
             {
-                int worker0PartitionNum = 0;
-
+                Assert.IsTrue(stopwatch.Elapsed < timeout, "Timeout expired!");
                 var partitions = services[0].ListTableLeases();
-                foreach (var partition in partitions)
-                {
-                    if (partition.CurrentOwner == "0") worker0PartitionNum++;
-                }
-                if (worker0PartitionNum == 4)
-                {
-                    isBalanced = true;
-                }
-
-
+                Assert.AreEqual(4, partitions.Count());
+                // The left worker 0 will take all leases.
+                isBalanced = partitions.All(p => p.CurrentOwner == "0");
             }
             stopwatch.Stop();
-            Assert.IsTrue(stopwatch.Elapsed <= timeout);
-            Assert.IsTrue(isBalanced);
-
             await services[0].StopAsync();
             await services[0].DeleteAsync();
         }
@@ -519,48 +423,29 @@ namespace DurableTask.AzureStorage.Tests
             stopwatch.Start();
             bool isBalanced = false;
 
-            while (stopwatch.Elapsed < timeout && !isBalanced)
+            while (!isBalanced)
             {
-                int worker0PartitionNum = 0;
-                int worker1PartitionNum = 0;
-                int worker2PartitionNum = 0;
-
+                Assert.IsTrue(stopwatch.Elapsed < timeout, "Timeout expired!");
                 var partitions = services[0].ListTableLeases();
-                foreach (var partition in partitions)
-                {
-                    if (partition.CurrentOwner == null) break;
-                    if (partition.CurrentOwner == "0") worker0PartitionNum++;
-                    if (partition.CurrentOwner == "1") worker1PartitionNum++;
-                    if (partition.CurrentOwner == "2") worker2PartitionNum++;
-                }
-
-                if (worker0PartitionNum == 2)
-                {
-                    isBalanced = true;
-                    Assert.AreEqual(1, worker1PartitionNum);
-                    Assert.AreEqual(1, worker2PartitionNum);
-                }
-
-                if (worker1PartitionNum == 2)
-                {
-                    isBalanced = true;
-                    Assert.AreEqual(1, worker0PartitionNum);
-                    Assert.AreEqual(1, worker2PartitionNum);
-                }
-
-                if (worker2PartitionNum == 2)
-                {
-                    isBalanced = true;
-                    Assert.AreEqual(1, worker1PartitionNum);
-                    Assert.AreEqual(1, worker0PartitionNum);
-                }
+                Assert.AreEqual(4, partitions.Count());
+                // One of the three active workers will have two leases, others remain one.
+                isBalanced = ((partitions.Count(p => p.CurrentOwner == "0") == 2) &&
+                             (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
+                             (partitions.Count(p => p.CurrentOwner == "2") == 1))
+                             || ((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
+                             (partitions.Count(p => p.CurrentOwner == "1") == 2) &&
+                             (partitions.Count(p => p.CurrentOwner == "2") == 1))
+                             || ((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
+                             (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
+                             (partitions.Count(p => p.CurrentOwner == "2") == 2));
             }
             stopwatch.Stop();
-            Assert.IsTrue(stopwatch.Elapsed <= timeout);
-            Assert.IsTrue(isBalanced);
 
-            var stopTasks = services.Select(service => service.StopAsync());
-            await Task.WhenAll(stopTasks);
+            IList<Task> tasks = new List<Task>();
+            tasks.Add(services[0].StopAsync());
+            tasks.Add(services[1].StopAsync());
+            tasks.Add(services[2].StopAsync());
+            await Task.WhenAll(tasks);
             await services[0].DeleteAsync();
         }
 
@@ -602,28 +487,15 @@ namespace DurableTask.AzureStorage.Tests
             stopwatch.Start();
             bool isBalanced = false;
 
-            while (stopwatch.Elapsed < timeout && !isBalanced)
+            while (!isBalanced)
             {
-                int worker0PartitionNum = 0;
-
+                Assert.IsTrue(stopwatch.Elapsed < timeout, "Timeout expired!");
                 var partitions = services[0].ListTableLeases();
-                foreach (var partition in partitions)
-                {
-                    if (partition.CurrentOwner == null) break;
-                    if (partition.CurrentOwner == "0") worker0PartitionNum++;
-                }
-
-                if (worker0PartitionNum == 4)
-                {
-                    isBalanced = true;
-                }
+                Assert.AreEqual(4, partitions.Count());
+                isBalanced = partitions.All(p => p.CurrentOwner == "0");
             }
             stopwatch.Stop();
-            Assert.IsTrue(stopwatch.Elapsed <= timeout);
-            Assert.IsTrue(isBalanced);
-
-            var stopTasks = services.Select(service => service.StopAsync());
-            await Task.WhenAll(stopTasks);
+            await services[0].StopAsync();
             await services[0].DeleteAsync();
         }
 
