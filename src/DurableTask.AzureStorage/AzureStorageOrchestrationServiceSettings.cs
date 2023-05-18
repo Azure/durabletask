@@ -211,7 +211,7 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Use the newer Azure Tables-based partition manager instead of the older Azure Blobs-based partition manager. The default value is <c>true</c>.
         /// </summary>
-        public bool UseTablePartitionManagement { get; set; } = true;
+        public bool UseTablePartitionManagement { get; set; } = false;
 
         /// <summary>
         /// User serialization that will respect <see cref="IExtensibleDataObject"/>. Default is false.

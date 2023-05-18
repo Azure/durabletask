@@ -11,6 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+#nullable enable
 namespace DurableTask.AzureStorage.Partitioning
 {
     using System;
@@ -26,22 +27,22 @@ namespace DurableTask.AzureStorage.Partitioning
         /// <summary>
         /// Empty string. Not used for now.
         /// </summary>
-        public string PartitionKey { get; set; } = null;
+        public string? PartitionKey { get; set; }
 
         /// <summary>
         /// The name of the partition/control queue.
         /// </summary>
-        public string RowKey { get; set; }
+        public string? RowKey { get; set; }
 
         /// <summary>
         /// The current owner name for this lease. 
         /// </summary>
-        public string CurrentOwner { get; set; }
+        public string? CurrentOwner { get; set; }
 
         /// <summary>
         /// The name of the worker that is stealing this lease, null if nobody is actively stealing it.
         /// </summary>
-        public string NextOwner { get; set; }
+        public string? NextOwner { get; set; }
 
         /// <summary>
         /// The timestamp at which the partition was originally acquired by this worker. 
