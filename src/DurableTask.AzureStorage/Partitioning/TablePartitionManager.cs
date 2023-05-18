@@ -11,7 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-#nullable enable
+//#nullable enable
 namespace DurableTask.AzureStorage.Partitioning
 {
     using System;
