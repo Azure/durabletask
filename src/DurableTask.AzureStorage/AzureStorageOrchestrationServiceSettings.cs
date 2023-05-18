@@ -14,14 +14,14 @@
 namespace DurableTask.AzureStorage
 {
     using System;
-    using DurableTask.AzureStorage.Partitioning;
+    using System.Runtime.Serialization;
+    using System.Threading.Tasks;
     using DurableTask.AzureStorage.Logging;
+    using DurableTask.AzureStorage.Partitioning;
     using DurableTask.Core;
     using Microsoft.Extensions.Logging;
     using Microsoft.WindowsAzure.Storage.Queue;
     using Microsoft.WindowsAzure.Storage.Table;
-    using System.Runtime.Serialization;
-    using System.Threading.Tasks;
 
     /// <summary>
     /// Settings that impact the runtime behavior of the <see cref="AzureStorageOrchestrationService"/>.
@@ -209,9 +209,9 @@ namespace DurableTask.AzureStorage
         public bool UseLegacyPartitionManagement { get; set; } = false;
 
         /// <summary>
-        /// Recommended partition management strategy for Azure Storage V2 accounts.
+        /// Use the newer Azure Tables-based partition manager instead of the older Azure Blobs-based partition manager. The default value is <c>true</c>.
         /// </summary>
-        public bool UseTablePartitionManagement { get; set; } = false;
+        public bool UseTablePartitionManagement { get; set; } = true;
 
         /// <summary>
         /// User serialization that will respect <see cref="IExtensibleDataObject"/>. Default is false.

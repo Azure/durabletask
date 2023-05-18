@@ -16,7 +16,6 @@ namespace DurableTask.AzureStorage
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
-    using System.Diagnostics;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
@@ -27,7 +26,6 @@ namespace DurableTask.AzureStorage
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using DurableTask.Core.History;
-    using Newtonsoft.Json.Linq;
 
     class OrchestrationSessionManager : IDisposable
     {
@@ -181,8 +179,8 @@ namespace DurableTask.AzureStorage
         /// prompting the worker to cease listening for new messages and it finishes processing all the existing information in memory.
         /// </summary>
         /// <param name="partitionId">The partition that is going to released.</param>
-        /// <param name="reason">Reason to trigger the drain proggress</param>
-        /// <param name="cancellationToken">Used to avoid time out</param>
+        /// <param name="reason">Reason to trigger the drain proggress.</param>
+        /// <param name="cancellationToken">Used to cancel the drain process if it takes too long.</param>
         /// <returns></returns>
         public async Task DrainAsync(string partitionId, CloseReason reason, CancellationToken cancellationToken)
         {

@@ -14,11 +14,11 @@
 namespace DurableTask.AzureStorage.Tests
 {
     using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using System.Collections.Generic;
     using System;
+    using System.Collections.Generic;
     using System.Diagnostics;
-    using System.Threading.Tasks;
     using System.Linq;
+    using System.Threading.Tasks;
 
     [TestClass]
     public class TestTablePartitionManager
@@ -276,7 +276,7 @@ namespace DurableTask.AzureStorage.Tests
             await services[0].DeleteAsync();
         }
 
-        [TestCategory("DisabledInCI")]
+        //[TestCategory("DisabledInCI")]
         [TestMethod]
         //Start with four workers and four partitions. And then sacle down to three workers.
         //Test that partitions will be rebalance between the three workers, which is one worker will have two, and the other two both have one. 

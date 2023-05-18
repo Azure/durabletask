@@ -13,16 +13,13 @@
 
 namespace DurableTask.AzureStorage.Partitioning
 {
-    using Azure.Data.Tables;
-    using Azure;
     using System;
     using System.Collections.Generic;
-    using System.Diagnostics;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using Microsoft.Extensions.Azure;
-    using DurableTask.AzureStorage.Storage;
+    using Azure;
+    using Azure.Data.Tables;
 
     /// <summary>
     /// Partition ManagerV3 is based on the Table storage.  
@@ -34,6 +31,9 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly CancellationTokenSource partitionManagerCancellationSource;
         //readonly string storageAccountName;
+        
+        TableClient partitionTable;
+        TableLeaseManager tableLeaseManager;
 
         /// <summary>
         /// constructor to initiate new instances of TablePartitionManager
@@ -48,16 +48,6 @@ namespace DurableTask.AzureStorage.Partitioning
             this.settings = settings;
             this.partitionManagerCancellationSource = new CancellationTokenSource();
         }
-
-        /// <summary>
-        /// This represents the Table which the manager operates on. 
-        /// </summary>
-        TableClient partitionTable;
-        
-        /// <summary>
-        /// The worker which will read and write on the table.
-        /// </summary>
-        TableLeaseManager tableLeaseManager;
         
         /// <summary>
         /// This method create a new instance of the class TableLeaseManager that represents the worker. 
@@ -81,13 +71,12 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             while (!token.IsCancellationRequested)
             {
-                TimeSpan timeToSleep = TimeSpan.FromSeconds(15);
+                TimeSpan timeToSleep = this.settings.LeaseRenewInterval;
                 try
                 {
                     var response = await this.tableLeaseManager.ReadAndWriteTable();
                     if (response.WorkOnRelease || response.WaitForPartition)
                     {
-                        // if the worker need to drain lease/ wait for others to drain, and ensures timely updates by checking table every one sec.
                         timeToSleep = TimeSpan.FromSeconds(1);
                     }
                 }
@@ -96,13 +85,12 @@ namespace DurableTask.AzureStorage.Partitioning
                     // if the worker failed to update the table, re-read the table immediately without wait.
                     timeToSleep = TimeSpan.FromSeconds(0);
                 }
-
-                await Task.Delay(timeToSleep, token);
+                Task.Delay(timeToSleep, token).Wait();
             }
         }
 
         /// <summary>
-        /// This method will stop the worker. It first stops the task ReadAndWriteTable().
+        /// This method will stop the partition manager. It first stops the task ReadAndWriteTable().
         /// And then start the Task ShutDown() until all the leases in the worker is drained. 
         /// </summary>
         /// <returns></returns>
@@ -116,8 +104,28 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.settings.WorkerId,
                 "",
                 $"Worker {this.settings.WorkerId} starts shutting down.");
-            
-            await this.PartitionManagerStopLoop();
+
+            bool shouldRetry = false;
+            //Shutting down is about draining all the lease and thus the worker checks table every one sec to ensure timely updates.
+            TimeSpan timeToSleep = TimeSpan.FromSeconds(1);
+
+            var task = Task.Run(async() =>
+            {
+                while (!shouldRetry)
+                {
+                    try
+                    {
+                        shouldRetry = await this.tableLeaseManager.ShutDown();
+                    }
+                    catch
+                    {
+                        //if the worker fails to update the table, re-read the table immediately withou wait.
+                        timeToSleep = TimeSpan.FromSeconds(0);
+                    }
+                    await Task.Delay(timeToSleep);
+                }
+            });
+            await task;
 
             this.settings.Logger.PartitionManagerInfo(
                 "this.storageAccountName",
@@ -125,27 +133,6 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.settings.WorkerId,
                 "",
                 $"Worker {this.settings.WorkerId} finishes shutting down.");
-        }
-
-        async Task PartitionManagerStopLoop()
-        {
-            bool shouldRetry = false;
-            //Shutting down is about draining all the lease and thus the worker checks table every one sec to ensure timely updates.
-            TimeSpan timeToSleep = TimeSpan.FromSeconds(1);
-            
-            while (!shouldRetry)
-            {
-                try
-                {
-                    shouldRetry = await this.tableLeaseManager.ShutDown();
-                }
-                catch
-                {
-                    //if the worker fails to update the table, re-read the table immediately withou wait.
-                    timeToSleep = TimeSpan.FromSeconds(0);
-                }
-                await Task.Delay(timeToSleep);
-            }
         }
 
         async Task IPartitionManager.CreateLeaseStore()
@@ -177,7 +164,7 @@ namespace DurableTask.AzureStorage.Partitioning
             catch(RequestFailedException)
             {
                 this.settings.Logger.PartitionManagerError(
-                    "",
+                    "this.storageAccountName",
                     this.settings.TaskHubName,
                     this.settings.WorkerId,
                     leaseName,

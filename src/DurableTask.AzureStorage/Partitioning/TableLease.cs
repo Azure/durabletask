@@ -13,9 +13,9 @@
 
 namespace DurableTask.AzureStorage.Partitioning
 {
-    using Azure.Data.Tables;
     using System;
     using Azure;
+    using Azure.Data.Tables;
 
     /// <summary>
     /// This class defines the partition lease that will be saved in the Table storage.
