@@ -27,7 +27,7 @@ namespace DurableTask.AzureStorage.Partitioning
         /// <summary>
         /// Empty string. Not used for now.
         /// </summary>
-        public string? PartitionKey { get; set; }
+        public string PartitionKey { get; set; } = "";        
 
         /// <summary>
         /// The name of the partition/control queue.

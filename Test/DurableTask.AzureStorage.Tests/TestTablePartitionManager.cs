@@ -26,6 +26,7 @@ namespace DurableTask.AzureStorage.Tests
     {
 
         string connection = TestHelpers.GetTestStorageAccountConnectionString();
+        //string connection = "UseDevelopmentStorage=true";
 
         //[TestCategory("DisabledInCI")]
         [TestMethod]
@@ -388,7 +389,7 @@ namespace DurableTask.AzureStorage.Tests
             await services[0].DeleteAsync();
         }
 
-        [TestCategory("DisabledInCI")]
+        //[TestCategory("DisabledInCI")]
         [TestMethod]
         //Start with four workers and four partitions. Then kill one worker.
         //Test that the partitions will be rebalanced among he three left workers.
@@ -450,7 +451,7 @@ namespace DurableTask.AzureStorage.Tests
             await services[0].DeleteAsync();
         }
 
-        [TestCategory("DisabledInCI")]
+        //[TestCategory("DisabledInCI")]
         [TestMethod]
         //Start with four workers and four partitions. Then kill three workers.
         //Test that the left worker will take all the partitions.

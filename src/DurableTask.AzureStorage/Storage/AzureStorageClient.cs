@@ -138,7 +138,7 @@ namespace DurableTask.AzureStorage.Storage
             }
             catch (StorageException ex)
             {
-                throw new DurableTaskStorageException(ex);
+                 throw new DurableTaskStorageException(ex);
             }
             finally
             {
