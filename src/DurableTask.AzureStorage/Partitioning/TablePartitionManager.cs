@@ -26,7 +26,7 @@ namespace DurableTask.AzureStorage.Partitioning
     /// <summary>
     /// Partition ManagerV3 is based on the Table storage.  
     /// </summary>
-    class TablePartitionManager : IPartitionManager
+    sealed class TablePartitionManager : IPartitionManager, IDisposable
     {
         readonly AzureStorageClient azureStorageClient;
         readonly AzureStorageOrchestrationService service;
@@ -80,7 +80,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
             await Task.Factory.StartNew(() => this.PartitionManagerLoop(this.partitionManagerCancellationSource.Token));
             this.settings.Logger.PartitionManagerInfo(
-                "this.storageAccountName",
+                "this.storageAccountName",// This will be changed to real storageAccountName later
                 this.settings.TaskHubName,
                 this.settings.WorkerId,
                 "",//empty partition id
@@ -119,7 +119,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.partitionManagerCancellationSource.Cancel();
             partitionManagerCancellationSource.Dispose();
             this.settings.Logger.PartitionManagerInfo(
-                "this.storageAccountName",
+                "this.storageAccountName",// This will be changed to real storageAccountName later
                 this.settings.TaskHubName,
                 this.settings.WorkerId,
                 "",
@@ -148,7 +148,7 @@ namespace DurableTask.AzureStorage.Partitioning
             await task;
 
             this.settings.Logger.PartitionManagerInfo(
-                "this.storageAccountName",
+                "this.storageAccountName",// This will be changed to real storageAccountName later
                 this.settings.TaskHubName,
                 this.settings.WorkerId,
                 "",
@@ -164,7 +164,7 @@ namespace DurableTask.AzureStorage.Partitioning
             catch (RequestFailedException ex)
             {
                 this.settings.Logger.PartitionManagerError(
-                    "this.storageAccountName",
+                    "this.storageAccountName",// This will be changed to real storageAccountName later
                     this.settings.TaskHubName,
                     this.settings.WorkerId,
                     "",
@@ -186,7 +186,7 @@ namespace DurableTask.AzureStorage.Partitioning
             catch (RequestFailedException e) when (e.Status == 409 /* The specified entity already exists. */)
             {
                 this.settings.Logger.PartitionManagerError(
-                    "this.storageAccountName",
+                    "this.storageAccountName",// This will be changed to real storageAccountName later
                     this.settings.TaskHubName,
                     this.settings.WorkerId,
                     leaseName,
@@ -213,7 +213,6 @@ namespace DurableTask.AzureStorage.Partitioning
         internal void KillLoop()
         {
             this.partitionManagerCancellationSource.Cancel();
-            partitionManagerCancellationSource.Dispose();
         }
 
         Task IPartitionManager.DeleteLeases()
@@ -349,7 +348,7 @@ namespace DurableTask.AzureStorage.Partitioning
                                 await this.service.TableLeaseAcquiredAsync(partition);
                                 this.settings.Logger.PartitionManagerInfo(
                                     // this attribute will be added and used after we implement the class AzureStorageClient later
-                                    "this.storageAccountName", 
+                                    "this.storageAccountName", // This will be changed to real storageAccountName later
                                     this.settings.TaskHubName,
                                     this.settings.WorkerId,
                                     partition.RowKey,
@@ -358,7 +357,7 @@ namespace DurableTask.AzureStorage.Partitioning
                             if (isStealedLease)
                             {
                                 this.settings.Logger.PartitionManagerInfo(
-                                "this.storageAccountName",
+                                "this.storageAccountName",// This will be changed to real storageAccountName later
                                 this.settings.TaskHubName,
                                 this.settings.WorkerId,
                                 partition.RowKey,
@@ -367,7 +366,7 @@ namespace DurableTask.AzureStorage.Partitioning
                             if (isReleasedLease)
                             {
                                 this.settings.Logger.PartitionManagerInfo(
-                                "this.storageAccountName",
+                                "this.storageAccountName",// This will be changed to real storageAccountName later
                                 this.settings.TaskHubName,
                                 this.settings.WorkerId,
                                 partition.RowKey,
@@ -376,7 +375,7 @@ namespace DurableTask.AzureStorage.Partitioning
                             if(isDrainedLease)
                             {
                                 this.settings.Logger.PartitionManagerInfo(
-                                "this.storageAccountName",
+                                "this.storageAccountName",// This will be changed to real storageAccountName later
                                 this.settings.TaskHubName,
                                 this.settings.WorkerId,
                                 partition.RowKey,
@@ -416,7 +415,7 @@ namespace DurableTask.AzureStorage.Partitioning
                                         {
                                             await myTable.UpdateEntityAsync(partition, etag, (TableUpdateMode)1);
                                             this.settings.Logger.PartitionManagerInfo(
-                                                "this.storageAccountName",
+                                                "this.storageAccountName",// This will be changed to real storageAccountName later
                                                 this.settings.TaskHubName,
                                                 this.settings.WorkerId,
                                                 partition.RowKey,
@@ -520,7 +519,7 @@ namespace DurableTask.AzureStorage.Partitioning
                             if (isDrainedLease)
                             {
                                 this.settings.Logger.PartitionManagerInfo(
-                                     "this.storageAccountName",
+                                     "this.storageAccountName",// This will be changed to real storageAccountName later
                                      this.settings.TaskHubName,
                                      this.settings.WorkerId,
                                      partition.RowKey,
@@ -529,7 +528,7 @@ namespace DurableTask.AzureStorage.Partitioning
                             if (isReleasedLease)
                             {
                                 this.settings.Logger.PartitionManagerInfo(
-                                     "this.storageAccountName",
+                                     "this.storageAccountName",// This will be changed to real storageAccountName later
                                      this.settings.TaskHubName,
                                      this.settings.WorkerId,
                                      partition.RowKey,
@@ -566,6 +565,11 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             public bool WorkOnRelease { get; set; } = false;
             public bool WaitForPartition { get; set; } = false;
+        }
+
+        public void Dispose()
+        {
+            partitionManagerCancellationSource.Dispose();
         }
     }
 }

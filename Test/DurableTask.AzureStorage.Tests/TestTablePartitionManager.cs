@@ -81,11 +81,10 @@ namespace DurableTask.AzureStorage.Tests
 
             var services = new AzureStorageOrchestrationService[2];
             string testName = "TestTwoWorkerWithFourPartitions";
-            var settings = new AzureStorageOrchestrationServiceSettings[2];
 
             for (int i = 0; i < 2; i++)
             {
-                settings[i] = new AzureStorageOrchestrationServiceSettings
+                var settings = new AzureStorageOrchestrationServiceSettings
                 {
                     TaskHubName = testName,
                     StorageConnectionString = this.connection,
@@ -93,7 +92,7 @@ namespace DurableTask.AzureStorage.Tests
                     UseTablePartitionManagement = true,
                     WorkerId = i.ToString(),
                 };
-                services[i] = new AzureStorageOrchestrationService(settings[i]);
+                services[i] = new AzureStorageOrchestrationService(settings);
             }
 
             var startTasks = services.Select(service => service.StartAsync());
@@ -131,11 +130,10 @@ namespace DurableTask.AzureStorage.Tests
 
             var services = new AzureStorageOrchestrationService[4];
             string testName = "TestFourWorkerWithFourPartitions";
-            var settings = new AzureStorageOrchestrationServiceSettings[4];
 
             for (int i = 0; i < 4; i++)
             {
-                settings[i] = new AzureStorageOrchestrationServiceSettings
+                var settings = new AzureStorageOrchestrationServiceSettings
                 {
                     TaskHubName = testName,
                     StorageConnectionString = this.connection,
@@ -143,7 +141,7 @@ namespace DurableTask.AzureStorage.Tests
                     UseTablePartitionManagement = true,
                     WorkerId = i.ToString(),
                 };
-                services[i] = new AzureStorageOrchestrationService(settings[i]);
+                services[i] = new AzureStorageOrchestrationService(settings);
             }
 
             var startTasks = services.Select(service => service.StartAsync());
@@ -182,11 +180,10 @@ namespace DurableTask.AzureStorage.Tests
 
             var services = new AzureStorageOrchestrationService[4];
             string testName = "TestAddThreeWorkers";
-            var settings = new AzureStorageOrchestrationServiceSettings[4];
 
             for (int i = 0; i < 4; i++)
             {
-                settings[i] = new AzureStorageOrchestrationServiceSettings
+                var settings = new AzureStorageOrchestrationServiceSettings
                 {
                     TaskHubName = testName,
                     StorageConnectionString = this.connection,
@@ -194,7 +191,7 @@ namespace DurableTask.AzureStorage.Tests
                     UseTablePartitionManagement = true,
                     WorkerId = i.ToString(),
                 };
-                services[i] = new AzureStorageOrchestrationService(settings[i]);
+                services[i] = new AzureStorageOrchestrationService(settings);
             }
 
             await services[0].StartAsync();
@@ -233,11 +230,10 @@ namespace DurableTask.AzureStorage.Tests
             Stopwatch stopwatch = new Stopwatch();
             var services = new AzureStorageOrchestrationService[8];
             string testName = "TestAddFourWorkers";
-            var settings = new AzureStorageOrchestrationServiceSettings[8];
 
             for (int i = 0; i < 8; i++)
             {
-                settings[i] = new AzureStorageOrchestrationServiceSettings
+                var settings = new AzureStorageOrchestrationServiceSettings
                 {
                     TaskHubName = testName,
                     StorageConnectionString = this.connection,
@@ -245,7 +241,7 @@ namespace DurableTask.AzureStorage.Tests
                     UseTablePartitionManagement = true,
                     WorkerId = i.ToString(),
                 };
-                services[i] = new AzureStorageOrchestrationService(settings[i]);
+                services[i] = new AzureStorageOrchestrationService(settings);
             }
 
             for (int i = 0; i < 4; i++)
@@ -290,11 +286,10 @@ namespace DurableTask.AzureStorage.Tests
 
             var services = new AzureStorageOrchestrationService[4];
             string testName = "TestScalingDownToThree";
-            var settings = new AzureStorageOrchestrationServiceSettings[4];
 
             for (int i = 0; i < 4; i++)
             {
-                settings[i] = new AzureStorageOrchestrationServiceSettings
+                var settings = new AzureStorageOrchestrationServiceSettings
                 {
                     TaskHubName = testName,
                     StorageConnectionString = this.connection,
@@ -302,7 +297,7 @@ namespace DurableTask.AzureStorage.Tests
                     UseTablePartitionManagement = true,
                     WorkerId = i.ToString(),
                 };
-                services[i] = new AzureStorageOrchestrationService(settings[i]);
+                services[i] = new AzureStorageOrchestrationService(settings);
             }
 
             var startTasks = services.Select(service => service.StartAsync());
@@ -348,11 +343,10 @@ namespace DurableTask.AzureStorage.Tests
 
             var services = new AzureStorageOrchestrationService[4];
             string testName = "TestScalingDownToOne";
-            var settings = new AzureStorageOrchestrationServiceSettings[4];
 
             for (int i = 0; i < 4; i++)
             {
-                settings[i] = new AzureStorageOrchestrationServiceSettings
+                var settings = new AzureStorageOrchestrationServiceSettings
                 {
                     TaskHubName = testName,
                     StorageConnectionString = this.connection,
@@ -360,7 +354,7 @@ namespace DurableTask.AzureStorage.Tests
                     UseTablePartitionManagement = true,
                     WorkerId = i.ToString(),
                 };
-                services[i] = new AzureStorageOrchestrationService(settings[i]);
+                services[i] = new AzureStorageOrchestrationService(settings);
             }
 
             var startTasks = services.Select(service => service.StartAsync());
@@ -401,11 +395,10 @@ namespace DurableTask.AzureStorage.Tests
 
             var services = new AzureStorageOrchestrationService[4];
             string testName = "TestKillOne";
-            var settings = new AzureStorageOrchestrationServiceSettings[4];
 
             for (int i = 0; i < 4; i++)
             {
-                settings[i] = new AzureStorageOrchestrationServiceSettings
+                var settings = new AzureStorageOrchestrationServiceSettings
                 {
                     TaskHubName = testName,
                     StorageConnectionString = this.connection,
@@ -413,7 +406,7 @@ namespace DurableTask.AzureStorage.Tests
                     UseTablePartitionManagement = true,
                     WorkerId = i.ToString(),
                 };
-                services[i] = new AzureStorageOrchestrationService(settings[i]);
+                services[i] = new AzureStorageOrchestrationService(settings);
             }
 
             var startTasks = services.Select(service => service.StartAsync());
@@ -463,11 +456,10 @@ namespace DurableTask.AzureStorage.Tests
 
             var services = new AzureStorageOrchestrationService[4];
             string testName = "TestKillThree";
-            var settings = new AzureStorageOrchestrationServiceSettings[4];
 
             for (int i = 0; i < 4; i++)
             {
-                settings[i] = new AzureStorageOrchestrationServiceSettings
+                var settings = new AzureStorageOrchestrationServiceSettings
                 {
                     TaskHubName = testName,
                     StorageConnectionString = this.connection,
@@ -475,7 +467,7 @@ namespace DurableTask.AzureStorage.Tests
                     UseTablePartitionManagement = true,
                     WorkerId = i.ToString(),
                 };
-                services[i] = new AzureStorageOrchestrationService(settings[i]);
+                services[i] = new AzureStorageOrchestrationService(settings);
             }
 
             var startTasks = services.Select(service => service.StartAsync());
