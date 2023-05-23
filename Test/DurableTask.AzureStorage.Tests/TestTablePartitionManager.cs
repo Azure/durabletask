@@ -445,7 +445,7 @@ namespace DurableTask.AzureStorage.Tests
             await services[0].DeleteAsync();
         }
 
-        //[TestCategory("DisabledInCI")]
+        [TestCategory("DisabledInCI")]
         [TestMethod]
         //Start with four workers and four partitions. Then kill three workers.
         //Test that the left worker will take all the partitions.

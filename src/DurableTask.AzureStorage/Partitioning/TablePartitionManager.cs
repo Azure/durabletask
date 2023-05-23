@@ -285,15 +285,16 @@ namespace DurableTask.AzureStorage.Partitioning
 
                     if (isOtherWorkerFutureLease)
                     {
-                        if (partitionDistribution.ContainsKey(partition.NextOwner!))
+                        string nextOwner = partition.NextOwner!;
+                        if (partitionDistribution.ContainsKey(nextOwner))
                         {
-                            partitionDistribution[partition.NextOwner!].Add(partition);
+                            partitionDistribution[nextOwner].Add(partition);
                         }
                         else
                         {
-                            partitionDistribution.Add(partition.NextOwner!, new List<TableLease> { partition });
+                            partitionDistribution.Add(nextOwner, new List<TableLease> { partition });
                         }
-                        if (partition.NextOwner == workerName)
+                        if (nextOwner == workerName)
                         {
                             leaseNum++;
                             response.WaitForPartition = true;
