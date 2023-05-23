@@ -21,13 +21,14 @@ namespace DurableTask.AzureStorage.Partitioning
     using System.Threading.Tasks;
     using Azure;
     using Azure.Data.Tables;
+    using DurableTask.AzureStorage.Storage;
 
     /// <summary>
     /// Partition ManagerV3 is based on the Table storage.  
     /// </summary>
     class TablePartitionManager : IPartitionManager
     {
-        //readonly AzureStorageClient azureStorageClient;
+        readonly AzureStorageClient azureStorageClient;
         readonly AzureStorageOrchestrationService service;
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly CancellationTokenSource partitionManagerCancellationSource;
@@ -40,12 +41,15 @@ namespace DurableTask.AzureStorage.Partitioning
         /// <summary>
         /// constructor to initiate new instances of TablePartitionManager
         /// </summary>
+        /// <param name="azureStorageClient"></param>
         /// <param name="service"></param>
         /// <param name="settings"></param>
         public TablePartitionManager(
+            AzureStorageClient azureStorageClient,
             AzureStorageOrchestrationService service,
             AzureStorageOrchestrationServiceSettings settings)
         {
+            this.azureStorageClient = azureStorageClient;
             this.service = service;
             this.settings = settings;
             this.tableName = this.CreateTableName();
@@ -342,6 +346,7 @@ namespace DurableTask.AzureStorage.Partitioning
                             await myTable.UpdateEntityAsync(partition, etag, (TableUpdateMode)1);
                             if(isClaimedLease)
                             {
+                                await this.service.TableLeaseAcquiredAsync(partition);
                                 this.settings.Logger.PartitionManagerInfo(
                                     // this attribute will be added and used after we implement the class AzureStorageClient later
                                     "this.storageAccountName", 

@@ -15,6 +15,7 @@
 namespace DurableTask.AzureStorage.Tests
 {
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using Newtonsoft.Json.Linq;
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
@@ -500,8 +501,6 @@ namespace DurableTask.AzureStorage.Tests
             await services[0].StopAsync();
             await services[0].DeleteAsync();
         }
-
-
 
     }
 }

@@ -155,6 +155,7 @@ namespace DurableTask.AzureStorage
             if (this.settings.UseTablePartitionManagement)
             {
                 this.partitionManager = new TablePartitionManager(
+                    this.azureStorageClient,
                     this,
                     this.settings);
             }
@@ -514,6 +515,15 @@ namespace DurableTask.AzureStorage
         {
             this.orchestrationSessionManager.RemoveQueue(lease.PartitionId, reason, "Ownership LeaseCollectionBalancer");
             return Utils.CompletedTask;
+        }
+
+        internal async Task TableLeaseAcquiredAsync(TableLease lease)
+        {
+            var controlQueue = new ControlQueue(this.azureStorageClient, lease.RowKey, this.messageManager);
+            await controlQueue.CreateIfNotExistsAsync();
+            this.orchestrationSessionManager.AddQueue(lease.RowKey, controlQueue, this.shutdownSource.Token);
+
+            this.allControlQueues[lease.RowKey] = controlQueue;
         }
 
         internal async Task TableLeaseDrainAsync(TableLease lease, CloseReason reason)
