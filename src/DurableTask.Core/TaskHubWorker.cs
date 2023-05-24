@@ -155,10 +155,10 @@ namespace DurableTask.Core
 
             // If the backend supports a separate work item queue for entities (indicated by it implementing IEntityOrchestrationService),
             // we take note of that here, and let the backend know that we are going to pull the work items separately. 
-            if (orchestrationService is IEntityOrchestrationService entityOrchestrationService)
+            if (orchestrationService is IEntityOrchestrationService entityOrchestrationService 
+                && entityOrchestrationService.ProcessEntitiesSeparately())
             {
                 this.entityOrchestrationService = entityOrchestrationService;
-                entityOrchestrationService.ProcessEntitiesSeparately();
             }
         }
 
@@ -238,7 +238,8 @@ namespace DurableTask.Core
                     this.orchestrationManager,
                     this.orchestrationDispatchPipeline,
                     this.logHelper,
-                    this.ErrorPropagationMode);
+                    this.ErrorPropagationMode, 
+                    this.entityOrchestrationService);
                 this.activityDispatcher = new TaskActivityDispatcher(
                     this.orchestrationService,
                     this.activityManager,

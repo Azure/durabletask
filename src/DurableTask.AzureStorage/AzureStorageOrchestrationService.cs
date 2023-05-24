@@ -282,9 +282,17 @@ namespace DurableTask.AzureStorage
                MaximumSignalDelayTime = TimeSpan.FromDays(6),
            };
 
-        void IEntityOrchestrationService.ProcessEntitiesSeparately()
+        bool IEntityOrchestrationService.ProcessEntitiesSeparately()
         {
-            this.orchestrationSessionManager.ProcessEntitiesSeparately = true;
+            if (this.settings.UseSeparateQueueForEntityWorkItems)
+            {
+                this.orchestrationSessionManager.ProcessEntitiesSeparately = true;
+                return true;
+            }
+            else
+            {
+                return false;
+            }
         }
 
         Task<TaskOrchestrationWorkItem> IEntityOrchestrationService.LockNextOrchestrationWorkItemAsync(

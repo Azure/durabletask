@@ -51,14 +51,15 @@ namespace DurableTask.Core
             INameVersionObjectManager<TaskOrchestration> objectManager,
             DispatchMiddlewarePipeline dispatchPipeline,
             LogHelper logHelper,
-            ErrorPropagationMode errorPropagationMode)
+            ErrorPropagationMode errorPropagationMode, 
+            IEntityOrchestrationService entityOrchestrationService)
         {
             this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
             this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
             this.logHelper = logHelper ?? throw new ArgumentNullException(nameof(logHelper));
             this.errorPropagationMode = errorPropagationMode;
-            this.entityOrchestrationService = orchestrationService as IEntityOrchestrationService;
+            this.entityOrchestrationService = entityOrchestrationService;
             this.entityBackendProperties = this.entityOrchestrationService?.GetEntityBackendProperties();
 
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(

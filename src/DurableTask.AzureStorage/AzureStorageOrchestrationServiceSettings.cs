@@ -299,5 +299,12 @@ namespace DurableTask.AzureStorage
         /// If set to zero, there is no sorting or deduplication, and all messages are just passed through.
         /// </summary>
         public int EntityMessageReorderWindowInMinutes { get; set; } = 30;
+
+        /// <summary>
+        /// Whether to use separate work item queues for entities and orchestrators.
+        /// This defaults to false, to avoid issues when using this provider from code that does not support separate dispatch.
+        /// Consumers that support separate dispatch should explicitly set this to true.
+        /// </summary>
+        public bool UseSeparateQueueForEntityWorkItems { get; set; } = false;
     }
 }

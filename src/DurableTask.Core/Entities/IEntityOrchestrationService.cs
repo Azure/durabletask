@@ -29,9 +29,12 @@ namespace DurableTask.Core.Entities
         EntityBackendProperties GetEntityBackendProperties();
 
         /// <summary>
-        /// Configures the orchestration service backend so entities and orchestrations are kept in two separate queues, and can be fetched separately.
+        /// Checks whether the backend is configured for separate work-item processing of orchestrations and entities.
+        /// If this returns true, must use <see cref="LockNextOrchestrationWorkItemAsync"/> or <see cref="LockNextEntityWorkItemAsync"/> to 
+        /// pull orchestrations or entities separately. Otherwise, must use <see cref="IOrchestrationService.LockNextTaskOrchestrationWorkItemAsync"/>.
+        /// This must be called prior to starting the orchestration service.
         /// </summary>
-        void ProcessEntitiesSeparately();
+        bool ProcessEntitiesSeparately();
 
         /// <summary>
         /// Specialized variant of <see cref="IOrchestrationService.LockNextTaskOrchestrationWorkItemAsync(TimeSpan, CancellationToken)"/> that
