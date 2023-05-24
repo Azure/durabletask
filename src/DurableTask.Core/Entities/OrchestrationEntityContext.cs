@@ -10,6 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
+#nullable enable
 namespace DurableTask.Core.Entities
 {
     using DurableTask.Core.Entities;
@@ -33,10 +34,12 @@ namespace DurableTask.Core.Entities
         private readonly OrchestrationContext innerContext;
         private readonly MessageSorter messageSorter;
 
-        private Guid? criticalSectionId;
-        private EntityId[] criticalSectionLocks;
         private bool lockAcquisitionPending;
-        private HashSet<EntityId> availableLocks;
+
+        // the following are null unless we are inside a critical section
+        private Guid? criticalSectionId;
+        private EntityId[]? criticalSectionLocks;
+        private HashSet<EntityId>? availableLocks;
 
         /// <summary>
         /// Constructs an OrchestrationEntityContext.
@@ -75,7 +78,7 @@ namespace DurableTask.Core.Entities
         {
             if (this.IsInsideCriticalSection)
             {
-                foreach(var e in this.availableLocks)
+                foreach(var e in this.availableLocks!)
                 {
                     yield return e;
                 }
@@ -87,7 +90,7 @@ namespace DurableTask.Core.Entities
         /// </summary>
         /// <param name="errorMessage">The error message, if it is not valid, or null otherwise</param>
         /// <returns>whether the transition is valid </returns>
-        public bool ValidateSuborchestrationTransition(out string errorMessage)
+        public bool ValidateSuborchestrationTransition(out string? errorMessage)
         {
             if (this.IsInsideCriticalSection)
             {
@@ -106,7 +109,7 @@ namespace DurableTask.Core.Entities
         /// <param name="targetInstanceId">The target instance id.</param>
         /// <param name="errorMessage">The error message, if it is not valid, or null otherwise</param>
         /// <returns>whether the transition is valid </returns>
-        public bool ValidateOperationTransition(string targetInstanceId, bool oneWay, out string errorMessage)
+        public bool ValidateOperationTransition(string targetInstanceId, bool oneWay, out string? errorMessage)
         {
             if (this.IsInsideCriticalSection)
             {
@@ -121,7 +124,7 @@ namespace DurableTask.Core.Entities
                 }
                 else
                 {
-                    if (!this.availableLocks.Remove(lockToUse))
+                    if (!this.availableLocks!.Remove(lockToUse))
                     {
                         if (this.lockAcquisitionPending)
                         {
@@ -151,7 +154,7 @@ namespace DurableTask.Core.Entities
         /// </summary>
         /// <param name="errorMessage">The error message, if it is not valid, or null otherwise</param>
         /// <returns>whether the transition is valid </returns>
-        public bool ValidateAcquireTransition(out string errorMessage)
+        public bool ValidateAcquireTransition(out string? errorMessage)
         {
             if (this.IsInsideCriticalSection)
             {
@@ -172,7 +175,7 @@ namespace DurableTask.Core.Entities
             if (this.IsInsideCriticalSection)
             {
                 var lockToUse = EntityId.FromString(targetInstanceId);
-                this.availableLocks.Add(lockToUse);
+                this.availableLocks!.Add(lockToUse);
             }
         }
 
@@ -186,10 +189,10 @@ namespace DurableTask.Core.Entities
                 var message = new ReleaseMessage()
                 {
                     ParentInstanceId = instanceId,
-                    Id = this.criticalSectionId.Value.ToString(),
+                    Id = this.criticalSectionId!.Value.ToString(),
                 };
 
-                foreach (var entityId in this.criticalSectionLocks)
+                foreach (var entityId in this.criticalSectionLocks!)
                 {
                     var instance = new OrchestrationInstance() { InstanceId = entityId.ToString() };
                     var jmessage = JObject.FromObject(message, Serializer.InternalSerializer);
@@ -301,7 +304,7 @@ namespace DurableTask.Core.Entities
 
         internal void AdjustOutgoingMessage(string instanceId, RequestMessage requestMessage, DateTime? cappedTime, out string eventName)
         {
-            if (requestMessage.ScheduledTime.HasValue)
+            if (cappedTime.HasValue)
             {
                 eventName = EntityMessageEventNames.ScheduledRequestMessageEventName(cappedTime.Value);
             }

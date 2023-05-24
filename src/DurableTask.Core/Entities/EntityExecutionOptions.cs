@@ -10,6 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
+#nullable enable
 namespace DurableTask.Core.Entities
 {
     using DurableTask.Core.Serializing;
@@ -44,7 +45,7 @@ namespace DurableTask.Core.Entities
         /// <summary>
         /// Information about backend entity support.
         /// </summary>
-        internal EntityBackendProperties EntityBackendProperties { get; set; }
+        internal EntityBackendProperties? EntityBackendProperties { get; set; }
 
         /// <summary>
         /// The mode that is used for propagating errors, as specified in the <see cref="TaskHubWorker"/>.

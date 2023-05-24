@@ -10,6 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
+#nullable enable
 namespace DurableTask.Core.Entities.EventFormat
 {
     using System.Runtime.Serialization;
@@ -18,13 +19,13 @@ namespace DurableTask.Core.Entities.EventFormat
     internal class ResponseMessage
     {
         [DataMember(Name = "result")]
-        public string Result { get; set; }
+        public string? Result { get; set; }
 
         [DataMember(Name = "exceptionType", EmitDefaultValue = false)]
-        public string ErrorMessage { get; set; }
+        public string? ErrorMessage { get; set; }
 
         [DataMember(Name = "failureDetails", EmitDefaultValue = false)]
-        public FailureDetails FailureDetails { get; set; }
+        public FailureDetails? FailureDetails { get; set; }
 
         [IgnoreDataMember]
         public bool IsErrorResult => this.ErrorMessage != null;

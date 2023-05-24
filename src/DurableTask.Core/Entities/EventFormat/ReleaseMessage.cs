@@ -10,6 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
+#nullable enable
 namespace DurableTask.Core.Entities.EventFormat
 {
     using System.Runtime.Serialization;
@@ -18,10 +19,10 @@ namespace DurableTask.Core.Entities.EventFormat
     internal class ReleaseMessage
     {
         [DataMember(Name = "parent")]
-        public string ParentInstanceId { get; set; }
+        public string? ParentInstanceId { get; set; }
 
         [DataMember(Name = "id")]
-        public string Id { get; set; }
+        public string? Id { get; set; }
 
         public override string ToString()
         {

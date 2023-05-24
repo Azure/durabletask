@@ -10,9 +10,10 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core.Entities
 {
+    using System;
     using System.Collections.Generic;
     using System.Runtime.Serialization;
     using DurableTask.Core.Entities.EventFormat;
@@ -33,19 +34,19 @@ namespace DurableTask.Core.Entities
         /// The last serialized entity state.
         /// </summary>
         [DataMember(Name = "state", EmitDefaultValue = false)]
-        public string EntityState { get; set; }
+        public string? EntityState { get; set; }
 
         /// <summary>
         /// The queue of waiting operations, or null if none.
         /// </summary>
         [DataMember(Name = "queue", EmitDefaultValue = false)]
-        public Queue<RequestMessage> Queue { get; private set; }
+        public Queue<RequestMessage>? Queue { get; private set; }
 
         /// <summary>
         /// The instance id of the orchestration that currently holds the lock of this entity.
         /// </summary>
         [DataMember(Name = "lockedBy", EmitDefaultValue = false)]
-        public string LockedBy { get; set; }
+        public string? LockedBy { get; set; }
 
         /// <summary>
         /// Whether processing on this entity is currently suspended.
@@ -94,6 +95,11 @@ namespace DurableTask.Core.Entities
 
         internal RequestMessage Dequeue()
         {
+            if (this.Queue == null)
+            {
+                throw new InvalidOperationException("Queue is empty");
+            }
+
             var result = Queue.Dequeue();
 
             if (Queue.Count == 0)

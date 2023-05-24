@@ -10,6 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
+#nullable enable
 namespace DurableTask.Core.Entities
 {
     using DurableTask.Core.Entities;
@@ -79,7 +80,7 @@ namespace DurableTask.Core.Entities
         /// <param name="serializedSchedulerState">The state of the scheduler, as a serialized string.</param>
         /// <param name="entityState">The entity state</param>
         /// <returns>True if the entity exists, or false otherwise</returns>
-        public static bool TryGetEntityStateFromSerializedSchedulerState(string serializedSchedulerState, out string entityState)
+        public static bool TryGetEntityStateFromSerializedSchedulerState(string serializedSchedulerState, out string? entityState)
         {
             var schedulerState = JsonConvert.DeserializeObject<SchedulerState>(serializedSchedulerState, Serializer.InternalSerializerSettings);
             entityState = schedulerState.EntityState;

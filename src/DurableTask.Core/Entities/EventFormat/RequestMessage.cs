@@ -10,6 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
+#nullable enable
 namespace DurableTask.Core.Entities.EventFormat
 {
     using System;
@@ -26,7 +27,7 @@ namespace DurableTask.Core.Entities.EventFormat
         /// (if this is a lock request).
         /// </summary>
         [DataMember(Name = "op")]
-        public string Operation { get; set; }
+        public string? Operation { get; set; }
 
         /// <summary>
         /// Whether or not this is a one-way message.
@@ -38,7 +39,7 @@ namespace DurableTask.Core.Entities.EventFormat
         /// The operation input.
         /// </summary>
         [DataMember(Name = "input", EmitDefaultValue = false)]
-        public string Input { get; set; }
+        public string? Input { get; set; }
 
         /// <summary>
         /// A unique identifier for this operation.
@@ -50,13 +51,13 @@ namespace DurableTask.Core.Entities.EventFormat
         /// The parent instance that called this operation.
         /// </summary>
         [DataMember(Name = "parent", EmitDefaultValue = false)]
-        public string ParentInstanceId { get; set; }
+        public string? ParentInstanceId { get; set; }
 
         /// <summary>
         /// The parent instance that called this operation.
         /// </summary>
         [DataMember(Name = "parentExecution", EmitDefaultValue = false)]
-        public string ParentExecutionId { get; set; }
+        public string? ParentExecutionId { get; set; }
 
         /// <summary>
         /// Optionally, a scheduled time at which to start the operation.
@@ -83,7 +84,7 @@ namespace DurableTask.Core.Entities.EventFormat
         /// contains at least one element, and has no repetitions.
         /// </summary>
         [DataMember(Name = "lockset", EmitDefaultValue = false)]
-        public EntityId[] LockSet { get; set; }
+        public EntityId[]? LockSet { get; set; }
 
         /// <summary>
         /// For lock requests involving multiple locks, the message number.

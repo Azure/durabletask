@@ -11,6 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+#nullable enable
 namespace DurableTask.Core.Entities
 {
     using System.Threading.Tasks;

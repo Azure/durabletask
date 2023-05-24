@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core.Entities
 {
     using System.Runtime.Serialization;
@@ -38,6 +38,6 @@ namespace DurableTask.Core.Entities
         /// The instance id of the orchestration that currently holds the lock of this entity.
         /// </summary>
         [DataMember(Name = "lockedBy", EmitDefaultValue = false)]
-        public string LockedBy { get; set; }
+        public string? LockedBy { get; set; }
     }
 }
