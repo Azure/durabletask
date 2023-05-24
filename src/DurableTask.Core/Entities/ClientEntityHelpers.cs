@@ -83,7 +83,7 @@ namespace DurableTask.Core.Entities
         public static bool TryGetEntityStateFromSerializedSchedulerState(string serializedSchedulerState, out string? entityState)
         {
             var schedulerState = JsonConvert.DeserializeObject<SchedulerState>(serializedSchedulerState, Serializer.InternalSerializerSettings);
-            entityState = schedulerState.EntityState;
+            entityState = schedulerState!.EntityState;
             return schedulerState.EntityExists;
         }
     }
