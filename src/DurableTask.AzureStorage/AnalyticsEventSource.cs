@@ -909,7 +909,7 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(EventIds.InstanceStatusUpdate, Level = EventLevel.Informational, Version = 4)]
+        [Event(EventIds.InstanceStatusUpdate, Level = EventLevel.Informational, Version = 5)]
         public void InstanceStatusUpdate(
             string Account,
             string TaskHub,
@@ -1115,14 +1115,15 @@ namespace DurableTask.AzureStorage
             string ExtensionVersion)
         {
             this.WriteEvent(
-               EventIds.OrchestrationMemoryManagerInfo,
-               Account,
-               TaskHub,
-               Details,
-               AppName,
-               ExtensionVersion);
+                EventIds.OrchestrationMemoryManagerInfo,
+                Account,
+                TaskHub,
+                Details,
+                AppName,
+                ExtensionVersion);
         }
 
+        [Event(EventIds.FetchedInstanceStatusFromCache, Level = EventLevel.Informational, Version = 1)]
         internal void FetchedInstanceStatusFromCache(
             string Account, 
             string TaskHub, 
@@ -1133,14 +1134,14 @@ namespace DurableTask.AzureStorage
             string ExtensionVersion)
         {
             this.WriteEvent(
-               EventIds.FetchedInstanceStatusFromCache,
-               Account,
-               TaskHub,
-               InstanceId,
-               ExecutionId,
-               Size,
-               AppName,
-               ExtensionVersion);
+                EventIds.FetchedInstanceStatusFromCache,
+                Account,
+                TaskHub,
+                InstanceId,
+                ExecutionId,
+                Size,
+                AppName,
+                ExtensionVersion);
         }
 
         // Specifying tasks is necessary when using WriteEventWithRelatedActivityId

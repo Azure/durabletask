@@ -481,6 +481,7 @@ namespace DurableTask.AzureStorage
 
                     if (history == null)
                     {
+                        // History can be null here if the message's history load was throttled enough that a message timeout occurred.
                         return;
                     }
 

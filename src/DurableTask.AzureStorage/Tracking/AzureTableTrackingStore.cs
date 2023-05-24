@@ -67,6 +67,7 @@ namespace DurableTask.AzureStorage.Tracking
         readonly TableEntityConverter tableEntityConverter;
         readonly IReadOnlyDictionary<EventType, Type> eventTypeMap;
         readonly MessageManager messageManager;
+        private InstancesTableCache instancesTableCache;
 
         public AzureTableTrackingStore(
             AzureStorageClient azureStorageClient,
@@ -86,7 +87,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             this.HistoryTable = this.azureStorageClient.GetTableReference(historyTableName);
             this.InstancesTable = this.azureStorageClient.GetTableReference(instancesTableName);
-            this.InstancesTableCache = new InstancesTableCache();
+            this.instancesTableCache = new InstancesTableCache();
 
             // Use reflection to learn all the different event types supported by DTFx.
             // This could have been hardcoded, but I generally try to avoid hardcoding of point-in-time DTFx knowledge.
@@ -117,8 +118,6 @@ namespace DurableTask.AzureStorage.Tracking
         internal Table HistoryTable { get; }
 
         internal Table InstancesTable { get; }
-
-        private InstancesTableCache InstancesTableCache;
 
         /// <inheritdoc />
         public override Task CreateAsync()
@@ -421,7 +420,7 @@ namespace DurableTask.AzureStorage.Tracking
         {
             if (!fetchInput)
             {
-                if (this.InstancesTableCache.TryGetInstanceInCache(instanceId, out DynamicTableEntity entity))
+                if (this.instancesTableCache.TryGetInstanceInCache(instanceId, out DynamicTableEntity entity))
                 {
                     OrchestrationState orchestrationState = await this.ConvertFromAsync(entity);
 
@@ -761,7 +760,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             await Task.WhenAll(tasks);
 
-            this.InstancesTableCache.RemoveFromCache(orchestrationInstanceStatus.PartitionKey);
+            this.instancesTableCache.RemoveFromCache(orchestrationInstanceStatus.PartitionKey);
 
             // This is for the instances table deletion
             storageRequests++;
@@ -864,7 +863,7 @@ namespace DurableTask.AzureStorage.Tracking
                     ["ScheduledStartTime"] = new EntityProperty(executionStartedEvent.ScheduledStartTime),
                     ["ExecutionId"] = new EntityProperty(executionStartedEvent.OrchestrationInstance.ExecutionId),
                     ["Generation"] = new EntityProperty(executionStartedEvent.Generation),
-                    ["Size"] = new EntityProperty((long)0),
+                    ["Size"] = new EntityProperty(0L),
                 }
             };
 
@@ -886,7 +885,7 @@ namespace DurableTask.AzureStorage.Tracking
                     await this.InstancesTable.ReplaceAsync(entity);
                 }
 
-                this.InstancesTableCache.AddToCache(entity);
+                this.instancesTableCache.AddToCache(entity);
             }
             catch (DurableTaskStorageException e) when (
                 e.HttpStatusCode == 409 /* Conflict */ ||
@@ -928,7 +927,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             Stopwatch stopwatch = Stopwatch.StartNew();
             await this.InstancesTable.MergeAsync(entity);
-            this.InstancesTableCache.UpdateCache(entity);
+            this.instancesTableCache.UpdateCache(entity);
 
             // We don't have enough information to get the episode number.
             // It's also not important to have for this particular trace.
@@ -1131,7 +1130,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
             await this.InstancesTable.InsertOrMergeAsync(instanceEntity);
-            this.InstancesTableCache.AddToCache(instanceEntity);
+            this.instancesTableCache.AddToCache(instanceEntity);
 
             this.settings.Logger.InstanceStatusUpdate(
                 this.storageAccountName,

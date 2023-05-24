@@ -41,17 +41,17 @@ namespace DurableTask.AzureStorage
             this.storageAccountName = storageAccountName;
             this.taskHub = settings.TaskHubName;
             this.messageVisibilityTimeout = settings.ControlQueueVisibilityTimeout.TotalMilliseconds;
-            this.totalMemoryBytes = settings.TotalProcessMemoryMBytes * 1024 * 1024;
-            var memoryBufferBytes = settings.MemoryBufferMBytes * 1024 * 1024;
+            this.totalMemoryBytes = settings.MemoryThrottleSettings.TotalProcessMemoryMBytes * 1024 * 1024;
+            var memoryBufferBytes = settings.MemoryThrottleSettings.MemoryBufferMBytes * 1024 * 1024;
             this.adjustedTotalMemory = this.totalMemoryBytes - memoryBufferBytes;
             this.pendingMemory = 0;
         }
 
-        public async Task StartAsync()
+        public Task StartAsync()
         {
-            if (!this.settings.UseOrchestrationHistoryLoadThrottle)
+            if (!this.settings.MemoryThrottleSettings.UseOrchestrationHistoryLoadThrottle)
             {
-                return;
+                return Task.CompletedTask;
             }
 
             if (Interlocked.CompareExchange(ref this.isStarted, 1, 0) != 0)
@@ -61,7 +61,8 @@ namespace DurableTask.AzureStorage
 
             this.currentMemoryCancellationTokenSource = new CancellationTokenSource();
 
-            this.currentMemoryUpdaterTask = await Task.Factory.StartNew(() => this.CurrentMemoryUpdater());
+            this.currentMemoryUpdaterTask = Task.Run(this.CurrentMemoryMonitor);
+            return Task.CompletedTask;
         }
 
         public async Task StopAsync()
@@ -78,15 +79,16 @@ namespace DurableTask.AzureStorage
                 await this.currentMemoryUpdaterTask;
             }
 
+            this.currentMemoryCancellationTokenSource.Dispose();
             this.currentMemoryCancellationTokenSource = null;
         }
 
-        async Task CurrentMemoryUpdater()
+        async Task CurrentMemoryMonitor()
         {
             this.settings.Logger.OrchestrationMemoryManagerInfo(
                 this.storageAccountName,
                 this.taskHub,
-                $"Starting background currenly allocated memory updater.");
+                $"Starting background monitor of currently allocated memory.");
 
             while (this.isStarted == 1)
             {
@@ -98,7 +100,7 @@ namespace DurableTask.AzureStorage
             this.settings.Logger.OrchestrationMemoryManagerInfo(
                 this.storageAccountName,
                 this.taskHub,
-                $"Background updater for currenly allocated memory completed.");
+                $"Background monitor for currenly allocated memory completed.");
         }
 
         public async Task<OrchestrationHistory> GetHistoryEventsAsync(ITrackingStore trackingStore, string instanceId, string executionId, CancellationToken cancellationToken)
@@ -108,7 +110,7 @@ namespace DurableTask.AzureStorage
 
             try
             {
-                if (this.settings.UseOrchestrationHistoryLoadThrottle)
+                if (this.settings.MemoryThrottleSettings.UseOrchestrationHistoryLoadThrottle)
                 {
                     OrchestrationState state = await trackingStore.GetStateAsync(
                             instanceId,
@@ -119,12 +121,12 @@ namespace DurableTask.AzureStorage
                     memorySize = state.Size;
                 }
 
-                if (memoryReserved || !this.settings.UseOrchestrationHistoryLoadThrottle)
+                if (memoryReserved || !this.settings.MemoryThrottleSettings.UseOrchestrationHistoryLoadThrottle)
                 {
                     OrchestrationHistory history = await trackingStore.GetHistoryEventsAsync(
-                   instanceId,
-                   executionId,
-                   cancellationToken);
+                    instanceId,
+                    executionId,
+                    cancellationToken);
 
                     return history;
                 }

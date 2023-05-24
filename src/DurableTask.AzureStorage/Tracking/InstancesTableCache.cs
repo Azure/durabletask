@@ -18,22 +18,31 @@ namespace DurableTask.AzureStorage.Tracking
     class InstancesTableCache
     {
         private const int NumberOfRecords = 2400;
-        private MRUCache<string, DynamicTableEntity> mruCache;
+        private LRUCache<string, DynamicTableEntity> lruCache;
 
         public InstancesTableCache()
         {
-            this.mruCache = new MRUCache<string, DynamicTableEntity>(NumberOfRecords);
+            this.lruCache = new LRUCache<string, DynamicTableEntity>(NumberOfRecords);
         }
 
         public void AddToCache(DynamicTableEntity entity)
         {
-            entity.Properties.Remove("Input");
-            this.mruCache.Add(entity.PartitionKey, entity);
+            var entityCopy = new DynamicTableEntity();
+            foreach (KeyValuePair<string, EntityProperty> property in entity.Properties)
+            {
+                // We don't store the input in the cache to save memory.
+                if (property.Key != "Input")
+                {
+                    entityCopy.Properties[property.Key] = property.Value;
+                }
+            }
+
+            this.lruCache.Add(entity.PartitionKey, entityCopy);
         }
 
         public void UpdateCache(DynamicTableEntity entity)
         {
-            if (this.mruCache.TryGet(entity.PartitionKey, out DynamicTableEntity storedEntity))
+            if (this.lruCache.TryGet(entity.PartitionKey, out DynamicTableEntity storedEntity))
             {
                 foreach (KeyValuePair<string, EntityProperty> property in entity.Properties)
                 {
@@ -46,19 +55,17 @@ namespace DurableTask.AzureStorage.Tracking
                         storedEntity.Properties.Add(property.Key, property.Value);
                     }
                 }
-
-                this.mruCache.Add(storedEntity.PartitionKey, storedEntity);
             }
         }
 
         public void RemoveFromCache(string instanceId)
         {
-            this.mruCache.TryRemove(instanceId);
+            this.lruCache.TryRemove(instanceId);
         }
 
         public bool TryGetInstanceInCache(string instanceId, out DynamicTableEntity entity)
         {
-            return this.mruCache.TryGet(instanceId, out entity);
+            return this.lruCache.TryGet(instanceId, out entity);
         }
     }
 }
