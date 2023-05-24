@@ -16,7 +16,7 @@ namespace DurableTask.Core.Entities.OperationFormat
     using System.Collections.Generic;
 
     /// <summary>
-    /// Orchestrator action for creating sub-orchestrations.
+    /// Entity operation action for creating sub-orchestrations.
     /// </summary>
     public class StartNewOrchestrationOperationAction : OperationAction
     {

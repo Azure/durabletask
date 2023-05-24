@@ -306,7 +306,7 @@ namespace DurableTask.AzureStorage
             {
                 throw new InvalidOperationException("backend was not configured for separate entity processing");
             }
-            return this.LockNextTaskOrchestrationWorkItemAsync(true, cancellationToken);
+            return this.LockNextTaskOrchestrationWorkItemAsync(entitiesOnly: true, cancellationToken);
         }
 
         #endregion
@@ -604,7 +604,7 @@ namespace DurableTask.AzureStorage
             TimeSpan receiveTimeout,
             CancellationToken cancellationToken)
         {
-            return LockNextTaskOrchestrationWorkItemAsync(false, cancellationToken);
+            return LockNextTaskOrchestrationWorkItemAsync(entitiesOnly: false, cancellationToken);
         }
 
         async Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(bool entitiesOnly, CancellationToken cancellationToken)

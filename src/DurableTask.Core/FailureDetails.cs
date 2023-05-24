@@ -58,7 +58,7 @@ namespace DurableTask.Core
         /// <param name="e">The exception used to generate the failure details.</param>
         /// <param name="innerException">The inner exception to use.</param>
         public FailureDetails(Exception e, Exception innerException)
-            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, FromException(innerException), false)
+            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, FromException(innerException), isNonRetriable: false)
         {
         }
 

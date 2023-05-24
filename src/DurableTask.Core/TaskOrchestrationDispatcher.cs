@@ -119,11 +119,14 @@ namespace DurableTask.Core
         {
             if (this.entityOrchestrationService != null)
             {
-                // we call the entity interface to make sure we are receiving only true orchestrations here
+                // only orchestrations should be served by this dispatcher, so we call
+                // the method which returns work items for orchestrations only.
                 return this.entityOrchestrationService.LockNextOrchestrationWorkItemAsync(receiveTimeout, cancellationToken);
             }
             else
             {
+                // both entities and orchestrations are served by this dispatcher,
+                // so we call the method that may return work items for either.
                 return this.orchestrationService.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, cancellationToken);
             }
         }
@@ -328,7 +331,7 @@ namespace DurableTask.Core
             try
             {
                 // Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
-                if (!ReconcileMessagesWithState(workItem, "TaskOrchestrationDispatcher", logHelper))
+                if (!ReconcileMessagesWithState(workItem, nameof(TaskOrchestrationDispatcher), logHelper))
                 {
                     // TODO : mark an orchestration as faulted if there is data corruption
                     this.logHelper.DroppingOrchestrationWorkItem(workItem, "Received work-item for an invalid orchestration");

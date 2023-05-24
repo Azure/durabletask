@@ -77,7 +77,7 @@ namespace DurableTask.Core
             TaskOrchestration taskOrchestration,
             BehaviorOnContinueAsNew eventBehaviourForContinueAsNew,
             ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
-            : this(orchestrationRuntimeState, taskOrchestration, eventBehaviourForContinueAsNew, new EntityBackendProperties(), errorPropagationMode)
+            : this(orchestrationRuntimeState, taskOrchestration, eventBehaviourForContinueAsNew, null, errorPropagationMode)
         {
         }
 

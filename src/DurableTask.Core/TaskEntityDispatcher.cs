@@ -127,21 +127,12 @@ namespace DurableTask.Core
 
                 var isExtendedSession = false;
 
-                CorrelationTraceClient.Propagate(
-                    () =>
-                    {                
-                        // Check if it is extended session.
-                        isExtendedSession = this.concurrentSessionLock.Acquire();
-                        this.concurrentSessionLock.Release();
-                        workItem.IsExtendedSession = isExtendedSession;
-                    });
-
                 var processCount = 0;
                 try
                 {
                     while (true)
                     {
-                        // If the provider provided work items, execute them.
+                        // While the work item contains messages that need to be processed, execute them.
                         if (workItem.NewMessages?.Count > 0)
                         {
                             bool isCompletedOrInterrupted = await this.OnProcessWorkItemAsync(workItem);
@@ -209,9 +200,6 @@ namespace DurableTask.Core
         /// <param name="workItem">The work item to process</param>
         protected async Task<bool> OnProcessWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            // correlation
-            CorrelationTraceClient.Propagate(() => CorrelationTraceContext.Current = workItem.TraceContext);
-
             OrchestrationRuntimeState originalOrchestrationRuntimeState = workItem.OrchestrationRuntimeState;
 
             OrchestrationRuntimeState runtimeState = workItem.OrchestrationRuntimeState;
@@ -240,7 +228,7 @@ namespace DurableTask.Core
             try
             {
                 // Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
-                if (!TaskOrchestrationDispatcher.ReconcileMessagesWithState(workItem, "TaskEntityDispatcher", this.logHelper))
+                if (!TaskOrchestrationDispatcher.ReconcileMessagesWithState(workItem, nameof(TaskEntityDispatcher), this.logHelper))
                 {
                     // TODO : mark an orchestration as faulted if there is data corruption
                     this.logHelper.DroppingOrchestrationWorkItem(workItem, "Received work-item for an invalid orchestration");

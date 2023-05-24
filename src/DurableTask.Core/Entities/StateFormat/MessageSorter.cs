@@ -60,6 +60,10 @@ namespace DurableTask.Core.Entities
 
             DateTime timestamp = now;
 
+            // whenever (SendHorizon + reorderWindow < now) it is possible to advance the send horizon to (now - reorderWindow)
+            // and we can then clean out all the no-longer-needed entries of LastSentToInstance.
+            // However, to reduce the overhead of doing this collection, we don't update the send horizon immediately when possible.
+            // Instead, we make sure at least MinIntervalBetweenCollections passes between collections.
             if (SendHorizon + reorderWindow + MinIntervalBetweenCollections < now)
             {
                 SendHorizon = now - reorderWindow;
@@ -117,7 +121,10 @@ namespace DurableTask.Core.Entities
                 yield break;
             }
 
-            // advance the horizon based on the latest timestamp
+            // whenever (ReceiveHorizon + reorderWindow < message.Timestamp), we can advance the receive horizon to (message.Timestamp - reorderWindow)
+            // and then we can clean out all the no-longer-needed entries of ReceivedFromInstance.
+            // However, to reduce the overhead of doing this collection, we don't update the receive horizon immediately when possible.
+            // Instead, we make sure at least MinIntervalBetweenCollections passes between collections.
             if (ReceiveHorizon + reorderWindow + MinIntervalBetweenCollections < message.Timestamp)
             {
                 ReceiveHorizon = message.Timestamp - reorderWindow;
@@ -125,7 +132,7 @@ namespace DurableTask.Core.Entities
                 // deliver any messages that were held in the receive buffers
                 // but are now past the reorder window
 
-                List<string> emptyReceiveBuffers = new List<string>();
+                List<string> buffersToRemove = new List<string>();
 
                 if (ReceivedFromInstance != null)
                 {
@@ -133,6 +140,8 @@ namespace DurableTask.Core.Entities
                     {
                         if (kvp.Value.Last < ReceiveHorizon)
                         {
+                            // we reset Last to MinValue; this means all future messages received
+                            // are treated as if they were the first message received.  
                             kvp.Value.Last = DateTime.MinValue;
                         }
 
@@ -144,11 +153,13 @@ namespace DurableTask.Core.Entities
                         if (kvp.Value.Last == DateTime.MinValue
                             && (kvp.Value.Buffered == null || kvp.Value.Buffered.Count == 0))
                         {
-                            emptyReceiveBuffers.Add(kvp.Key);
+                            // we no longer need to store this buffer since it contains no relevant information anymore
+                            // (it is back to its initial "empty" state)
+                            buffersToRemove.Add(kvp.Key);
                         }
                     }
 
-                    foreach (var t in emptyReceiveBuffers)
+                    foreach (var t in buffersToRemove)
                     {
                         ReceivedFromInstance.Remove(t);
                     }

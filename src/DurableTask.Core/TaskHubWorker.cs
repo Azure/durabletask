@@ -98,7 +98,6 @@ namespace DurableTask.Core
         /// <param name="orchestrationService">Reference the orchestration service implementation</param>
         /// <param name="orchestrationObjectManager">NameVersionObjectManager for Orchestrations</param>
         /// <param name="activityObjectManager">NameVersionObjectManager for Activities</param>
-        /// <remarks></remarks>
         public TaskHubWorker(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskOrchestration> orchestrationObjectManager,
@@ -154,7 +153,8 @@ namespace DurableTask.Core
             this.orchestrationService = orchestrationService ?? throw new ArgumentException("orchestrationService");
             this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
 
-            // if the backend supports entities, configure it to collect entity work items in a separate queue.
+            // If the backend supports a separate work item queue for entities (indicated by it implementing IEntityOrchestrationService),
+            // we take note of that here, and let the backend know that we are going to pull the work items separately. 
             if (orchestrationService is IEntityOrchestrationService entityOrchestrationService)
             {
                 this.entityOrchestrationService = entityOrchestrationService;
@@ -359,7 +359,7 @@ namespace DurableTask.Core
         /// <returns></returns>
         public TaskHubWorker AddTaskEntities(params Type[] taskEntityTypes)
         {
-            if (this.SupportsEntities)
+            if (!this.SupportsEntities)
             {
                 throw new NotSupportedException("The configured backend does not support entities.");
             }
