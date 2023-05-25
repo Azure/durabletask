@@ -514,24 +514,15 @@ namespace DurableTask.AzureStorage
             this.allControlQueues[lease.PartitionId] = controlQueue;
         }
 
-        /// <summary>
-        /// Check if the current leases are still valid. If not, remove the queue from the orchestration session manager.
-        /// Used for table partition manager only. 
-        /// </summary>
-        /// <returns></returns>
-        internal Task CheckCurrentLeases()
+        internal void DropUnownedControlQueues(TableLease partition)
         {
-            var partitions = ((TablePartitionManager)this.partitionManager).GetTableLeases();
-            foreach(var partition in partitions)
+            //If lease is lost but still dequeing messages, remove the queue
+            if (this.allControlQueues.TryGetValue(partition.RowKey, out ControlQueue controlQueue) &&
+                this.OwnedControlQueues.Contains(controlQueue) &&
+                partition.CurrentOwner != this.settings.WorkerId)
             {
-                //If lease is lost but still dequeing messages, remove the queue
-                if (this.OwnedControlQueues.Contains(this.allControlQueues[partition.RowKey]) && partition.CurrentOwner != this.settings.WorkerId)
-                {
-                    this.orchestrationSessionManager.RemoveQueue(partition.RowKey, CloseReason.LeaseLost, this.settings.WorkerId);
-                    //Abandon message in memory
-                }
+                this.orchestrationSessionManager.RemoveQueue(partition.RowKey, CloseReason.LeaseLost, this.settings.WorkerId);
             }
-            return Utils.CompletedTask;
         }
 
         internal Task OnOwnershipLeaseReleasedAsync(BlobLease lease, CloseReason reason)
@@ -584,7 +575,7 @@ namespace DurableTask.AzureStorage
 
             string taskHub = azureStorageClient.Settings.TaskHubName;
 
-            // TODO: Need to check for leases in Azure Table Storage. Scale Controller calls into this method.)
+            //Need to check for leases in Azure Table Storage. Scale Controller calls into this method.
             
             int partitionCount;
             var partitionTable = azureStorageClient.GetTableReference(taskHub+"Partitions");
@@ -593,7 +584,7 @@ namespace DurableTask.AzureStorage
 
             if (await partitionTable.ExistsAsync())
             {
-                var result = await partitionTable.ExecuteQueryAsync(new TableQuery<DynamicTableEntity>());
+                TableEntitiesResponseInfo<DynamicTableEntity> result = await partitionTable.ExecuteQueryAsync(new TableQuery<DynamicTableEntity>());
                 partitionCount = result.ReturnedEntities.Count;
             }
             else
