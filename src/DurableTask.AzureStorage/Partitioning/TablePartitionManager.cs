@@ -52,23 +52,13 @@ namespace DurableTask.AzureStorage.Partitioning
             this.azureStorageClient = azureStorageClient;
             this.service = service;
             this.settings = settings;
-            this.tableName = "Partitions";
+            this.tableName = this.settings.TaskHubName + "Partitions";
             this.partitionManagerCancellationSource = new CancellationTokenSource();
             this.tableServiceClient = new TableServiceClient(this.settings.StorageConnectionString);
             this.partitionTable = tableServiceClient.GetTableClient(this.tableName);
             this.tableLeaseManager = new TableLeaseManager(this.partitionTable, this.service, this.settings);
         }
-        
-        string CreateTableName()
-        {
-            string name = this.settings.AppName + "Partitions";
-            //check if tableName has illegal symbol
-            if (name.Contains("-"))
-            {
-                name.Replace("-", string.Empty);
-            }
-            return name;
-        }
+
         
         /// <summary>
         /// This method create a new instance of the class TableLeaseManager that represents the worker. 
@@ -174,7 +164,7 @@ namespace DurableTask.AzureStorage.Partitioning
             }
             catch (RequestFailedException e) when (e.Status == 409 /* The specified entity already exists. */)
             {
-                this.settings.Logger.PartitionManagerWarning(
+                this.settings.Logger.PartitionManagerInfo(
                     "this.storageAccountName",// This will be changed to real storageAccountName later
                     this.settings.TaskHubName,
                     this.settings.WorkerId,
@@ -194,8 +184,7 @@ namespace DurableTask.AzureStorage.Partitioning
         /// <returns></returns>
         internal IEnumerable<TableLease> GetTableLeases()
         {
-            var partitions = this.partitionTable.Query<TableLease>();
-            return partitions;
+            return this.partitionTable.Query<TableLease>();
         }
 
         //internal used for testing
@@ -228,7 +217,6 @@ namespace DurableTask.AzureStorage.Partitioning
 
             public async Task<ReadTableReponse> ReadAndWriteTable()
             {
-                
                 var response = new ReadTableReponse();
                 Pageable<TableLease> partitions = myTable.Query<TableLease>();
                 Dictionary<string, List<TableLease>> partitionDistribution = new Dictionary<string, List<TableLease>>(); 

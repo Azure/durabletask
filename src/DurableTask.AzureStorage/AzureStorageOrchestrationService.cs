@@ -17,6 +17,7 @@ namespace DurableTask.AzureStorage
     using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Diagnostics.Tracing;
+    using System.Drawing;
     using System.Linq;
     using System.Net;
     using System.Runtime.CompilerServices;
@@ -513,6 +514,26 @@ namespace DurableTask.AzureStorage
             this.allControlQueues[lease.PartitionId] = controlQueue;
         }
 
+        /// <summary>
+        /// Check if the current leases are still valid. If not, remove the queue from the orchestration session manager.
+        /// Used for table partition manager only. 
+        /// </summary>
+        /// <returns></returns>
+        internal Task CheckCurrentLeases()
+        {
+            var partitions = ((TablePartitionManager)this.partitionManager).GetTableLeases();
+            foreach(var partition in partitions)
+            {
+                //If lease is lost but still dequeing messages, remove the queue
+                if (this.OwnedControlQueues.Contains(this.allControlQueues[partition.RowKey]) && partition.CurrentOwner != this.settings.WorkerId)
+                {
+                    this.orchestrationSessionManager.RemoveQueue(partition.RowKey, CloseReason.LeaseLost, this.settings.WorkerId);
+                    //Abandon message in memory
+                }
+            }
+            return Utils.CompletedTask;
+        }
+
         internal Task OnOwnershipLeaseReleasedAsync(BlobLease lease, CloseReason reason)
         {
             this.orchestrationSessionManager.RemoveQueue(lease.PartitionId, reason, "Ownership LeaseCollectionBalancer");
@@ -531,7 +552,7 @@ namespace DurableTask.AzureStorage
         internal async Task TableLeaseDrainAsync(TableLease lease, CloseReason reason)
         {
             using var cts = new CancellationTokenSource(delay: TimeSpan.FromSeconds(30));
-            await this.orchestrationSessionManager.DrainAsync(lease.RowKey, reason, cts.Token);
+            await this.orchestrationSessionManager.DrainAsync(lease.RowKey, reason, cts.Token, "Table Partition Manager");
         }
 
         // Used for testing
@@ -563,9 +584,10 @@ namespace DurableTask.AzureStorage
 
             string taskHub = azureStorageClient.Settings.TaskHubName;
 
-            // TODO: Need to check for leases in Azure Table Storage. Scale Controller calls into this method.
+            // TODO: Need to check for leases in Azure Table Storage. Scale Controller calls into this method.)
+            
             int partitionCount;
-            var partitionTable = azureStorageClient.GetTableReference("Partitions");
+            var partitionTable = azureStorageClient.GetTableReference(taskHub+"Partitions");
             // Check if table partition manager is used. If so, get partition count from table.
             // Else, get the partition count from the blobs.
 

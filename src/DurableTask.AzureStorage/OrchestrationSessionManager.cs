@@ -179,13 +179,14 @@ namespace DurableTask.AzureStorage
         /// prompting the worker to cease listening for new messages and it finishes processing all the existing information in memory.
         /// </summary>
         /// <param name="partitionId">The partition that is going to released.</param>
-        /// <param name="reason">Reason to trigger the drain proggress.</param>
+        /// <param name="reason">Reason to trigger the drain progres.</param>
         /// <param name="cancellationToken">Used to cancel the drain process if it takes too long.</param>
+        /// <param name="caller">The class that calls this method.</param>
         /// <returns></returns>
-        public async Task DrainAsync(string partitionId, CloseReason reason, CancellationToken cancellationToken)
+        public async Task DrainAsync(string partitionId, CloseReason reason, CancellationToken cancellationToken, string caller)
         {
             // Start the drain process, mark the queue released to stop listening for new message
-            this.ReleaseQueue(partitionId, reason, this.settings.WorkerId);
+            this.ReleaseQueue(partitionId, reason, caller);
             try
             {
                 // Wait until all messages from this queue has been processed.
@@ -207,7 +208,7 @@ namespace DurableTask.AzureStorage
             finally
             {
                 // Remove the partition from memory
-                this.RemoveQueue(partitionId, reason, this.settings.WorkerId);
+                this.RemoveQueue(partitionId, reason, caller);
             }
         }
 
