@@ -17,10 +17,8 @@ namespace DurableTask.AzureStorage
     using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Diagnostics.Tracing;
-    using System.Drawing;
     using System.Linq;
     using System.Net;
-    using System.Runtime.CompilerServices;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
@@ -35,7 +33,6 @@ namespace DurableTask.AzureStorage
     using DurableTask.Core.Query;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Table;
-    using Newtonsoft.Json;
 
     /// <summary>
     /// Orchestration service provider for the Durable Task Framework which uses Azure Storage as the durable store.
