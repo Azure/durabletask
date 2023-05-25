@@ -52,7 +52,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.azureStorageClient = azureStorageClient;
             this.service = service;
             this.settings = settings;
-            this.tableName = this.CreateTableName();
+            this.tableName = "Partitions";
             this.partitionManagerCancellationSource = new CancellationTokenSource();
             this.tableServiceClient = new TableServiceClient(this.settings.StorageConnectionString);
             this.partitionTable = tableServiceClient.GetTableClient(this.tableName);
@@ -69,6 +69,7 @@ namespace DurableTask.AzureStorage.Partitioning
             }
             return name;
         }
+        
         /// <summary>
         /// This method create a new instance of the class TableLeaseManager that represents the worker. 
         /// And then start the loop that the worker keeps operating on the table. 
@@ -157,19 +158,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         async Task IPartitionManager.CreateLeaseStore()
         {
-            try
-            {
-                await this.partitionTable.CreateIfNotExistsAsync();
-            }
-            catch (RequestFailedException ex)
-            {
-                this.settings.Logger.PartitionManagerError(
-                    "this.storageAccountName",// This will be changed to real storageAccountName later
-                    this.settings.TaskHubName,
-                    this.settings.WorkerId,
-                    "",
-                    $"Failed to create table Partitions. {ex.Message}");
-            }
+            await this.partitionTable.CreateIfNotExistsAsync();
         }
 
         async Task IPartitionManager.CreateLease(string leaseName)
@@ -185,7 +174,7 @@ namespace DurableTask.AzureStorage.Partitioning
             }
             catch (RequestFailedException e) when (e.Status == 409 /* The specified entity already exists. */)
             {
-                this.settings.Logger.PartitionManagerError(
+                this.settings.Logger.PartitionManagerWarning(
                     "this.storageAccountName",// This will be changed to real storageAccountName later
                     this.settings.TaskHubName,
                     this.settings.WorkerId,

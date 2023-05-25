@@ -563,7 +563,6 @@ namespace DurableTask.AzureStorage.Tests
                 TaskHubName = nameof(UpdateTaskHubJsonWithNewPartitionCount),
                 PartitionCount = 4,
                 UseAppLease = false,
-                UseTablePartitionManagement = false,
             };
 
             var service = new AzureStorageOrchestrationService(settings);

@@ -19,6 +19,7 @@ namespace DurableTask.AzureStorage
     using System.Diagnostics.Tracing;
     using System.Linq;
     using System.Net;
+    using System.Runtime.CompilerServices;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
@@ -32,6 +33,7 @@ namespace DurableTask.AzureStorage
     using DurableTask.Core.History;
     using DurableTask.Core.Query;
     using Microsoft.WindowsAzure.Storage;
+    using Microsoft.WindowsAzure.Storage.Table;
     using Newtonsoft.Json;
 
     /// <summary>
@@ -561,14 +563,29 @@ namespace DurableTask.AzureStorage
 
             string taskHub = azureStorageClient.Settings.TaskHubName;
 
-            BlobLeaseManager inactiveLeaseManager = GetBlobLeaseManager(azureStorageClient, "inactive");
+            // TODO: Need to check for leases in Azure Table Storage. Scale Controller calls into this method.
+            int partitionCount;
+            var partitionTable = azureStorageClient.GetTableReference("Partitions");
+            // Check if table partition manager is used. If so, get partition count from table.
+            // Else, get the partition count from the blobs.
 
-            TaskHubInfo hubInfo = await inactiveLeaseManager.GetOrCreateTaskHubInfoAsync(
-                GetTaskHubInfo(taskHub, defaultPartitionCount),
-                checkIfStale: false);
+            if (await partitionTable.ExistsAsync())
+            {
+                var result = await partitionTable.ExecuteQueryAsync(new TableQuery<DynamicTableEntity>());
+                partitionCount = result.ReturnedEntities.Count;
+            }
+            else
+            {
+                BlobLeaseManager inactiveLeaseManager = GetBlobLeaseManager(azureStorageClient, "inactive");
 
-            var controlQueues = new Queue[hubInfo.PartitionCount];
-            for (int i = 0; i < hubInfo.PartitionCount; i++)
+                TaskHubInfo hubInfo = await inactiveLeaseManager.GetOrCreateTaskHubInfoAsync(
+                    GetTaskHubInfo(taskHub, defaultPartitionCount),
+                    checkIfStale: false);
+                partitionCount = hubInfo.PartitionCount;
+            };
+
+            var controlQueues = new Queue[partitionCount];
+            for (int i = 0; i < partitionCount; i++)
             {
                 controlQueues[i] = azureStorageClient.GetQueueReference(GetControlQueueName(taskHub, i));
             }
