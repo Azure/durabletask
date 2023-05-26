@@ -52,7 +52,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.azureStorageClient = azureStorageClient;
             this.service = service;
             this.settings = settings;
-            this.partitionTableName = this.settings.TaskHubName + "Partitions";
+            this.partitionTableName = this.settings.PartitionTableName;
             this.storageAccountName = this.azureStorageClient.TableAccountName;
             this.partitionManagerCancellationSource = new CancellationTokenSource();
             this.tableServiceClient = new TableServiceClient(this.settings.StorageConnectionString);
