@@ -10,7 +10,6 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
 namespace DurableTask.AzureStorage
 {
     using System;
@@ -1838,15 +1837,15 @@ namespace DurableTask.AzureStorage
                 purgeInstanceFilter.RuntimeStatus);
             return storagePurgeHistoryResult.ToCorePurgeHistoryResult();
         }
-
+#nullable enable
         /// <summary>
         /// Wait for an orchestration to reach any terminal state within the given timeout
         /// </summary>
         /// <param name="instanceId">The orchestration instance to wait for.</param>
         /// <param name="executionId">The execution ID (generation) of the specified instance.</param>
-        /// <param name="timeout">Max timeout to wait.</param>
+        /// <param name="timeout">Max timeout to wait. Only positive values are allowed</param>
         /// <param name="cancellationToken">Task cancellation token.</param>
-        public async Task<OrchestrationState> WaitForOrchestrationAsync(
+        public async Task<OrchestrationState?> WaitForOrchestrationAsync(
             string instanceId,
             string executionId,
             TimeSpan timeout,
@@ -1855,6 +1854,13 @@ namespace DurableTask.AzureStorage
             if (string.IsNullOrWhiteSpace(instanceId))
             {
                 throw new ArgumentException(nameof(instanceId));
+            }
+
+            if (timeout < TimeSpan.Zero)
+            {
+                throw new ArgumentException($"The parameter {nameof(timeout)} cannot be negative." +
+                    $" The value for {nameof(timeout)} was '{timeout}'." +
+                    $" Please provide a positive timeout value.");
             }
 
             TimeSpan statusPollingInterval = TimeSpan.FromSeconds(2);
@@ -1909,7 +1915,7 @@ namespace DurableTask.AzureStorage
 
         // TODO: Change this to a sticky assignment so that partition count changes can
         //       be supported: https://github.com/Azure/azure-functions-durable-extension/issues/1
-        async Task<ControlQueue> GetControlQueueAsync(string instanceId)
+        async Task<ControlQueue?> GetControlQueueAsync(string instanceId)
         {
             uint partitionIndex = Fnv1aHashHelper.ComputeHash(instanceId) % (uint)this.settings.PartitionCount;
             string queueName = GetControlQueueName(this.settings.TaskHubName, (int)partitionIndex);
@@ -1980,12 +1986,12 @@ namespace DurableTask.AzureStorage
 
         class PendingMessageBatch
         {
-            public string OrchestrationInstanceId { get; set; }
-            public string OrchestrationExecutionId { get; set; }
+            public string? OrchestrationInstanceId { get; set; }
+            public string? OrchestrationExecutionId { get; set; }
 
             public List<MessageData> Messages { get; set; } = new List<MessageData>();
 
-            public OrchestrationRuntimeState Orchestrationstate { get; set; }
+            public OrchestrationRuntimeState? Orchestrationstate { get; set; }
         }
 
         class ResettableLazy<T>
@@ -1995,7 +2001,10 @@ namespace DurableTask.AzureStorage
 
             Lazy<T> lazy;
 
+            // Supress warning because it's incorrect: the lazy variable is initialized in the constructor, in the `Reset()` method
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
             public ResettableLazy(Func<T> valueFactory, LazyThreadSafetyMode mode)
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
             {
                 this.valueFactory = valueFactory;
                 this.threadSafetyMode = mode;
@@ -2025,3 +2034,4 @@ namespace DurableTask.AzureStorage
         }
     }
 }
+#nullable disable
