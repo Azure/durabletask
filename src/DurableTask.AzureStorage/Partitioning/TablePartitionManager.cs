@@ -182,12 +182,6 @@ namespace DurableTask.AzureStorage.Partitioning
             return this.partitionTable.Query<TableLease>();
         }
 
-        //internal used for testing
-        internal void KillLoop()
-        {
-            this.partitionManagerCancellationSource.Cancel();
-        }
-
         Task IPartitionManager.DeleteLeases()
         {
             return this.partitionTable.DeleteAsync();
@@ -222,7 +216,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 foreach (TableLease partition in partitions)
                 {
                     // Check to see if we're listening to any queues that we shouldn't be
-                    this.service.DropUnownedControlQueues(partition);
+                    this.service.DropLostControlQueues(partition);
 
                     bool isClaimedLease = false;
                     bool isStealedLease = false;
@@ -562,6 +556,19 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             public bool WorkOnRelease { get; set; } = false;
             public bool WaitForPartition { get; set; } = false;
+        }
+
+        //only used for testing
+        //Used to simulate worker becomes unhealthy and restarts again after 1 minute
+        internal async void SimulateUnhealthyWorker(CancellationToken testToken)
+        {
+            await Task.Factory.StartNew(() => this.PartitionManagerLoop(testToken));
+        }
+
+        //internal used for testing
+        internal void KillLoop()
+        {
+            this.partitionManagerCancellationSource.Cancel();
         }
 
         public void Dispose()

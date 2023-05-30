@@ -511,7 +511,7 @@ namespace DurableTask.AzureStorage
             this.allControlQueues[lease.PartitionId] = controlQueue;
         }
 
-        internal void DropUnownedControlQueues(TableLease partition)
+        internal void DropLostControlQueues(TableLease partition)
         {
             //If lease is lost but still dequeing messages, remove the queue
             if (this.allControlQueues.TryGetValue(partition.RowKey, out ControlQueue controlQueue) &&
@@ -549,13 +549,19 @@ namespace DurableTask.AzureStorage
             return this.partitionManager.GetOwnershipBlobLeases();
         }
 
-        //used for tablePartitionManager testing
+        //used for table partition manager testing
         internal IEnumerable<TableLease> ListTableLeases()
         {
             return ((TablePartitionManager)this.partitionManager).GetTableLeases();
         }
 
-        //used for tablePartitionManager testing
+        //used for table partition manager testing.
+        internal void SimulateUnhealthyWorker(CancellationToken testToken)
+        {
+            ((TablePartitionManager)this.partitionManager).SimulateUnhealthyWorker(testToken);
+        }
+
+        //used for table partition manager testing
         internal void KillPartitionManagerLoop()
         {
             ((TablePartitionManager)this.partitionManager).KillLoop();
