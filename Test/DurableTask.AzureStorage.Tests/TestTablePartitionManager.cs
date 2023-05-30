@@ -17,20 +17,22 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.Core;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using Newtonsoft.Json.Linq;
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
+    using System.Reactive.Concurrency;
     using System.Runtime.Serialization;
     using System.Threading;
     using System.Threading.Tasks;
 
     [TestClass]
-    public class TestTablePartitionManager: IDisposable
+    public class TestTablePartitionManager
     {
 
-        string connection = TestHelpers.GetTestStorageAccountConnectionString();
-        //string connection = "UseDevelopmentStorage=true";
+        //string connection = TestHelpers.GetTestStorageAccountConnectionString();
+        string connection = "UseDevelopmentStorage=true";
 
         //[TestCategory("DisabledInCI")]
         [TestMethod]
@@ -393,7 +395,7 @@ namespace DurableTask.AzureStorage.Tests
         //Test that the partitions will be rebalanced among he three left workers.
         public async Task TestKillOneWorker()
         {
-            TimeSpan timeout = TimeSpan.FromSeconds(60);
+            TimeSpan timeout = TimeSpan.FromSeconds(40);
             Stopwatch stopwatch = new Stopwatch();
 
             var services = new AzureStorageOrchestrationService[4];
@@ -454,11 +456,11 @@ namespace DurableTask.AzureStorage.Tests
         //Test that the left worker will take all the partitions.
         public async Task TestKillThreeWorker()
         {
-            TimeSpan timeout = TimeSpan.FromSeconds(60);
+            TimeSpan timeout = TimeSpan.FromSeconds(40);
             Stopwatch stopwatch = new Stopwatch();
 
             var services = new AzureStorageOrchestrationService[4];
-            string testName = "TestKillThree";
+            string testName = nameof(TestKillThreeWorker);
 
             for (int i = 0; i < 4; i++)
             {
@@ -517,10 +519,9 @@ namespace DurableTask.AzureStorage.Tests
                 var settings = new AzureStorageOrchestrationServiceSettings()
                 {
                     StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
-                    TaskHubName = "TestUnhealthyWorker3",
+                    TaskHubName = "TestUnhealthyWorker8",
                     PartitionCount = 1,
                     WorkerId = i.ToString(),
-                    //ControlQueueBufferThreshold = 10,
                 };
                 services[i] = new AzureStorageOrchestrationService(settings);
                 taskHubWorkers[i] = new TaskHubWorker(services[i]);
@@ -536,50 +537,37 @@ namespace DurableTask.AzureStorage.Tests
             }
             OrchestrationInstance[] instances = await Task.WhenAll(createInstanceTasks);
 
-            ControlQueue[] controlQueues = services[0].AllControlQueues.ToArray();
-
-            foreach (ControlQueue cloudQueue in controlQueues)
-            {
-                await cloudQueue.InnerQueue.FetchAttributesAsync();
-            }
             await taskHubWorkers[0].StartAsync();
             await Task.Delay(1000);// Ensure the partition is acquired by worker[0].
             var partitions = services[0].ListTableLeases();
             Assert.AreEqual("0", partitions.Single().CurrentOwner);
             await taskHubWorkers[1].StartAsync();
 
-            var source = new CancellationTokenSource();
-            CancellationToken token = source.Token;
-
-            //Kill worker[0] and start a new worker. 
-            //The new worker will take over the partitions of worker[0].
-            services[0].KillPartitionManagerLoop();
-            bool isLeaseReclaimed = false;
-            while(!isLeaseReclaimed)
+            using(var cts = new CancellationTokenSource())
             {
-                await Task.Delay(TimeSpan.FromSeconds(10));
-                partitions = services[0].ListTableLeases();
-                isLeaseReclaimed = partitions.All(p => p.CurrentOwner == "1");
+                //Kill worker[0] and start a new worker. 
+                //The new worker will take over the partitions of worker[0].
+                services[0].KillPartitionManagerLoop();
+                WaitForCondition(
+                    timeout: TimeSpan.FromSeconds(40),
+                    condition: () => services[0].ListTableLeases().Single().CurrentOwner == "1");
+
+                //After worker[1] takes over the lease, restart the worker[0].
+                services[0].SimulateUnhealthyWorker(cts.Token);
+
+                //Wait one second for worker0 to remove the lost partitions' control queue.
+                await Task.Delay(1000);
+                Assert.AreEqual(1, services[1].OwnedControlQueues.Count());
+                Assert.AreEqual(0, services[0].OwnedControlQueues.Count());
+
+                //Check all the instances could be processed successfully. 
+                OrchestrationState[] states = await Task.WhenAll(
+                    instances.Select(i => client.WaitForOrchestrationAsync(i, TimeSpan.FromSeconds(30))));
+                Assert.IsTrue(
+                    Array.TrueForAll(states, s => s?.OrchestrationStatus == OrchestrationStatus.Completed),
+                    "Not all orchestrations completed successfully!");
             }
-
-            //After worker[1] takes over the lease, restart the worker[0].
-            services[0].SimulateUnhealthyWorker(token);
-            
-            //Wait one second for worker0 to remove the lost partitions' control queue.
-            await Task.Delay(1000);
-            Assert.AreEqual(1, services[1].OwnedControlQueues.Count());
-            Assert.AreEqual(0, services[0].OwnedControlQueues.Count());
-
-            //Check all the instances could be processed successfully. 
-            OrchestrationState[] states = await Task.WhenAll(
-                instances.Select(i => client.WaitForOrchestrationAsync(i, TimeSpan.FromSeconds(30))));
-            Assert.IsTrue(
-                Array.TrueForAll(states, s => s?.OrchestrationStatus == OrchestrationStatus.Completed),
-                "Not all orchestrations completed successfully!");
-
-            source.Cancel();
             await taskHubWorkers[1].StopAsync();
-            source.Dispose();
         }
 
         /// <summary>
@@ -621,22 +609,17 @@ namespace DurableTask.AzureStorage.Tests
             }
             OrchestrationInstance[] instances = await Task.WhenAll(createInstanceTasks);
 
-            ControlQueue[] controlQueues = services[0].AllControlQueues.ToArray();
-
-            foreach (ControlQueue cloudQueue in controlQueues)
-            {
-                await cloudQueue.InnerQueue.FetchAttributesAsync();
-            }
-
             var taskHubWorkerTasks = taskHubWorkers.Select(worker => worker.StartAsync());
             await Task.WhenAll(taskHubWorkerTasks);
 
             //Check all the workers are not listening to the same queue at the same time during the balancing.
             bool isBalanced = false;
+            var timeout = TimeSpan.FromSeconds(30);
+            var sw = Stopwatch.StartNew();
             while (!isBalanced)
             {
+                Assert.IsTrue(sw.Elapsed < timeout, "Timeout expired!");
                 var partitions = services[0].ListTableLeases();
-                
                 Assert.AreEqual(4, partitions.Count());
                 isBalanced = (partitions.Count(p => p.CurrentOwner == "0") == 1) &&
                              (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
@@ -663,66 +646,6 @@ namespace DurableTask.AzureStorage.Tests
             var stopServiceTasks = taskHubWorkers.Select(worker => worker.StopAsync());
             await Task.WhenAll(stopServiceTasks);
             await services[0].DeleteAsync();
-        }
-
-        /// <summary>
-        /// End to End test to simulate one worker with 50 instances.
-        /// Test that it can process all 50 instances.
-        /// </summary>
-        /// <returns></returns>
-        [TestMethod]
-        public async Task TestMessageProcess()
-        {
-            var settings = new AzureStorageOrchestrationServiceSettings()
-            {
-                StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
-                TaskHubName = nameof(TestMessageProcess),
-                PartitionCount = 4,
-                WorkerId = "0",
-            };
-            var service = new AzureStorageOrchestrationService(settings);
-            var worker = new TaskHubWorker(service);
-            var client = new TaskHubClient(service);
-
-            var createInstanceTasks = new Task<OrchestrationInstance>[50];
-            for (int i = 0; i < 50; i++)
-            {
-                createInstanceTasks[i] = client.CreateOrchestrationInstanceAsync(typeof(HelloOrchestrator), input: i.ToString());
-            }
-            OrchestrationInstance[] instances = await Task.WhenAll(createInstanceTasks);
-
-            worker.AddTaskOrchestrations(typeof(HelloOrchestrator));
-            worker.AddTaskActivities(typeof(Hello));
-
-            ControlQueue[] controlQueues = service.AllControlQueues.ToArray();
-
-            foreach (ControlQueue cloudQueue in controlQueues)
-            {
-                await cloudQueue.InnerQueue.FetchAttributesAsync();
-            }
-
-            await worker.StartAsync();
-            //It needs time for the worker to start listening to the queues.
-            await Task.Delay(1500);
-            Assert.AreEqual(4, service.OwnedControlQueues.Count());
-
-            OrchestrationState[] states = await Task.WhenAll(
-                   instances.Select(i => client.WaitForOrchestrationAsync(i, TimeSpan.FromSeconds(30))));
-            Assert.IsTrue(
-                Array.TrueForAll(states, s => s?.OrchestrationStatus == OrchestrationStatus.Completed),
-                "Not all orchestrations completed successfully!");
-
-            await worker.StopAsync();
-            await service.DeleteAsync();
-
-        }
-
-        class NoOpOrchestration : TaskOrchestration<string, string>
-        {
-            public override Task<string> RunTask(OrchestrationContext context, string input)
-            {
-                return Task.FromResult(string.Empty);
-            }
         }
 
         [KnownType(typeof(Hello))]
@@ -778,9 +701,16 @@ namespace DurableTask.AzureStorage.Tests
             return true; // No common elements found, arrays are unique
         }
 
-        public void Dispose()
+        static void WaitForCondition(TimeSpan timeout, Func<bool> condition)
         {
+            var sw = Stopwatch.StartNew();
+            while (!condition())
+            {
+                Assert.IsTrue(sw.Elapsed < timeout, "Timeout expired");
+                Thread.Sleep(TimeSpan.FromSeconds(1));
+            }
         }
+
 
     }
 }

@@ -152,18 +152,21 @@ namespace DurableTask.AzureStorage
                 this.stats,
                 this.trackingStore);
 
-            if (this.settings.UseTablePartitionManagement)
+            if (this.settings.UseTablePartitionManagement && !this.settings.UseLegacyPartitionManagement)
             {
                 this.partitionManager = new TablePartitionManager(
-                    this.azureStorageClient,
                     this,
-                    this.settings);
+                    this.azureStorageClient);
             }
-            else if (this.settings.UseLegacyPartitionManagement)
+            else if (this.settings.UseLegacyPartitionManagement && !this.settings.UseTablePartitionManagement)
             {
                 this.partitionManager = new LegacyPartitionManager(
                     this,
                     this.azureStorageClient);
+            }
+            else if (this.settings.UseTablePartitionManagement && this.settings.UseLegacyPartitionManagement)
+            {
+                throw new ArgumentException("Cannot use both TablePartitionManagement and LegacyPartitionManagement.");
             }
             else
             {

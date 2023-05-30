@@ -35,12 +35,12 @@ namespace DurableTask.AzureStorage.Partitioning
         public string? RowKey { get; set; }
 
         /// <summary>
-        /// The current owner name for this lease. 
+        /// The current owner of this lease. 
         /// </summary>
         public string? CurrentOwner { get; set; }
 
         /// <summary>
-        /// The name of the worker that is stealing this lease, null if nobody is actively stealing it.
+        /// The name of the worker is stealing this lease. It's null if no worker is actively stealing it.
         /// </summary>
         public string? NextOwner { get; set; }
 

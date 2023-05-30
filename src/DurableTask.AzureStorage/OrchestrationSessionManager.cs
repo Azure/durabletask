@@ -176,7 +176,7 @@ namespace DurableTask.AzureStorage
 
         /// <summary>
         /// The drain process occurs when the lease is stolen or the worker is shutting down, 
-        /// prompting the worker to cease listening for new messages and it finishes processing all the existing information in memory.
+        /// prompting the worker to cease listening for new messages and to finish processing all the existing information in memory.
         /// </summary>
         /// <param name="partitionId">The partition that is going to released.</param>
         /// <param name="reason">Reason to trigger the drain progres.</param>
