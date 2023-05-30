@@ -31,8 +31,7 @@ namespace DurableTask.AzureStorage.Tests
     public class TestTablePartitionManager
     {
 
-        //string connection = TestHelpers.GetTestStorageAccountConnectionString();
-        string connection = "UseDevelopmentStorage=true";
+        readonly string connection = TestHelpers.GetTestStorageAccountConnectionString();
 
         //[TestCategory("DisabledInCI")]
         [TestMethod]
