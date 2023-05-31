@@ -104,6 +104,6 @@ namespace DurableTask.AzureStorage.Tracking
         public abstract Task StartAsync(CancellationToken cancellationToken = default);
 
         /// <inheritdoc />
-        public abstract Task<ETag?> UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, ETag? eTag, CancellationToken cancellationToken = default);
+        public abstract Task<ETag?> UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, ETag? eTag, object executionData, CancellationToken cancellationToken = default);
     }
 }
