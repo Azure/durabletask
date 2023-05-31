@@ -39,6 +39,7 @@ namespace DurableTask.AzureStorage.Messaging
             OrchestrationRuntimeState runtimeState,
             ETag? eTag,
             DateTime lastCheckpointTime,
+            object trackingStoreContext,
             TimeSpan idleTimeout,
             Guid traceActivityId)
             : base(settings, storageAccountName, orchestrationInstance, traceActivityId)
@@ -49,6 +50,7 @@ namespace DurableTask.AzureStorage.Messaging
             this.RuntimeState = runtimeState ?? throw new ArgumentNullException(nameof(runtimeState));
             this.ETag = eTag;
             this.LastCheckpointTime = lastCheckpointTime;
+            this.TrackingStoreContext = trackingStoreContext;
 
             this.messagesAvailableEvent = new AsyncAutoResetEvent(signaled: false);
             this.nextMessageBatch = new MessageCollection();
@@ -67,6 +69,8 @@ namespace DurableTask.AzureStorage.Messaging
         public ETag? ETag { get; set; }
 
         public DateTime LastCheckpointTime { get; }
+
+        public object TrackingStoreContext { get; }
 
         public IReadOnlyList<MessageData> PendingMessages => this.nextMessageBatch;
 

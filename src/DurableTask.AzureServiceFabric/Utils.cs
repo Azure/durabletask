@@ -23,25 +23,52 @@ namespace DurableTask.AzureServiceFabric
 
     internal static class Utils
     {
-        public static OrchestrationState BuildOrchestrationState(OrchestrationRuntimeState runtimeState)
+        public static OrchestrationState BuildOrchestrationState(TaskOrchestrationWorkItem workitem)
         {
-            return new OrchestrationState
+            var runtimeState = workitem.OrchestrationRuntimeState;
+            if (runtimeState == null)
             {
-                OrchestrationInstance = runtimeState.OrchestrationInstance,
-                ParentInstance = runtimeState.ParentInstance,
-                Name = runtimeState.Name,
-                Version = runtimeState.Version,
-                Status = runtimeState.Status,
-                Tags = runtimeState.Tags,
-                OrchestrationStatus = runtimeState.OrchestrationStatus,
-                CreatedTime = runtimeState.CreatedTime,
-                CompletedTime = runtimeState.CompletedTime,
-                LastUpdatedTime = DateTime.UtcNow,
-                Size = runtimeState.Size,
-                CompressedSize = runtimeState.CompressedSize,
-                Input = runtimeState.Input,
-                Output = runtimeState.Output
-            };
+                throw new ArgumentNullException("runtimeState");
+            }
+
+            if (runtimeState.ExecutionStartedEvent != null)
+            {
+                return new OrchestrationState
+                {
+                    OrchestrationInstance = runtimeState.OrchestrationInstance,
+                    ParentInstance = runtimeState.ParentInstance,
+                    Name = runtimeState.Name,
+                    Version = runtimeState.Version,
+                    Status = runtimeState.Status,
+                    Tags = runtimeState.Tags,
+                    OrchestrationStatus = runtimeState.OrchestrationStatus,
+                    CreatedTime = runtimeState.CreatedTime,
+                    CompletedTime = runtimeState.CompletedTime,
+                    LastUpdatedTime = DateTime.UtcNow,
+                    Size = runtimeState.Size,
+                    CompressedSize = runtimeState.CompressedSize,
+                    Input = runtimeState.Input,
+                    Output = runtimeState.Output
+                };
+            }
+            else
+            {
+                // Create a custom state for a bad orchestration
+                return new OrchestrationState
+                {
+                    OrchestrationInstance = new OrchestrationInstance { InstanceId = workitem.InstanceId },
+                    ParentInstance = runtimeState.ParentInstance,
+                    Status = runtimeState.Status,
+                    Tags = runtimeState.Tags,
+                    OrchestrationStatus = OrchestrationStatus.Terminated,
+                    CompletedTime = runtimeState.CompletedTime,
+                    LastUpdatedTime = DateTime.UtcNow,
+                    Size = runtimeState.Size,
+                    CompressedSize = runtimeState.CompressedSize,
+                    Output = "Orchestration dropped"
+                };
+            }
+
         }
 
         public static TimeSpan Measure(Action action)
