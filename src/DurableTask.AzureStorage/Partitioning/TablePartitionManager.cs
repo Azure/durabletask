@@ -52,6 +52,10 @@ namespace DurableTask.AzureStorage.Partitioning
             this.settings = this.azureStorageClient.Settings;
             this.partitionTableName = this.settings.PartitionTableName;
             this.storageAccountName = this.azureStorageClient.TableAccountName;
+            if(this.settings.StorageConnectionString == null)
+            {
+                throw new Exception("Connection string is null. Managed identity is not supported in the table partition manager yet.");
+            }
             this.partitionManagerCancellationSource = new CancellationTokenSource();
             this.tableServiceClient = new TableServiceClient(this.settings.StorageConnectionString);
             this.partitionTable = tableServiceClient.GetTableClient(this.partitionTableName);
@@ -71,7 +75,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.settings.TaskHubName,
                 this.settings.WorkerId,
                 "", //Empty string as it does not target any particular partition, but rather only initiates the partition manager.
-                $"Worker {this.settings.WorkerId} starts working on acquiring and balancing leases.");
+                $"Worker {this.settings.WorkerId} starts acquiring and balancing leases.");
         }
 
         async Task PartitionManagerLoop(CancellationToken token)
@@ -108,18 +112,18 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.settings.TaskHubName,
                 this.settings.WorkerId,
                 "",
-                $"Worker {this.settings.WorkerId} strats draining all ownership leases.");
+                $"Worker {this.settings.WorkerId} starts draining all ownership leases.");
 
-            bool shouldRetry = false;
+            bool isFinish = false;
             //Shutting down is to drain all the current leases and then release them.
-            //Thus the worker checks table every one sec to ensure timely updates.
+            //Thus the worker checks table every 1 second to see if the realease of all ownership lease finishes to ensure timely updates.
             TimeSpan timeToSleep = TimeSpan.FromSeconds(1);
 
-            while (!shouldRetry)
+            while (!isFinish)
             {
                 try
                 {
-                    shouldRetry = await this.tableLeaseManager.ShutDown();
+                    isFinish = await this.tableLeaseManager.ShutDown();
                 }
                 catch
                 {
@@ -392,10 +396,10 @@ namespace DurableTask.AzureStorage.Partitioning
 
                     while (numOfLeaseToSteal > 0)
                     {
-                        int n = 0;
+                        int checkedPartitionCount = 0;
                         foreach (KeyValuePair<string, List<TableLease>> pair in partitionDistribution)
                         {
-                            n++;
+                            checkedPartitionCount++;
                             int currentWorkerNumofLeases = pair.Value.Count;
                             if (currentWorkerNumofLeases > numLeasePerWorkerForBalance)
                             {
@@ -428,7 +432,7 @@ namespace DurableTask.AzureStorage.Partitioning
                             }
                             if (numOfLeaseToSteal == 0) { break; }
                         }
-                        if (n == partitionDistribution.Count) { break; }
+                        if (checkedPartitionCount == partitionDistribution.Count) { break; }
                     }
                 }
                 return response;
@@ -549,15 +553,8 @@ namespace DurableTask.AzureStorage.Partitioning
                     }
 
                 }
-                if (leaseNum == 0)
-                {
-                    return true;
-                }
-                else
-                {
-                    return false;
-                }
-
+                var isReleasedAllLease = (leaseNum == 0);
+                return isReleasedAllLease;
             }
         }
 
@@ -569,7 +566,10 @@ namespace DurableTask.AzureStorage.Partitioning
         /// </summary>
         class ReadTableReponse
         {
+            //If set to true, it indicates that the VM is working on release lease. 
             public bool WorkOnRelease { get; set; } = false;
+            
+            //If set to true, it indicates that the VM is waiting for a lease to be released.
             public bool WaitForPartition { get; set; } = false;
         }
 

@@ -19,8 +19,7 @@ namespace DurableTask.AzureStorage.Partitioning
     using Azure.Data.Tables;
 
     /// <summary>
-    /// This class defines the partition lease that will be saved in the Table storage.
-    /// It's only used for table partition manager.
+    /// The partition lease used by the table partition manager.
     /// </summary>
     public class TableLease : ITableEntity
     {
@@ -40,7 +39,7 @@ namespace DurableTask.AzureStorage.Partitioning
         public string? CurrentOwner { get; set; }
 
         /// <summary>
-        /// The name of the worker is stealing this lease. It's null if no worker is actively stealing it.
+        /// The name of the worker stealing this lease. It's null if no worker is actively stealing it.
         /// </summary>
         public string? NextOwner { get; set; }
 
