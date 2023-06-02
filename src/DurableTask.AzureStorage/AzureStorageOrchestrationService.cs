@@ -1867,17 +1867,13 @@ namespace DurableTask.AzureStorage
             TimeSpan statusPollingInterval = TimeSpan.FromSeconds(2);
             while (!cancellationToken.IsCancellationRequested)
             {
-                OrchestrationState state = await this.GetOrchestrationStateAsync(instanceId, executionId);
-                if (state == null ||
-                    state.OrchestrationStatus == OrchestrationStatus.Running ||
-                    state.OrchestrationStatus == OrchestrationStatus.Suspended ||
-                    state.OrchestrationStatus == OrchestrationStatus.Pending ||
-                    state.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)
-                {
-                    await Task.Delay(statusPollingInterval, cancellationToken);
-                    timeout -= statusPollingInterval;
-                }
-                else
+                OrchestrationState? state = await this.GetOrchestrationStateAsync(instanceId, executionId);
+                
+                if (state != null &&
+                    state.OrchestrationStatus != OrchestrationStatus.Running &&
+                    state.OrchestrationStatus != OrchestrationStatus.Suspended &&
+                    state.OrchestrationStatus != OrchestrationStatus.Pending &&
+                    state.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew)
                 {
                     if (this.settings.FetchLargeMessageDataEnabled)
                     {
@@ -1886,14 +1882,17 @@ namespace DurableTask.AzureStorage
                     }
                     return state;
                 }
-
+                
+                timeout -= statusPollingInterval;
+                
                 // For a user-provided timeout of `TimeSpan.Zero`,
                 // we want to check the status of the orchestration once and then return.
-                // Therefore, we check the timeout condition after the first status check.
+                // Therefore, we check the timeout condition after the status check.
                 if (!isInfiniteTimeSpan && (timeout <= TimeSpan.Zero))
                 {
                     break;
                 }
+                await Task.Delay(statusPollingInterval, cancellationToken);
             }
 
             return null;
