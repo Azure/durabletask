@@ -1843,7 +1843,7 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="instanceId">The orchestration instance to wait for.</param>
         /// <param name="executionId">The execution ID (generation) of the specified instance.</param>
-        /// <param name="timeout">Max timeout to wait.</param>
+        /// <param name="timeout">Max timeout to wait. Only positive `TimeSpan` values, or `Timeout.InfiniteTimeSpan`, are allowed.</param>
         /// <param name="cancellationToken">Task cancellation token.</param>
         public async Task<OrchestrationState?> WaitForOrchestrationAsync(
             string instanceId,
@@ -1856,10 +1856,16 @@ namespace DurableTask.AzureStorage
                 throw new ArgumentException(nameof(instanceId));
             }
 
-            // only check timeout only if it is a positive value
-            var ignoreTimeout = timeout < TimeSpan.Zero;
+            bool isInfiniteTimeSpan = timeout == Timeout.InfiniteTimeSpan;
+            if (timeout < TimeSpan.Zero && !isInfiniteTimeSpan)
+            {
+                throw new ArgumentException($"The parameter {nameof(timeout)} cannot be negative." +
+                    $" The value for {nameof(timeout)} was '{timeout}'." +
+                    $" Please provide either positive timeout value, or `Timeout.InfiniteTimeSpan`.");
+            }
+
             TimeSpan statusPollingInterval = TimeSpan.FromSeconds(2);
-            while (!cancellationToken.IsCancellationRequested && (ignoreTimeout || (timeout > TimeSpan.Zero)))
+            while (!cancellationToken.IsCancellationRequested && (isInfiniteTimeSpan || (timeout > TimeSpan.Zero)))
             {
                 OrchestrationState state = await this.GetOrchestrationStateAsync(instanceId, executionId);
                 if (state == null ||
