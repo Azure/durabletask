@@ -1843,7 +1843,7 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="instanceId">The orchestration instance to wait for.</param>
         /// <param name="executionId">The execution ID (generation) of the specified instance.</param>
-        /// <param name="timeout">Max timeout to wait. Only positive <see cref="TimeSpan"/> values or <see cref="Timeout.InfiniteTimeSpan"/> are allowed.</param>
+        /// <param name="timeout">Max timeout to wait. Only positive <see cref="TimeSpan"/> values, <see cref="TimeSpan.Zero"/>, or <see cref="Timeout.InfiniteTimeSpan"/> are allowed.</param>
         /// <param name="cancellationToken">Task cancellation token.</param>
         public async Task<OrchestrationState?> WaitForOrchestrationAsync(
             string instanceId,
