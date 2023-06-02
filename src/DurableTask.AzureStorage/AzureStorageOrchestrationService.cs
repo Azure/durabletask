@@ -1843,7 +1843,7 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="instanceId">The orchestration instance to wait for.</param>
         /// <param name="executionId">The execution ID (generation) of the specified instance.</param>
-        /// <param name="timeout">>Max timeout to wait. Only positive <see cref="TimeSpan"/> values or <see cref="Timeout.InfiniteTimeSpan"/> are allowed.</param>
+        /// <param name="timeout">Max timeout to wait. Only positive <see cref="TimeSpan"/> values or <see cref="Timeout.InfiniteTimeSpan"/> are allowed.</param>
         /// <param name="cancellationToken">Task cancellation token.</param>
         public async Task<OrchestrationState?> WaitForOrchestrationAsync(
             string instanceId,
@@ -1865,7 +1865,7 @@ namespace DurableTask.AzureStorage
             }
 
             TimeSpan statusPollingInterval = TimeSpan.FromSeconds(2);
-            while (!cancellationToken.IsCancellationRequested && (isInfiniteTimeSpan || (timeout >= TimeSpan.Zero)))
+            while (!cancellationToken.IsCancellationRequested)
             {
                 OrchestrationState state = await this.GetOrchestrationStateAsync(instanceId, executionId);
                 if (state == null ||
@@ -1885,6 +1885,14 @@ namespace DurableTask.AzureStorage
                         state.Output = await this.messageManager.FetchLargeMessageIfNecessary(state.Output);
                     }
                     return state;
+                }
+
+                // For a user-provided timeout of `TimeSpan.Zero`,
+                // we want to check the status of the orchestration once and then return.
+                // Therefore, we check the timeout condition after the first status check.
+                if (!isInfiniteTimeSpan && (timeout <= TimeSpan.Zero))
+                {
+                    break;
                 }
             }
 
