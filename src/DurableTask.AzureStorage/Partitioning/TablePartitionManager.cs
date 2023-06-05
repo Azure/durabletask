@@ -15,6 +15,7 @@
 namespace DurableTask.AzureStorage.Partitioning
 {
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading;
@@ -34,8 +35,8 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly CancellationTokenSource partitionManagerCancellationSource;
         readonly string partitionTableName;
         readonly string storageAccountName;
-        TableServiceClient tableServiceClient;
-        TableClient partitionTable;
+        readonly TableServiceClient tableServiceClient;
+        readonly TableClient partitionTable;
         readonly TableLeaseManager tableLeaseManager;
 
         /// <summary>
@@ -58,7 +59,7 @@ namespace DurableTask.AzureStorage.Partitioning
             }
             this.partitionManagerCancellationSource = new CancellationTokenSource();
             this.tableServiceClient = new TableServiceClient(this.settings.StorageConnectionString);
-            this.partitionTable = tableServiceClient.GetTableClient(this.partitionTableName);
+            this.partitionTable = this.tableServiceClient.GetTableClient(this.partitionTableName);
             this.tableLeaseManager = new TableLeaseManager(this.partitionTable, this.service, this.settings, this.storageAccountName);
         }
 
@@ -191,13 +192,13 @@ namespace DurableTask.AzureStorage.Partitioning
             readonly string workerName;
             readonly AzureStorageOrchestrationService service;
             readonly AzureStorageOrchestrationServiceSettings settings;
-            readonly TableClient myTable;
+            readonly TableClient partitionTable;
             readonly string storageAccountName;
-            Dictionary<string, Task> tasks;
+            readonly Dictionary<string, Task> tasks;
 
             public TableLeaseManager(TableClient table, AzureStorageOrchestrationService service, AzureStorageOrchestrationServiceSettings settings, string storageAccountName)
             {
-                this.myTable = table;
+                this.partitionTable = table;
                 this.service = service;
                 this.settings = settings;
                 this.storageAccountName = storageAccountName;
@@ -216,8 +217,8 @@ namespace DurableTask.AzureStorage.Partitioning
             public async Task<ReadTableReponse> ReadAndWriteTable()
             {
                 var response = new ReadTableReponse();
-                Pageable<TableLease> partitions = myTable.Query<TableLease>();
-                Dictionary<string, List<TableLease>> partitionDistribution = new Dictionary<string, List<TableLease>>(); 
+                Pageable<TableLease> partitions = partitionTable.Query<TableLease>();
+                var partitionDistribution = new Dictionary<string, List<TableLease>>(); 
                 int leaseNum = 0;
 
                 foreach (TableLease partition in partitions)
@@ -231,108 +232,18 @@ namespace DurableTask.AzureStorage.Partitioning
                     bool isRenewdLease = false;
                     bool isDrainedLease = false;
                     bool isReleasedLease = false;
-
-                    //Check if the partition is empty, expired or stolen by the current worker and claim it.
-                    bool isEmptyLease = (partition.CurrentOwner == null && partition.NextOwner == null);
-                    bool isExpired = (DateTime.UtcNow >= partition.ExpiresAt && partition.NextOwner == null);
-                    bool isStolenByMe = (partition.CurrentOwner == null && partition.NextOwner == this.workerName);
-
                     ETag etag = partition.ETag;
 
-                    if (isEmptyLease || isExpired || isStolenByMe)
-                    {
-                        ClaimLease(partition);
-                        isClaimedLease = true;
-                    }
+                    IsLeaseAvailableToClaim(partition);
+                    CheckOtherWorkerLease(partition, partitionDistribution, response);
+                    CheckOwnershipLease(partition, leaseNum, response);
 
-                    bool isOtherWorkerCurrentLease = (partition.CurrentOwner != this.workerName && partition.NextOwner == null && partition.IsDraining == false);
-                    bool isAnyWorkerFutureLease = (partition.CurrentOwner != this.workerName && partition.NextOwner != null);
-                    bool isOtherWorkerShutDownLease = (partition.CurrentOwner != this.workerName && partition.NextOwner == null && partition.IsDraining == true);
-
-                    //If the lease is other worker's current lease, add it to the partitionDistribution dictionary for further balance.
-                    if (isOtherWorkerCurrentLease)
-                    {
-                        string currentOwner = partition.CurrentOwner!;
-                        if (partitionDistribution.ContainsKey(currentOwner))
-                        {
-                            partitionDistribution[currentOwner].Add(partition);
-                        }
-                        else
-                        {
-                            partitionDistribution.Add(currentOwner, new List<TableLease> { partition });
-                        }
-                    }
-
-                    
-                    if (isAnyWorkerFutureLease)
-                    {
-                        string nextOwner = partition.NextOwner!;
-                        //If the next owner is the current worker, consider it as the current worker for now and add to the leaseNum for further balance.
-                        if (nextOwner == this.workerName)
-                        {
-                            leaseNum++;
-                            response.WaitForPartition = true;
-                        }
-                        //If the lease is other worker's future lease, add it to the partitionDistribution dictionary for further balance.
-                        else
-                        {
-                            if (partitionDistribution.ContainsKey(nextOwner))
-                            {
-                                partitionDistribution[nextOwner].Add(partition);
-                            }
-                            else
-                            {
-                                partitionDistribution.Add(nextOwner, new List<TableLease> { partition });
-                            }
-                        }
-                    }
-
-                    //If the lease belongs to a worker that shuts down, steal it.
-                    if (isOtherWorkerShutDownLease)
-                    {
-                        this.StealLease(partition);
-                        isStealedLease = true;
-                        response.WaitForPartition = true;
-                    }
-
-                    //If the lease belongs to the current worker, check if it's stolen.
-                    //If so drain and release it. If not, renew it.
-                    if (partition.CurrentOwner == this.workerName)
-                    {
-                        if (partition.NextOwner == null)
-                        {
-                            leaseNum++;
-                        }
-                        else
-                        {
-                            response.WorkOnRelease = true;
-
-                            if (partition.IsDraining)
-                            {
-                                if (this.tasks[partition.RowKey!].IsCompleted == true)
-                                {
-                                    this.ReleaseLease(partition);
-                                    isReleasedLease = true;
-                                }
-                            }
-                            else
-                            {
-                                this.DrainLease(partition, CloseReason.LeaseLost);
-                                isDrainedLease = true;
-                            }
-                        }
-                        if (partition.CurrentOwner != null)
-                        {
-                            this.RenewLease(partition);
-                            isRenewdLease = true;
-                        }
-                    }
-
+                    // Update the table if the lease is claimed, stolen, renewed, drained or released.
                     if (isClaimedLease || isStealedLease || isRenewdLease || isDrainedLease || isReleasedLease)
                     {
                         try
                         {
-                            await this.myTable.UpdateEntityAsync(partition, etag, (TableUpdateMode)1);
+                            await this.partitionTable.UpdateEntityAsync(partition, etag, (TableUpdateMode)1);
                             if(isClaimedLease)
                             {
                                 await this.service.TableLeaseAcquiredAsync(partition);
@@ -378,16 +289,144 @@ namespace DurableTask.AzureStorage.Partitioning
                             throw ex;
                         }
                     }
+
+                    //Check if a lease is available for the current worker.
+                    void IsLeaseAvailableToClaim(TableLease partition)
+                    {
+                        //Check if the partition is empty, expired or stolen by the current worker and claim it.
+                        bool isEmptyLease = (partition.CurrentOwner == null && partition.NextOwner == null);
+                        bool isExpired = (DateTime.UtcNow >= partition.ExpiresAt && partition.NextOwner == null);
+                        bool isStolenByMe = (partition.CurrentOwner == null && partition.NextOwner == this.workerName);
+                        // This condition is for the case that workers becomes unhealthy and then force to steal.
+                        bool isExpiredForTooLong = (DateTime.UtcNow - partition.ExpiresAt > TimeSpan.FromMinutes(3));
+
+                        if (isEmptyLease || isExpired || isStolenByMe || isExpiredForTooLong)
+                        {
+                            this.ClaimLease(partition);
+                            isClaimedLease = true;
+                        }
+                    }
+                    
+                    //Check ownership lease. 
+                    // If the lease is not stolen by others, renew it.
+                    // If the lease is stolen by others, check if starts drainning or if finishes drainning.
+                    void CheckOwnershipLease(TableLease partition, int leaseNum, ReadTableReponse response)
+                    {
+                        if (partition.CurrentOwner == this.workerName)
+                        {
+                            if (partition.NextOwner == null)
+                            {
+                                leaseNum++;
+                            }
+                            else
+                            {
+                                response.WorkOnRelease = true;
+
+                                if (partition.IsDraining)
+                                {
+                                    if (this.tasks[partition.RowKey!].IsCompleted == true)
+                                    {
+                                        this.ReleaseLease(partition);
+                                        isReleasedLease = true;
+                                    }
+                                }
+                                else
+                                {
+                                    this.DrainLease(partition, CloseReason.LeaseLost);
+                                    isDrainedLease = true;
+                                }
+                            }
+                            if (partition.CurrentOwner != null)
+                            {
+                                this.RenewLease(partition);
+                                isRenewdLease = true;
+                            }
+                        }
+                    }
+
+                    //If the lease is other worker's lease. Store it to the dictionary for future balance.
+                    //If the other worker is shutting down, steal the lease.
+                    void CheckOtherWorkerLease(TableLease partition, Dictionary<string, List<TableLease>> partitionDistribution, ReadTableReponse response)
+                    {
+                        bool isOtherWorkerCurrentLease = (partition.CurrentOwner != this.workerName && partition.NextOwner == null && partition.IsDraining == false);
+                        bool isAnyWorkerFutureLease = (partition.CurrentOwner != this.workerName && partition.NextOwner != null);
+                        bool isOtherWorkerShutDownLease = (partition.CurrentOwner != this.workerName && partition.NextOwner == null && partition.IsDraining == true);
+
+                        //If the lease is other worker's current lease, add partition to the dictionary with CurrentOwner as key.
+                        if (isOtherWorkerCurrentLease)
+                        {
+                            string currentOwner = partition.CurrentOwner!;
+                            if (partitionDistribution.ContainsKey(currentOwner))
+                            {
+                                partitionDistribution[currentOwner].Add(partition);
+                            }
+                            else
+                            {
+                                partitionDistribution.Add(currentOwner, new List<TableLease> { partition });
+                            }
+                        }
+
+                        // If other workers' lease is stolen, suppose lease tranfer could finish successfully, and add partition to the dictionary with NextOwner as key. 
+                        if (isAnyWorkerFutureLease)
+                        {
+                            string nextOwner = partition.NextOwner!;
+                            //If the NextOwner of the lease is the current worker, just plus 1 to the leaseNum.
+                            if (nextOwner == this.workerName)
+                            {
+                                leaseNum++;
+                                response.WaitForPartition = true;
+                            }
+                            //If the lease is stolen by other workers, add it to the partitionDistribution dictionary with NextOwner as key.
+                            else
+                            {
+                                if (partitionDistribution.ContainsKey(nextOwner))
+                                {
+                                    partitionDistribution[nextOwner].Add(partition);
+                                }
+                                else
+                                {
+                                    partitionDistribution.Add(nextOwner, new List<TableLease> { partition });
+                                }
+                            }
+                        }
+
+                        //If the lease belongs to a worker that is shutting down, steal it.
+                        if (isOtherWorkerShutDownLease)
+                        {
+                            this.StealLease(partition);
+                            isStealedLease = true;
+                            response.WaitForPartition = true;
+                        }
+                    }
+
                 }
 
-                //This if condition is for the balance process.
-                //First check if there is any other worker, if not, skip the balance process.
-                //If so, then calculate the number of leases per worker for balance.
-                //If the number of leases per worker is 0, then set it to 1.
-                //If owned lease are less than the balancing number, then steal lease from other workers whose lease is more than balancing number.
+                // Balancing leases.
+                try
+                {
+                    await this.LeaseBalancer(partitionDistribution, partitions, leaseNum, response);
+                }
+                catch (RequestFailedException ex) when (ex.Status == 412)
+                {
+                    throw ex;
+                }
+                
+
+                return response;
+
+            }
+
+            //This is for the balance process.
+            //First check if there is any other worker, if not, skip the balance process.
+            //If there is, then calculate the number of leases per worker for balance.
+            //If owned lease are less than the balancing number, then steal lease from other workers whose lease is more than balancing number.
+            //Exception will be thrown if the update operation fails.
+            public async Task LeaseBalancer(Dictionary<string, List<TableLease>> partitionDistribution, Pageable<TableLease> partitions, int leaseNum, ReadTableReponse response)
+            {
                 if (partitionDistribution.Count != 0)
                 {
                     int numLeasePerWorkerForBalance = (partitions.Count()) / (partitionDistribution.Count + 1);
+                    //If the number of leases per worker is 0, then set it to 1.
                     if (numLeasePerWorkerForBalance == 0)
                     {
                         numLeasePerWorkerForBalance = 1;
@@ -409,10 +448,10 @@ namespace DurableTask.AzureStorage.Partitioning
                                         numOfLeaseToSteal--;
                                         currentWorkerNumofLeases--;
                                         ETag etag = partition.ETag;
-                                        StealLease(partition);
+                                        this.StealLease(partition);
                                         try
                                         {
-                                            await myTable.UpdateEntityAsync(partition, etag, (TableUpdateMode)1);
+                                            await this.partitionTable.UpdateEntityAsync(partition, etag, (TableUpdateMode)1);
                                             this.settings.Logger.PartitionManagerInfo(
                                                 this.storageAccountName,
                                                 this.settings.TaskHubName,
@@ -435,7 +474,6 @@ namespace DurableTask.AzureStorage.Partitioning
                         if (checkedPartitionCount == partitionDistribution.Count) { break; }
                     }
                 }
-                return response;
             }
 
             public void ClaimLease(TableLease lease)
@@ -489,7 +527,7 @@ namespace DurableTask.AzureStorage.Partitioning
             /// </exception>
             public async Task<bool> ShutDown()
             {
-                Pageable<TableLease> partitions = myTable.Query<TableLease>();
+                Pageable<TableLease> partitions = partitionTable.Query<TableLease>();
                 int leaseNum = 0;
                 foreach (TableLease partition in partitions)
                 {
@@ -523,7 +561,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         
                         try
                         {
-                            await this.myTable.UpdateEntityAsync(partition, etag, (TableUpdateMode)1);
+                            await this.partitionTable.UpdateEntityAsync(partition, etag, (TableUpdateMode)1);
                             if (isDrainedLease)
                             {
                                 this.settings.Logger.PartitionManagerInfo(

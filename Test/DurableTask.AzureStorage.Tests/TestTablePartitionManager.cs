@@ -14,15 +14,12 @@
 #nullable enable
 namespace DurableTask.AzureStorage.Tests
 {
-    using DurableTask.AzureStorage.Messaging;
     using DurableTask.Core;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using Newtonsoft.Json.Linq;
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
-    using System.Reactive.Concurrency;
     using System.Runtime.Serialization;
     using System.Threading;
     using System.Threading.Tasks;
@@ -32,8 +29,7 @@ namespace DurableTask.AzureStorage.Tests
     {
 
         readonly string connection = TestHelpers.GetTestStorageAccountConnectionString();
-
-        //[TestCategory("DisabledInCI")]
+        
         [TestMethod]
         // Start with one worker and four partitions.
         // Test the worker could claim all the partitions in 5 seconds.
@@ -41,7 +37,7 @@ namespace DurableTask.AzureStorage.Tests
         {
             //string storageConnectionString = TestHelpers.GetTestStorageAccountConnectionString();
             //var storageAccount = CloudStorageAccount.Parse(storageConnectionString);
-            string testName = "TestOneWorkerWithFourPartition";
+            string testName = nameof(TestOneWorkerWithFourPartition);
             var settings = new AzureStorageOrchestrationServiceSettings
             {
                 TaskHubName = testName,
@@ -72,7 +68,6 @@ namespace DurableTask.AzureStorage.Tests
             await service.DeleteAsync();
         }
 
-        //[TestCategory("DisabledInCI")]
         [TestMethod]
         //Starts with two workers and four partitions.
         //Test that one worker can acquire two partitions. 
@@ -84,7 +79,7 @@ namespace DurableTask.AzureStorage.Tests
             Stopwatch stopwatch = new Stopwatch();
 
             var services = new AzureStorageOrchestrationService[2];
-            string testName = "TestTwoWorkerWithFourPartitions";
+            string testName = nameof(TestTwoWorkerWithFourPartitions);
 
             for (int i = 0; i < 2; i++)
             {
@@ -121,7 +116,6 @@ namespace DurableTask.AzureStorage.Tests
             await services[0].DeleteAsync();
         }
 
-        //[TestCategory("DisabledInCI")]
         [TestMethod]
         //Starts with four workers and four partitions.
         //Test that each worker can acquire four partitions. 
@@ -133,7 +127,7 @@ namespace DurableTask.AzureStorage.Tests
             Stopwatch stopwatch = new Stopwatch();
 
             var services = new AzureStorageOrchestrationService[4];
-            string testName = "TestFourWorkerWithFourPartitions";
+            string testName = nameof(TestFourWorkerWithFourPartitions);
 
             for (int i = 0; i < 4; i++)
             {
@@ -172,7 +166,6 @@ namespace DurableTask.AzureStorage.Tests
             await services[0].DeleteAsync();
         }
 
-        // [TestCategory("DisabledInCI")]
         [TestMethod]
         //Starts with one workers and four partitions.And then add three more workers.
         //Test that each worker can acquire four partitions. 
@@ -224,7 +217,6 @@ namespace DurableTask.AzureStorage.Tests
             await services[0].DeleteAsync();
         }
 
-        //[TestCategory("DisabledInCI")]
         [TestMethod]
         //Starts with four workers and four partitions. And then add four more workers.
         //Test that the added workers will do nothing. 
@@ -279,7 +271,6 @@ namespace DurableTask.AzureStorage.Tests
             await services[0].DeleteAsync();
         }
 
-        //[TestCategory("DisabledInCI")]
         [TestMethod]
         //Start with four workers and four partitions. And then sacle down to three workers.
         //Test that partitions will be rebalance between the three workers, which is one worker will have two, and the other two both have one. 
@@ -336,7 +327,6 @@ namespace DurableTask.AzureStorage.Tests
             await services[0].DeleteAsync();
         }
 
-        //[TestCategory("DisabledInCI")]
         [TestMethod]
         //Start with four workers and four partitions. And then sacle down to one workers.
         //Test that the left one worker will take the four partitions.
@@ -388,7 +378,6 @@ namespace DurableTask.AzureStorage.Tests
             await services[0].DeleteAsync();
         }
 
-        //[TestCategory("DisabledInCI")]
         [TestMethod]
         //Start with four workers and four partitions. Then kill one worker.
         //Test that the partitions will be rebalanced among he three left workers.
@@ -398,7 +387,7 @@ namespace DurableTask.AzureStorage.Tests
             Stopwatch stopwatch = new Stopwatch();
 
             var services = new AzureStorageOrchestrationService[4];
-            string testName = "TestKillOne";
+            string testName = nameof(TestKillOneWorker);
 
             for (int i = 0; i < 4; i++)
             {
