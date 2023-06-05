@@ -249,7 +249,7 @@ namespace DurableTask.Core.Tracing
 
             if (failedEvent != null)
             {
-                string statusDescription = failedEvent.Reason ?? "Unknown task failure";
+                string statusDescription = failedEvent.Reason ?? "Unspecified task activity failure";
                 activity?.SetStatus(ActivityStatusCode.Error, statusDescription);
             }
 
@@ -337,7 +337,7 @@ namespace DurableTask.Core.Tracing
 
             if (failedEvent != null)
             {
-                string statusDescription = failedEvent.Reason ?? "Unkown sub-orchestration failure";
+                string statusDescription = failedEvent.Reason ?? "Unspecified sub-orchestration failure";
                 activity?.SetStatus(ActivityStatusCode.Error, statusDescription);
             }
 

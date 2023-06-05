@@ -69,6 +69,12 @@ namespace DurableTask.ApplicationInsights
                 case ActivityKind.Consumer or ActivityKind.Server:
                     RequestTelemetry request = CreateTelemetryCore<RequestTelemetry>(activity);
                     request.Success = status != ActivityStatusCode.Error;
+
+                    if (string.IsNullOrEmpty(request.ResponseCode))
+                    {
+                        request.ResponseCode = (bool)request.Success ? "200" : "500";
+                    }
+
                     telemetry = request;
                     break;
                 default:
@@ -109,10 +115,6 @@ namespace DurableTask.ApplicationInsights
             foreach (KeyValuePair<string, object> item in activity.TagObjects)
             {
                 telemetry.Properties[item.Key] = item.Value.ToString();
-                if (item.Key == "durabletask.task.status" && telemetry is RequestTelemetry request)
-                {
-                    request.ResponseCode = item.Value.ToString();
-                }
             }
 
             return telemetry;

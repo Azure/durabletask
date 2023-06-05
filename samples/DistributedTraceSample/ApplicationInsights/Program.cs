@@ -76,6 +76,8 @@ namespace ApplicationInsightsSample
                 // Disabling Request-Ids in headers since we're using W3C protocol
                 m.EnableRequestIdHeaderInjectionInW3CMode = false;
             });
+
+            // Used for demo purposes only as this will filter out many spans.
             services.AddApplicationInsightsTelemetryProcessor<Processor>();
         }
 

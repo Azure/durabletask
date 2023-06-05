@@ -28,8 +28,9 @@ namespace ApplicationInsightsSample
 
         public void Process(ITelemetry item)
         {
-            // Filters out storage access spans so Gantt chart is easier to read
-            if (item is DependencyTelemetry d && d.Target.Contains("core.windows.net"))
+            // Filters out storage access spans so Gantt chart is easier to read.
+            // 127.0.0.1 refers to the emulator or Azurite that's used during local testing.
+            if (item is DependencyTelemetry d && (d.Target.Contains("core.windows.net") || d.Target.Contains("127.0.0.1")))
             {
                 return;
             }

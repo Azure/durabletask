@@ -45,10 +45,15 @@ namespace DurableTask.ApplicationInsights
 
         private static ActivityStatusCode GetOtelStatus(this Activity activity, out string statusDescription)
         {
-            Debug.Assert(activity != null, "Activity should not be null");
-
             ActivityStatusCode status = ActivityStatusCode.Unset;
             statusDescription = null;
+
+            Debug.Assert(activity != null, "Activity should not be null");
+
+            if (activity == null)
+            {
+                return status;
+            }
 
             foreach (var tag in activity.Tags)
             {
@@ -72,7 +77,7 @@ namespace DurableTask.ApplicationInsights
 
         private static Func<Activity, StatusTuple> CreateGetStatus()
         {
-            // Returns null when the Status property isn't found.
+            // The Status and StatusDescription fields are only available for apps that load System.Diagnostics.DiagnosticSource/6.0.0 or greater.
             PropertyInfo getStatus = typeof(Activity).GetProperty("Status");
             if (getStatus is null)
             {
