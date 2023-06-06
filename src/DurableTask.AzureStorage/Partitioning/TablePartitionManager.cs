@@ -53,7 +53,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.settings = this.azureStorageClient.Settings;
             this.connectionString = this.settings.StorageConnectionString ?? this.settings.StorageAccountDetails.ConnectionString;
             this.storageAccountName = this.azureStorageClient.TableAccountName;
-            if(this.settings.StorageConnectionString == null)
+            if(this.connectionString == null)
             {
                 throw new Exception("Connection string is null. Managed identity is not supported in the table partition manager yet.");
             }
