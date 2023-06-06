@@ -584,7 +584,7 @@ namespace DurableTask.AzureStorage
             //Need to check for leases in Azure Table Storage. Scale Controller calls into this method.
             
             int partitionCount;
-            var partitionTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.PartitionTableName);
+            Table partitionTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.PartitionTableName);
             // Check if table partition manager is used. If so, get partition count from table.
             // Else, get the partition count from the blobs.
 

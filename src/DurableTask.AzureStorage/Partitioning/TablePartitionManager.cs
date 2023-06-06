@@ -33,7 +33,7 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly AzureStorageOrchestrationService service;
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly CancellationTokenSource partitionManagerCancellationSource;
-        readonly string partitionTableName;
+        readonly string connectionString;
         readonly string storageAccountName;
         readonly TableServiceClient tableServiceClient;
         readonly TableClient partitionTable;
@@ -51,15 +51,15 @@ namespace DurableTask.AzureStorage.Partitioning
             this.azureStorageClient = azureStorageClient;
             this.service = service;
             this.settings = this.azureStorageClient.Settings;
-            this.partitionTableName = this.settings.PartitionTableName;
+            this.connectionString = this.settings.StorageConnectionString ?? this.settings.StorageAccountDetails.ConnectionString;
             this.storageAccountName = this.azureStorageClient.TableAccountName;
             if(this.settings.StorageConnectionString == null)
             {
                 throw new Exception("Connection string is null. Managed identity is not supported in the table partition manager yet.");
             }
             this.partitionManagerCancellationSource = new CancellationTokenSource();
-            this.tableServiceClient = new TableServiceClient(this.settings.StorageConnectionString);
-            this.partitionTable = this.tableServiceClient.GetTableClient(this.partitionTableName);
+            this.tableServiceClient = new TableServiceClient(this.connectionString);
+            this.partitionTable = this.tableServiceClient.GetTableClient(this.settings.PartitionTableName);
             this.tableLeaseManager = new TableLeaseManager(this.partitionTable, this.service, this.settings, this.storageAccountName);
         }
 
