@@ -51,7 +51,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.azureStorageClient = azureStorageClient;
             this.service = service;
             this.settings = this.azureStorageClient.Settings;
-            this.connectionString = this.settings.StorageConnectionString ?? this.settings.StorageAccountDetails.ConnectionString;
+            this.connectionString = this.settings.StorageConnectionString ?? this.settings.StorageAccountDetails.ToCloudStorageAccount().ToString();
             this.storageAccountName = this.azureStorageClient.TableAccountName;
             if(this.connectionString == null)
             {
