@@ -269,14 +269,17 @@ namespace DurableTask.Core
 
         public void HandleTaskScheduledEvent(TaskScheduledEvent scheduledEvent)
         {
+            ICollection<int> actionKeys = orchestratorActionsMap.Keys;
+            int numActionKeys = actionKeys.Count;
             int taskId = scheduledEvent.EventId;
             if (!this.orchestratorActionsMap.ContainsKey(taskId))
             {
                 throw new NonDeterministicOrchestrationException(scheduledEvent.EventId,
                     $"A previous execution of this orchestration scheduled an activity task with sequence ID {taskId} and name "
                     + $"'{scheduledEvent.Name}' (version '{scheduledEvent.Version}'), but the current replay execution hasn't "
-                    + "(yet?) scheduled this task. Was a change made to the orchestrator code after this instance had already "
-                    + "started running?");
+                    + $"(yet?) scheduled this task."
+                    + $" At the time of this error: the number of pending actions is '{numActionKeys} for the following taskIDs: {actionKeys}"
+                    + " Was a change made to the orchestrator code after this instance had already started running?");
             }
 
             var orchestrationAction = this.orchestratorActionsMap[taskId];
@@ -303,6 +306,8 @@ namespace DurableTask.Core
 
         public void HandleTimerCreatedEvent(TimerCreatedEvent timerCreatedEvent)
         {
+            ICollection<int> actionKeys = orchestratorActionsMap.Keys;
+            int numActionKeys = actionKeys.Count;
             int taskId = timerCreatedEvent.EventId;
             if (taskId == FrameworkConstants.FakeTimerIdToSplitDecision)
             {
@@ -314,8 +319,9 @@ namespace DurableTask.Core
             {
                 throw new NonDeterministicOrchestrationException(timerCreatedEvent.EventId,
                     $"A previous execution of this orchestration scheduled a timer task with sequence number {taskId} but "
-                    + "the current replay execution hasn't (yet?) scheduled this task. Was a change made to the orchestrator "
-                    + "code after this instance had already started running?");
+                    + "the current replay execution hasn't (yet?) scheduled this task."
+                    + $" At the time of this error: the number of pending actions is '{numActionKeys} for the following taskIDs: {actionKeys}"
+                    + " Was a change made to the orchestrator code after this instance had already started running?");
             }
 
             var orchestrationAction = this.orchestratorActionsMap[taskId];
@@ -333,6 +339,8 @@ namespace DurableTask.Core
 
         public void HandleSubOrchestrationCreatedEvent(SubOrchestrationInstanceCreatedEvent subOrchestrationCreateEvent)
         {
+            ICollection<int> actionKeys = orchestratorActionsMap.Keys;
+            int numActionKeys = actionKeys.Count;
             int taskId = subOrchestrationCreateEvent.EventId;
             if (!this.orchestratorActionsMap.ContainsKey(taskId))
             {
@@ -340,7 +348,9 @@ namespace DurableTask.Core
                    $"A previous execution of this orchestration scheduled a sub-orchestration task with sequence ID {taskId} "
                    + $"and name '{subOrchestrationCreateEvent.Name}' (version '{subOrchestrationCreateEvent.Version}', "
                    + $"instance ID '{subOrchestrationCreateEvent.InstanceId}'), but the current replay execution hasn't (yet?) "
-                   + "scheduled this task. Was a change made to the orchestrator code after this instance had already started running?");
+                   + "scheduled this task."
+                   + $" At the time of this error: the number of pending actions is '{numActionKeys} for the following taskIDs: {actionKeys}"
+                   + " Was a change made to the orchestrator code after this instance had already started running?");
             }
 
             var orchestrationAction = this.orchestratorActionsMap[taskId];
@@ -369,14 +379,17 @@ namespace DurableTask.Core
 
         public void HandleEventSentEvent(EventSentEvent eventSentEvent)
         {
+            ICollection<int> actionKeys = orchestratorActionsMap.Keys;
+            int numActionKeys = actionKeys.Count;
             int taskId = eventSentEvent.EventId;
             if (!this.orchestratorActionsMap.ContainsKey(taskId))
             {
                 throw new NonDeterministicOrchestrationException(eventSentEvent.EventId,
                    $"A previous execution of this orchestration scheduled a send event task with sequence ID {taskId}, "
                    + $"type '{eventSentEvent.EventType}' name '{eventSentEvent.Name}', instance ID '{eventSentEvent.InstanceId}', "
-                   + $"but the current replay execution hasn't (yet?) scheduled this task. Was a change made to the orchestrator code "
-                   + $"after this instance had already started running?");
+                   + $"but the current replay execution hasn't (yet?) scheduled this task."
+                   + $" At the time of this error: the number of pending actions is '{numActionKeys} for the following taskIDs: {actionKeys}"
+                   + " Was a change made to the orchestrator code after this instance had already started running?");
             }
 
             var orchestrationAction = this.orchestratorActionsMap[taskId];
