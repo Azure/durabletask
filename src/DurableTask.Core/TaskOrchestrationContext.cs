@@ -280,7 +280,7 @@ namespace DurableTask.Core
                     $"A previous execution of this orchestration scheduled an activity task with sequence ID {taskId} and name "
                     + $"'{scheduledEvent.Name}' (version '{scheduledEvent.Version}'), but the current replay execution hasn't "
                     + $"(yet?) scheduled this task."
-                    + $" At the time of this error: the number of pending actions is '{numActionKeys} for the following taskIDs: {actionKeys}."
+                    + $" At the time of this error: the number of pending actions is '{numActionKeys}' for the following taskIDs: {actionKeys}."
                     + $" The number of open tasks is '{numOpenTasksKeys} for the following taskIDs: {openTasksKeys}."
                     + " Was a change made to the orchestrator code after this instance had already started running?");
             }
@@ -325,7 +325,7 @@ namespace DurableTask.Core
                 throw new NonDeterministicOrchestrationException(timerCreatedEvent.EventId,
                     $"A previous execution of this orchestration scheduled a timer task with sequence number {taskId} but "
                     + "the current replay execution hasn't (yet?) scheduled this task."
-                    + $" At the time of this error: the number of pending actions is '{numActionKeys} for the following taskIDs: {actionKeys}."
+                    + $" At the time of this error: the number of pending actions is '{numActionKeys}' for the following taskIDs: {actionKeys}."
                     + $" The number of open tasks is '{numOpenTasksKeys} for the following taskIDs: {openTasksKeys}."
                     + " Was a change made to the orchestrator code after this instance had already started running?");
             }
@@ -358,7 +358,7 @@ namespace DurableTask.Core
                    + $"instance ID '{subOrchestrationCreateEvent.InstanceId}'), but the current replay execution hasn't (yet?) "
                    + "scheduled this task."
                    + $" At the time of this error: the number of pending actions is '{numActionKeys} for the following taskIDs: {actionKeys}."
-                   + $" The number of open tasks is '{numOpenTasksKeys} for the following taskIDs: {openTasksKeys}."
+                   + $" The number of open tasks is '{numOpenTasksKeys}' for the following taskIDs: {openTasksKeys}."
                    + " Was a change made to the orchestrator code after this instance had already started running?");
             }
 
@@ -400,7 +400,7 @@ namespace DurableTask.Core
                    + $"type '{eventSentEvent.EventType}' name '{eventSentEvent.Name}', instance ID '{eventSentEvent.InstanceId}', "
                    + $"but the current replay execution hasn't (yet?) scheduled this task."
                    + $" At the time of this error: the number of pending actions is '{numActionKeys} for the following taskIDs: {actionKeys}."
-                   + $" The number of open tasks is '{numOpenTasksKeys} for the following taskIDs: {openTasksKeys}."
+                   + $" The number of open tasks is '{numOpenTasksKeys}' for the following taskIDs: {openTasksKeys}."
                    + " Was a change made to the orchestrator code after this instance had already started running?");
             }
 
