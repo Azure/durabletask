@@ -30,7 +30,7 @@ namespace DurableTask.Core.Tracing
     }
 
     /// <summary>
-    /// Extensions for <see cref="FieldInfo"/>.
+    /// Extensions for <see cref="Activity"/>.
     /// </summary>
     internal static class DiagnosticActivityExtensions
     {
@@ -48,8 +48,10 @@ namespace DurableTask.Core.Tracing
 
         public static void SetId(this Activity activity, string id)
             => s_setId(activity, id);
+
         public static void SetSpanId(this Activity activity, string spanId)
             => s_setSpanId(activity, spanId);
+
         public static void SetStatus(this Activity activity, ActivityStatusCode status, string description)
             => s_setStatus(activity, status, description);
 
@@ -74,6 +76,12 @@ namespace DurableTask.Core.Tracing
                     activity.SetTag("otel.status_description", description);
                 };
             }
+
+            /*
+                building expression tree to effectively perform:
+                (activity, status, description) => activity.SetStatus((ActivityStatusCode)(int)status, description);
+            */
+
             ParameterExpression targetExp = Expression.Parameter(typeof(Activity), "target");
             ParameterExpression status = Expression.Parameter(typeof(ActivityStatusCode), "status");
             ParameterExpression description = Expression.Parameter(typeof(string), "description");

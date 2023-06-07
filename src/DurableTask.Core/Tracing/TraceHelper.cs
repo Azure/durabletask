@@ -249,20 +249,7 @@ namespace DurableTask.Core.Tracing
 
             if (failedEvent != null)
             {
-                string statusDescription = "";
-                if (errorPropagationMode == ErrorPropagationMode.SerializeExceptions)
-                {
-                    statusDescription = JsonDataConverter.Default.Deserialize<Exception>(failedEvent.Details).Message;
-                }
-                else if (errorPropagationMode == ErrorPropagationMode.UseFailureDetails)
-                {
-                    FailureDetails? failureDetails = failedEvent.FailureDetails;
-                    if (failureDetails != null)
-                    {
-                        statusDescription = failureDetails.ErrorMessage;
-                    }
-                }
-
+                string statusDescription = failedEvent.Reason ?? "Unspecified task activity failure";
                 activity?.SetStatus(ActivityStatusCode.Error, statusDescription);
             }
 
@@ -322,6 +309,7 @@ namespace DurableTask.Core.Tracing
             OrchestrationInstance? orchestrationInstance,
             SubOrchestrationInstanceCreatedEvent createdEvent)
         {
+            // The parent of this is the parent orchestration span ID. It should be the client span which started this
             Activity? activity = CreateTraceActivityForSchedulingSubOrchestration(orchestrationInstance, createdEvent);
 
             activity?.Dispose();
@@ -349,20 +337,7 @@ namespace DurableTask.Core.Tracing
 
             if (failedEvent != null)
             {
-                string statusDescription = "";
-                if (errorPropagationMode == ErrorPropagationMode.SerializeExceptions)
-                {
-                    statusDescription = JsonDataConverter.Default.Deserialize<Exception>(failedEvent.Details).Message;
-                }
-                else if (errorPropagationMode == ErrorPropagationMode.UseFailureDetails)
-                {
-                    FailureDetails? failureDetails = failedEvent.FailureDetails;
-                    if (failureDetails != null)
-                    {
-                        statusDescription = failureDetails.ErrorMessage;
-                    }
-                }
-
+                string statusDescription = failedEvent.Reason ?? "Unspecified sub-orchestration failure";
                 activity?.SetStatus(ActivityStatusCode.Error, statusDescription);
             }
 
