@@ -43,6 +43,9 @@ namespace DurableTask.ApplicationInsights
             return status;
         }
 
+        // Extension method that gets an Activity's status code and status description using tags.
+        // This extension method is necessary since we depend on System.Diagnostics.DiagnosticSource 5.0.1.
+        // Versions greater than 6.0.0 can directly access Activity.Status.
         private static ActivityStatusCode GetOtelStatus(this Activity activity, out string statusDescription)
         {
             ActivityStatusCode status = ActivityStatusCode.Unset;

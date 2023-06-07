@@ -17,11 +17,11 @@ namespace ApplicationInsightsSample
     using Microsoft.ApplicationInsights.DataContracts;
     using Microsoft.ApplicationInsights.Extensibility;
 
-    public class Processor : ITelemetryProcessor
+    public class FilterOutStorageTelemetryProcessor : ITelemetryProcessor
     {
         private readonly ITelemetryProcessor _next;
 
-        public Processor(ITelemetryProcessor next)
+        public FilterOutStorageTelemetryProcessor(ITelemetryProcessor next)
         {
             _next = next;
         }
