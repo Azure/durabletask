@@ -15,7 +15,6 @@
 namespace DurableTask.AzureStorage.Partitioning
 {
     using System;
-    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading;
@@ -23,6 +22,7 @@ namespace DurableTask.AzureStorage.Partitioning
     using Azure;
     using Azure.Data.Tables;
     using DurableTask.AzureStorage.Storage;
+
 
     /// <summary>
     /// Partition ManagerV3 is based on the Table storage.  
@@ -51,7 +51,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.azureStorageClient = azureStorageClient;
             this.service = service;
             this.settings = this.azureStorageClient.Settings;
-            this.connectionString = this.settings.StorageConnectionString ?? this.settings.StorageAccountDetails.ToCloudStorageAccount().ToString();
+            this.connectionString = this.settings.StorageConnectionString ?? this.settings.StorageAccountDetails.ConnectionString;
             this.storageAccountName = this.azureStorageClient.TableAccountName;
             if(this.connectionString == null)
             {
@@ -236,7 +236,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
                     IsLeaseAvailableToClaim(partition);
                     CheckOtherWorkerLease(partition, partitionDistribution, response);
-                    CheckOwnershipLease(partition, leaseNum, response);
+                    CheckOwnershipLease(partition, response);
 
                     // Update the table if the lease is claimed, stolen, renewed, drained or released.
                     if (isClaimedLease || isStealedLease || isRenewdLease || isDrainedLease || isReleasedLease)
@@ -310,13 +310,13 @@ namespace DurableTask.AzureStorage.Partitioning
                     //Check ownership lease. 
                     // If the lease is not stolen by others, renew it.
                     // If the lease is stolen by others, check if starts drainning or if finishes drainning.
-                    void CheckOwnershipLease(TableLease partition, int leaseNum, ReadTableReponse response)
+                    void CheckOwnershipLease(TableLease partition, ReadTableReponse response)
                     {
                         if (partition.CurrentOwner == this.workerName)
                         {
                             if (partition.NextOwner == null)
                             {
-                                leaseNum++;
+                                leaseNum ++;
                             }
                             else
                             {
@@ -432,7 +432,6 @@ namespace DurableTask.AzureStorage.Partitioning
                         numLeasePerWorkerForBalance = 1;
                     }
                     int numOfLeaseToSteal = numLeasePerWorkerForBalance - leaseNum;
-
                     while (numOfLeaseToSteal > 0)
                     {
                         int checkedPartitionCount = 0;
