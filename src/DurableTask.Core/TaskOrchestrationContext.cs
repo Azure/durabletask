@@ -35,6 +35,9 @@ namespace DurableTask.Core
         private int idCounter;
         private readonly Queue<HistoryEvent> eventsWhileSuspended;
 
+        public IEnumerable<HistoryEvent> newEvents;
+        public IEnumerable<HistoryEvent> pastEvents;
+
         public bool IsSuspended { get; private set; }
 
         public bool HasContinueAsNew => continueAsNew != null;
@@ -282,6 +285,8 @@ namespace DurableTask.Core
                     + $"(yet?) scheduled this task."
                     + $" At the time of this error: the number of pending actions is '{numActionKeys}' for the following taskIDs: {actionKeys}."
                     + $" The number of open tasks is '{numOpenTasksKeys} for the following taskIDs: {openTasksKeys}."
+                    + $" The set of history pastEvents were: {this.pastEvents}"
+                    + $" The set of history newEvents were: {this.newEvents}"
                     + " Was a change made to the orchestrator code after this instance had already started running?");
             }
 
@@ -327,6 +332,8 @@ namespace DurableTask.Core
                     + "the current replay execution hasn't (yet?) scheduled this task."
                     + $" At the time of this error: the number of pending actions is '{numActionKeys}' for the following taskIDs: {actionKeys}."
                     + $" The number of open tasks is '{numOpenTasksKeys} for the following taskIDs: {openTasksKeys}."
+                    + $" The set of history pastEvents were: {this.pastEvents}"
+                    + $" The set of history newEvents were: {this.newEvents}"
                     + " Was a change made to the orchestrator code after this instance had already started running?");
             }
 
@@ -359,6 +366,8 @@ namespace DurableTask.Core
                    + "scheduled this task."
                    + $" At the time of this error: the number of pending actions is '{numActionKeys} for the following taskIDs: {actionKeys}."
                    + $" The number of open tasks is '{numOpenTasksKeys}' for the following taskIDs: {openTasksKeys}."
+                   + $" The set of history pastEvents were: {this.pastEvents}"
+                   + $" The set of history newEvents were: {this.newEvents}"
                    + " Was a change made to the orchestrator code after this instance had already started running?");
             }
 
@@ -401,6 +410,8 @@ namespace DurableTask.Core
                    + $"but the current replay execution hasn't (yet?) scheduled this task."
                    + $" At the time of this error: the number of pending actions is '{numActionKeys} for the following taskIDs: {actionKeys}."
                    + $" The number of open tasks is '{numOpenTasksKeys}' for the following taskIDs: {openTasksKeys}."
+                   + $" The set of history pastEvents were: {this.pastEvents}"
+                   + $" The set of history newEvents were: {this.newEvents}"
                    + " Was a change made to the orchestrator code after this instance had already started running?");
             }
 

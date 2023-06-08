@@ -117,6 +117,10 @@ namespace DurableTask.Core
                         }
                     }
 
+                    // for debugging purposes
+                    this.context.newEvents = newEvents;
+                    this.context.pastEvents = pastEvents;
+
                     // Replay the old history to rebuild the local state of the orchestration.
                     // TODO: Log a verbose message indicating that the replay has started (include event count?)
                     this.context.IsReplaying = true;
