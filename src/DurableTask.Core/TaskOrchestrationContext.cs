@@ -17,6 +17,7 @@ namespace DurableTask.Core
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Globalization;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core.Command;
@@ -30,6 +31,7 @@ namespace DurableTask.Core
     {
         private readonly IDictionary<int, OpenTaskInfo> openTasks;
         private readonly IDictionary<int, OrchestratorAction> orchestratorActionsMap;
+        private readonly IDictionary<int, OrchestratorAction> addOnlyOrchestratorActionsMap;
         private OrchestrationCompleteOrchestratorAction continueAsNew;
         private bool executionCompletedOrTerminated;
         private int idCounter;
@@ -56,6 +58,7 @@ namespace DurableTask.Core
 
             this.openTasks = new Dictionary<int, OpenTaskInfo>();
             this.orchestratorActionsMap = new SortedDictionary<int, OrchestratorAction>();
+            this.addOnlyOrchestratorActionsMap = new SortedDictionary<int, OrchestratorAction>();
             this.idCounter = 0;
             this.MessageDataConverter = JsonDataConverter.Default;
             this.ErrorDataConverter = JsonDataConverter.Default;
@@ -111,6 +114,7 @@ namespace DurableTask.Core
             };
 
             this.orchestratorActionsMap.Add(id, scheduleTaskTaskAction);
+            this.addOnlyOrchestratorActionsMap.Add(id, scheduleTaskTaskAction);
 
             var tcs = new TaskCompletionSource<string>();
             this.openTasks.Add(id, new OpenTaskInfo { Name = name, Version = version, Result = tcs });
@@ -174,6 +178,7 @@ namespace DurableTask.Core
             };
 
             this.orchestratorActionsMap.Add(id, action);
+            this.addOnlyOrchestratorActionsMap.Add(id, action);
 
             if (OrchestrationTags.IsTaggedAsFireAndForget(tags))
             {
@@ -210,6 +215,7 @@ namespace DurableTask.Core
             };
 
             this.orchestratorActionsMap.Add(id, action);
+            this.addOnlyOrchestratorActionsMap.Add(id, action);
         }
 
         public override void ContinueAsNew(object input)
@@ -249,6 +255,7 @@ namespace DurableTask.Core
             };
 
             this.orchestratorActionsMap.Add(id, createTimerOrchestratorAction);
+            this.addOnlyOrchestratorActionsMap.Add(id, createTimerOrchestratorAction);
 
             var tcs = new TaskCompletionSource<string>();
             this.openTasks.Add(id, new OpenTaskInfo { Name = null, Version = null, Result = tcs });
@@ -278,6 +285,9 @@ namespace DurableTask.Core
             ICollection<int> actionKeys = orchestratorActionsMap.Keys;
             var actionKeysStr = "{" + string.Join(",", actionKeys) + "}";
 
+            IEnumerable<string> allActionsSoFar = addOnlyOrchestratorActionsMap.Select(kvp => kvp.Key.ToString() + ":" + kvp.Value.GetType().ToString());
+            var allActionsSoFarStr = "{" + string.Join(",", allActionsSoFar) + "}";
+
             int numActionKeys = actionKeys.Count;
             int numOpenTasksKeys = openTasksKeys.Count;
             int taskId = scheduledEvent.EventId;
@@ -291,6 +301,7 @@ namespace DurableTask.Core
                     + $" The number of open tasks is '{numOpenTasksKeys} for the following taskIDs: {openTasksKeysStr}."
                     + $" The set of history pastEvents were: {this.pastEvents}"
                     + $" The set of history newEvents were: {this.newEvents}"
+                    + $" The list of all actions so far is: {allActionsSoFarStr}"
                     + " Was a change made to the orchestrator code after this instance had already started running?");
             }
 
@@ -324,6 +335,9 @@ namespace DurableTask.Core
             ICollection<int> actionKeys = orchestratorActionsMap.Keys;
             var actionKeysStr = "{" + string.Join(",", actionKeys) + "}";
 
+            IEnumerable<string> allActionsSoFar = addOnlyOrchestratorActionsMap.Select(kvp => kvp.Key.ToString() + ":" + kvp.Value.GetType().ToString());
+            var allActionsSoFarStr = "{" + string.Join(",", allActionsSoFar) + "}";
+
             int numActionKeys = actionKeys.Count;
             int numOpenTasksKeys = openTasksKeys.Count;
             int taskId = timerCreatedEvent.EventId;
@@ -342,6 +356,7 @@ namespace DurableTask.Core
                     + $" The number of open tasks is '{numOpenTasksKeys} for the following taskIDs: {openTasksKeysStr}."
                     + $" The set of history pastEvents were: {this.pastEvents}"
                     + $" The set of history newEvents were: {this.newEvents}"
+                    + $" The list of all actions so far is: {allActionsSoFarStr}"
                     + " Was a change made to the orchestrator code after this instance had already started running?");
             }
 
@@ -366,6 +381,9 @@ namespace DurableTask.Core
             ICollection<int> actionKeys = orchestratorActionsMap.Keys;
             var actionKeysStr = "{" + string.Join(",", actionKeys) + "}";
 
+            IEnumerable<string> allActionsSoFar = addOnlyOrchestratorActionsMap.Select(kvp => kvp.Key.ToString() + ":" + kvp.Value.GetType().ToString());
+            var allActionsSoFarStr = "{" + string.Join(",", allActionsSoFar) + "}";
+
             int numActionKeys = actionKeys.Count;
             int numOpenTasksKeys = openTasksKeys.Count;
 
@@ -381,6 +399,7 @@ namespace DurableTask.Core
                    + $" The number of open tasks is '{numOpenTasksKeys}' for the following taskIDs: {openTasksKeysStr}."
                    + $" The set of history pastEvents were: {this.pastEvents}"
                    + $" The set of history newEvents were: {this.newEvents}"
+                   + $" The list of all actions so far is: {allActionsSoFarStr}"
                    + " Was a change made to the orchestrator code after this instance had already started running?");
             }
 
@@ -416,6 +435,9 @@ namespace DurableTask.Core
             ICollection<int> actionKeys = orchestratorActionsMap.Keys;
             var actionKeysStr = "{" + string.Join(",", actionKeys) + "}";
 
+            IEnumerable<string> allActionsSoFar = addOnlyOrchestratorActionsMap.Select(kvp => kvp.Key.ToString() + ":" + kvp.Value.GetType().ToString());
+            var allActionsSoFarStr = "{" + string.Join(",", allActionsSoFar) + "}";
+
             int numActionKeys = actionKeys.Count;
             int numOpenTasksKeys = openTasksKeys.Count;
             int taskId = eventSentEvent.EventId;
@@ -429,6 +451,7 @@ namespace DurableTask.Core
                    + $" The number of open tasks is '{numOpenTasksKeys}' for the following taskIDs: {openTasksKeysStr}."
                    + $" The set of history pastEvents were: {this.pastEvents}"
                    + $" The set of history newEvents were: {this.newEvents}"
+                   + $" The list of all actions so far is: {allActionsSoFarStr}"
                    + " Was a change made to the orchestrator code after this instance had already started running?");
             }
 
