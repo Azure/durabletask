@@ -285,8 +285,14 @@ namespace DurableTask.Core
             ICollection<int> actionKeys = orchestratorActionsMap.Keys;
             var actionKeysStr = "{" + string.Join(",", actionKeys) + "}";
 
-            IEnumerable<string> allActionsSoFar = addOnlyOrchestratorActionsMap.Select(kvp => kvp.Key.ToString() + ":" + kvp.Value.GetType().ToString());
+            IEnumerable<string> allActionsSoFar = addOnlyOrchestratorActionsMap.Select(kvp => kvp.Key + ":" + kvp.Value.GetType());
             var allActionsSoFarStr = "{" + string.Join(",", allActionsSoFar) + "}";
+
+            var pastEventTypes = this.pastEvents.Select(e => e.GetType());
+            var newEventTypes = this.pastEvents.Select(e => e.GetType());
+
+            var pastEventsStr = "{" + string.Join(",", pastEventTypes) + "}";
+            var newEventsStr = "{" + string.Join(",", newEventTypes) + "}";
 
             int numActionKeys = actionKeys.Count;
             int numOpenTasksKeys = openTasksKeys.Count;
@@ -299,8 +305,8 @@ namespace DurableTask.Core
                     + $"(yet?) scheduled this task."
                     + $" At the time of this error: the number of pending actions is '{numActionKeys}' for the following taskIDs: {actionKeysStr}."
                     + $" The number of open tasks is '{numOpenTasksKeys} for the following taskIDs: {openTasksKeysStr}."
-                    + $" The set of history pastEvents were: {this.pastEvents}"
-                    + $" The set of history newEvents were: {this.newEvents}"
+                    + $" The set of history pastEvents were: {pastEventsStr}"
+                    + $" The set of history newEvents were: {newEventsStr}"
                     + $" The list of all actions so far is: {allActionsSoFarStr}"
                     + " Was a change made to the orchestrator code after this instance had already started running?");
             }
@@ -335,8 +341,14 @@ namespace DurableTask.Core
             ICollection<int> actionKeys = orchestratorActionsMap.Keys;
             var actionKeysStr = "{" + string.Join(",", actionKeys) + "}";
 
-            IEnumerable<string> allActionsSoFar = addOnlyOrchestratorActionsMap.Select(kvp => kvp.Key.ToString() + ":" + kvp.Value.GetType().ToString());
+            IEnumerable<string> allActionsSoFar = addOnlyOrchestratorActionsMap.Select(kvp => kvp.Key + ":" + kvp.Value.GetType());
             var allActionsSoFarStr = "{" + string.Join(",", allActionsSoFar) + "}";
+
+            var pastEventTypes = this.pastEvents.Select(e => e.GetType());
+            var newEventTypes = this.pastEvents.Select(e => e.GetType());
+
+            var pastEventsStr = "{" + string.Join(",", pastEventTypes) + "}";
+            var newEventsStr = "{" + string.Join(",", newEventTypes) + "}";
 
             int numActionKeys = actionKeys.Count;
             int numOpenTasksKeys = openTasksKeys.Count;
@@ -354,8 +366,8 @@ namespace DurableTask.Core
                     + "the current replay execution hasn't (yet?) scheduled this task."
                     + $" At the time of this error: the number of pending actions is '{numActionKeys}' for the following taskIDs: {actionKeysStr}."
                     + $" The number of open tasks is '{numOpenTasksKeys} for the following taskIDs: {openTasksKeysStr}."
-                    + $" The set of history pastEvents were: {this.pastEvents}"
-                    + $" The set of history newEvents were: {this.newEvents}"
+                    + $" The set of history pastEvents were: {pastEventsStr}"
+                    + $" The set of history newEvents were: {newEventsStr}"
                     + $" The list of all actions so far is: {allActionsSoFarStr}"
                     + " Was a change made to the orchestrator code after this instance had already started running?");
             }
@@ -381,8 +393,14 @@ namespace DurableTask.Core
             ICollection<int> actionKeys = orchestratorActionsMap.Keys;
             var actionKeysStr = "{" + string.Join(",", actionKeys) + "}";
 
-            IEnumerable<string> allActionsSoFar = addOnlyOrchestratorActionsMap.Select(kvp => kvp.Key.ToString() + ":" + kvp.Value.GetType().ToString());
+            IEnumerable<string> allActionsSoFar = addOnlyOrchestratorActionsMap.Select(kvp => kvp.Key + ":" + kvp.Value.GetType());
             var allActionsSoFarStr = "{" + string.Join(",", allActionsSoFar) + "}";
+
+            var pastEventTypes = this.pastEvents.Select(e => e.GetType());
+            var newEventTypes = this.pastEvents.Select(e => e.GetType());
+
+            var pastEventsStr = "{" + string.Join(",", pastEventTypes) + "}";
+            var newEventsStr = "{" + string.Join(",", newEventTypes) + "}";
 
             int numActionKeys = actionKeys.Count;
             int numOpenTasksKeys = openTasksKeys.Count;
@@ -397,8 +415,8 @@ namespace DurableTask.Core
                    + "scheduled this task."
                    + $" At the time of this error: the number of pending actions is '{numActionKeys} for the following taskIDs: {actionKeysStr}."
                    + $" The number of open tasks is '{numOpenTasksKeys}' for the following taskIDs: {openTasksKeysStr}."
-                   + $" The set of history pastEvents were: {this.pastEvents}"
-                   + $" The set of history newEvents were: {this.newEvents}"
+                   + $" The set of history pastEvents were: {pastEventsStr}"
+                   + $" The set of history newEvents were: {newEventsStr}"
                    + $" The list of all actions so far is: {allActionsSoFarStr}"
                    + " Was a change made to the orchestrator code after this instance had already started running?");
             }
@@ -435,8 +453,14 @@ namespace DurableTask.Core
             ICollection<int> actionKeys = orchestratorActionsMap.Keys;
             var actionKeysStr = "{" + string.Join(",", actionKeys) + "}";
 
-            IEnumerable<string> allActionsSoFar = addOnlyOrchestratorActionsMap.Select(kvp => kvp.Key.ToString() + ":" + kvp.Value.GetType().ToString());
+            IEnumerable<string> allActionsSoFar = addOnlyOrchestratorActionsMap.Select(kvp => kvp.Key + ":" + kvp.Value.GetType());
             var allActionsSoFarStr = "{" + string.Join(",", allActionsSoFar) + "}";
+
+            var pastEventTypes = this.pastEvents.Select(e => e.GetType());
+            var newEventTypes = this.pastEvents.Select(e => e.GetType());
+
+            var pastEventsStr = "{" + string.Join(",", pastEventTypes) + "}";
+            var newEventsStr = "{" + string.Join(",", newEventTypes) + "}";
 
             int numActionKeys = actionKeys.Count;
             int numOpenTasksKeys = openTasksKeys.Count;
@@ -449,8 +473,8 @@ namespace DurableTask.Core
                    + $"but the current replay execution hasn't (yet?) scheduled this task."
                    + $" At the time of this error: the number of pending actions is '{numActionKeys} for the following taskIDs: {actionKeysStr}."
                    + $" The number of open tasks is '{numOpenTasksKeys}' for the following taskIDs: {openTasksKeysStr}."
-                   + $" The set of history pastEvents were: {this.pastEvents}"
-                   + $" The set of history newEvents were: {this.newEvents}"
+                   + $" The set of history pastEvents were: {pastEventsStr}"
+                   + $" The set of history newEvents were: {newEventsStr}"
                    + $" The list of all actions so far is: {allActionsSoFarStr}"
                    + " Was a change made to the orchestrator code after this instance had already started running?");
             }
