@@ -289,7 +289,7 @@ namespace DurableTask.Core
             var allActionsSoFarStr = "{" + string.Join(",", allActionsSoFar) + "}";
 
             var pastEventTypes = this.pastEvents.Select(e => e.GetType());
-            var newEventTypes = this.pastEvents.Select(e => e.GetType());
+            var newEventTypes = this.newEvents.Select(e => e.GetType());
 
             var pastEventsStr = "{" + string.Join(",", pastEventTypes) + "}";
             var newEventsStr = "{" + string.Join(",", newEventTypes) + "}";
@@ -345,7 +345,7 @@ namespace DurableTask.Core
             var allActionsSoFarStr = "{" + string.Join(",", allActionsSoFar) + "}";
 
             var pastEventTypes = this.pastEvents.Select(e => e.GetType());
-            var newEventTypes = this.pastEvents.Select(e => e.GetType());
+            var newEventTypes = this.newEvents.Select(e => e.GetType());
 
             var pastEventsStr = "{" + string.Join(",", pastEventTypes) + "}";
             var newEventsStr = "{" + string.Join(",", newEventTypes) + "}";
@@ -397,7 +397,7 @@ namespace DurableTask.Core
             var allActionsSoFarStr = "{" + string.Join(",", allActionsSoFar) + "}";
 
             var pastEventTypes = this.pastEvents.Select(e => e.GetType());
-            var newEventTypes = this.pastEvents.Select(e => e.GetType());
+            var newEventTypes = this.newEvents.Select(e => e.GetType());
 
             var pastEventsStr = "{" + string.Join(",", pastEventTypes) + "}";
             var newEventsStr = "{" + string.Join(",", newEventTypes) + "}";
@@ -457,7 +457,7 @@ namespace DurableTask.Core
             var allActionsSoFarStr = "{" + string.Join(",", allActionsSoFar) + "}";
 
             var pastEventTypes = this.pastEvents.Select(e => e.GetType());
-            var newEventTypes = this.pastEvents.Select(e => e.GetType());
+            var newEventTypes = this.newEvents.Select(e => e.GetType());
 
             var pastEventsStr = "{" + string.Join(",", pastEventTypes) + "}";
             var newEventsStr = "{" + string.Join(",", newEventTypes) + "}";
