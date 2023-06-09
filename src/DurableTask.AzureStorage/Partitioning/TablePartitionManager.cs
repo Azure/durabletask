@@ -328,6 +328,7 @@ namespace DurableTask.AzureStorage.Partitioning
                                     this.settings.WorkerId,
                                     partition.RowKey,
                                     $"Failed to update { partition.RowKey} due to concurrency. Re-read the table to get the latest Etag.");
+                            throw;
                         }
                         // Eat any exceptions
                         catch (Exception exception)
