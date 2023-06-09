@@ -523,7 +523,7 @@ namespace DurableTask.AzureStorage.Tests
                 var settings = new AzureStorageOrchestrationServiceSettings()
                 {
                     StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
-                    TaskHubName = "TestUnhealthyWorker8",
+                    TaskHubName = "TestUnhealthyWorker",
                     PartitionCount = 1,
                     WorkerId = i.ToString(),
                 };
@@ -623,7 +623,7 @@ namespace DurableTask.AzureStorage.Tests
             var sw = Stopwatch.StartNew();
             while (!isBalanced)
             {
-                Assert.IsTrue(sw.Elapsed < timeout, "Timeout expired!");
+                Assert.IsTrue(sw.Elapsed <= timeout, "Timeout expired!");
                 var partitions = services[0].ListTableLeases();
                 Assert.AreEqual(4, partitions.Count());
                 isBalanced = (partitions.Count(p => p.CurrentOwner == "0") == 1) &&

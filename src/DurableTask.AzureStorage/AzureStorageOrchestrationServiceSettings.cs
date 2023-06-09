@@ -157,12 +157,18 @@ namespace DurableTask.AzureStorage
         /// Interval when the current worker instance kicks off a task to compute if partitions are distributed evenly.
         /// among known host instances. 
         /// </summary>
+        /// <remarks>
+        /// The interval determines the frequency at which a worker reads the table in the table partition manager.
+        /// </remarks>
         public TimeSpan LeaseAcquireInterval { get; set; } = TimeSpan.FromSeconds(10);
 
         /// <summary>
         /// Interval for which the lease is taken on Azure Blob representing a task hub partition.  If the lease is not renewed within this 
         /// interval, it will cause it to expire and ownership of the partition will move to another worker instance.
         /// </summary>
+        /// <remarks>
+        /// The interval by which a worker extends the expiration time for each partition renewal in table partition manager.
+        /// </remarks>
         public TimeSpan LeaseInterval { get; set; } = TimeSpan.FromSeconds(30);
 
         /// <summary>
