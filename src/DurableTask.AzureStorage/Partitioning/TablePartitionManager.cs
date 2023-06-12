@@ -35,7 +35,6 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly CancellationTokenSource partitionManagerCancellationSource;
         readonly string connectionString;
         readonly string storageAccountName;
-        readonly TableServiceClient tableServiceClient;
         readonly TableClient partitionTable;
         readonly TableLeaseManager tableLeaseManager;
         readonly LeaseCollectionBalancerOptions options;
@@ -66,7 +65,6 @@ namespace DurableTask.AzureStorage.Partitioning
                 ShouldStealLeases = true
             };
             this.partitionManagerCancellationSource = new CancellationTokenSource();
-            this.tableServiceClient = new TableServiceClient(this.connectionString);
             this.partitionTable = new TableClient(this.connectionString, this.settings.PartitionTableName);
             this.tableLeaseManager = new TableLeaseManager(this.partitionTable, this.service, this.settings, this.storageAccountName, this.options);
         }
@@ -461,7 +459,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
                 catch (RequestFailedException ex) when (ex.Status == 412)
                 {
-                    throw ex;
+                    throw;
                 }
                 
 

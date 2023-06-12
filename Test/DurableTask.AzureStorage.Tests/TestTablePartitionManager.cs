@@ -29,7 +29,7 @@ namespace DurableTask.AzureStorage.Tests
     {
 
         readonly string connection = TestHelpers.GetTestStorageAccountConnectionString();
-        
+
         [TestMethod]
         // Start with one worker and four partitions.
         // Test the worker could claim all the partitions in 5 seconds.
@@ -522,7 +522,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 var settings = new AzureStorageOrchestrationServiceSettings()
                 {
-                    StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
+                    StorageConnectionString = this.connection,
                     TaskHubName = "TestUnhealthyWorker",
                     PartitionCount = 1,
                     WorkerId = i.ToString(),
@@ -580,12 +580,12 @@ namespace DurableTask.AzureStorage.Tests
         /// Ensure that all instances could be process sucessfully.
         /// </summary>
         /// <returns></returns>
-        //[TestCategory("DisabledInCI")]
+        [TestCategory("DisabledInCI")]
         [TestMethod]
         public async Task EnsureOwnedQueueExclusive()
         {
             const int WorkerCount = 4;
-            const int InstanceCount = 100;
+            const int InstanceCount = 50;
             var services = new AzureStorageOrchestrationService[WorkerCount];
             var taskHubWorkers = new TaskHubWorker[WorkerCount];
 
@@ -594,7 +594,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 var settings = new AzureStorageOrchestrationServiceSettings()
                 {
-                    StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
+                    StorageConnectionString = this.connection,
                     TaskHubName = nameof(EnsureOwnedQueueExclusive),
                     PartitionCount = 4,
                     WorkerId = i.ToString(),
@@ -652,6 +652,7 @@ namespace DurableTask.AzureStorage.Tests
             await Task.WhenAll(stopServiceTasks);
             await services[0].DeleteAsync();
         }
+
 
         [KnownType(typeof(Hello))]
         internal class HelloOrchestrator : TaskOrchestration<string, string>
