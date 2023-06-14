@@ -128,7 +128,7 @@ namespace DurableTask.Core
                 scheduledEvent = (TaskScheduledEvent)taskMessage.Event;
 
                 // Distributed tracing: start a new trace activity derived from the orchestration's trace context.
-                using Activity? traceActivity = TraceHelper.StartTraceActivityForTaskExecution(scheduledEvent, orchestrationInstance);
+                Activity? traceActivity = TraceHelper.StartTraceActivityForTaskExecution(scheduledEvent, orchestrationInstance);
 
                 this.logHelper.TaskActivityStarting(orchestrationInstance, scheduledEvent);
 
