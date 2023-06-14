@@ -628,10 +628,6 @@ namespace DurableTask.Core
             {
                 string serializedEventData = this.defaultConverter.Serialize(eventData);
                 var eventRaisedEvent = new EventRaisedEvent(-1, serializedEventData) { Name = eventName };
-                if (newActivity != null)
-                {
-                    // TODO: Set the parent trace context?
-                }
 
                 this.logHelper.RaisingEvent(orchestrationInstance, eventRaisedEvent);
                 

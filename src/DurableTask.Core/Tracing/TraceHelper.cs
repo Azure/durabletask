@@ -27,7 +27,7 @@ namespace DurableTask.Core.Tracing
     /// </summary>
     public class TraceHelper
     {
-        const string Source = "DurableTask";
+        const string Source = "DurableTask.Core";
 
         static readonly ActivitySource ActivityTraceSource = new ActivitySource(Source);
 
@@ -41,12 +41,12 @@ namespace DurableTask.Core.Tracing
         internal static Activity? StartActivityForNewOrchestration(ExecutionStartedEvent startEvent)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: CreateSpanName("create_orchestration", startEvent.Name, startEvent.Version),
+                name: CreateSpanName(TraceActivityConstants.CreateOrchestration, startEvent.Name, startEvent.Version),
                 kind: ActivityKind.Producer);
 
             if (newActivity != null)
             {
-                newActivity.SetTag(Schema.Task.Type, "orchestration");
+                newActivity.SetTag(Schema.Task.Type, TraceActivityConstants.Orchestration);
                 newActivity.SetTag(Schema.Task.Name, startEvent.Name);
                 newActivity.SetTag(Schema.Task.InstanceId, startEvent.OrchestrationInstance.InstanceId);
                 newActivity.SetTag(Schema.Task.ExecutionId, startEvent.OrchestrationInstance.ExecutionId);
@@ -81,7 +81,7 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            string activityName = CreateSpanName("orchestration", startEvent.Name, startEvent.Version);
+            string activityName = CreateSpanName(TraceActivityConstants.Orchestration, startEvent.Name, startEvent.Version);
             ActivityKind activityKind = ActivityKind.Server;
             DateTimeOffset startTime = startEvent.ParentTraceContext.ActivityStartTime ?? default;
 
@@ -96,7 +96,7 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            activity.SetTag(Schema.Task.Type, "orchestration");
+            activity.SetTag(Schema.Task.Type, TraceActivityConstants.Orchestration);
             activity.SetTag(Schema.Task.Name, startEvent.Name);
             activity.SetTag(Schema.Task.InstanceId, startEvent.OrchestrationInstance.InstanceId);
 
@@ -140,7 +140,7 @@ namespace DurableTask.Core.Tracing
             }
 
             Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: CreateSpanName("activity", scheduledEvent.Name, scheduledEvent.Version),
+                name: CreateSpanName(TraceActivityConstants.Activity, scheduledEvent.Name, scheduledEvent.Version),
                 kind: ActivityKind.Server,
                 parentContext: activityContext);
 
@@ -149,7 +149,7 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            newActivity.SetTag(Schema.Task.Type, "activity");
+            newActivity.SetTag(Schema.Task.Type, TraceActivityConstants.Activity);
             newActivity.SetTag(Schema.Task.Name, scheduledEvent.Name);
             newActivity.SetTag(Schema.Task.InstanceId, instance.InstanceId);
             newActivity.SetTag(Schema.Task.TaskId, scheduledEvent.EventId);
@@ -181,7 +181,7 @@ namespace DurableTask.Core.Tracing
             }
 
             Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: CreateSpanName("activity", taskScheduledEvent.Name, taskScheduledEvent.Version),
+                name: CreateSpanName(TraceActivityConstants.Activity, taskScheduledEvent.Name, taskScheduledEvent.Version),
                 kind: ActivityKind.Client,
                 startTime: taskScheduledEvent.Timestamp,
                 parentContext: Activity.Current?.Context ?? default);
@@ -199,7 +199,7 @@ namespace DurableTask.Core.Tracing
                 }
             }
 
-            newActivity.AddTag(Schema.Task.Type, "activity");
+            newActivity.AddTag(Schema.Task.Type, TraceActivityConstants.Activity);
             newActivity.AddTag(Schema.Task.Name, taskScheduledEvent.Name);
             newActivity.AddTag(Schema.Task.InstanceId, instance?.InstanceId);
             newActivity.AddTag(Schema.Task.TaskId, taskScheduledEvent.EventId);
@@ -275,7 +275,7 @@ namespace DurableTask.Core.Tracing
             }
 
             Activity? activity = ActivityTraceSource.StartActivity(
-                name: CreateSpanName("orchestration", createdEvent.Name, createdEvent.Version),
+                name: CreateSpanName(TraceActivityConstants.Orchestration, createdEvent.Name, createdEvent.Version),
                 kind: ActivityKind.Client,
                 startTime: createdEvent.Timestamp,
                 parentContext: Activity.Current?.Context ?? default);
@@ -287,7 +287,7 @@ namespace DurableTask.Core.Tracing
 
             activity.SetSpanId(createdEvent.ClientSpanId);
 
-            activity.SetTag(Schema.Task.Type, "orchestration");
+            activity.SetTag(Schema.Task.Type, TraceActivityConstants.Orchestration);
             activity.SetTag(Schema.Task.Name, createdEvent.Name);
             activity.SetTag(Schema.Task.InstanceId, orchestrationInstance?.InstanceId);
 
@@ -359,7 +359,7 @@ namespace DurableTask.Core.Tracing
             string? targetInstanceId)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: CreateSpanName("orchestration_event", eventRaisedEvent.Name, null),
+                name: CreateSpanName(TraceActivityConstants.OrchestrationEvent, eventRaisedEvent.Name, null),
                 kind: ActivityKind.Producer,
                 parentContext: Activity.Current?.Context ?? default);
 
@@ -368,7 +368,7 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            newActivity.AddTag(Schema.Task.Type, "event");
+            newActivity.AddTag(Schema.Task.Type, TraceActivityConstants.Event);
             newActivity.AddTag(Schema.Task.Name, eventRaisedEvent.Name);
             newActivity.AddTag(Schema.Task.InstanceId, instance?.InstanceId);
             newActivity.AddTag(Schema.Task.ExecutionId, instance?.ExecutionId);
@@ -392,12 +392,12 @@ namespace DurableTask.Core.Tracing
         internal static Activity? StartActivityForNewEventRaisedFromClient(EventRaisedEvent eventRaised, OrchestrationInstance instance)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: CreateSpanName("orchestration_event", eventRaised.Name, null),
+                name: CreateSpanName(TraceActivityConstants.OrchestrationEvent, eventRaised.Name, null),
                 kind: ActivityKind.Producer,
                 parentContext: Activity.Current?.Context ?? default,
                 tags: new KeyValuePair<string, object?>[]
                 {
-                    new(Schema.Task.Type, "event"),
+                    new(Schema.Task.Type, TraceActivityConstants.Event),
                     new(Schema.Task.Name, eventRaised.Name),
                     new(Schema.Task.EventTargetInstanceId, instance.InstanceId),
                 });
@@ -419,14 +419,14 @@ namespace DurableTask.Core.Tracing
             TimerFiredEvent timerFiredEvent)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: "timer",
+                name: TraceActivityConstants.Timer,
                 kind: ActivityKind.Internal,
                 startTime: startTime,
                 parentContext: Activity.Current?.Context ?? default);
 
             if (newActivity is not null)
             {
-                newActivity.AddTag(Schema.Task.Type, "timer");
+                newActivity.AddTag(Schema.Task.Type, TraceActivityConstants.Timer);
                 newActivity.AddTag(Schema.Task.Name, orchestrationName);
                 newActivity.AddTag(Schema.Task.InstanceId, instance?.InstanceId);
                 newActivity.AddTag(Schema.Task.FireAt, timerFiredEvent.FireAt.ToString("o"));

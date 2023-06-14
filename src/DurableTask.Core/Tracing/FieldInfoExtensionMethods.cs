@@ -45,6 +45,7 @@ namespace DurableTask.Core.Tracing
                 source = Expression.Convert(targetExp, fieldInfo.DeclaringType);
             }
 
+            // Creating the setter to set the value to the field
             ParameterExpression valueExp = Expression.Parameter(typeof(TValue), "value");
             MemberExpression fieldExp = Expression.Field(source, fieldInfo);
             BinaryExpression assignExp = Expression.Assign(fieldExp, valueExp);

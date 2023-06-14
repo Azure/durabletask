@@ -78,7 +78,7 @@ namespace ApplicationInsightsSample
             });
 
             // Used for demo purposes only as this will filter out many spans.
-            services.AddApplicationInsightsTelemetryProcessor<Processor>();
+            services.AddApplicationInsightsTelemetryProcessor<FilterOutStorageTelemetryProcessor>();
         }
 
         class Orchestration : TaskOrchestration<string, string>
