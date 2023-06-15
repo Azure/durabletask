@@ -542,9 +542,10 @@ namespace DurableTask.AzureStorage.Tests
             OrchestrationInstance[] instances = await Task.WhenAll(createInstanceTasks);
 
             await taskHubWorkers[0].StartAsync();
-            await Task.Delay(1000);// Ensure the partition is acquired by worker[0].
-            var partitions = services[0].ListTableLeases();
-            Assert.AreEqual("0", partitions.Single().CurrentOwner);
+            //Ensure worker 0 acquired the partition.
+            WaitForCondition(
+                timeout: TimeSpan.FromSeconds(2),
+                condition: () => services[0].ListTableLeases().Single().CurrentOwner == "0");
             await taskHubWorkers[1].StartAsync();
 
             using var cts = new CancellationTokenSource();
@@ -650,7 +651,6 @@ namespace DurableTask.AzureStorage.Tests
             
             var stopServiceTasks = taskHubWorkers.Select(worker => worker.StopAsync());
             await Task.WhenAll(stopServiceTasks);
-            await services[0].DeleteAsync();
         }
 
 
