@@ -83,7 +83,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.settings.TaskHubName,
                 this.settings.WorkerId,
                 "", //Empty string as it does not target any particular partition, but rather only initiates the partition manager.
-                $"Startes acquiring and balancing leases.");
+                $"Starts acquiring and balancing leases.");
         }
 
         async Task PartitionManagerLoop(CancellationToken token)
@@ -134,7 +134,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
             bool isFinish = false;
             //Shutting down is to drain all the current leases and then release them.
-            //Tthe worker checks table every 1 second to see if the realease of all ownership lease finishes to ensure timely updates.
+            //The worker checks table every 1 second to see if the realease of all ownership lease finishes to ensure timely updates.
             TimeSpan timeToSleep = TimeSpan.FromSeconds(1);
 
             //Waiting for finish draining all the ownership leases and release them. 
