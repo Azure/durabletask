@@ -653,7 +653,6 @@ namespace DurableTask.AzureStorage.Tests
             await Task.WhenAll(stopServiceTasks);
         }
 
-
         [KnownType(typeof(Hello))]
         internal class HelloOrchestrator : TaskOrchestration<string, string>
         {

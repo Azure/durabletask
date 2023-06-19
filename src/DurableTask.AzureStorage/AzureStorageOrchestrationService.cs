@@ -18,6 +18,7 @@ namespace DurableTask.AzureStorage
     using System.Diagnostics.Tracing;
     using System.Linq;
     using System.Net;
+    using System.Runtime.CompilerServices;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
@@ -591,6 +592,13 @@ namespace DurableTask.AzureStorage
             {
                 TableEntitiesResponseInfo<DynamicTableEntity> result = await partitionTable.ExecuteQueryAsync(new TableQuery<DynamicTableEntity>());
                 partitionCount = result.ReturnedEntities.Count;
+                //logs for test
+                azureStorageClient.Settings.Logger.PartitionManagerInfo(
+                    azureStorageClient.TableAccountName,
+                    taskHub,
+                    "",
+                    "",
+                    partitionCount.ToString());
             }
             else
             {

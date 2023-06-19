@@ -22,6 +22,7 @@ namespace DurableTask.AzureStorage.Partitioning
     using System.Threading.Tasks;
     using Azure;
     using Azure.Data.Tables;
+    using Castle.Components.DictionaryAdapter.Xml;
     using DurableTask.AzureStorage.Storage;
 
 
@@ -135,7 +136,7 @@ namespace DurableTask.AzureStorage.Partitioning
             bool isFinish = false;
             //Shutting down is to drain all the current leases and then release them.
             //The worker checks table every 1 second to see if the realease of all ownership lease finishes to ensure timely updates.
-            TimeSpan timeToSleep = TimeSpan.FromSeconds(1);
+            var timeToSleep = TimeSpan.FromSeconds(1);
 
             //Waiting for finish draining all the ownership leases and release them. 
             while (!isFinish)
@@ -172,7 +173,19 @@ namespace DurableTask.AzureStorage.Partitioning
 
         async Task IPartitionManager.CreateLeaseStore()
         {
-            await this.partitionTable.CreateIfNotExistsAsync();
+            try
+            {
+                await this.partitionTable.CreateIfNotExistsAsync();
+            }
+            catch (Exception exception)
+            {
+                this.settings.Logger.PartitionManagerError(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    this.settings.WorkerId,
+                    "",
+                    $"Failed to create partition table: {exception}");
+            }
         }
 
         async Task IPartitionManager.CreateLease(string leaseName)
@@ -194,6 +207,16 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.settings.WorkerId,
                     leaseName,
                     $"The partition {leaseName} already exists in the table.");
+            }
+            //Eat any other exceptions.
+            catch (Exception exception)
+            {
+                this.settings.Logger.PartitionManagerError(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    this.settings.WorkerId,
+                    leaseName,
+                    $"Error in creating partition {leaseName} : {exception}");
             }
         }
         
@@ -222,7 +245,7 @@ namespace DurableTask.AzureStorage.Partitioning
             readonly AzureStorageOrchestrationServiceSettings settings;
             readonly TableClient partitionTable;
             readonly string storageAccountName;
-            readonly Dictionary<string, Task> tasks;
+            readonly Dictionary<string, Task> drainTasks;
             readonly LeaseCollectionBalancerOptions options;
 
             public TableLeaseManager(TableClient table, AzureStorageOrchestrationService service, AzureStorageOrchestrationServiceSettings settings, string storageAccountName, LeaseCollectionBalancerOptions options)
@@ -232,7 +255,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.settings = settings;
                 this.storageAccountName = storageAccountName;
                 this.workerName = this.settings.WorkerId;
-                this.tasks = new Dictionary<string, Task>();
+                this.drainTasks = new Dictionary<string, Task>();
                 this.options = options;
             }
 
@@ -390,13 +413,13 @@ namespace DurableTask.AzureStorage.Partitioning
                             {
                                 ownershipLeasesNum++;
                             }
-                            else
+                            else// lease is stolen by others.
                             {
                                 response.WorkOnRelease = true;
 
                                 if (partition.IsDraining)
                                 {
-                                    if (this.tasks.TryGetValue(partition.RowKey!, out Task? task) && task.IsCompleted == true)
+                                    if (this.drainTasks.TryGetValue(partition.RowKey!, out Task? task) && task.IsCompleted == true)
                                     {
                                         this.ReleaseLease(partition);
                                         isReleasedLease = true;
@@ -490,95 +513,95 @@ namespace DurableTask.AzureStorage.Partitioning
             }
 
             //This method is for the balance process.
-            //First check if there is any other active worker, if not, skip the balance process.
             //If is, then calculate the average number of leases per worker for balance.
-            //If ownership lease are less than the average number, then steal leases from other workers whose leases are more than average number.
-            //Exception will be thrown if the update operation fails to get the latest information.
-            //Any other exceptions will be caught to log. 
+            //If ownership lease are less than the average number, then steal leases from other workers who have extra leases.
+            //The difference between workers's lease num should not exceed 1.
+            //Therefore, each worker should either have the average number of leases or one more than the average if the total number of leases cannot be evenly divided among them.
+            //Exception will be thrown if the update operation fails due to outdated etagso that worker could re-read the table again to get the latest information.
+            //Any other exceptions will be caught to logs. 
             public async Task LeaseBalancer(Dictionary<string, List<TableLease>> partitionDistribution, Pageable<TableLease> partitions, int ownershipLeasesNum, ReadTableReponse response)
             {
-                if (partitionDistribution.Count != 0)
+                //Check if there is any other active worker, if not, skip the balance process.
+                if (partitionDistribution.Count == 0)
                 {
-                    int averageLeases = (partitions.Count()) / (partitionDistribution.Count + 1);
-                    
-                    //If the number of leases per worker is 0, then set it to 1.
-                    if (averageLeases == 0)
-                    {
-                        averageLeases = 1;
-                    }
-                    
+                    return;
+                }
+
+                int averageLeases = (partitions.Count()) / (partitionDistribution.Count + 1);
+                if (averageLeases < ownershipLeasesNum)
+                {
+                    // Already have enough leases, and thus no need to steal, just stop the balancing.
+                    return;
+                }
+
+                //Check all the other active workers when my ownership lease number is not larger than the average number.
+                foreach (KeyValuePair<string, List<TableLease>> pair in partitionDistribution)
+                {
                     int numToSteal = averageLeases - ownershipLeasesNum;
-                    if (numToSteal <= 0)
+                    //Already have enough partitions, exit the loop.
+                    if (numToSteal < 0)
                     {
-                        // No need to steal, just stop the balancing
-                        return;
+                        break;
                     }
 
-                    foreach (KeyValuePair<string, List<TableLease>> pair in partitionDistribution)
+                    //Only steal leases from takshub workers who have more leases than average.
+                    //If this task hub worker's lease num is smaller or equal to the average number, just skip this worker.
+                    int diff = pair.Value.Count() - averageLeases;
+                    if (diff <= 0)
                     {
-                        // Already stole enough partitions, end the loop and exit the method.
-                        if (numToSteal == 0)
-                        {
-                            break;
-                        }
+                        continue;
+                    }
+                    
+                    //If the difference between the worker and myself is more than one, then steal one from it to be balanced. 
+                    if (numToSteal == 0 && diff > 1)
+                    {
+                        numToSteal = 1;
+                    }
 
-                        // Only steal leases from workers who have more leases than average.
-                        int currentWorkerOwnershipLeases = pair.Value.Count;
-                        if (currentWorkerOwnershipLeases <= averageLeases)
-                        {
-                            continue;
-                        }
+                    int stealAmount = Math.Min(numToSteal, diff);
+                    for (int i = 0; i < stealAmount; i++)
+                    {
+                        ownershipLeasesNum++;
+                        TableLease partition = pair.Value[i];
+                        ETag etag = partition.ETag;
+                        string oldOwner = partition.CurrentOwner!;
+                        this.StealLease(partition);
                         
-                        foreach (TableLease partition in pair.Value)
+                        try
                         {
-                            if(numToSteal > 0 && currentWorkerOwnershipLeases > averageLeases)
-                            {
-                                numToSteal--;
-                                currentWorkerOwnershipLeases--;
-                                ETag etag = partition.ETag;
-                                string oldOwner = partition.CurrentOwner!;
-                                this.StealLease(partition);
-                                try
-                                {
-                                    await this.partitionTable.UpdateEntityAsync(partition, etag, (TableUpdateMode)1);
-                                    this.settings.Logger.LeaseStealingSucceeded(
-                                        this.storageAccountName,
-                                        this.settings.TaskHubName,
-                                        this.settings.WorkerId,
-                                        oldOwner,
-                                        "", //leaseType empty. Because there is no leaseType in the table partition manager.
-                                        partition.RowKey);
-                                    response.WaitForPartition = true;
-                                }
-                                //Exception will be thrown due to concurrency.
-                                //Dequeue loop will catch it and re-read the table immediately to get the latest ETag.
-                                catch (RequestFailedException ex) when (ex.Status == 412)
-                                {
-                                    this.settings.Logger.PartitionManagerInfo(
-                                    this.storageAccountName,
-                                    this.settings.TaskHubName,
-                                    this.settings.WorkerId,
-                                    partition.RowKey,
-                                    $"Failed to update {partition.RowKey} due to concurrency. Re-read the table to get the latest Etag.");
-                                    throw;
-                                }
-                                // Eat any exceptions during lease stealing.
-                                catch (Exception exception)
-                                {
-                                    this.settings.Logger.PartitionManagerError(
-                                        this.storageAccountName,
-                                        this.settings.TaskHubName,
-                                        this.settings.WorkerId,
-                                        partition.RowKey,
-                                        $"Error in stealing {partition.RowKey} : {exception}"
-                                        );
-                                }
-                            }
-                            else
-                            {
-                                break;
-                            }
-                        }   
+                            await this.partitionTable.UpdateEntityAsync(partition, etag, (TableUpdateMode)1);
+                            this.settings.Logger.LeaseStealingSucceeded(
+                                this.storageAccountName,
+                                this.settings.TaskHubName,
+                                this.settings.WorkerId,
+                                oldOwner,
+                                "", //leaseType empty. Because there is no leaseType in the table partition manager.
+                                partition.RowKey);
+                            response.WaitForPartition = true;
+                        }
+                        //Exception will be thrown due to concurrency.
+                        //Dequeue loop will catch it and re-read the table immediately to get the latest ETag.
+                        catch (RequestFailedException ex) when (ex.Status == 412)
+                        {
+                            this.settings.Logger.PartitionManagerInfo(
+                            this.storageAccountName,
+                            this.settings.TaskHubName,
+                            this.settings.WorkerId,
+                            partition.RowKey,
+                            $"Failed to update {partition.RowKey} due to concurrency. Re-read the table to get the latest Etag.");
+                            throw;
+                        }
+                        // Eat any exceptions during lease stealing.
+                        catch (Exception exception)
+                        {
+                            this.settings.Logger.PartitionManagerError(
+                                this.storageAccountName,
+                                this.settings.TaskHubName,
+                                this.settings.WorkerId,
+                                partition.RowKey,
+                                $"Error in stealing {partition.RowKey} : {exception}"
+                                );
+                        }
                     }
                 }
             }
@@ -598,13 +621,13 @@ namespace DurableTask.AzureStorage.Partitioning
                 lease.IsDraining = true;
                 var task = Task.Run(() => this.service.TableLeaseDrainAsync(lease, reason));
                 string partitionId = lease.RowKey!;
-                if (this.tasks.ContainsKey(partitionId))
+                if (this.drainTasks.ContainsKey(partitionId))
                 {
-                    this.tasks[partitionId] = task;
+                    this.drainTasks[partitionId] = task;
                 }
                 else
                 {
-                    this.tasks.Add(partitionId, task);
+                    this.drainTasks.Add(partitionId, task);
                 }
             }
 
@@ -650,7 +673,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         
                         if (partition.IsDraining)
                         {
-                            if (this.tasks.TryGetValue(partition.RowKey!, out Task? task) && task.IsCompleted == true)
+                            if (this.drainTasks.TryGetValue(partition.RowKey!, out Task? task) && task.IsCompleted == true)
                             {
                                 this.ReleaseLease(partition);
                                 isReleasedLease = true;
@@ -732,7 +755,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     }
 
                 }
-                var isReleasedAllLease = (ownershipLeasesNum == 0);
+                bool isReleasedAllLease = (ownershipLeasesNum == 0);
                 return isReleasedAllLease;
             }
         }
