@@ -15,14 +15,12 @@
 namespace DurableTask.AzureStorage.Partitioning
 {
     using System;
-    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using Azure;
     using Azure.Data.Tables;
-    using Castle.Components.DictionaryAdapter.Xml;
     using DurableTask.AzureStorage.Storage;
 
 
@@ -55,9 +53,9 @@ namespace DurableTask.AzureStorage.Partitioning
             this.settings = this.azureStorageClient.Settings;
             this.connectionString = this.settings.StorageConnectionString ?? this.settings.StorageAccountDetails.ConnectionString;
             this.storageAccountName = this.azureStorageClient.TableAccountName;
-            if(this.connectionString == null)
+            if (string.IsNullOrEmpty(this.connectionString))
             {
-                throw new Exception("Connection string is null. Managed identity is not supported in the table partition manager yet.");
+                throw new InvalidOperationException("A connection string is required to use the table partition manager. Managed identity is not yet supported when using the table partition manager.");
             }
             this.options = new LeaseCollectionBalancerOptions
             {
@@ -76,19 +74,24 @@ namespace DurableTask.AzureStorage.Partitioning
         /// This method create a new instance of the class TableLeaseManager that represents the worker. 
         /// And then start the loop that the worker keeps operating on the table. 
         /// </summary>
-        async Task IPartitionManager.StartAsync()
+        Task IPartitionManager.StartAsync()
         {
-            await Task.Factory.StartNew(() => this.PartitionManagerLoop(this.partitionManagerCancellationSource.Token));
+            //await Task.Factory.StartNew(() => this.PartitionManagerLoop(this.partitionManagerCancellationSource.Token));
+            _ = Task.Run(() => this.PartitionManagerLoop(this.partitionManagerCancellationSource.Token));
             this.settings.Logger.PartitionManagerInfo(
                 this.storageAccountName,
                 this.settings.TaskHubName,
                 this.settings.WorkerId,
                 "", //Empty string as it does not target any particular partition, but rather only initiates the partition manager.
                 $"Starts acquiring and balancing leases.");
+            return Task.CompletedTask;
         }
 
         async Task PartitionManagerLoop(CancellationToken token)
         {
+            int maxFailureCount = 10;
+            int failureCount = 0;
+            
             while (!token.IsCancellationRequested)
             {
                 TimeSpan timeToSleep = this.options.AcquireInterval;
@@ -99,11 +102,18 @@ namespace DurableTask.AzureStorage.Partitioning
                     {
                         timeToSleep = TimeSpan.FromSeconds(1);
                     }
+                    failureCount = 0;
+                    await Task.Delay(timeToSleep, token);
                 }
-                catch(RequestFailedException ex) when (ex.Status == 412)
+                // if the worker failed to update the table, re-read the table immediately to get the latest message.
+                // Extend the wait time when opeartions failed multiple times to avoid excessive loggings.
+                catch (RequestFailedException ex) when (ex.Status == 412)
                 {
-                    // if the worker failed to update the table, re-read the table immediately without waiting.
-                    timeToSleep = TimeSpan.FromSeconds(0);
+                    failureCount++;
+                    if(failureCount > maxFailureCount)
+                    {
+                        await Task.Delay(timeToSleep, token);
+                    }
                 }
                 catch(Exception exception)
                 {
@@ -112,9 +122,14 @@ namespace DurableTask.AzureStorage.Partitioning
                        this.settings.TaskHubName,
                        this.settings.WorkerId,
                        "",
-                       $"Errors in partition manager reading the table : {exception}");
+                       $"An unexpected failure occurred while trying to manage table partition leases: {exception}");
+                    
+                    failureCount++;
+                    if (failureCount > maxFailureCount)
+                    {
+                        await Task.Delay(timeToSleep, token);
+                    }
                 }
-                await Task.Delay(timeToSleep, token);
             }
         }
 
@@ -131,8 +146,10 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.settings.TaskHubName,
                 this.settings.WorkerId,
                 "",
-                $"Starts draining the in-memory messages of all ownership leases for shutdown.");
+                $"Draining the in-memory messages of all owned control queues for shutdown.");
 
+            int maxFailureCount = 10;
+            int failureCount = 0;
             bool isFinish = false;
             //Shutting down is to drain all the current leases and then release them.
             //The worker checks table every 1 second to see if the realease of all ownership lease finishes to ensure timely updates.
@@ -143,12 +160,19 @@ namespace DurableTask.AzureStorage.Partitioning
             {
                 try
                 {
+                    // Returns true if the shutdown completed successfully or false ifshutdown hasn't finished.
                     isFinish = await this.tableLeaseManager.ShutDown();
+                    failureCount = 0;
                 }
-                //If the worker failed to update the table due to concurrency, re-read the table immediately without wait.
+                // If the worker failed to update the table due to concurrency, re-read the table ito get the latest information.
+                // Extend the wait time when opeartions failed multiple times to avoid excessive loggings. 
                 catch (RequestFailedException ex) when (ex.Status == 412)
                 {
-                    timeToSleep = TimeSpan.FromSeconds(0);
+                    failureCount++;
+                    if (failureCount > maxFailureCount)
+                    {
+                        timeToSleep = this.options.AcquireInterval;
+                    }
                 }
                 //Eat any other exceptions.
                 catch(Exception exception)
@@ -158,7 +182,13 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.settings.TaskHubName,
                         this.settings.WorkerId,
                         "",
-                        $"Error in stopping partition manager : {exception}");
+                        $"Error in stopping partition manager. Will continue retrying. Error details: {exception}");
+
+                    failureCount++;
+                    if (failureCount > maxFailureCount)
+                    {
+                        timeToSleep = this.options.AcquireInterval;
+                    }
                 }
                 await Task.Delay(timeToSleep);
             };
@@ -173,19 +203,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         async Task IPartitionManager.CreateLeaseStore()
         {
-            try
-            {
-                await this.partitionTable.CreateIfNotExistsAsync();
-            }
-            catch (Exception exception)
-            {
-                this.settings.Logger.PartitionManagerError(
-                    this.storageAccountName,
-                    this.settings.TaskHubName,
-                    this.settings.WorkerId,
-                    "",
-                    $"Failed to create partition table: {exception}");
-            }
+            await this.partitionTable.CreateIfNotExistsAsync();
         }
 
         async Task IPartitionManager.CreateLease(string leaseName)
@@ -207,16 +225,6 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.settings.WorkerId,
                     leaseName,
                     $"The partition {leaseName} already exists in the table.");
-            }
-            //Eat any other exceptions.
-            catch (Exception exception)
-            {
-                this.settings.Logger.PartitionManagerError(
-                    this.storageAccountName,
-                    this.settings.TaskHubName,
-                    this.settings.WorkerId,
-                    leaseName,
-                    $"Error in creating partition {leaseName} : {exception}");
             }
         }
         
@@ -276,8 +284,9 @@ namespace DurableTask.AzureStorage.Partitioning
 
                 foreach (TableLease partition in partitions)
                 {
-                    // Check to see if we're listening to any queues that we shouldn't be.
-                    // If so, remove them from the OwnedControlQueues to stop listening to it.
+                    // In certain unhealthy situations, a worker may lose the lease without realizing it and continue listening
+                    // for queue messages. We check for that case here and stop dequeuing messages if we discover that
+                    // another worker currently owns the lease.
                     this.service.DropLostControlQueues(partition);
 
                     bool isClaimedLease = false;
@@ -287,7 +296,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     bool isReleasedLease = false;
                     ETag etag = partition.ETag;
 
-                    IsLeaseAvailableToClaim(partition);
+                    isClaimedLease = TryClaimLease(partition);
                     string oldOwner = partition.CurrentOwner!;
                     CheckOtherWorkerLease(partition, partitionDistribution, response);
                     CheckOwnershipLease(partition, response);
@@ -311,7 +320,7 @@ namespace DurableTask.AzureStorage.Partitioning
                             
                             if(isClaimedLease)
                             {
-                                await this.service.TableLeaseAcquiredAsync(partition);
+                                await this.service.OnTableLeaseAcquiredAsync(partition);
                                 this.settings.Logger.LeaseAcquisitionSucceeded(
                                     this.storageAccountName,
                                     this.settings.TaskHubName,
@@ -387,19 +396,19 @@ namespace DurableTask.AzureStorage.Partitioning
                     }
 
                     //Check if a lease is available for the current worker.
-                    void IsLeaseAvailableToClaim(TableLease partition)
+                    bool TryClaimLease(TableLease partition)
                     {
                         //Check if the partition is empty, expired or stolen by the current worker and claim it.
                         bool isEmptyLease = (partition.CurrentOwner == null && partition.NextOwner == null);
-                        // test agagain with no nextowner 
                         bool isExpired = (DateTime.UtcNow >= partition.ExpiresAt);
                         bool isStolenByMe = (partition.CurrentOwner == null && partition.NextOwner == this.workerName);
 
                         if (isEmptyLease || isExpired || isStolenByMe)
                         {
                             this.ClaimLease(partition);
-                            isClaimedLease = true;
+                            return true;
                         }
+                        return false;
                     }
                     
                     //Check ownership lease. 
@@ -527,7 +536,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     return;
                 }
 
-                int averageLeases = (partitions.Count()) / (partitionDistribution.Count + 1);
+                int averageLeases = (partitions.Count()) / (partitionDistribution.Count + 1);                          
                 if (averageLeases < ownershipLeasesNum)
                 {
                     // Already have enough leases, and thus no need to steal, just stop the balancing.
@@ -552,7 +561,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         continue;
                     }
                     
-                    //If the difference between the worker and myself is more than one, then steal one from it to be balanced. 
+                    //If the difference between the worker and myself is more than one, then steal one from it to be balanced.
                     if (numToSteal == 0 && diff > 1)
                     {
                         numToSteal = 1;
@@ -619,7 +628,7 @@ namespace DurableTask.AzureStorage.Partitioning
             public void DrainLease(TableLease lease, CloseReason reason)
             {
                 lease.IsDraining = true;
-                var task = Task.Run(() => this.service.TableLeaseDrainAsync(lease, reason));
+                var task = Task.Run(() => this.service.DrainTableLeaseAsync(lease, reason));
                 string partitionId = lease.RowKey!;
                 if (this.drainTasks.ContainsKey(partitionId))
                 {

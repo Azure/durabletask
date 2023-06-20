@@ -526,6 +526,7 @@ namespace DurableTask.AzureStorage.Tests
                     TaskHubName = "TestUnhealthyWorker",
                     PartitionCount = 1,
                     WorkerId = i.ToString(),
+                    UseTablePartitionManagement = true,
                 };
                 services[i] = new AzureStorageOrchestrationService(settings);
                 taskHubWorkers[i] = new TaskHubWorker(services[i]);
@@ -599,6 +600,7 @@ namespace DurableTask.AzureStorage.Tests
                     TaskHubName = nameof(EnsureOwnedQueueExclusive),
                     PartitionCount = 4,
                     WorkerId = i.ToString(),
+                    UseTablePartitionManagement = true,
                 };
                 services[i] = new AzureStorageOrchestrationService(settings);
                 taskHubWorkers[i] = new TaskHubWorker(services[i]);

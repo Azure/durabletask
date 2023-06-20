@@ -164,8 +164,8 @@ namespace DurableTask.AzureStorage
             else if (this.settings.UseLegacyPartitionManagement)
             {
                 this.partitionManager = new LegacyPartitionManager(
-                this,
-                this.azureStorageClient);
+                    this,
+                    this.azureStorageClient);
             }
             else
             {
@@ -530,7 +530,7 @@ namespace DurableTask.AzureStorage
             return Utils.CompletedTask;
         }
 
-        internal async Task TableLeaseAcquiredAsync(TableLease lease)
+        internal async Task OnTableLeaseAcquiredAsync(TableLease lease)
         {
             var controlQueue = new ControlQueue(this.azureStorageClient, lease.RowKey, this.messageManager);
             await controlQueue.CreateIfNotExistsAsync();
@@ -539,7 +539,7 @@ namespace DurableTask.AzureStorage
             this.allControlQueues[lease.RowKey] = controlQueue;
         }
 
-        internal async Task TableLeaseDrainAsync(TableLease lease, CloseReason reason)
+        internal async Task DrainTableLeaseAsync(TableLease lease, CloseReason reason)
         {
             using var cts = new CancellationTokenSource(delay: TimeSpan.FromSeconds(30));
             await this.orchestrationSessionManager.DrainAsync(lease.RowKey, reason, cts.Token, this.settings.WorkerId);
@@ -591,13 +591,6 @@ namespace DurableTask.AzureStorage
             {
                 TableEntitiesResponseInfo<DynamicTableEntity> result = await partitionTable.ExecuteQueryAsync(new TableQuery<DynamicTableEntity>());
                 partitionCount = result.ReturnedEntities.Count;
-                //logs for test
-                azureStorageClient.Settings.Logger.PartitionManagerInfo(
-                    azureStorageClient.TableAccountName,
-                    taskHub,
-                    "",
-                    "",
-                    partitionCount.ToString());
             }
             else
             {
