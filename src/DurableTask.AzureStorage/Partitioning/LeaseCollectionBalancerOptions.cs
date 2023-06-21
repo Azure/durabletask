@@ -30,7 +30,7 @@ namespace DurableTask.AzureStorage.Partitioning
         /// among known host instances. 
         /// </summary>
         /// <remarks>
-        /// The interval determines the frequency at which a worker reads the table in the table partition manager.
+        /// This determines the frequency at which a worker reads the table in the table partition manager.
         /// </remarks>
         public TimeSpan AcquireInterval { get; set; } = TimeSpan.FromSeconds(10);
 

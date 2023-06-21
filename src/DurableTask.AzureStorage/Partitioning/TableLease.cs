@@ -39,7 +39,7 @@ namespace DurableTask.AzureStorage.Partitioning
         public string? CurrentOwner { get; set; }
 
         /// <summary>
-        /// The name of the worker stealing this lease. It's null if no worker is actively stealing it.
+        /// The name of the worker stealing this lease. It's null when no worker is actively stealing it.
         /// </summary>
         public string? NextOwner { get; set; }
 

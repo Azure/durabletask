@@ -45,7 +45,7 @@ namespace DurableTask.AzureStorage.Tests
             V3Table
         }
 
-        void PartitionManagerSettingHelper(AzureStorageOrchestrationServiceSettings settings, PartitionManagerType partitionManagerType)
+        void SetPartitionManagerType(AzureStorageOrchestrationServiceSettings settings, PartitionManagerType partitionManagerType)
         {
             switch(partitionManagerType)
             {
@@ -100,7 +100,7 @@ namespace DurableTask.AzureStorage.Tests
                 WorkerId = workerId,
                 AppName = testName
             };
-            this.PartitionManagerSettingHelper(settings, partitionManagerType);
+            this.SetPartitionManagerType(settings, partitionManagerType);
 
 
             Trace.TraceInformation($"Task Hub name: {taskHubName}");
@@ -445,7 +445,7 @@ namespace DurableTask.AzureStorage.Tests
                 StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
                 ControlQueueBufferThreshold = 100,
             };
-            this.PartitionManagerSettingHelper(settings, PartitionManagerType.V2Safe);
+            this.SetPartitionManagerType(settings, PartitionManagerType.V2Safe);
 
             // STEP 1: Start up the service and queue up a large number of messages
             var service = new AzureStorageOrchestrationService(settings);

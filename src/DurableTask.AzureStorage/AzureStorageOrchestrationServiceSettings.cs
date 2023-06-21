@@ -161,8 +161,8 @@ namespace DurableTask.AzureStorage
 
         /// <summary>
         /// Interval for which the lease is taken on Azure Blob representing a task hub partition in partition manager V1 and V2.  
-        /// Interval by which the expiration time extends for each renewal in partition manager V3.
-        /// If the lease is not renewed within this interval, it will cause it to expire and ownership of the partition will move to another worker instance.
+        /// The amount of time that a lease expiration deadline is extended on a renewal in partition manager V3.
+        /// If the lease is not renewed within this within this timespan, it will expire and ownership of the partition may move to another worker.
         /// </summary>
         public TimeSpan LeaseInterval { get; set; } = TimeSpan.FromSeconds(30);
 
