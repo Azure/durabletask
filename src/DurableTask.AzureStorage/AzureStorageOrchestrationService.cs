@@ -424,12 +424,29 @@ namespace DurableTask.AzureStorage
 
         async Task ReportStatsLoop(CancellationToken cancellationToken)
         {
+            DisconnectedPerformanceMonitor monitor = new DisconnectedPerformanceMonitor(
+                this.settings.StorageConnectionString,
+                this.settings.TaskHubName
+                );
+
             while (!cancellationToken.IsCancellationRequested)
             {
                 try
                 {
                     await Task.Delay(TimeSpan.FromMinutes(1), cancellationToken);
                     this.ReportStats();
+
+                    PerformanceHeartbeat heartbeat = await monitor.PulseAsync();
+                    this.settings.Logger.AzureStorageTaskHubMetrics(
+                        this.azureStorageClient.QueueAccountName,
+                        this.settings.TaskHubName,
+                        heartbeat.PartitionCount,
+                        heartbeat.WorkItemQueueLength,
+                        heartbeat.WorkItemQueueLatency.ToString(),
+                        heartbeat.WorkItemQueueLatencyTrend,
+                        heartbeat.ControlQueueLengths.ToString(),
+                        heartbeat.ControlQueueLatencies.ToString());
+                    
                 }
                 catch (TaskCanceledException)
                 {

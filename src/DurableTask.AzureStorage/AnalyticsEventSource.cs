@@ -1083,6 +1083,34 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
+        [Event(EventIds.AzureStorageTaskHubMetrics, Level = EventLevel.Informational, Version = 1)]
+        public void AzureStorageTaskHubMetrics(
+            string Account,
+            string TaskHub,
+            int PartitionCount,
+            int WorkItemQueueLength,
+            string WorkItemQueueLatency,
+            double WorkItemQueueLatencyTrend,
+            string ControlQueueLengths,
+            string ControlQueueLatencies,
+            string AppName,
+            string ExtensionVersion)
+        {
+            this.WriteEvent(
+                EventIds.AzureStorageTaskHubMetrics,
+                Account,
+                TaskHub,
+                AppName,
+                PartitionCount,
+                WorkItemQueueLength,
+                WorkItemQueueLatency,
+                WorkItemQueueLatencyTrend,
+                ControlQueueLengths,
+                ControlQueueLatencies,
+                ExtensionVersion);
+        }
+
+
         // Specifying tasks is necessary when using WriteEventWithRelatedActivityId
         // or else the "TaskName" property written to ETW is the name of the opcode instead
         // of the name of the trace method.

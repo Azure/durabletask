@@ -867,6 +867,28 @@ namespace DurableTask.AzureStorage.Logging
             this.WriteStructuredLog(logEvent);
         }
 
+        internal void AzureStorageTaskHubMetrics(
+            string account,
+            string taskHub,
+            int partitionCount,
+            int workItemQueueLength,
+            string workItemQueueLatency,
+            double workItemQueueLatencyTrend,
+            string controlQueueLengths,
+            string controlQueueLatencies)
+        {
+            var logEvent = new LogEvents.AzureStorageTaskHubMetrics(
+                account,
+                taskHub,
+                partitionCount,
+                workItemQueueLength,
+                workItemQueueLatency,
+                workItemQueueLatencyTrend,
+                controlQueueLengths,
+                controlQueueLatencies);
+            this.WriteStructuredLog(logEvent);
+        }
+
         void WriteStructuredLog(ILogEvent logEvent, Exception exception = null)
         {
             LoggingExtensions.LogDurableEvent(this.log, logEvent, exception);
