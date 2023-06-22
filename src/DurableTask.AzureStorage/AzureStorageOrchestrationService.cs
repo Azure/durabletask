@@ -434,19 +434,8 @@ namespace DurableTask.AzureStorage
                 try
                 {
                     await Task.Delay(TimeSpan.FromMinutes(1), cancellationToken);
-                    this.ReportStats();
-
                     PerformanceHeartbeat heartbeat = await monitor.PulseAsync();
-                    this.settings.Logger.AzureStorageTaskHubMetrics(
-                        this.azureStorageClient.QueueAccountName,
-                        this.settings.TaskHubName,
-                        heartbeat.PartitionCount,
-                        heartbeat.WorkItemQueueLength,
-                        heartbeat.WorkItemQueueLatency.ToString(),
-                        heartbeat.WorkItemQueueLatencyTrend,
-                        heartbeat.ControlQueueLengths.ToString(),
-                        heartbeat.ControlQueueLatencies.ToString());
-                    
+                    this.ReportStats(heartbeat);
                 }
                 catch (TaskCanceledException)
                 {
@@ -463,10 +452,11 @@ namespace DurableTask.AzureStorage
             }
 
             // Final reporting of stats
-            this.ReportStats();
+            PerformanceHeartbeat heartbeat = await monitor.PulseAsync();
+            this.ReportStats(heartbeat);
         }
 
-        void ReportStats()
+        void ReportStats(PerformanceHeartbeat heartbeat)
         {
             // The following stats are reported on a per-interval basis.
             long storageRequests = this.stats.StorageRequests.Reset();
@@ -495,6 +485,16 @@ namespace DurableTask.AzureStorage
                 pendingOrchestrationMessages,
                 activeOrchestrationSessions,
                 this.stats.ActiveActivityExecutions.Value);
+
+            this.settings.Logger.AzureStorageTaskHubMetrics(
+                this.azureStorageClient.QueueAccountName,
+                this.settings.TaskHubName,
+                heartbeat.PartitionCount,
+                heartbeat.WorkItemQueueLength,
+                heartbeat.WorkItemQueueLatency.ToString(),
+                heartbeat.WorkItemQueueLatencyTrend,
+                heartbeat.ControlQueueLengths.ToString(),
+                heartbeat.ControlQueueLatencies.ToString());
         }
 
         internal async Task OnIntentLeaseAquiredAsync(BlobLease lease)
