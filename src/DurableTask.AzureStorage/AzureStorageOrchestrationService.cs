@@ -426,15 +426,15 @@ namespace DurableTask.AzureStorage
         {
             DisconnectedPerformanceMonitor monitor = new DisconnectedPerformanceMonitor(
                 this.settings.StorageConnectionString,
-                this.settings.TaskHubName
-                );
+                this.settings.TaskHubName);
+            PerformanceHeartbeat heartbeat;
 
             while (!cancellationToken.IsCancellationRequested)
             {
                 try
                 {
                     await Task.Delay(TimeSpan.FromMinutes(1), cancellationToken);
-                    PerformanceHeartbeat heartbeat = await monitor.PulseAsync();
+                    heartbeat = await monitor.PulseAsync();
                     this.ReportStats(heartbeat);
                 }
                 catch (TaskCanceledException)
@@ -452,7 +452,7 @@ namespace DurableTask.AzureStorage
             }
 
             // Final reporting of stats
-            PerformanceHeartbeat heartbeat = await monitor.PulseAsync();
+            heartbeat = await monitor.PulseAsync();
             this.ReportStats(heartbeat);
         }
 
