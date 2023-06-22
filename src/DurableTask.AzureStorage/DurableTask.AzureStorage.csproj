@@ -22,6 +22,7 @@
     <MajorVersion>1</MajorVersion>
     <MinorVersion>13</MinorVersion>
     <PatchVersion>8</PatchVersion>
+    <VersionSuffix>$(PackageSuffix)</VersionSuffix>
 
     <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
     <FileVersion>$(VersionPrefix).0</FileVersion>
@@ -29,8 +30,17 @@
     <FileVersion Condition="'$(FileVersionRevision)' != ''">$(VersionPrefix).$(FileVersionRevision)</FileVersion>
     <!-- The assembly version is only the major/minor pair, making it easier to do in-place upgrades -->
     <AssemblyVersion>$(MajorVersion).$(MinorVersion).0.0</AssemblyVersion>
-    <!-- This version is used as the nuget package version -->
-    <Version>$(VersionPrefix)</Version>
+  </PropertyGroup>
+
+  <!-- The version tag is used as the nuget package version -->
+  <!-- VersionSuffix is populated with the BuildVersion iff the CI is not triggered from the dev branch-->
+  <PropertyGroup Condition="$(VersionSuffix) == ''">
+    <!-- Generating a release candidate from dev branch-->
+    <Version>$(VersionPreffix)</Version>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(VersionSuffix) != ''">
+    <!-- Generating private/preview package -->
+    <Version>$(VersionPreffix)-preview.$(VersionSuffix)</Version>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">

@@ -1,0 +1,136 @@
+trigger: none
+pr: none
+
+pool:
+  name: '1ES-Hosted-DurableTaskFramework'
+  demands:
+    - ImageOverride -equals MMS2022TLS
+
+variables:
+  PackageSuffix: ''
+
+steps:
+
+- task: PowerShell@2
+  displayName: 'Populating PackageSuffix iff source branch is not main'
+  inputs:
+    targetType: 'inline'
+    script: |
+      # if source branch is not main then we're generating a preview package.
+      # In that case, we populate the environment variable "PackageSuffix"
+      if($Env:BUILD_SOURCEBRANCHNAME -ne 'main'){
+        $buildNumber = $(Build.BuildNumber)
+        Write-Host "##vso[task.setvariable variable=PackageSuffix;]$buildNumber"
+      }
+
+# Start by restoring all the dependencies. This needs to be its own task
+# from what I can tell. We specifically only target DurableTask.AzureStorage
+# and its direct dependencies.
+- task: DotNetCoreCLI@2
+  displayName: 'Restore nuget dependencies'
+  inputs:
+    command: restore
+    verbosityRestore: Minimal
+    projects: |
+      src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln
+
+# Build the filtered solution in release mode, specifying the continuous integration flag.
+- task: VSBuild@1
+  displayName: 'Build (AzureStorage)'
+  inputs:
+    solution: 'src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln'
+    vsVersion: '16.0'
+    logFileVerbosity: minimal
+    configuration: Release
+    msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+- task: UseDotNet@2
+  displayName: 'Use the .NET Core 2.1 SDK (required for build signing)'
+  inputs:
+    packageType: 'sdk'
+    version: '2.1.x'
+
+# Manifest Generator Task
+- task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+  displayName: 'Manifest Generator '
+  inputs:
+    BuildDropPath: '$(System.DefaultWorkingDirectory)'
+
+# Authenticode sign all the DLLs with the Microsoft certificate.
+# This appears to be an in-place signing job, which is convenient.
+- task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
+  displayName: 'ESRP CodeSigning: Authenticode'
+  inputs:
+    ConnectedServiceName: 'ESRP Service'
+    FolderPath: 'src'
+    Pattern: 'DurableTask.*.dll'
+    signConfigType: inlineSignParams
+    inlineOperation: |
+     [    
+        {
+            "KeyCode": "CP-230012",
+            "OperationCode": "SigntoolSign",
+            "Parameters": {
+                "OpusName": "Microsoft",
+                "OpusInfo": "http://www.microsoft.com",
+                "FileDigest": "/fd \"SHA256\"",
+                "PageHash": "/NPH",
+                "TimeStamp": "/tr \"http://rfc3161.gtm.corp.microsoft.com/TSS/HttpTspServer\" /td sha256"
+            },
+            "ToolName": "sign",
+            "ToolVersion": "1.0"
+          },
+          {
+              "KeyCode": "CP-230012",
+              "OperationCode": "SigntoolVerify",
+              "Parameters": {},
+              "ToolName": "sign",
+              "ToolVersion": "1.0"
+          }
+      ]
+
+# Packaging needs to be a separate step from build.
+# This will automatically pick up the signed DLLs.
+
+- task: DotNetCoreCLI@2
+  displayName: Generate nuget packages
+  inputs:
+    command: pack
+    verbosityPack: Minimal
+    configuration: Release
+    nobuild: true
+    packDirectory: $(build.artifactStagingDirectory)
+    packagesToPack: 'src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln'
+
+
+# Digitally sign all the nuget packages with the Microsoft certificate.
+# This appears to be an in-place signing job, which is convenient.
+- task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
+  displayName: 'ESRP CodeSigning: Nupkg'
+  inputs:
+    ConnectedServiceName: 'ESRP Service'
+    FolderPath: $(build.artifactStagingDirectory)
+    Pattern: '*.nupkg'
+    signConfigType: inlineSignParams
+    inlineOperation: |
+     [    
+        {
+            "KeyCode": "CP-401405",
+            "OperationCode": "NuGetSign",
+            "Parameters": {},
+            "ToolName": "sign",
+            "ToolVersion": "1.0"
+        },
+        {
+            "KeyCode": "CP-401405",
+            "OperationCode": "NuGetVerify",
+            "Parameters": {},
+            "ToolName": "sign",
+            "ToolVersion": "1.0"
+        }
+     ]
+
+# Make the nuget packages available for download in the ADO portal UI
+- publish: $(build.artifactStagingDirectory)
+  displayName: 'Publish nuget packages to Artifacts'
+  artifact: PackageOutput
