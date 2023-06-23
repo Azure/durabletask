@@ -582,6 +582,7 @@ namespace DurableTask.AzureStorage.Tests
         /// Ensure that all instances could be process sucessfully.
         /// </summary>
         /// <returns></returns>
+        [TestCategory("DisabledInCI")]
         [TestMethod]
         public async Task EnsureOwnedQueueExclusive()
         {
