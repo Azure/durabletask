@@ -333,7 +333,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     ClaimedLease = TryClaimLease(partition);
                     string previousOwner = partition.CurrentOwner!;
                     CheckOtherWorkerLease(partition, partitionDistribution, response);
-                    CheckOwnershipLease(partition, response);
+                    await CheckOwnershipLease(partition, response);
 
                     // Update the table if the lease is claimed, stolen, renewed, drained or released.
                     if (ClaimedLease || StoleLease || RenewedLease || DrainedLease || ReleasedLease)
@@ -393,7 +393,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     // Check ownership lease. 
                     // If the lease is not stolen by others, renew it.
                     // If the lease is stolen by others, check if starts drainning or if finishes drainning.
-                    async void CheckOwnershipLease(TableLease partition, ReadTableReponse response)
+                    async Task CheckOwnershipLease(TableLease partition, ReadTableReponse response)
                     {
                         if (partition.CurrentOwner == this.workerName)
                         {
