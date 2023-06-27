@@ -25,40 +25,35 @@ namespace DurableTask.Core.Entities
         /// <summary>
         /// Create an entity id for an entity.
         /// </summary>
-        /// <param name="entityName">The name of this class of entities.</param>
-        /// <param name="entityKey">The entity key.</param>
-        public EntityId(string entityName, string entityKey)
+        /// <param name="name">The name of this class of entities.</param>
+        /// <param name="key">The entity key.</param>
+        public EntityId(string name, string key)
         {
-            if (string.IsNullOrEmpty(entityName))
+            if (string.IsNullOrEmpty(name))
             {
-                throw new ArgumentNullException(nameof(entityName), "Invalid entity id: entity name must not be a null or empty string.");
+                throw new ArgumentNullException(nameof(name), "Invalid entity id: entity name must not be a null or empty string.");
             }
 
-            this.Name = entityName;
-            this.Key = entityKey ?? throw new ArgumentNullException(nameof(entityKey), "Invalid entity id: entity key must not be null.");
+            this.Name = name;
+            this.Key = key ?? throw new ArgumentNullException(nameof(key), "Invalid entity id: entity key must not be null.");
         }
 
         /// <summary>
         /// The name for this class of entities.
         /// </summary>
         [DataMember(Name = "name", IsRequired = true)]
-        public readonly string Name;
+        public readonly string Name { get; }
 
         /// <summary>
         /// The entity key. Uniquely identifies an entity among all entities of the same name.
         /// </summary>
         [DataMember(Name = "key", IsRequired = true)]
-        public readonly string Key;
+        public readonly string Key { get; }
 
         /// <inheritdoc/>
         public override string ToString()
         {
             return $"@{this.Name}@{this.Key}";
-        }
-
-        internal static string GetSchedulerIdPrefixFromEntityName(string entityName)
-        {
-            return $"@{entityName}@";
         }
 
         /// <summary>
@@ -73,7 +68,7 @@ namespace DurableTask.Core.Entities
                 throw new ArgumentException(nameof(instanceId));
             }
             var pos = instanceId.IndexOf('@', 1);
-            if ( pos <= 0 || instanceId[0] != '@')
+            if (pos <= 0 || instanceId[0] != '@')
             {
                 throw new ArgumentException($"Instance ID '{instanceId}' is not a valid entity ID.", nameof(instanceId));
             }
@@ -92,7 +87,7 @@ namespace DurableTask.Core.Entities
         /// <inheritdoc/>
         public bool Equals(EntityId other)
         {
-            return (this.Name,this.Key).Equals((other.Name, other.Key));
+            return (this.Name, this.Key).Equals((other.Name, other.Key));
         }
 
         /// <inheritdoc/>

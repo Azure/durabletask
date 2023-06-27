@@ -78,7 +78,7 @@ namespace DurableTask.Core.Entities
         {
             if (this.IsInsideCriticalSection)
             {
-                foreach(var e in this.availableLocks!)
+                foreach (var e in this.availableLocks!)
                 {
                     yield return e;
                 }

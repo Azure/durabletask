@@ -43,7 +43,6 @@ namespace DurableTask.Core
         readonly ErrorPropagationMode errorPropagationMode;
         readonly TaskOrchestrationDispatcher.NonBlockingCountdownLock concurrentSessionLock;
 
-
         internal TaskEntityDispatcher(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskEntity> entityObjectManager,
@@ -101,7 +100,6 @@ namespace DurableTask.Core
         {
             await this.dispatcher.StopAsync(forced);
         }
-
 
         /// <summary>
         /// Method to get the next work item to process within supplied timeout

@@ -49,8 +49,8 @@ namespace DurableTask.Core.Entities
         /// <summary>
         /// Computes a cap on the scheduled time of an entity signal, based on the maximum signal delay time
         /// </summary>
-        /// <param name="nowUtc"></param>
-        /// <param name="scheduledUtcTime"></param>
+        /// <param name="nowUtc">The current time.</param>
+        /// <param name="scheduledUtcTime">The scheduled time.</param>
         /// <returns></returns>
         public DateTime GetCappedScheduledTime(DateTime nowUtc, DateTime scheduledUtcTime)
         {

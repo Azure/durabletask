@@ -33,7 +33,7 @@ namespace DurableTask.Core.Entities
         /// <param name="input">The serialized input for the operation.</param>
         /// <param name="scheduledTimeUtc">The time to schedule this signal, or null if not a scheduled signal</param>
         /// <returns>The event to send.</returns>
-        public static EventToSend EmitOperationSignal(OrchestrationInstance targetInstance, Guid requestId, string operationName, string input, (DateTime original, DateTime capped)? scheduledTimeUtc)
+        public static EventToSend EmitOperationSignal(OrchestrationInstance targetInstance, Guid requestId, string operationName, string input, (DateTime Original, DateTime Capped)? scheduledTimeUtc)
         {
             var request = new RequestMessage()
             {
@@ -42,14 +42,14 @@ namespace DurableTask.Core.Entities
                 Id = requestId,
                 IsSignal = true,
                 Operation = operationName,
-                ScheduledTime = scheduledTimeUtc?.original,
+                ScheduledTime = scheduledTimeUtc?.Original,
                 Input = input,
             };
 
             var jrequest = JToken.FromObject(request, Serializer.InternalSerializer);
 
             var eventName = scheduledTimeUtc.HasValue
-                ? EntityMessageEventNames.ScheduledRequestMessageEventName(scheduledTimeUtc.Value.capped)
+                ? EntityMessageEventNames.ScheduledRequestMessageEventName(scheduledTimeUtc.Value.Capped)
                 : EntityMessageEventNames.RequestMessageEventName;
 
             return new EventToSend(eventName, jrequest, targetInstance);
