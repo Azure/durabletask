@@ -14,7 +14,6 @@
 namespace DurableTask.AzureStorage.Partitioning
 {
     using System;
-    using System.Collections.Concurrent;
 
     /// <summary>
     /// Options to control various aspects of partition distribution happening within the host instance.
