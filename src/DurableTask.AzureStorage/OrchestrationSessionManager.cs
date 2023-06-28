@@ -180,8 +180,8 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="partitionId">The partition that is going to released.</param>
         /// <param name="reason">Reason to trigger the drain progres.</param>
-        /// <param name="cancellationToken">Used to cancel the drain process if it takes too long.</param>
-        /// <param name="caller">The class that calls this method.</param>
+        /// <param name="cancellationToken">Cancel the drain process if it takes too long in case the worker is unhealthy.</param>
+        /// <param name="caller">The worker that calls this method.</param>
         /// <returns></returns>
         public async Task DrainAsync(string partitionId, CloseReason reason, CancellationToken cancellationToken, string caller)
         {
@@ -189,7 +189,7 @@ namespace DurableTask.AzureStorage
             this.ReleaseQueue(partitionId, reason, caller);
             try
             {
-                // Wait until all messages from this queue has been processed.
+                // Wait until all messages from this queue have been processed.
                 while (!cancellationToken.IsCancellationRequested && this.IsControlQueueProcessingMessages(partitionId))
                 {
                     await Task.Delay(500, cancellationToken);

@@ -25,7 +25,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
 
     /// <summary>
-    /// Partition ManagerV3 based on the Azure Storage V2.  
+    /// Partition Manager V3 based on Azure Storage V2.  
     /// </summary>
     sealed class TablePartitionManager : IPartitionManager, IDisposable
     {
@@ -33,14 +33,13 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly AzureStorageOrchestrationService service;
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly CancellationTokenSource partitionManagerCancellationSource;
-        readonly string connectionString;
         readonly string storageAccountName;
         readonly TableClient partitionTable;
         readonly TableLeaseManager tableLeaseManager;
         readonly LeaseCollectionBalancerOptions options;
 
         /// <summary>
-        /// constructor to initiate new instances of TablePartitionManager
+        /// Constructor to initiate new instances of TablePartitionManager.
         /// </summary>
         /// <param name="azureStorageClient">Client for the storage account.</param>
         /// <param name="service">The service responsible for initiating or terminating the partition manager.</param>
@@ -51,11 +50,11 @@ namespace DurableTask.AzureStorage.Partitioning
             this.azureStorageClient = azureStorageClient;
             this.service = service;
             this.settings = this.azureStorageClient.Settings;
-            this.connectionString = this.settings.StorageConnectionString ?? this.settings.StorageAccountDetails.ConnectionString;
+            string connectionString = this.settings.StorageConnectionString ?? this.settings.StorageAccountDetails.ConnectionString;
             this.storageAccountName = this.azureStorageClient.TableAccountName;
-            if (string.IsNullOrEmpty(this.connectionString))
+            if (string.IsNullOrEmpty(connectionString))
             {
-                throw new InvalidOperationException("A connection string is required to use the table partition manager. Managed identity is not yet supported when using the table partition manager. Please provide a connection string to your storage account in your app.");
+                throw new InvalidOperationException("A connection string is required to use the table partition manager. Managed identity is not yet supported when using the table partition manager. Please provide a connection string to your storage account in your app settings.");
             }
             this.options = new LeaseCollectionBalancerOptions
             {
@@ -65,7 +64,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 ShouldStealLeases = true
             };
             this.partitionManagerCancellationSource = new CancellationTokenSource();
-            this.partitionTable = new TableClient(this.connectionString, this.settings.PartitionTableName);
+            this.partitionTable = new TableClient(connectionString, this.settings.PartitionTableName);
             this.tableLeaseManager = new TableLeaseManager(this.partitionTable, this.service, this.settings, this.storageAccountName, this.options);
         }
 
@@ -81,7 +80,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.settings.TaskHubName,
                 this.settings.WorkerId,
                 partitionId: "", //Empty string as it does not target any particular partition, but rather only initiates the partition manager.
-                details: $"Starts the background partition manager loop to acquire and balance partitions.");
+                details: $"Started the background partition manager loop to acquire and balance partitions.");
             return Task.CompletedTask;
         }
 
@@ -104,15 +103,13 @@ namespace DurableTask.AzureStorage.Partitioning
                 try
                 {
                     ReadTableReponse response = await this.tableLeaseManager.ReadAndWriteTable();
-                    if (response.WorkOnDrain|| response.WaitForPartition)
+                    if (response.IsDrainingPartition || response.WaitForPartition)
                     {
                         timeToSleep = TimeSpan.FromSeconds(1);
                     }
                     failureCount = 0;
                 }
-                // Exception of failed table update due to ETag expired. 
-                // Re-read the table immediately to get a new ETag.
-                // Extend the wait time when operations failed multiple times to avoid excessive loggings.
+                // Exception Status 412 represents an out of date ETag
                 catch (RequestFailedException ex) when (ex.Status == 412)
                 {
                     failureCount++;
@@ -132,8 +129,8 @@ namespace DurableTask.AzureStorage.Partitioning
 
                 try
                 {
-                    // If failed to update the table, re-read the table immediately to get the latest ETag.
-                    // If failed too many times, extend the wait time to reduce excessive logs.
+                    // If table update failed, we re-read the table immediately to obtain the latest ETag.
+                    // In the case of too many successive failures, we the wait before retrying to prevent excessive logs.
                     if (failureCount != 0 && failureCount < maxFailureCount)
                     {
                         timeToSleep = TimeSpan.FromSeconds(0);
@@ -147,7 +144,7 @@ namespace DurableTask.AzureStorage.Partitioning
                        this.settings.TaskHubName,
                        this.settings.WorkerId,
                        partitionId: "",
-                       $"Background partition manager table manage loop is canceled.");
+                       $"Cancelled background table partition manager table manager loop.");
                 }
             }
 
@@ -156,7 +153,7 @@ namespace DurableTask.AzureStorage.Partitioning
                        this.settings.TaskHubName,
                        this.settings.WorkerId,
                        partitionId: "",
-                       $"Background partition manager table manage loop stops.");
+                       $"Stopped background table partition manager loop.");
         }
 
         /// <summary>
@@ -242,6 +239,8 @@ namespace DurableTask.AzureStorage.Partitioning
             {
                 var lease = new TableLease()
                 {
+                    // Partition key is an empty string because table storage entities require
+                    // specifying a `RowKey` and `PartitionKey`, but `PartitionKey` isn't used on our end.
                     PartitionKey = "",
                     RowKey = leaseName
                 };
@@ -271,7 +270,7 @@ namespace DurableTask.AzureStorage.Partitioning
         }
 
         /// <summary>
-        /// internal use for testing . 
+        /// Used for internal testing.
         /// </summary>
         internal IEnumerable<TableLease> GetTableLeases()
         {
@@ -306,6 +305,9 @@ namespace DurableTask.AzureStorage.Partitioning
 
             /// <summary>
             /// Reads the partition table to determine the tasks the worker should do. Used by the PartitionManagerLoop.
+            /// During the iteration, the worker will first claim any available partitions with method `TryCalimLease`. 
+            /// Subsequently, if the partition is owned by this worker, it will proceed with method `CheckOwnershipLease`. 
+            /// However, if the partition is owned by other workers, it will utilize method `CheckOtherWorkerLease`.
             /// </summary>
             /// <returns> The <see cref="ReadTableReponse"/> incidates whether the worker is waiting to claim a stolen lease from other workers or working on releasing any ownership leases.</returns>
             /// <exception cref="RequestFailedException">will be thrown if failed to update the partition table. Partition Manager loop will catch it and re-read the table to get the latest information.</exception>
@@ -321,7 +323,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     // In certain unhealthy situations, a worker may lose the lease without realizing it and continue listening
                     // for queue messages. We check for that case here and stop dequeuing messages if we discover that
                     // another worker currently owns the lease.
-                    this.service.DropLostControlQueues(partition);
+                    this.service.DropLostControlQueue(partition);
 
                     bool ClaimedLease = false;
                     bool StoleLease = false;
@@ -404,7 +406,7 @@ namespace DurableTask.AzureStorage.Partitioning
                             }
                             else// Lease is stolen by others.
                             {
-                                response.WorkOnDrain = true;
+                                response.IsDrainingPartition = true;
                                 // In case operations on dictionary and isDraining are not sync, always check first if we have any drain tasks in the dictionary.
                                 bool isDrainTaskExists = this.drainTask.TryGetValue(partition.RowKey!, out Task? task);
 
@@ -648,8 +650,8 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.storageAccountName,
                         this.settings.TaskHubName,
                         this.settings.WorkerId,
-                        partition.RowKey,
-                        "");//leaseType empty cause there is no leaseType in table partition manager.
+                        partitionId: partition.RowKey,
+                        leaseType: "");//leaseType empty cause there is no leaseType in table partition manager.
                 }
                 if (StoleLease)
                 {
@@ -658,8 +660,8 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.settings.TaskHubName,
                         this.settings.WorkerId,
                         previousOwner,
-                        "", //leaseType empty. Because there is no leaseType in the table partition manager.
-                        partition.RowKey);
+                        leaseType: "", //leaseType empty. Because there is no leaseType in the table partition manager.
+                        partitionId: partition.RowKey);
                 }
                 if (ReleasedLease)
                 {
@@ -668,8 +670,8 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.settings.TaskHubName,
                         this.settings.WorkerId,
                         partition.RowKey,
-                        "",//Token empty cause there is no token in table partition manager.
-                        "");//Leasetype empty cause there is no leaseType in table partition manager.
+                        token: "",//Token empty cause there is no token in table partition manager.
+                        leaseType: ""); ;//Leasetype empty cause there is no leaseType in table partition manager.
                 }
                 if (DrainedLease)
                 {
@@ -677,8 +679,8 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.storageAccountName,
                     this.settings.TaskHubName,
                     this.settings.WorkerId,
-                    partition.RowKey,
-                    $"Starts draining the in-memory message of {partition.RowKey}.");
+                    partitionId: partition.RowKey,
+                    details: $"Starts draining the in-memory message of {partition.RowKey}.");
                 }
                 if (RenewedLease)
                 {
@@ -686,11 +688,11 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.storageAccountName,
                         this.settings.TaskHubName,
                         this.settings.WorkerId,
-                        partition.RowKey,
-                        true,
-                        "",
-                        "",
-                        $"Successfully renewed the lease of " + partition.RowKey);
+                        partitionId: partition.RowKey,
+                        success: true,
+                        token: "",
+                        leaseType: "",
+                        details: $"Successfully renewed the lease of " + partition.RowKey);
                 }
             }
 
@@ -708,12 +710,12 @@ namespace DurableTask.AzureStorage.Partitioning
             }
 
             /// <summary>
-            /// Stops the partition manager, release all ownership leases.
+            /// Stops the partition manager, releasing this worker's ownership leases .
             /// </summary>
             /// <returns>
             /// Returns <c>null</c> if the worker successfully shuts down.
             /// </returns>
-            /// <exception cref="RequestFailedException">Failed to update the partition table due to concurrency. Throw this exception so the StopAync() can cathch it to re-read the table immediately.</exception>
+            /// <exception cref="RequestFailedException">Failed to update the partition table due to an out of date ETag. The method StopAsync is expected to catch it and re-read the partition table immediately. </exception>
             public async Task<bool> ShutDown()
             {
                 Pageable<TableLease> partitions = this.partitionTable.Query<TableLease>();
@@ -732,7 +734,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         bool isDrainTaskExists = this.drainTask.TryGetValue(partition.RowKey!, out Task? task);
                         if (isDrainTaskExists)
                         {
-                            // Check if draining process has been finished.If so, release the lease.
+                            // Check if draining process has finished. If so, release the lease.
                             if (task.IsCompleted == true)
                             {
                                 this.settings.Logger.PartitionManagerInfo(
@@ -740,15 +742,15 @@ namespace DurableTask.AzureStorage.Partitioning
                                      this.settings.TaskHubName,
                                      this.settings.WorkerId,
                                      partition.RowKey,
-                                     $"Successfully drained the in-memory messages of lease {partition.RowKey} for shutdown. Lease will be released.");
+                                     details: $"Successfully drained the in-memory messages of lease {partition.RowKey} for shutdown. Lease will be released.");
 
                                 this.drainTask.Remove(partition.RowKey!);
                                 this.ReleaseLease(partition);
                                 ReleasedLease = true;
                                 ownershipLeaseCount--;
-                                await task; // Catch any exceptions happened in the drain process.
+                                await task; // We'll catch any exceptions from the drain process.
                             }
-                            else// If draining process is not finished, keep renewing the lease in case it's expired during the draining.
+                            else // If draining process is ongoing, we keep renewing the lease in case it's expired
                             {
                                 this.RenewLease(partition);
                                 RenewedLease = true;
@@ -768,8 +770,7 @@ namespace DurableTask.AzureStorage.Partitioning
                             this.LogHelper(partition, false, false, RenewedLease, DrainedLease, ReleasedLease, "");
                             
                         }
-                        // Catch exception of failed table update due to ETag expired. 
-                        // Re-read the table immediately to get the latest ETag.
+                        // Exception Status 412 represents an out of date ETag.
                         catch (RequestFailedException ex) when (ex.Status == 412)
                         {
                             this.settings.Logger.PartitionManagerInfo(
@@ -803,16 +804,16 @@ namespace DurableTask.AzureStorage.Partitioning
 
         /// <summary>
         ///The Response class describes the behavior of the ReadandWrite method in the PartitionManager worker class. 
-        ///If the virtual machine is about to drain and release a lease, the method sets the WorkonDrain flag to true. 
-        ///If the VM is going to acquire another lease from other VM, it sets the waitforPartition flag to true. 
-        ///When either of these flags is true, the sleep time of the VM changes to 1 second.
+        ///If the worker is about to drain and release a lease, the method sets the WorkonDrain flag to true. 
+        ///If the worker is going to acquire another lease from other worker, it sets the waitforPartition flag to true. 
+        ///When either of these flags is true, the sleep time of the worker changes to 1 second.
         /// </summary>
         class ReadTableReponse
         {
-            //If set to true, it indicates that the VM is working on release lease. 
-            public bool WorkOnDrain { get; set; } = false;
+            //If set to true, it indicates that the worker is working on release lease. 
+            public bool IsDrainingPartition { get; set; } = false;
             
-            //If set to true, it indicates that the VM is waiting for a lease to be released.
+            //If set to true, it indicates that the worker is waiting for a lease to be released.
             public bool WaitForPartition { get; set; } = false;
         }
 

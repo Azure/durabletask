@@ -513,14 +513,14 @@ namespace DurableTask.AzureStorage
             this.allControlQueues[lease.PartitionId] = controlQueue;
         }
 
-        internal void DropLostControlQueues(TableLease partition)
+        internal void DropLostControlQueue(TableLease partition)
         {
-            //If lease is lost but still dequeing messages, remove the queue
+            //If lease is lost but we're still dequeuing messages, remove the queue
             if (this.allControlQueues.TryGetValue(partition.RowKey, out ControlQueue controlQueue) &&
                 this.OwnedControlQueues.Contains(controlQueue) &&
                 partition.CurrentOwner != this.settings.WorkerId)
             {
-                this.orchestrationSessionManager.RemoveQueue(partition.RowKey, CloseReason.LeaseLost, this.settings.WorkerId);
+                this.orchestrationSessionManager.RemoveQueue(partition.RowKey, CloseReason.LeaseLost, nameof(DropLostControlQueue));
             }
         }
 
@@ -542,7 +542,7 @@ namespace DurableTask.AzureStorage
         internal async Task DrainTableLeaseAsync(TableLease lease, CloseReason reason)
         {
             using var cts = new CancellationTokenSource(delay: TimeSpan.FromSeconds(30));
-            await this.orchestrationSessionManager.DrainAsync(lease.RowKey, reason, cts.Token, this.settings.WorkerId);
+            await this.orchestrationSessionManager.DrainAsync(lease.RowKey, reason, cts.Token, nameof(DrainTableLeaseAsync));
         }
 
         // Used for testing
@@ -581,12 +581,11 @@ namespace DurableTask.AzureStorage
             string taskHub = azureStorageClient.Settings.TaskHubName;
 
             //Need to check for leases in Azure Table Storage. Scale Controller calls into this method.
-            
             int partitionCount;
             Table partitionTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.PartitionTableName);
+            
             // Check if table partition manager is used. If so, get partition count from table.
             // Else, get the partition count from the blobs.
-
             if (await partitionTable.ExistsAsync())
             {
                 TableEntitiesResponseInfo<DynamicTableEntity> result = await partitionTable.ExecuteQueryAsync(new TableQuery<DynamicTableEntity>());

@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage.Partitioning
 {
     using System;
+    using System.Collections.Concurrent;
 
     /// <summary>
     /// Options to control various aspects of partition distribution happening within the host instance.
@@ -30,7 +31,7 @@ namespace DurableTask.AzureStorage.Partitioning
         /// among known host instances. 
         /// </summary>
         /// <remarks>
-        /// This determines the frequency at which a worker reads the table in the table partition manager.
+        ///This determines the frequency at which a worker reads the partition table in the table partition manager.
         /// </remarks>
         public TimeSpan AcquireInterval { get; set; } = TimeSpan.FromSeconds(10);
 
