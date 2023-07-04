@@ -27,16 +27,13 @@ namespace DurableTask.AzureStorage.Tests
     [TestClass]
     public class TestTablePartitionManager
     {
-
         readonly string connection = TestHelpers.GetTestStorageAccountConnectionString();
 
-        [TestMethod]
         // Start with one worker and four partitions.
         // Test the worker could claim all the partitions in 5 seconds.
+        [TestMethod]
         public async Task TestOneWorkerWithFourPartition()
         {
-            //string storageConnectionString = TestHelpers.GetTestStorageAccountConnectionString();
-            //var storageAccount = CloudStorageAccount.Parse(storageConnectionString);
             string testName = nameof(TestOneWorkerWithFourPartition);
             var settings = new AzureStorageOrchestrationServiceSettings
             {
@@ -54,20 +51,20 @@ namespace DurableTask.AzureStorage.Tests
                 timeout: TimeSpan.FromSeconds(5),
                 condition: () =>
                 {
-                var partitions = service.ListTableLeases();
-                Assert.AreEqual(4, partitions.Count());
-                return partitions.All(p => p.CurrentOwner == "0");
+                    var partitions = service.ListTableLeases();
+                    Assert.AreEqual(4, partitions.Count());
+                    return partitions.All(p => p.CurrentOwner == "0");
                 });
 
             await service.StopAsync();
             await service.DeleteAsync();
         }
 
-        [TestMethod]
         //Starts with two workers and four partitions.
         //Test that one worker can acquire two partitions. 
         //Since two worker can not start at the same time, and one will start earlier than the another one.
         //There would be a steal process, and test that the lease tranfer will take no longer than 30 sec.
+        [TestMethod]
         public async Task TestTwoWorkerWithFourPartitions()
         {
             var services = new AzureStorageOrchestrationService[2];
@@ -104,14 +101,13 @@ namespace DurableTask.AzureStorage.Tests
             await services[0].DeleteAsync();
         }
 
-        [TestMethod]
         //Starts with four workers and four partitions.
         //Test that each worker can acquire four partitions. 
         //Since workers can not start at the same time, there would be a steal lease process.
         //Test that the lease tranfer will take no longer than 30 sec.
+        [TestMethod]
         public async Task TestFourWorkerWithFourPartitions()
         {
-
             var services = new AzureStorageOrchestrationService[4];
             string testName = nameof(TestFourWorkerWithFourPartitions);
 
@@ -132,16 +128,16 @@ namespace DurableTask.AzureStorage.Tests
             await Task.WhenAll(startTasks);
             
             WaitForCondition(
-                    timeout: TimeSpan.FromSeconds(30),
-                    condition: () =>
-                    {
-                        var partitions = services[0].ListTableLeases();
-                        Assert.AreEqual(4, partitions.Count());
-                        return ((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
-                                 (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
-                                 (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
-                                 (partitions.Count(p => p.CurrentOwner == "3") == 1));
-                    });
+                timeout: TimeSpan.FromSeconds(30),
+                condition: () =>
+                {
+                    var partitions = services[0].ListTableLeases();
+                    Assert.AreEqual(4, partitions.Count());
+                    return ((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
+                                (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
+                                (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
+                                (partitions.Count(p => p.CurrentOwner == "3") == 1));
+                });
 
 
             var stopTasks = services.Select(service => service.StopAsync());
@@ -149,13 +145,12 @@ namespace DurableTask.AzureStorage.Tests
             await services[0].DeleteAsync();
         }
 
-        [TestMethod]
         //Starts with one workers and four partitions.And then add three more workers.
         //Test that each worker can acquire four partitions. 
         //Test that the lease tranfer will take no longer than 30 sec.
+        [TestMethod]
         public async Task TestAddThreeWorkersWithOneWorkerAndFourPartitions()
         {
-
             var services = new AzureStorageOrchestrationService[4];
             string testName = "TestAddThreeWorkers";
 
@@ -188,25 +183,25 @@ namespace DurableTask.AzureStorage.Tests
 
             //Check that each worker has acquired one partitions.
             WaitForCondition(
-                    timeout: TimeSpan.FromSeconds(30),
-                    condition: () =>
-                    {
-                        var partitions = services[0].ListTableLeases();
-                        Assert.AreEqual(4, partitions.Count());
-                        return ((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
-                                 (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
-                                 (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
-                                 (partitions.Count(p => p.CurrentOwner == "3") == 1));
-                    });
+                timeout: TimeSpan.FromSeconds(30),
+                condition: () =>
+                {
+                    var partitions = services[0].ListTableLeases();
+                    Assert.AreEqual(4, partitions.Count());
+                    return ((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
+                                (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
+                                (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
+                                (partitions.Count(p => p.CurrentOwner == "3") == 1));
+                });
 
             var stopTasks = services.Select(service => service.StopAsync());
             await Task.WhenAll(stopTasks);
             await services[0].DeleteAsync();
         }
 
-        [TestMethod]
         //Starts with four workers and four partitions. And then add four more workers.
         //Test that the added workers will do nothing. 
+        [TestMethod]
         public async Task TestAddFourWorkersWithFourWorkersAndFourPartitions()
         {
             TimeSpan timeout = TimeSpan.FromSeconds(15);
@@ -233,16 +228,17 @@ namespace DurableTask.AzureStorage.Tests
             }
             
             WaitForCondition(
-                    timeout: TimeSpan.FromSeconds(30),
-                    condition: () =>
-                    {
-                        var partitions = services[0].ListTableLeases();
-                        Assert.AreEqual(4, partitions.Count());
-                        return ((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
-                                 (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
-                                 (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
-                                 (partitions.Count(p => p.CurrentOwner == "3") == 1));
-                    });
+                timeout: TimeSpan.FromSeconds(30),
+                condition: () =>
+                {
+                    var partitions = services[0].ListTableLeases();
+                    Assert.AreEqual(4, partitions.Count());
+                    return
+                        (partitions.Count(p => p.CurrentOwner == "0") == 1) &&
+                        (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
+                        (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
+                        (partitions.Count(p => p.CurrentOwner == "3") == 1);
+                });
 
             for (int i = 4; i < 8; i++)
             {
@@ -269,12 +265,11 @@ namespace DurableTask.AzureStorage.Tests
             await services[0].DeleteAsync();
         }
 
-        [TestMethod]
         //Start with four workers and four partitions. And then sacle down to three workers.
         //Test that partitions will be rebalance between the three workers, which is one worker will have two, and the other two both have one. 
+        [TestMethod]
         public async Task TestScalingDownToThreeWorkers()
         {
-
             var services = new AzureStorageOrchestrationService[4];
             string testName = "TestScalingDownToThree";
 
@@ -296,16 +291,16 @@ namespace DurableTask.AzureStorage.Tests
 
             // wait for the partitions to be distributed equally among four workers.
             WaitForCondition(
-                    timeout: TimeSpan.FromSeconds(30),
-                    condition: () =>
-                    {
-                        var partitions = services[0].ListTableLeases();
-                        Assert.AreEqual(4, partitions.Count());
-                        return ((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
-                                 (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
-                                 (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
-                                 (partitions.Count(p => p.CurrentOwner == "3") == 1));
-                    });
+                timeout: TimeSpan.FromSeconds(30),
+                condition: () =>
+                {
+                    var partitions = services[0].ListTableLeases();
+                    Assert.AreEqual(4, partitions.Count());
+                    return ((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
+                                (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
+                                (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
+                                (partitions.Count(p => p.CurrentOwner == "3") == 1));
+                });
             await services[3].StopAsync();
 
             bool isBalanced = false;
@@ -328,9 +323,9 @@ namespace DurableTask.AzureStorage.Tests
             await services[0].DeleteAsync();
         }
 
-        [TestMethod]
         //Start with four workers and four partitions. And then sacle down to one workers.
         //Test that the left one worker will take the four partitions.
+        [TestMethod]
         public async Task TestScalingDownToOneWorkers()
         {
             var services = new AzureStorageOrchestrationService[4];
@@ -354,21 +349,23 @@ namespace DurableTask.AzureStorage.Tests
 
             // wait for the partitions to be distributed equally among four workers.
             WaitForCondition(
-                    timeout: TimeSpan.FromSeconds(30),
-                    condition: () =>
-                    {
-                        var partitions = services[0].ListTableLeases();
-                        Assert.AreEqual(4, partitions.Count());
-                        return ((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
-                                 (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
-                                 (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
-                                 (partitions.Count(p => p.CurrentOwner == "3") == 1));
-                    });
+                timeout: TimeSpan.FromSeconds(30),
+                condition: () =>
+                {
+                    var partitions = services[0].ListTableLeases();
+                    Assert.AreEqual(4, partitions.Count());
+                    return ((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
+                                (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
+                                (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
+                                (partitions.Count(p => p.CurrentOwner == "3") == 1));
+                });
 
-            IList<Task> tasks = new List<Task>();
-            tasks.Add(services[1].StopAsync());
-            tasks.Add(services[2].StopAsync());
-            tasks.Add(services[3].StopAsync());
+            IList<Task> tasks = new List<Task>
+            {
+                services[1].StopAsync(),
+                services[2].StopAsync(),
+                services[3].StopAsync()
+            };
             await Task.WhenAll(tasks);
 
 
@@ -411,16 +408,16 @@ namespace DurableTask.AzureStorage.Tests
 
             // wait for the partitions to be distributed equally among four workers.
             WaitForCondition(
-                    timeout: TimeSpan.FromSeconds(30),
-                    condition: () =>
-                    {
-                        var partitions = services[0].ListTableLeases();
-                        Assert.AreEqual(4, partitions.Count());
-                        return ((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
-                                 (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
-                                 (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
-                                 (partitions.Count(p => p.CurrentOwner == "3") == 1));
-                    });
+                timeout: TimeSpan.FromSeconds(30),
+                condition: () =>
+                {
+                    var partitions = services[0].ListTableLeases();
+                    Assert.AreEqual(4, partitions.Count());
+                    return ((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
+                                (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
+                                (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
+                                (partitions.Count(p => p.CurrentOwner == "3") == 1));
+                });
 
             services[3].KillPartitionManagerLoop();
 
@@ -447,10 +444,10 @@ namespace DurableTask.AzureStorage.Tests
             await services[0].DeleteAsync();
         }
 
-        [TestCategory("DisabledInCI")]
-        [TestMethod]
         //Start with four workers and four partitions. Then kill three workers.
         //Test that the left worker will take all the partitions.
+        [TestCategory("DisabledInCI")]
+        [TestMethod]
         public async Task TestKillThreeWorker()
         {
             var services = new AzureStorageOrchestrationService[4];
@@ -474,16 +471,16 @@ namespace DurableTask.AzureStorage.Tests
 
             // wait for the partitions to be distributed equally among four workers.
             WaitForCondition(
-                    timeout: TimeSpan.FromSeconds(30),
-                    condition: () =>
-                    {
+                timeout: TimeSpan.FromSeconds(30),
+                condition: () =>
+                {
                     var partitions = services[0].ListTableLeases();
                     Assert.AreEqual(4, partitions.Count());
                     return  ((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
-                             (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
-                             (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
-                             (partitions.Count(p => p.CurrentOwner == "3") == 1));
-                    });
+                                (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
+                                (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
+                                (partitions.Count(p => p.CurrentOwner == "3") == 1));
+                });
 
             services[3].KillPartitionManagerLoop();
             services[2].KillPartitionManagerLoop();
@@ -509,7 +506,6 @@ namespace DurableTask.AzureStorage.Tests
         /// After that the unhethy worker becomes healthy again, make sure it will not take the partition back and also
         /// it won't dequeue the control queue of the stolen partition.
         /// </summary>
-        /// <returns></returns>
         [TestMethod]
         public async Task TestUnhealthyWorker()
         {
@@ -710,6 +706,12 @@ namespace DurableTask.AzureStorage.Tests
 
         static void WaitForCondition(TimeSpan timeout, Func<bool> condition)
         {
+            if (Debugger.IsAttached)
+            {
+                // Give more time for debugging so we can step through the code
+                timeout = TimeSpan.FromMinutes(3);
+            }
+
             var sw = Stopwatch.StartNew();
             while (!condition())
             {
@@ -717,7 +719,5 @@ namespace DurableTask.AzureStorage.Tests
                 Thread.Sleep(TimeSpan.FromSeconds(1));
             }
         }
-
-
     }
 }
