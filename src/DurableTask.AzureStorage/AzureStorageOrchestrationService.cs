@@ -539,10 +539,10 @@ namespace DurableTask.AzureStorage
             this.allControlQueues[lease.RowKey] = controlQueue;
         }
 
-        internal async Task DrainTableLeaseAsync(TableLease lease, CloseReason reason)
+        internal async Task DrainTablePartitionAsync(TableLease lease, CloseReason reason)
         {
             using var cts = new CancellationTokenSource(delay: TimeSpan.FromSeconds(30));
-            await this.orchestrationSessionManager.DrainAsync(lease.RowKey, reason, cts.Token, nameof(DrainTableLeaseAsync));
+            await this.orchestrationSessionManager.DrainAsync(lease.RowKey, reason, cts.Token, nameof(DrainTablePartitionAsync));
         }
 
         // Used for testing

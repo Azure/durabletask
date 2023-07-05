@@ -61,7 +61,6 @@ namespace DurableTask.AzureStorage.Partitioning
             this.options = new LeaseCollectionBalancerOptions
             {
                 AcquireInterval = this.settings.LeaseAcquireInterval,
-                RenewInterval = this.settings.LeaseRenewInterval,
                 LeaseInterval = this.settings.LeaseInterval,
                 ShouldStealLeases = true
             };
@@ -105,6 +104,10 @@ namespace DurableTask.AzureStorage.Partitioning
                 try
                 {
                     ReadTableReponse response = await this.tableLeaseManager.ReadAndWriteTable();
+
+                    // Poll more frequently if we are waiting for a partition to drain or if we are draining a partition.
+                    // This is a temporary state and we want to try and be as responsive to updates as possible to
+                    // minimize the time spent in this state, which is effectively downtime for orchestrations.
                     if (response.IsDrainingPartition || response.WaitForPartition)
                     {
                         timeToSleep = TimeSpan.FromSeconds(1);
@@ -241,24 +244,18 @@ namespace DurableTask.AzureStorage.Partitioning
             await this.partitionTable.CreateIfNotExistsAsync();
         }
 
-        async Task IPartitionManager.CreateLease(string leaseName)
+        async Task IPartitionManager.CreateLease(string partitionId)
         {
             try
             {
-                var lease = new TableLease()
-                {
-                    // Partition key is an empty string because table storage entities require
-                    // specifying a `RowKey` and `PartitionKey`, but `PartitionKey` isn't used on our end.
-                    PartitionKey = "",
-                    RowKey = leaseName
-                };
-                await this.partitionTable.AddEntityAsync(lease);
+                var newPartitionEntry = new TableLease { RowKey = partitionId };
+                await this.partitionTable.AddEntityAsync(newPartitionEntry);
 
                 this.settings.Logger.PartitionManagerInfo(
                     this.storageAccountName,
                     this.settings.TaskHubName,
                     this.settings.WorkerId,
-                    leaseName,
+                    partitionId,
                     "Successfully added the partition to the partition table.");
             }
             catch (RequestFailedException e) when (e.Status == 409 /* The specified entity already exists. */)
@@ -267,7 +264,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.storageAccountName,
                     this.settings.TaskHubName,
                     this.settings.WorkerId,
-                    leaseName,
+                    partitionId,
                     "This partition already exists in the partition table.");
             }
         }
@@ -411,24 +408,26 @@ namespace DurableTask.AzureStorage.Partitioning
                     {
                         if (partition.CurrentOwner != this.workerName)
                         {
+                            // We don't own this lease, so nothing for us to do here.
                             return;
                         }
 
-                        // Lease is not stolen by others.
                         if (partition.NextOwner == null)
                         {
+                            // We still own the lease and nobody is trying to steal it.
                             ownershipLeaseCount++;
                         }
-                        else // Lease is stolen by others.
+                        else
                         {
+                            // Somebody is trying to steal the lease. Start draining so that we can release it.
                             response.IsDrainingPartition = true;
-                            // In case operations on dictionary and isDraining are not sync, always check first if we have any drain tasks in the dictionary.
+
+                            // In case operations on dictionary and isDraining are out of sync, always check first if we have any drain tasks in the dictionary.
                             bool isDrainTaskExists = this.backgroundDrainTasks.TryGetValue(partition.RowKey!, out Task? task);
 
                             if (isDrainTaskExists)
                             {
-                                // Check if drain has been finished.
-                                // If finished, release the lease.
+                                // If the drain task has finished, we can safely release the lease.
                                 if (task.IsCompleted == true)
                                 {
                                     this.settings.Logger.PartitionManagerInfo(
@@ -442,20 +441,20 @@ namespace DurableTask.AzureStorage.Partitioning
                                     this.ReleaseLease(partition);
                                     releasedLease = true;
                                     await task;// catch exception for drain tasks
+                                    return;
                                 }
                             }
-                            else // If lease hasn't start draining, then drain it.
+                            else
                             {
-                                this.DrainLease(partition, CloseReason.LeaseLost);
+                                // Start the draining process. This will add a background task to the backgroundDrainTasks dictionary.
+                                this.DrainPartition(partition, CloseReason.LeaseLost);
                                 drainedLease = true;
                             }
                         }
-                        // As long as the lease is not released, keep renewing the lease in case lease expired since it's still draining. 
-                        if (partition.CurrentOwner != null)
-                        {
-                            this.RenewLease(partition);
-                            renewedLease = true;
-                        }
+
+                        // Keep renewing the lease until the drain task completes.
+                        this.RenewLease(partition);
+                        renewedLease = true;
                     }
 
                     //If the lease is other worker's lease. Store it to the dictionary for future balance.
@@ -616,9 +615,9 @@ namespace DurableTask.AzureStorage.Partitioning
                 lease.IsDraining = false;
             }
 
-            void DrainLease(TableLease lease, CloseReason reason)
+            void DrainPartition(TableLease lease, CloseReason reason)
             {
-                Task task = this.service.DrainTableLeaseAsync(lease, reason);
+                Task task = this.service.DrainTablePartitionAsync(lease, reason);
                 string partitionId = lease.RowKey!;
                 this.backgroundDrainTasks.Add(partitionId, task);
                 lease.IsDraining = true;
@@ -762,7 +761,9 @@ namespace DurableTask.AzureStorage.Partitioning
                     }
                     else 
                     {
-                        this.DrainLease(partition, CloseReason.Shutdown);
+                        // Drain the partition (stops reading the control queue messages) but continue to renew
+                        // the lease until the drain process has completed.
+                        this.DrainPartition(partition, CloseReason.Shutdown);
                         this.RenewLease(partition);
                         renewedLease = true;
                         drainedLease = true;
