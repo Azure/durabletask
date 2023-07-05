@@ -28,6 +28,7 @@ namespace DurableTask.AzureStorage.Tests
     public class TestTablePartitionManager
     {
         readonly string connection = TestHelpers.GetTestStorageAccountConnectionString();
+        //string connection = "UseDevelopmentStorage=true";
 
         // Start with one worker and four partitions.
         // Test the worker could claim all the partitions in 5 seconds.

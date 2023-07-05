@@ -30,6 +30,7 @@ namespace DurableTask.AzureStorage.Partitioning
     {
         // Used for logging purposes only, indicating that a particular parameter (usually a partition ID) doesn't apply.
         const string NotApplicable = "";
+        Task partitionManagerTask;
 
         readonly AzureStorageClient azureStorageClient;
         readonly AzureStorageOrchestrationService service;
@@ -68,6 +69,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.partitionManagerCancellationSource = new CancellationTokenSource();
             this.partitionTable = new TableClient(connectionString, this.settings.PartitionTableName);
             this.tableLeaseManager = new TableLeaseManager(this.partitionTable, this.service, this.settings, this.storageAccountName, this.options);
+            this.partitionManagerTask = Task.CompletedTask;
         }
 
 
@@ -76,7 +78,7 @@ namespace DurableTask.AzureStorage.Partitioning
         /// </summary>
         Task IPartitionManager.StartAsync()
         {
-            _ = Task.Run(() => this.PartitionManagerLoop(this.partitionManagerCancellationSource.Token));
+            this.partitionManagerTask = Task.Run(() => this.PartitionManagerLoop(this.partitionManagerCancellationSource.Token));
             this.settings.Logger.PartitionManagerInfo(
                 this.storageAccountName,
                 this.settings.TaskHubName,
@@ -94,21 +96,37 @@ namespace DurableTask.AzureStorage.Partitioning
         /// If worker failed to update the table or any other exceptions occurred, the worker will re-try immediately.
         /// If the failure operations occurred too many times, the wait time will be back to default value to avoid excessive loggings.
         /// </summary>
-        async Task PartitionManagerLoop(CancellationToken token)
+        async Task PartitionManagerLoop(CancellationToken cancellationToken)
         {
             int maxFailureCount = 10;
             int failureCount = 0;
+            bool isSuccessfullyShutsDown = false;
             
-            while (!token.IsCancellationRequested)
+            while (!isSuccessfullyShutsDown || !cancellationToken.IsCancellationRequested)
             {
                 TimeSpan timeToSleep = this.options.AcquireInterval;
+                
                 try
                 {
-                    ReadTableReponse response = await this.tableLeaseManager.ReadAndWriteTable();
+                    ReadTableReponse response = await this.tableLeaseManager.ReadAndWriteTable(cancellationToken);
+                    
+                    isSuccessfullyShutsDown = response.IsReleasedAllLease;                    
+                    if (isSuccessfullyShutsDown)
+                    {
+                        this.settings.Logger.PartitionManagerInfo(
+                            this.storageAccountName,
+                            this.settings.TaskHubName,
+                            this.settings.WorkerId,
+                            partitionId: NotApplicable,
+                            "Successfully released all ownership leases for shutdown.");
+                        break;
+                    }
+                    
                     if (response.IsDrainingPartition || response.WaitForPartition)
                     {
                         timeToSleep = TimeSpan.FromSeconds(1);
                     }
+                    
                     failureCount = 0;
                 }
                 // Exception Status 412 represents an out of date ETag
@@ -129,24 +147,33 @@ namespace DurableTask.AzureStorage.Partitioning
                     failureCount++;
                 }
 
-                try
+                // If table update failed, we re-read the table immediately to obtain the latest ETag.
+                // In the case of too many successive failures, we the wait before retrying to prevent excessive logs.
+                if (failureCount > 0 && failureCount < maxFailureCount)
                 {
-                    // If table update failed, we re-read the table immediately to obtain the latest ETag.
-                    // In the case of too many successive failures, we the wait before retrying to prevent excessive logs.
-                    if (failureCount != 0 && failureCount < maxFailureCount)
-                    {
-                        timeToSleep = TimeSpan.FromSeconds(0);
-                    }
-                    await Task.Delay(timeToSleep, token);
+                    timeToSleep = TimeSpan.FromSeconds(0);
                 }
-                catch (OperationCanceledException)
+                
+                if (cancellationToken.IsCancellationRequested)
                 {
-                    this.settings.Logger.PartitionManagerInfo(
-                       this.storageAccountName,
-                       this.settings.TaskHubName,
-                       this.settings.WorkerId,
-                       partitionId: NotApplicable,
-                       "Cancelled background table partition manager table manager loop.");
+                    await Task.Delay(timeToSleep);
+                }
+                else
+                {
+                    try
+                    {
+                        // Introduce a token to enable immediate shutdown initiation for the worker, even if it'sat rest when receiving the shutdown request.
+                        await Task.Delay(timeToSleep, cancellationToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        this.settings.Logger.PartitionManagerInfo(
+                            this.storageAccountName,
+                            this.settings.TaskHubName,
+                            this.settings.WorkerId,
+                            partitionId: NotApplicable,
+                            details: $"Requested to cancel partition manager table manage loop. Initiate shutdown process.");
+                    }
                 }
             }
 
@@ -174,66 +201,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 partitionId: NotApplicable,
                 "Started draining the in-memory messages of all owned control queues for shutdown.");
 
-            int maxFailureCount = 10;
-            int failureCount = 0;
-            bool hasCompleted = false;
-
-            // Shutting down is to drain all the ownership leases and then release them.
-            // The worker checks the partition table every 1 second to see if the draining finishes to ensure timely updates.
-            var timeToSleep = TimeSpan.FromSeconds(1);
-
-            // Waiting for all the ownership leases draining process to be finished. 
-            while (!hasCompleted)
-            {
-                try
-                {
-                    // Returns true if all partitions were successfully drained and released
-                    // or false if some partitions are still draining.
-                    hasCompleted = await this.tableLeaseManager.TryDrainAndReleaseAllPartitions();
-                    failureCount = 0;
-                }
-                // Exception for failed table update due to ETag expired. 
-                // Re-read the table immediately to get a new ETag.
-                catch (RequestFailedException ex) when (ex.Status == 412)
-                {
-                    failureCount++;
-                }
-                // Eat any other exceptions.
-                catch (Exception exception)
-                {
-                    this.settings.Logger.PartitionManagerError(
-                        this.storageAccountName,
-                        this.settings.TaskHubName,
-                        this.settings.WorkerId,
-                        partitionId: NotApplicable,
-                        $"Unexpected error occurred in stopping partition manager. Will continue retrying. Error details: {exception}");
-
-                    failureCount++;
-                }
-
-                if (failureCount > 0)
-                {
-                    if (failureCount < maxFailureCount)
-                    {
-                        // Retry immediately if there's a failure, up to a certain number of times
-                        timeToSleep = TimeSpan.FromSeconds(0);
-                    }
-                    else if (failureCount > maxFailureCount)
-                    {
-                        // Too many failures: slow down the loop to avoid excessive logging
-                        timeToSleep = this.options.AcquireInterval;
-                    }
-                }
-
-                await Task.Delay(timeToSleep);
-            }
-
-            this.settings.Logger.PartitionManagerInfo(
-                this.storageAccountName,
-                this.settings.TaskHubName,
-                this.settings.WorkerId,
-                partitionId: NotApplicable,
-                "Successfully released all ownership leases for shutdown.");
+            await this.partitionManagerTask;
         }
 
         async Task IPartitionManager.CreateLeaseStore()
@@ -324,12 +292,19 @@ namespace DurableTask.AzureStorage.Partitioning
             /// </summary>
             /// <returns> The <see cref="ReadTableReponse"/> incidates whether the worker is waiting to claim a stolen lease from other workers or working on releasing any ownership leases.</returns>
             /// <exception cref="RequestFailedException">will be thrown if failed to update the partition table. Partition Manager loop will catch it and re-read the table to get the latest information.</exception>
-            public async Task<ReadTableReponse> ReadAndWriteTable()
+            public async Task<ReadTableReponse> ReadAndWriteTable(CancellationToken cancellationToken)
             {
                 var response = new ReadTableReponse();
                 Pageable<TableLease> partitions = this.partitionTable.Query<TableLease>();
                 var partitionDistribution = new Dictionary<string, List<TableLease>>(); 
                 int ownershipLeaseCount = 0;
+
+                // If shutdown is requested, stop claiming and balancing partitions. Instead, drain and release all ownership partitions.
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    await this.TryDrainAndReleaseAllPartitions(partitions, response, ownershipLeaseCount);
+                    return response;
+                }
 
                 foreach (TableLease partition in partitions)
                 {
@@ -356,12 +331,12 @@ namespace DurableTask.AzureStorage.Partitioning
                         try
                         {
                             await this.partitionTable.UpdateEntityAsync(partition, etag, (TableUpdateMode)1);
-                            
+
                             if (claimedLease)
                             {
                                 await this.service.OnTableLeaseAcquiredAsync(partition);
                             }
-                            
+
                             this.LogHelper(partition, claimedLease, stoleLease, renewedLease, drainedLease, releasedLease, previousOwner);
                         }
                         // Exception for failed table update due to ETag expired. 
@@ -373,7 +348,7 @@ namespace DurableTask.AzureStorage.Partitioning
                                 this.settings.TaskHubName,
                                 this.settings.WorkerId,
                                 partition.RowKey,
-                                $"Failed to update lease entry due to ETag violation.");
+                                $"Failed to update table entry due to an Etag mismatch. Failed ETag value: '{etag}'.");
                             throw;
                         }
                         // Eat any exceptions
@@ -384,7 +359,7 @@ namespace DurableTask.AzureStorage.Partitioning
                                 this.settings.TaskHubName,
                                 this.settings.WorkerId,
                                 partition.RowKey,
-                                $"Unexpected error occurred when updating the table: {exception.Message}");   
+                                $"Unexpected error occurred when updating the table: {exception.Message}");
                         }
                     }
 
@@ -403,7 +378,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         }
                         return isLeaseAvailable;
                     }
-                    
+
                     // Check ownership lease. 
                     // If the lease is not stolen by others, renew it.
                     // If the lease is stolen by others, check if starts drainning or if finishes drainning.
@@ -437,7 +412,7 @@ namespace DurableTask.AzureStorage.Partitioning
                                         this.settings.WorkerId,
                                         partition.RowKey,
                                         $"Successfully drained partition. Lease will be released.");
-                                       
+
                                     this.backgroundDrainTasks.Remove(partition.RowKey!);
                                     this.ReleaseLease(partition);
                                     releasedLease = true;
@@ -500,9 +475,11 @@ namespace DurableTask.AzureStorage.Partitioning
                             response.WaitForPartition = true;
                         }
                     }
-                }
 
+
+                }
                 await this.BalanceLeases(partitionDistribution, partitions, ownershipLeaseCount, response);
+                
                 return response;
             }
 
@@ -723,10 +700,10 @@ namespace DurableTask.AzureStorage.Partitioning
             /// Returns <c>null</c> if the worker successfully shuts down.
             /// </returns>
             /// <exception cref="RequestFailedException">Failed to update the partition table due to an out of date ETag. The method StopAsync is expected to catch it and re-read the partition table immediately. </exception>
-            public async Task<bool> TryDrainAndReleaseAllPartitions()
+            async Task TryDrainAndReleaseAllPartitions(Pageable<TableLease> partitions, ReadTableReponse response, int ownershipLeaseCount)
             {
-                Pageable<TableLease> partitions = this.partitionTable.Query<TableLease>();
-                int ownershipLeaseCount = 0;
+                response.IsDrainingPartition = true;
+                
                 foreach (TableLease partition in partitions.Where(p => p.CurrentOwner == this.workerName))
                 {
                     bool drainedLease = false;
@@ -803,8 +780,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     }
                 }
 
-                bool releasedAllLeases = (ownershipLeaseCount == 0);
-                return releasedAllLeases;
+                response.IsReleasedAllLease = (ownershipLeaseCount == 0);
             }
         }
 
@@ -821,9 +797,12 @@ namespace DurableTask.AzureStorage.Partitioning
             
             //If set to true, it indicates that the worker is waiting for a lease to be released.
             public bool WaitForPartition { get; set; } = false;
+
+            //If set to true, it indicates that the worker successfully released all ownership leases for shutdown.
+            public bool IsReleasedAllLease { get; set; } = false;
         }
 
-        //only used for testing.
+        //internal used for testing
         internal void SimulateUnhealthyWorker(CancellationToken testToken)
         {
             _ = Task.Run(() => this.PartitionManagerLoop(testToken));
