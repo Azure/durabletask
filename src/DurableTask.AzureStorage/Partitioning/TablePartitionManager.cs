@@ -95,7 +95,9 @@ namespace DurableTask.AzureStorage.Partitioning
         /// If the worker is waiting for any other worker's partitions or is going to release any owned partitions, the wait time will be 1 second for timely update.
         /// If worker failed to update the table or any other exceptions occurred, the worker will re-try immediately.
         /// If the failure operations occurred too many times, the wait time will be back to default value to avoid excessive loggings.
+        /// Loop will end after shutdown is requested and the worker successfully released all ownership leases.
         /// </summary>
+        /// <param name="cancellationToken">Cancellation of this Token will initiate the shutdown process for partition manager.</param>
         async Task PartitionManagerLoop(CancellationToken cancellationToken)
         {
             int maxFailureCount = 10;
@@ -110,8 +112,9 @@ namespace DurableTask.AzureStorage.Partitioning
                 {
                     ReadTableReponse response = await this.tableLeaseManager.ReadAndWriteTable(cancellationToken);
                     
-                    isSuccessfullyShutsDown = response.IsReleasedAllLease;                    
-                    if (isSuccessfullyShutsDown)
+                    isSuccessfullyShutsDown = response.IsReleasedAllLease;
+                    // If shutdown is requested and already released all ownership leases, then break the loop. 
+                    if (cancellationToken.IsCancellationRequested && isSuccessfullyShutsDown)
                     {
                         this.settings.Logger.PartitionManagerInfo(
                             this.storageAccountName,
@@ -289,7 +292,9 @@ namespace DurableTask.AzureStorage.Partitioning
             /// During the iteration, the worker will first claim any available partitions with method `TryCalimLease`. 
             /// Subsequently, if the partition is owned by this worker, it will proceed with method `CheckOwnershipLease`. 
             /// However, if the partition is owned by other workers, it will utilize method `CheckOtherWorkerLease`.
+            /// If the shutdown is requested, then stop regular claim and balance process, and call method `TryDrainAndReleaseAllPartitions` to release all ownership leases.
             /// </summary>
+            /// <param name="cancellationToken">Cancellation of this token signifies the initiation of the shutdown process.</param>
             /// <returns> The <see cref="ReadTableReponse"/> incidates whether the worker is waiting to claim a stolen lease from other workers or working on releasing any ownership leases.</returns>
             /// <exception cref="RequestFailedException">will be thrown if failed to update the partition table. Partition Manager loop will catch it and re-read the table to get the latest information.</exception>
             public async Task<ReadTableReponse> ReadAndWriteTable(CancellationToken cancellationToken)
@@ -312,6 +317,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     bool drainedLease = false;
                     bool releasedLease = false;
                     ETag etag = partition.ETag;
+                    // String previousOwner is for the steal process logs. Only used for stealing leases of any worker which is in shutdown process in this loop.
                     string previousOwner = partition.CurrentOwner ?? this.workerName;
 
                     
@@ -477,6 +483,8 @@ namespace DurableTask.AzureStorage.Partitioning
                         }
                     }
 
+                    // Method for draining and releasing all ownership partitions.
+                    // This method will only be called when shutdown is requested.
                     async Task TryDrainAndReleaseAllPartitions(TableLease partition, ReadTableReponse response)
                     {
                         response.IsDrainingPartition = true;
@@ -523,6 +531,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
                 await this.BalanceLeases(partitionDistribution, partitions, ownershipLeaseCount, response);
 
+                // If shutdown is requested and the worker releases all ownership leases, then set the response.IsReleasesAllLease to true to notify the partitionManagerLoop to stop.
                 if (cancellationToken.IsCancellationRequested)
                 {
                     response.IsReleasedAllLease = (ownershipLeaseCount == 0);
