@@ -583,7 +583,7 @@ namespace DurableTask.AzureStorage.Tests
         public async Task EnsureOwnedQueueExclusive()
         {
             const int WorkerCount = 4;
-            const int InstanceCount = 50;
+            const int InstanceCount = 100;
             var services = new AzureStorageOrchestrationService[WorkerCount];
             var taskHubWorkers = new TaskHubWorker[WorkerCount];
 
