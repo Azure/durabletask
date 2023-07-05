@@ -28,7 +28,6 @@ namespace DurableTask.AzureStorage.Tests
     public class TestTablePartitionManager
     {
         readonly string connection = TestHelpers.GetTestStorageAccountConnectionString();
-        //string connection = "UseDevelopmentStorage=true";
 
         // Start with one worker and four partitions.
         // Test the worker could claim all the partitions in 5 seconds.
@@ -584,7 +583,7 @@ namespace DurableTask.AzureStorage.Tests
         public async Task EnsureOwnedQueueExclusive()
         {
             const int WorkerCount = 4;
-            const int InstanceCount = 50;
+            const int InstanceCount = 100;
             var services = new AzureStorageOrchestrationService[WorkerCount];
             var taskHubWorkers = new TaskHubWorker[WorkerCount];
 
