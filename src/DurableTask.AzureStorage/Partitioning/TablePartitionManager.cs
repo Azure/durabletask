@@ -40,8 +40,8 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly AzureStorageClient azureStorageClient;
         readonly AzureStorageOrchestrationService service;
         readonly AzureStorageOrchestrationServiceSettings settings;
-        readonly CancellationTokenSource gracefulShutdownToken;
-        readonly CancellationTokenSource forcefulShutdownToken;
+        readonly CancellationTokenSource gracefulShutdownTokenSource;
+        readonly CancellationTokenSource forcefulShutdownTokenSource;
         readonly string storageAccountName;
         readonly TableClient partitionTable;
         readonly TableLeaseManager tableLeaseManager;
@@ -75,8 +75,8 @@ namespace DurableTask.AzureStorage.Partitioning
                 LeaseInterval = this.settings.LeaseInterval,
                 ShouldStealLeases = true
             };
-            this.gracefulShutdownToken = new CancellationTokenSource();
-            this.forcefulShutdownToken = new CancellationTokenSource();
+            this.gracefulShutdownTokenSource = new CancellationTokenSource();
+            this.forcefulShutdownTokenSource = new CancellationTokenSource();
             this.partitionTable = new TableClient(connectionString, this.settings.PartitionTableName);
             this.tableLeaseManager = new TableLeaseManager(this.partitionTable, this.service, this.settings, this.storageAccountName, this.options);
             this.partitionManagerTask = Task.CompletedTask;
@@ -90,8 +90,8 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             // Run the partition manager loop in the background
             this.partitionManagerTask = this.PartitionManagerLoop(
-                this.gracefulShutdownToken.Token,
-                this.forcefulShutdownToken.Token);
+                this.gracefulShutdownTokenSource.Token,
+                this.forcefulShutdownTokenSource.Token);
             this.settings.Logger.PartitionManagerInfo(
                 this.storageAccountName,
                 this.settings.TaskHubName,
@@ -149,19 +149,20 @@ namespace DurableTask.AzureStorage.Partitioning
                     
                     consecutiveFailureCount = 0;
                 }
-                // Eat any exceptions.
+                // Exception Status 412 represents an out of date ETag. We already logged this.
+                catch (RequestFailedException ex) when (ex.Status == 412)
+                {
+                    consecutiveFailureCount++;
+                }
+                // Eat any unexpected exceptions.
                 catch (Exception exception)
                 {
-                    bool isETagMismatch = exception is RequestFailedException rfe && rfe.Status == 412;
-                    if (!isETagMismatch)
-                    {
-                        this.settings.Logger.PartitionManagerError(
-                           this.storageAccountName,
-                           this.settings.TaskHubName,
-                           this.settings.WorkerId,
-                           partitionId: NotApplicable,
-                           details: $"Unexpected error occurred while trying to manage table partition leases: {exception}");
-                    }
+                    this.settings.Logger.PartitionManagerError(
+                        this.storageAccountName,
+                        this.settings.TaskHubName,
+                        this.settings.WorkerId,
+                        partitionId: NotApplicable,
+                        details: $"Unexpected error occurred while trying to manage table partition leases: {exception}");
                     
                     consecutiveFailureCount++;
                 }
@@ -189,13 +190,16 @@ namespace DurableTask.AzureStorage.Partitioning
                 catch (OperationCanceledException) when (gracefulShutdownToken.IsCancellationRequested)
                 {
                     // Shutdown requested, but we still need to release all leases
-                    isShuttingDown = true;
-                    this.settings.Logger.PartitionManagerInfo(
-                        this.storageAccountName,
-                        this.settings.TaskHubName,
-                        this.settings.WorkerId,
-                        partitionId: NotApplicable,
-                        details: $"Requested to cancel partition manager table manage loop. Initiate shutdown process.");
+                    if (!isShuttingDown)
+                    {
+                        isShuttingDown = true;
+                        this.settings.Logger.PartitionManagerInfo(
+                            this.storageAccountName,
+                            this.settings.TaskHubName,
+                            this.settings.WorkerId,
+                            partitionId: NotApplicable,
+                            details: $"Requested to cancel partition manager table manage loop. Initiate shutdown process.");
+                    }
                 }
             }
 
@@ -215,7 +219,7 @@ namespace DurableTask.AzureStorage.Partitioning
         /// </summary>
         async Task IPartitionManager.StopAsync()
         {
-            this.gracefulShutdownToken.Cancel();
+            this.gracefulShutdownTokenSource.Cancel();
             this.settings.Logger.PartitionManagerInfo(
                 this.storageAccountName,
                 this.settings.TaskHubName,
@@ -223,10 +227,10 @@ namespace DurableTask.AzureStorage.Partitioning
                 partitionId: NotApplicable,
                 "Started draining the in-memory messages of all owned control queues for shutdown.");
 
-            // Wait 5 minutes for the partition manager to shutdown gracefully. Otherwise force a shutdown.
-            var timeout = TimeSpan.FromMinutes(5);
-            var timeoutTask = Task.Delay(Timeout.Infinite, this.forcefulShutdownToken.Token);
-            this.forcefulShutdownToken.CancelAfter(timeout);
+            // Wait 10 minutes for the partition manager to shutdown gracefully. Otherwise force a shutdown.
+            var timeout = TimeSpan.FromMinutes(10);
+            var timeoutTask = Task.Delay(Timeout.Infinite, this.forcefulShutdownTokenSource.Token);
+            this.forcefulShutdownTokenSource.CancelAfter(timeout);
             await Task.WhenAny(this.partitionManagerTask, timeoutTask);
 
             if (timeoutTask.IsCompleted)
@@ -876,12 +880,13 @@ namespace DurableTask.AzureStorage.Partitioning
         //internal used for testing
         internal void KillLoop()
         {
-            this.gracefulShutdownToken.Cancel();
+            this.gracefulShutdownTokenSource.Cancel();
         }
 
         public void Dispose()
         {
-            this.gracefulShutdownToken.Dispose();
+            this.gracefulShutdownTokenSource.Dispose();
+            this.forcefulShutdownTokenSource.Dispose();
         }
     }
 }
