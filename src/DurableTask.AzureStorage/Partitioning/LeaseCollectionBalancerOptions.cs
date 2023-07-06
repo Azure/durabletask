@@ -23,6 +23,10 @@ namespace DurableTask.AzureStorage.Partitioning
         /// <summary>
         /// Renew interval for all leases for partitions currently held by this instance.
         /// </summary>
+        /// <remarks>
+        /// The table partition manager does not use this setting. It instead relies on <see cref="AcquireInterval"/>
+        /// to determine the interval for renewing partition leases.
+        /// </remarks>
         public TimeSpan RenewInterval { get; set; } = TimeSpan.FromSeconds(10);
 
         /// <summary>
@@ -30,17 +34,15 @@ namespace DurableTask.AzureStorage.Partitioning
         /// among known host instances. 
         /// </summary>
         /// <remarks>
-        ///This determines the frequency at which a worker reads the partition table in the table partition manager.
+        /// When using the table partition manageer, this property controls the frequency at which the
+        /// worker reads and updates the partition table.
         /// </remarks>
         public TimeSpan AcquireInterval { get; set; } = TimeSpan.FromSeconds(10);
 
         /// <summary>
-        /// Interval for which the lease is taken on Azure Blob representing an EventHub partition.  If the lease is not renewed within this 
-        /// interval, it will cause it to expire and ownership of the partition will move to another instance.
+        /// Interval for which the lease is taken.  If the lease is not renewed within this 
+        /// interval, the lease will expire and ownership of the partition will move to another instance.
         /// </summary>
-        /// <remarks>
-        /// The interval by which a worker extends the expiration time for each partition renewal in table partition manager.
-        /// </remarks>
         public TimeSpan LeaseInterval { get; set; } = TimeSpan.FromSeconds(30);
 
         /// <summary>
