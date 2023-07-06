@@ -541,7 +541,7 @@ namespace DurableTask.AzureStorage
 
         internal async Task DrainTablePartitionAsync(TableLease lease, CloseReason reason)
         {
-            using var cts = new CancellationTokenSource(delay: TimeSpan.FromSeconds(30));
+            using var cts = new CancellationTokenSource(delay: TimeSpan.FromSeconds(60));
             await this.orchestrationSessionManager.DrainAsync(lease.RowKey, reason, cts.Token, nameof(DrainTablePartitionAsync));
         }
 

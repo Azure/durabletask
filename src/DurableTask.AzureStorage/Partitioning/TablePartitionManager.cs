@@ -15,6 +15,7 @@
 namespace DurableTask.AzureStorage.Partitioning
 {
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading;
@@ -472,50 +473,24 @@ namespace DurableTask.AzureStorage.Partitioning
                     // We don't own this lease, so nothing for us to do here.
                     return;
                 }
-
+                
                 if (partition.NextOwner == null)
                 {
                     // We still own the lease and nobody is trying to steal it.
                     ownershipLeaseCount++;
+                    this.RenewLease(partition);
+                    renewedLease = true;
                 }
                 else
                 {
                     // Somebody is trying to steal the lease. Start draining so that we can release it.
                     response.IsDrainingPartition = true;
-
-                    // In case operations on dictionary and isDraining are out of sync, always check first if we have any drain tasks in the dictionary.
-                    // NOTE: This logic is largely redundant with logic in TryDrainAndReleaseAllPartitions. Changes to one
-                    //       method may need to be copied to the other method.
-                    if (this.backgroundDrainTasks.TryGetValue(partition.RowKey!, out Task? drainTask))
-                    {
-                        // If the drain task has finished, we can safely release the lease.
-                        if (drainTask.IsCompleted)
-                        {
-                            this.settings.Logger.PartitionManagerInfo(
-                                this.storageAccountName,
-                                this.settings.TaskHubName,
-                                this.settings.WorkerId,
-                                partition.RowKey,
-                                $"Successfully drained partition. Lease will be released.");
-
-                            this.backgroundDrainTasks.Remove(partition.RowKey!);
-                            this.ReleaseLease(partition);
-                            releasedLease = true;
-                            drainTask.GetAwaiter().GetResult(); // surface any exceptions that may have occurred during the drain
-                            return;
-                        }
-                    }
-                    else
-                    {
-                        // Start the draining process. This will add a background task to the backgroundDrainTasks dictionary.
-                        this.DrainPartition(partition, CloseReason.LeaseLost);
-                        drainedLease = true;
-                    }
+                    this.CheckDrainTask(
+                        partition,
+                        ref releasedLease, 
+                        ref renewedLease, 
+                        ref drainedLease);
                 }
-
-                // Keep renewing the lease until the drain task completes.
-                this.RenewLease(partition);
-                renewedLease = true;
             }
 
             //If the lease is other worker's lease. Store it to the dictionary for future balance.
@@ -588,40 +563,15 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
 
                 ownershipLeaseCount++;
-
-                // NOTE: This logic is largely redundant with logic in RenewOrReleaseMyLease. Changes to one
-                //       method may need to be copied to the other method.
-                if (this.backgroundDrainTasks.TryGetValue(partition.RowKey!, out Task? drainTask))
+                this.CheckDrainTask(
+                    partition,
+                    ref releasedLease,
+                    ref renewedLease,
+                    ref drainedLease);
+                
+                if (releasedLease)
                 {
-                    // Check if draining process has finished. If so, release the lease.
-                    if (drainTask.IsCompleted)
-                    {
-                        this.settings.Logger.PartitionManagerInfo(
-                            this.storageAccountName,
-                            this.settings.TaskHubName,
-                            this.settings.WorkerId,
-                            partition.RowKey,
-                            details: "Successfully drained partition. Lease will be released.");
-
-                        this.backgroundDrainTasks.Remove(partition.RowKey!);
-                        this.ReleaseLease(partition);
-                        releasedLease = true;
-                        ownershipLeaseCount--;
-
-                        drainTask.GetAwaiter().GetResult(); // Surface any exceptions from the drain process.
-                    }
-                    else // If draining process is ongoing, we keep renewing the lease to prevent it from expiring
-                    {
-                        this.RenewLease(partition);
-                        renewedLease = true;
-                    }
-                }
-                else
-                {
-                    this.DrainPartition(partition, CloseReason.Shutdown);
-                    this.RenewLease(partition);
-                    renewedLease = true;
-                    drainedLease = true;
+                    ownershipLeaseCount--;
                 }
             }
 
@@ -650,7 +600,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 int averageLeasesCount = partitions.Count / (partitionDistribution.Count + 1);
                 if (averageLeasesCount < ownershipLeaseCount)
                 {
-                    // Partitions are already balanced across all workers.
+                    // Already have enough leases. Return since there is no need to steal other workers' partitions.
                     return;
                 }
 
@@ -841,6 +791,47 @@ namespace DurableTask.AzureStorage.Partitioning
                 else
                 {
                     partitionDistribution.Add(owner, new List<TableLease> { partition });
+                }
+            }
+
+            // Method for checking status of draining process. 
+            // In case operations on dictionary and isDraining are out of sync, always check first if we have any drain tasks in the dictionary.
+            void CheckDrainTask(
+                TableLease partition, 
+                ref bool releasedLease,
+                ref bool renewedLease, 
+                ref bool drainedLease)
+            {
+                // Check if drain process has started.
+                if (this.backgroundDrainTasks.TryGetValue(partition.RowKey!, out Task? drainTask))
+                {
+                    // Check if draining process has finished. If so, release the lease.
+                    if (drainTask.IsCompleted)
+                    {
+                        this.settings.Logger.PartitionManagerInfo(
+                            this.storageAccountName,
+                            this.settings.TaskHubName,
+                            this.settings.WorkerId,
+                            partition.RowKey,
+                            details: "Successfully drained partition. Lease will be released.");
+
+                        this.backgroundDrainTasks.Remove(partition.RowKey!);
+                        this.ReleaseLease(partition);
+                        releasedLease = true;
+                        drainTask.GetAwaiter().GetResult(); // Surface any exceptions from the drain process.
+                    }
+                    else // If draining process is stillongoing, we keep renewing the lease to prevent it from expiring
+                    {
+                        this.RenewLease(partition);
+                        renewedLease = true;
+                    }
+                }
+                else// If drain task hasn't been started yet, start it and keep renewing the lease to prevent it from expiring.
+                {
+                    this.DrainPartition(partition, CloseReason.Shutdown);
+                    this.RenewLease(partition);
+                    renewedLease = true;
+                    drainedLease = true;
                 }
             }
         }
