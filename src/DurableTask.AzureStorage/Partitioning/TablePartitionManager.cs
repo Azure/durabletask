@@ -179,7 +179,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     if (isShuttingDown || forcefulShutdownToken.IsCancellationRequested)
                     {
                         // If shutdown is required, we sleep for a short period to ensure a relatively fast shutdown process
-                        await Task.Delay(TimeSpan.FromSeconds(1), forcefulShutdownToken);
+                        await Task.Delay(timeToSleep, forcefulShutdownToken);
                     }
                     else
                     {
@@ -613,8 +613,8 @@ namespace DurableTask.AzureStorage.Partitioning
                         break;
                     }
 
-                    // Only steal leases from takshub workers who have more leases than average.
-                    // If this task hub worker's lease num is smaller or equal to the average number, just skip this worker.
+                    // Only steal leases from takshub workers that own more leases than average.
+                    // If a given task hub worker's lease count is less or equal to the average, skip it.
                     int numExcessiveLease = ownedPartitions.Count - averageLeasesCount;
                     if (numExcessiveLease <= 0)
                     {
@@ -780,7 +780,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
             }
 
-            // Add any other active worker's lease to dictionary partitionDistribution for further balance process.
+            // Track partition distribution in the partitionDistribution dictionary. We use this information when balancing partitions.
             static void AddToDictionary(TableLease partition, Dictionary<string, List<TableLease>> partitionDistribution, string owner)
             {
                 if (partitionDistribution.TryGetValue(owner, out List<TableLease> ownedPartitions))
@@ -818,8 +818,9 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.ReleaseLease(partition);
                         releasedLease = true;
                         drainTask.GetAwaiter().GetResult(); // Surface any exceptions from the drain process.
+                        return;
                     }
-                    else // If draining process is stillongoing, we keep renewing the lease to prevent it from expiring
+                    else// If draining process is stillongoing, we keep renewing the lease to prevent it from expiring
                     {
                         this.RenewLease(partition);
                         renewedLease = true;
@@ -870,7 +871,7 @@ namespace DurableTask.AzureStorage.Partitioning
         // used for internal testing
         internal void KillLoop()
         {
-            this.gracefulShutdownTokenSource.Cancel();
+            this.forcefulShutdownTokenSource.Cancel();
         }
 
         public void Dispose()
