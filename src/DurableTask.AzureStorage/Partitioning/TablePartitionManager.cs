@@ -15,7 +15,6 @@
 namespace DurableTask.AzureStorage.Partitioning
 {
     using System;
-    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading;
@@ -169,7 +168,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
 
                 // If table update failed, we re-read the table immediately to obtain the latest ETag.
-                // In the case of too many successive failures, we the wait before retrying to prevent excessive logs.
+                // In the case of too many successive failures, we wait before retrying to prevent excessive logs.
                 if (consecutiveFailureCount > 0 && consecutiveFailureCount < MaxFailureCount)
                 {
                     timeToSleep = TimeSpan.FromSeconds(0);
@@ -328,7 +327,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
             /// <summary>
             /// Reads the partition table to determine the tasks the worker should do. Used by the PartitionManagerLoop.
-            /// During the iteration, the worker will first claim any available partitions with method `TryCalimLease`. 
+            /// During the iteration, the worker will first claim any available partitions with method `TryClaimLease`. 
             /// Subsequently, if the partition is owned by this worker, it will proceed with method `CheckOwnershipLease`. 
             /// However, if the partition is owned by other workers, it will utilize method `CheckOtherWorkerLease`.
             /// If the shutdown is requested, then stop regular claim and balance process, and call method `TryDrainAndReleaseAllPartitions` to release all ownership leases.
@@ -493,8 +492,8 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
             }
 
-            //If the lease is other worker's lease. Store it to the dictionary for future balance.
-            //If the other worker is shutting down, steal the lease.
+            // If the lease is other worker's lease. Store it to the dictionary for future balance.
+            // If the other worker is shutting down, steal the lease.
             void CheckOtherWorkersLeases(
                 TableLease partition,
                 Dictionary<string, List<TableLease>> partitionDistribution,
@@ -509,7 +508,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
                 string owner;
 
-                //If the lease is other worker's current lease, add partition to the dictionary with CurrentOwner as key.
+                // If the lease is other worker's current lease, add partition to the dictionary with CurrentOwner as key.
                 if (isOtherWorkersLease)
                 {
                     owner = partition.CurrentOwner!;
@@ -527,14 +526,14 @@ namespace DurableTask.AzureStorage.Partitioning
                         ownershipLeaseCount++;
                         response.IsWaitingForPartitionRelease = true;
                     }
-                    // If the lease is stolen by other workers, add it to the partitionDistribution dictionary with NextOwner as key.
+                    // If the lease is stolen by another worker, keep track of it for rebalancing purposes.
                     else
                     {
                         AddToDictionary(partition, partitionDistribution, owner);
                     }
                 }
 
-                // If the lease belongs to a worker that is shutting down, and it's not being stolen by another worker, steal it.
+                // If the lease belongs to a worker that is shutting down, and it has not been stolen yet, steal it.
                 if (isOwnerShuttingDown)
                 {
                     previousOwner = partition.CurrentOwner!;
@@ -604,7 +603,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     return;
                 }
 
-                // Check all the other active workers when my ownership lease number is not larger than the average number.
+                // If this worker does not own enough partitions, search for leases to steal
                 foreach (IReadOnlyList<TableLease> ownedPartitions in partitionDistribution.Values)
                 {
                     int numLeasesToSteal = averageLeasesCount - ownershipLeaseCount;
@@ -837,9 +836,9 @@ namespace DurableTask.AzureStorage.Partitioning
         }
 
         /// <summary>
-        /// The Response class describes the behavior of the ReadandWrite method in the PartitionManager worker class. 
-        /// If the worker is about to drain and release a lease, the method sets the WorkonDrain flag to true. 
-        /// If the worker is going to acquire another lease from other worker, it sets the waitforPartition flag to true. 
+        /// The Response class describes the behavior of the TableLeaseManager's  ReadAndWrite method. 
+        /// If the worker is draining (i.e working to release its leases), the method sets the IsDrainingPartition flag to true. 
+        /// If the worker is going to acquire another lease from another worker, it sets the WaitForPartition flag to true. 
         /// When either of these flags is true, the sleep time of the worker changes to 1 second.
         /// </summary>
         class ReadTableReponse
@@ -860,7 +859,7 @@ namespace DurableTask.AzureStorage.Partitioning
             public bool ReleasedAllLeases { get; set; } = false;
         }
 
-        //internal used for testing
+        // used for internal testing
         internal void SimulateUnhealthyWorker(CancellationToken testToken)
         {
             _ = this.PartitionManagerLoop(
@@ -868,7 +867,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 forcefulShutdownToken: CancellationToken.None);
         }
 
-        //internal used for testing
+        // used for internal testing
         internal void KillLoop()
         {
             this.gracefulShutdownTokenSource.Cancel();

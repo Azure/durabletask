@@ -515,7 +515,7 @@ namespace DurableTask.AzureStorage
 
         internal void DropLostControlQueue(TableLease partition)
         {
-            //If lease is lost but we're still dequeuing messages, remove the queue
+            // If lease is lost but we're still dequeuing messages, remove the queue
             if (this.allControlQueues.TryGetValue(partition.RowKey, out ControlQueue controlQueue) &&
                 this.OwnedControlQueues.Contains(controlQueue) &&
                 partition.CurrentOwner != this.settings.WorkerId)
@@ -551,19 +551,19 @@ namespace DurableTask.AzureStorage
             return this.partitionManager.GetOwnershipBlobLeases();
         }
 
-        //used for table partition manager testing
+        // Used for table partition manager testing
         internal IEnumerable<TableLease> ListTableLeases()
         {
             return ((TablePartitionManager)this.partitionManager).GetTableLeases();
         }
 
-        //used for table partition manager testing.
+        // Used for table partition manager testing.
         internal void SimulateUnhealthyWorker(CancellationToken testToken)
         {
             ((TablePartitionManager)this.partitionManager).SimulateUnhealthyWorker(testToken);
         }
 
-        //used for table partition manager testing
+        // Used for table partition manager testing
         internal void KillPartitionManagerLoop()
         {
             ((TablePartitionManager)this.partitionManager).KillLoop();
@@ -580,7 +580,7 @@ namespace DurableTask.AzureStorage
 
             string taskHub = azureStorageClient.Settings.TaskHubName;
 
-            //Need to check for leases in Azure Table Storage. Scale Controller calls into this method.
+            // Need to check for leases in Azure Table Storage. Scale Controller calls into this method.
             int partitionCount;
             Table partitionTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.PartitionTableName);
             
