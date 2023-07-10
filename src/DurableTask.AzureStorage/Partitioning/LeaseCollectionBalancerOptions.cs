@@ -34,11 +34,10 @@ namespace DurableTask.AzureStorage.Partitioning
         /// among known host instances. 
         /// </summary>
         /// <remarks>
-        /// When using the table partition manager, this property controls the frequency at which the
-        /// worker reads and updates the partition table.
-        /// This interval will be internally updated in the following two scenarios:
-        /// If the worker fails to update the partition table, the interval will be 0 second.
-        /// If the worker is waiting for a partition to be released or is working on releasing a partition, then the interval will be 1 second.
+        /// When using the table partition manager, this property sets the frequency at which the
+        /// worker reads and updates the partition table except in the following two scenarios:
+        /// (1) If the worker fails to update the partition table, then the partitions table is read immediately.
+        /// (2) If the worker is waiting for a partition to be released or is working on releasing a partition, then the interval becomes 1 second.
         /// </remarks>
         public TimeSpan AcquireInterval { get; set; } = TimeSpan.FromSeconds(10);
 
