@@ -34,7 +34,7 @@ namespace DurableTask.AzureStorage.Partitioning
         /// among known host instances. 
         /// </summary>
         /// <remarks>
-        /// When using the table partition manageer, this property controls the frequency at which the
+        /// When using the table partition manager, this property controls the frequency at which the
         /// worker reads and updates the partition table.
         /// </remarks>
         public TimeSpan AcquireInterval { get; set; } = TimeSpan.FromSeconds(10);

@@ -212,10 +212,10 @@ namespace DurableTask.AzureStorage.Partitioning
         }
 
         /// <summary>
-        /// Stop the partition manager. It first stops the partition manager loop to stop involving in balance in case it steals others' partitions in shutdown process.
-        /// And then start the Task ShutDown() to release all ownership leases. 
-        /// Worker will retry updating the table if the update was failed or any other exceptions occurred.
-        /// If the failure operations happened too many times, the loop waiting time will be extended to avoid excessive loggings.
+        /// Stop the partition manager. It first stops the partition manager loop to prevent stealing partitions during shutdown.
+        /// Then it starts the Task ShutDown() to release all ownership leases. 
+        /// Worker will retry updating the table if the update failed or if any other exceptions occurred.
+        /// In the case of too many failed operations, the loop waiting time will be extended to avoid excessive logs.
         /// </summary>
         async Task IPartitionManager.StopAsync()
         {
@@ -346,8 +346,8 @@ namespace DurableTask.AzureStorage.Partitioning
 
                 foreach (TableLease partition in partitions)
                 {
-                    // In certain unhealthy situations, a worker may lose the lease without realizing it and continue listening
-                    // for queue messages. We check for that case here and stop dequeuing messages if we discover that
+                    // In a worker becomes unhealthy, it may lose a lease without realizing it and continue listening
+                    // for messages. We check for that case here and stop dequeuing messages if we discover that
                     // another worker currently owns the lease.
                     this.service.DropLostControlQueue(partition);
 
@@ -581,8 +581,8 @@ namespace DurableTask.AzureStorage.Partitioning
             // A few remarks:
             // (1) The quota of partitions per worker is the number of partitions divided by the number of workers. If these two number can not be evenly divided, then the difference between quota of partitions per workers should not exceed one.
             // (2) Workers only steal from workers that have exceeded their quota
-            // Exception will be thrown if the update operation fails due to outdated etagso that worker could re-read the table again to get the latest information.
-            // Any other exceptions will be caught to logs. 
+            // An exception will be thrown if the table update fails due to an outdated ETag so that the worker can re-read the table again to get the latest information.
+            // Any other exceptions will be captured through logs. 
             async Task BalanceLeasesAsync(
                 Dictionary<string, List<TableLease>> partitionDistribution,
                 IReadOnlyList<TableLease> partitions,
