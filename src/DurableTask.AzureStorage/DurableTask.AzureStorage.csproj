@@ -20,8 +20,8 @@
   <!-- Version Info -->
   <PropertyGroup>
     <MajorVersion>1</MajorVersion>
-    <MinorVersion>13</MinorVersion>
-    <PatchVersion>8</PatchVersion>
+    <MinorVersion>14</MinorVersion>
+    <PatchVersion>0</PatchVersion>
 
     <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
     <FileVersion>$(VersionPrefix).0</FileVersion>
@@ -43,6 +43,10 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="2.2.0" />
     <!--Change the Storage SDK version with extreme caution, otherwise may break Durable Functions usage with Azure Storage Extension. -->
     <PackageReference Include="WindowsAzure.Storage" version="9.3.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Data.Tables" Version="12.8.0" />
   </ItemGroup>
 
   <ItemGroup>

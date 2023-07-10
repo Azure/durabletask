@@ -175,6 +175,45 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
+        /// The drain process occurs when the lease is stolen or the worker is shutting down, 
+        /// prompting the worker to cease listening for new messages and to finish processing all the existing information in memory.
+        /// </summary>
+        /// <param name="partitionId">The partition that is going to released.</param>
+        /// <param name="reason">Reason to trigger the drain progres.</param>
+        /// <param name="cancellationToken">Cancel the drain process if it takes too long in case the worker is unhealthy.</param>
+        /// <param name="caller">The worker that calls this method.</param>
+        /// <returns></returns>
+        public async Task DrainAsync(string partitionId, CloseReason reason, CancellationToken cancellationToken, string caller)
+        {
+            // Start the drain process, mark the queue released to stop listening for new message
+            this.ReleaseQueue(partitionId, reason, caller);
+            try
+            {
+                // Wait until all messages from this queue have been processed.
+                while (!cancellationToken.IsCancellationRequested && this.IsControlQueueProcessingMessages(partitionId))
+                {
+                    await Task.Delay(500, cancellationToken);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                this.settings.Logger.PartitionManagerError(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    this.settings.WorkerId,
+                    partitionId,
+                    $"Timed-out waiting for the partition to finish draining."
+                    );
+            }
+            finally
+            {
+                // Remove the partition from memory
+                this.RemoveQueue(partitionId, reason, caller);
+            }
+        }
+
+
+        /// <summary>
         /// This method enumerates all the provided queue messages looking for ExecutionStarted messages. If any are found, it
         /// queries table storage to ensure that each message has a matching record in the Instances table. If not, this method
         /// will either asynchronously discard the message or abandon it for reprocessing in case the Instances table record

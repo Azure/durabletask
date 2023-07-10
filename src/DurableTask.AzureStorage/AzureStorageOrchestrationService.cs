@@ -31,7 +31,7 @@ namespace DurableTask.AzureStorage
     using DurableTask.Core.History;
     using DurableTask.Core.Query;
     using Microsoft.WindowsAzure.Storage;
-    using Newtonsoft.Json;
+    using Microsoft.WindowsAzure.Storage.Table;
 
     /// <summary>
     /// Orchestration service provider for the Durable Task Framework which uses Azure Storage as the durable store.
@@ -151,7 +151,17 @@ namespace DurableTask.AzureStorage
                 this.stats,
                 this.trackingStore);
 
-            if (this.settings.UseLegacyPartitionManagement)
+            if (this.settings.UseTablePartitionManagement && this.settings.UseLegacyPartitionManagement)
+            {
+                throw new ArgumentException("Cannot use both TablePartitionManagement and LegacyPartitionManagement. For improved reliability, consider using the TablePartitionManager.");  
+            }
+            else if (this.settings.UseTablePartitionManagement)
+            {
+                this.partitionManager = new TablePartitionManager(
+                    this,
+                    this.azureStorageClient);
+            }
+            else if (this.settings.UseLegacyPartitionManagement)
             {
                 this.partitionManager = new LegacyPartitionManager(
                     this,
@@ -503,16 +513,60 @@ namespace DurableTask.AzureStorage
             this.allControlQueues[lease.PartitionId] = controlQueue;
         }
 
+        internal void DropLostControlQueue(TableLease partition)
+        {
+            // If lease is lost but we're still dequeuing messages, remove the queue
+            if (this.allControlQueues.TryGetValue(partition.RowKey, out ControlQueue controlQueue) &&
+                this.OwnedControlQueues.Contains(controlQueue) &&
+                partition.CurrentOwner != this.settings.WorkerId)
+            {
+                this.orchestrationSessionManager.RemoveQueue(partition.RowKey, CloseReason.LeaseLost, nameof(DropLostControlQueue));
+            }
+        }
+
         internal Task OnOwnershipLeaseReleasedAsync(BlobLease lease, CloseReason reason)
         {
             this.orchestrationSessionManager.RemoveQueue(lease.PartitionId, reason, "Ownership LeaseCollectionBalancer");
             return Utils.CompletedTask;
         }
 
+        internal async Task OnTableLeaseAcquiredAsync(TableLease lease)
+        {
+            var controlQueue = new ControlQueue(this.azureStorageClient, lease.RowKey, this.messageManager);
+            await controlQueue.CreateIfNotExistsAsync();
+            this.orchestrationSessionManager.AddQueue(lease.RowKey, controlQueue, this.shutdownSource.Token);
+
+            this.allControlQueues[lease.RowKey] = controlQueue;
+        }
+
+        internal async Task DrainTablePartitionAsync(TableLease lease, CloseReason reason)
+        {
+            using var cts = new CancellationTokenSource(delay: TimeSpan.FromSeconds(60));
+            await this.orchestrationSessionManager.DrainAsync(lease.RowKey, reason, cts.Token, nameof(DrainTablePartitionAsync));
+        }
+
         // Used for testing
         internal Task<IEnumerable<BlobLease>> ListBlobLeasesAsync()
         {
             return this.partitionManager.GetOwnershipBlobLeases();
+        }
+
+        // Used for table partition manager testing
+        internal IEnumerable<TableLease> ListTableLeases()
+        {
+            return ((TablePartitionManager)this.partitionManager).GetTableLeases();
+        }
+
+        // Used for table partition manager testing.
+        internal void SimulateUnhealthyWorker(CancellationToken testToken)
+        {
+            ((TablePartitionManager)this.partitionManager).SimulateUnhealthyWorker(testToken);
+        }
+
+        // Used for table partition manager testing
+        internal void KillPartitionManagerLoop()
+        {
+            ((TablePartitionManager)this.partitionManager).KillLoop();
         }
 
         internal static async Task<Queue[]> GetControlQueuesAsync(
@@ -526,14 +580,29 @@ namespace DurableTask.AzureStorage
 
             string taskHub = azureStorageClient.Settings.TaskHubName;
 
-            BlobLeaseManager inactiveLeaseManager = GetBlobLeaseManager(azureStorageClient, "inactive");
+            // Need to check for leases in Azure Table Storage. Scale Controller calls into this method.
+            int partitionCount;
+            Table partitionTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.PartitionTableName);
+            
+            // Check if table partition manager is used. If so, get partition count from table.
+            // Else, get the partition count from the blobs.
+            if (await partitionTable.ExistsAsync())
+            {
+                TableEntitiesResponseInfo<DynamicTableEntity> result = await partitionTable.ExecuteQueryAsync(new TableQuery<DynamicTableEntity>());
+                partitionCount = result.ReturnedEntities.Count;
+            }
+            else
+            {
+                BlobLeaseManager inactiveLeaseManager = GetBlobLeaseManager(azureStorageClient, "inactive");
 
-            TaskHubInfo hubInfo = await inactiveLeaseManager.GetOrCreateTaskHubInfoAsync(
-                GetTaskHubInfo(taskHub, defaultPartitionCount),
-                checkIfStale: false);
+                TaskHubInfo hubInfo = await inactiveLeaseManager.GetOrCreateTaskHubInfoAsync(
+                    GetTaskHubInfo(taskHub, defaultPartitionCount),
+                    checkIfStale: false);
+                partitionCount = hubInfo.PartitionCount;
+            };
 
-            var controlQueues = new Queue[hubInfo.PartitionCount];
-            for (int i = 0; i < hubInfo.PartitionCount; i++)
+            var controlQueues = new Queue[partitionCount];
+            for (int i = 0; i < partitionCount; i++)
             {
                 controlQueues[i] = azureStorageClient.GetQueueReference(GetControlQueueName(taskHub, i));
             }
