@@ -20,8 +20,8 @@
   <!-- Version Info -->
   <PropertyGroup>
     <MajorVersion>1</MajorVersion>
-    <MinorVersion>13</MinorVersion>
-    <PatchVersion>8</PatchVersion>
+    <MinorVersion>14</MinorVersion>
+    <PatchVersion>0</PatchVersion>
 
     <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
     <FileVersion>$(VersionPrefix).0</FileVersion>
