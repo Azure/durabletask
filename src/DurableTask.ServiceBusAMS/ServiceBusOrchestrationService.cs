@@ -734,7 +734,7 @@ namespace DurableTask.ServiceBus
             var session = sessionState.SessionReceiver;
 
             // check for lock expired by renewing lock
-            RenewTaskOrchestrationWorkItemLockAsync(workItem);
+            await RenewTaskOrchestrationWorkItemLockAsync(workItem);
 
             if (await TrySetSessionStateAsync(workItem, newOrchestrationRuntimeState, runtimeState, session))
             {
@@ -865,7 +865,7 @@ namespace DurableTask.ServiceBus
                     return $"Completing orchestration messages sequence and lock tokens: {allIds}";
                 });
 
-            RenewTaskOrchestrationWorkItemLockAsync(workItem);
+            await RenewTaskOrchestrationWorkItemLockAsync(workItem);
 
             foreach (var value in sessionState.Messages)
             {
