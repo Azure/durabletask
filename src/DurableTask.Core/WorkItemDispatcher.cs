@@ -18,7 +18,6 @@ namespace DurableTask.Core
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core.Common;
-    using DurableTask.Core.Exceptions;
     using DurableTask.Core.Logging;
     using DurableTask.Core.Tracing;
 
@@ -31,7 +30,6 @@ namespace DurableTask.Core
         const int DefaultMaxConcurrentWorkItems = 20;
         const int DefaultDispatcherCount = 1;
 
-        const int BackOffIntervalOnInvalidOperationSecs = 10;
         const int CountDownToZeroDelay = 5;
 
         // ReSharper disable once StaticMemberInGenericType
@@ -357,7 +355,6 @@ namespace DurableTask.Core
         async Task ProcessWorkItemAsync(WorkItemDispatcherContext context, object workItemObj)
         {
             var workItem = (T) workItemObj;
-            var abortWorkItem = true;
             string workItemId = string.Empty;
 
             try
@@ -380,27 +377,14 @@ namespace DurableTask.Core
                     "WorkItemDispatcherProcess-End",
                     this.GetFormattedLog(context.DispatcherId, $"Finished processing workItem {workItemId}"));
 
-                abortWorkItem = false;
-            }
-            catch (TypeMissingException exception)
-            {
-                this.LogHelper.ProcessWorkItemFailed(
-                    context,
-                    workItemId,
-                    $"Backing off for {BackOffIntervalOnInvalidOperationSecs} seconds",
-                    exception);
-                TraceHelper.TraceException(
-                    TraceEventType.Error, 
-                    "WorkItemDispatcherProcess-TypeMissingException", 
-                    exception,
-                    this.GetFormattedLog(context.DispatcherId, $"Exception while processing workItem {workItemId}"));
-                TraceHelper.Trace(
-                    TraceEventType.Error, 
-                    "WorkItemDispatcherProcess-TypeMissingBackingOff",
-                    "Backing off after invalid operation by " + BackOffIntervalOnInvalidOperationSecs);
-
-                // every time we hit invalid operation exception we back off the dispatcher
-                this.AdjustDelayModifierOnFailure(BackOffIntervalOnInvalidOperationSecs);
+                if (this.SafeReleaseWorkItem != null)
+                {
+                    await this.ExceptionTraceWrapperAsync(
+                        context,
+                        workItemId,
+                        nameof(this.SafeReleaseWorkItem),
+                        () => this.SafeReleaseWorkItem(workItem));
+                }
             }
             catch (Exception exception) when (!Utils.IsFatal(exception))
             {
@@ -432,29 +416,20 @@ namespace DurableTask.Core
                     // count it as a 'successful' operation
                     this.AdjustDelayModifierOnSuccess();
                 }
+
+                if (this.AbortWorkItem != null)
+                {
+                    await this.ExceptionTraceWrapperAsync(
+                        context,
+                        workItemId,
+                        nameof(this.AbortWorkItem),
+                        () => this.AbortWorkItem(workItem));
+                }
             }
             finally
             {
                 Interlocked.Decrement(ref this.concurrentWorkItemCount);
                 this.concurrencyLock.Release();
-            }
-
-            if (abortWorkItem && this.AbortWorkItem != null)
-            {
-                await this.ExceptionTraceWrapperAsync(
-                    context,
-                    workItemId,
-                    nameof(this.AbortWorkItem),
-                    () => this.AbortWorkItem(workItem));
-            }
-
-            if (this.SafeReleaseWorkItem != null)
-            {
-                await this.ExceptionTraceWrapperAsync(
-                    context,
-                    workItemId,
-                    nameof(this.SafeReleaseWorkItem),
-                    () => this.SafeReleaseWorkItem(workItem));
             }
         }
 
