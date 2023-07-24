@@ -73,8 +73,9 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="instanceId">InstanceId for the Orchestration Update</param>
         /// <param name="executionId">ExecutionId for the Orchestration Update</param>
         /// <param name="eTag">The ETag value to use for safe updates</param>
+        /// <param name="trackingStoreContext">Additional context for the execution that is maintained by the tracking store.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        Task<ETag?> UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, ETag? eTag, CancellationToken cancellationToken = default);
+        Task<ETag?> UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, ETag? eTag, object trackingStoreContext, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get The Orchestration State for the Latest or All Executions

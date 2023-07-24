@@ -225,6 +225,12 @@ namespace DurableTask.AzureStorage
             return DownloadAndDecompressAsBytesAsync(blob, cancellationToken);
         }
 
+        public Task<bool> DeleteBlobAsync(string blobName, CancellationToken cancellationToken = default)
+        {
+            Blob blob = this.blobContainer.GetBlobReference(blobName);
+            return blob.DeleteIfExistsAsync(cancellationToken);
+        }
+
         private async Task<string> DownloadAndDecompressAsBytesAsync(Blob blob, CancellationToken cancellationToken = default)
         {
             using (MemoryStream memory = new MemoryStream(MaxStorageQueuePayloadSizeInBytes * 2))

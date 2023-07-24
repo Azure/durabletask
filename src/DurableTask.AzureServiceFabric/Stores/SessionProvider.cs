@@ -20,11 +20,9 @@ namespace DurableTask.AzureServiceFabric.Stores
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-
-    using DurableTask.Core;
     using DurableTask.AzureServiceFabric.TaskHelpers;
     using DurableTask.AzureServiceFabric.Tracing;
-
+    using DurableTask.Core;
     using Microsoft.ServiceFabric.Data;
 
     /// <summary>
@@ -87,6 +85,7 @@ namespace DurableTask.AzureServiceFabric.Stores
             if (!IsStopped())
             {
                 bool newItemsBeforeTimeout = true;
+                bool reEnqueueOnException = true;
                 while (newItemsBeforeTimeout)
                 {
                     if (this.fetchQueue.TryDequeue(out string returnInstanceId))
@@ -108,15 +107,17 @@ namespace DurableTask.AzureServiceFabric.Stores
                                         }
                                         else
                                         {
-                                            var errorMessage = $"Internal Server Error : Unexpected to dequeue the session {returnInstanceId} which was already locked before";
+                                            var errorMessage = $"Internal Server Error : Unexpected to dequeue the session {returnInstanceId} which was already locked before. Do not re-enture the item-without-session";
                                             ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
                                             throw new Exception(errorMessage);
                                         }
                                     }
                                     else
                                     {
+                                        // If the session state is cleared using ForceTerminateOrchestration + reason (cleanupstore) then we may end up with a stale entry in the queue
                                         var errorMessage = $"Internal Server Error: Did not find the session object in reliable dictionary while having the session {returnInstanceId} in memory";
                                         ServiceFabricProviderEventSource.Tracing.UnexpectedCodeCondition(errorMessage);
+                                        reEnqueueOnException = false;
                                         throw new Exception(errorMessage);
                                     }
                                 }
@@ -124,7 +125,10 @@ namespace DurableTask.AzureServiceFabric.Stores
                         }
                         catch (Exception)
                         {
-                            this.fetchQueue.Enqueue(returnInstanceId);
+                            if (reEnqueueOnException)
+                            {
+                                this.fetchQueue.Enqueue(returnInstanceId);
+                            }
                             throw;
                         }
                     }
@@ -165,14 +169,22 @@ namespace DurableTask.AzureServiceFabric.Stores
 
         public async Task AppendMessageAsync(TaskMessageItem newMessage)
         {
-            await RetryHelper.ExecuteWithRetryOnTransient(async () =>
+            bool added = await RetryHelper.ExecuteWithRetryOnTransient(async () =>
             {
+                bool added = false;
                 using (var txn = this.StateManager.CreateTransaction())
                 {
-                    await this.AppendMessageAsync(txn, newMessage);
+                    added = await this.TryAppendMessageAsync(txn, newMessage);
                     await txn.CommitAsync();
                 }
+
+                return added;
             }, uniqueActionIdentifier: $"Orchestration = '{newMessage.TaskMessage.OrchestrationInstance}', Action = '{nameof(SessionProvider)}.{nameof(AppendMessageAsync)}'");
+
+            if (!added)
+            {
+                throw new InvalidOperationException($"No penidng or running orchestration found. Orchestration = '{newMessage.TaskMessage.OrchestrationInstance}', Action = 'AppendMessageAsync({newMessage.TaskMessage.Event.ToString()})'");
+            }
 
             this.TryEnqueueSession(newMessage.TaskMessage.OrchestrationInstance);
         }
@@ -187,10 +199,21 @@ namespace DurableTask.AzureServiceFabric.Stores
 
         public async Task<bool> TryAppendMessageAsync(ITransaction transaction, TaskMessageItem newMessage)
         {
-            if (await this.Store.ContainsKeyAsync(transaction, newMessage.TaskMessage.OrchestrationInstance.InstanceId))
+            if (await this.ContainsSessionAsync(transaction, newMessage.TaskMessage.OrchestrationInstance))
             {
                 var sessionMessageProvider = await GetOrAddSessionMessagesInstance(newMessage.TaskMessage.OrchestrationInstance);
                 await sessionMessageProvider.SendBeginAsync(transaction, new Message<Guid, TaskMessageItem>(Guid.NewGuid(), newMessage));
+                return true;
+            }
+
+            return false;
+        }
+
+        public async Task<bool> ContainsSessionAsync(ITransaction transaction, OrchestrationInstance instance)
+        {
+            var value = await this.Store.TryGetValueAsync(transaction, instance.InstanceId);
+            if (value.HasValue && OrchestrationInstanceComparer.Default.Equals(value.Value.SessionId, instance))
+            {
                 return true;
             }
 
@@ -329,7 +352,7 @@ namespace DurableTask.AzureServiceFabric.Stores
             }
         }
 
-        public async Task DropSession(ITransaction txn, OrchestrationInstance instance)
+        public async Task DropSessionAsync(ITransaction txn, OrchestrationInstance instance)
         {
             if (instance == null)
             {
