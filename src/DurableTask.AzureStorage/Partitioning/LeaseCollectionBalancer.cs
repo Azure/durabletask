@@ -17,6 +17,7 @@ namespace DurableTask.AzureStorage.Partitioning
     using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Runtime.Remoting.Lifetime;
     using System.Threading;
     using System.Threading.Tasks;
 
@@ -329,6 +330,7 @@ namespace DurableTask.AzureStorage.Partitioning
             var allShards = new Dictionary<string, T>();
             var takenLeases = new Dictionary<string, T>();
             var workerToShardCount = new Dictionary<string, int>();
+            var workerToShardList = new Dictionary<string, List<string>>();
             var expiredLeases = new List<T>();
 
             var allLeases = await this.leaseManager.ListLeasesAsync();
@@ -357,10 +359,12 @@ namespace DurableTask.AzureStorage.Partitioning
                     if (workerToShardCount.TryGetValue(assignedTo, out count))
                     {
                         workerToShardCount[assignedTo] = count + 1;
+                        workerToShardList[assignedTo].Add(lease.PartitionId);
                     }
                     else
                     {
                         workerToShardCount.Add(assignedTo, 1);
+                        workerToShardList[assignedTo] = new List<string>() { lease.PartitionId };
                     }
                 }
             }
@@ -368,10 +372,22 @@ namespace DurableTask.AzureStorage.Partitioning
             if (!workerToShardCount.ContainsKey(this.workerName))
             {
                 workerToShardCount.Add(this.workerName, 0);
+                workerToShardList[this.workerName] = new List<string>();
             }
 
             int shardCount = allShards.Count;
             int workerCount = workerToShardCount.Count;
+
+            var informationPerWorker = workerToShardList.Select(kv => $"Machine is `{kv.Key}`, Partitions are `{string.Join(";", kv.Value)}` ");
+            var message = "urrent Distribution of Partitions: " + string.Join(" | ", informationPerWorker);
+
+
+            this.settings.Logger.PartitionManagerInfo(
+                this.accountName,
+                this.taskHub,
+                this.workerName,
+                "",
+                message);
 
             if (shardCount > 0)
             {
