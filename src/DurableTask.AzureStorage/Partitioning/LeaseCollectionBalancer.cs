@@ -378,8 +378,7 @@ namespace DurableTask.AzureStorage.Partitioning
             int workerCount = workerToShardCount.Count;
 
             var informationPerWorker = workerToShardList.Select(kv => $"Machine is `{kv.Key}`, Partitions are `{string.Join(";", kv.Value)}` ");
-            var message = "urrent Distribution of Partitions: " + string.Join(" | ", informationPerWorker);
-
+            var message = "Current Distribution of Partitions: " + string.Join(" | ", informationPerWorker);
 
             this.settings.Logger.PartitionManagerInfo(
                 this.accountName,
@@ -743,9 +742,16 @@ namespace DurableTask.AzureStorage.Partitioning
                             lease.Token,
                             this.leaseType);
                     }
-                    catch (LeaseLostException)
+                    catch (LeaseLostException ex)
                     {
                         // We have already shutdown the processor so we can ignore any LeaseLost at this point
+                        // Still, we log a warning just in case
+                        this.settings.Logger.PartitionManagerWarning(
+                            this.accountName,
+                            this.taskHub,
+                            this.workerName,
+                            lease.PartitionId,
+                            $"Encountered lease lost exception while releasing owned {this.leaseType}: {ex}");
                     }
                     catch (Exception ex)
                     {
