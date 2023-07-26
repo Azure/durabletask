@@ -59,6 +59,12 @@ steps:
     platform: x64
     msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
+- task: UseDotNet@2
+  displayName: 'Use the .NET Core 2.1 SDK (required for build signing)'
+  inputs:
+    packageType: 'sdk'
+    version: '2.1.x'
+
 # Manifest Generator Task
 - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
   displayName: 'Manifest Generator '
@@ -132,16 +138,16 @@ steps:
     packDirectory: $(build.artifactStagingDirectory)
     packagesToPack: 'src/DurableTask.ServiceBus/DurableTask.ServiceBus.csproj'
 
-# - task: DotNetCoreCLI@2
-#   displayName: Generate nuget packages
-#   inputs:
-#     command: pack
-#     verbosityPack: Minimal
-#     configuration: Release
-#     nobuild: true
-#     packDirectory: $(build.artifactStagingDirectory)
-#     packagesToPack: 'src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj'
-#     buildProperties: 'Platform=x64'
+- task: DotNetCoreCLI@2
+  displayName: Generate nuget packages
+  inputs:
+    command: pack
+    verbosityPack: Minimal
+    configuration: Release
+    nobuild: true
+    packDirectory: $(build.artifactStagingDirectory)
+    packagesToPack: 'src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj'
+    buildProperties: 'Platform=x64'
 
 # Digitally sign all the nuget packages with the Microsoft certificate.
 # This appears to be an in-place signing job, which is convenient.

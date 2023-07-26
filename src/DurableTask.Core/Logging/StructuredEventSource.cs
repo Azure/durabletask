@@ -813,5 +813,57 @@ namespace DurableTask.Core.Logging
                     ExtensionVersion);
             }
         }
+
+        [Event(EventIds.RenewOrchestrationWorkItemStarting, Level = EventLevel.Verbose, Version = 1)]
+        internal void RenewOrchestrationWorkItemStarting(
+            string InstanceId,
+            string AppName,
+            string ExtensionVersion)
+        {
+            if (this.IsEnabled(EventLevel.Verbose))
+            {
+                // TODO: Use WriteEventCore for better performance
+                this.WriteEvent(
+                    EventIds.RenewOrchestrationWorkItemStarting,
+                    InstanceId,
+                    AppName,
+                    ExtensionVersion);
+            }
+        }
+
+        [Event(EventIds.RenewOrchestrationWorkItemCompleted, Level = EventLevel.Verbose, Version = 1)]
+        internal void RenewOrchestrationWorkItemCompleted(
+            string InstanceId,
+            string AppName,
+            string ExtensionVersion)
+        {
+            if (this.IsEnabled(EventLevel.Verbose))
+            {
+                // TODO: Use WriteEventCore for better performance
+                this.WriteEvent(
+                    EventIds.RenewOrchestrationWorkItemCompleted,
+                    InstanceId,
+                    AppName,
+                    ExtensionVersion);
+            }
+        }
+
+        [Event(EventIds.RenewOrchestrationWorkItemFailed, Level = EventLevel.Error, Version = 1)]
+        internal void RenewOrchestrationWorkItemFailed(
+            string InstanceId,
+            string Details,
+            string AppName,
+            string ExtensionVersion)
+        {
+            if (this.IsEnabled(EventLevel.Error))
+            {
+                this.WriteEvent(
+                    EventIds.RenewOrchestrationWorkItemFailed,
+                    InstanceId,
+                    Details,
+                    AppName,
+                    ExtensionVersion);
+            }
+        }
     }
 }

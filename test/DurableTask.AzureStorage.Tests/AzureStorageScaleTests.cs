@@ -38,6 +38,32 @@ namespace DurableTask.AzureStorage.Tests
     [TestClass]
     public class AzureStorageScaleTests
     {
+        public enum PartitionManagerType
+        {
+            V1Legacy,
+            V2Safe,
+            V3Table
+        }
+
+        void SetPartitionManagerType(AzureStorageOrchestrationServiceSettings settings, PartitionManagerType partitionManagerType)
+        {
+            switch(partitionManagerType)
+            {
+                case PartitionManagerType.V1Legacy:
+                    settings.UseTablePartitionManagement = false;
+                    settings.UseLegacyPartitionManagement = true;
+                    break;
+                case PartitionManagerType.V2Safe:
+                    settings.UseTablePartitionManagement = false;
+                    settings.UseLegacyPartitionManagement = false;
+                    break;
+                case PartitionManagerType.V3Table:
+                    settings.UseTablePartitionManagement = true;
+                    settings.UseLegacyPartitionManagement = false; 
+                    break;
+            }
+        }
+
         /// <summary>
         /// Basic validation of task hub creation.
         /// </summary>
@@ -61,7 +87,7 @@ namespace DurableTask.AzureStorage.Tests
             bool testDeletion,
             bool deleteBeforeCreate = true,
             string workerId = "test",
-            bool useLegacyPartitionManagement = false)
+            PartitionManagerType partitionManagerType = PartitionManagerType.V2Safe)
         {
             string storageConnectionString = TestHelpers.GetTestStorageAccountConnectionString();
             var storageAccount = CloudStorageAccount.Parse(storageConnectionString);
@@ -72,9 +98,10 @@ namespace DurableTask.AzureStorage.Tests
                 TaskHubName = taskHubName,
                 StorageConnectionString = storageConnectionString,
                 WorkerId = workerId,
-                AppName = testName,
-                UseLegacyPartitionManagement = useLegacyPartitionManagement,
+                AppName = testName
             };
+            this.SetPartitionManagerType(settings, partitionManagerType);
+
 
             Trace.TraceInformation($"Task Hub name: {taskHubName}");
 
@@ -205,9 +232,9 @@ namespace DurableTask.AzureStorage.Tests
         /// REQUIREMENT: No two workers will ever process the same control queue.
         /// </summary>
         [TestMethod]
-        [DataRow(true, 30)]
-        [DataRow(false, 180)]
-        public async Task MultiWorkerLeaseMovement(bool useLegacyPartitionManagement, int timeoutInSeconds)
+        [DataRow(PartitionManagerType.V1Legacy, 30)]
+        [DataRow(PartitionManagerType.V2Safe, 180)]
+        public async Task MultiWorkerLeaseMovement(PartitionManagerType partitionManagerType, int timeoutInSeconds)
         {
             const int MaxWorkerCount = 4;
 
@@ -228,7 +255,9 @@ namespace DurableTask.AzureStorage.Tests
                         testDeletion: false,
                         deleteBeforeCreate: i == 0,
                         workerId: workerIds[i],
-                        useLegacyPartitionManagement: useLegacyPartitionManagement);
+                        partitionManagerType: partitionManagerType
+                        );
+
                     await services[i].StartAsync();
                     currentWorkerCount++;
                 }
@@ -416,6 +445,7 @@ namespace DurableTask.AzureStorage.Tests
                 StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
                 ControlQueueBufferThreshold = 100,
             };
+            this.SetPartitionManagerType(settings, PartitionManagerType.V2Safe);
 
             // STEP 1: Start up the service and queue up a large number of messages
             var service = new AzureStorageOrchestrationService(settings);
