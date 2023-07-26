@@ -47,20 +47,21 @@ namespace DurableTask.AzureStorage.Storage
             this.Stats = new AzureStorageOrchestrationServiceStats();
             this.queueClient = account.CreateCloudQueueClient();
             this.queueClient.BufferManager = SimpleBufferManager.Shared;
-            this.blobClient = account.CreateCloudBlobClient();
-            this.blobClient.BufferManager = SimpleBufferManager.Shared;
-
-            this.blobClient.DefaultRequestOptions.MaximumExecutionTime = StorageMaximumExecutionTime;
-
+           
             if (settings.HasTrackingStoreStorageAccount)
             {
                 var trackingStoreAccount = settings.TrackingStoreStorageAccountDetails.ToCloudStorageAccount();
                 this.tableClient = trackingStoreAccount.CreateCloudTableClient();
+                this.blobClient = trackingStoreAccount.CreateCloudBlobClient();
             }
             else
             {
                 this.tableClient = account.CreateCloudTableClient();
+                this.blobClient = account.CreateCloudBlobClient();
             }
+
+            this.blobClient.BufferManager = SimpleBufferManager.Shared;
+            this.blobClient.DefaultRequestOptions.MaximumExecutionTime = StorageMaximumExecutionTime;
 
             this.tableClient.BufferManager = SimpleBufferManager.Shared;
 

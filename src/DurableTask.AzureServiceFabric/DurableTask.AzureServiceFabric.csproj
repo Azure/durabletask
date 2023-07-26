@@ -7,7 +7,7 @@
     <Nullable>disable</Nullable>
     <PackageId>Microsoft.Azure.DurableTask.AzureServiceFabric</PackageId>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>2.3.6</Version>
+    <Version>2.3.9</Version>
     <AssemblyVersion>$(Version)</AssemblyVersion>
     <FileVersion>$(Version)</FileVersion>
     <Title>Azure Service Fabric provider extension for the Durable Task Framework.</Title>
