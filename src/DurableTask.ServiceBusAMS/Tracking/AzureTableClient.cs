@@ -28,9 +28,7 @@ namespace DurableTask.ServiceBus.Tracking
     using DurableTask.Core.Tracing;
     using Azure;
     using Azure.Data.Tables;
-    using Azure.Core.Pipeline;
     using Azure.Core;
-    using ImpromptuInterface.Dynamic;
 
     internal class AzureTableClient
     {
