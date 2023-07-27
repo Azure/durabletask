@@ -67,14 +67,38 @@ namespace DurableTask.AzureStorage.Monitoring
             sb.Append(nameof(this.PartitionCount)).Append(": ").Append(this.PartitionCount).Append(", ");
             if (this.ControlQueueLengths != null)
             {
-                sb.Append(nameof(this.ControlQueueLengths)).Append(": ").Append(string.Join(",", this.ControlQueueLengths)).Append(", ");
+                sb.Append(nameof(this.ControlQueueLengths)).Append(": ");
+
+                bool firstControlQueueLength = true;
+                foreach (var controlQueueLengths in this.ControlQueueLengths)
+                {
+                    if (!firstControlQueueLength)
+                    {
+                        sb.Append(',');
+                    }
+                    sb.Append(controlQueueLengths);
+                }
+                sb.Append(", ");
             }
 
-            sb.Append(nameof(this.ControlQueueLatencies)).Append(": ").Append(string.Join(",", this.ControlQueueLatencies)).Append(", ");
+            sb.Append(nameof(this.ControlQueueLatencies)).Append(": ");
+
+            bool firstControlQueueLatency = true;
+            foreach (var controlQueueLatency in this.ControlQueueLatencies)
+            {
+                if (!firstControlQueueLatency)
+                {
+                    sb.Append(',');
+                }
+                sb.Append(controlQueueLatency);
+            }
+            sb.Append(", ");
+
             sb.Append(nameof(this.WorkItemQueueLength)).Append(": ").Append(this.WorkItemQueueLength).Append(", ");
             sb.Append(nameof(this.WorkItemQueueLatency)).Append(": ").Append(this.WorkItemQueueLatency).Append(", ");
             sb.Append(nameof(this.WorkItemQueueLatencyTrend)).Append(": ").Append(this.WorkItemQueueLatencyTrend).Append(", ");
             sb.Append(nameof(this.ScaleRecommendation)).Append(": ").Append(this.ScaleRecommendation);
+            
             return sb.ToString();
         }
     }
