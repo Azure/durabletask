@@ -38,7 +38,6 @@ namespace DurableTask.AzureStorage
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly AzureStorageClient azureStorageClient;
         readonly BlobContainer taskhubBlobContainer;
-        readonly BlobContainer trackingStoreBlobContainer;
         readonly JsonSerializerSettings taskMessageSerializerSettings;
         readonly JsonSerializer serializer;
 
@@ -48,13 +47,11 @@ namespace DurableTask.AzureStorage
         public MessageManager(
             AzureStorageOrchestrationServiceSettings settings,
             AzureStorageClient azureStorageClient,
-            string taskhubContainerName,
-            string trackingStoreContainerName)
+            string taskhubContainerName)
         {
             this.settings = settings;
             this.azureStorageClient = azureStorageClient;
             this.taskhubBlobContainer = this.azureStorageClient.GetBlobContainerReference(taskhubContainerName);
-            this.trackingStoreBlobContainer = this.azureStorageClient.GetBlobContainerReference(trackingStoreContainerName);
 #nullable disable
             this.taskMessageSerializerSettings = new JsonSerializerSettings
             {
