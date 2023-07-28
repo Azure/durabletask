@@ -111,11 +111,8 @@ namespace DurableTask.AzureStorage
             this.azureStorageClient = new AzureStorageClient(settings);
             this.stats = this.azureStorageClient.Stats;
 
-            // for backwards compatibility when processing blobs from old History/Instance tables, we need the taskhub container name
-            var taskhubContainerNamePrefix = this.settings.TaskHubName.ToLowerInvariant();
-            string taskhubContainerName = $"{taskhubContainerNamePrefix}-largemessages";
-
-            this.messageManager = new MessageManager(this.settings, this.azureStorageClient, taskhubContainerName);
+            string compressedMessageBlobContainerName = $"{settings.TaskHubName.ToLowerInvariant()}-largemessages";
+            this.messageManager = new MessageManager(this.settings, this.azureStorageClient, compressedMessageBlobContainerName);
 
             this.allControlQueues = new ConcurrentDictionary<string, ControlQueue>();
             for (int index = 0; index < this.settings.PartitionCount; index++)
