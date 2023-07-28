@@ -46,11 +46,11 @@ namespace DurableTask.AzureStorage
         public MessageManager(
             AzureStorageOrchestrationServiceSettings settings,
             AzureStorageClient azureStorageClient,
-            string taskhubContainerName)
+            string blobContainerName)
         {
             this.settings = settings;
             this.azureStorageClient = azureStorageClient;
-            this.blobContainer = this.azureStorageClient.GetBlobContainerReference(taskhubContainerName);
+            this.blobContainer = this.azureStorageClient.GetBlobContainerReference(blobContainerName);
             this.taskMessageSerializerSettings = new JsonSerializerSettings
             {
                 TypeNameHandling = TypeNameHandling.Objects,
