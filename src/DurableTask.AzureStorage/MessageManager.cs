@@ -37,20 +37,25 @@ namespace DurableTask.AzureStorage
 
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly AzureStorageClient azureStorageClient;
-        readonly BlobContainer blobContainer;
+        readonly BlobContainer taskhubBlobContainer;
+        readonly BlobContainer trackingStoreBlobContainer;
         readonly JsonSerializerSettings taskMessageSerializerSettings;
         readonly JsonSerializer serializer;
 
         bool containerInitialized;
 
+#nullable enable
         public MessageManager(
             AzureStorageOrchestrationServiceSettings settings,
             AzureStorageClient azureStorageClient,
-            string blobContainerName)
+            string taskhubContainerName,
+            string trackingStoreContainerName)
         {
             this.settings = settings;
             this.azureStorageClient = azureStorageClient;
-            this.blobContainer = this.azureStorageClient.GetBlobContainerReference(blobContainerName);
+            this.taskhubBlobContainer = this.azureStorageClient.GetBlobContainerReference(taskhubContainerName);
+            this.trackingStoreBlobContainer = this.azureStorageClient.GetBlobContainerReference(trackingStoreContainerName);
+#nullable disable
             this.taskMessageSerializerSettings = new JsonSerializerSettings
             {
                 TypeNameHandling = TypeNameHandling.Objects,
@@ -74,7 +79,7 @@ namespace DurableTask.AzureStorage
 
             if (!this.containerInitialized)
             {
-                created = await this.blobContainer.CreateIfNotExistsAsync();
+                created = await this.taskhubBlobContainer.CreateIfNotExistsAsync();
                 this.containerInitialized = true;
             }
 
@@ -83,7 +88,7 @@ namespace DurableTask.AzureStorage
 
         public async Task<bool> DeleteContainerAsync()
         {
-            bool deleted = await this.blobContainer.DeleteIfExistsAsync();
+            bool deleted = await this.taskhubBlobContainer.DeleteIfExistsAsync();
             this.containerInitialized = false;
             return deleted;
         }
@@ -206,7 +211,7 @@ namespace DurableTask.AzureStorage
         {
             await this.EnsureContainerAsync();
 
-            Blob blob = this.blobContainer.GetBlobReference(blobName);
+            Blob blob = this.taskhubBlobContainer.GetBlobReference(blobName);
             return await DownloadAndDecompressAsBytesAsync(blob);
         }
 
@@ -218,7 +223,7 @@ namespace DurableTask.AzureStorage
 
         public Task<bool> DeleteBlobAsync(string blobName)
         {
-            Blob blob = this.blobContainer.GetBlobReference(blobName);
+            Blob blob = this.taskhubBlobContainer.GetBlobReference(blobName);
             return blob.DeleteIfExistsAsync(); 
         }
 
@@ -236,7 +241,7 @@ namespace DurableTask.AzureStorage
 
         public string GetBlobUrl(string blobName)
         {
-            return this.blobContainer.GetBlobReference(blobName).AbsoluteUri;
+            return this.taskhubBlobContainer.GetBlobReference(blobName).AbsoluteUri;
         }
 
         public ArraySegment<byte> Decompress(Stream blobStream)
@@ -280,7 +285,7 @@ namespace DurableTask.AzureStorage
         {
             await this.EnsureContainerAsync();
 
-            Blob blob = this.blobContainer.GetBlobReference(blobName);
+            Blob blob = this.taskhubBlobContainer.GetBlobReference(blobName);
             await blob.UploadFromByteArrayAsync(data, 0, dataByteCount);
         }
 
@@ -296,9 +301,9 @@ namespace DurableTask.AzureStorage
         public async Task<int> DeleteLargeMessageBlobs(string sanitizedInstanceId)
         {
             int storageOperationCount = 1;
-            if (await this.blobContainer.ExistsAsync())
+            if (await this.taskhubBlobContainer.ExistsAsync())
             {
-                IEnumerable<Blob> blobList = await this.blobContainer.ListBlobsAsync(sanitizedInstanceId);
+                IEnumerable<Blob> blobList = await this.taskhubBlobContainer.ListBlobsAsync(sanitizedInstanceId);
                 storageOperationCount++;
 
                 var blobForDeletionTaskList = new List<Task>();

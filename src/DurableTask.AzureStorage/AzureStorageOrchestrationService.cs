@@ -111,15 +111,17 @@ namespace DurableTask.AzureStorage
             this.azureStorageClient = new AzureStorageClient(settings);
             this.stats = this.azureStorageClient.Stats;
 
-            // if using a shared tracking store, large input/output blobs should also be on a shared blob container
-            var containerNamePrefix = this.settings.TaskHubName.ToLowerInvariant();
+            var taskhubContainerNamePrefix = this.settings.TaskHubName.ToLowerInvariant();
+            string taskhubContainerName = $"{taskhubContainerNamePrefix}-largemessages";
+
+            string trackingStoreContanerName = null;
             if (this.settings.HasTrackingStoreStorageAccount)
             {
-                containerNamePrefix = this.settings.TrackingStoreNamePrefix.ToLowerInvariant();
+                string trackingStoreContanerPrefix = this.settings.TrackingStoreNamePrefix.ToLowerInvariant();
+                trackingStoreContanerName = $"{trackingStoreContanerPrefix}-largemessages";
             }
-            string compressedMessageBlobContainerName = $"{containerNamePrefix}-largemessages";
 
-            this.messageManager = new MessageManager(this.settings, this.azureStorageClient, compressedMessageBlobContainerName);
+            this.messageManager = new MessageManager(this.settings, this.azureStorageClient, taskhubContainerName, trackingStoreContanerName);
 
             this.allControlQueues = new ConcurrentDictionary<string, ControlQueue>();
             for (int index = 0; index < this.settings.PartitionCount; index++)
