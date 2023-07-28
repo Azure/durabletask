@@ -10,7 +10,6 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
 namespace DurableTask.AzureStorage
 {
     using System;
@@ -23,6 +22,7 @@ namespace DurableTask.AzureStorage
     using System.Threading;
     using System.Threading.Tasks;
     using Azure;
+    using Azure.Data.Tables;
     using Azure.Storage.Blobs.Models;
     using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Messaging;
@@ -154,7 +154,17 @@ namespace DurableTask.AzureStorage
                 this.stats,
                 this.trackingStore);
 
-            if (this.settings.UseLegacyPartitionManagement)
+            if (this.settings.UseTablePartitionManagement && this.settings.UseLegacyPartitionManagement)
+            {
+                throw new ArgumentException("Cannot use both TablePartitionManagement and LegacyPartitionManagement. For improved reliability, consider using the TablePartitionManager.");  
+            }
+            else if (this.settings.UseTablePartitionManagement)
+            {
+                this.partitionManager = new TablePartitionManager(
+                    this,
+                    this.azureStorageClient);
+            }
+            else if (this.settings.UseLegacyPartitionManagement)
             {
                 this.partitionManager = new LegacyPartitionManager(
                     this,
@@ -506,16 +516,60 @@ namespace DurableTask.AzureStorage
             this.allControlQueues[lease.PartitionId] = controlQueue;
         }
 
+        internal void DropLostControlQueue(TablePartitionLease partition)
+        {
+            // If lease is lost but we're still dequeuing messages, remove the queue
+            if (this.allControlQueues.TryGetValue(partition.RowKey, out ControlQueue controlQueue) &&
+                this.OwnedControlQueues.Contains(controlQueue) &&
+                partition.CurrentOwner != this.settings.WorkerId)
+            {
+                this.orchestrationSessionManager.RemoveQueue(partition.RowKey, CloseReason.LeaseLost, nameof(DropLostControlQueue));
+            }
+        }
+
         internal Task OnOwnershipLeaseReleasedAsync(BlobPartitionLease lease, CloseReason reason)
         {
             this.orchestrationSessionManager.RemoveQueue(lease.PartitionId, reason, "Ownership LeaseCollectionBalancer");
             return Utils.CompletedTask;
         }
 
-        // Used for testing
-        internal async Task<IEnumerable<BlobPartitionLease>> ListBlobLeasesAsync()
+        internal async Task OnTableLeaseAcquiredAsync(TablePartitionLease lease)
         {
-            return await this.partitionManager.GetOwnershipBlobLeases().ToListAsync();
+            var controlQueue = new ControlQueue(this.azureStorageClient, lease.RowKey, this.messageManager);
+            await controlQueue.CreateIfNotExistsAsync();
+            this.orchestrationSessionManager.AddQueue(lease.RowKey, controlQueue, this.shutdownSource.Token);
+
+            this.allControlQueues[lease.RowKey] = controlQueue;
+        }
+
+        internal async Task DrainTablePartitionAsync(TablePartitionLease lease, CloseReason reason)
+        {
+            using var cts = new CancellationTokenSource(delay: TimeSpan.FromSeconds(60));
+            await this.orchestrationSessionManager.DrainAsync(lease.RowKey, reason, cts.Token, nameof(DrainTablePartitionAsync));
+        }
+
+        // Used for testing
+        internal IAsyncEnumerable<BlobPartitionLease> ListBlobLeasesAsync(CancellationToken cancellationToken = default)
+        {
+            return this.partitionManager.GetOwnershipBlobLeasesAsync(cancellationToken);
+        }
+
+        // Used for table partition manager testing
+        internal IAsyncEnumerable<TablePartitionLease> ListTableLeasesAsync(CancellationToken cancellationToken = default)
+        {
+            return ((TablePartitionManager)this.partitionManager).GetTableLeasesAsync();
+        }
+
+        // Used for table partition manager testing.
+        internal void SimulateUnhealthyWorker(CancellationToken testToken)
+        {
+            ((TablePartitionManager)this.partitionManager).SimulateUnhealthyWorker(testToken);
+        }
+
+        // Used for table partition manager testing
+        internal void KillPartitionManagerLoop()
+        {
+            ((TablePartitionManager)this.partitionManager).KillLoop();
         }
 
         internal static async Task<Queue[]> GetControlQueuesAsync(
@@ -529,14 +583,29 @@ namespace DurableTask.AzureStorage
 
             string taskHub = azureStorageClient.Settings.TaskHubName;
 
-            BlobPartitionLeaseManager inactiveLeaseManager = GetBlobLeaseManager(azureStorageClient, "inactive");
+            // Need to check for leases in Azure Table Storage. Scale Controller calls into this method.
+            int partitionCount;
+            Table partitionTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.PartitionTableName);
+            
+            // Check if table partition manager is used. If so, get partition count from table.
+            // Else, get the partition count from the blobs.
+            if (await partitionTable.ExistsAsync())
+            {
+                TableQueryResponse<TablePartitionLease> result = partitionTable.ExecuteQueryAsync<TablePartitionLease>();
+                partitionCount = await result.CountAsync();
+            }
+            else
+            {
+                BlobPartitionLeaseManager inactiveLeaseManager = GetBlobLeaseManager(azureStorageClient, "inactive");
 
-            TaskHubInfo hubInfo = await inactiveLeaseManager.GetOrCreateTaskHubInfoAsync(
-                GetTaskHubInfo(taskHub, defaultPartitionCount),
-                checkIfStale: false);
+                TaskHubInfo hubInfo = await inactiveLeaseManager.GetOrCreateTaskHubInfoAsync(
+                    GetTaskHubInfo(taskHub, defaultPartitionCount),
+                    checkIfStale: false);
+                partitionCount = hubInfo.PartitionCount;
+            };
 
-            var controlQueues = new Queue[hubInfo.PartitionCount];
-            for (int i = 0; i < hubInfo.PartitionCount; i++)
+            var controlQueues = new Queue[partitionCount];
+            for (int i = 0; i < partitionCount; i++)
             {
                 controlQueues[i] = azureStorageClient.GetQueueReference(GetControlQueueName(taskHub, i));
             }
@@ -1854,15 +1923,15 @@ namespace DurableTask.AzureStorage
                 purgeInstanceFilter.RuntimeStatus);
             return storagePurgeHistoryResult.ToCorePurgeHistoryResult();
         }
-
+#nullable enable
         /// <summary>
         /// Wait for an orchestration to reach any terminal state within the given timeout
         /// </summary>
         /// <param name="instanceId">The orchestration instance to wait for.</param>
         /// <param name="executionId">The execution ID (generation) of the specified instance.</param>
-        /// <param name="timeout">Max timeout to wait.</param>
+        /// <param name="timeout">Max timeout to wait. Only positive <see cref="TimeSpan"/> values, <see cref="TimeSpan.Zero"/>, or <see cref="Timeout.InfiniteTimeSpan"/> are allowed.</param>
         /// <param name="cancellationToken">Task cancellation token.</param>
-        public async Task<OrchestrationState> WaitForOrchestrationAsync(
+        public async Task<OrchestrationState?> WaitForOrchestrationAsync(
             string instanceId,
             string executionId,
             TimeSpan timeout,
@@ -1873,20 +1942,24 @@ namespace DurableTask.AzureStorage
                 throw new ArgumentException(nameof(instanceId));
             }
 
-            TimeSpan statusPollingInterval = TimeSpan.FromSeconds(2);
-            while (!cancellationToken.IsCancellationRequested && timeout > TimeSpan.Zero)
+            bool isInfiniteTimeSpan = timeout == Timeout.InfiniteTimeSpan;
+            if (timeout < TimeSpan.Zero && !isInfiniteTimeSpan)
             {
-                OrchestrationState state = await this.GetOrchestrationStateAsync(instanceId, executionId);
-                if (state == null ||
-                    state.OrchestrationStatus == OrchestrationStatus.Running ||
-                    state.OrchestrationStatus == OrchestrationStatus.Suspended ||
-                    state.OrchestrationStatus == OrchestrationStatus.Pending ||
-                    state.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)
-                {
-                    await Task.Delay(statusPollingInterval, cancellationToken);
-                    timeout -= statusPollingInterval;
-                }
-                else
+                throw new ArgumentException($"The parameter {nameof(timeout)} cannot be negative." +
+                    $" The value for {nameof(timeout)} was '{timeout}'." +
+                    $" Please provide either a positive timeout value or Timeout.InfiniteTimeSpan.");
+            }
+
+            TimeSpan statusPollingInterval = TimeSpan.FromSeconds(2);
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                OrchestrationState? state = await this.GetOrchestrationStateAsync(instanceId, executionId);
+                
+                if (state != null &&
+                    state.OrchestrationStatus != OrchestrationStatus.Running &&
+                    state.OrchestrationStatus != OrchestrationStatus.Suspended &&
+                    state.OrchestrationStatus != OrchestrationStatus.Pending &&
+                    state.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew)
                 {
                     if (this.settings.FetchLargeMessageDataEnabled)
                     {
@@ -1895,6 +1968,17 @@ namespace DurableTask.AzureStorage
                     }
                     return state;
                 }
+                
+                timeout -= statusPollingInterval;
+                
+                // For a user-provided timeout of `TimeSpan.Zero`,
+                // we want to check the status of the orchestration once and then return.
+                // Therefore, we check the timeout condition after the status check.
+                if (!isInfiniteTimeSpan && (timeout <= TimeSpan.Zero))
+                {
+                    break;
+                }
+                await Task.Delay(statusPollingInterval, cancellationToken);
             }
 
             return null;
@@ -1925,7 +2009,7 @@ namespace DurableTask.AzureStorage
 
         // TODO: Change this to a sticky assignment so that partition count changes can
         //       be supported: https://github.com/Azure/azure-functions-durable-extension/issues/1
-        async Task<ControlQueue> GetControlQueueAsync(string instanceId)
+        async Task<ControlQueue?> GetControlQueueAsync(string instanceId)
         {
             uint partitionIndex = Fnv1aHashHelper.ComputeHash(instanceId) % (uint)this.settings.PartitionCount;
             string queueName = GetControlQueueName(this.settings.TaskHubName, (int)partitionIndex);
@@ -1994,6 +2078,16 @@ namespace DurableTask.AzureStorage
             return new OrchestrationQueryResult(results, statusContext.ContinuationToken);
         }
 
+        class PendingMessageBatch
+        {
+            public string? OrchestrationInstanceId { get; set; }
+            public string? OrchestrationExecutionId { get; set; }
+
+            public List<MessageData> Messages { get; set; } = new List<MessageData>();
+
+            public OrchestrationRuntimeState? Orchestrationstate { get; set; }
+        }
+
         class ResettableLazy<T>
         {
             readonly Func<T> valueFactory;
@@ -2001,7 +2095,10 @@ namespace DurableTask.AzureStorage
 
             Lazy<T> lazy;
 
+            // Supress warning because it's incorrect: the lazy variable is initialized in the constructor, in the `Reset()` method
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
             public ResettableLazy(Func<T> valueFactory, LazyThreadSafetyMode mode)
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
             {
                 this.valueFactory = valueFactory;
                 this.threadSafetyMode = mode;
@@ -2031,3 +2128,4 @@ namespace DurableTask.AzureStorage
         }
     }
 }
+#nullable disable
