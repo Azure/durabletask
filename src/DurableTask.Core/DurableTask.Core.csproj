@@ -29,7 +29,7 @@
     <!-- This version is used as the nuget package version -->
     <Version>$(VersionPrefix)</Version>
   </PropertyGroup>
-  
+
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="1.1.1" />
     <PackageReference Include="Newtonsoft.Json" Version="7.0.1" />

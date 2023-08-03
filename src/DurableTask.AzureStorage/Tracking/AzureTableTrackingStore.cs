@@ -326,7 +326,7 @@ namespace DurableTask.AzureStorage.Tracking
                         TableEntity tsEntity = taskScheduledEntities[0];
                         tsEntity[nameof(TaskFailedEvent.Reason)] = "Rewound: " + tsEntity.GetString(nameof(HistoryEvent.EventType));
                         tsEntity[nameof(TaskFailedEvent.EventType)] = nameof(EventType.GenericEvent);
-                        await this.HistoryTable.ReplaceAsync(tsEntity, tsEntity.ETag, cancellationToken);
+                        await this.HistoryTable.ReplaceEntityAsync(tsEntity, tsEntity.ETag, cancellationToken);
                         break;
 
                     // delete SubOrchestratorCreated corresponding to SubOrchestraionInstanceFailed event
@@ -339,7 +339,7 @@ namespace DurableTask.AzureStorage.Tracking
                         // the SubOrchestrationCreatedEvent is still healthy and will not be overwritten, just marked as rewound
                         TableEntity soEntity = subOrchesratrationEntities[0];
                         soEntity[nameof(SubOrchestrationInstanceFailedEvent.Reason)] = "Rewound: " + soEntity.GetString(nameof(HistoryEvent.EventType));
-                        await this.HistoryTable.ReplaceAsync(soEntity, soEntity.ETag, cancellationToken);
+                        await this.HistoryTable.ReplaceEntityAsync(soEntity, soEntity.ETag, cancellationToken);
 
                         // recursive call to clear out failure events on child instances
                         await foreach (string childInstanceId in this.RewindHistoryAsync(soEntity.GetString(nameof(OrchestrationInstance.InstanceId)), cancellationToken))
@@ -354,7 +354,7 @@ namespace DurableTask.AzureStorage.Tracking
                 entity[nameof(TaskFailedEvent.Reason)] = "Rewound: " + entity.GetString(nameof(HistoryEvent.EventType));
                 entity[nameof(TaskFailedEvent.EventType)] = nameof(EventType.GenericEvent);
 
-                await this.HistoryTable.ReplaceAsync(entity, entity.ETag, cancellationToken);
+                await this.HistoryTable.ReplaceEntityAsync(entity, entity.ETag, cancellationToken);
             }
 
             // reset orchestration status in instance store table
@@ -613,7 +613,7 @@ namespace DurableTask.AzureStorage.Tracking
                     Interlocked.Add(ref rowsDeleted, deletedEntitiesResponseInfo.Responses.Count);
                     Interlocked.Add(ref storageRequests, deletedEntitiesResponseInfo.RequestCount);
                 }),
-                this.InstancesTable.DeleteAsync(new TableEntity(orchestrationInstanceStatus.PartitionKey, string.Empty), ETag.All, cancellationToken: cancellationToken)
+                this.InstancesTable.DeleteEntityAsync(new TableEntity(orchestrationInstanceStatus.PartitionKey, string.Empty), ETag.All, cancellationToken: cancellationToken)
             };
 
             await Task.WhenAll(tasks);
@@ -727,12 +727,12 @@ namespace DurableTask.AzureStorage.Tracking
                 if (eTag == null)
                 {
                     // This is the case for creating a new instance.
-                    await this.InstancesTable.InsertAsync(entity, cancellationToken);
+                    await this.InstancesTable.InsertEntityAsync(entity, cancellationToken);
                 }
                 else
                 {
                     // This is the case for overwriting an existing instance.
-                    await this.InstancesTable.ReplaceAsync(entity, eTag.GetValueOrDefault(), cancellationToken);
+                    await this.InstancesTable.ReplaceEntityAsync(entity, eTag.GetValueOrDefault(), cancellationToken);
                 }
             }
             catch (DurableTaskStorageException e) when (
@@ -769,7 +769,7 @@ namespace DurableTask.AzureStorage.Tracking
             };
 
             Stopwatch stopwatch = Stopwatch.StartNew();
-            await this.InstancesTable.MergeAsync(entity, ETag.All, cancellationToken);
+            await this.InstancesTable.MergeEntityAsync(entity, ETag.All, cancellationToken);
 
             // We don't have enough information to get the episode number.
             // It's also not important to have for this particular trace.
@@ -983,7 +983,7 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
-            await this.InstancesTable.InsertOrMergeAsync(instanceEntity);
+            await this.InstancesTable.InsertOrMergeEntityAsync(instanceEntity);
 
             this.settings.Logger.InstanceStatusUpdate(
                 this.storageAccountName,

@@ -84,7 +84,7 @@ namespace DurableTask.AzureStorage.Partitioning
             });
         }
 
-        IAsyncEnumerable<BlobPartitionLease> IPartitionManager.GetOwnershipBlobLeases(CancellationToken cancellationToken)
+        IAsyncEnumerable<BlobPartitionLease> IPartitionManager.GetOwnershipBlobLeasesAsync(CancellationToken cancellationToken)
         {
             return this.leaseManager.ListLeasesAsync(cancellationToken);
         }
