@@ -155,8 +155,10 @@ namespace DurableTask.AzureServiceFabric
                     // However even if this transaction failed but we ended up deleting session messages dictionary, that's ok - at
                     // that time, it should be an empty dictionary and we would have updated the runtime session state to full completed
                     // state in the transaction from Complete method. So the subsequent attempt would be able to complete the session.
-                    await this.orchestrationProvider.DropSession(txn, orchestrationInstance);
+                    await this.orchestrationProvider.DropSessionAsync(txn, orchestrationInstance);
                     await txn.CommitAsync();
+
+                    // TODO: Renmove from FabricOrchestrationService.SessionInfo dictionary and SessionProvider.lockedSessions
                 }
 
                 this.instanceStore.OnOrchestrationCompleted(orchestrationInstance);
