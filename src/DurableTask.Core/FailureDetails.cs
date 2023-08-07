@@ -52,17 +52,6 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="FailureDetails"/> class from an exception object and
-        /// an explicitly specified inner exception. The specified inner exception replaces any inner exception already present.
-        /// </summary>
-        /// <param name="e">The exception used to generate the failure details.</param>
-        /// <param name="innerException">The inner exception to use.</param>
-        public FailureDetails(Exception e, Exception innerException)
-            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, FromException(innerException), isNonRetriable: false)
-        {
-        }
-
-        /// <summary>
         /// For testing purposes only: Initializes a new, empty instance of the <see cref="FailureDetails"/> class.
         /// </summary>
         public FailureDetails()
