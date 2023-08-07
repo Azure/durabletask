@@ -22,7 +22,8 @@ namespace DurableTask.AzureServiceFabric.Service
     /// <inheritdoc/>
     public sealed class DefaultDependencyResolver : IDependencyResolver
     {
-        private IServiceProvider provider;
+        private readonly IServiceProvider provider;
+        private readonly IServiceScope scope;
 
         /// <summary>
         /// Creates an instance of <see cref="DefaultDependencyResolver"/>.
@@ -31,6 +32,16 @@ namespace DurableTask.AzureServiceFabric.Service
         public DefaultDependencyResolver(IServiceProvider provider)
         {
             this.provider = provider ?? throw new ArgumentNullException(nameof(provider));
+        }
+
+        /// <summary>
+        /// Creates a private instance of <see cref="DefaultDependencyResolver"/> used when creating a new scope.
+        /// </summary>
+        /// <param name="scope">An instance of <see cref="IServiceScope"/> </param>
+        private DefaultDependencyResolver(IServiceScope scope)
+        {
+            this.scope = scope;
+            this.provider = scope.ServiceProvider;
         }
 
         /// <inheritdoc/>
@@ -48,14 +59,14 @@ namespace DurableTask.AzureServiceFabric.Service
         /// <inheritdoc/>
         public IDependencyScope BeginScope()
         {
-            return this;
+            return new DefaultDependencyResolver(this.provider.CreateScope());
         }
 
         #region IDisposable Support
         /// <inheritdoc />
         public void Dispose()
         {
-            // no-op
+            this.scope?.Dispose();
         }
         #endregion
     }

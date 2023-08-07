@@ -16,8 +16,8 @@ namespace DurableTask.AzureStorage
     using System;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
-    using DurableTask.AzureStorage.Partitioning;
     using DurableTask.AzureStorage.Logging;
+    using DurableTask.AzureStorage.Partitioning;
     using DurableTask.Core;
     using Microsoft.Extensions.Logging;
     using Microsoft.WindowsAzure.Storage.Queue;
@@ -166,8 +166,9 @@ namespace DurableTask.AzureStorage
         public TimeSpan LeaseAcquireInterval { get; set; } = TimeSpan.FromSeconds(10);
 
         /// <summary>
-        /// Interval for which the lease is taken on Azure Blob representing a task hub partition.  If the lease is not renewed within this 
-        /// interval, it will cause it to expire and ownership of the partition will move to another worker instance.
+        /// Interval for which the lease is taken on Azure Blob representing a task hub partition in partition manager V1 (legacy partition manager) and V2 (safe partition manager).  
+        /// The amount of time that a lease expiration deadline is extended on a renewal in partition manager V3 (table partition manager).
+        /// If the lease is not renewed within this within this timespan, it will expire and ownership of the partition may move to another worker.
         /// </summary>
         public TimeSpan LeaseInterval { get; set; } = TimeSpan.FromSeconds(30);
 
@@ -197,7 +198,7 @@ namespace DurableTask.AzureStorage
         /// In case of null, StorageAccountDetails is applied. 
         /// </summary>
         public StorageAccountDetails TrackingStoreStorageAccountDetails { get; set; }
-        
+
         /// <summary>
         ///  Should we carry over unexecuted raised events to the next iteration of an orchestration on ContinueAsNew
         /// </summary>
@@ -213,6 +214,11 @@ namespace DurableTask.AzureStorage
         /// to split brain.
         /// </summary>
         public bool UseLegacyPartitionManagement { get; set; } = false;
+
+        /// <summary>
+        /// Use the newer Azure Tables-based partition manager instead of the older Azure Blobs-based partition manager. The default value is <c>false</c>.
+        /// </summary>
+        public bool UseTablePartitionManagement { get; set; } = false;
 
         /// <summary>
         /// User serialization that will respect <see cref="IExtensibleDataObject"/>. Default is false.
@@ -257,6 +263,11 @@ namespace DurableTask.AzureStorage
         public TimeSpan StorageRequestsTimeoutCooldown { get; set; } = TimeSpan.FromMinutes(5);
 
         /// <summary>
+        /// Gets or Sets an optional custom type binder used when trying to deserialize queued messages
+        /// </summary>
+        public ICustomTypeBinder CustomMessageTypeBinder { get; set; }
+
+        /// <summary>
         /// Returns bool indicating is the TrackingStoreStorageAccount has been set.
         /// </summary>
         public bool HasTrackingStoreStorageAccount => this.TrackingStoreStorageAccountDetails != null;
@@ -264,6 +275,7 @@ namespace DurableTask.AzureStorage
         internal string HistoryTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}History" : $"{this.TaskHubName}History";
 
         internal string InstanceTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}Instances" : $"{this.TaskHubName}Instances";
+        internal string PartitionTableName => $"{this.TaskHubName}Partitions";
 
         /// <summary>
         /// Gets an instance of <see cref="LogHelper"/> that can be used for writing structured logs.
