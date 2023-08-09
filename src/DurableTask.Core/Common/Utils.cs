@@ -102,9 +102,9 @@ namespace DurableTask.Core.Common
         /// <param name="serializer">The serializer whose config will guide the deserialization.</param>
         /// <param name="jsonString">The JSON-string to deserialize.</param>
         /// <returns></returns>
-        public static T DeserializeFromJson<T>(JsonSerializer serializer, string jsonString)
+        public static T? DeserializeFromJson<T>(JsonSerializer serializer, string jsonString)
         {
-            T obj;
+            T? obj;
             using (var reader = new StringReader(jsonString))
             using (var jsonReader = new JsonTextReader(reader))
             {
@@ -120,7 +120,7 @@ namespace DurableTask.Core.Common
         /// <param name="jsonString">The JSON-string to deserialize.</param>
         /// <param name="type">The expected de-serialization type.</param>
         /// <returns></returns>
-        public static object DeserializeFromJson(string jsonString, Type type)
+        public static object? DeserializeFromJson(string jsonString, Type type)
         {
             return DeserializeFromJson(DefaultSerializer, jsonString, type);
         }
@@ -133,9 +133,9 @@ namespace DurableTask.Core.Common
         /// <param name="jsonString">The JSON-string to deserialize.</param>
         /// <param name="type">The expected de-serialization type.</param>
         /// <returns></returns>
-        public static object DeserializeFromJson(JsonSerializer serializer, string jsonString, Type type)
+        public static object? DeserializeFromJson(JsonSerializer serializer, string jsonString, Type type)
         {
-            object obj;
+            object? obj;
             using (var reader = new StringReader(jsonString))
             using (var jsonReader = new JsonTextReader(reader))
             {
@@ -258,7 +258,7 @@ namespace DurableTask.Core.Common
         /// <summary>
         /// Reads and deserializes an Object from the supplied stream
         /// </summary>
-        public static T ReadObjectFromStream<T>(Stream objectStream)
+        public static T? ReadObjectFromStream<T>(Stream objectStream)
         {
             return ReadObjectFromByteArray<T>(ReadBytesFromStream(objectStream));
         }
@@ -285,7 +285,7 @@ namespace DurableTask.Core.Common
         /// <summary>
         /// Deserializes an Object from the supplied bytes
         /// </summary>
-        public static T ReadObjectFromByteArray<T>(byte[] serializedBytes)
+        public static T? ReadObjectFromByteArray<T>(byte[] serializedBytes)
         {
             var jsonString = Encoding.UTF8.GetString(serializedBytes);
             return DeserializeFromJson<T>(DefaultObjectJsonSerializer, jsonString);
