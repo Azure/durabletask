@@ -34,15 +34,11 @@
     <Version>$(VersionPrefix)-$(VersionSuffix)</Version>
   </PropertyGroup>
 
-  <!-- The below versions must align with the Functions Host -->
   <ItemGroup>
-    <PackageReference Include="Azure.Core" Version="1.25.0" />
-    <PackageReference Include="Azure.Storage.Blobs" Version="12.13.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Azure.Data.Tables" Version="12.6.1" />
-    <PackageReference Include="Azure.Storage.Queues" Version="12.12.0" />
+    <PackageReference Include="Azure.Core" Version="1.34.0" />
+    <PackageReference Include="Azure.Data.Tables" Version="12.8.0" />
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.17.0" />
+    <PackageReference Include="Azure.Storage.Queues" Version="12.15.0" />
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="6.0.0" />
     <PackageReference Include="System.Linq.Async" Version="6.0.1" />
   </ItemGroup>
