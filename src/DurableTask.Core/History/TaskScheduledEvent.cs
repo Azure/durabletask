@@ -13,14 +13,14 @@
 #nullable enable
 namespace DurableTask.Core.History
 {
-    using System;
     using System.Runtime.Serialization;
+    using DurableTask.Core.Tracing;
 
     /// <summary>
     /// A history event for a new task scheduled
     /// </summary>
     [DataContract]
-    public class TaskScheduledEvent : HistoryEvent
+    public class TaskScheduledEvent : HistoryEvent, ISupportsDurableTraceContext
     {
         // Private ctor for JSON deserialization (required by some storage providers and out-of-proc executors)
         TaskScheduledEvent()
@@ -78,5 +78,11 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public string? Input { get; set; }
+
+        /// <summary>
+        /// The W3C trace context associated with this event.
+        /// </summary>
+        [DataMember]
+        public DistributedTraceContext? ParentTraceContext { get; set; }
     }
 }

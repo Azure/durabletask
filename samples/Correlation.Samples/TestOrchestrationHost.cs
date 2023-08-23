@@ -31,22 +31,15 @@ namespace Correlation.Samples
 
         public TestOrchestrationHost(AzureStorageOrchestrationServiceSettings settings)
         {
-            try
-            {
-                var service = new AzureStorageOrchestrationService(settings);
-                service.CreateAsync().GetAwaiter().GetResult(); // I change Create to CreateIfNotExistsAsync for enabling execute without fail once per twice.
+            var service = new AzureStorageOrchestrationService(settings);
+            service.CreateIfNotExistsAsync().GetAwaiter().GetResult();
 
-                this.settings = settings;
+            this.settings = settings;
 
-                this.worker = new TaskHubWorker(service);
-                this.client = new TaskHubClient(service);
-                this.addedOrchestrationTypes = new HashSet<Type>();
-                this.addedActivityTypes = new HashSet<Type>();
-            }
-            catch (Exception e)
-            {
-                throw e;
-            }
+            this.worker = new TaskHubWorker(service);
+            this.client = new TaskHubClient(service);
+            this.addedOrchestrationTypes = new HashSet<Type>();
+            this.addedActivityTypes = new HashSet<Type>();
         }
 
         public string TaskHub => this.settings.TaskHubName;
