@@ -419,7 +419,7 @@ namespace DurableTask.Core.Tracing
             TimerFiredEvent timerFiredEvent)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: TraceActivityConstants.Timer,
+                name: CreateTimerSpanName(orchestrationName),
                 kind: ActivityKind.Internal,
                 startTime: startTime,
                 parentContext: Activity.Current?.Context ?? default);
@@ -456,6 +456,11 @@ namespace DurableTask.Core.Tracing
             {
                 return $"{spanDescription}:{taskName}";
             }
+        }
+
+        static string CreateTimerSpanName(string orchestrationName)
+        {
+            return $"{TraceActivityConstants.Orchestration}:{orchestrationName}:{TraceActivityConstants.Timer}";
         }
 
         /// <summary>
