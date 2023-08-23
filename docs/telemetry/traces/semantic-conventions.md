@@ -185,7 +185,7 @@ Represents the Durable Timer
 
 | Span Property | Span Value |
 |---|---|
-| Name    | `timer`    |
+| Name    | `orchestration:{orchestrationName}:timer`    |
 | Kind    | Internal    |
 | Start    | Timestamp of when the timer is created   |
 | End    | Timestamp of when the TimerFired event is processed    |
