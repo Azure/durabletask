@@ -20,6 +20,7 @@ steps:
       src/DurableTask.Emulator/DurableTask.Emulator.csproj
       src/DurableTask.ServiceBus/DurableTask.ServiceBus.csproj
       src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj
+      src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj
 
 # Build the filtered solution in release mode, specifying the continuous integration flag.
 - task: VSBuild@1
@@ -29,6 +30,16 @@ steps:
     vsVersion: '16.0'
     logFileVerbosity: minimal
     configuration: Release
+    msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+- task: VSBuild@1
+  displayName: 'Build (ApplicationInsights)'
+  inputs:
+    solution: 'src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj'
+    vsVersion: '16.0'
+    logFileVerbosity: minimal
+    configuration: Release
+    platform: x64
     msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
 - task: VSBuild@1
@@ -117,6 +128,15 @@ steps:
     packDirectory: $(build.artifactStagingDirectory)
     packagesToPack: 'src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln'
 
+- task: DotNetCoreCLI@2
+  displayName: Generate nuget packages
+  inputs:
+    command: pack
+    verbosityPack: Minimal
+    configuration: Release
+    nobuild: true
+    packDirectory: $(build.artifactStagingDirectory)
+    packagesToPack: 'src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj'
 
 - task: DotNetCoreCLI@2
   displayName: Generate nuget packages
