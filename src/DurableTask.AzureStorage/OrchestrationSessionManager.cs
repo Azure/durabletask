@@ -165,13 +165,30 @@ namespace DurableTask.AzureStorage
                     Thread.Sleep(TimeSpan.FromSeconds(1));
                 }
             }
-            
             this.settings.Logger.PartitionManagerInfo(
                 this.storageAccountName,
                 this.settings.TaskHubName,
                 this.settings.WorkerId,
                 partitionId,
                 $"Stopped listening for messages on queue {controlQueue.Name}.");
+
+
+            _ = Task.Run(async () => {
+                await Task.Delay(TimeSpan.FromMinutes(10));
+                if (this.ownedControlQueues.ContainsKey(partitionId))
+                {
+                    this.settings.Logger.PartitionManagerInfo(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    this.settings.WorkerId,
+                    partitionId,
+                    $"Unable to release {partitionId} for over 10 minutes. Failing fast in 10 seconds.");
+
+                    await Task.Delay(TimeSpan.FromSeconds(10));
+
+                    Environment.FailFast($"Unable to release {partitionId} for over 10 minutes. Failing fast now.");
+                }
+            });
         }
 
         /// <summary>

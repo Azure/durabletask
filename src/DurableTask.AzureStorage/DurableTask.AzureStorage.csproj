@@ -30,7 +30,7 @@
     <!-- The assembly version is only the major/minor pair, making it easier to do in-place upgrades -->
     <AssemblyVersion>$(MajorVersion).$(MinorVersion).0.0</AssemblyVersion>
     <!-- This version is used as the nuget package version -->
-    <Version>$(VersionPrefix)</Version>
+    <Version>$(VersionPrefix)-private-1</Version>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
