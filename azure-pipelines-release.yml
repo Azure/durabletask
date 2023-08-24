@@ -137,6 +137,7 @@ steps:
     nobuild: true
     packDirectory: $(build.artifactStagingDirectory)
     packagesToPack: 'src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj'
+    buildProperties: 'Platform=x64'
 
 - task: DotNetCoreCLI@2
   displayName: Generate nuget packages
