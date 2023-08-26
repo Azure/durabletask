@@ -13,13 +13,15 @@
 
 namespace DurableTask.Core.History
 {
+    using DurableTask.Core.Tracing;
+    using System.Diagnostics;
     using System.Runtime.Serialization;
 
     /// <summary>
     /// A history event for event raised
     /// </summary>
     [DataContract]
-    public class EventRaisedEvent : HistoryEvent
+    public class EventRaisedEvent : HistoryEvent, ISupportsDurableTraceContext
     {
         /// <summary>
         /// Creates a new <see cref="EventRaisedEvent"/> with the supplied event id and input.
@@ -48,5 +50,11 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public string Input { get; set; }
+
+        /// <summary>
+        /// The W3C trace context associated with this event.
+        /// </summary>
+        [DataMember]
+        public DistributedTraceContext ParentTraceContext { get; set; }
     }
 }

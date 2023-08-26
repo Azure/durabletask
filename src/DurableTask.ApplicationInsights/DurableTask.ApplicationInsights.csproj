@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
+    <PropertyGroup>
+        <TargetFrameworks>netstandard2.0</TargetFrameworks>
+        <PackageId>Microsoft.Azure.DurableTask.ApplicationInsights</PackageId>
+        <!-- NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
+        <NoWarn>NU5125;NU5048</NoWarn>
+    </PropertyGroup>
+
+    <!-- Version Info -->
+    <PropertyGroup>
+        <MajorVersion>0</MajorVersion>
+        <MinorVersion>1</MinorVersion>
+        <PatchVersion>0</PatchVersion>
+        <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
+        <FileVersion>$(VersionPrefix).0</FileVersion>
+        <!-- FileVersionRevision is expected to be set by the CI. This is useful for distinguishing between multiple builds of the same version. -->
+        <FileVersion Condition="'$(FileVersionRevision)' != ''">$(VersionPrefix).$(FileVersionRevision)</FileVersion>
+        <!-- The assembly version is only the major/minor pair, making it easier to do in-place upgrades -->
+        <AssemblyVersion>$(MajorVersion).$(MinorVersion).0.0</AssemblyVersion>
+        <!-- This version is used as the nuget package version -->
+        <Version>$(VersionPrefix)</Version>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.ApplicationInsights" Version="2.21.0" />
+        <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="5.0.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
+    </ItemGroup>
+
+</Project>
