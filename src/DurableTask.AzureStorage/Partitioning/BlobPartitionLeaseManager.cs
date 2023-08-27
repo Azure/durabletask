@@ -16,14 +16,13 @@ namespace DurableTask.AzureStorage.Partitioning
     using System;
     using System.Collections.Generic;
     using System.Globalization;
-    using System.IO;
     using System.Linq;
     using System.Net;
     using System.Runtime.CompilerServices;
-    using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
     using Azure;
+    using Azure.Storage.Blobs.Models;
     using DurableTask.AzureStorage.Storage;
 
     sealed class BlobPartitionLeaseManager : ILeaseManager<BlobPartitionLease>
@@ -318,22 +317,8 @@ namespace DurableTask.AzureStorage.Partitioning
 
         async Task<BlobPartitionLease> DownloadLeaseBlob(Blob blob, CancellationToken cancellationToken)
         {
-            string serializedLease = null;
-            var buffer = SimpleBufferManager.Shared.TakeBuffer(SimpleBufferManager.SmallBufferSize);
-            try
-            {
-                using (var memoryStream = new MemoryStream(buffer))
-                {
-                    await blob.DownloadToStreamAsync(memoryStream, cancellationToken);
-                    serializedLease = Encoding.UTF8.GetString(buffer, 0, (int)memoryStream.Position);
-                }
-            }
-            finally
-            {
-                SimpleBufferManager.Shared.ReturnBuffer(buffer);
-            }
-
-            BlobPartitionLease deserializedLease = Utils.DeserializeFromJson<BlobPartitionLease>(serializedLease);
+            using BlobDownloadStreamingResult result = await blob.DownloadStreamingAsync(cancellationToken);
+            BlobPartitionLease deserializedLease = Utils.DeserializeFromJson<BlobPartitionLease>(result.Content);
             deserializedLease.Blob = blob;
 
             return deserializedLease;
