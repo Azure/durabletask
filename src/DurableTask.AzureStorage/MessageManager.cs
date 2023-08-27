@@ -182,14 +182,14 @@ namespace DurableTask.AzureStorage
 
             Blob blob = this.blobContainer.GetBlobReference(blobName);
             using Stream blobStream = await blob.OpenWriteAsync(cancellationToken);
-            using GZipStream compressedStream = new GZipStream(blobStream, CompressionLevel.Optimal);
+            using GZipStream compressedBlobStream = new GZipStream(blobStream, CompressionLevel.Optimal);
             using MemoryStream payloadStream = new MemoryStream(payloadBuffer);
 
             try
             {
-                // TODO: Change default pipe options if necessary
-                await payloadStream.CopyToAsync(compressedStream, bufferSize: 81920, cancellationToken: cancellationToken);
-                await compressedStream.FlushAsync(cancellationToken);
+                // Note: 81920 bytes or 80 KB is the default value used by CopyToAsync
+                await payloadStream.CopyToAsync(compressedBlobStream, bufferSize: 81920, cancellationToken: cancellationToken);
+                await compressedBlobStream.FlushAsync(cancellationToken);
                 await blobStream.FlushAsync(cancellationToken);
             }
             catch (RequestFailedException rfe)
@@ -221,8 +221,8 @@ namespace DurableTask.AzureStorage
         private async Task<string> DownloadAndDecompressAsBytesAsync(Blob blob, CancellationToken cancellationToken = default)
         {
             using BlobDownloadStreamingResult result = await blob.DownloadStreamingAsync(cancellationToken);
-            using GZipStream decompressedStream = new GZipStream(result.Content, CompressionMode.Decompress);
-            using StreamReader reader = new StreamReader(decompressedStream, Encoding.UTF8);
+            using GZipStream decompressedBlobStream = new GZipStream(result.Content, CompressionMode.Decompress);
+            using StreamReader reader = new StreamReader(decompressedBlobStream, Encoding.UTF8);
 
             return await reader.ReadToEndAsync();
         }
