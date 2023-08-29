@@ -32,7 +32,8 @@ namespace DurableTask.AzureStorage
         readonly Dictionary<string, OrchestrationSession> activeOrchestrationSessions = new Dictionary<string, OrchestrationSession>(StringComparer.OrdinalIgnoreCase);
         readonly ConcurrentDictionary<string, ControlQueue> ownedControlQueues = new ConcurrentDictionary<string, ControlQueue>();
         readonly LinkedList<PendingMessageBatch> pendingOrchestrationMessageBatches = new LinkedList<PendingMessageBatch>();
-        readonly AsyncQueue<LinkedListNode<PendingMessageBatch>> readyForProcessingQueue = new AsyncQueue<LinkedListNode<PendingMessageBatch>>();
+        readonly AsyncQueue<LinkedListNode<PendingMessageBatch>> orchestrationsReadyForProcessingQueue = new AsyncQueue<LinkedListNode<PendingMessageBatch>>();
+        readonly AsyncQueue<LinkedListNode<PendingMessageBatch>> entitiesReadyForProcessingQueue = new AsyncQueue<LinkedListNode<PendingMessageBatch>>();
         readonly object messageAndSessionLock = new object();
 
         readonly string storageAccountName;
@@ -56,6 +57,14 @@ namespace DurableTask.AzureStorage
         }
 
         internal IEnumerable<ControlQueue> Queues => this.ownedControlQueues.Values;
+
+        /// <summary>
+        /// Recent versions of DurableTask.Core can be configured to use a separate pipeline for processing entity work items,
+        /// while older versions use a single pipeline for both orchestration and entity work items. To support both scenarios,
+        /// this property can be modified prior to starting the orchestration service. If set to true, the work items that are ready for
+        /// processing are stored in <see cref="entitiesReadyForProcessingQueue"/> and <see cref="orchestrationsReadyForProcessingQueue"/>, respectively.
+        /// </summary>
+        internal bool ProcessEntitiesSeparately { get; set; }
 
         public void AddQueue(string partitionId, ControlQueue controlQueue, CancellationToken cancellationToken)
         {
@@ -520,7 +529,14 @@ namespace DurableTask.AzureStorage
                     batch.TrackingStoreContext = history.TrackingStoreContext;
                 }
 
-                this.readyForProcessingQueue.Enqueue(node);
+                if (this.ProcessEntitiesSeparately && DurableTask.Core.Common.Entities.IsEntityInstance(batch.OrchestrationInstanceId))
+                {
+                    this.entitiesReadyForProcessingQueue.Enqueue(node);
+                }
+                else
+                {
+                    this.orchestrationsReadyForProcessingQueue.Enqueue(node);
+                }
             }
             catch (OperationCanceledException)
             {
@@ -544,14 +560,16 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public async Task<OrchestrationSession?> GetNextSessionAsync(CancellationToken cancellationToken)
+        public async Task<OrchestrationSession?> GetNextSessionAsync(bool entitiesOnly, CancellationToken cancellationToken)
         {
+            var readyForProcessingQueue = entitiesOnly? this.entitiesReadyForProcessingQueue : this.orchestrationsReadyForProcessingQueue;
+
             while (!cancellationToken.IsCancellationRequested)
             {
                 // This call will block until:
                 //  1) a batch of messages has been received for a particular instance and
                 //  2) the history for that instance has been fetched
-                LinkedListNode<PendingMessageBatch> node = await this.readyForProcessingQueue.DequeueAsync(cancellationToken);
+                LinkedListNode<PendingMessageBatch> node = await readyForProcessingQueue.DequeueAsync(cancellationToken);
 
                 lock (this.messageAndSessionLock)
                 {
@@ -597,7 +615,7 @@ namespace DurableTask.AzureStorage
                         // A message arrived for a different generation of an existing orchestration instance.
                         // Put it back into the ready queue so that it can be processed once the current generation
                         // is done executing.
-                        if (this.readyForProcessingQueue.Count == 0)
+                        if (readyForProcessingQueue.Count == 0)
                         {
                             // To avoid a tight dequeue loop, delay for a bit before putting this node back into the queue.
                             // This is only necessary when the queue is empty. The main dequeue thread must not be blocked
@@ -607,14 +625,14 @@ namespace DurableTask.AzureStorage
                                 lock (this.messageAndSessionLock)
                                 {
                                     this.pendingOrchestrationMessageBatches.AddLast(node);
-                                    this.readyForProcessingQueue.Enqueue(node);
+                                    readyForProcessingQueue.Enqueue(node);
                                 }
                             });
                         }
                         else
                         {
                             this.pendingOrchestrationMessageBatches.AddLast(node);
-                            this.readyForProcessingQueue.Enqueue(node);
+                            readyForProcessingQueue.Enqueue(node);
                         }
                     }
                 }
@@ -676,7 +694,8 @@ namespace DurableTask.AzureStorage
         public virtual void Dispose()
         {
             this.fetchRuntimeStateQueue.Dispose();
-            this.readyForProcessingQueue.Dispose();
+            this.orchestrationsReadyForProcessingQueue.Dispose();
+            this.entitiesReadyForProcessingQueue.Dispose();
         }
 
         class PendingMessageBatch
