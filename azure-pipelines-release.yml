@@ -39,7 +39,6 @@ steps:
     vsVersion: '16.0'
     logFileVerbosity: minimal
     configuration: Release
-    platform: x64
     msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
 - task: VSBuild@1
