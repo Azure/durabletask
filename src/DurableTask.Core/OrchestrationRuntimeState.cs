@@ -262,17 +262,27 @@ namespace DurableTask.Core
             {
                 if (ExecutionCompletedEvent != null)
                 {
-                    TraceHelper.Trace(TraceEventType.Warning,
-                        "OrchestrationRuntimeState-DuplicateEvent",
-                        "The orchestration '{0}' already received an 'ExecutionCompletedEvent' with id {1} but is now receiving a new one with id {2}. The latter event will be discarded.",
-                        this.OrchestrationInstance?.InstanceId ?? "",
-                        ExecutionCompletedEvent.EventId,
-                        completedEvent.EventId);
+                    // It's not generally expected to receive multiple execution completed events for a given orchestrator, but it's possible under certain race conditions.
+                    // For example: when an orchestrator is signaled to terminate at the same time as it attempts to continue-as-new.
+
+                    var log = $"The orchestration '{this.OrchestrationInstance?.InstanceId ?? ""}' " +
+                        $"had already received an 'ExecutionCompletedEvent' with EventId={ExecutionCompletedEvent.EventId} " +
+                        $"and orchestrationStatus={orchestrationStatus} but it now receiving a new one with id={completedEvent.EventId} and orchestrationStatus={completedEvent.OrchestrationStatus}. ";
+                    
+                    if (orchestrationStatus != OrchestrationStatus.Terminated && completedEvent.OrchestrationStatus == OrchestrationStatus.Terminated)
+                    {
+                        // If the new event requests termination, we override the pre-existing execution completed event. This is because termination should be considered to be forceful.
+                        log += "Discarding previous 'ExecutionCompletedEvent' as termination is forceful.";
+                    }
+                    else
+                    {
+                        log += "Discarding new 'ExecutionCompletedEvent'.";
+                    }
+
+                    TraceHelper.Trace(TraceEventType.Warning, "OrchestrationRuntimeState-DuplicateEvent", log);
                 }
-                else { 
-                    ExecutionCompletedEvent = completedEvent;
-                    orchestrationStatus = completedEvent.OrchestrationStatus;
-                }
+                ExecutionCompletedEvent = completedEvent;
+                orchestrationStatus = completedEvent.OrchestrationStatus;
             }
             else if (historyEvent is ExecutionSuspendedEvent)
             {
