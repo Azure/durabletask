@@ -267,7 +267,7 @@ namespace DurableTask.Core
 
                     var log = $"The orchestration '{this.OrchestrationInstance?.InstanceId ?? ""}' " +
                         $"had already received an 'ExecutionCompletedEvent' with EventId={ExecutionCompletedEvent.EventId} " +
-                        $"and orchestrationStatus={orchestrationStatus} but it now receiving a new one with id={completedEvent.EventId} and orchestrationStatus={completedEvent.OrchestrationStatus}. ";
+                        $"and orchestrationStatus={orchestrationStatus} but is now receiving a new one with id={completedEvent.EventId} and orchestrationStatus={completedEvent.OrchestrationStatus}. ";
                     
                     if (orchestrationStatus != OrchestrationStatus.Terminated && completedEvent.OrchestrationStatus == OrchestrationStatus.Terminated)
                     {
