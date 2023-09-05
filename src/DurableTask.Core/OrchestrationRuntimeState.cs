@@ -262,12 +262,17 @@ namespace DurableTask.Core
             {
                 if (ExecutionCompletedEvent != null)
                 {
-                    throw new InvalidOperationException(
-                        "Multiple ExecutionCompletedEvent found, potential corruption in state storage");
+                    TraceHelper.Trace(TraceEventType.Warning,
+                        "OrchestrationRuntimeState-DuplicateEvent",
+                        "The orchestration '{0}' already received an 'ExecutionCompletedEvent' with id {1} but is now receiving a new one with id {2}. The latter event will be discarded.",
+                        this.OrchestrationInstance?.InstanceId ?? "",
+                        ExecutionCompletedEvent.EventId,
+                        completedEvent.EventId);
                 }
-
-                ExecutionCompletedEvent = completedEvent;
-                orchestrationStatus = completedEvent.OrchestrationStatus;
+                else { 
+                    ExecutionCompletedEvent = completedEvent;
+                    orchestrationStatus = completedEvent.OrchestrationStatus;
+                }
             }
             else if (historyEvent is ExecutionSuspendedEvent)
             {
