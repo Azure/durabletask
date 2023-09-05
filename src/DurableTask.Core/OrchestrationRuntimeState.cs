@@ -264,7 +264,6 @@ namespace DurableTask.Core
                 {
                     // It's not generally expected to receive multiple execution completed events for a given orchestrator, but it's possible under certain race conditions.
                     // For example: when an orchestrator is signaled to terminate at the same time as it attempts to continue-as-new.
-
                     var log = $"The orchestration '{this.OrchestrationInstance?.InstanceId ?? ""}' " +
                         $"had already received an 'ExecutionCompletedEvent' with EventId={ExecutionCompletedEvent.EventId} " +
                         $"and orchestrationStatus={orchestrationStatus} but is now receiving a new one with id={completedEvent.EventId} and orchestrationStatus={completedEvent.OrchestrationStatus}. ";
