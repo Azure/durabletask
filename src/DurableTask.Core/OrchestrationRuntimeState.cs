@@ -268,9 +268,10 @@ namespace DurableTask.Core
                         $"had already received an 'ExecutionCompletedEvent' with EventId={ExecutionCompletedEvent.EventId} " +
                         $"and orchestrationStatus={orchestrationStatus} but is now receiving a new one with id={completedEvent.EventId} and orchestrationStatus={completedEvent.OrchestrationStatus}. ";
                     
-                    if (orchestrationStatus != OrchestrationStatus.Terminated && completedEvent.OrchestrationStatus == OrchestrationStatus.Terminated)
+                    if (orchestrationStatus == OrchestrationStatus.ContinuedAsNew && completedEvent.OrchestrationStatus == OrchestrationStatus.Terminated)
                     {
-                        // If the new event requests termination, we override the pre-existing execution completed event. This is because termination should be considered to be forceful.
+                        // If the orchestration planned to continue-as-new but termination is requested, we transition to the terminated state.
+                        // This is because termination should be considered to be forceful.
                         log += "Discarding previous 'ExecutionCompletedEvent' as termination is forceful.";
                         ExecutionCompletedEvent = completedEvent;
                         orchestrationStatus = completedEvent.OrchestrationStatus;
