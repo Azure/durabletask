@@ -272,16 +272,18 @@ namespace DurableTask.Core
                     {
                         // If the new event requests termination, we override the pre-existing execution completed event. This is because termination should be considered to be forceful.
                         log += "Discarding previous 'ExecutionCompletedEvent' as termination is forceful.";
+                        ExecutionCompletedEvent = completedEvent;
+                        orchestrationStatus = completedEvent.OrchestrationStatus;
                     }
                     else
                     {
+                        // otherwise, we ignore the new event.
                         log += "Discarding new 'ExecutionCompletedEvent'.";
                     }
 
                     TraceHelper.Trace(TraceEventType.Warning, "OrchestrationRuntimeState-DuplicateEvent", log);
                 }
-                ExecutionCompletedEvent = completedEvent;
-                orchestrationStatus = completedEvent.OrchestrationStatus;
+
             }
             else if (historyEvent is ExecutionSuspendedEvent)
             {
