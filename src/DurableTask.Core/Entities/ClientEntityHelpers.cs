@@ -69,6 +69,7 @@ namespace DurableTask.Core.Entities
                 Id = "fix-orphaned-lock", // we don't know the original id but it does not matter
             };
 
+            var jmessage = JToken.FromObject(message, Serializer.InternalSerializer);
             return new EventToSend(EntityMessageEventNames.ReleaseMessageEventName, jmessage, targetInstance);
         }
 
@@ -78,13 +79,11 @@ namespace DurableTask.Core.Entities
         /// </summary>
         public static string? GetEntityState(string? serializedSchedulerState)
         {
-           if (serializedSchedulerState == null)
-           {
+            if (serializedSchedulerState == null)
+            {
                 return null;
-           }
-            return new EventToSend(EntityMessageEventNames.ReleaseMessageEventName, jmessage, targetInstance);
-        }
-
+            }
+           
             var schedulerState = JsonConvert.DeserializeObject<SchedulerState>(serializedSchedulerState, Serializer.InternalSerializerSettings)!;
             return schedulerState.EntityState;
         }
