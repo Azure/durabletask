@@ -551,7 +551,7 @@ namespace DurableTask.AzureStorage.Tests
                 List<HistoryStateEvent> thirdHistoryEventsAfterPurging = await client.GetOrchestrationHistoryAsync(thirdInstanceId);
                 Assert.AreEqual(0, thirdHistoryEventsAfterPurging.Count);
 
-                List<HistoryStateEvent>fourthHistoryEventsAfterPurging = await client.GetOrchestrationHistoryAsync(fourthInstanceId);
+                List<HistoryStateEvent> fourthHistoryEventsAfterPurging = await client.GetOrchestrationHistoryAsync(fourthInstanceId);
                 Assert.AreEqual(0, fourthHistoryEventsAfterPurging.Count);
 
                 firstOrchestrationStateList = await client.GetStateAsync(firstInstanceId);
@@ -607,7 +607,7 @@ namespace DurableTask.AzureStorage.Tests
                             operationContext: context,
                             cancellationToken: timeoutToken);
                 });
-                
+
                 blobContinuationToken = results.ContinuationToken;
                 blobs.AddRange(results.Results);
             } while (blobContinuationToken != null);
@@ -990,7 +990,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 // Test case 3: external event now goes through
                 await client.ResumeAsync("wakeUp");
-                status  = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+                status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.AreEqual(changedStatus, JToken.Parse(status?.Status));
 
@@ -1683,6 +1683,27 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        [TestMethod]
+        public async Task TagsAreAvailableInOrchestrationState()
+        {
+            const string TagMessage = "message";
+            const string Tag = "tag";
+
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false, fetchLargeMessages: true);
+            await host.StartAsync();
+            var tags = new Dictionary<string, string> { { Tag, TagMessage } };
+            var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), "Hello, world!", tags: tags);
+            var statuses = await client.GetStateAsync(client.InstanceId);
+            var status = statuses.Single();
+
+            Assert.IsNotNull(status.Tags);
+            Assert.AreEqual(1, status.Tags.Count);
+            Assert.IsTrue(status.Tags.TryGetValue(Tag, out string actualMessage));
+            Assert.AreEqual(TagMessage, actualMessage);
+
+            await host.StopAsync();
+        }
+
         /// <summary>
         /// End-to-end test which validates that orchestrations with > 60KB of tag data can be run successfully.
         /// </summary>
@@ -1699,12 +1720,10 @@ namespace DurableTask.AzureStorage.Tests
             var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
             Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-
-            // TODO: Uncomment these assertions as part of https://github.com/Azure/durabletask/issues/840.
-            ////Assert.IsNotNull(status?.Tags);
-            ////Assert.AreEqual(bigTags.Count, status.Tags.Count);
-            ////Assert.IsTrue(bigTags.TryGetValue("BigTag", out string actualMessage));
-            ////Assert.AreEqual(bigMessage, actualMessage);
+            Assert.IsNotNull(status?.Tags);
+            Assert.AreEqual(bigTags.Count, status.Tags.Count);
+            Assert.IsTrue(bigTags.TryGetValue("BigTag", out string actualMessage));
+            Assert.AreEqual(bigMessage, actualMessage);
 
             await host.StopAsync();
         }
@@ -1787,7 +1806,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        private StringBuilder GenerateMediumRandomStringPayload(int numChars = 128*1024, short utf8ByteSize = 1, short utf16ByteSize = 2)
+        private StringBuilder GenerateMediumRandomStringPayload(int numChars = 128 * 1024, short utf8ByteSize = 1, short utf16ByteSize = 2)
         {
             string Chars;
             if (utf16ByteSize != 2 && utf16ByteSize != 4)
@@ -2172,7 +2191,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-                /// <summary>
+        /// <summary>
         /// Validates scheduled starts, ensuring they are executed according to defined start date time
         /// </summary>
         /// <param name="enableExtendedSessions"></param>
