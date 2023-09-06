@@ -1184,7 +1184,7 @@ namespace DurableTask.Core.Logging
         /// </summary>
         internal class EntityBatchExecuting : StructuredLogEvent, IEventSourceEvent
         {
-            public EntityBatchExecuting(OperationBatchRequest request)
+            public EntityBatchExecuting(EntityBatchRequest request)
             {
                 this.InstanceId = request.InstanceId;
                 this.OperationCount = request.Operations.Count;
@@ -1223,7 +1223,7 @@ namespace DurableTask.Core.Logging
         /// </summary>
         internal class EntityBatchExecuted : StructuredLogEvent, IEventSourceEvent
         {
-            public EntityBatchExecuted(OperationBatchRequest request, OperationBatchResult result)
+            public EntityBatchExecuted(EntityBatchRequest request, EntityBatchResult result)
             {
                 this.InstanceId = request.InstanceId;
                 this.OperationCount = request.Operations.Count;
