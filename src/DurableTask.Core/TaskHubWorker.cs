@@ -37,7 +37,7 @@ namespace DurableTask.Core
         readonly INameVersionObjectManager<TaskOrchestration> orchestrationManager;
         readonly INameVersionObjectManager<TaskEntity> entityManager;
 
-        readonly IEntityOrchestrationService entityOrchestrationService;
+        readonly IEntityOrchestrationService entityOrchestrationService; // non-null if backend uses separate dispatch for entities
 
         readonly DispatchMiddlewarePipeline orchestrationDispatchPipeline = new DispatchMiddlewarePipeline();
         readonly DispatchMiddlewarePipeline entityDispatchPipeline = new DispatchMiddlewarePipeline();
@@ -152,14 +152,7 @@ namespace DurableTask.Core
             this.entityManager = entityObjectManager ?? throw new ArgumentException("entityObjectManager");
             this.orchestrationService = orchestrationService ?? throw new ArgumentException("orchestrationService");
             this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
-
-            // If the backend supports a separate work item queue for entities (indicated by it implementing IEntityOrchestrationService),
-            // we take note of that here, and let the backend know that we are going to pull the work items separately. 
-            if (orchestrationService is IEntityOrchestrationService entityOrchestrationService 
-                && entityOrchestrationService.ProcessEntitiesSeparately())
-            {
-                this.entityOrchestrationService = entityOrchestrationService;
-            }
+            this.entityOrchestrationService = entityOrchestrationService as IEntityOrchestrationService;
         }
 
         /// <summary>
@@ -238,8 +231,7 @@ namespace DurableTask.Core
                     this.orchestrationManager,
                     this.orchestrationDispatchPipeline,
                     this.logHelper,
-                    this.ErrorPropagationMode, 
-                    this.entityOrchestrationService);
+                    this.ErrorPropagationMode);
                 this.activityDispatcher = new TaskActivityDispatcher(
                     this.orchestrationService,
                     this.activityManager,

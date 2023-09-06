@@ -318,5 +318,12 @@ namespace DurableTask.AzureStorage
         /// Consumers that support separate dispatch should explicitly set this to true.
         /// </summary>
         public bool UseSeparateQueueForEntityWorkItems { get; set; } = false;
+
+        /// <summary>
+        /// Whether to use separate queries for entities and orchestrators.
+        /// This defaults to false, to avoid issues when using this provider from code that does not support separate queries.
+        /// Consumers that expect separate queries should explicitly set this to true.
+        /// </summary>
+        public bool UseSeparateQueriesForEntities { get; set; } = false;
     }
 }

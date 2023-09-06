@@ -47,6 +47,16 @@ namespace DurableTask.Core.Entities
         public TimeSpan MaximumSignalDelayTime { get; set; }
 
         /// <summary>
+        /// Whether the backend uses separate work item queues for entities and orchestrators.
+        /// </summary>
+        public bool UseSeparateQueueForEntityWorkItems { get; set; }
+
+        /// <summary>
+        /// Whether the backend uses separate queries for entities and orchestrators.
+        /// </summary>
+        public bool UseSeparateQueriesForEntities { get; set; }
+
+        /// <summary>
         /// Computes a cap on the scheduled time of an entity signal, based on the maximum signal delay time
         /// </summary>
         /// <param name="nowUtc">The current time.</param>

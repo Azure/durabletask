@@ -281,7 +281,7 @@ namespace DurableTask.AzureStorage
 
         #region IEntityOrchestrationService
 
-        EntityBackendProperties IEntityOrchestrationService.GetEntityBackendProperties()
+        EntityBackendProperties IEntityOrchestrationService.EntityBackendProperties
            => new EntityBackendProperties()
            {
                EntityMessageReorderWindow = TimeSpan.FromMinutes(this.settings.EntityMessageReorderWindowInMinutes),
@@ -289,28 +289,26 @@ namespace DurableTask.AzureStorage
                MaxConcurrentTaskEntityWorkItems = this.settings.MaxConcurrentTaskEntityWorkItems,
                SupportsImplicitEntityDeletion = false, // not supported by this backend
                MaximumSignalDelayTime = TimeSpan.FromDays(6),
+               UseSeparateQueriesForEntities = this.settings.UseSeparateQueriesForEntities, // TODO remove entities from orchestration queries if this is true
+               UseSeparateQueueForEntityWorkItems = this.settings.UseSeparateQueueForEntityWorkItems,
            };
 
-        bool IEntityOrchestrationService.ProcessEntitiesSeparately()
-        {
-            if (this.settings.UseSeparateQueueForEntityWorkItems)
-            {
-                this.orchestrationSessionManager.ProcessEntitiesSeparately = true;
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        }
+        EntityBackendQueries IEntityOrchestrationService.EntityBackendQueries
+           => new EntityTrackingStoreQueries(
+                this.messageManager,
+                (this.trackingStore as AzureTableTrackingStore)
+                    ?? throw new NotSupportedException("entity queries not supported for custom tracking stores"),
+                this.EnsureTaskHubAsync,
+                ((IEntityOrchestrationService)this).EntityBackendProperties,
+                this.SendTaskOrchestrationMessageAsync);
 
         Task<TaskOrchestrationWorkItem> IEntityOrchestrationService.LockNextOrchestrationWorkItemAsync(
           TimeSpan receiveTimeout,
           CancellationToken cancellationToken)
         {
-            if (!orchestrationSessionManager.ProcessEntitiesSeparately)
+            if (this.settings.UseSeparateQueueForEntityWorkItems)
             {
-                throw new InvalidOperationException("backend was not configured for separate entity processing");
+                throw new InvalidOperationException("backend was configured for separate orchestation/entity processing, must use specialized methods to get work items");
             }
             return this.LockNextTaskOrchestrationWorkItemAsync(false, cancellationToken);
         }
@@ -319,7 +317,7 @@ namespace DurableTask.AzureStorage
            TimeSpan receiveTimeout,
            CancellationToken cancellationToken)
         {
-            if (!orchestrationSessionManager.ProcessEntitiesSeparately)
+            if (!this.settings.UseSeparateQueueForEntityWorkItems)
             {
                 throw new InvalidOperationException("backend was not configured for separate entity processing");
             }
