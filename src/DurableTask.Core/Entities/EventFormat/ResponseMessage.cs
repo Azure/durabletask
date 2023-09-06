@@ -16,8 +16,10 @@ namespace DurableTask.Core.Entities.EventFormat
     using System.Runtime.Serialization;
 
     [DataContract]
-    internal class ResponseMessage
+    internal class ResponseMessage : EntityMessage
     {
+        public const string LockAcquisitionCompletion = "Lock Acquisition Completed";
+
         [DataMember(Name = "result")]
         public string? Result { get; set; }
 
@@ -30,15 +32,19 @@ namespace DurableTask.Core.Entities.EventFormat
         [IgnoreDataMember]
         public bool IsErrorResult => this.ErrorMessage != null;
 
-        public override string ToString()
+        public override string GetShortDescription()
         {
             if (this.IsErrorResult)
             {
-                return $"[ErrorResponse {this.Result}]";
+                return $"[OperationFailed {this.ErrorMessage} {this.FailureDetails}]";
+            }
+            else if (this.Result == LockAcquisitionCompletion)
+            {
+                return "[LockAcquisitionComplete]";
             }
             else
             {
-                return $"[Response {this.Result}]";
+                return $"[OperationSuccessful ({Result?.Length ?? 0} chars)]";
             }
         }
     }

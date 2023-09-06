@@ -20,7 +20,7 @@ namespace DurableTask.Core.Entities.EventFormat
     /// A message sent to an entity, such as operation, signal, lock, or continue messages.
     /// </summary>
     [DataContract]
-    internal class RequestMessage
+    internal class RequestMessage : EntityMessage
     {
         /// <summary>
         /// The name of the operation being called (if this is an operation message) or <c>null</c>
@@ -99,7 +99,7 @@ namespace DurableTask.Core.Entities.EventFormat
         public bool IsLockRequest => LockSet != null;
 
         /// <inheritdoc/>
-        public override string ToString()
+        public override string GetShortDescription()
         {
             if (IsLockRequest)
             {

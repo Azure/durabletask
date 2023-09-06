@@ -15,18 +15,14 @@ namespace DurableTask.Core.Entities.EventFormat
 {
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// The format of entity messages is kept json-deserialization-compatible with the original format.
+    /// </summary>
     [DataContract]
-    internal class ReleaseMessage : EntityMessage
+    internal abstract class EntityMessage  
     {
-        [DataMember(Name = "parent")]
-        public string? ParentInstanceId { get; set; }
+        public abstract string GetShortDescription();
 
-        [DataMember(Name = "id")]
-        public string? Id { get; set; }
-
-        public override string GetShortDescription()
-        {
-            return $"[Release lock {Id} by {ParentInstanceId}]";
-        }
+        public override string ToString() => this.GetShortDescription();
     }
 }

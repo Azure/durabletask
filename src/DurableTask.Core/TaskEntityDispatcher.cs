@@ -718,7 +718,8 @@ namespace DurableTask.Core
         {
             var message = new ResponseMessage()
             {
-                Result = "Lock Acquisition Completed", // ignored by receiver but shows up in traces
+                // content is ignored by receiver but helps with tracing
+                Result = ResponseMessage.LockAcquisitionCompletion, 
             };
             this.ProcessSendEventMessage(effects, target, EntityMessageEventNames.ResponseMessageEventName(requestId), message);
         }
