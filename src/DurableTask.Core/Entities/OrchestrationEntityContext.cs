@@ -69,6 +69,11 @@ namespace DurableTask.Core.Entities
         public bool IsInsideCriticalSection => this.criticalSectionId != null;   
 
         /// <summary>
+        /// The ID of the current critical section, or null if not currently in a critical section.
+        /// </summary>
+        public Guid? CurrentCriticalSectionId => this.criticalSectionId;
+
+        /// <summary>
         /// Enumerate all the entities that are available for calling from within a critical section. 
         /// This set contains all the entities that were locked prior to entering the critical section,
         /// and for which there is not currently an operation call pending.
