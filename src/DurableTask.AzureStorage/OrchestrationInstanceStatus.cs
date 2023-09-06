@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage
 {
     using System;
+    using System.Collections.Generic;
     using Microsoft.WindowsAzure.Storage.Table;
 
     /// <summary>
@@ -33,5 +34,6 @@ namespace DurableTask.AzureStorage
         public string RuntimeStatus { get; set; }
         public DateTime? ScheduledStartTime { get; set; }
         public int Generation { get; set; }
+        public IDictionary<string, string> Tags { get; set; }
     }
 }
