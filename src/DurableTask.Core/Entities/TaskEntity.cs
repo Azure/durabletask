@@ -25,6 +25,6 @@ namespace DurableTask.Core.Entities
         /// <summary>
         /// Execute a batch of operations on an entity.
         /// </summary>
-        public abstract Task<EntityBatchResult> ExecuteOperationBatchAsync(EntityBatchRequest operations);
+        public abstract Task<EntityBatchResult> ExecuteOperationBatchAsync(EntityBatchRequest operations, EntityExecutionOptions options);
     }
 }
