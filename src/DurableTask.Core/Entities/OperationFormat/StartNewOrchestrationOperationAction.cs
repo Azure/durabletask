@@ -45,10 +45,5 @@ namespace DurableTask.Core.Entities.OperationFormat
         /// The input of the sub-orchestration.
         /// </summary>
         public string? Input { get; set; }
-
-        /// <summary>
-        /// Tags to be applied to the sub-orchestration.
-        /// </summary>
-        public IDictionary<string, string>? Tags { get; set; }
     }
 }
