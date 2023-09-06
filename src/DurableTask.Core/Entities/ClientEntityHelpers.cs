@@ -70,8 +70,6 @@ namespace DurableTask.Core.Entities
             return new EntityMessageEvent(EntityMessageEventNames.ReleaseMessageEventName, message, targetInstance);
         }
 
-        }
-
         /// <summary>
         /// Extracts the user-defined entity state (as a serialized string) from the scheduler state (also a serialized string).
         /// </summary>
