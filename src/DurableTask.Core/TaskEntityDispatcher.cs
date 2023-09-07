@@ -226,7 +226,7 @@ namespace DurableTask.Core
             try
             {
                 // Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
-                if (!TaskOrchestrationDispatcher.ReconcileMessagesWithState(workItem, nameof(TaskEntityDispatcher), this.logHelper))
+                if (!TaskOrchestrationDispatcher.ReconcileMessagesWithState(workItem, nameof(TaskEntityDispatcher), this.errorPropagationMode, this.logHelper))
                 {
                     // TODO : mark an orchestration as faulted if there is data corruption
                     this.logHelper.DroppingOrchestrationWorkItem(workItem, "Received work-item for an invalid orchestration");

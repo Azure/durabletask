@@ -341,7 +341,7 @@ namespace DurableTask.Core
             try
             {
                 // Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
-                if (!ReconcileMessagesWithState(workItem, nameof(TaskOrchestrationDispatcher), logHelper))
+                if (!ReconcileMessagesWithState(workItem, nameof(TaskOrchestrationDispatcher), this.errorPropagationMode, logHelper))
                 {
                     // TODO : mark an orchestration as faulted if there is data corruption
                     this.logHelper.DroppingOrchestrationWorkItem(workItem, "Received work-item for an invalid orchestration");
@@ -753,9 +753,10 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="workItem">A batch of work item messages.</param>
         /// <param name="dispatcher">The name of the dispatcher, used for tracing.</param>
+        /// <param name="errorPropagationMode">The error propagation mode.</param>
         /// <param name="logHelper">The log helper.</param>
         /// <returns>True if workItem should be processed further. False otherwise.</returns>
-        internal static bool ReconcileMessagesWithState(TaskOrchestrationWorkItem workItem, string dispatcher, LogHelper logHelper)
+        internal static bool ReconcileMessagesWithState(TaskOrchestrationWorkItem workItem, string dispatcher, ErrorPropagationMode errorPropagationMode, LogHelper logHelper)
         {
             foreach (TaskMessage message in workItem.NewMessages)
             {
@@ -847,7 +848,7 @@ namespace DurableTask.Core
                         SubOrchestrationInstanceCreatedEvent subOrchestrationCreatedEvent = (SubOrchestrationInstanceCreatedEvent)workItem.OrchestrationRuntimeState.Events.FirstOrDefault(x => x.EventId == subOrchestrationInstanceFailedEvent.TaskScheduledId);
 
                         // We immediately publish the activity span for this sub-orchestration by creating the activity and immediately calling Dispose() on it.
-                        TraceHelper.EmitTraceActivityForSubOrchestrationFailed(workItem.OrchestrationRuntimeState.OrchestrationInstance, subOrchestrationCreatedEvent, subOrchestrationInstanceFailedEvent, this.errorPropagationMode);
+                        TraceHelper.EmitTraceActivityForSubOrchestrationFailed(workItem.OrchestrationRuntimeState.OrchestrationInstance, subOrchestrationCreatedEvent, subOrchestrationInstanceFailedEvent, errorPropagationMode);
                     }
                 }
 
@@ -859,7 +860,7 @@ namespace DurableTask.Core
                 else if (message.Event is TaskFailedEvent taskFailedEvent)
                 {
                     TaskScheduledEvent taskScheduledEvent = (TaskScheduledEvent)workItem.OrchestrationRuntimeState.Events.LastOrDefault(x => x.EventId == taskFailedEvent.TaskScheduledId);
-                    TraceHelper.EmitTraceActivityForTaskFailed(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent, taskFailedEvent, this.errorPropagationMode);
+                    TraceHelper.EmitTraceActivityForTaskFailed(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent, taskFailedEvent, errorPropagationMode);
                 }
 
                 workItem.OrchestrationRuntimeState.AddEvent(message.Event);
