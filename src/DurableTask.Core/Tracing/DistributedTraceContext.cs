@@ -20,6 +20,7 @@ namespace DurableTask.Core.Tracing
     /// W3C-compliant distributed trace context.
     /// Spec: https://www.w3.org/TR/trace-context/.
     /// </summary>
+    [DataContract]
     public class DistributedTraceContext
     {
         /// <summary>
