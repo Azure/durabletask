@@ -248,7 +248,7 @@ namespace DurableTask.Core
                         var result = await this.ExecuteViaMiddlewareAsync(workToDoNow, runtimeState.OrchestrationInstance, schedulerState.EntityState);
                         var operationResults = result.Results!;
 
-                        // if we encountered an, record it as the result of the operations
+                        // if we encountered an error, record it as the result of the operations
                         // so that callers are notified that the operation did not succeed.
                         if (result.FailureDetails != default(FailureDetails))
                         {
