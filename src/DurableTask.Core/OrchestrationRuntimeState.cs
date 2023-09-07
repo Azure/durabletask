@@ -239,7 +239,7 @@ namespace DurableTask.Core
                 TraceHelper.Trace(TraceEventType.Warning, 
                     "OrchestrationRuntimeState-DuplicateEvent", 
                     "The orchestration '{0}' has already seen a completed task with id {1}.",
-                    this.OrchestrationInstance?.InstanceId,
+                    this.OrchestrationInstance?.InstanceId ?? "",
                     historyEvent.EventId);
                 return true;
             }
@@ -351,6 +351,7 @@ namespace DurableTask.Core
                     Name = subOrchestrationInstanceCreatedEvent.Name,
                     Version = subOrchestrationInstanceCreatedEvent.Version,
                     Input = "[..snipped..]",
+                    ClientSpanId = subOrchestrationInstanceCreatedEvent.ClientSpanId,
                 };
             }
             else if (evt is SubOrchestrationInstanceCompletedEvent subOrchestrationInstanceCompletedEvent)

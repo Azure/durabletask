@@ -227,7 +227,7 @@ namespace DurableTask.AzureStorage.Tracking
             return new OrchestrationHistory(historyEvents, checkpointCompletionTime, eTagValue, trackingStoreContext);
         }
 
-        async Task<TableEntitiesResponseInfo<DynamicTableEntity>> GetHistoryEntitiesResponseInfoAsync(string instanceId, string expectedExecutionId, IList<string> projectionColumns,  CancellationToken cancellationToken = default(CancellationToken))
+        async Task<TableEntitiesResponseInfo<DynamicTableEntity>> GetHistoryEntitiesResponseInfoAsync(string instanceId, string expectedExecutionId, IList<string> projectionColumns, CancellationToken cancellationToken = default(CancellationToken))
         {
             var sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
             string filterCondition = TableQuery.GenerateFilterCondition(PartitionKeyProperty, QueryComparisons.Equal, sanitizedInstanceId);
@@ -276,7 +276,7 @@ namespace DurableTask.AzureStorage.Tracking
                 eTag: string.Empty,
                 DateTime.MinValue);
 
-            return entities; 
+            return entities;
         }
 
         public override async Task<IList<string>> RewindHistoryAsync(string instanceId, IList<string> failedLeaves, CancellationToken cancellationToken)
@@ -359,7 +359,7 @@ namespace DurableTask.AzureStorage.Tracking
 
                     taskScheduledEntities[0].Properties["Reason"] = new EntityProperty("Rewound: " + taskScheduledEntities[0].Properties["EventType"].StringValue);
                     taskScheduledEntities[0].Properties["EventType"] = new EntityProperty(nameof(EventType.GenericEvent));
-                    
+
                     await this.HistoryTable.ReplaceAsync(taskScheduledEntities[0]);
                 }
 
@@ -469,44 +469,89 @@ namespace DurableTask.AzureStorage.Tracking
             return new InstanceStatus(orchestrationState, tableEntity.ETag);
         }
 #nullable disable
-        Task<OrchestrationState> ConvertFromAsync(DynamicTableEntity tableEntity)
+        async Task<OrchestrationState> ConvertFromAsync(DynamicTableEntity tableEntity)
         {
-            var properties = tableEntity.Properties;
-            var orchestrationInstanceStatus = ConvertFromAsync(properties);
+            var orchestrationInstanceStatus = await CreateOrchestrationInstanceStatusAsync(tableEntity.Properties);
             var instanceId = KeySanitation.UnescapePartitionKey(tableEntity.PartitionKey);
-            return ConvertFromAsync(orchestrationInstanceStatus, instanceId);
+            return await ConvertFromAsync(orchestrationInstanceStatus, instanceId);
         }
 
-        static OrchestrationInstanceStatus ConvertFromAsync(IDictionary<string, EntityProperty> properties)
+        private async Task<OrchestrationInstanceStatus> CreateOrchestrationInstanceStatusAsync(IDictionary<string, EntityProperty> properties)
         {
-            var orchestrationInstanceStatus = new OrchestrationInstanceStatus();
+            var instance = new OrchestrationInstanceStatus();
+            EntityProperty property;
 
-            var type = typeof(OrchestrationInstanceStatus);
-            foreach (var pair in properties)
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.ExecutionId), out property))
             {
-                var property = type.GetProperty(pair.Key);
-                if (property != null)
-                {
-                    var value = pair.Value;
-                    if (value != null)
-                    {
-                        if (property.PropertyType == typeof(DateTime) || property.PropertyType == typeof(DateTime?))
-                        {
-                            property.SetValue(orchestrationInstanceStatus, value.DateTime);
-                        }
-                        else if (property.PropertyType == typeof(int) || property.PropertyType == typeof(int?))
-                        {
-                            property.SetValue(orchestrationInstanceStatus, value.Int32Value);
-                        }
-                        else
-                        {
-                            property.SetValue(orchestrationInstanceStatus, value.StringValue);
-                        }
-                    }
-                }
+                instance.ExecutionId = property.StringValue;
             }
 
-            return orchestrationInstanceStatus;
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.Name), out property))
+            {
+                instance.Name = property.StringValue;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.Version), out property))
+            {
+                instance.Version = property.StringValue;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.Input), out property))
+            {
+                instance.Input = property.StringValue;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.Output), out property))
+            {
+                instance.Output = property.StringValue;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.CustomStatus), out property))
+            {
+                instance.CustomStatus = property.StringValue;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.CreatedTime), out property) && property.DateTime is { } createdTime)
+            {
+                instance.CreatedTime = createdTime;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.LastUpdatedTime), out property) && property.DateTime is { } lastUpdatedTime)
+            {
+                instance.LastUpdatedTime = lastUpdatedTime;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.CompletedTime), out property))
+            {
+                instance.CompletedTime = property.DateTime;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.RuntimeStatus), out property))
+            {
+                instance.RuntimeStatus = property.StringValue;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.ScheduledStartTime), out property))
+            {
+                instance.ScheduledStartTime = property.DateTime;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.Generation), out property) && property.Int32Value is { } generation)
+            {
+                instance.Generation = generation;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.Tags), out property) && property.StringValue is { Length: > 0 } tags)
+            {
+                instance.Tags = TagsSerializer.Deserialize(tags);
+            }
+            else if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.Tags) + "BlobName", out property) && property.StringValue is { Length: > 0 } blob)
+            {
+                var blobContents = await messageManager.DownloadAndDecompressAsBytesAsync(blob);
+                instance.Tags = TagsSerializer.Deserialize(blobContents);
+            }
+
+            return instance;
         }
 
         async Task<OrchestrationState> ConvertFromAsync(OrchestrationInstanceStatus orchestrationInstanceStatus, string instanceId)
@@ -534,6 +579,7 @@ namespace DurableTask.AzureStorage.Tracking
             orchestrationState.Output = orchestrationInstanceStatus.Output;
             orchestrationState.ScheduledStartTime = orchestrationInstanceStatus.ScheduledStartTime;
             orchestrationState.Generation = orchestrationInstanceStatus.Generation;
+            orchestrationState.Tags = orchestrationInstanceStatus.Tags;
 
             if (this.settings.FetchLargeMessageDataEnabled)
             {
@@ -629,7 +675,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             var tableEntitiesResponseInfo = await this.InstancesTable.ExecuteQuerySegmentAsync(query, cancellationToken, continuationToken);
 
-            IEnumerable<OrchestrationState> result = await Task.WhenAll(tableEntitiesResponseInfo.ReturnedEntities.Select( status => this.ConvertFromAsync(status, KeySanitation.UnescapePartitionKey(status.PartitionKey))));
+            IEnumerable<OrchestrationState> result = await Task.WhenAll(tableEntitiesResponseInfo.ReturnedEntities.Select(status => this.ConvertFromAsync(status, KeySanitation.UnescapePartitionKey(status.PartitionKey))));
             orchestrationStates.AddRange(result);
 
             var queryResult = new DurableStatusQueryResult()
@@ -645,7 +691,7 @@ namespace DurableTask.AzureStorage.Tracking
         {
             var orchestrationStates = new List<OrchestrationState>(100);
 
-            var tableEntitiesResponseInfo = await this.InstancesTable.ExecuteQueryAsync(query, cancellationToken);   
+            var tableEntitiesResponseInfo = await this.InstancesTable.ExecuteQueryAsync(query, cancellationToken);
 
             IEnumerable<OrchestrationState> result = await Task.WhenAll(tableEntitiesResponseInfo.ReturnedEntities.Select(
                 status => this.ConvertFromAsync(status, KeySanitation.UnescapePartitionKey(status.PartitionKey))));
@@ -678,7 +724,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             while (true)
             {
-                TableEntitiesResponseInfo<OrchestrationInstanceStatus> tableEntitiesResponseInfo = 
+                TableEntitiesResponseInfo<OrchestrationInstanceStatus> tableEntitiesResponseInfo =
                     await this.InstancesTable.ExecuteQueryAsync(query);
                 IList<OrchestrationInstanceStatus> results = tableEntitiesResponseInfo.ReturnedEntities;
                 if (results.Count == 0)
@@ -794,7 +840,7 @@ namespace DurableTask.AzureStorage.Tracking
             IEnumerable<OrchestrationStatus> runtimeStatus)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
-            List<OrchestrationStatus> runtimeStatusList =  runtimeStatus?.Where(
+            List<OrchestrationStatus> runtimeStatusList = runtimeStatus?.Where(
                status => status == OrchestrationStatus.Completed ||
                     status == OrchestrationStatus.Terminated ||
                     status == OrchestrationStatus.Canceled ||
@@ -840,6 +886,7 @@ namespace DurableTask.AzureStorage.Tracking
                     ["ScheduledStartTime"] = new EntityProperty(executionStartedEvent.ScheduledStartTime),
                     ["ExecutionId"] = new EntityProperty(executionStartedEvent.OrchestrationInstance.ExecutionId),
                     ["Generation"] = new EntityProperty(executionStartedEvent.Generation),
+                    ["Tags"] = new EntityProperty(TagsSerializer.Serialize(executionStartedEvent.Tags)),
                 }
             };
 
@@ -936,7 +983,7 @@ namespace DurableTask.AzureStorage.Tracking
             int estimatedBytes = 0;
             IList<HistoryEvent> newEvents = newRuntimeState.NewEvents;
             IList<HistoryEvent> allEvents = newRuntimeState.Events;
-            TrackingStoreContext context = (TrackingStoreContext) trackingStoreContext;
+            TrackingStoreContext context = (TrackingStoreContext)trackingStoreContext;
 
             int episodeNumber = Utils.GetEpisodeNumber(newRuntimeState);
 
@@ -1265,6 +1312,10 @@ namespace DurableTask.AzureStorage.Tracking
                 // This message is just to start the orchestration, so it does not have a corresponding
                 // EventType. Use a hardcoded value to record the orchestration input.
                 eventType = "Input";
+            }
+            else if (property == "Tags")
+            {
+                eventType = "Tags";
             }
             else
             {
