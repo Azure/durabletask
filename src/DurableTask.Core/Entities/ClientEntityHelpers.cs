@@ -33,7 +33,7 @@ namespace DurableTask.Core.Entities
         /// <param name="input">The serialized input for the operation.</param>
         /// <param name="scheduledTimeUtc">The time to schedule this signal, or null if not a scheduled signal</param>
         /// <returns>The event to send.</returns>
-        public static EventToSend EmitOperationSignal(OrchestrationInstance targetInstance, Guid requestId, string operationName, string input, (DateTime Original, DateTime Capped)? scheduledTimeUtc)
+        public static EntityMessageEvent EmitOperationSignal(OrchestrationInstance targetInstance, Guid requestId, string operationName, string? input, (DateTime Original, DateTime Capped)? scheduledTimeUtc)
         {
             var request = new RequestMessage()
             {
@@ -46,13 +46,11 @@ namespace DurableTask.Core.Entities
                 Input = input,
             };
 
-            var jrequest = JToken.FromObject(request, Serializer.InternalSerializer);
-
             var eventName = scheduledTimeUtc.HasValue
                 ? EntityMessageEventNames.ScheduledRequestMessageEventName(scheduledTimeUtc.Value.Capped)
                 : EntityMessageEventNames.RequestMessageEventName;
 
-            return new EventToSend(eventName, jrequest, targetInstance);
+            return new EntityMessageEvent(eventName, request, targetInstance);
         }
 
         /// <summary>
@@ -61,7 +59,7 @@ namespace DurableTask.Core.Entities
         /// <param name="targetInstance">The target instance.</param>
         /// <param name="lockOwnerInstanceId">The instance id of the entity to be unlocked.</param>
         /// <returns>The event to send.</returns>
-        public static EventToSend EmitUnlockForOrphanedLock(OrchestrationInstance targetInstance, string lockOwnerInstanceId)
+        public static EntityMessageEvent EmitUnlockForOrphanedLock(OrchestrationInstance targetInstance, string lockOwnerInstanceId)
         {
             var message = new ReleaseMessage()
             {
@@ -69,8 +67,7 @@ namespace DurableTask.Core.Entities
                 Id = "fix-orphaned-lock", // we don't know the original id but it does not matter
             };
 
-            var jmessage = JToken.FromObject(message, Serializer.InternalSerializer);
-            return new EventToSend(EntityMessageEventNames.ReleaseMessageEventName, jmessage, targetInstance);
+            return new EntityMessageEvent(EntityMessageEventNames.ReleaseMessageEventName, message, targetInstance);
         }
 
         /// <summary>
