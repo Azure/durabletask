@@ -23,7 +23,6 @@ namespace DurableTask.Core
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
-    using DurableTask.Core.Serializing;
     using DurableTask.Core.Tracing;
 
     internal class TaskOrchestrationContext : OrchestrationContext
@@ -57,8 +56,6 @@ namespace DurableTask.Core
             this.openTasks = new Dictionary<int, OpenTaskInfo>();
             this.orchestratorActionsMap = new SortedDictionary<int, OrchestratorAction>();
             this.idCounter = 0;
-            this.MessageDataConverter = JsonDataConverter.Default;
-            this.ErrorDataConverter = JsonDataConverter.Default;
             OrchestrationInstance = orchestrationInstance;
             IsReplaying = false;
             ErrorPropagationMode = errorPropagationMode;
