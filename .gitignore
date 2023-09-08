@@ -13,6 +13,7 @@ obj/
 pkg/
 packages/
 TestResults/
+Debug/
 
 # Packages #
 ############

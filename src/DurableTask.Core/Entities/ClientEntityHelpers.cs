@@ -71,16 +71,32 @@ namespace DurableTask.Core.Entities
         }
 
         /// <summary>
-        /// Extracts the user-defined entity state (as a serialized string) from the scheduler state (also a serialized string).
+        /// Extracts the user-defined entity state from the serialized scheduler state. The result is the serialized state,
+        /// or null if the entity has no state.
         /// </summary>
-        /// <param name="serializedSchedulerState">The state of the scheduler, as a serialized string.</param>
-        /// <param name="entityState">The entity state</param>
-        /// <returns>True if the entity exists, or false otherwise</returns>
-        public static bool TryGetEntityStateFromSerializedSchedulerState(string serializedSchedulerState, out string? entityState)
+        public static string? GetEntityState(string? serializedSchedulerState)
         {
-            var schedulerState = JsonConvert.DeserializeObject<SchedulerState>(serializedSchedulerState, Serializer.InternalSerializerSettings);
-            entityState = schedulerState!.EntityState;
-            return schedulerState.EntityExists;
+            if (serializedSchedulerState == null)
+            {
+                return null;
+            }
+           
+            var schedulerState = JsonConvert.DeserializeObject<SchedulerState>(serializedSchedulerState, Serializer.InternalSerializerSettings)!;
+            return schedulerState.EntityState;
+        }
+
+        /// <summary>
+        /// Gets the entity status from the serialized custom status of the orchestration.
+        /// or null if the entity has no state.
+        /// </summary>
+        public static EntityStatus? GetEntityStatus(string? orchestrationCustomStatus)
+        {
+            if (orchestrationCustomStatus == null)
+            {
+                return null;
+            }
+
+            return JsonConvert.DeserializeObject<EntityStatus>(orchestrationCustomStatus, Serializer.InternalSerializerSettings)!;
         }
     }
 }

@@ -24,11 +24,8 @@ namespace DurableTask.Core.Entities
     [DataContract]
     internal class SchedulerState
     {
-        /// <summary>
-        /// Whether this entity exists or not.
-        /// </summary>
-        [DataMember(Name = "exists", EmitDefaultValue = false)]
-        public bool EntityExists { get; set; }
+        [IgnoreDataMember]
+        public bool EntityExists => this.EntityState != null;
 
         /// <summary>
         /// The last serialized entity state.
