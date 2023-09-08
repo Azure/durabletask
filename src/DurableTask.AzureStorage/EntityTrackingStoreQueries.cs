@@ -33,6 +33,8 @@ namespace DurableTask.AzureStorage
         readonly EntityBackendProperties properties;
         readonly Func<TaskMessage, Task> sendEvent;
 
+        static TimeSpan timeLimitForCleanEntityStorageLoop = TimeSpan.FromSeconds(5);
+
         public EntityTrackingStoreQueries(
             MessageManager messageManager,
             AzureTableTrackingStore trackingStore, 
@@ -47,7 +49,7 @@ namespace DurableTask.AzureStorage
             this.sendEvent = sendEvent;
         }
 
-        public override async Task<EntityMetadata?> GetEntityAsync(
+        public async override Task<EntityMetadata?> GetEntityAsync(
             EntityId id, 
             bool includeState = false, 
             bool includeDeleted = false,
@@ -55,10 +57,10 @@ namespace DurableTask.AzureStorage
         {
             await this.ensureTaskHub();
             OrchestrationState? state = (await this.trackingStore.FetchInstanceStatusInternalAsync(id.ToString(), includeState))?.State;
-            return await GetEntityMetadataAsync(state, includeDeleted, includeState, cancellation);
+            return await this.GetEntityMetadataAsync(state, includeDeleted, includeState);
         }
 
-        public override async Task<EntityQueryResult> QueryEntitiesAsync(EntityQuery filter, CancellationToken cancellation)
+        public async override Task<EntityQueryResult> QueryEntitiesAsync(EntityQuery filter, CancellationToken cancellation)
         {
             var condition = new OrchestrationInstanceStatusQueryCondition()
             {
@@ -74,12 +76,12 @@ namespace DurableTask.AzureStorage
 
             List<EntityMetadata> entityResult;
             string? continuationToken = filter.ContinuationToken;
-            Stopwatch stopwatch = new Stopwatch();
+            var stopwatch = new Stopwatch();
             stopwatch.Start();
 
             do
             {
-                var result = await this.trackingStore.GetStateAsync(condition, filter.PageSize ?? 100, continuationToken, cancellation);
+                DurableStatusQueryResult result = await this.trackingStore.GetStateAsync(condition, filter.PageSize ?? 100, continuationToken, cancellation);
                 entityResult = await ConvertResultsAsync(result.OrchestrationState);
                 continuationToken = result.ContinuationToken;
             }
@@ -99,7 +101,7 @@ namespace DurableTask.AzureStorage
                 entityResult = new List<EntityMetadata>();
                 foreach (OrchestrationState entry in states)
                 {
-                    EntityMetadata? entityMetadata = await this.GetEntityMetadataAsync(entry, filter.IncludeDeleted, filter.IncludeState, cancellation);
+                    EntityMetadata? entityMetadata = await this.GetEntityMetadataAsync(entry, filter.IncludeDeleted, filter.IncludeState);
                     if (entityMetadata.HasValue)
                     {
                         entityResult.Add(entityMetadata.Value);
@@ -112,9 +114,10 @@ namespace DurableTask.AzureStorage
         public async override Task<CleanEntityStorageResult> CleanEntityStorageAsync(CleanEntityStorageRequest request = default(CleanEntityStorageRequest), CancellationToken cancellation = default(CancellationToken))
         {
             DateTime now = DateTime.UtcNow;
-            string? continuationToken = null;
+            string? continuationToken = request.ContinuationToken;
             int emptyEntitiesRemoved = 0;
             int orphanedLocksReleased = 0;
+            var stopwatch = Stopwatch.StartNew();
 
             var condition = new OrchestrationInstanceStatusQueryCondition()
             {
@@ -129,10 +132,10 @@ namespace DurableTask.AzureStorage
             // perform that action. Waits for all actions to finish after each page.
             do
             {
-                var page = await this.trackingStore.GetStateAsync(condition, 100, continuationToken, cancellation);
+                DurableStatusQueryResult page = await this.trackingStore.GetStateAsync(condition, 100, continuationToken, cancellation);
 
-                List<Task> tasks = new List<Task>();
-                foreach (var state in page.OrchestrationState)
+                var tasks = new List<Task>();
+                foreach (OrchestrationState state in page.OrchestrationState)
                 {
                     EntityStatus? status = ClientEntityHelpers.GetEntityStatus(state.Status);
                     if (status != null)
@@ -146,7 +149,7 @@ namespace DurableTask.AzureStorage
                         {
                             bool isEmptyEntity = !status.EntityExists && status.LockedBy == null && status.QueueSize == 0;
                             bool safeToRemoveWithoutBreakingMessageSorterLogic = 
-                                (now - state.LastUpdatedTime > properties.EntityMessageReorderWindow);
+                                (now - state.LastUpdatedTime > this.properties.EntityMessageReorderWindow);
                             if (isEmptyEntity && safeToRemoveWithoutBreakingMessageSorterLogic)
                             {
                                 tasks.Add(DeleteIdleOrchestrationEntity(state));
@@ -157,7 +160,7 @@ namespace DurableTask.AzureStorage
 
                 async Task DeleteIdleOrchestrationEntity(OrchestrationState state)
                 {
-                    var result = await this.trackingStore.PurgeInstanceHistoryAsync(state.OrchestrationInstance.InstanceId);      
+                    PurgeHistoryResult result = await this.trackingStore.PurgeInstanceHistoryAsync(state.OrchestrationInstance.InstanceId);      
                     Interlocked.Add(ref emptyEntitiesRemoved, result.InstancesDeleted);
                 }
 
@@ -181,16 +184,17 @@ namespace DurableTask.AzureStorage
 
                 await Task.WhenAll(tasks);
             }
-            while (continuationToken != null);
+            while (continuationToken != null & stopwatch.Elapsed <= timeLimitForCleanEntityStorageLoop);
 
             return new CleanEntityStorageResult()
             {
                 EmptyEntitiesRemoved = emptyEntitiesRemoved,
                 OrphanedLocksReleased = orphanedLocksReleased,
+                ContinuationToken = continuationToken,
             };
         }
 
-        async ValueTask<EntityMetadata?> GetEntityMetadataAsync(OrchestrationState? state, bool includeDeleted, bool includeState, CancellationToken cancellation)
+        async ValueTask<EntityMetadata?> GetEntityMetadataAsync(OrchestrationState? state, bool includeDeleted, bool includeState)
         {
             if (state == null)
             {
@@ -248,6 +252,5 @@ namespace DurableTask.AzureStorage
                 }
             }
         }
-
     }
 }

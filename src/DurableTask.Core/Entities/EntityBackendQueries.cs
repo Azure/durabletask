@@ -19,7 +19,7 @@ namespace DurableTask.Core.Entities
     using System.Threading.Tasks;
 
     /// <summary>
-    /// Entity query support, as provided at the abstraction level of an
+    /// Encapsulates support for entity queries, at the abstraction level of a storage backend.
     /// </summary>
     public abstract class EntityBackendQueries
     {
@@ -86,12 +86,12 @@ namespace DurableTask.Core.Entities
             public string? InstanceIdStartsWith { get; set; }
 
             /// <summary>
-            /// Gets or sets entity instances which were last modified after the provided time.
+            /// Gets or sets a value indicating to include only entity instances which were last modified after the provided time.
             /// </summary>
             public DateTime? LastModifiedFrom { get; set; }
 
             /// <summary>
-            /// Gets or sets entity instances which were last modified before the provided time.
+            /// Gets or sets a value indicating to include only entity instances which were last modified before the provided time.
             /// </summary>
             public DateTime? LastModifiedTo { get; set; }
 
@@ -101,16 +101,18 @@ namespace DurableTask.Core.Entities
             public bool IncludeState { get; set; }
 
             /// <summary>
-            /// Whether or not to include deleted entities. Newer implementations should never set this to true,
-            /// it is provided only for legacy compatibility.
+            /// Gets or sets a value indicating whether or not to include deleted entities.
             /// </summary>
+            /// <remarks>
+            /// This setting is relevant only for providers which retain metadata for deleted entities (<see cref="EntityBackendProperties.SupportsImplicitEntityDeletion"/> is false).
+            /// </remarks>
             public bool IncludeDeleted { get; set; }
 
             /// <summary>
             /// Gets or sets the desired size of each page to return.
             /// </summary>
             /// <remarks>
-            /// If no size is specified, the backend chooses an appropriate page size based on its implementation.
+            /// If no size is specified, the backend may choose an appropriate page size based on its implementation.
             /// Note that the size of the returned page may be smaller or larger than the requested page size, and cannot
             /// be used to determine whether the end of the query has been reached.
             /// </remarks>
@@ -128,9 +130,9 @@ namespace DurableTask.Core.Entities
         public struct EntityQueryResult
         {
             /// <summary>
-            /// Gets or sets the list of query results.
+            /// Gets or sets the query results.
             /// </summary>
-            public List<EntityMetadata> Results { get; set; }
+            public IEnumerable<EntityMetadata> Results { get; set; }
 
             /// <summary>
             /// Gets or sets the continuation token to continue this query, if not null.
@@ -144,14 +146,19 @@ namespace DurableTask.Core.Entities
         public struct CleanEntityStorageRequest
         {
             /// <summary>
-            /// Gets a value indicating whether to remove empty entities.
+            /// Gets or sets a value indicating whether to remove empty entities.
             /// </summary>
             public bool RemoveEmptyEntities { get; set; }
 
             /// <summary>
-            /// Gets a value indicating whether to release orphaned locks or not.
+            /// Gets or sets a value indicating whether to release orphaned locks or not.
             /// </summary>
             public bool ReleaseOrphanedLocks { get; set; }
+
+            /// <summary>
+            /// Gets or sets the continuation token to resume a previous <see cref="CleanEntityStorageRequest"/>.
+            /// </summary>
+            public string? ContinuationToken { get; set; }
         }
 
         /// <summary>
@@ -160,14 +167,19 @@ namespace DurableTask.Core.Entities
         public struct CleanEntityStorageResult
         {
             /// <summary>
-            /// Gets the number of empty entities removed.
+            /// Gets or sets the number of empty entities removed.
             /// </summary>
             public int EmptyEntitiesRemoved { get; set; }
 
             /// <summary>
-            /// Gets the number of orphaned locks that were removed.
+            /// Gets or sets the number of orphaned locks that were removed.
             /// </summary>
             public int OrphanedLocksReleased { get; set; }
+
+            /// <summary>
+            /// Gets or sets the continuation token to continue the <see cref="CleanEntityStorageRequest"/>, if not null.
+            /// </summary>
+            public string? ContinuationToken { get; set; }
         }
     }
 }

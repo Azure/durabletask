@@ -37,27 +37,28 @@ namespace DurableTask.Core.Entities
         public int MaxConcurrentTaskEntityWorkItems { get; set; }
 
         /// <summary>
-        /// Whether the backend supports implicit deletion, i.e. setting the entity scheduler state to null implicitly deletes the storage record.
+        /// Gets or sets whether the backend supports implicit deletion. Implicit deletion means that 
+        /// the storage does not retain any data for entities that don't have any state.
         /// </summary>
         public bool SupportsImplicitEntityDeletion { get; set; }
 
         /// <summary>
-        /// Value of maximum durable timer delay. Used for delayed signals.
+        /// Gets or sets the maximum durable timer delay. Used for delayed signals.
         /// </summary>
         public TimeSpan MaximumSignalDelayTime { get; set; }
 
         /// <summary>
-        /// Whether the backend uses separate work item queues for entities and orchestrators.
+        /// Gets or sets whether the backend uses separate work item queues for entities and orchestrators.
         /// </summary>
         public bool UseSeparateQueueForEntityWorkItems { get; set; }
 
         /// <summary>
-        /// Whether the backend uses separate queries for entities and orchestrators.
+        /// Gets or sets whether entities should be excluded from orchestration queries.
         /// </summary>
-        public bool UseSeparateQueriesForEntities { get; set; }
+        public bool ExludeEntitiesFromOrchestrationQueries { get; set; }
 
         /// <summary>
-        /// Computes a cap on the scheduled time of an entity signal, based on the maximum signal delay time
+        /// A utility function to compute a cap on the scheduled time of an entity signal, based on the maximum signal delay time
         /// </summary>
         /// <param name="nowUtc">The current time.</param>
         /// <param name="scheduledUtcTime">The scheduled time.</param>
