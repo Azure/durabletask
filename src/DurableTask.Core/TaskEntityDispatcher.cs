@@ -777,7 +777,9 @@ namespace DurableTask.Core
             };
             var executionStartedEvent = new ExecutionStartedEvent(-1, action.Input)
             {
-                Tags = OrchestrationTags.MergeTags(action.Tags, runtimeState.Tags),
+                Tags = OrchestrationTags.MergeTags(
+                    runtimeState.Tags,
+                    new Dictionary<string, string>() { { OrchestrationTags.FireAndForget, "" } }),
                 OrchestrationInstance = destination,
                 ParentInstance = new ParentInstance
                 {
