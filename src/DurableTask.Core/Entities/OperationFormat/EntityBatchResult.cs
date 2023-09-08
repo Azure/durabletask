@@ -24,10 +24,9 @@ namespace DurableTask.Core.Entities.OperationFormat
         //       To ensure maximum compatibility, all properties should be public and settable by default.
 
         /// <summary>
-        /// The results of executing the operations in the batch. The length of this list must match
-        /// the size of the batch if all messages were processed; In particular, all execution errors must be reported as a result.
-        /// However, this list of results can be shorter than the list of operations if
-        /// some suffix of the operation list was skipped, e.g. due to shutdown, send throttling, or timeouts.  
+        /// The results of executing the operations in the batch. If there were (non-application-level) errors, the length of this list may
+        /// be shorter than the number of requests. In that case, <see cref="FailureDetails"/> contains the reason why not all requests 
+        /// were processed.
         /// </summary>
         public List<OperationResult>? Results { get; set; }
 
@@ -41,5 +40,10 @@ namespace DurableTask.Core.Entities.OperationFormat
         /// or null if the entity has no state (e.g. if it has been deleted).
         /// </summary>
         public string? EntityState { get; set; }
+
+        /// <summary>
+        /// Contains the failure details, if there was a failure to process all requests (fewer results were returned than requests) 
+        /// </summary>
+        public FailureDetails? FailureDetails { get; set; }
     }
 }

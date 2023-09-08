@@ -246,6 +246,24 @@ namespace DurableTask.Core
                     {
                         // execute the user-defined operations on this entity, via the middleware
                         var result = await this.ExecuteViaMiddlewareAsync(workToDoNow, runtimeState.OrchestrationInstance, schedulerState.EntityState);
+                        var operationResults = result.Results!;
+
+                        // if we encountered an error, record it as the result of the operations
+                        // so that callers are notified that the operation did not succeed.
+                        if (result.FailureDetails != default(FailureDetails))
+                        {
+                            OperationResult errorResult = new OperationResult()
+                            {
+                                Result = null,
+                                ErrorMessage = "entity dispatch failed",
+                                FailureDetails = result.FailureDetails,
+                            };
+
+                            for (int i = operationResults.Count; i < workToDoNow.OperationCount; i++)
+                            {
+                                operationResults.Add(errorResult);
+                            }
+                        }
 
                         // go through all results
                         // for each operation that is not a signal, send a result message back to the calling orchestrator
@@ -260,7 +278,8 @@ namespace DurableTask.Core
 
                         if (result.Results.Count < workToDoNow.OperationCount)
                         {
-                            // some operations were not processed
+                            // some requests were not processed (e.g. due to shutdown or timeout)
+                            // in this case we just defer the work so it can be retried
                             var deferred = workToDoNow.RemoveDeferredWork(result.Results.Count);
                             schedulerState.PutBack(deferred);
                             workToDoNow.ToBeContinued(schedulerState);
@@ -851,7 +870,7 @@ namespace DurableTask.Core
                     ErrorPropagationMode = this.errorPropagationMode,
                 };
 
-                var result = await taskEntity.ExecuteOperationBatchAsync(request, options);
+                var result = await taskEntity.ExecuteOperationBatchAsync(request);
                 
                 dispatchContext.SetProperty(result);
             });
