@@ -23,9 +23,24 @@ namespace DurableTask.Core.Entities
     public class EntityStatus
     {
         /// <summary>
+        /// The JSON property name for the entityExists property.  
+        /// </summary>
+        const string EntityExistsProperyName = "entityExists";
+
+        /// <summary>
+        /// A fast shortcut for checking whether an entity exists, looking at the serialized json string directly. Used by queries.
+        /// </summary>
+        /// <param name="serializedJson"></param>
+        /// <returns></returns>
+        public static bool TestEntityExists(string serializedJson)
+        {
+            return serializedJson.Contains(EntityExistsProperyName);
+        }
+
+        /// <summary>
         /// Whether this entity exists or not.
         /// </summary>
-        [DataMember(Name = "entityExists", EmitDefaultValue = false)]
+        [DataMember(Name = EntityExistsProperyName, EmitDefaultValue = false)]
         public bool EntityExists { get; set; }
 
         /// <summary>

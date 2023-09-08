@@ -268,7 +268,6 @@ namespace DurableTask.Core
 
                         // update the entity state based on the result
                         schedulerState.EntityState = result.EntityState;
-                        schedulerState.EntityExists = result.EntityState != null;
 
                         // perform the actions
                         foreach (var action in result.Actions!)
