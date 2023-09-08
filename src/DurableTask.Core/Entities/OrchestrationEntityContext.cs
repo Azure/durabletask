@@ -69,6 +69,11 @@ namespace DurableTask.Core.Entities
         public bool IsInsideCriticalSection => this.criticalSectionId != null;   
 
         /// <summary>
+        /// The ID of the current critical section, or null if not currently in a critical section.
+        /// </summary>
+        public Guid? CurrentCriticalSectionId => this.criticalSectionId;
+
+        /// <summary>
         /// Enumerate all the entities that are available for calling from within a critical section. 
         /// This set contains all the entities that were locked prior to entering the critical section,
         /// and for which there is not currently an operation call pending.
@@ -182,7 +187,7 @@ namespace DurableTask.Core.Entities
         /// <summary>
         /// Get release messages for all locks in the critical section, and release them
         /// </summary>
-        public IEnumerable<EventToSend> EmitLockReleaseMessages()
+        public IEnumerable<EntityMessageEvent> EmitLockReleaseMessages()
         {
             if (this.IsInsideCriticalSection)
             {
@@ -195,8 +200,7 @@ namespace DurableTask.Core.Entities
                 foreach (var entityId in this.criticalSectionLocks!)
                 {
                     var instance = new OrchestrationInstance() { InstanceId = entityId.ToString() };
-                    var jmessage = JObject.FromObject(message, Serializer.InternalSerializer);
-                    yield return new EventToSend(EntityMessageEventNames.ReleaseMessageEventName, jmessage, instance);
+                    yield return new EntityMessageEvent(EntityMessageEventNames.ReleaseMessageEventName, message, instance);
                 }
 
                 this.criticalSectionLocks = null;
@@ -215,13 +219,13 @@ namespace DurableTask.Core.Entities
         /// <param name="scheduledTimeUtc">A time for which to schedule the delivery, or null if this is not a scheduled message</param>
         /// <param name="input">The operation input</param>
         /// <returns>The event to send.</returns>
-        public EventToSend EmitRequestMessage(
+        public EntityMessageEvent EmitRequestMessage(
             OrchestrationInstance target,
             string operationName,
             bool oneWay,
             Guid operationId,
-            (DateTime original, DateTime capped)? scheduledTimeUtc,
-            string input)
+            (DateTime Original, DateTime Capped)? scheduledTimeUtc,
+            string? input)
         {
             var request = new RequestMessage()
             {
@@ -230,16 +234,13 @@ namespace DurableTask.Core.Entities
                 Id = operationId,
                 IsSignal = oneWay,
                 Operation = operationName,
-                ScheduledTime = scheduledTimeUtc?.original,
+                ScheduledTime = scheduledTimeUtc?.Original,
                 Input = input,
             };
 
-            this.AdjustOutgoingMessage(target.InstanceId, request, scheduledTimeUtc?.capped, out string eventName);
+            this.AdjustOutgoingMessage(target.InstanceId, request, scheduledTimeUtc?.Capped, out string eventName);
 
-            // we pre-serialize to JObject so we can avoid exposure to application-specific serialization settings 
-            var jrequest = JObject.FromObject(request, Serializer.InternalSerializer);
-
-            return new EventToSend(eventName, jrequest, target);
+            return new EntityMessageEvent(eventName, request, target);
         }
 
         /// <summary>
@@ -248,7 +249,7 @@ namespace DurableTask.Core.Entities
         /// <param name="lockRequestId">A unique request id.</param>
         /// <param name="entities">All the entities that are to be acquired.</param>
         /// <returns>The event to send.</returns>
-        public EventToSend EmitAcquireMessage(Guid lockRequestId, EntityId[] entities)
+        public EntityMessageEvent EmitAcquireMessage(Guid lockRequestId, EntityId[] entities)
         {
             // All the entities in entity[] need to be locked, but to avoid deadlock, the locks have to be acquired
             // sequentially, in order. So, we send the lock request to the first entity; when the first lock
@@ -285,10 +286,7 @@ namespace DurableTask.Core.Entities
 
             this.AdjustOutgoingMessage(target.InstanceId, request, null, out string eventName);
 
-            // we pre-serialize to JObject so we can avoid exposure to application-specific serialization settings
-            var jrequest = JObject.FromObject(request, Serializer.InternalSerializer);
-
-            return new EventToSend(eventName, jrequest, target); 
+            return new EntityMessageEvent(eventName, request, target); 
         }
 
         /// <summary>

@@ -22,6 +22,7 @@ namespace DurableTask.Core
     using DurableTask.Core.History;
     using DurableTask.Core.Logging;
     using DurableTask.Core.Serializing;
+    using DurableTask.Core.Tracing;
     using Microsoft.Extensions.Logging;
 
     /// <summary>
@@ -610,16 +611,27 @@ namespace DurableTask.Core
             };
 
             this.logHelper.SchedulingOrchestration(startedEvent);
-            
+
+            using Activity newActivity = TraceHelper.StartActivityForNewOrchestration(startedEvent);
+
             CorrelationTraceClient.Propagate(() => CreateAndTrackDependencyTelemetry(requestTraceContext));
 
-            // Raised events and create orchestration calls use different methods so get handled separately
-            await this.ServiceClient.CreateTaskOrchestrationAsync(startMessage, dedupeStatuses);
+            try
+            {
+                // Raised events and create orchestration calls use different methods so get handled separately
+                await this.ServiceClient.CreateTaskOrchestrationAsync(startMessage, dedupeStatuses);
+            }
+            catch (Exception e)
+            {
+                TraceHelper.AddErrorDetailsToSpan(newActivity, e);
+                throw;
+            }
 
             if (eventData != null)
             {
                 string serializedEventData = this.defaultConverter.Serialize(eventData);
                 var eventRaisedEvent = new EventRaisedEvent(-1, serializedEventData) { Name = eventName };
+
                 this.logHelper.RaisingEvent(orchestrationInstance, eventRaisedEvent);
                 
                 var eventMessage = new TaskMessage
@@ -666,8 +678,6 @@ namespace DurableTask.Core
             dependencyTraceContext.TelemetryType = TelemetryType.Dependency;
             dependencyTraceContext.SetParentAndStart(requestTraceContext);
 
-            CorrelationTraceContext.Current = dependencyTraceContext;
-
             // Correlation
             CorrelationTraceClient.TrackDepencencyTelemetry(dependencyTraceContext);
             CorrelationTraceClient.TrackRequestTelemetry(requestTraceContext);
@@ -688,14 +698,28 @@ namespace DurableTask.Core
             }
 
             string serializedInput = this.defaultConverter.Serialize(eventData);
+            
+            // Distributed Tracing
+            EventRaisedEvent eventRaisedEvent = new EventRaisedEvent(-1, serializedInput) { Name = eventName };
+            using Activity traceActivity = TraceHelper.StartActivityForNewEventRaisedFromClient(eventRaisedEvent, orchestrationInstance);
+
             var taskMessage = new TaskMessage
             {
                 OrchestrationInstance = orchestrationInstance,
-                Event = new EventRaisedEvent(-1, serializedInput) { Name = eventName }
+                Event = eventRaisedEvent
             };
 
             this.logHelper.RaisingEvent(orchestrationInstance, (EventRaisedEvent)taskMessage.Event);
-            await this.ServiceClient.SendTaskOrchestrationMessageAsync(taskMessage);
+
+            try
+            {
+                await this.ServiceClient.SendTaskOrchestrationMessageAsync(taskMessage);
+            }
+            catch(Exception e)
+            {
+                TraceHelper.AddErrorDetailsToSpan(traceActivity, e);
+                throw;
+            }
         }
 
         /// <summary>

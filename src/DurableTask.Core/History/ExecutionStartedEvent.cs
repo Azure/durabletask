@@ -13,15 +13,17 @@
 
 namespace DurableTask.Core.History
 {
+    using DurableTask.Core.Tracing;
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Runtime.Serialization;
 
     /// <summary>
     /// A history event for orchestration execution starting
     /// </summary>
     [DataContract]
-    public class ExecutionStartedEvent : HistoryEvent
+    public class ExecutionStartedEvent : HistoryEvent, ISupportsDurableTraceContext
     {
         /// <summary>
         /// The orchestration instance for this event
@@ -81,11 +83,18 @@ namespace DurableTask.Core.History
         [DataMember]
         public IDictionary<string, string> Tags { get; set; }
 
+        // TODO: Make this property obsolete
         /// <summary>
         /// Gets or sets the serialized end-to-end correlation state.
         /// </summary>
         [DataMember]
         public string Correlation { get; set; }
+
+        /// <summary>
+        /// The W3C trace context associated with this event.
+        /// </summary>
+        [DataMember]
+        public DistributedTraceContext ParentTraceContext { get; set; }
 
         /// <summary>
         /// Gets or sets date to start the orchestration
@@ -98,5 +107,11 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public int? Generation { get; set; }
+
+        // Used for Continue-as-New scenarios
+        internal void SetParentTraceContext(ExecutionStartedEvent parent)
+        {
+            this.ParentTraceContext = parent.ParentTraceContext;
+        }
     }
 }

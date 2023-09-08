@@ -16,7 +16,7 @@ namespace DurableTask.Core.Entities.EventFormat
     using System.Runtime.Serialization;
 
     [DataContract]
-    internal class ReleaseMessage
+    internal class ReleaseMessage : EntityMessage
     {
         [DataMember(Name = "parent")]
         public string? ParentInstanceId { get; set; }
@@ -24,7 +24,7 @@ namespace DurableTask.Core.Entities.EventFormat
         [DataMember(Name = "id")]
         public string? Id { get; set; }
 
-        public override string ToString()
+        public override string GetShortDescription()
         {
             return $"[Release lock {Id} by {ParentInstanceId}]";
         }

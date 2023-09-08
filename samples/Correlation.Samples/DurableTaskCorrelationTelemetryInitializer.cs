@@ -113,9 +113,9 @@ namespace Correlation.Samples
             if (!(telemetry is RequestTelemetry))
             {
                 Activity currentActivity = Activity.Current;
-                if (telemetry is ExceptionTelemetry)
+                if (telemetry is ExceptionTelemetry exceptionTelemetry)
                 {
-                    Console.WriteLine("exception!");
+                    Console.Error.WriteLine($"Telemetry exception: {exceptionTelemetry.Exception}");
                 }
 
                 if (currentActivity == null)

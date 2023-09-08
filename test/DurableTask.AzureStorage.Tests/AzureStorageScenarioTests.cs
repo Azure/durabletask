@@ -32,8 +32,13 @@ namespace DurableTask.AzureStorage.Tests
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
     using Microsoft.WindowsAzure.Storage.Table;
+    using Moq;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
+#if !NET462
+    using OpenTelemetry;
+    using OpenTelemetry.Trace;
+#endif
 
     [TestClass]
     public class AzureStorageScenarioTests
@@ -546,7 +551,7 @@ namespace DurableTask.AzureStorage.Tests
                 List<HistoryStateEvent> thirdHistoryEventsAfterPurging = await client.GetOrchestrationHistoryAsync(thirdInstanceId);
                 Assert.AreEqual(0, thirdHistoryEventsAfterPurging.Count);
 
-                List<HistoryStateEvent>fourthHistoryEventsAfterPurging = await client.GetOrchestrationHistoryAsync(fourthInstanceId);
+                List<HistoryStateEvent> fourthHistoryEventsAfterPurging = await client.GetOrchestrationHistoryAsync(fourthInstanceId);
                 Assert.AreEqual(0, fourthHistoryEventsAfterPurging.Count);
 
                 firstOrchestrationStateList = await client.GetStateAsync(firstInstanceId);
@@ -602,7 +607,7 @@ namespace DurableTask.AzureStorage.Tests
                             operationContext: context,
                             cancellationToken: timeoutToken);
                 });
-                
+
                 blobContinuationToken = results.ContinuationToken;
                 blobs.AddRange(results.Results);
             } while (blobContinuationToken != null);
@@ -985,7 +990,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 // Test case 3: external event now goes through
                 await client.ResumeAsync("wakeUp");
-                status  = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+                status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.AreEqual(changedStatus, JToken.Parse(status?.Status));
 
@@ -1678,6 +1683,27 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        [TestMethod]
+        public async Task TagsAreAvailableInOrchestrationState()
+        {
+            const string TagMessage = "message";
+            const string Tag = "tag";
+
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false, fetchLargeMessages: true);
+            await host.StartAsync();
+            var tags = new Dictionary<string, string> { { Tag, TagMessage } };
+            var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), "Hello, world!", tags: tags);
+            var statuses = await client.GetStateAsync(client.InstanceId);
+            var status = statuses.Single();
+
+            Assert.IsNotNull(status.Tags);
+            Assert.AreEqual(1, status.Tags.Count);
+            Assert.IsTrue(status.Tags.TryGetValue(Tag, out string actualMessage));
+            Assert.AreEqual(TagMessage, actualMessage);
+
+            await host.StopAsync();
+        }
+
         /// <summary>
         /// End-to-end test which validates that orchestrations with > 60KB of tag data can be run successfully.
         /// </summary>
@@ -1694,12 +1720,10 @@ namespace DurableTask.AzureStorage.Tests
             var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
             Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-
-            // TODO: Uncomment these assertions as part of https://github.com/Azure/durabletask/issues/840.
-            ////Assert.IsNotNull(status?.Tags);
-            ////Assert.AreEqual(bigTags.Count, status.Tags.Count);
-            ////Assert.IsTrue(bigTags.TryGetValue("BigTag", out string actualMessage));
-            ////Assert.AreEqual(bigMessage, actualMessage);
+            Assert.IsNotNull(status?.Tags);
+            Assert.AreEqual(bigTags.Count, status.Tags.Count);
+            Assert.IsTrue(bigTags.TryGetValue("BigTag", out string actualMessage));
+            Assert.AreEqual(bigMessage, actualMessage);
 
             await host.StopAsync();
         }
@@ -1782,7 +1806,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        private StringBuilder GenerateMediumRandomStringPayload(int numChars = 128*1024, short utf8ByteSize = 1, short utf16ByteSize = 2)
+        private StringBuilder GenerateMediumRandomStringPayload(int numChars = 128 * 1024, short utf8ByteSize = 1, short utf16ByteSize = 2)
         {
             string Chars;
             if (utf16ByteSize != 2 && utf16ByteSize != 4)
@@ -2167,7 +2191,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-                /// <summary>
+        /// <summary>
         /// Validates scheduled starts, ensuring they are executed according to defined start date time
         /// </summary>
         /// <param name="enableExtendedSessions"></param>
@@ -2282,6 +2306,288 @@ namespace DurableTask.AzureStorage.Tests
                 await host.StopAsync();
             }
         }
+
+#if !NET462
+        /// <summary>
+        /// End-to-end test which validates a simple orchestrator function that calls an activity function
+        /// and checks the OpenTelemetry trace information
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task OpenTelemetry_SayHelloWithActivity(bool enableExtendedSessions)
+        {
+            var processor = new Mock<BaseProcessor<Activity>>();
+
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                using (Sdk.CreateTracerProviderBuilder()
+                .AddSource("DurableTask")
+                .AddProcessor(processor.Object)
+                .Build())
+                {
+                    await host.StartAsync();
+
+                    var client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloWithActivity), "World");
+                    var status = await client.WaitForCompletionAsync(StandardTimeout);
+
+                    await host.StopAsync();
+                }
+            }
+
+            // (1) Explanation about indexes:
+            // The orchestration Activity's start at Invocation[1] and each action logs
+            // two activities - (Processor.OnStart(Activity) and Processor.OnEnd(Activity)
+            // so we start looking at invocations from index 2 and look at every other one from there
+
+            // (2) Additional invocations:
+            // processor.Invocations[0] - processor.SetParentProvider(TracerProviderSdk)
+            // processor.Invocations[9] - processor.OnShutdown()
+            // processor.Invocations[10] - processor.Dispose(true)
+
+            // (3) Expected console output:
+
+            // Activity.DisplayName: OpenTelemetrySample.Program+HelloFanOut
+            // dt.type: client
+
+            // Activity.DisplayName: OpenTelemetrySample.Program+HelloFanOut
+            // dt.type: orchestrator
+            // dt.runtimestatus: Running
+
+            // Activity.DisplayName: OpenTelemetrySample.Program+SayHello (#0)
+            // dt.type: activity
+
+            // Activity.DisplayName: OpenTelemetrySample.Program+SayHello (#1)
+            // dt.type: activity
+
+            // Activity.DisplayName: OpenTelemetrySample.Program+SayHello (#2)
+            // dt.type: activity
+
+            // Activity.DisplayName: OpenTelemetrySample.Program+HelloFanOut
+            // dt.type: orchestrator
+            // dt.runtimestatus: Completed
+
+            Activity activity2 = (Activity)processor.Invocations[2].Arguments[0];
+            Activity activity4 = (Activity)processor.Invocations[4].Arguments[0];
+            Activity activity6 = (Activity)processor.Invocations[6].Arguments[0];
+            Activity activity8 = (Activity)processor.Invocations[8].Arguments[0];
+
+            // Checking total number activities
+            Assert.AreEqual(11, processor.Invocations.Count);
+
+            // Checking tag values
+            string activity2TypeValue = activity2.Tags.First(k => (k.Key).Equals("dt.type")).Value;
+            string activity4TypeValue = activity4.Tags.First(k => (k.Key).Equals("dt.type")).Value;
+            string activity6TypeValue = activity6.Tags.First(k => (k.Key).Equals("dt.type")).Value;
+            string activity8TypeValue = activity8.Tags.First(k => (k.Key).Equals("dt.type")).Value;
+
+            string activity4RuntimeStatusValue = activity4.Tags.First(k => (k.Key).Equals("dt.runtimestatus")).Value;
+            string activity8RuntimeStatusValue = activity8.Tags.First(k => (k.Key).Equals("dt.runtimestatus")).Value;
+
+            Assert.AreEqual("client", activity2TypeValue);
+            Assert.AreEqual("orchestrator", activity4TypeValue);
+            Assert.AreEqual("Running", activity4RuntimeStatusValue);
+            Assert.AreEqual("activity", activity6TypeValue);
+            Assert.AreEqual("orchestrator", activity8TypeValue);
+            Assert.AreEqual("Completed", activity8RuntimeStatusValue);
+
+            // Checking span ID correlation between parent and child
+            Assert.AreEqual(activity2.SpanId, activity4.ParentSpanId);
+            Assert.AreEqual(activity4.SpanId, activity6.ParentSpanId);
+            Assert.AreEqual(activity2.SpanId, activity8.ParentSpanId);
+
+            // Checking trace ID values
+            Assert.AreEqual(activity2.TraceId.ToString(), activity4.TraceId.ToString(), activity6.TraceId.ToString(), activity8.TraceId.ToString());
+        }
+
+        /// <summary>
+        /// End-to-end test which validates a simple orchestrator function that waits for an external event
+        /// raised through the RaiseEvent API and checks the OpenTelemetry trace information
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task OpenTelemetry_ExternalEvent_RaiseEvent(bool enableExtendedSessions)
+        {
+            var processor = new Mock<BaseProcessor<Activity>>();
+
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                using (Sdk.CreateTracerProviderBuilder()
+                .AddSource("DurableTask")
+                .AddProcessor(processor.Object)
+                .Build())
+                {
+                    await host.StartAsync();
+
+                    var timeout = TimeSpan.FromSeconds(10);
+                    var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Approval), timeout);
+
+                    // Need to wait for the instance to start before sending events to it.
+                    // TODO: This requirement may not be ideal and should be revisited.
+                    await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
+                    await client.RaiseEventAsync("approval", eventData: true);
+                    await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                    await host.StopAsync();
+                }
+            }
+
+            // (1) Explanation about indexes:
+            // The orchestration Activity's start at Invocation[1] and each action logs
+            // two activities - (Processor.OnStart(Activity) and Processor.OnEnd(Activity)
+            // so we start looking at invocations from index 2 and look at every other one from there
+
+            // (2) Additional invocations:
+            // processor.Invocations[0] - processor.SetParentProvider(TracerProviderSdk)
+            // processor.Invocations[11] - processor.OnShutdown()
+            // processor.Invocations[12] - processor.Dispose(true)
+
+            // (3) Expected console output:
+            //
+            // Activity.DisplayName: "DurableTask.AzureStorage.Tests.AzureStorageScenarioTests+Orchestrations+Approval"
+            // dt.type: client
+
+            // Activity.DisplayName: "DurableTask.AzureStorage.Tests.AzureStorageScenarioTests+Orchestrations+Approval"
+            // dt.type: orchestrator
+            // dt.runtimestatus: Running
+
+            // Activity.DisplayName: approval
+            // dt.type: externalevent
+
+            // Activity.DisplayName: "DurableTask.AzureStorage.Tests.AzureStorageScenarioTests+Orchestrations+Approval"
+            // dt.type: orchestrator
+            // dt.runtimestatus: Running
+
+            // Activity.DisplayName: "DurableTask.AzureStorage.Tests.AzureStorageScenarioTests+Orchestrations+Approval"
+            // dt.type: orchestrator
+            // dt.runtimestatus: Completed
+
+            Activity activity2 = (Activity)processor.Invocations[2].Arguments[0];
+            Activity activity4 = (Activity)processor.Invocations[4].Arguments[0];
+            Activity activity6 = (Activity)processor.Invocations[6].Arguments[0];
+            Activity activity8 = (Activity)processor.Invocations[8].Arguments[0];
+            Activity activity10 = (Activity)processor.Invocations[10].Arguments[0];
+
+            // Checking total number activities
+            Assert.AreEqual(13, processor.Invocations.Count);
+
+            // Checking tag values
+            string activity2TypeValue = activity2.Tags.First(k => (k.Key).Equals("dt.type")).Value;
+            string activity4TypeValue = activity4.Tags.First(k => (k.Key).Equals("dt.type")).Value;
+            string activity6TypeValue = activity6.Tags.First(k => (k.Key).Equals("dt.type")).Value;
+            string activity8TypeValue = activity8.Tags.First(k => (k.Key).Equals("dt.type")).Value;
+            string activity10TypeValue = activity10.Tags.First(k => (k.Key).Equals("dt.type")).Value;
+
+            string activity4RuntimeStatusValue = activity4.Tags.First(k => (k.Key).Equals("dt.runtimestatus")).Value;
+            string activity8RuntimeStatusValue = activity8.Tags.First(k => (k.Key).Equals("dt.runtimestatus")).Value;
+            string activity10RuntimeStatusValue = activity10.Tags.First(k => (k.Key).Equals("dt.runtimestatus")).Value;
+
+            Assert.AreEqual("client", activity2TypeValue);
+            Assert.AreEqual("orchestrator", activity4TypeValue);
+            Assert.AreEqual("Running", activity4RuntimeStatusValue);
+            Assert.AreEqual("externalevent", activity6TypeValue);
+            Assert.AreEqual("orchestrator", activity8TypeValue);
+            Assert.AreEqual("Running", activity8RuntimeStatusValue);
+            Assert.AreEqual("orchestrator", activity10TypeValue);
+            Assert.AreEqual("Completed", activity10RuntimeStatusValue);
+
+            // Checking span ID correlation between parent and child
+            Assert.AreEqual(activity2.SpanId, activity4.ParentSpanId);
+            Assert.AreEqual(activity2.SpanId, activity8.ParentSpanId);
+            Assert.AreEqual(activity2.SpanId, activity10.ParentSpanId);
+
+            // Checking trace ID values
+            Assert.AreEqual(activity2.TraceId.ToString(), activity4.TraceId.ToString(), activity8.TraceId.ToString());
+        }
+
+        /// <summary>
+        /// End-to-end test which validates a simple orchestrator function that waits for an external event
+        /// raised by calling SendEvent and checks the OpenTelemetry trace information
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task OpenTelemetry_ExternalEvent_SendEvent(bool enableExtendedSessions)
+        {
+            var processor = new Mock<BaseProcessor<Activity>>();
+
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                using (Sdk.CreateTracerProviderBuilder()
+                .AddSource("DurableTask")
+                .AddProcessor(processor.Object)
+                .Build())
+                {
+                    await host.StartAsync();
+
+                    host.AddAutoStartOrchestrator(typeof(Orchestrations.AutoStartOrchestration.Responder));
+
+                    var client = await host.StartOrchestrationAsync(typeof(Orchestrations.AutoStartOrchestration), "");
+                    var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                    await host.StopAsync();
+                }
+            }
+
+            // (1) Explanation about indexes:
+            // The orchestration Activity's start at Invocation[1] and each action logs
+            // two activities - (Processor.OnStart(Activity) and Processor.OnEnd(Activity)
+            // so we start looking at invocations from index 2 and look at every other one from there
+
+            // (2) Additional invocations:
+            // processor.Invocations[0] - processor.SetParentProvider(TracerProviderSdk)
+            // processor.Invocations[9] - processor.OnShutdown()
+            // processor.Invocations[10] - processor.Dispose(true)
+
+            // (3) Expected console output:
+            //
+            // Activity.DisplayName: DurableTask.AzureStorage.Tests.AzureStorageScenarioTests+Orchestrations+AutoStartOrchestration
+            // dt.type: client
+
+            // Activity.DisplayName: conversation
+            // dt.type: externalevent
+
+            // Activity.DisplayName: DurableTask.AzureStorage.Tests.AzureStorageScenarioTests+Orchestrations+AutoStartOrchestration
+            // dt.type: orchestrator
+            // dt.runtimestatus: Running
+
+            // Activity.DisplayName: DurableTask.AzureStorage.Tests.AzureStorageScenarioTests+Orchestrations+AutoStartOrchestration
+            // dt.type: orchestrator
+            // dt.runtimestatus: Completed
+
+            Activity activity2 = (Activity)processor.Invocations[2].Arguments[0];
+            Activity activity4 = (Activity)processor.Invocations[4].Arguments[0];
+            Activity activity6 = (Activity)processor.Invocations[6].Arguments[0];
+            Activity activity8 = (Activity)processor.Invocations[8].Arguments[0];
+
+            // Checking total number activities
+            Assert.AreEqual(11, processor.Invocations.Count);
+
+            // Checking tag values
+            string activity2TypeValue = activity2.Tags.First(k => (k.Key).Equals("dt.type")).Value;
+            string activity4TypeValue = activity4.Tags.First(k => (k.Key).Equals("dt.type")).Value;
+            string activity6TypeValue = activity6.Tags.First(k => (k.Key).Equals("dt.type")).Value;
+            string activity8TypeValue = activity8.Tags.First(k => (k.Key).Equals("dt.type")).Value;
+
+            string activity6RuntimeStatusValue = activity6.Tags.First(k => (k.Key).Equals("dt.runtimestatus")).Value;
+            string activity8RuntimeStatusValue = activity8.Tags.First(k => (k.Key).Equals("dt.runtimestatus")).Value;
+
+            Assert.AreEqual("client", activity2TypeValue);
+            Assert.AreEqual("externalevent", activity4TypeValue);
+            Assert.AreEqual("orchestrator", activity6TypeValue);
+            Assert.AreEqual("Running", activity6RuntimeStatusValue);
+            Assert.AreEqual("orchestrator", activity8TypeValue);
+            Assert.AreEqual("Completed", activity8RuntimeStatusValue);
+
+            // Checking span ID correlation between parent and child
+            Assert.AreEqual(activity2.SpanId, activity6.ParentSpanId);
+            Assert.AreEqual(activity2.SpanId, activity8.ParentSpanId);
+
+            // Checking trace ID values
+            Assert.AreEqual(activity2.TraceId.ToString(), activity4.TraceId.ToString(), activity6.TraceId.ToString(), activity8.TraceId.ToString());
+        }
+#endif
 
         static class Orchestrations
         {

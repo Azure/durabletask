@@ -566,7 +566,7 @@ namespace DurableTask.Core.Logging
         /// Logs that an entity operation batch is about to start executing.
         /// </summary>
         /// <param name="request">The batch request.</param>
-        internal void EntityBatchExecuting(OperationBatchRequest request)
+        internal void EntityBatchExecuting(EntityBatchRequest request)
         {
             if (this.IsStructuredLoggingEnabled)
             {
@@ -579,7 +579,7 @@ namespace DurableTask.Core.Logging
         /// </summary>
         /// <param name="request">The batch request.</param>
         /// <param name="result">The batch result.</param>
-        internal void EntityBatchExecuted(OperationBatchRequest request, OperationBatchResult result)
+        internal void EntityBatchExecuted(EntityBatchRequest request, EntityBatchResult result)
         {
             if (this.IsStructuredLoggingEnabled)
             {

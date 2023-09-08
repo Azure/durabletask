@@ -33,7 +33,7 @@ namespace DurableTask.Core.Entities
         /// <param name="input">The serialized input for the operation.</param>
         /// <param name="scheduledTimeUtc">The time to schedule this signal, or null if not a scheduled signal</param>
         /// <returns>The event to send.</returns>
-        public static EventToSend EmitOperationSignal(OrchestrationInstance targetInstance, Guid requestId, string operationName, string input, (DateTime Original, DateTime Capped)? scheduledTimeUtc)
+        public static EntityMessageEvent EmitOperationSignal(OrchestrationInstance targetInstance, Guid requestId, string operationName, string? input, (DateTime Original, DateTime Capped)? scheduledTimeUtc)
         {
             var request = new RequestMessage()
             {
@@ -46,13 +46,11 @@ namespace DurableTask.Core.Entities
                 Input = input,
             };
 
-            var jrequest = JToken.FromObject(request, Serializer.InternalSerializer);
-
             var eventName = scheduledTimeUtc.HasValue
                 ? EntityMessageEventNames.ScheduledRequestMessageEventName(scheduledTimeUtc.Value.Capped)
                 : EntityMessageEventNames.RequestMessageEventName;
 
-            return new EventToSend(eventName, jrequest, targetInstance);
+            return new EntityMessageEvent(eventName, request, targetInstance);
         }
 
         /// <summary>
@@ -61,7 +59,7 @@ namespace DurableTask.Core.Entities
         /// <param name="targetInstance">The target instance.</param>
         /// <param name="lockOwnerInstanceId">The instance id of the entity to be unlocked.</param>
         /// <returns>The event to send.</returns>
-        public static EventToSend EmitUnlockForOrphanedLock(OrchestrationInstance targetInstance, string lockOwnerInstanceId)
+        public static EntityMessageEvent EmitUnlockForOrphanedLock(OrchestrationInstance targetInstance, string lockOwnerInstanceId)
         {
             var message = new ReleaseMessage()
             {
@@ -69,22 +67,36 @@ namespace DurableTask.Core.Entities
                 Id = "fix-orphaned-lock", // we don't know the original id but it does not matter
             };
 
-            var jmessage = JToken.FromObject(message, Serializer.InternalSerializer);
-
-            return new EventToSend(EntityMessageEventNames.ReleaseMessageEventName, jmessage, targetInstance);
+            return new EntityMessageEvent(EntityMessageEventNames.ReleaseMessageEventName, message, targetInstance);
         }
 
         /// <summary>
-        /// Extracts the user-defined entity state (as a serialized string) from the scheduler state (also a serialized string).
+        /// Extracts the user-defined entity state from the serialized scheduler state. The result is the serialized state,
+        /// or null if the entity has no state.
         /// </summary>
-        /// <param name="serializedSchedulerState">The state of the scheduler, as a serialized string.</param>
-        /// <param name="entityState">The entity state</param>
-        /// <returns>True if the entity exists, or false otherwise</returns>
-        public static bool TryGetEntityStateFromSerializedSchedulerState(string serializedSchedulerState, out string? entityState)
+        public static string? GetEntityState(string? serializedSchedulerState)
         {
-            var schedulerState = JsonConvert.DeserializeObject<SchedulerState>(serializedSchedulerState, Serializer.InternalSerializerSettings);
-            entityState = schedulerState!.EntityState;
-            return schedulerState.EntityExists;
+            if (serializedSchedulerState == null)
+            {
+                return null;
+            }
+           
+            var schedulerState = JsonConvert.DeserializeObject<SchedulerState>(serializedSchedulerState, Serializer.InternalSerializerSettings)!;
+            return schedulerState.EntityState;
+        }
+
+        /// <summary>
+        /// Gets the entity status from the serialized custom status of the orchestration.
+        /// or null if the entity has no state.
+        /// </summary>
+        public static EntityStatus? GetEntityStatus(string? orchestrationCustomStatus)
+        {
+            if (orchestrationCustomStatus == null)
+            {
+                return null;
+            }
+
+            return JsonConvert.DeserializeObject<EntityStatus>(orchestrationCustomStatus, Serializer.InternalSerializerSettings)!;
         }
     }
 }

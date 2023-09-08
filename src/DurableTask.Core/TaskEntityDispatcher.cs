@@ -226,7 +226,7 @@ namespace DurableTask.Core
             try
             {
                 // Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
-                if (!TaskOrchestrationDispatcher.ReconcileMessagesWithState(workItem, nameof(TaskEntityDispatcher), this.logHelper))
+                if (!TaskOrchestrationDispatcher.ReconcileMessagesWithState(workItem, nameof(TaskEntityDispatcher), this.errorPropagationMode, this.logHelper))
                 {
                     // TODO : mark an orchestration as faulted if there is data corruption
                     this.logHelper.DroppingOrchestrationWorkItem(workItem, "Received work-item for an invalid orchestration");
@@ -287,7 +287,6 @@ namespace DurableTask.Core
 
                         // update the entity state based on the result
                         schedulerState.EntityState = result.EntityState;
-                        schedulerState.EntityExists = result.EntityState != null;
 
                         // perform the actions
                         foreach (var action in result.Actions!)
@@ -737,7 +736,8 @@ namespace DurableTask.Core
         {
             var message = new ResponseMessage()
             {
-                Result = "Lock Acquisition Completed", // ignored by receiver but shows up in traces
+                // content is ignored by receiver but helps with tracing
+                Result = ResponseMessage.LockAcquisitionCompletion, 
             };
             this.ProcessSendEventMessage(effects, target, EntityMessageEventNames.ResponseMessageEventName(requestId), message);
         }
@@ -796,7 +796,9 @@ namespace DurableTask.Core
             };
             var executionStartedEvent = new ExecutionStartedEvent(-1, action.Input)
             {
-                Tags = OrchestrationTags.MergeTags(action.Tags, runtimeState.Tags),
+                Tags = OrchestrationTags.MergeTags(
+                    runtimeState.Tags,
+                    new Dictionary<string, string>() { { OrchestrationTags.FireAndForget, "" } }),
                 OrchestrationInstance = destination,
                 ParentInstance = new ParentInstance
                 {
@@ -819,10 +821,10 @@ namespace DurableTask.Core
 
         #endregion
 
-        async Task<OperationBatchResult> ExecuteViaMiddlewareAsync(Work workToDoNow, OrchestrationInstance instance, string serializedEntityState)
+        async Task<EntityBatchResult> ExecuteViaMiddlewareAsync(Work workToDoNow, OrchestrationInstance instance, string serializedEntityState)
         {
             // the request object that will be passed to the worker
-            var request = new OperationBatchRequest()
+            var request = new EntityBatchRequest()
             {
                 InstanceId = instance.InstanceId,
                 EntityState = serializedEntityState,
@@ -847,7 +849,7 @@ namespace DurableTask.Core
                 // Check to see if the custom middleware intercepted and substituted the orchestration execution
                 // with its own execution behavior, providing us with the end results. If so, we can terminate
                 // the dispatch pipeline here.
-                var resultFromMiddleware = dispatchContext.GetProperty<OperationBatchResult>();
+                var resultFromMiddleware = dispatchContext.GetProperty<EntityBatchResult>();
                 if (resultFromMiddleware != null)
                 {
                     return;
@@ -873,7 +875,7 @@ namespace DurableTask.Core
                 dispatchContext.SetProperty(result);
             });
 
-            var result = dispatchContext.GetProperty<OperationBatchResult>();
+            var result = dispatchContext.GetProperty<EntityBatchResult>();
 
             this.logHelper.EntityBatchExecuted(request, result);
 
