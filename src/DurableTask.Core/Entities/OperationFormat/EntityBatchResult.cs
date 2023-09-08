@@ -18,7 +18,7 @@ namespace DurableTask.Core.Entities.OperationFormat
     /// <summary>
     /// The results of executing a batch of operations on the entity out of process.
     /// </summary>
-    public class OperationBatchResult
+    public class EntityBatchResult
     {
         // NOTE: Actions must be serializable by a variety of different serializer types to support out-of-process execution.
         //       To ensure maximum compatibility, all properties should be public and settable by default.

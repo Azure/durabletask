@@ -802,10 +802,10 @@ namespace DurableTask.Core
 
         #endregion
 
-        async Task<OperationBatchResult> ExecuteViaMiddlewareAsync(Work workToDoNow, OrchestrationInstance instance, string serializedEntityState)
+        async Task<EntityBatchResult> ExecuteViaMiddlewareAsync(Work workToDoNow, OrchestrationInstance instance, string serializedEntityState)
         {
             // the request object that will be passed to the worker
-            var request = new OperationBatchRequest()
+            var request = new EntityBatchRequest()
             {
                 InstanceId = instance.InstanceId,
                 EntityState = serializedEntityState,
@@ -830,7 +830,7 @@ namespace DurableTask.Core
                 // Check to see if the custom middleware intercepted and substituted the orchestration execution
                 // with its own execution behavior, providing us with the end results. If so, we can terminate
                 // the dispatch pipeline here.
-                var resultFromMiddleware = dispatchContext.GetProperty<OperationBatchResult>();
+                var resultFromMiddleware = dispatchContext.GetProperty<EntityBatchResult>();
                 if (resultFromMiddleware != null)
                 {
                     return;
@@ -856,7 +856,7 @@ namespace DurableTask.Core
                 dispatchContext.SetProperty(result);
             });
 
-            var result = dispatchContext.GetProperty<OperationBatchResult>();
+            var result = dispatchContext.GetProperty<EntityBatchResult>();
 
             this.logHelper.EntityBatchExecuted(request, result);
 
