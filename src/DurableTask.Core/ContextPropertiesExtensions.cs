@@ -11,60 +11,70 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core.Middleware
-{
-    using System.Collections.Generic;
+#nullable enable
 
+using System;
+using System.Collections.Generic;
+
+namespace DurableTask.Core
+{
     /// <summary>
-    /// Context data that can be used to share data between middleware.
+    /// Extension methods that help get properties from <see cref="IContextProperties"/>.
     /// </summary>
-    public class DispatchMiddlewareContext : IContextProperties
+    public static class ContextPropertiesExtensions
     {
         /// <summary>
         /// Sets a property value to the context using the full name of the type as the key.
         /// </summary>
         /// <typeparam name="T">The type of the property.</typeparam>
+        /// <param name="properties">Properties to set property for.</param>
         /// <param name="value">The value of the property.</param>
-        public void SetProperty<T>(T value)
-        {
-            ContextPropertiesExtensions.SetProperty(this, value);
-        }
+        public static void SetProperty<T>(this IContextProperties properties, T? value) => properties.SetProperty(typeof(T).FullName, value);
 
         /// <summary>
         /// Sets a named property value to the context.
         /// </summary>
         /// <typeparam name="T">The type of the property.</typeparam>
+        /// <param name="properties">Properties to set property for.</param>
         /// <param name="key">The name of the property.</param>
         /// <param name="value">The value of the property.</param>
-        public void SetProperty<T>(string key, T value)
+        public static void SetProperty<T>(this IContextProperties properties, string key, T? value)
         {
-            ContextPropertiesExtensions.SetProperty(this, key, value);
+            if (value is null)
+            {
+                properties.Properties.Remove(key);
+            }
+            else
+            {
+                properties.Properties[key] = value;
+            }
         }
 
         /// <summary>
         /// Gets a property value from the context using the full name of <typeparamref name="T"/>.
         /// </summary>
         /// <typeparam name="T">The type of the property.</typeparam>
+        /// <param name="properties">Properties to get property from.</param>
         /// <returns>The value of the property or <c>default(T)</c> if the property is not defined.</returns>
-        public T GetProperty<T>()
-        {
-            return ContextPropertiesExtensions.GetProperty<T>(this);
-        }
+        public static T? GetProperty<T>(this IContextProperties properties) => properties.GetProperty<T>(typeof(T).FullName);
+
+        internal static T GetRequiredProperty<T>(this IContextProperties properties)
+            => properties.GetProperty<T>() ?? throw new InvalidOperationException($"Could not find property for {typeof(T).FullName}");
 
         /// <summary>
         /// Gets a named property value from the context.
         /// </summary>
         /// <typeparam name="T"></typeparam>
+        /// <param name="properties">Properties to get property from.</param>
         /// <param name="key">The name of the property value.</param>
         /// <returns>The value of the property or <c>default(T)</c> if the property is not defined.</returns>
-        public T GetProperty<T>(string key)
-        {
-            return ContextPropertiesExtensions.GetProperty<T>(this, key);
-        }
+        public static T? GetProperty<T>(this IContextProperties properties, string key) => properties.Properties.TryGetValue(key, out object value) ? (T)value : default;
 
         /// <summary>
-        /// Gets a key/value collection that can be used to share data between middleware.
+        /// Gets the tags from the current properties.
         /// </summary>
-        public IDictionary<string, object> Properties { get; } = new PropertiesDictionary();
+        /// <param name="properties"></param>
+        /// <returns></returns>
+        public static IDictionary<string, string> GetTags(this IContextProperties properties) => properties.GetRequiredProperty<OrchestrationExecutionContext>().OrchestrationTags;
     }
 }

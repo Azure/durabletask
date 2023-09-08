@@ -669,7 +669,7 @@ namespace DurableTask.Core
 
             TaskOrchestrationExecutor? executor = null;
 
-            await this.dispatchPipeline.RunAsync(dispatchContext, _ =>
+            await this.dispatchPipeline.RunAsync(dispatchContext, dispatchContext =>
             {
                 // Check to see if the custom middleware intercepted and substituted the orchestration execution
                 // with its own execution behavior, providing us with the end results. If so, we can terminate
@@ -680,7 +680,7 @@ namespace DurableTask.Core
                     return CompletedTask;
                 }
 
-                if (taskOrchestration == null)
+                if (dispatchContext.GetProperty<TaskOrchestration>() is null)
                 {
                     throw TraceHelper.TraceExceptionInstance(
                         TraceEventType.Error,
@@ -690,8 +690,7 @@ namespace DurableTask.Core
                 }
 
                 executor = new TaskOrchestrationExecutor(
-                    runtimeState,
-                    taskOrchestration,
+                    dispatchContext,
                     this.orchestrationService.EventBehaviourForContinueAsNew,
                     this.errorPropagationMode);
                 OrchestratorExecutionResult resultFromOrchestrator = executor.Execute();

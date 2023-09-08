@@ -44,8 +44,11 @@ namespace DurableTask.Core
             continueAsNew.CarryoverEvents.Add(he);
         }
 
+        public override IDictionary<string, object> Properties { get; }
+
         public TaskOrchestrationContext(
             OrchestrationInstance orchestrationInstance,
+            IContextProperties properties,
             TaskScheduler taskScheduler,
             ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
         {
@@ -60,6 +63,7 @@ namespace DurableTask.Core
             IsReplaying = false;
             ErrorPropagationMode = errorPropagationMode;
             this.eventsWhileSuspended = new Queue<HistoryEvent>();
+            Properties = properties.Properties;
         }
 
         public IEnumerable<OrchestratorAction> OrchestratorActions => this.orchestratorActionsMap.Values;

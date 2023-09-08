@@ -89,7 +89,7 @@ namespace DurableTask.Core.Tests
             readonly List<TimeSpan> delays = new List<TimeSpan>();
 
             public MockOrchestrationContext(OrchestrationInstance orchestrationInstance, TaskScheduler taskScheduler)
-                : base(orchestrationInstance, taskScheduler)
+                : base(orchestrationInstance, new PropertiesDictionary(), taskScheduler)
             {
                 CurrentUtcDateTime = DateTime.UtcNow;
             }

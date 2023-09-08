@@ -11,26 +11,45 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System.Collections.Generic;
+
 namespace DurableTask.Core
 {
     /// <summary>
     /// Task context
     /// </summary>
-    public class TaskContext
+    public class TaskContext : IContextProperties
     {
         /// <summary>
-        /// Creates a new TaskContext with the supplied OrchestrationInstance
+        /// Creates a new <see cref="TaskContext"/> with the supplied <see cref="Core.OrchestrationInstance"/>
         /// </summary>
         /// <param name="orchestrationInstance"></param>
         public TaskContext(OrchestrationInstance orchestrationInstance)
         {
             OrchestrationInstance = orchestrationInstance;
+            Properties = new PropertiesDictionary();
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="TaskContext"/> with the supplied <see cref="Core.OrchestrationInstance"/> and properties
+        /// </summary>
+        /// <param name="orchestrationInstance"></param>
+        /// <param name="properties"></param>
+        public TaskContext(OrchestrationInstance orchestrationInstance, IDictionary<string, object> properties)
+        {
+            OrchestrationInstance = orchestrationInstance;
+            Properties = properties;
         }
 
         /// <summary>
         /// Gets the OrchestrationInstance for this task context
         /// </summary>
         public OrchestrationInstance OrchestrationInstance { get; private set; }
+
+        /// <summary>
+        /// Gets the properties of the current instance
+        /// </summary>
+        public IDictionary<string, object> Properties { get; }
 
         /// <summary>
         /// Gets or sets a value indicating how to propagate unhandled exception metadata.

@@ -23,12 +23,15 @@ namespace DurableTask.Core
     /// <summary>
     /// Context for an orchestration containing the instance, replay status, orchestration methods and proxy methods
     /// </summary>
-    public abstract class OrchestrationContext
+    public abstract class OrchestrationContext : IContextProperties
     {
         /// <summary>
         /// Used in generating proxy interfaces and classes.
         /// </summary>
         private static readonly ProxyGenerator ProxyGenerator = new ProxyGenerator();
+
+        /// <inheritdoc/>
+        public virtual IDictionary<string, object> Properties { get; } = new Dictionary<string, object>();
 
         /// <summary>
         /// Thread-static variable used to signal whether the calling thread is the orchestrator thread.

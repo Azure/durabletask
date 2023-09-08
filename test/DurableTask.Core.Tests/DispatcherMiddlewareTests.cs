@@ -250,7 +250,7 @@ namespace DurableTask.Core.Tests
         [TestMethod]
         public async Task EnsureSubOrchestrationDispatcherMiddlewareHasAccessToRuntimeState()
         {
-            ConcurrentBag<OrchestrationExecutionContext> capturedContexts = new ConcurrentBag<OrchestrationExecutionContext>(); 
+            ConcurrentBag<OrchestrationExecutionContext> capturedContexts = new ConcurrentBag<OrchestrationExecutionContext>();
 
             for (var i = 0; i < 10; i++)
             {

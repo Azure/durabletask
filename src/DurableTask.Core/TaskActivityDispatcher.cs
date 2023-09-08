@@ -174,7 +174,7 @@ namespace DurableTask.Core
                 ActivityExecutionResult? result;
                 try
                 {
-                    await this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
+                    await this.dispatchPipeline.RunAsync(dispatchContext, async dispatchContext =>
                     {
                         if (taskActivity == null)
                         {
@@ -185,7 +185,7 @@ namespace DurableTask.Core
                             throw new TypeMissingException($"TaskActivity {scheduledEvent.Name} version {scheduledEvent.Version} was not found");
                         }
 
-                        var context = new TaskContext(taskMessage.OrchestrationInstance);
+                        var context = new TaskContext(taskMessage.OrchestrationInstance, dispatchContext.Properties);
                         context.ErrorPropagationMode = this.errorPropagationMode;
 
                         HistoryEvent? responseEvent;
