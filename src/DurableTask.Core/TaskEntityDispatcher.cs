@@ -258,6 +258,7 @@ namespace DurableTask.Core
                                 ErrorMessage = "entity dispatch failed",
                                 FailureDetails = result.FailureDetails,
                             };
+
                             for (int i = operationResults.Count; i < workToDoNow.OperationCount; i++)
                             {
                                 operationResults.Add(errorResult);
