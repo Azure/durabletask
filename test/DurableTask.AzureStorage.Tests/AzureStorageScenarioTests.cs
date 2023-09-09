@@ -1534,6 +1534,27 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        [TestMethod]
+        public async Task TagsAreAvailableInOrchestrationState()
+        {
+            const string TagMessage = "message";
+            const string Tag = "tag";
+
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false, fetchLargeMessages: true);
+            await host.StartAsync();
+            var tags = new Dictionary<string, string> { { Tag, TagMessage } };
+            var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), "Hello, world!", tags: tags);
+            var statuses = await client.GetStateAsync(client.InstanceId);
+            var status = statuses.Single();
+
+            Assert.IsNotNull(status.Tags);
+            Assert.AreEqual(1, status.Tags.Count);
+            Assert.IsTrue(status.Tags.TryGetValue(Tag, out string actualMessage));
+            Assert.AreEqual(TagMessage, actualMessage);
+
+            await host.StopAsync();
+        }
+
         /// <summary>
         /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
         /// </summary>

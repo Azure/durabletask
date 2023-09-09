@@ -18,6 +18,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
     using System.Threading.Tasks;
     using DurableTask.AzureServiceFabric.Exceptions;
     using DurableTask.Core;
+    using DurableTask.Core.Exceptions;
     using DurableTask.Test.Orchestrations.Performance;
 
     using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -370,6 +371,24 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
 
             result = await this.taskHubClient.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(2));
             Assert.AreEqual(OrchestrationStatus.Completed, result.OrchestrationStatus);
+        }
+
+        [TestMethod]
+        [ExpectedException(typeof(OrchestrationAlreadyExistsException))]
+        public async Task Duplicate_Orchestration_Instance_Fails_With_OrchestrationAlreadyExistsException()
+        {
+            var instanceId = nameof(Duplicate_Orchestration_Instance_Fails_With_OrchestrationAlreadyExistsException);
+            var input = new TestOrchestrationData()
+            {
+                NumberOfParallelTasks = 0,
+                NumberOfSerialTasks = 1,
+                MaxDelay = 15,
+                MinDelay = 15,
+                DelayUnit = TimeSpan.FromSeconds(1),
+            };
+
+            var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), instanceId, input);
+            var instance2 = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), instanceId, input);
         }
 
         [TestMethod]
