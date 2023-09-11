@@ -30,13 +30,13 @@ namespace DurableTask.Core.Entities.EventFormat
         public FailureDetails? FailureDetails { get; set; }
 
         [IgnoreDataMember]
-        public bool IsErrorResult => this.ErrorMessage != null;
+        public bool IsErrorResult => this.ErrorMessage != null || this.FailureDetails != null;
 
         public override string GetShortDescription()
         {
             if (this.IsErrorResult)
             {
-                return $"[OperationFailed {this.ErrorMessage} {this.FailureDetails}]";
+                return $"[OperationFailed {this.FailureDetails?.ErrorMessage ?? this.ErrorMessage}]";
             }
             else if (this.Result == LockAcquisitionCompletion)
             {

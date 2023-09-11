@@ -250,12 +250,15 @@ namespace DurableTask.Core
 
                         // if we encountered an error, record it as the result of the operations
                         // so that callers are notified that the operation did not succeed.
-                        if (result.FailureDetails != default(FailureDetails))
+                        if (result.FailureDetails != null)
                         {
                             OperationResult errorResult = new OperationResult()
                             {
-                                Result = null,
+                                // for older SDKs only
+                                Result = result.FailureDetails.ErrorMessage,
                                 ErrorMessage = "entity dispatch failed",
+
+                                // for newer SDKs only
                                 FailureDetails = result.FailureDetails,
                             };
 
