@@ -54,12 +54,13 @@ namespace DurableTask.Core
     /// <typeparam name="TResult">Output type of the activity</typeparam>
     public abstract class AsyncTaskActivity<TInput, TResult> : TaskActivity
     {
+        private DataConverter dataConverter;
+
         /// <summary>
         /// Creates a new AsyncTaskActivity with the default DataConverter
         /// </summary>
         protected AsyncTaskActivity()
         {
-            DataConverter = JsonDataConverter.Default;
         }
 
         /// <summary>
@@ -68,13 +69,22 @@ namespace DurableTask.Core
         /// <param name="dataConverter"></param>
         protected AsyncTaskActivity(DataConverter dataConverter)
         {
-            DataConverter = dataConverter ?? JsonDataConverter.Default;
+            this.dataConverter = dataConverter;
         }
 
         /// <summary>
         /// The DataConverter to use for input and output serialization/deserialization
         /// </summary>
-        public DataConverter DataConverter { get; protected set; }
+        public DataConverter DataConverter
+        {
+            get => dataConverter ?? JsonDataConverter.Default;
+            set => dataConverter = value;
+        }
+
+        private DataConverter GetDataConverter(TaskContext context)
+        {
+            return context.GetProperty<DataConverter>() ?? DataConverter;
+        }
 
         /// <summary>
         /// Synchronous execute method, blocked for AsyncTaskActivity
@@ -102,6 +112,7 @@ namespace DurableTask.Core
         /// <returns>Serialized output from the execution</returns>
         public override async Task<string> RunAsync(TaskContext context, string input)
         {
+            var converter = GetDataConverter(context);
             TInput parameter = default(TInput);
 
             var jArray = Utils.ConvertToJArray(input);
@@ -112,7 +123,7 @@ namespace DurableTask.Core
                 throw new TaskFailureException(
                     "TaskActivity implementation cannot be invoked due to more than expected input parameters.  Signature mismatch.");
             }
-            
+
             if (parameterCount == 1)
             {
                 JToken jToken = jArray[0];
@@ -123,7 +134,7 @@ namespace DurableTask.Core
                 else
                 {
                     string serializedValue = jToken.ToString();
-                    parameter = DataConverter.Deserialize<TInput>(serializedValue);
+                    parameter = converter.Deserialize<TInput>(serializedValue);
                 }
             }
 
@@ -138,7 +149,7 @@ namespace DurableTask.Core
                 FailureDetails failureDetails = null;
                 if (context.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions)
                 {
-                    details = Utils.SerializeCause(e, DataConverter);
+                    details = Utils.SerializeCause(e, converter);
                 }
                 else
                 {
@@ -149,7 +160,7 @@ namespace DurableTask.Core
                     .WithFailureDetails(failureDetails);
             }
 
-            string serializedResult = DataConverter.Serialize(result);
+            string serializedResult = converter.Serialize(result);
             return serializedResult;
         }
     }

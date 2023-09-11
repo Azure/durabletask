@@ -68,18 +68,28 @@ namespace DurableTask.Core
     /// <typeparam name="TStatus">Output Type for GetStatus calls</typeparam>
     public abstract class TaskOrchestration<TResult, TInput, TEvent, TStatus> : TaskOrchestration
     {
+        private DataConverter dataConverter;
+
         /// <summary>
         /// Creates a new TaskOrchestration with the default DataConverter
         /// </summary>
         protected TaskOrchestration()
         {
-            DataConverter = JsonDataConverter.Default;
         }
 
         /// <summary>
         /// The DataConverter to use for input and output serialization/deserialization
         /// </summary>
-        public DataConverter DataConverter { get; protected set; }
+        public DataConverter DataConverter
+        {
+            get => dataConverter ?? JsonDataConverter.Default;
+            protected set => dataConverter = value;
+        }
+
+        private DataConverter GetConverter(OrchestrationContext context)
+        {
+            return context.GetProperty<DataConverter>() ?? dataConverter;
+        }
 
         /// <summary>
         /// Method for executing an orchestration based on the context and serialized input
@@ -89,7 +99,9 @@ namespace DurableTask.Core
         /// <returns>Serialized output from the execution</returns>
         public override async Task<string> Execute(OrchestrationContext context, string input)
         {
-            var parameter = DataConverter.Deserialize<TInput>(input);
+            var converter = GetConverter(context);
+
+            var parameter = converter.Deserialize<TInput>(input);
             TResult result;
             try
             {
@@ -101,7 +113,7 @@ namespace DurableTask.Core
                 FailureDetails failureDetails = null;
                 if (context.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions)
                 {
-                    details = Utils.SerializeCause(e, DataConverter);
+                    details = Utils.SerializeCause(e, converter);
                 }
                 else
                 {
@@ -114,7 +126,7 @@ namespace DurableTask.Core
                 };
             }
 
-            return DataConverter.Serialize(result);
+            return converter.Serialize(result);
         }
 
         /// <summary>
@@ -125,7 +137,7 @@ namespace DurableTask.Core
         /// <param name="input">The serialized input</param>
         public override void RaiseEvent(OrchestrationContext context, string name, string input)
         {
-            var parameter = DataConverter.Deserialize<TEvent>(input);
+            var parameter = GetConverter(context).Deserialize<TEvent>(input);
             OnEvent(context, name, parameter);
         }
 

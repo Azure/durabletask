@@ -24,6 +24,7 @@ namespace DurableTask.Core
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.Logging;
     using DurableTask.Core.Middleware;
+    using DurableTask.Core.Serializing;
     using Microsoft.Extensions.Logging;
 
     /// <summary>
@@ -178,17 +179,20 @@ namespace DurableTask.Core
 
                 this.logHelper.TaskHubWorkerStarting();
                 var sw = Stopwatch.StartNew();
+                var defaultSerializer = JsonDataConverter.Default; // TODO: Can we get this from the TaskHubClient?
 
                 this.orchestrationDispatcher = new TaskOrchestrationDispatcher(
                     this.orchestrationService,
                     this.orchestrationManager,
                     this.orchestrationDispatchPipeline,
+                    defaultSerializer,
                     this.logHelper,
                     this.ErrorPropagationMode);
                 this.activityDispatcher = new TaskActivityDispatcher(
                     this.orchestrationService,
                     this.activityManager,
                     this.activityDispatchPipeline,
+                    defaultSerializer,
                     this.logHelper,
                     this.ErrorPropagationMode);
 

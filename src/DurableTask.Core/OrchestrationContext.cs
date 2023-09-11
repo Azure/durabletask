@@ -45,7 +45,7 @@ namespace DurableTask.Core
         /// </summary>
         public JsonDataConverter MessageDataConverter
         {
-            get => this.GetProperty<JsonDataConverter>(nameof(MessageDataConverter)) ?? JsonDataConverter.Default;
+            get => this.GetProperty<JsonDataConverter>(nameof(MessageDataConverter)) ?? this.GetProperty<JsonDataConverter>() ?? JsonDataConverter.Default;
             set => this.SetProperty<JsonDataConverter>(nameof(MessageDataConverter), value);
         }
 
@@ -54,7 +54,7 @@ namespace DurableTask.Core
         /// </summary>
         public JsonDataConverter ErrorDataConverter
         {
-            get => this.GetProperty<JsonDataConverter>(nameof(ErrorDataConverter)) ?? JsonDataConverter.Default;
+            get => this.GetProperty<JsonDataConverter>(nameof(ErrorDataConverter)) ?? this.GetProperty<JsonDataConverter>() ?? JsonDataConverter.Default;
             set => this.SetProperty<JsonDataConverter>(nameof(ErrorDataConverter), value);
         }
 

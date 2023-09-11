@@ -22,6 +22,7 @@ namespace DurableTask.Core
     using DurableTask.Core.History;
     using DurableTask.Core.Logging;
     using DurableTask.Core.Middleware;
+    using DurableTask.Core.Serializing;
     using DurableTask.Core.Tracing;
 
     /// <summary>
@@ -33,6 +34,7 @@ namespace DurableTask.Core
         readonly WorkItemDispatcher<TaskActivityWorkItem> dispatcher;
         readonly IOrchestrationService orchestrationService;
         readonly DispatchMiddlewarePipeline dispatchPipeline;
+        readonly JsonDataConverter dataConverter;
         readonly LogHelper logHelper;
         readonly ErrorPropagationMode errorPropagationMode;
 
@@ -40,12 +42,14 @@ namespace DurableTask.Core
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskActivity> objectManager,
             DispatchMiddlewarePipeline dispatchPipeline,
+            JsonDataConverter dataConverter,
             LogHelper logHelper,
             ErrorPropagationMode errorPropagationMode)
         {
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
             this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
+            this.dataConverter = dataConverter;
             this.logHelper = logHelper;
             this.errorPropagationMode = errorPropagationMode;
 
@@ -157,6 +161,8 @@ namespace DurableTask.Core
                 dispatchContext.SetProperty(taskMessage.OrchestrationInstance);
                 dispatchContext.SetProperty(taskActivity);
                 dispatchContext.SetProperty(scheduledEvent);
+                dispatchContext.SetProperty<JsonDataConverter>(dataConverter);
+                dispatchContext.SetProperty<DataConverter>(dataConverter);
 
                 // In transitionary phase (activity queued from old code, accessed in new code) context can be null.
                 if (taskMessage.OrchestrationExecutionContext != null)
