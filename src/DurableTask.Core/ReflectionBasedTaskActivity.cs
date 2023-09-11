@@ -38,7 +38,6 @@ namespace DurableTask.Core
         /// <param name="methodInfo">The Reflection.methodInfo for invoking the method on the activity object</param>
         public ReflectionBasedTaskActivity(object activityObject, MethodInfo methodInfo)
         {
-            DataConverter = JsonDataConverter.Default;
             ActivityObject = activityObject;
             MethodInfo = methodInfo;
             genericArguments = methodInfo.GetGenericArguments();
@@ -47,10 +46,15 @@ namespace DurableTask.Core
         /// <summary>
         /// The DataConverter to use for input and output serialization/deserialization
         /// </summary>
-        public DataConverter DataConverter
+        public DataConverter DataConverter2
         {
-            get => dataConverter;
+            get => dataConverter ?? JsonDataConverter.Default;
             set => dataConverter = value ?? throw new ArgumentNullException(nameof(value));
+        }
+
+        private DataConverter GetConverter(TaskContext context)
+        {
+            return dataConverter ?? context.GetProperty<DataConverter>();
         }
 
         /// <summary>
@@ -81,6 +85,7 @@ namespace DurableTask.Core
         /// <returns>Serialized output from the execution</returns>
         public override async Task<string> RunAsync(TaskContext context, string input)
         {
+            var converter = GetConverter(context);
             var jArray = Utils.ConvertToJArray(input);
 
             int parameterCount = jArray.Count - this.genericArguments.Length;
@@ -93,7 +98,7 @@ namespace DurableTask.Core
             }
 
             Type[] genericTypeArguments = this.GetGenericTypeArguments(jArray);
-            object[] inputParameters = this.GetInputParameters(jArray, parameterCount, methodParameters, genericTypeArguments);
+            object[] inputParameters = this.GetInputParameters(jArray, parameterCount, methodParameters, genericTypeArguments, converter);
 
             string serializedReturn = string.Empty;
             Exception exception = null;
@@ -108,7 +113,7 @@ namespace DurableTask.Core
 
                         Type returnType = Utils.GetGenericReturnType(this.MethodInfo, genericTypeArguments);
                         PropertyInfo resultProperty = typeof(Task<>).MakeGenericType(returnType).GetProperty("Result");
-                        serializedReturn = this.DataConverter.Serialize(resultProperty.GetValue(invocationTask));
+                        serializedReturn = converter.Serialize(resultProperty.GetValue(invocationTask));
                     }
                     else
                     {
@@ -118,7 +123,7 @@ namespace DurableTask.Core
                 }
                 else
                 {
-                    serializedReturn = DataConverter.Serialize(invocationResult);
+                    serializedReturn = converter.Serialize(invocationResult);
                 }
             }
             catch (TargetInvocationException e)
@@ -136,7 +141,7 @@ namespace DurableTask.Core
                 FailureDetails failureDetails = null;
                 if (context.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions)
                 {
-                    details = Utils.SerializeCause(exception, DataConverter);
+                    details = Utils.SerializeCause(exception, converter);
                 }
                 else
                 {
@@ -194,7 +199,7 @@ namespace DurableTask.Core
             return genericParameters.ToArray();
         }
 
-        private object[] GetInputParameters(JArray jArray, int parameterCount, ParameterInfo[] methodParameters, Type[] genericArguments)
+        private object[] GetInputParameters(JArray jArray, int parameterCount, ParameterInfo[] methodParameters, Type[] genericArguments, DataConverter converter)
         {
             var inputParameters = new object[methodParameters.Length];
             for (var i = 0; i < methodParameters.Length; i++)
@@ -214,7 +219,7 @@ namespace DurableTask.Core
                     else
                     {
                         string serializedValue = jToken.ToString();
-                        inputParameters[i] = this.DataConverter.Deserialize(serializedValue, parameterType);
+                        inputParameters[i] = converter.Deserialize(serializedValue, parameterType);
                     }
                 }
                 else

@@ -88,7 +88,7 @@ namespace DurableTask.Core
 
         private DataConverter GetConverter(OrchestrationContext context)
         {
-            return context.GetProperty<DataConverter>() ?? dataConverter;
+            return dataConverter ?? context.GetProperty<DataConverter>();
         }
 
         /// <summary>

@@ -83,7 +83,7 @@ namespace DurableTask.Core
 
         private DataConverter GetDataConverter(TaskContext context)
         {
-            return context.GetProperty<DataConverter>() ?? DataConverter;
+            return DataConverter ?? context.GetProperty<DataConverter>();
         }
 
         /// <summary>
