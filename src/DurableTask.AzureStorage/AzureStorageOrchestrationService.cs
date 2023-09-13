@@ -289,7 +289,6 @@ namespace DurableTask.AzureStorage
                MaxConcurrentTaskEntityWorkItems = this.settings.MaxConcurrentTaskEntityWorkItems,
                SupportsImplicitEntityDeletion = false, // not supported by this backend
                MaximumSignalDelayTime = TimeSpan.FromDays(6),
-               ExludeEntitiesFromOrchestrationQueries = this.settings.UseSeparateQueriesForEntities, // TODO remove entities from orchestration queries if this is true
                UseSeparateQueueForEntityWorkItems = this.settings.UseSeparateQueueForEntityWorkItems,
            };
 
@@ -2105,6 +2104,7 @@ namespace DurableTask.AzureStorage
                 TaskHubNames = condition.TaskHubNames,
                 InstanceIdPrefix = condition.InstanceIdPrefix,
                 FetchInput = condition.FetchInputsAndOutputs,
+                ExcludeEntities = condition.ExcludeEntities,
             };
         }
 

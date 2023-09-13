@@ -58,11 +58,6 @@ namespace DurableTask.Core.Entities
         public bool UseSeparateQueueForEntityWorkItems { get; set; }
 
         /// <summary>
-        /// Gets or sets whether entities should be excluded from orchestration queries.
-        /// </summary>
-        public bool ExludeEntitiesFromOrchestrationQueries { get; set; }
-
-        /// <summary>
         /// A utility function to compute a cap on the scheduled time of an entity signal, based on the value of
         /// <see cref="MaximumSignalDelayTime"/>.
         /// </summary>

@@ -70,6 +70,7 @@ namespace DurableTask.AzureStorage
                 CreatedTimeTo = filter.LastModifiedTo ?? default(DateTime),
                 FetchInput = filter.IncludeState,
                 FetchOutput = false,
+                ExcludeEntities = false,
             };
 
             await this.ensureTaskHub();
@@ -124,6 +125,7 @@ namespace DurableTask.AzureStorage
                 InstanceIdPrefix = "@",
                 FetchInput = false,
                 FetchOutput = false,
+                ExcludeEntities = false,
             };
 
             await this.ensureTaskHub();
