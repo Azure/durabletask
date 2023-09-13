@@ -1228,7 +1228,7 @@ namespace DurableTask.Core.Logging
                 this.InstanceId = request.InstanceId;
                 this.OperationCount = request.Operations.Count;
                 this.ResultCount = result.Results.Count;
-                this.ErrorCount = result.Results.Count(x => x.ErrorMessage != null);
+                this.ErrorCount = result.Results.Count(x => x.IsError);
                 this.ActionCount = result.Actions.Count;
                 this.EntityStateLength = request.EntityState?.Length ?? 0;
             }

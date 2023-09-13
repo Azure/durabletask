@@ -23,19 +23,27 @@ namespace DurableTask.Core.Entities.OperationFormat
 
         /// <summary>
         /// The serialized result returned by the operation. Can be null, if the operation returned no result.
-        /// May contain error details, such as a serialized exception, if <see cref="ErrorMessage"/> is not null.
+        /// May contain error details, such as a serialized exception, if <see cref="IsError"/> is true.
         /// </summary>
         public string? Result { get; set; }
 
         /// <summary>
+        /// Whether this operation completed successfully.
+        /// </summary>
+        public bool IsError
+            => this.ErrorMessage != null || this.FailureDetails != null;
+
+        /// <summary>
         /// If non-null, this string indicates that this operation did not successfully complete. 
-        /// The actual content and its interpretation varies depending on the SDK used. 
+        /// The content and interpretation varies depending on the SDK used. For newer SDKs,
+        /// we rely on the <see cref="FailureDetails"/> instead.
         /// </summary>
         public string? ErrorMessage { get; set; }
 
         /// <summary>
         /// A structured language-independent representation of the error. Whether this field is present
-        /// depends on which SDK is used, and on configuration settings.
+        /// depends on which SDK is used, and on configuration settings. For newer SDKs, we use
+        /// this field exclusively when collecting error information.
         /// </summary>
         public FailureDetails? FailureDetails { get; set; }
     }
