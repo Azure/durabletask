@@ -14,6 +14,7 @@
 namespace DurableTask.Core.Entities
 {
     using System;
+    using System.Threading;
 
     /// <summary>
     /// Entity processing characteristics that are controlled by the backend provider, i.e. the orchestration service.
@@ -48,7 +49,11 @@ namespace DurableTask.Core.Entities
         public TimeSpan MaximumSignalDelayTime { get; set; }
 
         /// <summary>
-        /// Gets or sets whether the backend uses separate work item queues for entities and orchestrators.
+        /// Gets or sets whether the backend uses separate work item queues for entities and orchestrators. If true,
+        /// the frontend must use <see cref="IEntityOrchestrationService.LockNextEntityWorkItemAsync(TimeSpan, CancellationToken)"/> and
+        /// <see cref="IEntityOrchestrationService.LockNextOrchestrationWorkItemAsync(TimeSpan, CancellationToken)"/>
+        /// to fetch entities and orchestrations. Otherwise, it must use fetch both work items using 
+        /// <see cref="IOrchestrationService.LockNextTaskOrchestrationWorkItemAsync(TimeSpan, CancellationToken)"/>.
         /// </summary>
         public bool UseSeparateQueueForEntityWorkItems { get; set; }
 
@@ -58,7 +63,8 @@ namespace DurableTask.Core.Entities
         public bool ExludeEntitiesFromOrchestrationQueries { get; set; }
 
         /// <summary>
-        /// A utility function to compute a cap on the scheduled time of an entity signal, based on the maximum signal delay time
+        /// A utility function to compute a cap on the scheduled time of an entity signal, based on the value of
+        /// <see cref="MaximumSignalDelayTime"/>.
         /// </summary>
         /// <param name="nowUtc">The current time.</param>
         /// <param name="scheduledUtcTime">The scheduled time.</param>

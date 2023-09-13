@@ -67,7 +67,8 @@ namespace DurableTask.Core.Entities
             public DateTime LastModifiedTime { get; set; }
 
             /// <summary>
-            /// Gets or sets the serialized state for this entity.
+            /// Gets or sets the serialized state for this entity. Can be null if the query
+            /// specified to not include the state, or to include deleted entities.
             /// </summary>
             public string? SerializedState { get; set; }
         }
