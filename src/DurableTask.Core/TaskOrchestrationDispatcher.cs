@@ -58,7 +58,7 @@ namespace DurableTask.Core
             this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
             this.logHelper = logHelper ?? throw new ArgumentNullException(nameof(logHelper));
             this.errorPropagationMode = errorPropagationMode;
-            this.entityOrchestrationService = entityOrchestrationService as IEntityOrchestrationService;
+            this.entityOrchestrationService = orchestrationService as IEntityOrchestrationService;
             this.entityBackendProperties = this.entityOrchestrationService?.EntityBackendProperties;
 
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(

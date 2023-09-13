@@ -25,14 +25,15 @@ namespace DurableTask.Core.Entities
         /// <summary>
         /// Properties of the backend.
         /// </summary>
-        /// <returns>An object containing properties of the entity backend.</returns>
-        EntityBackendProperties EntityBackendProperties { get; }
+        /// <returns>An object containing properties of the entity backend, or null if the backend does not natively support entities.</returns>
+        EntityBackendProperties? EntityBackendProperties { get; }
 
         /// <summary>
         /// Support for entity queries.
         /// </summary>
-        /// <returns>An object that can be used to issue entity queries to the orchestration service.</returns>
-        EntityBackendQueries EntityBackendQueries { get; }
+        /// <returns>An object that can be used to issue entity queries to the orchestration service, or null if the backend does not natively
+        /// support entity queries.</returns>
+        EntityBackendQueries? EntityBackendQueries { get; }
 
         /// <summary>
         /// Specialized variant of <see cref="IOrchestrationService.LockNextTaskOrchestrationWorkItemAsync(TimeSpan, CancellationToken)"/> that
