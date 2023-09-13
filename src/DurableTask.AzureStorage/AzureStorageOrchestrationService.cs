@@ -306,9 +306,9 @@ namespace DurableTask.AzureStorage
           TimeSpan receiveTimeout,
           CancellationToken cancellationToken)
         {
-            if (this.settings.UseSeparateQueueForEntityWorkItems)
+            if (!this.settings.UseSeparateQueueForEntityWorkItems)
             {
-                throw new InvalidOperationException("backend was configured for separate orchestation/entity processing, must use specialized methods to get work items");
+                throw new InvalidOperationException("backend was not configured for separate entity processing");
             }
             return this.LockNextTaskOrchestrationWorkItemAsync(false, cancellationToken);
         }
@@ -678,6 +678,10 @@ namespace DurableTask.AzureStorage
             TimeSpan receiveTimeout,
             CancellationToken cancellationToken)
         {
+            if (this.settings.UseSeparateQueueForEntityWorkItems)
+            {
+                throw new InvalidOperationException("backend was configured for separate orchestration/entity processing, must use specialized methods to get work items");
+            }
             return LockNextTaskOrchestrationWorkItemAsync(entitiesOnly: false, cancellationToken);
         }
 
