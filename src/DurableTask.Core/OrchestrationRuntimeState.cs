@@ -18,6 +18,7 @@ namespace DurableTask.Core
     using System.Diagnostics;
     using DurableTask.Core.Common;
     using DurableTask.Core.History;
+    using DurableTask.Core.Logging;
     using DurableTask.Core.Tracing;
 
     /// <summary>
@@ -185,6 +186,14 @@ namespace DurableTask.Core
             this.ExecutionStartedEvent != null;
 
         /// <summary>
+        /// Gets or sets a LogHelper instance that can be used to log messages.
+        /// </summary>
+        /// <remarks>
+        /// Ideally, this would be set in the constructor but that would require a larger refactoring.
+        /// </remarks>
+        internal LogHelper? LogHelper { get; set; } = null;
+
+        /// <summary>
         /// Adds a new history event to the Events list and NewEvents list
         /// </summary>
         /// <param name="historyEvent">The new history event to add</param>
@@ -264,9 +273,7 @@ namespace DurableTask.Core
                 {
                     // It's not generally expected to receive multiple execution completed events for a given orchestrator, but it's possible under certain race conditions.
                     // For example: when an orchestrator is signaled to terminate at the same time as it attempts to continue-as-new.
-                    var log = $"The orchestration '{this.OrchestrationInstance?.InstanceId ?? ""}' " +
-                        $"had already received an 'ExecutionCompletedEvent' with EventId={ExecutionCompletedEvent.EventId} " +
-                        $"and orchestrationStatus={orchestrationStatus} but is now receiving a new one with id={completedEvent.EventId} and orchestrationStatus={completedEvent.OrchestrationStatus}. ";
+                    var log = $"Ignoring {completedEvent.GetType().Name} event since the orchestration is already in the {orchestrationStatus} state.";
                     
                     if (orchestrationStatus == OrchestrationStatus.ContinuedAsNew && completedEvent.OrchestrationStatus == OrchestrationStatus.Terminated)
                     {
@@ -282,7 +289,7 @@ namespace DurableTask.Core
                         log += "Discarding new 'ExecutionCompletedEvent'.";
                     }
 
-                    TraceHelper.Trace(TraceEventType.Warning, "OrchestrationRuntimeState-DuplicateEvent", log);
+                    LogHelper?.OrchestrationDebugTrace(this.OrchestrationInstance?.InstanceId ?? "", this.OrchestrationInstance?.ExecutionId ?? "", log);
                 }
 
             }

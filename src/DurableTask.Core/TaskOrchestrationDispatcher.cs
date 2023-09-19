@@ -296,6 +296,7 @@ namespace DurableTask.Core
             IList<HistoryEvent>? carryOverEvents = null;
             string? carryOverStatus = null;
 
+            workItem.OrchestrationRuntimeState.LogHelper = this.logHelper;
             OrchestrationRuntimeState runtimeState = workItem.OrchestrationRuntimeState;
 
             runtimeState.AddEvent(new OrchestratorStartedEvent(-1));

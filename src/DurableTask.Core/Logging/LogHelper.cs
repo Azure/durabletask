@@ -678,6 +678,14 @@ namespace DurableTask.Core.Logging
         }
         #endregion
 
+        internal void OrchestrationDebugTrace(string instanceId, string executionId, string details)
+        {
+            if (this.IsStructuredLoggingEnabled)
+            {
+                this.WriteStructuredLog(new LogEvents.OrchestrationDebugTrace(instanceId, executionId, details));
+            }
+        }
+
         void WriteStructuredLog(ILogEvent logEvent, Exception? exception = null)
         {
             this.log?.LogDurableEvent(logEvent, exception);

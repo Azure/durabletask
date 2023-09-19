@@ -865,5 +865,25 @@ namespace DurableTask.Core.Logging
                     ExtensionVersion);
             }
         }
+
+        [Event(EventIds.OrchestrationDebugTrace, Level = EventLevel.Verbose, Version = 1)]
+        internal void OrchestrationDebugTrace(
+            string InstanceId,
+            string ExecutionId,
+            string Details,
+            string AppName,
+            string ExtensionVersion)
+        {
+            if (this.IsEnabled(EventLevel.Verbose))
+            {
+                this.WriteEvent(
+                    EventIds.OrchestrationDebugTrace,
+                    InstanceId,
+                    ExecutionId,
+                    Details,
+                    AppName,
+                    ExtensionVersion);
+            }
+        }
     }
 }
