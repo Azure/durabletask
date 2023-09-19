@@ -295,8 +295,7 @@ namespace DurableTask.AzureStorage
         EntityBackendQueries IEntityOrchestrationService.EntityBackendQueries
            => new EntityTrackingStoreQueries(
                 this.messageManager,
-                (this.trackingStore as AzureTableTrackingStore)
-                    ?? throw new NotSupportedException("entity queries not supported for custom tracking stores"),
+                this.trackingStore,
                 this.EnsureTaskHubAsync,
                 ((IEntityOrchestrationService)this).EntityBackendProperties,
                 this.SendTaskOrchestrationMessageAsync);
@@ -307,7 +306,7 @@ namespace DurableTask.AzureStorage
         {
             if (!this.settings.UseSeparateQueueForEntityWorkItems)
             {
-                throw new InvalidOperationException("backend was not configured for separate entity processing");
+                throw new InvalidOperationException("Internal configuration is inconsistent. Backend is using single queue for orchestration/entity dispatch, but frontend is pulling from individual queues.");
             }
             return this.LockNextTaskOrchestrationWorkItemAsync(false, cancellationToken);
         }
@@ -318,7 +317,7 @@ namespace DurableTask.AzureStorage
         {
             if (!this.settings.UseSeparateQueueForEntityWorkItems)
             {
-                throw new InvalidOperationException("backend was not configured for separate entity processing");
+                throw new InvalidOperationException("Internal configuration is inconsistent. Backend is using single queue for orchestration/entity dispatch, but frontend is pulling from individual queues.");
             }
             return this.LockNextTaskOrchestrationWorkItemAsync(entitiesOnly: true, cancellationToken);
         }
@@ -679,7 +678,7 @@ namespace DurableTask.AzureStorage
         {
             if (this.settings.UseSeparateQueueForEntityWorkItems)
             {
-                throw new InvalidOperationException("backend was configured for separate orchestration/entity processing, must use specialized methods to get work items");
+                throw new InvalidOperationException("Internal configuration is inconsistent. Backend is using separate queues for orchestration/entity dispatch, but frontend is pulling from single queue.");
             }
             return LockNextTaskOrchestrationWorkItemAsync(entitiesOnly: false, cancellationToken);
         }

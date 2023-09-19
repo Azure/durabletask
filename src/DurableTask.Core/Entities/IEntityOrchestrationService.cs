@@ -23,9 +23,9 @@ namespace DurableTask.Core.Entities
     public interface IEntityOrchestrationService : IOrchestrationService
     {
         /// <summary>
-        /// Properties of the backend.
+        /// Properties of the backend implementation and configuration, as related to the new entity support in DurableTask.Core.
         /// </summary>
-        /// <returns>An object containing properties of the entity backend, or null if the backend does not natively support entities.</returns>
+        /// <returns>An object containing properties of the entity backend, or null if the backend does not natively support DurableTask.Core entities.</returns>
         EntityBackendProperties? EntityBackendProperties { get; }
 
         /// <summary>

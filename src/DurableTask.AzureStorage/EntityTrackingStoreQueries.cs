@@ -28,7 +28,7 @@ namespace DurableTask.AzureStorage
     class EntityTrackingStoreQueries : EntityBackendQueries
     {
         readonly MessageManager messageManager;
-        readonly AzureTableTrackingStore trackingStore;
+        readonly ITrackingStore trackingStore;
         readonly Func<Task> ensureTaskHub;
         readonly EntityBackendProperties properties;
         readonly Func<TaskMessage, Task> sendEvent;
@@ -37,7 +37,7 @@ namespace DurableTask.AzureStorage
 
         public EntityTrackingStoreQueries(
             MessageManager messageManager,
-            AzureTableTrackingStore trackingStore, 
+            ITrackingStore trackingStore, 
             Func<Task> ensureTaskHub,
             EntityBackendProperties properties,
             Func<TaskMessage, Task> sendEvent)
@@ -56,7 +56,7 @@ namespace DurableTask.AzureStorage
             CancellationToken cancellation = default(CancellationToken))
         {
             await this.ensureTaskHub();
-            OrchestrationState? state = (await this.trackingStore.FetchInstanceStatusInternalAsync(id.ToString(), includeState))?.State;
+            OrchestrationState? state = (await this.trackingStore.GetStateAsync(id.ToString(), allExecutions: false, fetchInput: includeState)).FirstOrDefault();
             return await this.GetEntityMetadataAsync(state, includeDeleted, includeState);
         }
 
