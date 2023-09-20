@@ -31,26 +31,35 @@ namespace DurableTask.Core.Tracing
         public DistributedTraceContext(string traceParent, string? traceState = null)
         {
             this.TraceParent = traceParent;
-
-            // The W3C spec allows vendors to truncate the trace state if it exceeds 513 characters,
-            // but it has very specific requirements on HOW trace state can be modified, including
-            // removing whole values, starting with the largest values, and preserving ordering.
-            // Rather than implementing these complex requirements, we take the lazy path of just
-            // truncating the whole thing.
-            this.TraceState = traceState?.Length <= 513 ? traceState : null;
+            this.TraceState = traceState;
         }
 
         /// <summary>
         /// The W3C traceparent data: https://www.w3.org/TR/trace-context/#traceparent-header
         /// </summary>
         [DataMember]
-        public string TraceParent { get; private set; }
+        public string TraceParent { get; set; }
 
         /// <summary>
         /// The optional W3C tracestate parameter: https://www.w3.org/TR/trace-context/#tracestate-header
         /// </summary>
         [DataMember]
-        public string? TraceState { get; set; }
+        public string? TraceState
+        {
+            get
+            {
+                return this.TraceState;
+            }
+            set
+            {
+                // The W3C spec allows vendors to truncate the trace state if it exceeds 513 characters,
+                // but it has very specific requirements on HOW trace state can be modified, including
+                // removing whole values, starting with the largest values, and preserving ordering.
+                // Rather than implementing these complex requirements, we take the lazy path of just
+                // truncating the whole thing.
+                this.TraceState = value?.Length <= 513 ? value : null;
+            }
+        }
 
         /// <summary>
         /// The Activity's Id value that is used to restore an Activity during replays.
