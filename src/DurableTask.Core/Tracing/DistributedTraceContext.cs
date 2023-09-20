@@ -44,7 +44,7 @@ namespace DurableTask.Core.Tracing
         /// The W3C traceparent data: https://www.w3.org/TR/trace-context/#traceparent-header
         /// </summary>
         [DataMember]
-        public string TraceParent { get; }
+        public string TraceParent { get; private set; }
 
         /// <summary>
         /// The optional W3C tracestate parameter: https://www.w3.org/TR/trace-context/#tracestate-header
