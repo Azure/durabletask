@@ -423,7 +423,7 @@ namespace DurableTask.Core.Common
             }
 
             TraceHelper.Trace(TraceEventType.Error, "ExecuteWithRetry-RetriesExhausted", "Exhausted all retries for operation " + operation);
-            TraceHelper.TraceExceptionSession(TraceEventType.Error, "ExecuteWithRetryRetriesExhausted", sessionId, lastException).Throw();
+            TraceHelper.TraceExceptionSession(TraceEventType.Error, "ExecuteWithRetryRetriesExhausted", sessionId, lastException!).Throw();
         }
 
         /// <summary>
@@ -462,7 +462,7 @@ namespace DurableTask.Core.Common
             string eventType = $"ExecuteWithRetry<{typeof(T)}>-Failure";
             TraceHelper.Trace(TraceEventType.Error, eventType, "Exhausted all retries for operation " + operation);
 
-            TraceHelper.TraceExceptionSession(TraceEventType.Error, eventType, sessionId, lastException).Throw();
+            TraceHelper.TraceExceptionSession(TraceEventType.Error, eventType, sessionId, lastException!).Throw();
 
             // This is a noop code since TraceExceptionSession above will rethrow the cached exception however the compiler doesn't see it
             return default(T);

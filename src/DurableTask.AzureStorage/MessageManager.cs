@@ -25,6 +25,7 @@ namespace DurableTask.AzureStorage
     using System.Threading;
     using System.Threading.Tasks;
     using Azure;
+    using Azure.Storage.Blobs.Models;
     using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Storage;
     using Newtonsoft.Json;
@@ -175,39 +176,25 @@ namespace DurableTask.AzureStorage
             return Utils.DeserializeFromJson<MessageData>(this.serializer, json);
         }
 
-        public Task CompressAndUploadAsBytesAsync(byte[] payloadBuffer, string blobName, CancellationToken cancellationToken = default)
+        public async Task CompressAndUploadAsBytesAsync(byte[] payloadBuffer, string blobName, CancellationToken cancellationToken = default)
         {
-            ArraySegment<byte> compressedSegment = this.Compress(payloadBuffer);
-            return this.UploadToBlobAsync(compressedSegment.Array, compressedSegment.Count, blobName, cancellationToken);
-        }
+            await this.EnsureContainerAsync(cancellationToken);
 
-        public ArraySegment<byte> Compress(byte[] payloadBuffer)
-        {
-            using (var originStream = new MemoryStream(payloadBuffer, 0, payloadBuffer.Length))
+            Blob blob = this.blobContainer.GetBlobReference(blobName);
+            using Stream blobStream = await blob.OpenWriteAsync(cancellationToken);
+            using GZipStream compressedBlobStream = new GZipStream(blobStream, CompressionLevel.Optimal);
+            using MemoryStream payloadStream = new MemoryStream(payloadBuffer);
+
+            try
             {
-                using (MemoryStream memory = new MemoryStream())
-                {
-                    using (GZipStream gZipStream = new GZipStream(memory, CompressionLevel.Optimal, leaveOpen: true))
-                    {
-                        byte[] buffer = SimpleBufferManager.Shared.TakeBuffer(DefaultBufferSize);
-                        try
-                        {
-                            int read;
-                            while ((read = originStream.Read(buffer, 0, DefaultBufferSize)) != 0)
-                            {
-                                gZipStream.Write(buffer, 0, read);
-                            }
-
-                            gZipStream.Flush();
-                        }
-                        finally
-                        {
-                            SimpleBufferManager.Shared.ReturnBuffer(buffer);
-                        }
-                    }
-
-                    return new ArraySegment<byte>(memory.GetBuffer(), 0, (int)memory.Length);
-                }
+                // Note: 81920 bytes or 80 KB is the default value used by CopyToAsync
+                await payloadStream.CopyToAsync(compressedBlobStream, bufferSize: 81920, cancellationToken: cancellationToken);
+                await compressedBlobStream.FlushAsync(cancellationToken);
+                await blobStream.FlushAsync(cancellationToken);
+            }
+            catch (RequestFailedException rfe)
+            {
+                throw new DurableTaskStorageException(rfe);
             }
         }
 
@@ -233,44 +220,16 @@ namespace DurableTask.AzureStorage
 
         private async Task<string> DownloadAndDecompressAsBytesAsync(Blob blob, CancellationToken cancellationToken = default)
         {
-            using (MemoryStream memory = new MemoryStream(MaxStorageQueuePayloadSizeInBytes * 2))
-            {
-                await blob.DownloadToStreamAsync(memory, cancellationToken);
-                memory.Position = 0;
+            using BlobDownloadStreamingResult result = await blob.DownloadStreamingAsync(cancellationToken);
+            using GZipStream decompressedBlobStream = new GZipStream(result.Content, CompressionMode.Decompress);
+            using StreamReader reader = new StreamReader(decompressedBlobStream, Encoding.UTF8);
 
-                ArraySegment<byte> decompressedSegment = this.Decompress(memory);
-                return Encoding.UTF8.GetString(decompressedSegment.Array, 0, decompressedSegment.Count);
-            }
+            return await reader.ReadToEndAsync();
         }
 
         public string GetBlobUrl(string blobName)
         {
             return Uri.UnescapeDataString(this.blobContainer.GetBlobReference(blobName).Uri.AbsoluteUri);
-        }
-
-        public ArraySegment<byte> Decompress(Stream blobStream)
-        {
-            using (GZipStream gZipStream = new GZipStream(blobStream, CompressionMode.Decompress))
-            {
-                using (MemoryStream memory = new MemoryStream(MaxStorageQueuePayloadSizeInBytes * 2))
-                {
-                    byte[] buffer = SimpleBufferManager.Shared.TakeBuffer(DefaultBufferSize);
-                    try
-                    {
-                        int count = 0;
-                        while ((count = gZipStream.Read(buffer, 0, DefaultBufferSize)) > 0)
-                        {
-                            memory.Write(buffer, 0, count);
-                        }
-                    }
-                    finally
-                    {
-                        SimpleBufferManager.Shared.ReturnBuffer(buffer);
-                    }
-
-                    return new ArraySegment<byte>(memory.GetBuffer(), 0, (int)memory.Length);
-                }
-            }
         }
 
         public MessageFormatFlags GetMessageFormatFlags(MessageData messageData)

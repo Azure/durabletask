@@ -15,7 +15,6 @@ namespace DurableTask.AzureStorage.Storage
 {
     using System;
     using System.IO;
-    using System.Linq;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
@@ -90,9 +89,21 @@ namespace DurableTask.AzureStorage.Storage
             await this.blockBlobClient.UploadAsync(stream, cancellationToken: cancellationToken).DecorateFailure();
         }
 
+        public async Task<Stream> OpenWriteAsync(CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                return await this.blockBlobClient.OpenWriteAsync(overwrite: true, cancellationToken: cancellationToken);
+            }
+            catch (RequestFailedException rfe)
+            {
+                throw new DurableTaskStorageException(rfe);
+            }
+        }
+
         public async Task<string> DownloadTextAsync(CancellationToken cancellationToken = default)
         {
-            BlobDownloadStreamingResult result = await this.blockBlobClient.DownloadStreamingAsync(cancellationToken: cancellationToken).DecorateFailure();
+            using BlobDownloadStreamingResult result = await this.blockBlobClient.DownloadStreamingAsync(cancellationToken: cancellationToken).DecorateFailure();
 
             using var reader = new StreamReader(result.Content, Encoding.UTF8);
             return await reader.ReadToEndAsync();
@@ -101,6 +112,11 @@ namespace DurableTask.AzureStorage.Storage
         public Task DownloadToStreamAsync(MemoryStream target, CancellationToken cancellationToken = default)
         {
             return this.blockBlobClient.DownloadToAsync(target, cancellationToken: cancellationToken).DecorateFailure();
+        }
+
+        public async Task<BlobDownloadStreamingResult> DownloadStreamingAsync(CancellationToken cancellationToken = default)
+        {
+            return await this.blockBlobClient.DownloadStreamingAsync(cancellationToken: cancellationToken).DecorateFailure();
         }
 
         public async Task<string> AcquireLeaseAsync(TimeSpan leaseInterval, string leaseId, CancellationToken cancellationToken = default)

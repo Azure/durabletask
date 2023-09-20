@@ -71,7 +71,7 @@ namespace DurableTask.AzureServiceFabric.Service
             }
             catch (OrchestrationAlreadyExistsException ex)
             {
-                return Content<OrchestrationAlreadyExistsException>(System.Net.HttpStatusCode.BadRequest, ex);
+                return Content<OrchestrationAlreadyExistsException>(System.Net.HttpStatusCode.Conflict, ex);
             }
             catch (NotSupportedException ex)
             {
