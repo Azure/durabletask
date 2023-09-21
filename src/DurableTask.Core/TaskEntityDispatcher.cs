@@ -867,12 +867,6 @@ namespace DurableTask.Core
                         new TypeMissingException($"Entity not found: {entityName}"));
                 }
 
-                var options = new EntityExecutionOptions()
-                {
-                    EntityBackendProperties = this.entityBackendProperties,
-                    ErrorPropagationMode = this.errorPropagationMode,
-                };
-
                 var result = await taskEntity.ExecuteOperationBatchAsync(request);
                 
                 dispatchContext.SetProperty(result);

@@ -48,7 +48,7 @@ namespace DurableTask.Core
         public TaskOrchestrationContext(
             OrchestrationInstance orchestrationInstance,
             TaskScheduler taskScheduler,
-            EntityBackendProperties entityBackendProperties = null,
+            TaskOrchestrationEntityParameters entityParameters = null,
             ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
         {
             Utils.UnusedParameter(taskScheduler);
@@ -60,7 +60,7 @@ namespace DurableTask.Core
             this.ErrorDataConverter = JsonDataConverter.Default;
             OrchestrationInstance = orchestrationInstance;
             IsReplaying = false;
-            this.EntityBackendProperties = entityBackendProperties;
+            this.EntityParameters = entityParameters;
             ErrorPropagationMode = errorPropagationMode;
             this.eventsWhileSuspended = new Queue<HistoryEvent>();
         }

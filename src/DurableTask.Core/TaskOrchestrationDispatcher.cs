@@ -45,6 +45,7 @@ namespace DurableTask.Core
         readonly NonBlockingCountdownLock concurrentSessionLock;
         readonly IEntityOrchestrationService? entityOrchestrationService;
         readonly EntityBackendProperties? entityBackendProperties;
+        readonly TaskOrchestrationEntityParameters? entityParameters;
 
         internal TaskOrchestrationDispatcher(
             IOrchestrationService orchestrationService,
@@ -59,8 +60,9 @@ namespace DurableTask.Core
             this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
             this.logHelper = logHelper ?? throw new ArgumentNullException(nameof(logHelper));
             this.errorPropagationMode = errorPropagationMode;
-            this.entityOrchestrationService = entityOrchestrationService;
-            this.entityBackendProperties = this.entityOrchestrationService?.GetEntityBackendProperties();
+            this.entityOrchestrationService = orchestrationService as IEntityOrchestrationService;
+            this.entityBackendProperties = this.entityOrchestrationService?.EntityBackendProperties;
+            this.entityParameters = TaskOrchestrationEntityParameters.FromEntityBackendProperties(this.entityBackendProperties);
 
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskOrchestrationDispatcher",
@@ -682,6 +684,7 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(runtimeState);
             dispatchContext.SetProperty(workItem);
             dispatchContext.SetProperty(GetOrchestrationExecutionContext(runtimeState));
+            dispatchContext.SetProperty(this.entityParameters);
 
             TaskOrchestrationExecutor? executor = null;
 
@@ -709,8 +712,9 @@ namespace DurableTask.Core
                     runtimeState,
                     taskOrchestration,
                     this.orchestrationService.EventBehaviourForContinueAsNew,
-                    this.entityBackendProperties,
-                    this.errorPropagationMode); ;
+                    this.entityParameters,
+                    this.errorPropagationMode);
+
                 OrchestratorExecutionResult resultFromOrchestrator = executor.Execute();
                 dispatchContext.SetProperty(resultFromOrchestrator);
                 return CompletedTask;
