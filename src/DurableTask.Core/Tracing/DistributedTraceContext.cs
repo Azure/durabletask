@@ -23,6 +23,8 @@ namespace DurableTask.Core.Tracing
     [DataContract]
     public class DistributedTraceContext
     {
+        private string? traceState;
+
         /// <summary>
         /// Initializes a new instance of the <see cref="DistributedTraceContext"/> class.
         /// </summary>
@@ -31,7 +33,7 @@ namespace DurableTask.Core.Tracing
         public DistributedTraceContext(string traceParent, string? traceState = null)
         {
             this.TraceParent = traceParent;
-            this.TraceState = traceState;
+            this.traceState = traceState;
         }
 
         /// <summary>
@@ -48,7 +50,7 @@ namespace DurableTask.Core.Tracing
         {
             get
             {
-                return this.TraceState;
+                return this.traceState;
             }
             set
             {
@@ -57,7 +59,7 @@ namespace DurableTask.Core.Tracing
                 // removing whole values, starting with the largest values, and preserving ordering.
                 // Rather than implementing these complex requirements, we take the lazy path of just
                 // truncating the whole thing.
-                this.TraceState = value?.Length <= 513 ? value : null;
+                this.traceState = value?.Length <= 513 ? value : null;
             }
         }
 
