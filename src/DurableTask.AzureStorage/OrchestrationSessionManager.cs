@@ -58,14 +58,6 @@ namespace DurableTask.AzureStorage
 
         internal IEnumerable<ControlQueue> Queues => this.ownedControlQueues.Values;
 
-        /// <summary>
-        /// Recent versions of DurableTask.Core can be configured to use a separate pipeline for processing entity work items,
-        /// while older versions use a single pipeline for both orchestration and entity work items. To support both scenarios,
-        /// this property can be modified prior to starting the orchestration service. If set to true, the work items that are ready for
-        /// processing are stored in <see cref="entitiesReadyForProcessingQueue"/> and <see cref="orchestrationsReadyForProcessingQueue"/>, respectively.
-        /// </summary>
-        internal bool ProcessEntitiesSeparately { get; set; }
-
         public void AddQueue(string partitionId, ControlQueue controlQueue, CancellationToken cancellationToken)
         {
             if (this.ownedControlQueues.TryAdd(partitionId, controlQueue))
@@ -529,7 +521,8 @@ namespace DurableTask.AzureStorage
                     batch.TrackingStoreContext = history.TrackingStoreContext;
                 }
 
-                if (this.ProcessEntitiesSeparately && DurableTask.Core.Common.Entities.IsEntityInstance(batch.OrchestrationInstanceId))
+                if (this.settings.UseSeparateQueueForEntityWorkItems
+                    && DurableTask.Core.Common.Entities.IsEntityInstance(batch.OrchestrationInstanceId))
                 {
                     this.entitiesReadyForProcessingQueue.Enqueue(node);
                 }
