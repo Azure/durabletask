@@ -269,11 +269,16 @@ namespace DurableTask.Core
             }
             else if (historyEvent is ExecutionCompletedEvent completedEvent)
             {
-                if (ExecutionCompletedEvent != null)
+                if (ExecutionCompletedEvent == null)
+                {
+                    ExecutionCompletedEvent = completedEvent;
+                    orchestrationStatus = completedEvent.OrchestrationStatus;
+                }
+                else
                 {
                     // It's not generally expected to receive multiple execution completed events for a given orchestrator, but it's possible under certain race conditions.
                     // For example: when an orchestrator is signaled to terminate at the same time as it attempts to continue-as-new.
-                    var log = $"Ignoring {completedEvent.GetType().Name} event since the orchestration is already in the {orchestrationStatus} state.";
+                    var log = $"Received new {completedEvent.GetType().Name} event despite the orchestration being already in the {orchestrationStatus} state.";
                     
                     if (orchestrationStatus == OrchestrationStatus.ContinuedAsNew && completedEvent.OrchestrationStatus == OrchestrationStatus.Terminated)
                     {
@@ -291,7 +296,6 @@ namespace DurableTask.Core
 
                     LogHelper?.OrchestrationDebugTrace(this.OrchestrationInstance?.InstanceId ?? "", this.OrchestrationInstance?.ExecutionId ?? "", log);
                 }
-
             }
             else if (historyEvent is ExecutionSuspendedEvent)
             {
