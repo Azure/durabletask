@@ -199,7 +199,17 @@ namespace DurableTask.Core
             }
 
             int id = this.idCounter++;
-            string serializedEventData = this.MessageDataConverter.Serialize(eventData);
+
+            string serializedEventData;
+            if (eventData is EntityMessageEvent entityMessageEvent)
+            {
+                serializedEventData = entityMessageEvent.AsSerializedString(); // bypass application-defined serializer
+            }
+            else
+            {
+                serializedEventData = this.MessageDataConverter.Serialize(eventData);
+            }
+             
 
             var action = new SendEventOrchestratorAction
             {

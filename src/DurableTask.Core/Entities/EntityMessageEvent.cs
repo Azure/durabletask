@@ -14,7 +14,6 @@
 using System;
 using DurableTask.Core.Entities.EventFormat;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace DurableTask.Core.Entities
 {
@@ -51,20 +50,10 @@ namespace DurableTask.Core.Entities
         public OrchestrationInstance TargetInstance => this.target;
 
         /// <summary>
-        /// Returns the content of this event, as an object that can be serialized later.
-        /// </summary>
-        /// <returns></returns>
-        public object ContentAsObject()
-        {
-            // we pre-serialize this now to avoid interference from the application-defined serialization settings
-            return JObject.FromObject(message, Serializer.InternalSerializer);
-        }
-
-        /// <summary>
         /// Returns the content of this event, as a serialized string.
         /// </summary>
         /// <returns></returns>
-        public string ContentAsString()
+        public string AsSerializedString()
         {
             return JsonConvert.SerializeObject(message, Serializer.InternalSerializerSettings);
         }
@@ -78,7 +67,7 @@ namespace DurableTask.Core.Entities
             return new TaskMessage
             {
                 OrchestrationInstance = this.target,
-                Event = new History.EventRaisedEvent(-1, this.ContentAsString())
+                Event = new History.EventRaisedEvent(-1, this.AsSerializedString())
                 {
                     Name = this.eventName
                 }
