@@ -1207,7 +1207,7 @@ namespace DurableTask.AzureStorage.Tracking
                 string blobUrl;
                 if (!Uri.TryCreate(blobData, UriKind.Absolute, out Uri _))
                 {
-                    // backwards compatibility path: we obtain construct the URL
+                    // backwards compatibility path: we construct the URL from the blobName
                     blobUrl = this.messageManager.GetBlobUrl(blobData);
                 }
                 else
