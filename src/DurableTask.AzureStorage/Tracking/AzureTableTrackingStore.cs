@@ -1127,7 +1127,17 @@ namespace DurableTask.AzureStorage.Tracking
                 var tasks = new List<Task>(blobsToDelete.Count);
                 foreach (var blobName in blobsToDelete)
                 {
-                    tasks.Add(this.messageManager.DeleteBlobAsync(blobName));
+                    Task task;
+                    if (Uri.TryCreate(blobName, UriKind.Absolute, out Uri blobUri))
+                    {
+                        task = this.messageManager.DeleteBlobAsync(blobUri);
+                    }
+                    else
+                    {
+                        // backwards compatibility path: construct blob URI from blob name and delete
+                        task = this.messageManager.DeleteBlobAsync(blobName);
+                    }
+                    tasks.Add(task);
                 }
                 await Task.WhenAll(tasks);
             }

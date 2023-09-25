@@ -222,6 +222,12 @@ namespace DurableTask.AzureStorage
             return blob.DeleteIfExistsAsync(); 
         }
 
+        public Task<bool> DeleteBlobAsync(Uri blobUri)
+        {
+            Blob blob = this.azureStorageClient.GetBlobReference(blobUri);
+            return blob.DeleteIfExistsAsync();
+        }
+
         private async Task<string> DownloadAndDecompressAsBytesAsync(Blob blob)
         {
             using (MemoryStream memory = new MemoryStream(MaxStorageQueuePayloadSizeInBytes * 2))
