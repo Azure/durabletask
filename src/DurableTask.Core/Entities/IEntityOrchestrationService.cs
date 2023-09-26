@@ -23,18 +23,17 @@ namespace DurableTask.Core.Entities
     public interface IEntityOrchestrationService : IOrchestrationService
     {
         /// <summary>
-        /// The entity orchestration service.
+        /// Properties of the backend implementation and configuration, as related to the new entity support in DurableTask.Core.
         /// </summary>
-        /// <returns>An object containing properties of the entity backend.</returns>
-        EntityBackendProperties GetEntityBackendProperties();
+        /// <returns>An object containing properties of the entity backend, or null if the backend does not natively support DurableTask.Core entities.</returns>
+        EntityBackendProperties? EntityBackendProperties { get; }
 
         /// <summary>
-        /// Checks whether the backend is configured for separate work-item processing of orchestrations and entities.
-        /// If this returns true, must use <see cref="LockNextOrchestrationWorkItemAsync"/> or <see cref="LockNextEntityWorkItemAsync"/> to 
-        /// pull orchestrations or entities separately. Otherwise, must use <see cref="IOrchestrationService.LockNextTaskOrchestrationWorkItemAsync"/>.
-        /// This must be called prior to starting the orchestration service.
+        /// Support for entity queries.
         /// </summary>
-        bool ProcessEntitiesSeparately();
+        /// <returns>An object that can be used to issue entity queries to the orchestration service, or null if the backend does not natively
+        /// support entity queries.</returns>
+        EntityBackendQueries? EntityBackendQueries { get; }
 
         /// <summary>
         /// Specialized variant of <see cref="IOrchestrationService.LockNextTaskOrchestrationWorkItemAsync(TimeSpan, CancellationToken)"/> that

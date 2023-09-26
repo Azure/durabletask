@@ -37,12 +37,11 @@ namespace DurableTask.Core
         readonly INameVersionObjectManager<TaskOrchestration> orchestrationManager;
         readonly INameVersionObjectManager<TaskEntity> entityManager;
 
-        readonly IEntityOrchestrationService entityOrchestrationService;
-
         readonly DispatchMiddlewarePipeline orchestrationDispatchPipeline = new DispatchMiddlewarePipeline();
         readonly DispatchMiddlewarePipeline entityDispatchPipeline = new DispatchMiddlewarePipeline();
         readonly DispatchMiddlewarePipeline activityDispatchPipeline = new DispatchMiddlewarePipeline();
 
+        readonly bool dispatchEntitiesSeparately;
         readonly SemaphoreSlim slimLock = new SemaphoreSlim(1, 1);
         readonly LogHelper logHelper;
 
@@ -51,11 +50,6 @@ namespace DurableTask.Core
         /// </summary>
         // ReSharper disable once InconsistentNaming (avoid breaking change)
         public IOrchestrationService orchestrationService { get; }
-
-        /// <summary>
-        /// Indicates whether the configured backend supports entities.
-        /// </summary>
-        public bool SupportsEntities => this.entityOrchestrationService != null;
 
         volatile bool isStarted;
 
@@ -152,14 +146,7 @@ namespace DurableTask.Core
             this.entityManager = entityObjectManager ?? throw new ArgumentException("entityObjectManager");
             this.orchestrationService = orchestrationService ?? throw new ArgumentException("orchestrationService");
             this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
-
-            // If the backend supports a separate work item queue for entities (indicated by it implementing IEntityOrchestrationService),
-            // we take note of that here, and let the backend know that we are going to pull the work items separately. 
-            if (orchestrationService is IEntityOrchestrationService entityOrchestrationService 
-                && entityOrchestrationService.ProcessEntitiesSeparately())
-            {
-                this.entityOrchestrationService = entityOrchestrationService;
-            }
+            this.dispatchEntitiesSeparately = (orchestrationService as IEntityOrchestrationService).EntityBackendProperties?.UseSeparateQueueForEntityWorkItems ?? false;
         }
 
         /// <summary>
@@ -238,8 +225,7 @@ namespace DurableTask.Core
                     this.orchestrationManager,
                     this.orchestrationDispatchPipeline,
                     this.logHelper,
-                    this.ErrorPropagationMode, 
-                    this.entityOrchestrationService);
+                    this.ErrorPropagationMode);
                 this.activityDispatcher = new TaskActivityDispatcher(
                     this.orchestrationService,
                     this.activityManager,
@@ -247,7 +233,7 @@ namespace DurableTask.Core
                     this.logHelper,
                     this.ErrorPropagationMode);
 
-                if (this.SupportsEntities)
+                if (this.dispatchEntitiesSeparately)
                 {
                     this.entityDispatcher = new TaskEntityDispatcher(
                         this.orchestrationService,
@@ -261,7 +247,7 @@ namespace DurableTask.Core
                 await this.orchestrationDispatcher.StartAsync();
                 await this.activityDispatcher.StartAsync();
 
-                if (this.SupportsEntities)
+                if (this.dispatchEntitiesSeparately)
                 {
                     await this.entityDispatcher.StartAsync();
                 }
@@ -303,7 +289,7 @@ namespace DurableTask.Core
                     {
                         this.orchestrationDispatcher.StopAsync(isForced),
                         this.activityDispatcher.StopAsync(isForced),
-                        this.SupportsEntities ? this.entityDispatcher.StopAsync(isForced) : Task.CompletedTask,
+                        this.dispatchEntitiesSeparately ? this.entityDispatcher.StopAsync(isForced) : Task.CompletedTask,
                     };
 
                     await Task.WhenAll(dispatcherShutdowns);
@@ -360,9 +346,9 @@ namespace DurableTask.Core
         /// <returns></returns>
         public TaskHubWorker AddTaskEntities(params Type[] taskEntityTypes)
         {
-            if (!this.SupportsEntities)
+            if (!this.dispatchEntitiesSeparately)
             {
-                throw new NotSupportedException("The configured backend does not support entities.");
+                throw new NotSupportedException("The configured backend does not support separate entity dispatch.");
             }
 
             foreach (Type type in taskEntityTypes)
@@ -387,9 +373,9 @@ namespace DurableTask.Core
         /// </param>
         public TaskHubWorker AddTaskEntities(params ObjectCreator<TaskEntity>[] taskEntityCreators)
         {
-            if (!this.SupportsEntities)
+            if (!this.dispatchEntitiesSeparately)
             {
-                throw new NotSupportedException("The configured backend does not support entities.");
+                throw new NotSupportedException("The configured backend does not support separate entity dispatch.");
             }
 
             foreach (ObjectCreator<TaskEntity> creator in taskEntityCreators)

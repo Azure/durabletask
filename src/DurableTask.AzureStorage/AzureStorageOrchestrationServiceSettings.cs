@@ -315,7 +315,7 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Whether to use separate work item queues for entities and orchestrators.
         /// This defaults to false, to avoid issues when using this provider from code that does not support separate dispatch.
-        /// Consumers that support separate dispatch should explicitly set this to true.
+        /// Consumers that require separate dispatch (such as the new out-of-proc v2 SDKs) must set this to true.
         /// </summary>
         public bool UseSeparateQueueForEntityWorkItems { get; set; } = false;
     }

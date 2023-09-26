@@ -52,8 +52,7 @@ namespace DurableTask.Core
             INameVersionObjectManager<TaskOrchestration> objectManager,
             DispatchMiddlewarePipeline dispatchPipeline,
             LogHelper logHelper,
-            ErrorPropagationMode errorPropagationMode, 
-            IEntityOrchestrationService entityOrchestrationService)
+            ErrorPropagationMode errorPropagationMode)
         {
             this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
@@ -120,11 +119,11 @@ namespace DurableTask.Core
         /// <returns>A new TaskOrchestrationWorkItem</returns>
         protected Task<TaskOrchestrationWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
-            if (this.entityOrchestrationService != null)
+            if (this.entityBackendProperties?.UseSeparateQueueForEntityWorkItems == true)
             {
                 // only orchestrations should be served by this dispatcher, so we call
                 // the method which returns work items for orchestrations only.
-                return this.entityOrchestrationService.LockNextOrchestrationWorkItemAsync(receiveTimeout, cancellationToken);
+                return this.entityOrchestrationService!.LockNextOrchestrationWorkItemAsync(receiveTimeout, cancellationToken);
             }
             else
             {
