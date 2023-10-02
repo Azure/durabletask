@@ -71,7 +71,7 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        ///     Create a new orchestration of the specified type with the specified instance id, scheduled to start at an specific time
+        ///     Create a new orchestration of the specified type with the specified instance id, scheduled to start at the specified time
         /// </summary>
         /// <param name="orchestrationType">Type that derives from TaskOrchestration</param>
         /// <param name="input">Input parameter to the specified TaskOrchestration</param>
@@ -95,7 +95,7 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        ///     Create a new orchestration of the specified type with the specified instance id, scheduled to start at an specific time
+        ///     Create a new orchestration of the specified type with the specified instance id, scheduled to start at the specified time
         /// </summary>
         /// <param name="orchestrationType">Type that derives from TaskOrchestration</param>
         /// <param name="instanceId">Instance id for the orchestration to be created, must be unique across the Task Hub</param>
@@ -111,6 +111,29 @@ namespace DurableTask.Core
             return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 NameVersionHelper.GetDefaultName(orchestrationType),
                 NameVersionHelper.GetDefaultVersion(orchestrationType),
+                instanceId,
+                input,
+                null,
+                null,
+                null,
+                null,
+                startAt: startAt);
+        }
+
+        /// <summary>
+        ///     Create a new orchestration of the specified name and version with the specified instance id, scheduled to start at the specified time.
+        /// </summary>
+        /// <param name="name">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="version">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="instanceId">Instance id for the orchestration to be created, must be unique across the Task Hub</param>
+        /// <param name="input">Input parameter to the specified TaskOrchestration</param>
+        /// <param name="startAt">Orchestration start time</param>
+        /// <returns>OrchestrationInstance that represents the orchestration that was created</returns>
+        public Task<OrchestrationInstance> CreateScheduledOrchestrationInstanceAsync(string name, string version, string instanceId, object input, DateTime startAt)
+        {
+            return InternalCreateOrchestrationInstanceWithRaisedEventAsync(
+                name,
+                version,
                 instanceId,
                 input,
                 null,
