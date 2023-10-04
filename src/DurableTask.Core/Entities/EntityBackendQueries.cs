@@ -28,11 +28,11 @@ namespace DurableTask.Core.Entities
         /// </summary>
         /// <param name="id">The ID of the entity to get.</param>
         /// <param name="includeState"><c>true</c> to include entity state in the response, <c>false</c> to not.</param>
-        /// <param name="includeDeleted">whether to return metadata for a deleted entity (if such data was retained by the backend).</param>
+        /// <param name="includeStateless">whether to include metadata for entities without user-defined state.</param>
         /// <param name="cancellation">The cancellation token to cancel the operation.</param>
         /// <returns>a response containing metadata describing the entity.</returns>
         public abstract Task<EntityMetadata?> GetEntityAsync(
-            EntityId id, bool includeState = false, bool includeDeleted = false, CancellationToken cancellation = default);
+            EntityId id, bool includeState = false, bool includeStateless = false, CancellationToken cancellation = default);
 
         /// <summary>
         /// Queries entity instances based on the conditions specified in <paramref name="query"/>.
@@ -102,12 +102,14 @@ namespace DurableTask.Core.Entities
             public bool IncludeState { get; set; }
 
             /// <summary>
-            /// Gets or sets a value indicating whether or not to include deleted entities.
+            /// Gets a value indicating whether to include metadata about entities that have no user-defined state.
             /// </summary>
-            /// <remarks>
-            /// This setting is relevant only for providers which retain metadata for deleted entities (<see cref="EntityBackendProperties.SupportsImplicitEntityDeletion"/> is false).
+            /// <remarks> Stateless entities occur when the storage provider is tracking metadata about an entity for synchronization purposes
+            /// even though the entity does not "logically" exist, in the sense that it has no application-defined state.
+            /// Stateless entities are usually transient. For example, they may be in the process of being created or deleted, or 
+            /// they may have been locked by a critical section.
             /// </remarks>
-            public bool IncludeDeleted { get; set; }
+            public bool IncludeStateless { get; set; }
 
             /// <summary>
             /// Gets or sets the desired size of each page to return.
