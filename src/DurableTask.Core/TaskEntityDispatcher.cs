@@ -803,6 +803,7 @@ namespace DurableTask.Core
                     runtimeState.Tags,
                     new Dictionary<string, string>() { { OrchestrationTags.FireAndForget, "" } }),
                 OrchestrationInstance = destination,
+                ScheduledStartTime = action.ScheduledStartTime,
                 ParentInstance = new ParentInstance
                 {
                     OrchestrationInstance = runtimeState.OrchestrationInstance,
