@@ -67,6 +67,16 @@ namespace DurableTask.Core.Entities
             public DateTime LastModifiedTime { get; set; }
 
             /// <summary>
+            /// Gets the size of the backlog queue, if there is a backlog, and if that metric is supported by the backend.
+            /// </summary>
+            public int BacklogQueueSize { get; set; }
+
+            /// <summary>
+            /// Gets the instance id of the orchestration that has locked this entity, or null if the entity is not locked.
+            /// </summary>
+            public string? LockedBy { get; set; }
+
+            /// <summary>
             /// Gets or sets the serialized state for this entity. Can be null if the query
             /// specified to not include the state, or to include deleted entities.
             /// </summary>

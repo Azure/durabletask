@@ -149,7 +149,7 @@ namespace DurableTask.AzureStorage
 
                         if (request.RemoveEmptyEntities)
                         {
-                            bool isEmptyEntity = !status.EntityExists && status.LockedBy == null && status.QueueSize == 0;
+                            bool isEmptyEntity = !status.EntityExists && status.LockedBy == null && status.BacklogQueueSize == 0;
                             bool safeToRemoveWithoutBreakingMessageSorterLogic = 
                                 (now - state.LastUpdatedTime > this.properties.EntityMessageReorderWindow);
                             if (isEmptyEntity && safeToRemoveWithoutBreakingMessageSorterLogic)
@@ -215,10 +215,14 @@ namespace DurableTask.AzureStorage
                     }
                 }
 
+                EntityStatus? status = ClientEntityHelpers.GetEntityStatus(state.Status);
+
                 return new EntityMetadata()
                 {
                     EntityId = EntityId.FromString(state.OrchestrationInstance.InstanceId),
                     LastModifiedTime = state.CreatedTime,
+                    BacklogQueueSize = status?.BacklogQueueSize ?? 0,
+                    LockedBy = status?.LockedBy,
                     SerializedState = null, // we were instructed to not include the state
                 };
             }
@@ -245,10 +249,14 @@ namespace DurableTask.AzureStorage
                 }
                 else
                 {
+                    EntityStatus? status = ClientEntityHelpers.GetEntityStatus(state.Status);
+
                     return new EntityMetadata()
                     {
                         EntityId = EntityId.FromString(state.OrchestrationInstance.InstanceId),
                         LastModifiedTime = state.CreatedTime,
+                        BacklogQueueSize = status?.BacklogQueueSize ?? 0,
+                        LockedBy = status?.LockedBy,
                         SerializedState = serializedEntityState,
                     };
                 }
