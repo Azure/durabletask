@@ -65,13 +65,18 @@ namespace DurableTask.AzureStorage
             var condition = new OrchestrationInstanceStatusQueryCondition()
             {
                 InstanceId = null,
-                InstanceIdPrefix = filter.InstanceIdStartsWith,
+                InstanceIdPrefix = string.IsNullOrEmpty(filter.InstanceIdStartsWith) ? "@" : filter.InstanceIdStartsWith,
                 CreatedTimeFrom = filter.LastModifiedFrom ?? default(DateTime),
                 CreatedTimeTo = filter.LastModifiedTo ?? default(DateTime),
                 FetchInput = filter.IncludeState,
                 FetchOutput = false,
                 ExcludeEntities = false,
             };
+
+            if (condition.InstanceIdPrefix![0] != '@')
+            {
+                condition.InstanceIdPrefix = $"@{condition.InstanceIdPrefix}";
+            }  
 
             await this.ensureTaskHub();
 
@@ -177,8 +182,7 @@ namespace DurableTask.AzureStorage
                     if (! OrchestrationIsRunning(ownerState?.OrchestrationStatus))
                     {
                         // the owner is not a running orchestration. Send a lock release.
-                        var targetInstance = new OrchestrationInstance() { InstanceId = lockOwner };
-                        EntityMessageEvent eventToSend = ClientEntityHelpers.EmitUnlockForOrphanedLock(targetInstance, lockOwner);
+                        EntityMessageEvent eventToSend = ClientEntityHelpers.EmitUnlockForOrphanedLock(state.OrchestrationInstance, lockOwner);
                         await this.sendEvent(eventToSend.AsTaskMessage());
                         Interlocked.Increment(ref orphanedLocksReleased);
                     }         

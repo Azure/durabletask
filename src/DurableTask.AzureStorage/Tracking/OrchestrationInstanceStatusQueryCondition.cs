@@ -87,7 +87,8 @@ namespace DurableTask.AzureStorage.Tracking
                 this.CreatedTimeTo == default(DateTime) &&
                 this.TaskHubNames == null &&
                 this.InstanceIdPrefix == null &&
-                this.InstanceId == null))
+                this.InstanceId == null &&
+                !this.ExcludeEntities))
             {
                 if (!this.FetchInput || !this.FetchOutput)
                 {
