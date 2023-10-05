@@ -345,7 +345,7 @@ namespace DurableTask.Core
                     var entityStatus = new EntityStatus()
                     {
                         EntityExists = schedulerState.EntityExists,
-                        QueueSize = schedulerState.Queue?.Count ?? 0,
+                        BacklogQueueSize = schedulerState.Queue?.Count ?? 0,
                         LockedBy = schedulerState.LockedBy,
                     };
                     var serializedEntityStatus = JsonConvert.SerializeObject(entityStatus, Serializer.InternalSerializerSettings);
