@@ -11,10 +11,8 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
 namespace DurableTask.Core
 {
@@ -37,6 +35,11 @@ namespace DurableTask.Core
         public const string FireAndForget = "FireAndForget";
 
         /// <summary>
+        /// Used for entities-as-orchestrations.
+        /// </summary>
+        public const string Entity = "__Entity__";
+
+        /// <summary>
         /// Check whether the given tags contain the fire and forget tag
         /// </summary>
         /// <param name="tags"></param>
@@ -44,6 +47,16 @@ namespace DurableTask.Core
         internal static bool IsTaggedAsFireAndForget(IDictionary<string, string> tags)
         {
             return tags != null && tags.ContainsKey(FireAndForget);
+        }
+
+        /// <summary>
+        /// Check whether the given tags contain the entity tag.
+        /// </summary>
+        /// <param name="tags"></param>
+        /// <returns></returns>
+        internal static bool IsEntity(IDictionary<string, string> tags)
+        {
+            return tags != null && tags.ContainsKey(Entity);
         }
 
         internal static IDictionary<string, string> MergeTags(

@@ -13,6 +13,7 @@
 
 namespace DurableTask.Core
 {
+    using System;
     using System.Diagnostics.CodeAnalysis;
     using System.Runtime.Serialization;
 
@@ -70,5 +71,26 @@ namespace DurableTask.Core
         /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
         /// </summary>
         public ExtensionDataObject ExtensionData { get; set; }
+    }
+
+    /// <summary>
+    /// A marker for entity instances.
+    /// </summary>
+    internal class EntityInstance : OrchestrationInstance
+    {
+        internal static EntityInstance FromBase(OrchestrationInstance instance)
+        {
+            if (instance is null)
+            {
+                throw new ArgumentNullException(nameof(instance));
+            }
+
+            return new EntityInstance
+            {
+                InstanceId = instance.InstanceId,
+                ExecutionId = instance.ExecutionId,
+                ExtensionData = instance.ExtensionData,
+            };
+        }
     }
 }

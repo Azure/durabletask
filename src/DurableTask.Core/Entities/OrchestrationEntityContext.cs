@@ -199,7 +199,7 @@ namespace DurableTask.Core.Entities
 
                 foreach (var entityId in this.criticalSectionLocks!)
                 {
-                    var instance = new OrchestrationInstance() { InstanceId = entityId.ToString() };
+                    var instance = new EntityInstance() { InstanceId = entityId.ToString() };
                     yield return new EntityMessageEvent(EntityMessageEventNames.ReleaseMessageEventName, message, instance);
                 }
 

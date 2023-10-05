@@ -92,6 +92,15 @@ namespace DurableTask.Core.Common
                     OrchestrationInstance = orchestrationInstance,
                     Event = startedEvent
                 };
+
+                if (newMessages[0].Event is EntityMessageEvent)
+                {
+                    startedEvent.Tags = new Dictionary<string, string>()
+                    {
+                        [OrchestrationTags.Entity] = ""
+                    };
+                }
+
                 newMessages.Insert(0, taskMessage);
                 return true;
             }

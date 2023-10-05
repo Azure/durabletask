@@ -25,13 +25,13 @@ namespace DurableTask.Core.Entities
     {
         readonly string eventName;
         readonly EntityMessage message;
-        readonly OrchestrationInstance target;
+        readonly EntityInstance target;
 
         internal EntityMessageEvent(string eventName, EntityMessage message, OrchestrationInstance target)
         {
             this.eventName = eventName;
             this.message = message;
-            this.target = target;
+            this.target = target as EntityInstance ?? EntityInstance.FromBase(target);
         }
 
         /// <inheritdoc/>
@@ -78,7 +78,7 @@ namespace DurableTask.Core.Entities
             return new TaskMessage
             {
                 OrchestrationInstance = this.target,
-                Event = new History.EventRaisedEvent(-1, this.ContentAsString())
+                Event = new History.EntityMessageEvent(-1, this.ContentAsString())
                 {
                     Name = this.eventName
                 }

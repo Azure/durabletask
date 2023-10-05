@@ -908,8 +908,9 @@ namespace DurableTask.AzureStorage
                             }
 
                             break;
-                    }                   
-                } else
+                    }
+                }
+                else
                 {
 
                     // In this case, we set the parentTraceContext later in this method
@@ -917,7 +918,7 @@ namespace DurableTask.AzureStorage
                     {
                         foundEventRaised = true;
                     }
-                }            
+                }
             }
 
             // When EventRaisedEvent is present, it will not, out of the box, share the same operation

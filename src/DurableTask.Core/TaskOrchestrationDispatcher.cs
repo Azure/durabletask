@@ -1148,10 +1148,7 @@ namespace DurableTask.Core
             
             runtimeState.AddEvent(historyEvent);
 
-            EventRaisedEvent eventRaisedEvent = new EventRaisedEvent(-1, sendEventAction.EventData)
-            {
-                Name = sendEventAction.EventName
-            };
+            EventRaisedEvent eventRaisedEvent = EventRaisedEvent.FromAction(sendEventAction);
 
             // Distributed Tracing: start a new trace activity derived from the orchestration
             // for an EventRaisedEvent (external event)

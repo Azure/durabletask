@@ -13,8 +13,9 @@
 
 namespace DurableTask.Core.History
 {
+    using DurableTask.Core.Command;
     using DurableTask.Core.Tracing;
-    using System.Diagnostics;
+    using System;
     using System.Runtime.Serialization;
 
     /// <summary>
@@ -56,5 +57,26 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public DistributedTraceContext ParentTraceContext { get; set; }
+
+        internal static EventRaisedEvent FromAction(SendEventOrchestratorAction action)
+        {
+            if (action is null)
+            {
+                throw new ArgumentNullException(nameof(action));
+            }
+
+            if (action.Instance is EntityInstance)
+            {
+                return new EntityMessageEvent(-1, action.EventData)
+                {
+                    Name = action.EventName,
+                };
+            }
+
+            return new EventRaisedEvent(-1, action.EventData)
+            {
+                Name = action.EventName,
+            };
+        }
     }
 }
