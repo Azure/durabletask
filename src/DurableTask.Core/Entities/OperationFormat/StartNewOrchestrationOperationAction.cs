@@ -13,6 +13,7 @@
 #nullable enable
 namespace DurableTask.Core.Entities.OperationFormat
 {
+    using System;
     using System.Collections.Generic;
 
     /// <summary>
@@ -27,23 +28,29 @@ namespace DurableTask.Core.Entities.OperationFormat
         //       To ensure maximum compatibility, all properties should be public and settable by default.
 
         /// <summary>
-        /// The name of the sub-orchestrator to start.
+        /// Gets or sets the name of the sub-orchestrator to start.
         /// </summary>
         public string? Name { get; set; }
 
         /// <summary>
-        /// The version of the sub-orchestrator to start.
+        /// Gets or sets the version of the sub-orchestrator to start.
         /// </summary>
         public string? Version { get; set; }
 
         /// <summary>
-        /// The instance ID of the created sub-orchestration.
+        /// Gets or sets the instance ID of the created sub-orchestration.
         /// </summary>
         public string? InstanceId { get; set; }
 
         /// <summary>
-        /// The input of the sub-orchestration.
+        /// Gets or sets the input of the sub-orchestration.
         /// </summary>
         public string? Input { get; set; }
+
+        /// <summary>
+        /// Gets or sets when to start the orchestration, or null if the orchestration should be started immediately.
+        /// </summary>
+        public DateTime? ScheduledStartTime { get; set; }
+
     }
 }
