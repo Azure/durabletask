@@ -107,7 +107,7 @@ namespace DurableTask.AzureStorage
                 entityResult = new List<EntityMetadata>();
                 foreach (OrchestrationState entry in states)
                 {
-                    EntityMetadata? entityMetadata = await this.GetEntityMetadataAsync(entry, filter.IncludeStateless, filter.IncludeState);
+                    EntityMetadata? entityMetadata = await this.GetEntityMetadataAsync(entry, filter.IncludeTransient, filter.IncludeState);
                     if (entityMetadata.HasValue)
                     {
                         entityResult.Add(entityMetadata.Value);
