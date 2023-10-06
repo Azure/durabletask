@@ -48,7 +48,7 @@ namespace DurableTask.Core
         public TaskOrchestrationContext(
             OrchestrationInstance orchestrationInstance,
             TaskScheduler taskScheduler,
-            EntityBackendProperties entityBackendProperties = null,
+            TaskOrchestrationEntityParameters entityParameters = null,
             ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
         {
             Utils.UnusedParameter(taskScheduler);
@@ -60,7 +60,7 @@ namespace DurableTask.Core
             this.ErrorDataConverter = JsonDataConverter.Default;
             OrchestrationInstance = orchestrationInstance;
             IsReplaying = false;
-            this.EntityBackendProperties = entityBackendProperties;
+            this.EntityParameters = entityParameters;
             ErrorPropagationMode = errorPropagationMode;
             this.eventsWhileSuspended = new Queue<HistoryEvent>();
         }
@@ -100,7 +100,7 @@ namespace DurableTask.Core
             params object[] parameters)
         {
             int id = this.idCounter++;
-            string serializedInput = this.MessageDataConverter.Serialize(parameters);
+            string serializedInput = this.MessageDataConverter.SerializeInternal(parameters);
             var scheduleTaskTaskAction = new ScheduleTaskOrchestratorAction
             {
                 Id = id,
@@ -155,7 +155,7 @@ namespace DurableTask.Core
             IDictionary<string, string> tags)
         {
             int id = this.idCounter++;
-            string serializedInput = this.MessageDataConverter.Serialize(input);
+            string serializedInput = this.MessageDataConverter.SerializeInternal(input);
 
             string actualInstanceId = instanceId;
             if (string.IsNullOrWhiteSpace(actualInstanceId))
@@ -207,7 +207,7 @@ namespace DurableTask.Core
             }
             else
             {
-                serializedEventData = this.MessageDataConverter.Serialize(eventData);
+                serializedEventData = this.MessageDataConverter.SerializeInternal(eventData);
             }
              
 
@@ -234,7 +234,7 @@ namespace DurableTask.Core
 
         void ContinueAsNewCore(string newVersion, object input)
         {
-            string serializedInput = this.MessageDataConverter.Serialize(input);
+            string serializedInput = this.MessageDataConverter.SerializeInternal(input);
 
             this.continueAsNew = new OrchestrationCompleteOrchestratorAction
             {

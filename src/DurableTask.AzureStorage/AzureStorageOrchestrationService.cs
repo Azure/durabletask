@@ -281,7 +281,7 @@ namespace DurableTask.AzureStorage
 
         #region IEntityOrchestrationService
 
-        EntityBackendProperties IEntityOrchestrationService.GetEntityBackendProperties()
+        EntityBackendProperties IEntityOrchestrationService.EntityBackendProperties
            => new EntityBackendProperties()
            {
                EntityMessageReorderWindow = TimeSpan.FromMinutes(this.settings.EntityMessageReorderWindowInMinutes),
@@ -289,28 +289,24 @@ namespace DurableTask.AzureStorage
                MaxConcurrentTaskEntityWorkItems = this.settings.MaxConcurrentTaskEntityWorkItems,
                SupportsImplicitEntityDeletion = false, // not supported by this backend
                MaximumSignalDelayTime = TimeSpan.FromDays(6),
+               UseSeparateQueueForEntityWorkItems = this.settings.UseSeparateQueueForEntityWorkItems,
            };
 
-        bool IEntityOrchestrationService.ProcessEntitiesSeparately()
-        {
-            if (this.settings.UseSeparateQueueForEntityWorkItems)
-            {
-                this.orchestrationSessionManager.ProcessEntitiesSeparately = true;
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        }
+        EntityBackendQueries IEntityOrchestrationService.EntityBackendQueries
+           => new EntityTrackingStoreQueries(
+                this.messageManager,
+                this.trackingStore,
+                this.EnsureTaskHubAsync,
+                ((IEntityOrchestrationService)this).EntityBackendProperties,
+                this.SendTaskOrchestrationMessageAsync);
 
         Task<TaskOrchestrationWorkItem> IEntityOrchestrationService.LockNextOrchestrationWorkItemAsync(
           TimeSpan receiveTimeout,
           CancellationToken cancellationToken)
         {
-            if (!orchestrationSessionManager.ProcessEntitiesSeparately)
+            if (!this.settings.UseSeparateQueueForEntityWorkItems)
             {
-                throw new InvalidOperationException("backend was not configured for separate entity processing");
+                throw new InvalidOperationException("Internal configuration is inconsistent. Backend is using single queue for orchestration/entity dispatch, but frontend is pulling from individual queues.");
             }
             return this.LockNextTaskOrchestrationWorkItemAsync(false, cancellationToken);
         }
@@ -319,9 +315,9 @@ namespace DurableTask.AzureStorage
            TimeSpan receiveTimeout,
            CancellationToken cancellationToken)
         {
-            if (!orchestrationSessionManager.ProcessEntitiesSeparately)
+            if (!this.settings.UseSeparateQueueForEntityWorkItems)
             {
-                throw new InvalidOperationException("backend was not configured for separate entity processing");
+                throw new InvalidOperationException("Internal configuration is inconsistent. Backend is using single queue for orchestration/entity dispatch, but frontend is pulling from individual queues.");
             }
             return this.LockNextTaskOrchestrationWorkItemAsync(entitiesOnly: true, cancellationToken);
         }
@@ -680,6 +676,10 @@ namespace DurableTask.AzureStorage
             TimeSpan receiveTimeout,
             CancellationToken cancellationToken)
         {
+            if (this.settings.UseSeparateQueueForEntityWorkItems)
+            {
+                throw new InvalidOperationException("Internal configuration is inconsistent. Backend is using separate queues for orchestration/entity dispatch, but frontend is pulling from single queue.");
+            }
             return LockNextTaskOrchestrationWorkItemAsync(entitiesOnly: false, cancellationToken);
         }
 
@@ -2103,6 +2103,7 @@ namespace DurableTask.AzureStorage
                 TaskHubNames = condition.TaskHubNames,
                 InstanceIdPrefix = condition.InstanceIdPrefix,
                 FetchInput = condition.FetchInputsAndOutputs,
+                ExcludeEntities = condition.ExcludeEntities,
             };
         }
 

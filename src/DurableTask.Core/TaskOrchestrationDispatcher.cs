@@ -45,22 +45,23 @@ namespace DurableTask.Core
         readonly NonBlockingCountdownLock concurrentSessionLock;
         readonly IEntityOrchestrationService? entityOrchestrationService;
         readonly EntityBackendProperties? entityBackendProperties;
+        readonly TaskOrchestrationEntityParameters? entityParameters;
 
         internal TaskOrchestrationDispatcher(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskOrchestration> objectManager,
             DispatchMiddlewarePipeline dispatchPipeline,
             LogHelper logHelper,
-            ErrorPropagationMode errorPropagationMode, 
-            IEntityOrchestrationService entityOrchestrationService)
+            ErrorPropagationMode errorPropagationMode)
         {
             this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
             this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
             this.logHelper = logHelper ?? throw new ArgumentNullException(nameof(logHelper));
             this.errorPropagationMode = errorPropagationMode;
-            this.entityOrchestrationService = entityOrchestrationService;
-            this.entityBackendProperties = this.entityOrchestrationService?.GetEntityBackendProperties();
+            this.entityOrchestrationService = orchestrationService as IEntityOrchestrationService;
+            this.entityBackendProperties = this.entityOrchestrationService?.EntityBackendProperties;
+            this.entityParameters = TaskOrchestrationEntityParameters.FromEntityBackendProperties(this.entityBackendProperties);
 
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskOrchestrationDispatcher",
@@ -118,11 +119,11 @@ namespace DurableTask.Core
         /// <returns>A new TaskOrchestrationWorkItem</returns>
         protected Task<TaskOrchestrationWorkItem> OnFetchWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
-            if (this.entityOrchestrationService != null)
+            if (this.entityBackendProperties?.UseSeparateQueueForEntityWorkItems == true)
             {
                 // only orchestrations should be served by this dispatcher, so we call
                 // the method which returns work items for orchestrations only.
-                return this.entityOrchestrationService.LockNextOrchestrationWorkItemAsync(receiveTimeout, cancellationToken);
+                return this.entityOrchestrationService!.LockNextOrchestrationWorkItemAsync(receiveTimeout, cancellationToken);
             }
             else
             {
@@ -682,6 +683,7 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(runtimeState);
             dispatchContext.SetProperty(workItem);
             dispatchContext.SetProperty(GetOrchestrationExecutionContext(runtimeState));
+            dispatchContext.SetProperty(this.entityParameters);
 
             TaskOrchestrationExecutor? executor = null;
 
@@ -709,8 +711,9 @@ namespace DurableTask.Core
                     runtimeState,
                     taskOrchestration,
                     this.orchestrationService.EventBehaviourForContinueAsNew,
-                    this.entityBackendProperties,
-                    this.errorPropagationMode); ;
+                    this.entityParameters,
+                    this.errorPropagationMode);
+
                 OrchestratorExecutionResult resultFromOrchestrator = executor.Execute();
                 dispatchContext.SetProperty(resultFromOrchestrator);
                 return CompletedTask;

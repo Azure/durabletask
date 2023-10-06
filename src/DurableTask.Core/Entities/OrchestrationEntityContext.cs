@@ -61,7 +61,7 @@ namespace DurableTask.Core.Entities
         /// <summary>
         /// Checks whether the configured backend supports entities.
         /// </summary>
-        public bool EntitiesAreSupported => this.innerContext.EntityBackendProperties != null; 
+        public bool EntitiesAreSupported => this.innerContext.EntityParameters != null; 
         
         /// <summary>
         /// Whether this orchestration is currently inside a critical section.
@@ -312,7 +312,7 @@ namespace DurableTask.Core.Entities
                     requestMessage,
                     instanceId,
                     this.innerContext.CurrentUtcDateTime,
-                    this.innerContext.EntityBackendProperties.EntityMessageReorderWindow);
+                    this.innerContext.EntityParameters.EntityMessageReorderWindow);
 
                 eventName = EntityMessageEventNames.RequestMessageEventName;
             }

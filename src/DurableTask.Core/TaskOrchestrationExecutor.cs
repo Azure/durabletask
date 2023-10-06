@@ -43,22 +43,21 @@ namespace DurableTask.Core
         /// <param name="orchestrationRuntimeState"></param>
         /// <param name="taskOrchestration"></param>
         /// <param name="eventBehaviourForContinueAsNew"></param>
-        /// <param name="entityBackendProperties"></param>
+        /// <param name="entityParameters"></param>
         /// <param name="errorPropagationMode"></param>
         public TaskOrchestrationExecutor(
             OrchestrationRuntimeState orchestrationRuntimeState,
             TaskOrchestration taskOrchestration,
             BehaviorOnContinueAsNew eventBehaviourForContinueAsNew,
-            EntityBackendProperties? entityBackendProperties,
+            TaskOrchestrationEntityParameters? entityParameters,
             ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
         {
             this.decisionScheduler = new SynchronousTaskScheduler();
             this.context = new TaskOrchestrationContext(
                 orchestrationRuntimeState.OrchestrationInstance,
                 this.decisionScheduler,
-                entityBackendProperties,
-                errorPropagationMode
-                );
+                entityParameters,
+                errorPropagationMode);
             this.orchestrationRuntimeState = orchestrationRuntimeState;
             this.taskOrchestration = taskOrchestration;
             this.skipCarryOverEvents = eventBehaviourForContinueAsNew == BehaviorOnContinueAsNew.Ignore;
@@ -77,7 +76,7 @@ namespace DurableTask.Core
             TaskOrchestration taskOrchestration,
             BehaviorOnContinueAsNew eventBehaviourForContinueAsNew,
             ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
-            : this(orchestrationRuntimeState, taskOrchestration, eventBehaviourForContinueAsNew, null, errorPropagationMode)
+            : this(orchestrationRuntimeState, taskOrchestration, eventBehaviourForContinueAsNew, entityParameters: null, errorPropagationMode)
         {
         }
 

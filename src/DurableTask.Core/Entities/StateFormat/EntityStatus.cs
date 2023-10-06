@@ -38,7 +38,7 @@ namespace DurableTask.Core.Entities
         }
 
         /// <summary>
-        /// Whether this entity exists or not.
+        /// Whether this entity currently has a user-defined state or not.
         /// </summary>
         [DataMember(Name = EntityExistsProperyName, EmitDefaultValue = false)]
         public bool EntityExists { get; set; }
@@ -47,7 +47,7 @@ namespace DurableTask.Core.Entities
         /// The size of the queue, i.e. the number of operations that are waiting for the current operation to complete.
         /// </summary>
         [DataMember(Name = "queueSize", EmitDefaultValue = false)]
-        public int QueueSize { get; set; }
+        public int BacklogQueueSize { get; set; }
 
         /// <summary>
         /// The instance id of the orchestration that currently holds the lock of this entity.

@@ -56,7 +56,7 @@ namespace DurableTask.Core
             this.logHelper = logHelper ?? throw new ArgumentNullException(nameof(logHelper));
             this.errorPropagationMode = errorPropagationMode;
             this.entityOrchestrationService = (orchestrationService as IEntityOrchestrationService)!;
-            this.entityBackendProperties = entityOrchestrationService.GetEntityBackendProperties();
+            this.entityBackendProperties = entityOrchestrationService.EntityBackendProperties;
            
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskEntityDispatcher",
@@ -345,7 +345,7 @@ namespace DurableTask.Core
                     var entityStatus = new EntityStatus()
                     {
                         EntityExists = schedulerState.EntityExists,
-                        QueueSize = schedulerState.Queue?.Count ?? 0,
+                        BacklogQueueSize = schedulerState.Queue?.Count ?? 0,
                         LockedBy = schedulerState.LockedBy,
                     };
                     var serializedEntityStatus = JsonConvert.SerializeObject(entityStatus, Serializer.InternalSerializerSettings);
@@ -803,6 +803,7 @@ namespace DurableTask.Core
                     runtimeState.Tags,
                     new Dictionary<string, string>() { { OrchestrationTags.FireAndForget, "" } }),
                 OrchestrationInstance = destination,
+                ScheduledStartTime = action.ScheduledStartTime,
                 ParentInstance = new ParentInstance
                 {
                     OrchestrationInstance = runtimeState.OrchestrationInstance,
@@ -866,12 +867,6 @@ namespace DurableTask.Core
                         instance,
                         new TypeMissingException($"Entity not found: {entityName}"));
                 }
-
-                var options = new EntityExecutionOptions()
-                {
-                    EntityBackendProperties = this.entityBackendProperties,
-                    ErrorPropagationMode = this.errorPropagationMode,
-                };
 
                 var result = await taskEntity.ExecuteOperationBatchAsync(request);
                 
