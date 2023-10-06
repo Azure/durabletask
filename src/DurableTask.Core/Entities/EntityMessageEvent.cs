@@ -13,6 +13,7 @@
 #nullable enable
 using System;
 using DurableTask.Core.Entities.EventFormat;
+using DurableTask.Core.Serializing.Internal;
 using Newtonsoft.Json;
 
 namespace DurableTask.Core.Entities
@@ -73,6 +74,17 @@ namespace DurableTask.Core.Entities
                 }
             };
         }
+
+#pragma warning disable CS0618 // Type or member is obsolete. Intentional internal usage.
+        /// <summary>
+        /// Returns the content as an already-serialized string. Can be used to bypass the application-defined serializer.
+        /// </summary>
+        /// <returns></returns>
+        public RawInput AsRawInput()
+        {
+            return new RawInput(this.AsSerializedString());
+        }
+#pragma warning restore CS0618 // Type or member is obsolete
 
         /// <summary>
         /// Utility function to compute a capped scheduled time, given a scheduled time, a timestamp representing the current time, and the maximum delay.

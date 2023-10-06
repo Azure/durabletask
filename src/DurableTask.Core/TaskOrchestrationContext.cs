@@ -200,16 +200,7 @@ namespace DurableTask.Core
 
             int id = this.idCounter++;
 
-            string serializedEventData;
-            if (eventData is EntityMessageEvent entityMessageEvent)
-            {
-                serializedEventData = entityMessageEvent.AsSerializedString(); // bypass application-defined serializer
-            }
-            else
-            {
-                serializedEventData = this.MessageDataConverter.SerializeInternal(eventData);
-            }
-             
+            string serializedEventData = this.MessageDataConverter.SerializeInternal(eventData);             
 
             var action = new SendEventOrchestratorAction
             {
