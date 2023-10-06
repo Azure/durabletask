@@ -200,7 +200,7 @@ namespace DurableTask.AzureStorage
             };
         }
 
-        async ValueTask<EntityMetadata?> GetEntityMetadataAsync(OrchestrationState? state, bool includeStateless, bool includeState)
+        async ValueTask<EntityMetadata?> GetEntityMetadataAsync(OrchestrationState? state, bool includeTransient, bool includeState)
         {
             if (state == null)
             {
@@ -209,7 +209,7 @@ namespace DurableTask.AzureStorage
 
             if (!includeState)
             {
-                if (!includeStateless)
+                if (!includeTransient)
                 {
                     // it is possible that this entity was logically deleted even though its orchestration was not purged yet.
                     // we can check this efficiently (i.e. without deserializing anything) by looking at just the custom status
@@ -247,7 +247,7 @@ namespace DurableTask.AzureStorage
                 string? serializedEntityState = ClientEntityHelpers.GetEntityState(serializedSchedulerState);
 
                 // return the result to the user
-                if (!includeStateless && serializedEntityState == null)
+                if (!includeTransient && serializedEntityState == null)
                 {
                     return null;
                 }
