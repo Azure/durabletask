@@ -29,7 +29,7 @@ namespace OpenTelemetrySample
         {
             using var tracerProvider = Sdk.CreateTracerProviderBuilder()
                 .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("MySample"))
-                .AddSource("DurableTask")
+                .AddSource("DurableTask.Core")
                 .AddConsoleExporter()
                 .AddZipkinExporter()
                 .AddAzureMonitorTraceExporter(options =>
