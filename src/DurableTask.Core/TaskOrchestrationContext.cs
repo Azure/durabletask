@@ -199,7 +199,8 @@ namespace DurableTask.Core
             }
 
             int id = this.idCounter++;
-            string serializedEventData = this.MessageDataConverter.SerializeInternal(eventData);
+
+            string serializedEventData = this.MessageDataConverter.SerializeInternal(eventData);             
 
             var action = new SendEventOrchestratorAction
             {
