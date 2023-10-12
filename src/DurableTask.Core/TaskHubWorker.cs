@@ -146,7 +146,7 @@ namespace DurableTask.Core
             this.entityManager = entityObjectManager ?? throw new ArgumentException("entityObjectManager");
             this.orchestrationService = orchestrationService ?? throw new ArgumentException("orchestrationService");
             this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
-            this.dispatchEntitiesSeparately = (orchestrationService as IEntityOrchestrationService).EntityBackendProperties?.UseSeparateQueueForEntityWorkItems ?? false;
+            this.dispatchEntitiesSeparately = (orchestrationService as IEntityOrchestrationService)?.EntityBackendProperties?.UseSeparateQueueForEntityWorkItems ?? false;
         }
 
         /// <summary>
