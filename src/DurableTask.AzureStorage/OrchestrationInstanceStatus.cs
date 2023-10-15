@@ -14,7 +14,6 @@
 namespace DurableTask.AzureStorage
 {
     using System;
-    using System.Collections.Generic;
     using Azure;
     using Azure.Data.Tables;
 
@@ -35,7 +34,7 @@ namespace DurableTask.AzureStorage
         public string RuntimeStatus { get; set; }
         public DateTime? ScheduledStartTime { get; set; }
         public int Generation { get; set; }
-        public IDictionary<string, string> Tags { get; set; }
+        public string Tags { get; set; }
         public string PartitionKey { get; set; }
         public string RowKey { get; set; }
         public DateTimeOffset? Timestamp { get; set; }
