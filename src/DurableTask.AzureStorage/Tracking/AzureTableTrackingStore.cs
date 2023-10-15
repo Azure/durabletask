@@ -462,7 +462,9 @@ namespace DurableTask.AzureStorage.Tracking
             orchestrationState.Output = orchestrationInstanceStatus.Output;
             orchestrationState.ScheduledStartTime = orchestrationInstanceStatus.ScheduledStartTime;
             orchestrationState.Generation = orchestrationInstanceStatus.Generation;
-            orchestrationState.Tags = orchestrationInstanceStatus.Tags;
+           orchestrationState.Tags = !string.IsNullOrEmpty(orchestrationInstanceStatus.Tags)
+                ? TagsSerializer.Deserialize(orchestrationInstanceStatus.Tags)
+                : null;
 
             if (this.settings.FetchLargeMessageDataEnabled)
             {
@@ -716,7 +718,7 @@ namespace DurableTask.AzureStorage.Tracking
                 ["ScheduledStartTime"] = executionStartedEvent.ScheduledStartTime,
                 ["ExecutionId"] = executionStartedEvent.OrchestrationInstance.ExecutionId,
                 ["Generation"] = executionStartedEvent.Generation,
-                ["Tags"] = executionStartedEvent.Tags,
+                ["Tags"] = TagsSerializer.Serialize(executionStartedEvent.Tags),
             };
 
             // It is possible that the queue message was small enough to be written directly to a queue message,
