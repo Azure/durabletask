@@ -12,16 +12,16 @@
 //  ----------------------------------------------------------------------------------
 
 using System.Collections.Generic;
-using System.Text.Json;
+using Newtonsoft.Json;
 
 namespace DurableTask.AzureStorage.Tracking
 {
     internal static class TagsSerializer
     {
         public static string Serialize(IDictionary<string, string> tags)
-            => JsonSerializer.Serialize(tags);
+            => JsonConvert.SerializeObject(tags);
 
         public static IDictionary<string, string> Deserialize(string tags)
-            => JsonSerializer.Deserialize<Dictionary<string,string>>(tags);
+            => JsonConvert.DeserializeObject<Dictionary<string,string>>(tags);
     }
 }
