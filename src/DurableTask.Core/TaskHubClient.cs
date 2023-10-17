@@ -33,6 +33,9 @@ namespace DurableTask.Core
         readonly DataConverter defaultConverter;
         readonly LogHelper logHelper;
 
+        internal LogHelper LogHelper => this.logHelper;
+        internal DataConverter DefaultConverter => this.defaultConverter;
+
         /// <summary>
         /// The orchestration service client for this task hub client
         /// </summary>
