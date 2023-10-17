@@ -20,7 +20,7 @@
   <!-- Version Info -->
   <PropertyGroup>
     <MajorVersion>1</MajorVersion>
-    <MinorVersion>16</MinorVersion>
+    <MinorVersion>17</MinorVersion>
     <PatchVersion>0</PatchVersion>
 
     <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
@@ -30,7 +30,7 @@
     <!-- The assembly version is only the major/minor pair, making it easier to do in-place upgrades -->
     <AssemblyVersion>$(MajorVersion).$(MinorVersion).0.0</AssemblyVersion>
     <!-- This version is used as the nuget package version -->
-    <Version>$(VersionPrefix)-entities-preview.2</Version>
+    <Version>$(VersionPrefix)-preview.1</Version>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
