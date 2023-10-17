@@ -14,9 +14,11 @@
 namespace DurableTask.Core.Logging
 {
     using System;
+    using System.Linq;
     using System.Text;
     using DurableTask.Core.Command;
     using DurableTask.Core.Common;
+    using DurableTask.Core.Entities.OperationFormat;
     using DurableTask.Core.History;
     using Microsoft.Extensions.Logging;
 
@@ -1173,6 +1175,223 @@ namespace DurableTask.Core.Logging
                     this.EventType,
                     this.TaskEventId,
                     this.Details,
+                    Utils.AppName,
+                    Utils.PackageVersion);
+        }
+
+        /// <summary>
+        /// Log event representing a task hub worker executing a batch of entity operations.
+        /// </summary>
+        internal class EntityBatchExecuting : StructuredLogEvent, IEventSourceEvent
+        {
+            public EntityBatchExecuting(EntityBatchRequest request)
+            {
+                this.InstanceId = request.InstanceId;
+                this.OperationCount = request.Operations.Count;
+                this.EntityStateLength = request.EntityState?.Length ?? 0;
+            }
+
+            [StructuredLogField]
+            public string InstanceId { get; }
+
+            [StructuredLogField]
+            public int OperationCount { get; }
+
+            [StructuredLogField]
+            public int EntityStateLength { get; }
+
+            public override EventId EventId => new EventId(
+                EventIds.EntityBatchExecuting,
+                nameof(EventIds.EntityBatchExecuting));
+
+            public override LogLevel Level => LogLevel.Debug;
+
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: executing batch of {this.OperationCount} operations on entity state of length {this.EntityStateLength}.";
+
+            void IEventSourceEvent.WriteEventSource() =>
+                StructuredEventSource.Log.EntityBatchExecuting(
+                    this.InstanceId,
+                    this.OperationCount,
+                    this.EntityStateLength,
+                    Utils.AppName,
+                    Utils.PackageVersion);
+        }
+
+        /// <summary>
+        /// Log event representing a task hub worker executed a batch of entity operations.
+        /// </summary>
+        internal class EntityBatchExecuted : StructuredLogEvent, IEventSourceEvent
+        {
+            public EntityBatchExecuted(EntityBatchRequest request, EntityBatchResult result)
+            {
+                this.InstanceId = request.InstanceId;
+                this.OperationCount = request.Operations.Count;
+                this.ResultCount = result.Results.Count;
+                this.ErrorCount = result.Results.Count(x => x.IsError);
+                this.ActionCount = result.Actions.Count;
+                this.EntityStateLength = request.EntityState?.Length ?? 0;
+            }
+
+            [StructuredLogField]
+            public string InstanceId { get; }
+
+            [StructuredLogField]
+            public int OperationCount { get; }
+
+            [StructuredLogField]
+            public int ResultCount { get; }
+
+            [StructuredLogField]
+            public int ErrorCount { get; }
+
+            [StructuredLogField]
+            public int ActionCount { get; }
+
+            [StructuredLogField]
+            public int EntityStateLength { get; }
+
+            public override EventId EventId => new EventId(
+                EventIds.EntityBatchExecuting,
+                nameof(EventIds.EntityBatchExecuting));
+
+            public override LogLevel Level => LogLevel.Information;
+
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: completed {this.ResultCount} of {this.OperationCount} entity operations, resulting in {this.ErrorCount} errors, {this.ActionCount} actions, and entity state of length {this.EntityStateLength}.";
+
+            void IEventSourceEvent.WriteEventSource() =>
+                StructuredEventSource.Log.EntityBatchExecuted(
+                    this.InstanceId,
+                    this.OperationCount,
+                    this.ResultCount,
+                    this.ErrorCount,
+                    this.ActionCount,
+                    this.EntityStateLength,
+                    Utils.AppName,
+                    Utils.PackageVersion);
+        }
+
+        /// <summary>
+        /// Logs that an entity processed a lock acquire message.
+        /// </summary>
+        internal class EntityLockAcquired : StructuredLogEvent, IEventSourceEvent
+        {
+            public EntityLockAcquired(string entityId, Core.Entities.EventFormat.RequestMessage message)
+            {
+                this.EntityId = entityId;
+                this.InstanceId = message.ParentInstanceId;
+                this.ExecutionId = message.ParentExecutionId;
+                this.CriticalSectionId = message.Id;
+                this.Position = message.Position;
+
+                if (message.LockSet != null)
+                {
+                    this.LockSet = string.Join(",", message.LockSet.Select(id => id.ToString()));
+                }
+            }
+
+            /// <summary>
+            /// The entity that is being locked.
+            /// </summary>
+            [StructuredLogField]
+            public string EntityId { get; }
+
+            /// <summary>
+            /// The instance ID of the orchestration that is executing the critical section.
+            /// </summary>
+            [StructuredLogField]
+            public string InstanceId { get; set; }
+
+            /// <summary>
+            /// The execution ID of the orchestration that is executing the critical section.
+            /// </summary>
+            [StructuredLogField]
+            public string ExecutionId { get; set; }
+
+            /// <summary>
+            /// The unique ID of the critical section that is acquiring this lock.
+            /// </summary>
+            [StructuredLogField]
+            public Guid CriticalSectionId { get; set; }
+
+            /// <summary>
+            /// The ordered set of locks that are being acquired for this critical section.
+            /// </summary>
+            [StructuredLogField]
+            public string LockSet { get; set; }
+
+            /// <summary>
+            /// Which of the locks in <see cref="LockSet"/> is being acquired.
+            /// </summary>
+            [StructuredLogField]
+            public int Position { get; set; }
+
+            public override EventId EventId => new EventId(
+                EventIds.EntityLockAcquired,
+                nameof(EventIds.EntityLockAcquired));
+
+            public override LogLevel Level => LogLevel.Information;
+
+            protected override string CreateLogMessage() =>
+                $"{this.EntityId}: acquired lock {this.Position+1}/{this.LockSet.Length} for orchestration instanceId={this.InstanceId} executionId={this.ExecutionId} criticalSectionId={this.CriticalSectionId}";
+
+            void IEventSourceEvent.WriteEventSource() =>
+                StructuredEventSource.Log.EntityLockAcquired(
+                    this.EntityId,
+                    this.InstanceId ?? string.Empty,
+                    this.ExecutionId ?? string.Empty,
+                    this.CriticalSectionId,
+                    this.LockSet ?? string.Empty,
+                    this.Position,
+                    Utils.AppName,
+                    Utils.PackageVersion);
+        }
+
+        /// <summary>
+        /// Logs that an entity processed a lock release message.
+        /// </summary>
+        internal class EntityLockReleased : StructuredLogEvent, IEventSourceEvent
+        {
+            public EntityLockReleased(string entityId, Core.Entities.EventFormat.ReleaseMessage message)
+            {
+                this.EntityId = entityId;
+                this.InstanceId = message.ParentInstanceId;
+                this.CriticalSectionId = message.Id;
+            }
+
+            /// <summary>
+            /// The entity that is being unlocked.
+            /// </summary>
+            [StructuredLogField]
+            public string EntityId { get; }
+
+            /// <summary>
+            /// The instance ID of the orchestration that is executing the critical section.
+            /// </summary>
+            [StructuredLogField]
+            public string InstanceId { get; set; }
+
+            /// <summary>
+            /// The unique ID of the critical section that is releasing the lock after completing.
+            /// </summary>
+            [StructuredLogField]
+            public string CriticalSectionId { get; set; }
+
+            public override EventId EventId => new EventId(
+                EventIds.EntityLockReleased,
+                nameof(EventIds.EntityLockReleased));
+
+            public override LogLevel Level => LogLevel.Information;
+
+            protected override string CreateLogMessage() =>
+                $"{this.EntityId}: released lock for orchestration instanceId={this.InstanceId} criticalSectionId={this.CriticalSectionId}";
+
+            void IEventSourceEvent.WriteEventSource() =>
+                StructuredEventSource.Log.EntityLockReleased(
+                    this.EntityId,
+                    this.InstanceId ?? string.Empty,
+                    this.CriticalSectionId ?? string.Empty,
                     Utils.AppName,
                     Utils.PackageVersion);
         }
