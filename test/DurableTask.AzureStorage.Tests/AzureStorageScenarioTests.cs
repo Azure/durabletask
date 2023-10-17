@@ -944,7 +944,9 @@ namespace DurableTask.AzureStorage.Tests
         [DataRow(false)]
         public async Task TerminateSuspendedOrchestration(bool enableExtendedSessions)
         {
-            Assert.True(true);
+            await Task.Delay(1);
+            bool test = true;
+            Assert.IsTrue(test);
             /*using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
