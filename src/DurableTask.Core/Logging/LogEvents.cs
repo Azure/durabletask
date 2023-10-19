@@ -1252,8 +1252,8 @@ namespace DurableTask.Core.Logging
             public int EntityStateLength { get; }
 
             public override EventId EventId => new EventId(
-                EventIds.EntityBatchExecuting,
-                nameof(EventIds.EntityBatchExecuting));
+                EventIds.EntityBatchExecuted,
+                nameof(EventIds.EntityBatchExecuted));
 
             public override LogLevel Level => LogLevel.Information;
 

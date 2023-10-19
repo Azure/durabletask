@@ -122,7 +122,7 @@ namespace DurableTask.Core
                 orchestrationObjectManager,
                 activityObjectManager,
                 new NameVersionObjectManager<TaskEntity>(),
-                loggerFactory: null)
+                loggerFactory)
         {
         }
 
