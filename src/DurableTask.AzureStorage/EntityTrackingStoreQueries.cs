@@ -150,7 +150,7 @@ namespace DurableTask.AzureStorage
                 DurableStatusQueryResult page = states != null 
                     ? new DurableStatusQueryResult { ContinuationToken = states.ContinuationToken, OrchestrationState = states.Values }
                     : new DurableStatusQueryResult { OrchestrationState = Array.Empty<OrchestrationState>() };
-
+                continuationToken = page.ContinuationToken;
 
                 var tasks = new List<Task>();
                 foreach (OrchestrationState state in page.OrchestrationState)

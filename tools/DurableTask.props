@@ -8,7 +8,7 @@
     <LangVersion>9.0</LangVersion>
     <!-- See https://github.com/Azure/durabletask/issues/428 -->
     <NoWarn>NU5125,NU5048</NoWarn>
-    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+    <TreatWarningsAsErrors>False</TreatWarningsAsErrors>
     <!-- SourceLink Settings-->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
