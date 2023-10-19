@@ -140,6 +140,7 @@ namespace DurableTask.AzureStorage
             do
             {
                 DurableStatusQueryResult page = await this.trackingStore.GetStateAsync(condition, 100, continuationToken, cancellation);
+                continuationToken = page.ContinuationToken;
 
                 var tasks = new List<Task>();
                 foreach (OrchestrationState state in page.OrchestrationState)
