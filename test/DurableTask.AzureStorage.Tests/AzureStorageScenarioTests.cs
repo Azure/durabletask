@@ -944,10 +944,7 @@ namespace DurableTask.AzureStorage.Tests
         [DataRow(false)]
         public async Task TerminateSuspendedOrchestration(bool enableExtendedSessions)
         {
-            await Task.Delay(1);
-            bool test = true;
-            Assert.IsTrue(test);
-            /*using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Counter), 0);
@@ -964,7 +961,7 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual("terminate", status?.Output);
 
                 await host.StopAsync();
-            }*/
+            }
         }
 
         /// <summary>
