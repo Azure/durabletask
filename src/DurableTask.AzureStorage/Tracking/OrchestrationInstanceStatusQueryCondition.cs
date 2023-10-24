@@ -68,7 +68,12 @@ namespace DurableTask.AzureStorage.Tracking
         public bool FetchOutput { get; set; } = true;
 
         /// <summary>
-        /// Get the corresponding OData filter.
+        /// Whether to exclude entities from the results.
+        /// </summary>
+        public bool ExcludeEntities { get; set; } = false;
+
+        /// <summary>
+        /// Get the TableQuery object
         /// </summary>
         /// <returns></returns>
         internal ODataCondition ToOData()
@@ -78,7 +83,8 @@ namespace DurableTask.AzureStorage.Tracking
                 this.CreatedTimeTo == default(DateTime) &&
                 this.TaskHubNames == null &&
                 this.InstanceIdPrefix == null &&
-                this.InstanceId == null))
+                this.InstanceId == null &&
+                !this.ExcludeEntities))
             {
                 IEnumerable<string>? select = null;
                 if (!this.FetchInput || !this.FetchOutput)
@@ -136,6 +142,13 @@ namespace DurableTask.AzureStorage.Tracking
 
                 conditions.Add($"{nameof(OrchestrationInstanceStatus.PartitionKey)} ge '{sanitizedPrefix}'");
                 conditions.Add($"{nameof(OrchestrationInstanceStatus.PartitionKey)} lt '{greaterThanPrefix}'");
+            }
+            else if (this.ExcludeEntities)
+            {
+                conditions.Add(TableQuery.CombineFilters(
+                     TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.LessThan, "@"),
+                     TableOperators.Or,
+                     TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.GreaterThanOrEqual, "A")));
             }
 
             if (this.InstanceId != null)

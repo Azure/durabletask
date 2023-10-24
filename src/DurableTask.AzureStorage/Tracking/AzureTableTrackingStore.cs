@@ -390,7 +390,7 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        async Task<InstanceStatus?> FetchInstanceStatusInternalAsync(string instanceId, bool fetchInput, CancellationToken cancellationToken)
+        internal async Task<InstanceStatus?> FetchInstanceStatusInternalAsync(string instanceId, bool fetchInput)
         {
             if (instanceId == null)
             {
