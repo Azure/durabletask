@@ -16,9 +16,10 @@ namespace DurableTask.AzureStorage.Partitioning
     using System;
     using System.Collections.Generic;
     using System.Runtime.ExceptionServices;
+    using System.Threading;
     using System.Threading.Tasks;
+    using Azure;
     using DurableTask.AzureStorage.Storage;
-    using Microsoft.WindowsAzure.Storage;
 
     class LegacyPartitionManager : IPartitionManager
     {
@@ -26,8 +27,8 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly AzureStorageClient azureStorageClient;
         readonly AzureStorageOrchestrationServiceSettings settings;
 
-        readonly BlobLeaseManager leaseManager;
-        readonly LeaseCollectionBalancer<BlobLease> leaseCollectionManager;
+        readonly BlobPartitionLeaseManager leaseManager;
+        readonly LeaseCollectionBalancer<BlobPartitionLease> leaseCollectionManager;
 
         public LegacyPartitionManager(
             AzureStorageOrchestrationService service,
@@ -40,7 +41,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.azureStorageClient,
                 "default");
 
-            this.leaseCollectionManager = new LeaseCollectionBalancer<BlobLease>(
+            this.leaseCollectionManager = new LeaseCollectionBalancer<BlobPartitionLease>(
                 "default",
                 settings,
                 this.azureStorageClient.BlobAccountName,
@@ -73,8 +74,8 @@ namespace DurableTask.AzureStorage.Partitioning
                 {
                     foreach (Exception e in t.Exception.InnerExceptions)
                     {
-                        StorageException storageException = e as StorageException;
-                        if (storageException == null || storageException.RequestInformation.HttpStatusCode != 404)
+                        RequestFailedException storageException = e as RequestFailedException;
+                        if (storageException == null || storageException.Status != 404)
                         {
                             ExceptionDispatchInfo.Capture(e).Throw();
                         }
@@ -83,9 +84,9 @@ namespace DurableTask.AzureStorage.Partitioning
             });
         }
 
-        Task<IEnumerable<BlobLease>> IPartitionManager.GetOwnershipBlobLeases()
+        IAsyncEnumerable<BlobPartitionLease> IPartitionManager.GetOwnershipBlobLeasesAsync(CancellationToken cancellationToken)
         {
-            return this.leaseManager.ListLeasesAsync();
+            return this.leaseManager.ListLeasesAsync(cancellationToken);
         }
 
         async Task IPartitionManager.StartAsync()

@@ -29,7 +29,7 @@ namespace OpenTelemetrySample
         {
             using var tracerProvider = Sdk.CreateTracerProviderBuilder()
                 .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("MySample"))
-                .AddSource("DurableTask.Core")
+                .AddSource("DurableTask")
                 .AddConsoleExporter()
                 .AddZipkinExporter()
                 .AddAzureMonitorTraceExporter(options =>
@@ -71,7 +71,7 @@ namespace OpenTelemetrySample
             var settings = new AzureStorageOrchestrationServiceSettings
             {
                 TaskHubName = "OpenTelemetrySampleTaskHub",
-                StorageConnectionString = "UseDevelopmentStorage=true",
+                StorageAccountClientProvider = new StorageAccountClientProvider("UseDevelopmentStorage=true"),
             };
 
             IOrchestrationService service = new AzureStorageOrchestrationService(settings);

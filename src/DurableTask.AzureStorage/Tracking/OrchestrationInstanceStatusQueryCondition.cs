@@ -17,12 +17,11 @@ namespace DurableTask.AzureStorage.Tracking
     using System.Collections.Generic;
     using System.Linq;
     using DurableTask.Core;
-    using Microsoft.WindowsAzure.Storage.Table;
 
     /// <summary>
     /// OrchestrationInstanceStatusQueryBuilder is a builder to create a StorageTable Query
     /// </summary>
-    public class OrchestrationInstanceStatusQueryCondition
+    public sealed class OrchestrationInstanceStatusQueryCondition
     {
         static readonly string[] ColumnNames = typeof(OrchestrationInstanceStatus).GetProperties()
             .Select(prop => prop.Name)
@@ -76,20 +75,18 @@ namespace DurableTask.AzureStorage.Tracking
         /// <summary>
         /// Get the TableQuery object
         /// </summary>
-        /// <typeparam name="T"></typeparam>
         /// <returns></returns>
-        public TableQuery<T> ToTableQuery<T>()
-            where T : ITableEntity, new()
+        internal ODataCondition ToOData()
         {
-            var query = new TableQuery<T>();
-            if (!((this.RuntimeStatus == null || !this.RuntimeStatus.Any()) && 
-                this.CreatedTimeFrom == default(DateTime) && 
+            if (!((this.RuntimeStatus == null || !this.RuntimeStatus.Any()) &&
+                this.CreatedTimeFrom == default(DateTime) &&
                 this.CreatedTimeTo == default(DateTime) &&
                 this.TaskHubNames == null &&
                 this.InstanceIdPrefix == null &&
                 this.InstanceId == null &&
                 !this.ExcludeEntities))
             {
+                IEnumerable<string>? select = null;
                 if (!this.FetchInput || !this.FetchOutput)
                 {
                     var columns = new HashSet<string>(ColumnNames);
@@ -103,53 +100,36 @@ namespace DurableTask.AzureStorage.Tracking
                         columns.Remove(nameof(OrchestrationInstanceStatus.Output));
                     }
 
-                    query.Select(columns.ToList());
+                    select = columns;
                 }
 
-                string conditions = this.GetConditions();
-                if (!string.IsNullOrEmpty(conditions))
-                {
-                    query.Where(conditions);
-                }
+                return new ODataCondition(select, this.GetODataFilter());
             }
 
-            return query;
+            return default;
         }
 
-        string GetConditions()
+        string? GetODataFilter()
         {
             var conditions = new List<string>();
-
             if (this.CreatedTimeFrom > DateTime.MinValue)
             {
-                conditions.Add(TableQuery.GenerateFilterConditionForDate("CreatedTime", QueryComparisons.GreaterThanOrEqual, new DateTimeOffset(this.CreatedTimeFrom)));
+                conditions.Add($"{nameof(OrchestrationInstanceStatus.CreatedTime)} ge datetime'{this.CreatedTimeFrom:O}'");
             }
 
             if (this.CreatedTimeTo != default(DateTime) && this.CreatedTimeTo < DateTime.MaxValue)
             {
-                conditions.Add(TableQuery.GenerateFilterConditionForDate("CreatedTime", QueryComparisons.LessThanOrEqual, new DateTimeOffset(this.CreatedTimeTo)));
+                conditions.Add($"{nameof(OrchestrationInstanceStatus.CreatedTime)} le datetime'{this.CreatedTimeTo:O}'");
             }
 
             if (this.RuntimeStatus != null && this.RuntimeStatus.Any())
             {
-                string runtimeCondition = this.RuntimeStatus
-                    .Select(x => TableQuery.GenerateFilterCondition("RuntimeStatus", QueryComparisons.Equal, x.ToString()))
-                    .Aggregate((a, b) => TableQuery.CombineFilters(a, TableOperators.Or, b));
-                if (runtimeCondition.Length > 0)
-                {
-                    conditions.Add(runtimeCondition);
-                }
+                conditions.Add($"{string.Join(" or ", this.RuntimeStatus.Select(x => $"{nameof(OrchestrationInstanceStatus.RuntimeStatus)} eq '{x:G}'"))}");
             }
 
-            if (this.TaskHubNames != null)
+            if (this.TaskHubNames != null && this.TaskHubNames.Any())
             {
-                string taskHubCondition = this.TaskHubNames
-                    .Select(x => TableQuery.GenerateFilterCondition("TaskHubName", QueryComparisons.Equal, x.ToString()))
-                    .Aggregate((a, b) => TableQuery.CombineFilters(a, TableOperators.Or, b));
-                if (taskHubCondition.Count() != 0)
-                {
-                    conditions.Add(taskHubCondition);
-                }
+                conditions.Add($"{string.Join(" or ", this.TaskHubNames.Select(x => $"TaskHubName eq '{x}'"))}");
             }
 
             if (!string.IsNullOrEmpty(this.InstanceIdPrefix))
@@ -160,10 +140,8 @@ namespace DurableTask.AzureStorage.Tracking
 
                 string greaterThanPrefix = sanitizedPrefix.Substring(0, length) + incrementedLastChar;
 
-                conditions.Add(TableQuery.CombineFilters(
-                    TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.GreaterThanOrEqual, sanitizedPrefix), 
-                    TableOperators.And, 
-                    TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.LessThan, greaterThanPrefix)));
+                conditions.Add($"{nameof(OrchestrationInstanceStatus.PartitionKey)} ge '{sanitizedPrefix}'");
+                conditions.Add($"{nameof(OrchestrationInstanceStatus.PartitionKey)} lt '{greaterThanPrefix}'");
             }
             else if (this.ExcludeEntities)
             {
@@ -176,17 +154,15 @@ namespace DurableTask.AzureStorage.Tracking
             if (this.InstanceId != null)
             {
                 string sanitizedInstanceId = KeySanitation.EscapePartitionKey(this.InstanceId);
-                conditions.Add(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, sanitizedInstanceId));
+                conditions.Add($"{nameof(OrchestrationInstanceStatus.PartitionKey)} eq '{sanitizedInstanceId}'");
             }
 
-            if (conditions.Count == 0)
+            return conditions.Count switch
             {
-                return string.Empty;
-            }
-
-            return conditions.Count == 1 ? 
-                conditions[0] : 
-                conditions.Aggregate((a, b) => TableQuery.CombineFilters(a, TableOperators.And, b));
+                0 => null,
+                1 => conditions[0],
+                _ => string.Join(" and ", conditions.Select(c => $"({c})")),
+            };
         }
 
         /// <summary>

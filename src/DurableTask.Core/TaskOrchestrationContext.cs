@@ -100,7 +100,7 @@ namespace DurableTask.Core
             params object[] parameters)
         {
             int id = this.idCounter++;
-            string serializedInput = this.MessageDataConverter.SerializeInternal(parameters);
+            string serializedInput = this.MessageDataConverter.Serialize(parameters);
             var scheduleTaskTaskAction = new ScheduleTaskOrchestratorAction
             {
                 Id = id,
@@ -155,7 +155,7 @@ namespace DurableTask.Core
             IDictionary<string, string> tags)
         {
             int id = this.idCounter++;
-            string serializedInput = this.MessageDataConverter.SerializeInternal(input);
+            string serializedInput = this.MessageDataConverter.Serialize(input);
 
             string actualInstanceId = instanceId;
             if (string.IsNullOrWhiteSpace(actualInstanceId))
@@ -225,7 +225,7 @@ namespace DurableTask.Core
 
         void ContinueAsNewCore(string newVersion, object input)
         {
-            string serializedInput = this.MessageDataConverter.SerializeInternal(input);
+            string serializedInput = this.MessageDataConverter.Serialize(input);
 
             this.continueAsNew = new OrchestrationCompleteOrchestratorAction
             {

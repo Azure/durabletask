@@ -594,7 +594,7 @@ namespace DurableTask.Core
                 ExecutionId = Guid.NewGuid().ToString("N"),
             };
 
-            string serializedOrchestrationData = this.defaultConverter.SerializeInternal(orchestrationInput);
+            string serializedOrchestrationData = this.defaultConverter.Serialize(orchestrationInput);
             var startedEvent = new ExecutionStartedEvent(-1, serializedOrchestrationData)
             {
                 Tags = orchestrationTags,
@@ -629,7 +629,7 @@ namespace DurableTask.Core
 
             if (eventData != null)
             {
-                string serializedEventData = this.defaultConverter.SerializeInternal(eventData);
+                string serializedEventData = this.defaultConverter.Serialize(eventData);
                 var eventRaisedEvent = new EventRaisedEvent(-1, serializedEventData) { Name = eventName };
 
                 this.logHelper.RaisingEvent(orchestrationInstance, eventRaisedEvent);
@@ -697,7 +697,7 @@ namespace DurableTask.Core
                 throw new ArgumentException(nameof(orchestrationInstance));
             }
 
-            string serializedInput = this.defaultConverter.SerializeInternal(eventData);
+            string serializedInput = this.defaultConverter.Serialize(eventData);
             
             // Distributed Tracing
             EventRaisedEvent eventRaisedEvent = new EventRaisedEvent(-1, serializedInput) { Name = eventName };
