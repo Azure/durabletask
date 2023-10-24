@@ -462,7 +462,7 @@ namespace DurableTask.AzureStorage.Tracking
             orchestrationState.Output = orchestrationInstanceStatus.Output;
             orchestrationState.ScheduledStartTime = orchestrationInstanceStatus.ScheduledStartTime;
             orchestrationState.Generation = orchestrationInstanceStatus.Generation;
-           orchestrationState.Tags = !string.IsNullOrEmpty(orchestrationInstanceStatus.Tags)
+            orchestrationState.Tags = !string.IsNullOrEmpty(orchestrationInstanceStatus.Tags)
                 ? TagsSerializer.Deserialize(orchestrationInstanceStatus.Tags)
                 : null;
 
