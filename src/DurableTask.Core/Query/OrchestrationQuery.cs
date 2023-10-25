@@ -69,11 +69,5 @@ namespace DurableTask.Core.Query
         /// Determines whether the query will include the input of the orchestration.
         /// </summary>
         public bool FetchInputsAndOutputs { get; set; } = true;
-
-        /// <summary>
-        /// Whether to exclude entities from the query results. This defaults to false for compatibility with older SDKs,
-        /// but is set to true by the newer SDKs.
-        /// </summary>
-        public bool ExcludeEntities { get; set; } = false;
     }
 }

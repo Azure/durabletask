@@ -18,7 +18,6 @@ namespace DurableTask.Core
     using System.Threading;
     using System.Threading.Tasks;
     using Castle.DynamicProxy;
-    using DurableTask.Core.Entities;
     using DurableTask.Core.Serializing;
 
     /// <summary>
@@ -68,11 +67,6 @@ namespace DurableTask.Core
         /// </summary>
         internal ErrorPropagationMode ErrorPropagationMode { get; set; }
 
-        /// <summary>
-        /// Information about backend entity support, or null if the configured backend does not support entities.
-        /// </summary>
-        internal TaskOrchestrationEntityParameters EntityParameters { get; set; }
-           
         /// <summary>
         ///     Create a proxy client class to schedule remote TaskActivities via a strongly typed interface.
         /// </summary>

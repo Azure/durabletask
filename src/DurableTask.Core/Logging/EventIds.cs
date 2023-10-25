@@ -47,10 +47,6 @@ namespace DurableTask.Core.Logging
         public const int OrchestrationExecuted = 52;
         public const int OrchestrationAborted = 53;
         public const int DiscardingMessage = 54;
-        public const int EntityBatchExecuting = 55;
-        public const int EntityBatchExecuted = 56;
-        public const int EntityLockAcquired = 57;
-        public const int EntityLockReleased = 58;
 
         public const int TaskActivityStarting = 60;
         public const int TaskActivityCompleted = 61;

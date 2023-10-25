@@ -21,7 +21,6 @@ namespace DurableTask.Core
     using System.Threading.Tasks;
     using DurableTask.Core.Command;
     using DurableTask.Core.Common;
-    using DurableTask.Core.Entities;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using DurableTask.Core.Serializing;
@@ -48,7 +47,6 @@ namespace DurableTask.Core
         public TaskOrchestrationContext(
             OrchestrationInstance orchestrationInstance,
             TaskScheduler taskScheduler,
-            TaskOrchestrationEntityParameters entityParameters = null,
             ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
         {
             Utils.UnusedParameter(taskScheduler);
@@ -60,7 +58,6 @@ namespace DurableTask.Core
             this.ErrorDataConverter = JsonDataConverter.Default;
             OrchestrationInstance = orchestrationInstance;
             IsReplaying = false;
-            this.EntityParameters = entityParameters;
             ErrorPropagationMode = errorPropagationMode;
             this.eventsWhileSuspended = new Queue<HistoryEvent>();
         }
@@ -199,8 +196,7 @@ namespace DurableTask.Core
             }
 
             int id = this.idCounter++;
-
-            string serializedEventData = this.MessageDataConverter.SerializeInternal(eventData);             
+            string serializedEventData = this.MessageDataConverter.Serialize(eventData);
 
             var action = new SendEventOrchestratorAction
             {
@@ -420,6 +416,7 @@ namespace DurableTask.Core
             }
         }
 
+
         public void HandleTaskCompletedEvent(TaskCompletedEvent completedEvent)
         {
             int taskId = completedEvent.TaskScheduledId;
@@ -500,8 +497,8 @@ namespace DurableTask.Core
                 // When using ErrorPropagationMode.UseFailureDetails we instead use FailureDetails to convey
                 // error information, which doesn't involve any serialization at all.
                 Exception cause = this.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions ?
-                    Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter) 
-                    : null;
+                    Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter) :
+                    null;
 
                 var failedException = new SubOrchestrationFailedException(failedEvent.EventId, taskId, info.Name,
                     info.Version,
@@ -611,7 +608,7 @@ namespace DurableTask.Core
                     details = orchestrationFailureException.Details;
                 }
             }
-            else
+            else 
             {
                 if (this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
                 {

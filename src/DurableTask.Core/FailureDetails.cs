@@ -19,7 +19,7 @@ namespace DurableTask.Core
     using Newtonsoft.Json;
 
     /// <summary>
-    /// Details of an activity, orchestration, or entity operation failure.
+    /// Details of an activity or orchestration failure.
     /// </summary>
     [Serializable]
     public class FailureDetails : IEquatable<FailureDetails>
