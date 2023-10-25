@@ -14,6 +14,7 @@
 namespace DurableTask.Core.Serializing
 {
     using System;
+    using DurableTask.Core.Serializing.Internal;
 
     /// <summary>
     /// Abstract class for serializing and deserializing data
@@ -58,6 +59,18 @@ namespace DurableTask.Core.Serializing
             }
 
             return (T)result;
+        }
+
+        internal string SerializeInternal(object value)
+        {
+#pragma warning disable CS0618 // Type or member is obsolete. Intentional internal usage.
+            if (value is RawInput raw)
+            {
+                return raw.Value;
+            }
+#pragma warning restore CS0618 // Type or member is obsolete
+
+            return this.Serialize(value);
         }
     }
 }

@@ -23,12 +23,12 @@ The following package references are added to OpenTelemetrySample.csproj so that
 
 ## Tracer Provider
 
-The following startup code is added to create a tracer provider. This code is necessary to add at startup to ensure that the traces are collected and emitted to the correct telemetry exporters. It specifies the service name for the app, which source that the traces should be collected from, and the telemetry exporters where the traces get emitted. "DurableTask" is the service name that will emit the Durable Task related traces.
+The following startup code is added to create a tracer provider. This code is necessary to add at startup to ensure that the traces are collected and emitted to the correct telemetry exporters. It specifies the service name for the app, which source that the traces should be collected from, and the telemetry exporters where the traces get emitted. "DurableTask.Core" is the service name that will emit the Durable Task related traces.
 
 ```
 using var tracerProvider = Sdk.CreateTracerProviderBuilder()
     .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("MySample"))
-    .AddSource("DurableTask")
+    .AddSource("DurableTask.Core")
     .AddConsoleExporter()
     .AddZipkinExporter()
     .AddAzureMonitorTraceExporter(options =>
