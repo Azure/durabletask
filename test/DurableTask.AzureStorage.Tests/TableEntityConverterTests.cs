@@ -106,21 +106,21 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsNull(actual.NullableEnumProperty);
             Assert.IsNull(actual.StringProperty);
             Assert.IsNull(actual.BinaryProperty);
-            Assert.AreEqual(default(bool), actual.BoolProperty);
+            Assert.AreEqual(default, actual.BoolProperty);
             Assert.IsNull(actual.NullableBoolProperty);
-            Assert.AreEqual(default(DateTime), actual.Timestamp);
+            Assert.AreEqual(default, actual.Timestamp);
             Assert.IsNull(actual.NullableDateTimeField);
-            Assert.AreEqual(default(DateTimeOffset), actual.DateTimeOffsetProperty);
+            Assert.AreEqual(default, actual.DateTimeOffsetProperty);
             Assert.IsNull(actual.NullableDateTimeOffsetProperty);
-            Assert.AreEqual(default(double), actual.DoubleField);
+            Assert.AreEqual(default, actual.DoubleField);
             Assert.IsNull(actual.NullableDoubleProperty);
-            Assert.AreEqual(default(Guid), actual.GuidProperty);
+            Assert.AreEqual(default, actual.GuidProperty);
             Assert.IsNull(actual.NullableGuidField);
-            Assert.AreEqual(default(int), actual.IntField);
+            Assert.AreEqual(default, actual.IntField);
             Assert.IsNull(actual.NullableIntField);
-            Assert.AreEqual(default(long), actual.LongField);
+            Assert.AreEqual(default, actual.LongField);
             Assert.IsNull(actual.NullableLongProperty);
-            Assert.AreEqual(default(short), actual.UnsupportedProperty);
+            Assert.AreEqual(default, actual.UnsupportedProperty);
             Assert.IsNull(actual.ObjectProperty);
         }
 
@@ -233,8 +233,8 @@ namespace DurableTask.AzureStorage.Tests
             try
             {
                 // Initialize table and add the entity
-                await legacyTableClient.DeleteIfExistsAsync();
-                await legacyTableClient.CreateAsync();
+                await tableClient.DeleteAsync();
+                await tableClient.CreateAsync();
                 await legacyTableClient.ExecuteAsync(Microsoft.WindowsAzure.Storage.Table.TableOperation.Insert(entity));
 
                 // Read the old entity using the new logic
