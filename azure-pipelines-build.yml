@@ -60,7 +60,7 @@ jobs:
       rerunFailedThreshold: 20
       rerunMaxAttempts: 2
     env:
-      StorageConnectionString: UseDevelopmentStorage=true
+      DurableTaskTestStorageConnectionString: UseDevelopmentStorage=true
   
   - bash: kill $(azuritePid)
     displayName: 'Stop Azurite'
