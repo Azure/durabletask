@@ -238,13 +238,11 @@ namespace DurableTask.AzureStorage.Tests
                 await legacyTableClient.ExecuteAsync(Microsoft.WindowsAzure.Storage.Table.TableOperation.Insert(entity));
 
                 // Read the old entity using the new logic
-                var result = await tableClient
-                    .QueryAsync<TableEntity>(filter: $"{nameof(ITableEntity.RowKey)} eq '1'")
-                    .SingleAsync();
+                var result = await tableClient.GetEntityAsync<TableEntity>(entity.PartitionKey, entity.RowKey);
 
                 // Compare
                 expected.Skipped = null;
-                Assert.AreEqual(expected, (Example)TableEntityConverter.Deserialize(result, typeof(Example)));
+                Assert.AreEqual(expected, (Example)TableEntityConverter.Deserialize(result.Value, typeof(Example)));
             }
             finally
             {
