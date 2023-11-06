@@ -38,12 +38,13 @@ jobs:
      echo "##vso[task.setvariable variable=azuritePid]$!"
     displayName: 'Start Azurite'
 
-  - task: VSTest@2
+  - task: VSTest@3
     displayName: 'Run unit and functional tests'
     inputs:
+      testSelector: 'testAssemblies'
       testAssemblyVer2: |
-        .\test\DurableTask.AzureStorage.Tests\bin\${{ parameters.buildConfiguration }}\**\DurableTask.AzureStorage.Tests.dll
-        .\test\DurableTask.Core.Tests\bin\${{ parameters.buildConfiguration }}\**\DurableTask.Core.Tests.dll
+        **\test\DurableTask.AzureStorage.Tests\bin\${{ parameters.buildConfiguration }}\**\DurableTask.AzureStorage.Tests.dll
+        **\test\DurableTask.Core.Tests\bin\${{ parameters.buildConfiguration }}\**\DurableTask.Core.Tests.dll
         !**\obj\**
       testFiltercriteria: 'TestCategory!=DisabledInCI'
       distributionBatchType: basedOnExecutionTime
