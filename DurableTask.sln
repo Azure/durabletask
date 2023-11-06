@@ -67,6 +67,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Correlation.Samples", "samp
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{D02EF5EF-3D7E-4223-B256-439BAF0C8853}"
 	ProjectSection(SolutionItems) = preProject
+		azure-pipelines-build.yml = azure-pipelines-build.yml
 		azure-pipelines-release.yml = azure-pipelines-release.yml
 	EndProjectSection
 EndProject
@@ -320,7 +321,7 @@ Global
 		{D818ED4C-29B9-431F-8D09-EE8C82510E25} = {240FA679-D5A7-41CA-BA22-70B45A966088}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {2D63A120-9394-48D9-8CA9-1184364FB854}
 		EnterpriseLibraryConfigurationToolBinariesPath = packages\TransientFaultHandling.Core.5.1.1209.1\lib\NET4
+		SolutionGuid = {2D63A120-9394-48D9-8CA9-1184364FB854}
 	EndGlobalSection
 EndGlobal

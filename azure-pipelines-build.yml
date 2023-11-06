@@ -1,0 +1,49 @@
+pr:
+  branches:
+    include:
+    - main
+trigger: none
+
+jobs:
+- job: Validate
+  pool:
+    vmImage: 'windows-latest'
+
+  steps:
+  - task: UseDotNet@2
+    displayName: 'Install .NET Core 3.1'
+    inputs:
+      version: 3.1.x
+
+  - task: DotNetCoreCLI@2
+    displayName: 'dotnet build'
+    inputs:
+      command: 'build'
+      projects: DurableTask.sln
+      arguments: '-c Release -p:ContinuousIntegrationBuild=true'
+
+  - task: Npm@1
+    displayName: 'Install Azurite'
+    inputs:
+      command: custom
+      customCommand: 'install -g azurite'
+
+  - bash: |
+     azurite --silent --location $(Agent.TempDirectory)/azurite &
+     echo "##vso[task.setvariable variable=azuritePid]$!"
+    displayName: 'Start Azurite'
+
+  - task: DotNetCoreCLI@2
+    displayName: 'dotnet test'
+    inputs:
+      command: test
+      projects: |
+       ./test/DurableTask.Core.Tests/*.csproj
+       ./test/DurableTask.AzureStorage.Tests/*.csproj
+      arguments: '--no-build'
+    env:
+      StorageConnectionString: UseDevelopmentStorage=true
+  
+  - bash: kill $(azuritePid)
+    displayName: 'Stop Azurite'
+    condition: always()
