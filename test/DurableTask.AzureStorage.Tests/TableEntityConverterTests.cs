@@ -227,6 +227,9 @@ namespace DurableTask.AzureStorage.Tests
                 .CreateCloudTableClient()
                 .GetTableReference(nameof(BackwardsCompatible));
 
+            var tableClient = new TableServiceClient(TestHelpers.GetTestStorageAccountConnectionString())
+                .GetTableClient(nameof(BackwardsCompatible));
+
             try
             {
                 // Initialize table and add the entity
@@ -235,7 +238,7 @@ namespace DurableTask.AzureStorage.Tests
                 await legacyTableClient.ExecuteAsync(Microsoft.WindowsAzure.Storage.Table.TableOperation.Insert(entity));
 
                 // Read the old entity using the new logic
-                var tableClient = new TableServiceClient(TestHelpers.GetTestStorageAccountConnectionString()).GetTableClient(nameof(BackwardsCompatible));
+                
                 var result = await tableClient.QueryAsync<TableEntity>(filter: $"{nameof(ITableEntity.RowKey)} eq '1'").SingleAsync();
 
                 // Compare
@@ -244,7 +247,7 @@ namespace DurableTask.AzureStorage.Tests
             }
             finally
             {
-                await legacyTableClient.DeleteIfExistsAsync();
+                await tableClient.DeleteAsync();
             }
         }
 
@@ -286,32 +289,33 @@ namespace DurableTask.AzureStorage.Tests
             entity.PartitionKey = "12345";
             entity.RowKey = "1";
 
-            var tableClient = new TableServiceClient(TestHelpers.GetTestStorageAccountConnectionString()).GetTableClient(nameof(ForwardsCompatible));
+            var legacyTableClient = CloudStorageAccount
+                .Parse(TestHelpers.GetTestStorageAccountConnectionString())
+                .CreateCloudTableClient()
+                .GetTableReference(nameof(ForwardsCompatible));
+
+            var tableClient = new TableServiceClient(TestHelpers.GetTestStorageAccountConnectionString())
+                .GetTableClient(nameof(ForwardsCompatible));
 
             try
             {
-                // Initialize table and add the entity
+                // Initialize table and add the entity using the latest API
                 await tableClient.DeleteAsync();
                 await tableClient.CreateAsync();
                 await tableClient.AddEntityAsync(entity);
 
-                // Read the new entity using the old logic
-                var legacyTableClient = CloudStorageAccount
-                    .Parse(TestHelpers.GetTestStorageAccountConnectionString())
-                    .CreateCloudTableClient()
-                    .GetTableReference(nameof(ForwardsCompatible));
+                // Read the entity using the old API
+                Microsoft.WindowsAzure.Storage.Table.TableResult response = await legacyTableClient.ExecuteAsync(
+                    Microsoft.WindowsAzure.Storage.Table.TableOperation.Retrieve(
+                        entity.PartitionKey,
+                        entity.RowKey));
 
-                var segment = await legacyTableClient.ExecuteQuerySegmentedAsync(
-                    new Microsoft.WindowsAzure.Storage.Table.TableQuery<Microsoft.WindowsAzure.Storage.Table.DynamicTableEntity>().Where(
-                        Microsoft.WindowsAzure.Storage.Table.TableQuery.GenerateFilterCondition(
-                            nameof(ITableEntity.RowKey),
-                            Microsoft.WindowsAzure.Storage.Table.QueryComparisons.Equal,
-                            "1")),
-                    null);
+                var actual = response.Result as Microsoft.WindowsAzure.Storage.Table.DynamicTableEntity;
+                Assert.IsNotNull(actual);
 
                 // Compare
                 expected.Skipped = null;
-                Assert.AreEqual(expected, (Example)new LegacyTableEntityConverter().ConvertFromTableEntity(segment.Single(), x => typeof(Example)));
+                Assert.AreEqual(expected, (Example)new LegacyTableEntityConverter().ConvertFromTableEntity(actual, x => typeof(Example)));
             }
             finally
             {

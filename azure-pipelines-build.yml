@@ -54,8 +54,8 @@ jobs:
     inputs:
       testSelector: 'testAssemblies'
       testAssemblyVer2: |
-        **\test\DurableTask.AzureStorage.Tests\bin\${{ parameters.buildConfiguration }}\**\DurableTask.AzureStorage.Tests.dll
-        **\test\DurableTask.Core.Tests\bin\${{ parameters.buildConfiguration }}\**\DurableTask.Core.Tests.dll
+        **\test\DurableTask.AzureStorage.Tests\bin\${{ parameters.buildConfiguration }}\net462\DurableTask.AzureStorage.Tests.dll
+        **\test\DurableTask.Core.Tests\bin\${{ parameters.buildConfiguration }}\net462\DurableTask.Core.Tests.dll
         !**\obj\**
       testFiltercriteria: 'TestCategory!=DisabledInCI'
       distributionBatchType: basedOnExecutionTime
