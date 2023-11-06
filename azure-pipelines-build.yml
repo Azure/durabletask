@@ -42,8 +42,8 @@ jobs:
     displayName: 'Run unit and functional tests'
     inputs:
       testAssemblyVer2: |
-        .\test\DurableTask.AzureStorage.Tests\bin\**\DurableTask.AzureStorage.Tests.dll
-        .\test\DurableTask.Core.Tests\bin\**\DurableTask.Core.Tests.dll
+        .\test\DurableTask.AzureStorage.Tests\bin\${{ parameters.buildConfiguration }}\**\DurableTask.AzureStorage.Tests.dll
+        .\test\DurableTask.Core.Tests\bin\${{ parameters.buildConfiguration }}\**\DurableTask.Core.Tests.dll
         !**\obj\**
       testFiltercriteria: 'TestCategory!=DisabledInCI'
       distributionBatchType: basedOnExecutionTime
