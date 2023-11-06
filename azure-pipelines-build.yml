@@ -2,7 +2,7 @@ parameters:
 - name: buildConfiguration
   displayName: Build Configuration
   type: string
-  default: Release
+  default: Debug
   values:
   - Debug
   - Release
