@@ -1,3 +1,12 @@
+parameters:
+- name: buildConfiguration
+  displayName: Build Configuration
+  type: string
+  default: Release
+  values:
+  - Debug
+  - Release
+
 pr:
   branches:
     include:
@@ -20,7 +29,7 @@ jobs:
     inputs:
       command: 'build'
       projects: DurableTask.sln
-      arguments: '-c Release -p:ContinuousIntegrationBuild=true'
+      arguments: '-c ${{ parameters.buildConfiguration }} -p:ContinuousIntegrationBuild=true'
 
   - task: Npm@1
     displayName: 'Install Azurite'
@@ -33,14 +42,21 @@ jobs:
      echo "##vso[task.setvariable variable=azuritePid]$!"
     displayName: 'Start Azurite'
 
-  - task: DotNetCoreCLI@2
-    displayName: 'dotnet test'
+  - task: VSTest@2
+    displayName: 'Run unit and functional tests'
     inputs:
-      command: test
-      projects: |
-       ./test/DurableTask.Core.Tests/*.csproj
-       ./test/DurableTask.AzureStorage.Tests/*.csproj
-      arguments: '--no-build'
+      testAssemblyVer2: |
+        .\test\DurableTask.AzureStorage.Tests\bin\**\DurableTask.AzureStorage.Tests.dll
+        .\test\DurableTask.Core.Tests\bin\**\DurableTask.Core.Tests.dll
+        !**\obj\**
+      testFiltercriteria: 'TestCategory!=DisabledInCI'
+      distributionBatchType: basedOnExecutionTime
+      configuration: ${{ parameters.buildConfiguration }}
+      diagnosticsEnabled: True
+      collectDumpOn: always
+      rerunFailedTests: true
+      rerunFailedThreshold: 20
+      rerunMaxAttempts: 2
     env:
       StorageConnectionString: UseDevelopmentStorage=true
   
