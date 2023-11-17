@@ -900,7 +900,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates the Suspend-Resume functionality.
         /// </summary>
-        [TestMethod]
+        [DataTestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task SuspendResumeOrchestration(bool enableExtendedSessions)
@@ -939,7 +939,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// Test that a suspended orchestration can be terminated.
         /// </summary>
-        [TestMethod]
+        [DataTestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task TerminateSuspendedOrchestration(bool enableExtendedSessions)

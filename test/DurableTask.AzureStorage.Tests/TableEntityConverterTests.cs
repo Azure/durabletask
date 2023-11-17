@@ -106,21 +106,21 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsNull(actual.NullableEnumProperty);
             Assert.IsNull(actual.StringProperty);
             Assert.IsNull(actual.BinaryProperty);
-            Assert.AreEqual(default(bool), actual.BoolProperty);
+            Assert.AreEqual(default, actual.BoolProperty);
             Assert.IsNull(actual.NullableBoolProperty);
-            Assert.AreEqual(default(DateTime), actual.Timestamp);
+            Assert.AreEqual(default, actual.Timestamp);
             Assert.IsNull(actual.NullableDateTimeField);
-            Assert.AreEqual(default(DateTimeOffset), actual.DateTimeOffsetProperty);
+            Assert.AreEqual(default, actual.DateTimeOffsetProperty);
             Assert.IsNull(actual.NullableDateTimeOffsetProperty);
-            Assert.AreEqual(default(double), actual.DoubleField);
+            Assert.AreEqual(default, actual.DoubleField);
             Assert.IsNull(actual.NullableDoubleProperty);
-            Assert.AreEqual(default(Guid), actual.GuidProperty);
+            Assert.AreEqual(default, actual.GuidProperty);
             Assert.IsNull(actual.NullableGuidField);
-            Assert.AreEqual(default(int), actual.IntField);
+            Assert.AreEqual(default, actual.IntField);
             Assert.IsNull(actual.NullableIntField);
-            Assert.AreEqual(default(long), actual.LongField);
+            Assert.AreEqual(default, actual.LongField);
             Assert.IsNull(actual.NullableLongProperty);
-            Assert.AreEqual(default(short), actual.UnsupportedProperty);
+            Assert.AreEqual(default, actual.UnsupportedProperty);
             Assert.IsNull(actual.ObjectProperty);
         }
 
@@ -227,24 +227,26 @@ namespace DurableTask.AzureStorage.Tests
                 .CreateCloudTableClient()
                 .GetTableReference(nameof(BackwardsCompatible));
 
+            var tableClient = new TableServiceClient(TestHelpers.GetTestStorageAccountConnectionString())
+                .GetTableClient(nameof(BackwardsCompatible));
+
             try
             {
                 // Initialize table and add the entity
-                await legacyTableClient.DeleteIfExistsAsync();
-                await legacyTableClient.CreateAsync();
+                await tableClient.DeleteAsync();
+                await tableClient.CreateAsync();
                 await legacyTableClient.ExecuteAsync(Microsoft.WindowsAzure.Storage.Table.TableOperation.Insert(entity));
 
                 // Read the old entity using the new logic
-                var tableClient = new TableServiceClient(TestHelpers.GetTestStorageAccountConnectionString()).GetTableClient(nameof(BackwardsCompatible));
-                var result = await tableClient.QueryAsync<TableEntity>(filter: $"{nameof(ITableEntity.RowKey)} eq '1'").SingleAsync();
+                var result = await tableClient.GetEntityAsync<TableEntity>(entity.PartitionKey, entity.RowKey);
 
                 // Compare
                 expected.Skipped = null;
-                Assert.AreEqual(expected, (Example)TableEntityConverter.Deserialize(result, typeof(Example)));
+                Assert.AreEqual(expected, (Example)TableEntityConverter.Deserialize(result.Value, typeof(Example)));
             }
             finally
             {
-                await legacyTableClient.DeleteIfExistsAsync();
+                await tableClient.DeleteAsync();
             }
         }
 
@@ -286,32 +288,33 @@ namespace DurableTask.AzureStorage.Tests
             entity.PartitionKey = "12345";
             entity.RowKey = "1";
 
-            var tableClient = new TableServiceClient(TestHelpers.GetTestStorageAccountConnectionString()).GetTableClient(nameof(ForwardsCompatible));
+            var legacyTableClient = CloudStorageAccount
+                .Parse(TestHelpers.GetTestStorageAccountConnectionString())
+                .CreateCloudTableClient()
+                .GetTableReference(nameof(ForwardsCompatible));
+
+            var tableClient = new TableServiceClient(TestHelpers.GetTestStorageAccountConnectionString())
+                .GetTableClient(nameof(ForwardsCompatible));
 
             try
             {
-                // Initialize table and add the entity
+                // Initialize table and add the entity using the latest API
                 await tableClient.DeleteAsync();
                 await tableClient.CreateAsync();
                 await tableClient.AddEntityAsync(entity);
 
-                // Read the new entity using the old logic
-                var legacyTableClient = CloudStorageAccount
-                    .Parse(TestHelpers.GetTestStorageAccountConnectionString())
-                    .CreateCloudTableClient()
-                    .GetTableReference(nameof(ForwardsCompatible));
+                // Read the entity using the old API
+                Microsoft.WindowsAzure.Storage.Table.TableResult response = await legacyTableClient.ExecuteAsync(
+                    Microsoft.WindowsAzure.Storage.Table.TableOperation.Retrieve(
+                        entity.PartitionKey,
+                        entity.RowKey));
 
-                var segment = await legacyTableClient.ExecuteQuerySegmentedAsync(
-                    new Microsoft.WindowsAzure.Storage.Table.TableQuery<Microsoft.WindowsAzure.Storage.Table.DynamicTableEntity>().Where(
-                        Microsoft.WindowsAzure.Storage.Table.TableQuery.GenerateFilterCondition(
-                            nameof(ITableEntity.RowKey),
-                            Microsoft.WindowsAzure.Storage.Table.QueryComparisons.Equal,
-                            "1")),
-                    null);
+                var actual = response.Result as Microsoft.WindowsAzure.Storage.Table.DynamicTableEntity;
+                Assert.IsNotNull(actual);
 
                 // Compare
                 expected.Skipped = null;
-                Assert.AreEqual(expected, (Example)new LegacyTableEntityConverter().ConvertFromTableEntity(segment.Single(), x => typeof(Example)));
+                Assert.AreEqual(expected, (Example)new LegacyTableEntityConverter().ConvertFromTableEntity(actual, x => typeof(Example)));
             }
             finally
             {
