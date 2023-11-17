@@ -201,7 +201,7 @@ namespace DurableTask.AzureStorage.Tests
         /// REQUIREMENT: Workers can be added or removed at any time and control-queue partitions are load-balanced automatically.
         /// REQUIREMENT: No two workers will ever process the same control queue.
         /// </summary>
-        [TestMethod]
+        [DataTestMethod]
         [DataRow(PartitionManagerType.V1Legacy, 30)]
         [DataRow(PartitionManagerType.V2Safe, 180)]
         public async Task MultiWorkerLeaseMovement(PartitionManagerType partitionManagerType, int timeoutInSeconds)

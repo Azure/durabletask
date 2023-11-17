@@ -24,7 +24,7 @@ namespace DurableTask.AzureStorage.Tests
     [TestClass]
     public class KeySanitationTests
     {
-        [TestMethod]
+        [DataTestMethod]
         [DataRow("\r")]
         [DataRow("")]
         [DataRow("hello")]

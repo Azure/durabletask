@@ -55,7 +55,7 @@ namespace DurableTask.AzureStorage.Tests
             string? storageConnectionString = GetTestSetting("StorageConnectionString");
             if (string.IsNullOrEmpty(storageConnectionString))
             {
-                storageConnectionString = "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://127.0.0.1:10002/";
+                storageConnectionString = "UseDevelopmentStorage=true";
             }
 
             return storageConnectionString!;
