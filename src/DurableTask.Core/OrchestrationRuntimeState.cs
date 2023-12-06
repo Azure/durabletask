@@ -284,14 +284,14 @@ namespace DurableTask.Core
                     {
                         // If the orchestration planned to continue-as-new but termination is requested, we transition to the terminated state.
                         // This is because termination should be considered to be forceful.
-                        log += "Discarding previous 'ExecutionCompletedEvent' as termination is forceful.";
+                        log += " Discarding previous 'ExecutionCompletedEvent' as termination is forceful.";
                         ExecutionCompletedEvent = completedEvent;
                         orchestrationStatus = completedEvent.OrchestrationStatus;
                     }
                     else
                     {
                         // otherwise, we ignore the new event.
-                        log += "Discarding new 'ExecutionCompletedEvent'.";
+                        log += " Discarding new 'ExecutionCompletedEvent'.";
                     }
 
                     LogHelper?.OrchestrationDebugTrace(this.OrchestrationInstance?.InstanceId ?? "", this.OrchestrationInstance?.ExecutionId ?? "", log);
