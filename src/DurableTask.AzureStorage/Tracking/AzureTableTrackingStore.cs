@@ -390,7 +390,7 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        internal async Task<InstanceStatus?> FetchInstanceStatusInternalAsync(string instanceId, bool fetchInput)
+        internal async Task<InstanceStatus?> FetchInstanceStatusInternalAsync(string instanceId, bool fetchInput, CancellationToken cancellationToken)
         {
             if (instanceId == null)
             {
@@ -540,7 +540,7 @@ namespace DurableTask.AzureStorage.Tracking
             return this.QueryStateAsync(odata.Filter, odata.Select, cancellationToken);
         }
 
-        AsyncPageable<OrchestrationState> QueryStateAsync(string filter = null, IEnumerable<string> select = null, CancellationToken cancellationToken = default)
+        public AsyncPageable<OrchestrationState> QueryStateAsync(string filter = null, IEnumerable<string> select = null, CancellationToken cancellationToken = default)
         {
             return new AsyncPageableAsyncProjection<OrchestrationInstanceStatus, OrchestrationState>(
                 this.InstancesTable.ExecuteQueryAsync<OrchestrationInstanceStatus>(filter, select: select, cancellationToken: cancellationToken),
