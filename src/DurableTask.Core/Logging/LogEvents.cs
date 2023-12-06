@@ -1848,5 +1848,45 @@ namespace DurableTask.Core.Logging
                     Utils.AppName,
                     Utils.PackageVersion);
         }
+
+        internal class OrchestrationDebugTrace : StructuredLogEvent, IEventSourceEvent
+        {
+            public OrchestrationDebugTrace(string instanceId, string executionId, string details)
+            {
+                this.InstanceId = instanceId;
+                this.ExecutionId = executionId;
+                this.Details = details;
+            }
+
+            [StructuredLogField]
+            public string InstanceId { get; }
+
+            [StructuredLogField]
+            public string ExecutionId { get; }
+
+            [StructuredLogField]
+            public string Name { get; }
+
+            [StructuredLogField]
+            public string Details { get; }
+
+            public override EventId EventId => new EventId(
+                EventIds.OrchestrationDebugTrace,
+                nameof(EventIds.OrchestrationDebugTrace));
+
+            public override LogLevel Level => LogLevel.Debug;
+
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Orchestration Debug Trace: {this.Details}";
+
+            void IEventSourceEvent.WriteEventSource() =>
+                StructuredEventSource.Log.OrchestrationDebugTrace(
+                    this.InstanceId,
+                    this.ExecutionId,
+                    this.Details,
+                    Utils.AppName,
+                    Utils.PackageVersion);
+        }
+
     }
 }
