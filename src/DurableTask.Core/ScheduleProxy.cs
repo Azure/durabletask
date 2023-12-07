@@ -18,10 +18,10 @@ namespace DurableTask.Core
     using System.Linq;
     using System.Reflection;
     using System.Threading.Tasks;
-    using Castle.DynamicProxy;
+    //using Castle.DynamicProxy;
     using DurableTask.Core.Common;
 
-    internal class ScheduleProxy : IInterceptor
+    /*internal class ScheduleProxy : IInterceptor
     {
         private readonly OrchestrationContext context;
         private readonly bool useFullyQualifiedMethodNames;
@@ -93,5 +93,5 @@ namespace DurableTask.Core
 
             return;
         }
-    }
+    }*/
 }

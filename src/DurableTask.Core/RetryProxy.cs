@@ -18,9 +18,9 @@ namespace DurableTask.Core
     using System.Linq;
     using System.Reflection;
     using System.Threading.Tasks;
-    using Castle.DynamicProxy;
+    //using Castle.DynamicProxy;
 
-    internal class RetryProxy : IInterceptor
+    /*internal class RetryProxy : IInterceptor
     {
         private readonly OrchestrationContext context;
         private readonly RetryOptions retryOptions;
@@ -74,5 +74,5 @@ namespace DurableTask.Core
 
             return await retryInterceptor.Invoke();
         }
-    }
+    }*/
 }

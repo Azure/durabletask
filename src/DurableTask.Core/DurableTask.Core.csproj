@@ -5,7 +5,7 @@
     <TargetFrameworks>netstandard2.0;net462</TargetFrameworks>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
-    <NoWarn>NU5125;NU5048</NoWarn>
+    <NoWarn>NU5125;NU5048;NU1903</NoWarn>
   </PropertyGroup>
   
   <!-- General Package Info -->
@@ -44,7 +44,7 @@
     <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="5.0.1" />
     <PackageReference Include="System.Reactive.Core" Version="4.4.1" />
     <PackageReference Include="System.Reactive.Compatibility" Version="4.4.1" />
-    <PackageReference Include="Castle.Core" Version="5.0.0" />
+    <!--<PackageReference Include="Castle.Core" Version="5.0.0" />-->
   </ItemGroup>
 
   <ItemGroup Condition="'$(Configuration)'=='Release'">

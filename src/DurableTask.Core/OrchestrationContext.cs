@@ -17,7 +17,7 @@ namespace DurableTask.Core
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
-    using Castle.DynamicProxy;
+    //using Castle.DynamicProxy;
     using DurableTask.Core.Entities;
     using DurableTask.Core.Serializing;
 
@@ -29,7 +29,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Used in generating proxy interfaces and classes.
         /// </summary>
-        private static readonly ProxyGenerator ProxyGenerator = new ProxyGenerator();
+        ///private static readonly ProxyGenerator ProxyGenerator = new ProxyGenerator();
 
         /// <summary>
         /// Thread-static variable used to signal whether the calling thread is the orchestrator thread.
@@ -72,105 +72,7 @@ namespace DurableTask.Core
         /// Information about backend entity support, or null if the configured backend does not support entities.
         /// </summary>
         internal TaskOrchestrationEntityParameters EntityParameters { get; set; }
-           
-        /// <summary>
-        ///     Create a proxy client class to schedule remote TaskActivities via a strongly typed interface.
-        /// </summary>
-        /// <typeparam name="T">The interface for the proxy client</typeparam>
-        /// <returns></returns>
-        public virtual T CreateClient<T>() where T : class
-        {
-            return CreateClient<T>(false);
-        }
-
-        /// <summary>
-        ///     Create a proxy client class to schedule remote TaskActivities via a strongly typed interface.
-        /// </summary>
-        /// <typeparam name="T">The interface for the proxy client</typeparam>
-        /// <param name="useFullyQualifiedMethodNames">
-        ///     If true, the method name translation from the interface contains
-        ///     the interface name, if false then only the method name is used
-        /// </param>
-        /// <returns></returns>
-        public virtual T CreateClient<T>(bool useFullyQualifiedMethodNames) where T : class
-        {
-            if (!typeof(T).IsInterface && !typeof(T).IsClass)
-            {
-                throw new InvalidOperationException($"{nameof(T)} must be an interface or class.");
-            }
-
-            IInterceptor scheduleProxy = new ScheduleProxy(this, useFullyQualifiedMethodNames);
-
-            if (typeof(T).IsClass)
-            {
-                if (typeof(T).IsSealed)
-                {
-                    throw new InvalidOperationException("Class cannot be sealed.");
-                }
-
-                return ProxyGenerator.CreateClassProxy<T>(scheduleProxy);
-            }
-
-            return ProxyGenerator.CreateInterfaceProxyWithoutTarget<T>(scheduleProxy);
-        }
-
-        /// <summary>
-        ///     Creates a proxy client with built-in retry logic.
-        /// </summary>
-        /// <typeparam name="T">
-        ///     Task version of the client interface.
-        ///     This is similar to the actual interface implemented by the client but with the
-        ///     return types always of the form Task&lt;TOriginal&gt;
-        ///     where TOriginal was the return
-        ///     type for the same method in the original interface
-        /// </typeparam>
-        /// <param name="retryOptions">Retry policies</param>
-        /// <returns>Dynamic proxy that can be used to schedule the remote tasks</returns>
-        public virtual T CreateRetryableClient<T>(RetryOptions retryOptions) where T : class
-        {
-            return CreateRetryableClient<T>(retryOptions, false);
-        }
-
-        /// <summary>
-        ///     Creates a proxy client with built-in retry logic.
-        /// </summary>
-        /// <typeparam name="T">
-        ///     Task version of the client interface.
-        ///     This is similar to the actual interface implemented by the client but with the
-        ///     return types always of the form Task&lt;TOriginal&gt;
-        ///     where TOriginal was the return
-        ///     type for the same method in the original interface
-        /// </typeparam>
-        /// <param name="retryOptions">Retry policies</param>
-        /// <param name="useFullyQualifiedMethodNames">
-        ///     If true, the method name translation from the interface contains
-        ///     the interface name, if false then only the method name is used
-        /// </param>
-        /// <returns>Dynamic proxy that can be used to schedule the remote tasks</returns>
-        public virtual T CreateRetryableClient<T>(RetryOptions retryOptions, bool useFullyQualifiedMethodNames) where T : class
-        {
-            if (!typeof(T).IsInterface && !typeof(T).IsClass)
-            {
-                throw new InvalidOperationException($"{nameof(T)} must be an interface or class.");
-            }
-
-            IInterceptor scheduleProxy = new ScheduleProxy(this, useFullyQualifiedMethodNames);
-            IInterceptor retryProxy = new RetryProxy(this, retryOptions);
-
-            if (typeof(T).IsClass)
-            {
-                if (typeof(T).IsSealed)
-                {
-                    throw new InvalidOperationException($"Class cannot be sealed.");
-                }
-
-                return ProxyGenerator.CreateClassProxyWithTarget(target: ProxyGenerator.CreateClassProxy<T>(scheduleProxy), retryProxy);
-            }
-
-            T scheduleInstance = ProxyGenerator.CreateInterfaceProxyWithoutTarget<T>(scheduleProxy);
-            return ProxyGenerator.CreateInterfaceProxyWithTarget(scheduleInstance, retryProxy);
-        }
-
+        
         /// <summary>
         ///     Schedule a TaskActivity by type. Also retry on failure as per supplied policy.
         /// </summary>
