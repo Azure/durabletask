@@ -41,13 +41,12 @@ namespace DurableTask.ServiceBus
     using QueueClient = DurableTask.ServiceBus.Common.Abstraction.QueueClient;
     using SessionClient = DurableTask.ServiceBus.Common.Abstraction.SessionClient;
     using ServiceBusConnection = DurableTask.ServiceBus.Common.Abstraction.ServiceBusConnection;
-    using TokenProvider = DurableTask.ServiceBus.Common.Abstraction.TokenProvider;
     using ManagementClient = DurableTask.ServiceBus.Common.Abstraction.ManagementClient;
     using ServiceBusConnectionStringBuilder = DurableTask.ServiceBus.Common.Abstraction.ServiceBusConnectionStringBuilder;
 #if NETSTANDARD2_0
-    using Microsoft.Azure.ServiceBus;
-    using Microsoft.Azure.ServiceBus.Management;
-    using Microsoft.Azure.ServiceBus.Primitives;
+    using Azure.Core;
+
+    using ReceiveMode = Azure.Messaging.ServiceBus.ServiceBusReceiveMode;
 #else
     using Microsoft.ServiceBus.Messaging;
 #endif
@@ -92,7 +91,7 @@ namespace DurableTask.ServiceBus
         readonly string hubName;
 
         MessageSender orchestratorSender;
-        readonly MessageSender orchestrationBatchMessageSender;
+        readonly MessageSender orchestratorBatchMessageSender;
         QueueClient orchestratorQueueClient;
         MessageSender workerSender;
         MessageSender trackingSender;
@@ -117,20 +116,25 @@ namespace DurableTask.ServiceBus
         ///     Create a new ServiceBusOrchestrationService to the given service bus namespace and hub name
         /// </summary>
         /// <param name="namespaceHostName">Service Bus namespace host name</param>
-        /// <param name="tokenProvider">Service Bus authentication token provider</param>
+        /// <param name="tokenCredential">Service Bus authentication token credential</param>
         /// <param name="hubName">Hub name to use with the Service Bus namespace</param>
         /// <param name="instanceStore">Instance store Provider, where state and history messages will be stored</param>
         /// <param name="blobStore">Blob store Provider, where oversized messages and sessions will be stored</param>
         /// <param name="settings">Settings object for service and client</param>
         public ServiceBusOrchestrationService(
             string namespaceHostName,
-            ITokenProvider tokenProvider,
+            /*
+             * This will actually need to be a breaking change. We can't use
+             * this ITokenProvider type because it comes from the offending
+             * servicebus package. we will have to switch to TokenCredentials.
+             */
+            TokenCredential tokenCredential,
             string hubName,
             IOrchestrationServiceInstanceStore instanceStore,
             IOrchestrationServiceBlobStore blobStore,
             ServiceBusOrchestrationServiceSettings settings) :
                 this(
-                      ServiceBusConnectionSettings.Create(namespaceHostName, tokenProvider),
+                      ServiceBusConnectionSettings.Create(namespaceHostName, tokenCredential),
                       hubName,
                       instanceStore,
                       blobStore,
@@ -189,18 +193,23 @@ namespace DurableTask.ServiceBus
             if (!string.IsNullOrEmpty(connectionSettings.ConnectionString))
             {
                 var sbConnectionStringBuilder = new ServiceBusConnectionStringBuilder(connectionSettings.ConnectionString);
+#if NETSTANDARD2_0
+                this.serviceBusConnection = new ServiceBusConnection(sbConnectionStringBuilder);
+#else
                 this.serviceBusConnection = new ServiceBusConnection(sbConnectionStringBuilder)
                 {
                     TokenProvider = TokenProvider.CreateSharedAccessSignatureTokenProvider(sbConnectionStringBuilder.SasKeyName,
-                        sbConnectionStringBuilder.SasKey, ServiceBusUtils.TokenTimeToLive)
+                        sbConnectionStringBuilder.SasKey, ServiceBusUtils.TokenTimeToLive),
                 };
+#endif
             }
 #if NETSTANDARD2_0
-            else if (connectionSettings.Endpoint != null && connectionSettings.TokenProvider != null)
+            else if (connectionSettings.Endpoint != null && connectionSettings.TokenCredential != null)
             {
+
                 this.serviceBusConnection = new ServiceBusConnection(connectionSettings.Endpoint.ToString(), connectionSettings.TransportType)
                 {
-                    TokenProvider = connectionSettings.TokenProvider
+                    TokenCredential = connectionSettings.TokenCredential,
                 };
             }
 #endif
@@ -210,7 +219,7 @@ namespace DurableTask.ServiceBus
             }
 
             this.Settings = settings ?? new ServiceBusOrchestrationServiceSettings();
-            this.orchestrationBatchMessageSender = new MessageSender(this.serviceBusConnection, this.orchestratorEntityName);
+            this.orchestratorBatchMessageSender = new MessageSender(this.serviceBusConnection, this.orchestratorEntityName);
 
 
             this.BlobStore = blobStore;
@@ -248,7 +257,13 @@ namespace DurableTask.ServiceBus
             this.orchestratorSender = new MessageSender(this.serviceBusConnection, this.orchestratorEntityName, this.workerEntityName);
             this.workerSender = new MessageSender(this.serviceBusConnection, this.workerEntityName, this.orchestratorEntityName);
             this.trackingSender = new MessageSender(this.serviceBusConnection, this.trackingEntityName, this.orchestratorEntityName);
+
+#if NETSTANDARD2_0
+            this.orchestratorQueueClient = new QueueClient(this.serviceBusConnection, this.orchestratorEntityName);
+#else
             this.orchestratorQueueClient = new QueueClient(this.serviceBusConnection, this.orchestratorEntityName, ReceiveMode.PeekLock, RetryPolicy.Default);
+#endif
+
             this.workerReceiver = new MessageReceiver(serviceBusConnection, this.workerEntityName);
             this.orchestratorSessionClient = new SessionClient(serviceBusConnection, this.orchestratorEntityName, ReceiveMode.PeekLock);
             this.trackingClient = new SessionClient(serviceBusConnection, this.trackingEntityName, ReceiveMode.PeekLock);
@@ -288,7 +303,7 @@ namespace DurableTask.ServiceBus
             await Task.WhenAll(
                 this.workerSender.CloseAsync(),
                 this.orchestratorSender.CloseAsync(),
-                this.orchestrationBatchMessageSender?.CloseAsync(),
+                this.orchestratorBatchMessageSender?.CloseAsync(),
                 this.trackingSender.CloseAsync(),
                 this.orchestratorSessionClient.CloseAsync(),
                 this.trackingClient.CloseAsync(),
@@ -396,7 +411,7 @@ namespace DurableTask.ServiceBus
         {
             ManagementClient managementClient = this.CreateManagementClient();
 
-            IEnumerable<QueueDescription> queueDescriptions = (await managementClient.GetQueuesAsync()).Where(x => x.Path.StartsWith(this.hubName)).ToList();
+            var queueDescriptions = (await managementClient.GetQueuesAsync()).Where(x => x.Path.StartsWith(this.hubName)).ToList();
 
             return queueDescriptions.Any(q => string.Equals(q.Path, this.orchestratorEntityName))
                 && queueDescriptions.Any(q => string.Equals(q.Path, this.workerEntityName))
@@ -448,7 +463,7 @@ namespace DurableTask.ServiceBus
 
             var result = new Dictionary<string, int>(3);
 
-            IEnumerable<QueueDescription> queues =
+            var queues =
                 (await managementClient.GetQueuesAsync()).Where(x => x.Path.StartsWith(this.hubName)).ToList();
 
             result.Add("TaskOrchestration", queues.Single(q => string.Equals(q.Path, this.orchestratorEntityName))?.MaxDeliveryCount ?? -1);
@@ -702,6 +717,17 @@ namespace DurableTask.ServiceBus
 
             var session = sessionState.Session;
 
+            /*
+             * TRANSACTIONSCOPE:1
+             * workerSender - send
+             * (orchestratorQueueClient - send)
+             * trackingSender - send
+             *
+             * By my notes, I think somehow you would need either send or
+             * receive on the orchestrator entity in order to make sure it's
+             * the send-via entity for the sends in this scope. I think we'll
+             * try to test this prior to making an actual change.
+             */
             using (var ts = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled))
             {
                 Transaction.Current.TransactionCompleted += (o, e) =>
@@ -738,6 +764,11 @@ namespace DurableTask.ServiceBus
                                         DateTimeUtils.MinDateTime);
                                     return new MessageContainer(message, m);
                                 }));
+                        /*
+                         * NOTE: does this need to be preceded by a receive?
+                         * Not sure how its going to work out the proper
+                         * send-via entity (orchestrator).
+                         */
                         await this.workerSender.SendAsync(outboundBrokeredMessages.Select(m => m.Message).ToList());
                         LogSentMessages(session, "Worker outbound", outboundBrokeredMessages);
                         this.ServiceStats.ActivityDispatcherStats.MessageBatchesSent.Increment();
@@ -851,7 +882,8 @@ namespace DurableTask.ServiceBus
                         return $"Completing orchestration messages sequence and lock tokens: {allIds}";
                     });
 
-                await session.CompleteAsync(sessionState.LockTokens.Keys);
+                // await session.CompleteAsync(sessionState.LockTokens.Keys);
+                await session.CompleteAsync(sessionState.LockTokens.Values);
                 this.ServiceStats.OrchestrationDispatcherStats.SessionBatchesCompleted.Increment();
                 ts.Complete();
             }
@@ -891,9 +923,9 @@ namespace DurableTask.ServiceBus
             }
 
             TraceHelper.TraceSession(TraceEventType.Error, "ServiceBusOrchestrationService-AbandonTaskOrchestrationWorkItem", workItem.InstanceId, "Abandoning {0} messages due to work item abort", sessionState.LockTokens.Keys.Count());
-            foreach (string lockToken in sessionState.LockTokens.Keys)
+            foreach (var message in sessionState.LockTokens.Values)
             {
-                await sessionState.Session.AbandonAsync(lockToken);
+                await sessionState.Session.AbandonAsync(message);
             }
 
             try
@@ -1019,6 +1051,13 @@ namespace DurableTask.ServiceBus
                 throw new ArgumentNullException("originalMessage");
             }
 
+            /*
+             * TRANSACTIONSCOPE:2
+             * workerReceiver - complete
+             * orchestratorSender - send
+             * 
+             * By my notes I don't think this would need to be changed.
+             */
             using (var ts = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled))
             {
                 Transaction.Current.TransactionCompleted += (o, e) =>
@@ -1039,7 +1078,9 @@ namespace DurableTask.ServiceBus
                             Transaction.Current.TransactionInformation.LocalIdentifier
                         } - message sequence and lock token: [SEQ: {originalMessage.SystemProperties.SequenceNumber} LT: {originalMessage.SystemProperties.LockToken}]");
 
-                await this.workerReceiver.CompleteAsync(originalMessage.SystemProperties.LockToken);
+                // NOTE: this looks good, because the WR completes a Message first, setting it as the send via entity, which is the one used by OS.
+                // await this.workerReceiver.CompleteAsync(originalMessage.SystemProperties.LockToken);
+                await this.workerReceiver.CompleteAsync(originalMessage);
                 await this.orchestratorSender.SendAsync(brokeredResponseMessage);
                 ts.Complete();
                 this.ServiceStats.ActivityDispatcherStats.SessionBatchesCompleted.Increment();
@@ -1059,7 +1100,7 @@ namespace DurableTask.ServiceBus
 
             return message == null
                 ? Task.FromResult<object>(null)
-                : this.workerReceiver.AbandonAsync(message.SystemProperties.LockToken);
+                : this.workerReceiver.AbandonAsync(message);
         }
 
         /// <summary>
@@ -1171,7 +1212,7 @@ namespace DurableTask.ServiceBus
             }
 
             Message[] brokeredMessages = await Task.WhenAll(tasks);
-            await this.orchestrationBatchMessageSender.SendAsync(brokeredMessages).ConfigureAwait(false);
+            await this.orchestratorBatchMessageSender.SendAsync(brokeredMessages).ConfigureAwait(false);
         }
 
         async Task<Message> GetBrokeredMessageAsync(TaskMessage message)
@@ -1330,7 +1371,8 @@ namespace DurableTask.ServiceBus
         {
             // TODO : Once we change the exception model, check for inner exception
 #if NETSTANDARD2_0
-            return (exception as ServiceBusException)?.IsTransient ?? false;
+            // TODO: consider simplifying namespace with import? UwU
+            return (exception as Azure.Messaging.ServiceBus.ServiceBusException)?.IsTransient ?? false;
 #else
             return (exception as MessagingException)?.IsTransient ?? false;
 #endif
@@ -1343,6 +1385,7 @@ namespace DurableTask.ServiceBus
         /// <param name="cancellationToken">A cancellation token which signals a host shutdown</param>
         async Task<TrackingWorkItem> FetchTrackingWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
+            // NOTE: in the new version we would create a message receiver.
             var session = await this.trackingClient.AcceptMessageSessionAsync(receiveTimeout);
             if (session == null)
             {
@@ -1511,7 +1554,8 @@ namespace DurableTask.ServiceBus
             }
 
             // Cleanup our session
-            await sessionState.Session.CompleteAsync(sessionState.LockTokens.Keys);
+            // await sessionState.Session.CompleteAsync(sessionState.LockTokens.Keys);
+            await sessionState.Session.CompleteAsync(sessionState.LockTokens.Values);
             await sessionState.Session.CloseAsync();
         }
 
@@ -1681,11 +1725,19 @@ namespace DurableTask.ServiceBus
                     {
                         await managementClient.DeleteQueueAsync(path);
                     }
+#if !NETSTANDARD2_0
                     catch (MessagingEntityAlreadyExistsException)
+#else
+                    catch (Azure.Messaging.ServiceBus.ServiceBusException e) when (e.Reason.Equals(Azure.Messaging.ServiceBus.ServiceBusFailureReason.MessagingEntityAlreadyExists))
+#endif
                     {
                         await Task.FromResult(0);
                     }
+#if !NETSTANDARD2_0
                     catch (MessagingEntityNotFoundException)
+#else
+                    catch (Azure.Messaging.ServiceBus.ServiceBusException e) when (e.Reason.Equals(Azure.Messaging.ServiceBus.ServiceBusFailureReason.MessagingEntityNotFound))
+#endif
                     {
                         await Task.FromResult(0);
                     }
@@ -1706,7 +1758,11 @@ namespace DurableTask.ServiceBus
                     {
                         await CreateQueueAsync(managementClient, path, requiresSessions, requiresDuplicateDetection, maxDeliveryCount, maxSizeInMegabytes);
                     }
+#if !NETSTANDARD2_0
                     catch (MessagingEntityAlreadyExistsException)
+#else
+                    catch (Azure.Messaging.ServiceBus.ServiceBusException e) when (e.Reason.Equals(Azure.Messaging.ServiceBus.ServiceBusFailureReason.MessagingEntityAlreadyExists))
+#endif
                     {
                         await Task.FromResult(0);
                     }
@@ -1740,17 +1796,17 @@ namespace DurableTask.ServiceBus
                 throw new ArgumentException($"The specified value {maxSizeInMegabytes} is invalid for the maximum queue size in megabytes.\r\nIt must be one of the following values:\r\n{string.Join(";", ValidQueueSizes)}", nameof(maxSizeInMegabytes));
             }
 
+#if NETSTANDARD2_0
+            var description = new Azure.Messaging.ServiceBus.Administration.CreateQueueOptions(path)
+#else
             var description = new QueueDescription(path)
+#endif
             {
                 RequiresSession = requiresSessions,
                 MaxDeliveryCount = maxDeliveryCount,
                 RequiresDuplicateDetection = requiresDuplicateDetection,
                 DuplicateDetectionHistoryTimeWindow = TimeSpan.FromHours(DuplicateDetectionWindowInHours),
-#if NETSTANDARD2_0
-                MaxSizeInMB = maxSizeInMegabytes
-#else
                 MaxSizeInMegabytes = maxSizeInMegabytes
-#endif
             };
 
             await managementClient.CreateQueueAsync(description);
@@ -1790,9 +1846,9 @@ namespace DurableTask.ServiceBus
                 return new ManagementClient(this.connectionSettings.ConnectionString);
             }
 #if NETSTANDARD2_0
-            else if (connectionSettings.Endpoint != null && connectionSettings.TokenProvider != null)
+            else if (connectionSettings.Endpoint != null && connectionSettings.TokenCredential != null)
             {
-                return new ManagementClient(connectionSettings.Endpoint.ToString(), connectionSettings.TokenProvider);
+                return new ManagementClient(connectionSettings.Endpoint.ToString(), connectionSettings.TokenCredential);
             }
 #endif
             else
