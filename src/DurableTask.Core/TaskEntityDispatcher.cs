@@ -712,6 +712,7 @@ namespace DurableTask.Core
                 Id = Guid.NewGuid(),
                 IsSignal = true,
                 Operation = action.Name,
+                Input = action.Input,
                 ScheduledTime = action.ScheduledTime,
             };
             string eventName;
