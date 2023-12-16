@@ -842,14 +842,14 @@ namespace DurableTask.Core
                     }
                     else if (historyEvent is SubOrchestrationInstanceCompletedEvent subOrchestrationInstanceCompletedEvent)
                     {
-                        SubOrchestrationInstanceCreatedEvent subOrchestrationCreatedEvent = (SubOrchestrationInstanceCreatedEvent)workItem.OrchestrationRuntimeState.Events.FirstOrDefault(x => x.EventId == subOrchestrationInstanceCompletedEvent.TaskScheduledId);
+                        SubOrchestrationInstanceCreatedEvent subOrchestrationCreatedEvent = workItem.OrchestrationRuntimeState.Events.OfType<SubOrchestrationInstanceCreatedEvent>().FirstOrDefault(x => x.EventId == subOrchestrationInstanceCompletedEvent.TaskScheduledId);
 
                         // We immediately publish the activity span for this sub-orchestration by creating the activity and immediately calling Dispose() on it.
                         TraceHelper.EmitTraceActivityForSubOrchestrationCompleted(workItem.OrchestrationRuntimeState.OrchestrationInstance, subOrchestrationCreatedEvent);
                     }
                     else if (historyEvent is SubOrchestrationInstanceFailedEvent subOrchestrationInstanceFailedEvent)
                     {
-                        SubOrchestrationInstanceCreatedEvent subOrchestrationCreatedEvent = (SubOrchestrationInstanceCreatedEvent)workItem.OrchestrationRuntimeState.Events.FirstOrDefault(x => x.EventId == subOrchestrationInstanceFailedEvent.TaskScheduledId);
+                        SubOrchestrationInstanceCreatedEvent subOrchestrationCreatedEvent = workItem.OrchestrationRuntimeState.Events.OfType<SubOrchestrationInstanceCreatedEvent>().FirstOrDefault(x => x.EventId == subOrchestrationInstanceFailedEvent.TaskScheduledId);
 
                         // We immediately publish the activity span for this sub-orchestration by creating the activity and immediately calling Dispose() on it.
                         TraceHelper.EmitTraceActivityForSubOrchestrationFailed(workItem.OrchestrationRuntimeState.OrchestrationInstance, subOrchestrationCreatedEvent, subOrchestrationInstanceFailedEvent, errorPropagationMode);
@@ -858,12 +858,12 @@ namespace DurableTask.Core
 
                 if (message.Event is TaskCompletedEvent taskCompletedEvent)
                 {
-                    TaskScheduledEvent taskScheduledEvent = (TaskScheduledEvent)workItem.OrchestrationRuntimeState.Events.LastOrDefault(x => x.EventId == taskCompletedEvent.TaskScheduledId);
+                    TaskScheduledEvent taskScheduledEvent = workItem.OrchestrationRuntimeState.Events.OfType<TaskScheduledEvent>().LastOrDefault(x => x.EventId == taskCompletedEvent.TaskScheduledId);
                     TraceHelper.EmitTraceActivityForTaskCompleted(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent);
                 }
                 else if (message.Event is TaskFailedEvent taskFailedEvent)
                 {
-                    TaskScheduledEvent taskScheduledEvent = (TaskScheduledEvent)workItem.OrchestrationRuntimeState.Events.LastOrDefault(x => x.EventId == taskFailedEvent.TaskScheduledId);
+                    TaskScheduledEvent taskScheduledEvent = workItem.OrchestrationRuntimeState.Events.OfType<TaskScheduledEvent>().LastOrDefault(x => x.EventId == taskFailedEvent.TaskScheduledId);
                     TraceHelper.EmitTraceActivityForTaskFailed(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent, taskFailedEvent, errorPropagationMode);
                 }
 
