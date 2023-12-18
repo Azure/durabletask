@@ -45,7 +45,6 @@ namespace DurableTask.ServiceBus
     using ServiceBusConnectionStringBuilder = DurableTask.ServiceBus.Common.Abstraction.ServiceBusConnectionStringBuilder;
 #if NETSTANDARD2_0
     using Azure.Core;
-
     using ReceiveMode = Azure.Messaging.ServiceBus.ServiceBusReceiveMode;
 #else
     using Microsoft.ServiceBus.Messaging;
@@ -207,10 +206,7 @@ namespace DurableTask.ServiceBus
             else if (connectionSettings.Endpoint != null && connectionSettings.TokenCredential != null)
             {
 
-                this.serviceBusConnection = new ServiceBusConnection(connectionSettings.Endpoint.ToString(), connectionSettings.TransportType)
-                {
-                    TokenCredential = connectionSettings.TokenCredential,
-                };
+                this.serviceBusConnection = new ServiceBusConnection(connectionSettings.Endpoint.Host, connectionSettings.TransportType, connectionSettings.TokenCredential);
             }
 #endif
             else
@@ -1848,7 +1844,7 @@ namespace DurableTask.ServiceBus
 #if NETSTANDARD2_0
             else if (connectionSettings.Endpoint != null && connectionSettings.TokenCredential != null)
             {
-                return new ManagementClient(connectionSettings.Endpoint.ToString(), connectionSettings.TokenCredential);
+                return new ManagementClient(connectionSettings.Endpoint.Host, connectionSettings.TokenCredential);
             }
 #endif
             else

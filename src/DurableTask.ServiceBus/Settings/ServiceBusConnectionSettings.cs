@@ -96,7 +96,7 @@ namespace DurableTask.ServiceBus.Settings
         public Azure.Messaging.ServiceBus.ServiceBusTransportType TransportType { get; private set; }
 
         /// <summary>
-        /// 
+        /// Azure.Identity TokenCredential used to authenticate with the service bus
         /// </summary>
         public TokenCredential TokenCredential { get; private set; }
 #endif

@@ -2,15 +2,14 @@
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
-    <!-- <TargetFrameworks>netstandard2.0;net462</TargetFrameworks> -->
     <TargetFrameworks>netstandard2.0;net462</TargetFrameworks>
     <PackageId>Microsoft.Azure.DurableTask.ServiceBus</PackageId>
   </PropertyGroup>
 
     <!-- Version Info -->
   <PropertyGroup>
-    <MajorVersion>2</MajorVersion>
-    <MinorVersion>7</MinorVersion>
+    <MajorVersion>3</MajorVersion>
+    <MinorVersion>0</MinorVersion>
     <PatchVersion>0</PatchVersion>
 
     <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>

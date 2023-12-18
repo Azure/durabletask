@@ -590,8 +590,6 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     {
         public Azure.Messaging.ServiceBus.ServiceBusClient Client { get; set; }
 
-        public Azure.Core.TokenCredential TokenCredential { get; set; }
-
         public ServiceBusConnection(ServiceBusConnectionStringBuilder connectionStringBuilder)
         {
             var options = new Azure.Messaging.ServiceBus.ServiceBusClientOptions
@@ -603,7 +601,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                 options);
         }
 
-        public ServiceBusConnection(string endpoint, Azure.Messaging.ServiceBus.ServiceBusTransportType transportType, RetryPolicy retryPolicy = null)
+        public ServiceBusConnection(string endpoint, Azure.Messaging.ServiceBus.ServiceBusTransportType transportType, Azure.Core.TokenCredential tokenCredential, RetryPolicy retryPolicy = null)
         {
             var options = new Azure.Messaging.ServiceBus.ServiceBusClientOptions
             {
@@ -612,7 +610,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             Client = new Azure.Messaging.ServiceBus.ServiceBusClient(
                 // TODO: might need to be parsed to just get the namespace
                 endpoint,
-                TokenCredential,
+                tokenCredential,
                 options);
         }
 #else
