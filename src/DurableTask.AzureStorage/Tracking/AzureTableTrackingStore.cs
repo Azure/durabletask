@@ -540,7 +540,7 @@ namespace DurableTask.AzureStorage.Tracking
             return this.QueryStateAsync(odata.Filter, odata.Select, cancellationToken);
         }
 
-        public AsyncPageable<OrchestrationState> QueryStateAsync(string filter = null, IEnumerable<string> select = null, CancellationToken cancellationToken = default)
+        AsyncPageable<OrchestrationState> QueryStateAsync(string filter = null, IEnumerable<string> select = null, CancellationToken cancellationToken = default)
         {
             return new AsyncPageableAsyncProjection<OrchestrationInstanceStatus, OrchestrationState>(
                 this.InstancesTable.ExecuteQueryAsync<OrchestrationInstanceStatus>(filter, select: select, cancellationToken: cancellationToken),
