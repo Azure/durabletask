@@ -31,6 +31,7 @@ namespace DurableTask.AzureStorage
     using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
+    using DurableTask.Core.Entities;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using DurableTask.Core.Query;
@@ -44,7 +45,8 @@ namespace DurableTask.AzureStorage
         IOrchestrationServiceClient,
         IDisposable,
         IOrchestrationServiceQueryClient,
-        IOrchestrationServicePurgeClient
+        IOrchestrationServicePurgeClient,
+        IEntityOrchestrationService
     {
         static readonly HistoryEvent[] EmptyHistoryEventList = new HistoryEvent[0];
 
@@ -279,6 +281,51 @@ namespace DurableTask.AzureStorage
 
         /// <inheritdoc />
         public int TaskOrchestrationDispatcherCount { get; } = 1;
+
+        #region IEntityOrchestrationService
+
+        EntityBackendProperties IEntityOrchestrationService.EntityBackendProperties
+           => new EntityBackendProperties()
+           {
+               EntityMessageReorderWindow = TimeSpan.FromMinutes(this.settings.EntityMessageReorderWindowInMinutes),
+               MaxEntityOperationBatchSize = this.settings.MaxEntityOperationBatchSize,
+               MaxConcurrentTaskEntityWorkItems = this.settings.MaxConcurrentTaskEntityWorkItems,
+               SupportsImplicitEntityDeletion = false, // not supported by this backend
+               MaximumSignalDelayTime = TimeSpan.FromDays(6),
+               UseSeparateQueueForEntityWorkItems = this.settings.UseSeparateQueueForEntityWorkItems,
+           };
+
+        EntityBackendQueries IEntityOrchestrationService.EntityBackendQueries
+           => new EntityTrackingStoreQueries(
+                this.messageManager,
+                this.trackingStore,
+                this.EnsureTaskHubAsync,
+                ((IEntityOrchestrationService)this).EntityBackendProperties,
+                this.SendTaskOrchestrationMessageAsync);
+
+        Task<TaskOrchestrationWorkItem> IEntityOrchestrationService.LockNextOrchestrationWorkItemAsync(
+          TimeSpan receiveTimeout,
+          CancellationToken cancellationToken)
+        {
+            if (!this.settings.UseSeparateQueueForEntityWorkItems)
+            {
+                throw new InvalidOperationException("Internal configuration is inconsistent. Backend is using single queue for orchestration/entity dispatch, but frontend is pulling from individual queues.");
+            }
+            return this.LockNextTaskOrchestrationWorkItemAsync(false, cancellationToken);
+        }
+
+        Task<TaskOrchestrationWorkItem> IEntityOrchestrationService.LockNextEntityWorkItemAsync(
+           TimeSpan receiveTimeout,
+           CancellationToken cancellationToken)
+        {
+            if (!this.settings.UseSeparateQueueForEntityWorkItems)
+            {
+                throw new InvalidOperationException("Internal configuration is inconsistent. Backend is using single queue for orchestration/entity dispatch, but frontend is pulling from individual queues.");
+            }
+            return this.LockNextTaskOrchestrationWorkItemAsync(entitiesOnly: true, cancellationToken);
+        }
+
+        #endregion
 
         #region Management Operations (Create/Delete/Start/Stop)
         /// <summary>
@@ -628,9 +675,18 @@ namespace DurableTask.AzureStorage
 
         #region Orchestration Work Item Methods
         /// <inheritdoc />
-        public async Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(
+        public Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(
             TimeSpan receiveTimeout,
             CancellationToken cancellationToken)
+        {
+            if (this.settings.UseSeparateQueueForEntityWorkItems)
+            {
+                throw new InvalidOperationException("Internal configuration is inconsistent. Backend is using separate queues for orchestration/entity dispatch, but frontend is pulling from single queue.");
+            }
+            return LockNextTaskOrchestrationWorkItemAsync(entitiesOnly: false, cancellationToken);
+        }
+
+        async Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(bool entitiesOnly, CancellationToken cancellationToken)
         {
             Guid traceActivityId = StartNewLogicalTraceScope(useExisting: true);
 
@@ -644,7 +700,7 @@ namespace DurableTask.AzureStorage
                 try
                 {
                     // This call will block until the next session is ready
-                    session = await this.orchestrationSessionManager.GetNextSessionAsync(linkedCts.Token);
+                    session = await this.orchestrationSessionManager.GetNextSessionAsync(entitiesOnly, linkedCts.Token);
                     if (session == null)
                     {
                         return null;
@@ -2064,6 +2120,7 @@ namespace DurableTask.AzureStorage
                 TaskHubNames = condition.TaskHubNames,
                 InstanceIdPrefix = condition.InstanceIdPrefix,
                 FetchInput = condition.FetchInputsAndOutputs,
+                ExcludeEntities = condition.ExcludeEntities,
             };
         }
 

@@ -13,6 +13,7 @@
     <Description>Orchestration message and runtime state is stored in Azure Service Fabric reliable collections.</Description>
     <Authors>Microsoft</Authors>
     <Platforms>AnyCPU;x64</Platforms>
+    <NoWarn>$(NoWarn);NU5104</NoWarn>
  </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">

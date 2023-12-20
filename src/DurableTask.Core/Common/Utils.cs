@@ -152,7 +152,7 @@ namespace DurableTask.Core.Common
         /// The default value comes from the WEBSITE_SITE_NAME environment variable, which is defined
         /// in Azure App Service. Other environments can use DTFX_APP_NAME to set this value.
         /// </remarks>
-        public static string AppName { get; set; } = 
+        public static string AppName { get; set; } =
             Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME") ??
             Environment.GetEnvironmentVariable("DTFX_APP_NAME") ??
             string.Empty;
@@ -622,6 +622,40 @@ namespace DurableTask.Core.Common
                     taskScheduledId = -1;
                     return false;
             }
+        }
+
+        /// <summary>
+        /// Creates a determinstic Guid from a string using a hash function. This is a simple hash
+        /// meant to produce pseudo-random Guids, it is not meant to be cryptographically secure, 
+        /// and does not follow any formatting conventions for UUIDs (such as RFC 4122).
+        /// </summary>
+        /// <param name="stringToHash">The string to hash.</param>
+        /// <returns>A Guid constructed from the hash.</returns>
+        /// <exception cref="ArgumentException"></exception>
+        internal static Guid CreateGuidFromHash(string stringToHash)
+        {
+            if (string.IsNullOrEmpty(stringToHash))
+            {
+                throw new ArgumentException("string to hash must not be null or empty", nameof(stringToHash));
+            }
+
+            var bytes = Encoding.UTF8.GetBytes(stringToHash);
+            uint hash1 = Fnv1aHashHelper.ComputeHash(bytes, 0xdf0dd395);
+            uint hash2 = Fnv1aHashHelper.ComputeHash(bytes, 0xa19df4df);
+            uint hash3 = Fnv1aHashHelper.ComputeHash(bytes, 0xc88599c5);
+            uint hash4 = Fnv1aHashHelper.ComputeHash(bytes, 0xe24e3e64);
+            return new Guid(
+                hash1,
+                (ushort)(hash2 & 0xFFFF),
+                (ushort)((hash2 >> 16) & 0xFFFF),
+                (byte)(hash3 & 0xFF),
+                (byte)((hash3 >> 8) & 0xFF),
+                (byte)((hash3 >> 16) & 0xFF),
+                (byte)((hash3 >> 24) & 0xFF),
+                (byte)(hash4 & 0xFF),
+                (byte)((hash4 >> 8) & 0xFF),
+                (byte)((hash4 >> 16) & 0xFF),
+                (byte)((hash4 >> 24) & 0xFF));
         }
 
         /// <summary>
