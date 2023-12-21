@@ -42,9 +42,9 @@ namespace DurableTask.ServiceFabric.Test
         {
             get
             {
-                var sourceRoot = Environment.GetEnvironmentVariable("SourceRoot") ?? string.Empty;
-                var applicationPath = Path.Combine(sourceRoot.Trim(), "Test", "TestFabricApplication", "TestFabricApplication");
-
+                //var sourceRoot = Environment.GetEnvironmentVariable("SourceRoot") ?? string.Empty;
+                //var applicationPath = Path.Combine(sourceRoot.Trim(), "Test", "TestFabricApplication", "TestFabricApplication");
+                var applicationPath = Path.Combine(Directory.GetCurrentDirectory(), @"..\..\..\TestFabricApplication\TestFabricApplication");
                 if (!Directory.Exists(applicationPath))
                 {
                     throw new Exception("Could not find test application path, define SourceRoot environment variable to the source path");

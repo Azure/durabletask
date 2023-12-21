@@ -18,6 +18,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using DurableTask;
+using DurableTask.History;
 using DurableTask.ServiceFabric;
 using DurableTask.Test.Orchestrations.Perf;
 using Microsoft.ServiceFabric.Services.Communication.Runtime;
@@ -49,6 +50,12 @@ namespace TestStatefulService
             this.fabricProviderFactory = new FabricOrchestrationProviderFactory(this.StateManager, settings);
             this.fabricProvider = this.fabricProviderFactory.CreateProvider();
             this.client = new TaskHubClient(fabricProvider.OrchestrationServiceClient);
+
+            this.StateManager.TryAddStateSerializer(new CustomDataContractStateSerializer<TaskMessageItem>());
+            this.StateManager.TryAddStateSerializer(new CustomDataContractStateSerializer<TaskMessage>());
+            this.StateManager.TryAddStateSerializer(new CustomDataContractStateSerializer<HistoryEvent>());
+            this.StateManager.TryAddStateSerializer(new CustomDataContractStateSerializer<OrchestrationInstance>());
+            this.StateManager.TryAddStateSerializer(new CustomDataContractStateSerializer<EventType>());
         }
 
         /// <summary>
