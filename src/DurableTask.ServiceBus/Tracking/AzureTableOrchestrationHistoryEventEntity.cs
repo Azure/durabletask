@@ -38,7 +38,9 @@ namespace DurableTask.ServiceBus.Tracking
 #if NETSTANDARD2_0
             SerializationBinder = new PackageUpgradeSerializationBinder()
 #else
+#pragma warning disable CS0618 // Type or member is obsolete
             Binder = new PackageUpgradeSerializationBinder()
+#pragma warning restore CS0618 // Type or member is obsolete
 #endif
         };
 

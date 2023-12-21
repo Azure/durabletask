@@ -51,6 +51,7 @@ namespace DurableTask.AzureStorage
             this.settings = settings;
             this.azureStorageClient = azureStorageClient;
             this.blobContainer = this.azureStorageClient.GetBlobContainerReference(blobContainerName);
+#pragma warning disable CS0618 // Type or member is obsolete
             this.taskMessageSerializerSettings = new JsonSerializerSettings
             {
                 TypeNameHandling = TypeNameHandling.Objects,
@@ -60,6 +61,7 @@ namespace DurableTask.AzureStorage
                 Binder = new TypeNameSerializationBinder(settings.CustomMessageTypeBinder),
 #endif
             };
+#pragma warning restore CS0618 // Type or member is obsolete
             this.serializer = JsonSerializer.Create(taskMessageSerializerSettings);
 
             if (this.settings.UseDataContractSerialization)

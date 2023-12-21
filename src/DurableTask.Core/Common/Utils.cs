@@ -58,7 +58,7 @@ namespace DurableTask.Core.Common
 #if NETSTANDARD2_0
             SerializationBinder = new PackageUpgradeSerializationBinder()
 #else
-            Binder = new PackageUpgradeSerializationBinder()
+            SerializationBinder = new PackageUpgradeSerializationBinder()
 #endif
         };
         private static readonly JsonSerializer DefaultObjectJsonSerializer = JsonSerializer.Create(ObjectJsonSettings);

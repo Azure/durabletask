@@ -42,7 +42,7 @@ namespace DurableTask.Core.Serializing
 #if NETSTANDARD2_0
                 SerializationBinder = new PackageUpgradeSerializationBinder()
 #else
-                Binder = new PackageUpgradeSerializationBinder()
+                SerializationBinder = new PackageUpgradeSerializationBinder()
 #endif
             })
         { }
