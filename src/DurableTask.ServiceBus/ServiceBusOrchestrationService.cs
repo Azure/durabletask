@@ -35,7 +35,6 @@ namespace DurableTask.ServiceBus
     using DurableTask.ServiceBus.Tracking;
     using Message = DurableTask.ServiceBus.Common.Abstraction.Message;
     using IMessageSession = DurableTask.ServiceBus.Common.Abstraction.IMessageSession;
-    using RetryPolicy = DurableTask.ServiceBus.Common.Abstraction.RetryPolicy;
     using MessageSender = DurableTask.ServiceBus.Common.Abstraction.MessageSender;
     using MessageReceiver = DurableTask.ServiceBus.Common.Abstraction.MessageReceiver;
     using QueueClient = DurableTask.ServiceBus.Common.Abstraction.QueueClient;
@@ -48,6 +47,7 @@ namespace DurableTask.ServiceBus
     using ReceiveMode = Azure.Messaging.ServiceBus.ServiceBusReceiveMode;
 #else
     using Microsoft.ServiceBus.Messaging;
+    using RetryPolicy = DurableTask.ServiceBus.Common.Abstraction.RetryPolicy;
 #endif
 
     /// <summary>
@@ -122,11 +122,6 @@ namespace DurableTask.ServiceBus
         /// <param name="settings">Settings object for service and client</param>
         public ServiceBusOrchestrationService(
             string namespaceHostName,
-            /*
-             * This will actually need to be a breaking change. We can't use
-             * this ITokenProvider type because it comes from the offending
-             * servicebus package. we will have to switch to TokenCredentials.
-             */
             TokenCredential tokenCredential,
             string hubName,
             IOrchestrationServiceInstanceStore instanceStore,
@@ -253,13 +248,11 @@ namespace DurableTask.ServiceBus
             this.orchestratorSender = new MessageSender(this.serviceBusConnection, this.orchestratorEntityName, this.workerEntityName);
             this.workerSender = new MessageSender(this.serviceBusConnection, this.workerEntityName, this.orchestratorEntityName);
             this.trackingSender = new MessageSender(this.serviceBusConnection, this.trackingEntityName, this.orchestratorEntityName);
-
-#if NETSTANDARD2_0
-            this.orchestratorQueueClient = new QueueClient(this.serviceBusConnection, this.orchestratorEntityName);
-#else
+#if !NETSTANDARD2_0
             this.orchestratorQueueClient = new QueueClient(this.serviceBusConnection, this.orchestratorEntityName, ReceiveMode.PeekLock, RetryPolicy.Default);
+#else
+            this.orchestratorQueueClient = new QueueClient(this.serviceBusConnection, this.orchestratorEntityName);
 #endif
-
             this.workerReceiver = new MessageReceiver(serviceBusConnection, this.workerEntityName);
             this.orchestratorSessionClient = new SessionClient(serviceBusConnection, this.orchestratorEntityName, ReceiveMode.PeekLock);
             this.trackingClient = new SessionClient(serviceBusConnection, this.trackingEntityName, ReceiveMode.PeekLock);
@@ -760,11 +753,9 @@ namespace DurableTask.ServiceBus
                                         DateTimeUtils.MinDateTime);
                                     return new MessageContainer(message, m);
                                 }));
-                        /*
-                         * NOTE: does this need to be preceded by a receive?
-                         * Not sure how its going to work out the proper
-                         * send-via entity (orchestrator).
-                         */
+                        // NOTE: does this need to be preceded by a receive?
+                        // Not sure how its going to work out the proper
+                        // send-via entity (orchestrator).
                         await this.workerSender.SendAsync(outboundBrokeredMessages.Select(m => m.Message).ToList());
                         LogSentMessages(session, "Worker outbound", outboundBrokeredMessages);
                         this.ServiceStats.ActivityDispatcherStats.MessageBatchesSent.Increment();
@@ -878,7 +869,6 @@ namespace DurableTask.ServiceBus
                         return $"Completing orchestration messages sequence and lock tokens: {allIds}";
                     });
 
-                // await session.CompleteAsync(sessionState.LockTokens.Keys);
                 await session.CompleteAsync(sessionState.LockTokens.Values);
                 this.ServiceStats.OrchestrationDispatcherStats.SessionBatchesCompleted.Increment();
                 ts.Complete();
@@ -1051,8 +1041,6 @@ namespace DurableTask.ServiceBus
              * TRANSACTIONSCOPE:2
              * workerReceiver - complete
              * orchestratorSender - send
-             * 
-             * By my notes I don't think this would need to be changed.
              */
             using (var ts = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled))
             {
@@ -1074,8 +1062,6 @@ namespace DurableTask.ServiceBus
                             Transaction.Current.TransactionInformation.LocalIdentifier
                         } - message sequence and lock token: [SEQ: {originalMessage.SystemProperties.SequenceNumber} LT: {originalMessage.SystemProperties.LockToken}]");
 
-                // NOTE: this looks good, because the WR completes a Message first, setting it as the send via entity, which is the one used by OS.
-                // await this.workerReceiver.CompleteAsync(originalMessage.SystemProperties.LockToken);
                 await this.workerReceiver.CompleteAsync(originalMessage);
                 await this.orchestratorSender.SendAsync(brokeredResponseMessage);
                 ts.Complete();
@@ -1367,7 +1353,6 @@ namespace DurableTask.ServiceBus
         {
             // TODO : Once we change the exception model, check for inner exception
 #if NETSTANDARD2_0
-            // TODO: consider simplifying namespace with import? UwU
             return (exception as Azure.Messaging.ServiceBus.ServiceBusException)?.IsTransient ?? false;
 #else
             return (exception as MessagingException)?.IsTransient ?? false;
@@ -1381,7 +1366,6 @@ namespace DurableTask.ServiceBus
         /// <param name="cancellationToken">A cancellation token which signals a host shutdown</param>
         async Task<TrackingWorkItem> FetchTrackingWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
-            // NOTE: in the new version we would create a message receiver.
             var session = await this.trackingClient.AcceptMessageSessionAsync(receiveTimeout);
             if (session == null)
             {
@@ -1550,7 +1534,6 @@ namespace DurableTask.ServiceBus
             }
 
             // Cleanup our session
-            // await sessionState.Session.CompleteAsync(sessionState.LockTokens.Keys);
             await sessionState.Session.CompleteAsync(sessionState.LockTokens.Values);
             await sessionState.Session.CloseAsync();
         }

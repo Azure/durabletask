@@ -133,12 +133,19 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
         public async Task<byte[]> GetStateAsync()
         {
-            return (await this.sessionReceiver.GetSessionStateAsync()).ToArray();
+            return (await this.sessionReceiver.GetSessionStateAsync())?.ToArray();
         }
 
         public async Task SetStateAsync(byte[] sessionState)
         {
-            await this.sessionReceiver.SetSessionStateAsync(new BinaryData(sessionState));
+            if (sessionState == null)
+            {
+                await this.sessionReceiver.SetSessionStateAsync(new BinaryData(new byte[] { }));
+            }
+            else
+            {
+                await this.sessionReceiver.SetSessionStateAsync(new BinaryData(sessionState));
+            }
         }
 
         public async Task RenewSessionLockAsync()
@@ -253,12 +260,6 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     }
 
 #if NETSTANDARD2_0
-
-    /**
-     * consider moving all these helper classes somewhere spiffy. This includes
-     * the SystemPropertiesCollection, however, that should mirror how the
-     * NETFx version manages its version.
-     */
     public abstract class Union<A, B>
     {
         public abstract T Match<T>(Func<A, T> f, Func<B, T> g);
@@ -588,7 +589,8 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     /// <inheritdoc />
     public class ServiceBusConnection
     {
-        public Azure.Messaging.ServiceBus.ServiceBusClient Client { get; set; }
+        private Dictionary<string, Azure.Messaging.ServiceBus.ServiceBusClient> sendViaEntityScopedServiceBusClients;
+        private Func<Azure.Messaging.ServiceBus.ServiceBusClient> serviceBusClientFactory;
 
         public ServiceBusConnection(ServiceBusConnectionStringBuilder connectionStringBuilder)
         {
@@ -596,7 +598,9 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             {
                 EnableCrossEntityTransactions = true,
             };
-            Client = new Azure.Messaging.ServiceBus.ServiceBusClient(
+
+            sendViaEntityScopedServiceBusClients = new Dictionary<string, Azure.Messaging.ServiceBus.ServiceBusClient>();
+            serviceBusClientFactory = () => new Azure.Messaging.ServiceBus.ServiceBusClient(
                 connectionStringBuilder.ConnectionString,
                 options);
         }
@@ -607,11 +611,24 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             {
                 EnableCrossEntityTransactions = true,
             };
-            Client = new Azure.Messaging.ServiceBus.ServiceBusClient(
-                // TODO: might need to be parsed to just get the namespace
+
+            sendViaEntityScopedServiceBusClients = new Dictionary<string, Azure.Messaging.ServiceBus.ServiceBusClient>();
+            serviceBusClientFactory = () => new Azure.Messaging.ServiceBus.ServiceBusClient(
                 endpoint,
                 tokenCredential,
                 options);
+        }
+
+        public Azure.Messaging.ServiceBus.ServiceBusClient GetSendViaEntityScopedClient(string sendViaEntity)
+        {
+            if (sendViaEntityScopedServiceBusClients.TryGetValue(sendViaEntity, out var client))
+            {
+                return client;
+            }
+
+            var newClient = serviceBusClientFactory();
+            sendViaEntityScopedServiceBusClients.Add(sendViaEntity, newClient);
+            return newClient;
         }
 #else
     public class ServiceBusConnection
@@ -696,12 +713,14 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
         public MessageSender(ServiceBusConnection serviceBusConnection, string entityPath, RetryPolicy retryPolicy = null)
         {
-            sender = serviceBusConnection.Client.CreateSender(entityPath);
+            // sender = serviceBusConnection.Client.CreateSender(entityPath);
+            sender = serviceBusConnection.GetSendViaEntityScopedClient(entityPath).CreateSender(entityPath);
         }
 
         public MessageSender(ServiceBusConnection serviceBusConnection, string entityPath, string viaEntityPath, RetryPolicy retryPolicy = null)
         {
-            sender = serviceBusConnection.Client.CreateSender(entityPath);
+            // sender = serviceBusConnection.Client.CreateSender(entityPath);
+            sender = serviceBusConnection.GetSendViaEntityScopedClient(viaEntityPath).CreateSender(entityPath);
         }
 
         public async Task SendAsync(Message message)
@@ -800,10 +819,9 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                 ReceiveMode = receiveMode,
                 PrefetchCount = prefetchCount
             };
-            this.receiver = serviceBusConnection.Client.CreateReceiver(entityPath, options);
+            this.receiver = serviceBusConnection.GetSendViaEntityScopedClient(entityPath).CreateReceiver(entityPath, options);
         }
 
-        // TODO: implement public methods
         public async Task<Message> ReceiveAsync(TimeSpan serverWaitTime)
         {
             return await this.receiver.ReceiveMessageAsync(serverWaitTime);
@@ -915,12 +933,11 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
         public QueueClient(ServiceBusConnection serviceBusConnection, string entityPath)
         {
-            sender = serviceBusConnection.Client.CreateSender(entityPath);
+            sender = serviceBusConnection.GetSendViaEntityScopedClient(entityPath).CreateSender(entityPath);
         }
 
         public async Task SendAsync(List<Message> messageList)
         {
-            // NOTE: dont know if this is right
             await sender.SendMessagesAsync(messageList.Select(m => (Azure.Messaging.ServiceBus.ServiceBusMessage)m).ToList());
         }
 
@@ -1112,9 +1129,9 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
         public SessionClient(ServiceBusConnection serviceBusConnection, string entityPath, Azure.Messaging.ServiceBus.ServiceBusReceiveMode receiveMode)
         {
-            this.serviceBusClient = serviceBusConnection.Client;
             this.entityPath = entityPath;
             this.receiveMode = receiveMode;
+            this.serviceBusClient = serviceBusConnection.GetSendViaEntityScopedClient(entityPath);
         }
 
         public async Task<IMessageSession> AcceptMessageSessionAsync(TimeSpan operationTimeout)
@@ -1135,7 +1152,6 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
         public Task CloseAsync()
         {
-            // NOTE: this doesnt seem to need to be implemented. Unless there's more to unravel with Dispose implementations
             return Task.CompletedTask;
         }
 
