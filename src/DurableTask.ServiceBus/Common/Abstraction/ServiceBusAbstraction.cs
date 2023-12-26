@@ -260,79 +260,47 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     }
 
 #if NETSTANDARD2_0
-    public abstract class Union<A, B>
-    {
-        public abstract T Match<T>(Func<A, T> f, Func<B, T> g);
-
-        public abstract void Switch(Action<A> f, Action<B> g);
-
-        private Union() { } 
-
-        public sealed class Case1 : Union<A, B>
+        public abstract class Union<A, B>
         {
-            public readonly A Item;
-            public Case1(A item) : base() { this.Item = item; }
-            public override T Match<T>(Func<A, T> f, Func<B, T> g)
+            public abstract T Match<T>(Func<A, T> f, Func<B, T> g);
+
+            public abstract void Switch(Action<A> f, Action<B> g);
+
+            private Union() { } 
+
+            public sealed class Case1 : Union<A, B>
             {
-                return f(Item);
+                public readonly A Item;
+                public Case1(A item) : base() { this.Item = item; }
+                public override T Match<T>(Func<A, T> f, Func<B, T> g)
+                {
+                    return f(Item);
+                }
+                public override void Switch(Action<A> f, Action<B> g)
+                {
+                    f(Item);
+                }
             }
-            public override void Switch(Action<A> f, Action<B> g)
+
+            public sealed class Case2 : Union<A, B>
             {
-                f(Item);
+                public readonly B Item;
+                public Case2(B item) { this.Item = item; }
+                public override T Match<T>(Func<A, T> f, Func<B, T> g)
+                {
+                    return g(Item);
+                }
+                public override void Switch(Action<A> f, Action<B> g)
+                {
+                    g(Item);
+                }
             }
         }
-
-        public sealed class Case2 : Union<A, B>
-        {
-            public readonly B Item;
-            public Case2(B item) { this.Item = item; }
-            public override T Match<T>(Func<A, T> f, Func<B, T> g)
-            {
-                return g(Item);
-            }
-            public override void Switch(Action<A> f, Action<B> g)
-            {
-                g(Item);
-            }
-        }
-    }
-    public class SystemPropertiesCollection
-    {
-        readonly Union<Azure.Messaging.ServiceBus.ServiceBusMessage, Azure.Messaging.ServiceBus.ServiceBusReceivedMessage> msg;
-
-        public SystemPropertiesCollection(Union<Azure.Messaging.ServiceBus.ServiceBusMessage, Azure.Messaging.ServiceBus.ServiceBusReceivedMessage> msg)
-        {
-            this.msg = msg;
-        }
-
-        public Guid LockToken => this.msg.Match(
-            /* revisit this throw behavior. Microsoft.Azure.ServiceBus had some
-             * throw behavior in it's source that should be copied
-             */
-            _ => throw new Exception(),
-            rm => Guid.Parse(rm.LockToken));
-
-        public int DeliveryCount => this.msg.Match(
-            _ => throw new Exception(),
-            rm => rm.DeliveryCount);
-
-        public DateTime LockedUntilUtc => this.msg.Match(
-            _ => throw new Exception(),
-            rm => rm.LockedUntil.UtcDateTime);
-
-        public long SequenceNumber => this.msg.Match(
-            _ => throw new Exception(),
-            rm => rm.SequenceNumber);
-
-        public DateTime EnqueuedTimeUtc => this.msg.Match(
-            _ => throw new Exception(),
-            rm => rm.EnqueuedTime.UtcDateTime);
-    }
 
     /// <inheritdoc />
     public class Message
     {
-        Union<Azure.Messaging.ServiceBus.ServiceBusMessage, Azure.Messaging.ServiceBus.ServiceBusReceivedMessage> message;
+        private readonly Union<Azure.Messaging.ServiceBus.ServiceBusMessage, Azure.Messaging.ServiceBus.ServiceBusReceivedMessage> message;
 
         public Message(Azure.Messaging.ServiceBus.ServiceBusMessage msg)
         {
@@ -366,7 +334,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
         public static implicit operator Azure.Messaging.ServiceBus.ServiceBusReceivedMessage(Message m)
         {
             return m.message.Match(
-                m => throw new Exception(), // TODO: revisit with clearer exception
+                m => throw NotReceivedMessagePropertyGetException(),
                 rm => rm);
         }
 
@@ -390,7 +358,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                 rm => rm.MessageId);
             set => this.message.Switch(
                 m => { m.MessageId = value; },
-                rm => throw new Exception());
+                rm => throw ReceivedMessagePropertySetException());
         }
 
         public DateTime ScheduledEnqueueTimeUtc
@@ -400,14 +368,14 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                 rm => rm.ScheduledEnqueueTime.UtcDateTime);
             set => this.message.Switch(
                 m => { m.ScheduledEnqueueTime = new DateTimeOffset(value); },
-                rm => throw new Exception());
+                rm => throw ReceivedMessagePropertySetException());
         }
 
         public SystemPropertiesCollection SystemProperties { get; private set; }
 
         public IDictionary<string, object> UserProperties => this.message.Match(
             m => m.ApplicationProperties,
-            rm => (IDictionary<string, object>)rm.ApplicationProperties); // TODO: revisit, we are casting readonly dict to dict.
+            rm => (IDictionary<string, object>)rm.ApplicationProperties);
 
         public byte[] Body => this.message.Match(
             m => m.Body.ToArray(),
@@ -420,7 +388,47 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                 rm => rm.SessionId);
             set => this.message.Switch(
                 m => { m.SessionId = value; },
-                rm => throw new Exception());
+                rm => throw ReceivedMessagePropertySetException());
+        }
+
+        private static Exception NotReceivedMessagePropertyGetException()
+        {
+            return new InvalidOperationException("The property cannot be accessed because the message is not received.");
+        }
+
+        private static Exception ReceivedMessagePropertySetException()
+        {
+            return new InvalidOperationException("The property cannot be set because the message is received and the value is readonly.");
+        }
+
+        public class SystemPropertiesCollection
+        {
+            private readonly Union<Azure.Messaging.ServiceBus.ServiceBusMessage, Azure.Messaging.ServiceBus.ServiceBusReceivedMessage> msg;
+
+            public SystemPropertiesCollection(Union<Azure.Messaging.ServiceBus.ServiceBusMessage, Azure.Messaging.ServiceBus.ServiceBusReceivedMessage> msg)
+            {
+                this.msg = msg;
+            }
+
+            public Guid LockToken => this.msg.Match(
+                _ => throw NotReceivedMessagePropertyGetException(),
+                rm => Guid.Parse(rm.LockToken));
+
+            public int DeliveryCount => this.msg.Match(
+                _ => throw NotReceivedMessagePropertyGetException(),
+                rm => rm.DeliveryCount);
+
+            public DateTime LockedUntilUtc => this.msg.Match(
+                _ => throw NotReceivedMessagePropertyGetException(),
+                rm => rm.LockedUntil.UtcDateTime);
+
+            public long SequenceNumber => this.msg.Match(
+                _ => throw NotReceivedMessagePropertyGetException(),
+                rm => rm.SequenceNumber);
+
+            public DateTime EnqueuedTimeUtc => this.msg.Match(
+                _ => throw NotReceivedMessagePropertyGetException(),
+                rm => rm.EnqueuedTime.UtcDateTime);
         }
         
 #else
@@ -589,8 +597,8 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     /// <inheritdoc />
     public class ServiceBusConnection
     {
-        private Dictionary<string, Azure.Messaging.ServiceBus.ServiceBusClient> sendViaEntityScopedServiceBusClients;
-        private Func<Azure.Messaging.ServiceBus.ServiceBusClient> serviceBusClientFactory;
+        private readonly Dictionary<string, Azure.Messaging.ServiceBus.ServiceBusClient> sendViaEntityScopedServiceBusClients;
+        private readonly Func<Azure.Messaging.ServiceBus.ServiceBusClient> serviceBusClientFactory;
 
         public ServiceBusConnection(ServiceBusConnectionStringBuilder connectionStringBuilder)
         {
@@ -706,20 +714,18 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #endif
 
 #if NETSTANDARD2_0
-        /// <inheritdoc />
-        public class MessageSender
+    /// <inheritdoc />
+    public class MessageSender
     {
-        private Azure.Messaging.ServiceBus.ServiceBusSender sender;
+        private readonly Azure.Messaging.ServiceBus.ServiceBusSender sender;
 
         public MessageSender(ServiceBusConnection serviceBusConnection, string entityPath, RetryPolicy retryPolicy = null)
         {
-            // sender = serviceBusConnection.Client.CreateSender(entityPath);
             sender = serviceBusConnection.GetSendViaEntityScopedClient(entityPath).CreateSender(entityPath);
         }
 
         public MessageSender(ServiceBusConnection serviceBusConnection, string entityPath, string viaEntityPath, RetryPolicy retryPolicy = null)
         {
-            // sender = serviceBusConnection.Client.CreateSender(entityPath);
             sender = serviceBusConnection.GetSendViaEntityScopedClient(viaEntityPath).CreateSender(entityPath);
         }
 
@@ -810,7 +816,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     /// <inheritdoc />
     public class MessageReceiver
     {
-        private Azure.Messaging.ServiceBus.ServiceBusReceiver receiver;
+        private readonly Azure.Messaging.ServiceBus.ServiceBusReceiver receiver;
 
         public MessageReceiver(ServiceBusConnection serviceBusConnection, string entityPath, Azure.Messaging.ServiceBus.ServiceBusReceiveMode receiveMode = Azure.Messaging.ServiceBus.ServiceBusReceiveMode.PeekLock, RetryPolicy retryPolicy = null, int prefetchCount = 0)
         {
@@ -929,7 +935,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     /// <inheritdoc />
     public class QueueClient
     {
-        private Azure.Messaging.ServiceBus.ServiceBusSender sender;
+        private readonly Azure.Messaging.ServiceBus.ServiceBusSender sender;
 
         public QueueClient(ServiceBusConnection serviceBusConnection, string entityPath)
         {
@@ -1012,9 +1018,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #if NETSTANDARD2_0
     public class QueueDescription
     {
-        Azure.Messaging.ServiceBus.Administration.QueueRuntimeProperties queueRuntimeProperties;
-
-        Union<Azure.Messaging.ServiceBus.Administration.QueueProperties, Azure.Messaging.ServiceBus.Administration.QueueRuntimeProperties> propertiesUnion;
+        private readonly Union<Azure.Messaging.ServiceBus.Administration.QueueProperties, Azure.Messaging.ServiceBus.Administration.QueueRuntimeProperties> propertiesUnion;
 
         public QueueDescription(Azure.Messaging.ServiceBus.Administration.QueueProperties queueProperties)
         {
@@ -1023,14 +1027,11 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
         public QueueDescription(Azure.Messaging.ServiceBus.Administration.QueueRuntimeProperties queueRuntimeProperties)
         {
-            // TODO: delete below
-            this.queueRuntimeProperties = queueRuntimeProperties;
-
             this.propertiesUnion = new Union<Azure.Messaging.ServiceBus.Administration.QueueProperties, Azure.Messaging.ServiceBus.Administration.QueueRuntimeProperties>.Case2(queueRuntimeProperties);
         }
 
         public long MessageCount => this.propertiesUnion.Match(
-            _ => throw new Exception(),
+            _ => throw NotRuntimePropertiesGetException(),
             runtimeProps => runtimeProps.TotalMessageCount);
 
         public string Path => this.propertiesUnion.Match(
@@ -1039,11 +1040,21 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
         public int MaxDeliveryCount => this.propertiesUnion.Match(
             props => props.MaxDeliveryCount,
-            _ => throw new Exception());
+            _ => throw RuntimePropertiesGetException());
 
         public long SizeInBytes => this.propertiesUnion.Match(
-            _ => throw new Exception(),
+            _ => throw NotRuntimePropertiesGetException(),
             runtimeProps => runtimeProps.SizeInBytes);
+
+        private static Exception RuntimePropertiesGetException()
+        {
+            return new InvalidOperationException($"The property cannot be accessed because the underlying object is {nameof(Azure.Messaging.ServiceBus.Administration.QueueRuntimeProperties)}");
+        }
+
+        private static Exception NotRuntimePropertiesGetException()
+        {
+            return new InvalidOperationException($"The property cannot be accessed because the underlying object is {nameof(Azure.Messaging.ServiceBus.Administration.QueueProperties)}");
+        }
     }
 
     /// <inheritdoc />
@@ -1121,11 +1132,9 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #if NETSTANDARD2_0
     public class SessionClient
     {
-        Azure.Messaging.ServiceBus.ServiceBusClient serviceBusClient;
-
-        string entityPath;
-
-        Azure.Messaging.ServiceBus.ServiceBusReceiveMode receiveMode;
+        private readonly Azure.Messaging.ServiceBus.ServiceBusClient serviceBusClient;
+        private readonly string entityPath;
+        private readonly Azure.Messaging.ServiceBus.ServiceBusReceiveMode receiveMode;
 
         public SessionClient(ServiceBusConnection serviceBusConnection, string entityPath, Azure.Messaging.ServiceBus.ServiceBusReceiveMode receiveMode)
         {
