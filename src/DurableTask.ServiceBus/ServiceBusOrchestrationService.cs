@@ -706,17 +706,6 @@ namespace DurableTask.ServiceBus
 
             var session = sessionState.Session;
 
-            /*
-             * TRANSACTIONSCOPE:1
-             * workerSender - send
-             * (orchestratorQueueClient - send)
-             * trackingSender - send
-             *
-             * By my notes, I think somehow you would need either send or
-             * receive on the orchestrator entity in order to make sure it's
-             * the send-via entity for the sends in this scope. I think we'll
-             * try to test this prior to making an actual change.
-             */
             using (var ts = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled))
             {
                 Transaction.Current.TransactionCompleted += (o, e) =>
@@ -753,9 +742,6 @@ namespace DurableTask.ServiceBus
                                         DateTimeUtils.MinDateTime);
                                     return new MessageContainer(message, m);
                                 }));
-                        // NOTE: does this need to be preceded by a receive?
-                        // Not sure how its going to work out the proper
-                        // send-via entity (orchestrator).
                         await this.workerSender.SendAsync(outboundBrokeredMessages.Select(m => m.Message).ToList());
                         LogSentMessages(session, "Worker outbound", outboundBrokeredMessages);
                         this.ServiceStats.ActivityDispatcherStats.MessageBatchesSent.Increment();
@@ -1037,11 +1023,6 @@ namespace DurableTask.ServiceBus
                 throw new ArgumentNullException("originalMessage");
             }
 
-            /*
-             * TRANSACTIONSCOPE:2
-             * workerReceiver - complete
-             * orchestratorSender - send
-             */
             using (var ts = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled))
             {
                 Transaction.Current.TransactionCompleted += (o, e) =>
