@@ -224,12 +224,6 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             await this.session.RenewLockAsync();
         }
 
-        [Obsolete]
-        public async Task AbandonAsync(string lockToken)
-        {
-            await this.session.AbandonAsync(Guid.Parse(lockToken));
-        }
-
         public async Task AbandonAsync(Message message)
         {
             await this.session.AbandonAsync(message.SystemProperties.LockToken);
@@ -238,12 +232,6 @@ namespace DurableTask.ServiceBus.Common.Abstraction
         public async Task<IList<Message>> ReceiveAsync(int maxMessageCount)
         {
             return (await this.session.ReceiveBatchAsync(maxMessageCount)).Select(x => (Message)x).ToList();
-        }
-
-        [Obsolete]
-        public async Task CompleteAsync(IEnumerable<string> lockTokens)
-        {
-            await this.session.CompleteBatchAsync(lockTokens.Select(Guid.Parse));
         }
 
         public async Task CompleteAsync(IEnumerable<Message> messages)
@@ -260,42 +248,42 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     }
 
 #if NETSTANDARD2_0
-        public abstract class Union<A, B>
+    public abstract class Union<A, B>
+    {
+        public abstract T Match<T>(Func<A, T> f, Func<B, T> g);
+
+        public abstract void Switch(Action<A> f, Action<B> g);
+
+        private Union() { } 
+
+        public sealed class Case1 : Union<A, B>
         {
-            public abstract T Match<T>(Func<A, T> f, Func<B, T> g);
-
-            public abstract void Switch(Action<A> f, Action<B> g);
-
-            private Union() { } 
-
-            public sealed class Case1 : Union<A, B>
+            public readonly A Item;
+            public Case1(A item) : base() { this.Item = item; }
+            public override T Match<T>(Func<A, T> f, Func<B, T> g)
             {
-                public readonly A Item;
-                public Case1(A item) : base() { this.Item = item; }
-                public override T Match<T>(Func<A, T> f, Func<B, T> g)
-                {
-                    return f(Item);
-                }
-                public override void Switch(Action<A> f, Action<B> g)
-                {
-                    f(Item);
-                }
+                return f(Item);
             }
-
-            public sealed class Case2 : Union<A, B>
+            public override void Switch(Action<A> f, Action<B> g)
             {
-                public readonly B Item;
-                public Case2(B item) { this.Item = item; }
-                public override T Match<T>(Func<A, T> f, Func<B, T> g)
-                {
-                    return g(Item);
-                }
-                public override void Switch(Action<A> f, Action<B> g)
-                {
-                    g(Item);
-                }
+                f(Item);
             }
         }
+
+        public sealed class Case2 : Union<A, B>
+        {
+            public readonly B Item;
+            public Case2(B item) { this.Item = item; }
+            public override T Match<T>(Func<A, T> f, Func<B, T> g)
+            {
+                return g(Item);
+            }
+            public override void Switch(Action<A> f, Action<B> g)
+            {
+                g(Item);
+            }
+        }
+    }
 
     /// <inheritdoc />
     public class Message
@@ -891,12 +879,6 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             return new MessageReceiver(mr);
         }
 
-        [Obsolete]
-        public async Task AbandonAsync(Guid lockToken)
-        {
-            await this.msgReceiver.AbandonAsync(lockToken);
-        }
-
         public async Task AbandonAsync(Message message)
         {
             await this.msgReceiver.AbandonAsync(message.SystemProperties.LockToken);
@@ -905,12 +887,6 @@ namespace DurableTask.ServiceBus.Common.Abstraction
         public async Task CloseAsync()
         {
             await this.msgReceiver.CloseAsync();
-        }
-
-        [Obsolete]
-        public async Task CompleteAsync(Guid lockToken)
-        {
-            await this.msgReceiver.CompleteAsync(lockToken);
         }
 
         public async Task CompleteAsync(Message message)
@@ -1083,7 +1059,6 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             {
                 queueDescriptions.Add(new QueueDescription(queueProperties));
             }
-
 
             return queueDescriptions;
         }
