@@ -35,8 +35,6 @@
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="1.1.1" />
-    <!--Newtonsoft.Json 7.0.1 is kept for backwards compatibility with Functions runtime V1, so we supress warning NU1903. -->
-    <PackageReference Include="Newtonsoft.Json" Version="7.0.1" NoWarn="NU1903"/>
     <PackageReference Include="WindowsAzure.Storage" version="7.2.1" />
   </ItemGroup>
 
