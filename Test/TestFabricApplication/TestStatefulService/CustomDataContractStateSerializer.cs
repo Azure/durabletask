@@ -40,7 +40,7 @@ namespace TestStatefulService
             using (var memoryStream = new MemoryStream(bytes))
             {
                 using (var reader = XmlDictionaryReader.CreateBinaryReader(memoryStream, XmlDictionaryReaderQuotas.Max))
-                using (var customReader = new CustomerXmlDictionaryReader(reader, typeof(T).Namespace))
+                using (var customReader = new CustomerXmlDictionaryReader(reader, typeof(T)))
                 {
                     return (T) this.serializer.ReadObject(customReader);
                 }

@@ -52,10 +52,6 @@ namespace TestStatefulService
             this.client = new TaskHubClient(fabricProvider.OrchestrationServiceClient);
 
             this.StateManager.TryAddStateSerializer(new CustomDataContractStateSerializer<TaskMessageItem>());
-            this.StateManager.TryAddStateSerializer(new CustomDataContractStateSerializer<TaskMessage>());
-            this.StateManager.TryAddStateSerializer(new CustomDataContractStateSerializer<HistoryEvent>());
-            this.StateManager.TryAddStateSerializer(new CustomDataContractStateSerializer<OrchestrationInstance>());
-            this.StateManager.TryAddStateSerializer(new CustomDataContractStateSerializer<EventType>());
         }
 
         /// <summary>

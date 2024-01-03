@@ -13,10 +13,10 @@
 
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Xml;
 
 namespace TestStatefulService
@@ -24,12 +24,29 @@ namespace TestStatefulService
     internal class CustomerXmlDictionaryReader : XmlDictionaryReader
     {
         XmlDictionaryReader innerReader;
-        string targetNamespace;
-        public CustomerXmlDictionaryReader(XmlDictionaryReader innerReader, string targetNamespace)
+        Type targetType;
+        bool isTargetV2;
+
+        static IDictionary<string, string> namespaceMapV1toV2 = new Dictionary<string, string>
+        {
+            { "DurableTask.ServiceFabric", "DurableTask.AzureServiceFabric" },
+            { "DurableTask", "DurableTask.Core" },
+            { "DurableTask.History", "DurableTask.Core.History" }
+        };
+
+        static IDictionary<string, string> namespaceMapV2toV1 = new Dictionary<string, string>
+        {
+            { "DurableTask.AzureServiceFabric", "DurableTask.ServiceFabric" },
+            { "DurableTask.Core", "DurableTask" },
+            { "DurableTask.Core.History", "DurableTask.History" }
+        };
+
+        public CustomerXmlDictionaryReader(XmlDictionaryReader innerReader, Type type)
         {
             this.innerReader = innerReader;
-            this.targetNamespace = targetNamespace;
+            this.targetType = type;
 
+            this.isTargetV2 = this.targetType.Namespace == "DurableTask.AzureServiceFabric" ? true : false;
         }
 
         public override int AttributeCount => this.innerReader.AttributeCount;
@@ -50,11 +67,20 @@ namespace TestStatefulService
             {
                 // Alter the old namespace
                 UriBuilder builder = new UriBuilder(innerReader.NamespaceURI);
+
                 var segments = builder.Uri.Segments;
-                if (!segments.LastOrDefault().EndsWith("/") && segments.LastOrDefault() != this.targetNamespace)
+                var mapToUse = namespaceMapV2toV1;
+                string last = segments.LastOrDefault();
+                if (isTargetV2)
                 {
-                    segments[segments.Length - 1] = this.targetNamespace;
+                    mapToUse = namespaceMapV1toV2;
+                }
+                                                                                    
+                if (mapToUse.ContainsKey(last))
+                {
+                    segments[segments.Length - 1] = mapToUse[last];
                     builder.Path = String.Join("", segments);
+                    //File.AppendAllText(@"D:\git\durabletask\main\Test\TestFabricApplication\TestFabricApplication\SerializationInfo2.txt", $"OLD: {innerReader.NamespaceURI}  NEW: {builder.Uri} {this.isTargetV2} {Environment.NewLine}");
                     return builder.Uri.ToString();
                 }
 
