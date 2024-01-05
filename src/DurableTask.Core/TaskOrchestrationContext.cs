@@ -17,6 +17,7 @@ namespace DurableTask.Core
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Globalization;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core.Command;
@@ -35,6 +36,7 @@ namespace DurableTask.Core
         private bool executionCompletedOrTerminated;
         private int idCounter;
         private readonly Queue<HistoryEvent> eventsWhileSuspended;
+        private readonly IDictionary<int, OrchestratorAction> orchestratorActionsMapSuspended;
 
         public bool IsSuspended { get; private set; }
 
@@ -63,6 +65,7 @@ namespace DurableTask.Core
             this.EntityParameters = entityParameters;
             ErrorPropagationMode = errorPropagationMode;
             this.eventsWhileSuspended = new Queue<HistoryEvent>();
+            this.orchestratorActionsMapSuspended = new SortedDictionary<int, OrchestratorAction>();
         }
 
         public IEnumerable<OrchestratorAction> OrchestratorActions => this.orchestratorActionsMap.Values;
@@ -568,11 +571,30 @@ namespace DurableTask.Core
         public void HandleExecutionSuspendedEvent(ExecutionSuspendedEvent suspendedEvent)
         {
             this.IsSuspended = true;
+            
+            if (this.orchestratorActionsMap.Any())
+            {
+                foreach(var pair in this.orchestratorActionsMap)
+                {
+                    this.orchestratorActionsMapSuspended.Add(pair.Key, pair.Value);
+                }
+                this.orchestratorActionsMap.Clear();
+            }
         }
 
         public void HandleExecutionResumedEvent(ExecutionResumedEvent resumedEvent, Action<HistoryEvent> eventProcessor)
         {
             this.IsSuspended = false;
+            
+            if (this.orchestratorActionsMapSuspended.Any())
+            {
+                foreach(var pair in this.orchestratorActionsMapSuspended)
+                {
+                    this.orchestratorActionsMap.Add(pair.Key, pair.Value);
+                }
+                this.orchestratorActionsMapSuspended.Clear();
+            }
+
             while (eventsWhileSuspended.Count > 0)
             {
                 eventProcessor(eventsWhileSuspended.Dequeue());
