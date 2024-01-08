@@ -36,7 +36,7 @@ namespace DurableTask.Core
         private bool executionCompletedOrTerminated;
         private int idCounter;
         private readonly Queue<HistoryEvent> eventsWhileSuspended;
-        private readonly IDictionary<int, OrchestratorAction> orchestratorActionsMapSuspended;
+        private readonly IDictionary<int, OrchestratorAction> suspendedActionsMap;
 
         public bool IsSuspended { get; private set; }
 
@@ -65,7 +65,7 @@ namespace DurableTask.Core
             this.EntityParameters = entityParameters;
             ErrorPropagationMode = errorPropagationMode;
             this.eventsWhileSuspended = new Queue<HistoryEvent>();
-            this.orchestratorActionsMapSuspended = new SortedDictionary<int, OrchestratorAction>();
+            this.suspendedActionsMap = new SortedDictionary<int, OrchestratorAction>();
         }
 
         public IEnumerable<OrchestratorAction> OrchestratorActions => this.orchestratorActionsMap.Values;
@@ -571,12 +571,16 @@ namespace DurableTask.Core
         public void HandleExecutionSuspendedEvent(ExecutionSuspendedEvent suspendedEvent)
         {
             this.IsSuspended = true;
-            
+
+            //When the orchestrator is suspended, a task could potentially be added to the orchestratorActionsMap.
+            //This could lead to the task being executed repeatedly without completion until the orchestrator is resumed.
+            //To prevent this scenario, check if orchestratorActionsMap is empty before proceeding.
             if (this.orchestratorActionsMap.Any())
             {
-                foreach(var pair in this.orchestratorActionsMap)
+                //If not, store its contents to a temporary dictionary to allow processing of the task later when orchestrator resumes.
+                foreach (var pair in this.orchestratorActionsMap)
                 {
-                    this.orchestratorActionsMapSuspended.Add(pair.Key, pair.Value);
+                    this.suspendedActionsMap.Add(pair.Key, pair.Value);
                 }
                 this.orchestratorActionsMap.Clear();
             }
@@ -586,13 +590,13 @@ namespace DurableTask.Core
         {
             this.IsSuspended = false;
             
-            if (this.orchestratorActionsMapSuspended.Any())
+            if (this.suspendedActionsMap.Any())
             {
-                foreach(var pair in this.orchestratorActionsMapSuspended)
+                foreach(var pair in this.suspendedActionsMap)
                 {
                     this.orchestratorActionsMap.Add(pair.Key, pair.Value);
                 }
-                this.orchestratorActionsMapSuspended.Clear();
+                this.suspendedActionsMap.Clear();
             }
 
             while (eventsWhileSuspended.Count > 0)
