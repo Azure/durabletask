@@ -6,6 +6,16 @@ pool:
   demands:
     - ImageOverride -equals MMS2022TLS
 
+variables:
+
+  - name: PackageSuffix
+    ${{ if eq(variables['Build.Reason'], 'Schedule') }}:
+      value: 'ci.$(Build.BuildNumber)'
+    ${{ if eq(variables['Build.Reason'], 'Manual') }}:
+      value: 'pr.$(Build.BuildNumber)'
+    ${{ else }}:
+      value: ''
+
 steps:
 # Start by restoring all the dependencies. This needs to be its own task
 # from what I can tell. We specifically only target DurableTask.AzureStorage
