@@ -572,12 +572,12 @@ namespace DurableTask.Core
         {
             this.IsSuspended = true;
 
-            //When the orchestrator is suspended, a task could potentially be added to the orchestratorActionsMap.
-            //This could lead to the task being executed repeatedly without completion until the orchestrator is resumed.
-            //To prevent this scenario, check if orchestratorActionsMap is empty before proceeding.
+            // When the orchestrator is suspended, a task could potentially be added to the orchestratorActionsMap.
+            // This could lead to the task being executed repeatedly without completion until the orchestrator is resumed.
+            // To prevent this scenario, check if orchestratorActionsMap is empty before proceeding.
             if (this.orchestratorActionsMap.Any())
             {
-                //If not, store its contents to a temporary dictionary to allow processing of the task later when orchestrator resumes.
+                // If not, store its contents to a temporary dictionary to allow processing of the task later when orchestrator resumes.
                 foreach (var pair in this.orchestratorActionsMap)
                 {
                     this.suspendedActionsMap.Add(pair.Key, pair.Value);
@@ -589,7 +589,8 @@ namespace DurableTask.Core
         public void HandleExecutionResumedEvent(ExecutionResumedEvent resumedEvent, Action<HistoryEvent> eventProcessor)
         {
             this.IsSuspended = false;
-            
+
+            // Add the actions stored in the suspendedActionsMap before back to orchestratorActionsMap to ensure proper sequencing.
             if (this.suspendedActionsMap.Any())
             {
                 foreach(var pair in this.suspendedActionsMap)
