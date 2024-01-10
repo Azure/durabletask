@@ -102,6 +102,17 @@ namespace DurableTask.Core
             return declaringType + "." + methodName;
         }
 
+        /// <summary>
+        /// Gets the fully qualified method name by joining a prefix representing the declaring type and a suffix representing the parameter list.
+        /// For example,
+        /// "DurableTask.Emulator.Tests.EmulatorFunctionalTests+IInheritedTestOrchestrationTasksB`2[System.Int32,System.String].Juggle.(Int32,Boolean)"
+        /// would be the result for the method `Juggle(int, bool)` as member of
+        /// generic type interface declared like `DurableTask.Emulator.Tests.EmulatorFunctionalTests.IInheritedTestOrchestrationTasksB{int, string}`,
+        /// even if the method were inherited from a base interface.
+        /// </summary>
+        /// <param name="declaringType">typically the result of call to Type.ToString(): Type.FullName is more verbose</param>
+        /// <param name="methodInfo"></param>
+        /// <returns></returns>
         internal static string GetFullyQualifiedMethodName(string declaringType, MethodInfo methodInfo)
         {
             IEnumerable<string> paramTypeNames = methodInfo.GetParameters().Select(x => x.ParameterType.Name);

@@ -28,6 +28,7 @@ namespace DurableTask.Core
 
         protected override string NormalizeMethodName(MethodInfo method)
         {
+            // uses declaring type defined externally because MethodInfo members, such as Method.DeclaringType, could return the base type that the method inherits from
             return string.IsNullOrEmpty(this.declaringTypeFullName) ? method.Name : NameVersionHelper.GetFullyQualifiedMethodName(this.declaringTypeFullName, method);
         }
     }

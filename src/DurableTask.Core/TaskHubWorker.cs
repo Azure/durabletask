@@ -527,11 +527,11 @@ namespace DurableTask.Core
         public TaskHubWorker AddTaskActivitiesFromInterfaceV2(Type @interface, object activities)
         {
             this.ValidateActivitiesInterfaceType(@interface, activities);
-            var methods = NameVersionHelper.GetAllInterfaceMethods(@interface, (MethodInfo m) => NameVersionHelper.GetFullyQualifiedMethodName(@interface.FullName, m));
+            var methods = NameVersionHelper.GetAllInterfaceMethods(@interface, (MethodInfo m) => NameVersionHelper.GetFullyQualifiedMethodName(@interface.ToString(), m));
             foreach (MethodInfo methodInfo in methods)
             {
                 TaskActivity taskActivity = new ReflectionBasedTaskActivity(activities, methodInfo);
-                string name = NameVersionHelper.GetFullyQualifiedMethodName(@interface.FullName, methodInfo);
+                string name = NameVersionHelper.GetFullyQualifiedMethodName(@interface.ToString(), methodInfo);
                 ObjectCreator<TaskActivity> creator = new NameValueObjectCreator<TaskActivity>(name, NameVersionHelper.GetDefaultVersion(methodInfo), taskActivity);
                 this.AddTaskActivities(creator);
             }

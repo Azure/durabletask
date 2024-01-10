@@ -98,7 +98,7 @@ namespace DurableTask.Core
         /// <returns></returns>
         public virtual T CreateClient<T>(bool useFullyQualifiedMethodNames) where T : class
         {
-            return this.CreateClient<T>(() => new ScheduleProxy(this, useFullyQualifiedMethodNames));
+            return CreateClient<T>(() => new ScheduleProxy(this, useFullyQualifiedMethodNames));
         }
 
         /// <summary>
@@ -109,7 +109,7 @@ namespace DurableTask.Core
         /// <exception cref="InvalidOperationException"></exception>
         public virtual T CreateClientV2<T>() where T : class
         {
-            return this.CreateClient<T>(() => new ScheduleProxyV2(this, typeof(T).FullName));
+            return CreateClient<T>(() => new ScheduleProxyV2(this, typeof(T).ToString()));
         }
 
         /// <summary>
@@ -415,7 +415,7 @@ namespace DurableTask.Core
         /// <typeparam name="T"></typeparam>
         /// <returns></returns>
         /// <exception cref="InvalidOperationException"></exception>
-        private T CreateClient<T>(Func<IInterceptor> createScheduleProxy) where T : class
+        private static T CreateClient<T>(Func<IInterceptor> createScheduleProxy) where T : class
         {
             if (!typeof(T).IsInterface && !typeof(T).IsClass)
             {
