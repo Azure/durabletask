@@ -322,7 +322,7 @@ namespace DurableTask.Emulator.Tests
             var worker = new TaskHubWorker(orchestrationService);
             await worker.AddTaskOrchestrations(typeof(TestInheritedTasksOrchestration))
                 .AddTaskActivitiesFromInterfaceV2<IInheritedTestOrchestrationTasksA>(new InheritedTestOrchestrationTasksA())
-                .AddTaskActivitiesFromInterfaceV2(typeof(IInheritedTestOrchestrationTasksB), new InheritedTestOrchestrationTasksB())
+                .AddTaskActivitiesFromInterfaceV2(typeof(IInheritedTestOrchestrationTasksB<int, string>), new InheritedTestOrchestrationTasksB())
                 .StartAsync();
 
             var client = new TaskHubClient(orchestrationService);
@@ -371,11 +371,11 @@ namespace DurableTask.Emulator.Tests
         }
 
         // interface with overloaded method
-        public interface IInheritedTestOrchestrationTasksB : IBaseTestOrchestrationTasks<string, string>
+        public interface IInheritedTestOrchestrationTasksB<TIn, TOut> : IBaseTestOrchestrationTasks<TIn, TOut>
         {
             // this method overloads methods from both inherited interface and this interface
-            Task<string> Wobble(string name);
-            Task<string> Wobble(int id);
+            Task<TOut> Wobble(TIn name);
+            Task<string> Wobble(string id, TIn subId);
         }
 
         public class InheritedTestOrchestrationTasksA : IInheritedTestOrchestrationTasksA
@@ -406,7 +406,7 @@ namespace DurableTask.Emulator.Tests
             }
         }
 
-        public class InheritedTestOrchestrationTasksB : IInheritedTestOrchestrationTasksB
+        public class InheritedTestOrchestrationTasksB : IInheritedTestOrchestrationTasksB<int, string>
         {
             public const string BumbleResult = nameof(Bumble) + "-B";
             public const string WobbleResult = nameof(Wobble) + "-B";
@@ -414,17 +414,17 @@ namespace DurableTask.Emulator.Tests
             public const string OverloadedWobbleResult2 = nameof(Wobble) + "-B-overloaded-2";
             public const int JuggleResult = 420;
 
-            public Task<string> Bumble(string fumble, bool likeAKlutz)
+            public Task<string> Bumble(int fumble, bool likeAKlutz)
             {
                 return Task.FromResult(BumbleResult);
             }
 
-            public Task<string> Wobble(string jiggle, bool withGusto)
+            public Task<string> Wobble(int jiggle, bool withGusto)
             {
                 return Task.FromResult(WobbleResult);
             }
 
-            public Task<string> Wobble(string name)
+            public Task<string> Wobble(string id, int subId)
             {
                 return Task.FromResult(OverloadedWobbleResult1);
             }
@@ -456,16 +456,16 @@ namespace DurableTask.Emulator.Tests
             public override async Task<string> RunTask(OrchestrationContext context, string input)
             {
                 var tasksA = context.CreateClientV2<IInheritedTestOrchestrationTasksA>();
-                var tasksB = context.CreateClientV2<IInheritedTestOrchestrationTasksB>();
+                var tasksB = context.CreateClientV2<IInheritedTestOrchestrationTasksB<int, string>>();
 
                 BumbleResultA = await tasksA.Bumble(string.Empty, false);
                 WobbleResultA = await tasksA.Wobble(string.Empty, false);
                 DerivedTaskResultA = await tasksA.DerivedTask(0);
                 JuggleResultA = await tasksA.Juggle(1, true);
 
-                BumbleResultB = await tasksB.Bumble(string.Empty, false);
-                WobbleResultB = await tasksB.Wobble(string.Empty, false);
-                OverloadedWobbleResult1B = await tasksB.Wobble("name");
+                BumbleResultB = await tasksB.Bumble(0, false);
+                WobbleResultB = await tasksB.Wobble(-1, false);
+                OverloadedWobbleResult1B = await tasksB.Wobble("a", 2);
                 OverloadedWobbleResult2B = await tasksB.Wobble(1);
                 JuggleResultB = await tasksB.Juggle(1, true);
 
