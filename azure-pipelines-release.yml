@@ -19,7 +19,6 @@ steps:
       src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln
       src/DurableTask.Emulator/DurableTask.Emulator.csproj
       src/DurableTask.ServiceBus/DurableTask.ServiceBus.csproj
-      src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj
       src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj
 
 # Build the filtered solution in release mode, specifying the continuous integration flag.
