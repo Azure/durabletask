@@ -25,7 +25,7 @@ The core programming model for the Durable Task Framework is contained in the [D
 
 ## Learning more
 
-The associated wiki contains more details about the framework and how it can be used: https://github.com/Azure/durabletask/wiki. You can also find great information in [this blog series](https://abhikmitra.github.io/blog/durable-task/). In some cases, the [Durable Functions documentation](https://docs.microsoft.com/en-us/azure/azure-functions/durable/) can actually be useful in learning things about the underlying framework, although not everything will apply. Lastly, you can watch a video with some of the original maintainers in [this Channel 9 video](https://channel9.msdn.com/Shows/On-NET/Building-workflows-with-the-Durable-Task-Framework).
+The associated wiki contains more details about the framework and how it can be used: https://github.com/Azure/durabletask/wiki. You can also find great information in [this blog series](https://abhikmitra.github.io/blog/durable-task/). Several useful samples are available in the [durabletask-samples repo](https://github.com/kaushiksk/durabletask-samples). In some cases, the [Durable Functions documentation](https://docs.microsoft.com/en-us/azure/azure-functions/durable/) can actually be useful in learning things about the underlying framework, although not everything will apply. Lastly, you can watch a video with some of the original maintainers in [this Channel 9 video](https://channel9.msdn.com/Shows/On-NET/Building-workflows-with-the-Durable-Task-Framework).
 
 ## Development Notes
 
