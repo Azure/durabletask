@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.26403.7
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.34301.259
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".nuget", ".nuget", "{501E1168-418C-4832-B88C-617735BD02C9}"
 	ProjectSection(SolutionItems) = preProject
@@ -51,6 +51,7 @@ Global
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{CA924781-AE52-45FA-A817-C39C822FB782}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{CA924781-AE52-45FA-A817-C39C822FB782}.Debug|Any CPU.Build.0 = Debug|x64
 		{CA924781-AE52-45FA-A817-C39C822FB782}.Debug|x64.ActiveCfg = Debug|x64
 		{CA924781-AE52-45FA-A817-C39C822FB782}.Debug|x64.Build.0 = Debug|x64
 		{CA924781-AE52-45FA-A817-C39C822FB782}.Debug|x64.Deploy.0 = Debug|x64
@@ -59,6 +60,7 @@ Global
 		{CA924781-AE52-45FA-A817-C39C822FB782}.Release|x64.Build.0 = Release|x64
 		{CA924781-AE52-45FA-A817-C39C822FB782}.Release|x64.Deploy.0 = Release|x64
 		{95D6C9C7-F7A0-4125-840D-1854BEC24978}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{95D6C9C7-F7A0-4125-840D-1854BEC24978}.Debug|Any CPU.Build.0 = Debug|x64
 		{95D6C9C7-F7A0-4125-840D-1854BEC24978}.Debug|x64.ActiveCfg = Debug|x64
 		{95D6C9C7-F7A0-4125-840D-1854BEC24978}.Debug|x64.Build.0 = Debug|x64
 		{95D6C9C7-F7A0-4125-840D-1854BEC24978}.Release|Any CPU.ActiveCfg = Release|x64
@@ -170,5 +172,6 @@ Global
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		EnterpriseLibraryConfigurationToolBinariesPath = packages\TransientFaultHandling.Core.5.1.1209.1\lib\NET4
+		SolutionGuid = {BCE9A2EE-C1D3-4F37-8500-E112D840827F}
 	EndGlobalSection
 EndGlobal

@@ -16,17 +16,29 @@ namespace DurableTask.ServiceFabric
     using System;
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// This wrapper is used with Service Fabric collections to persist TaskMessage.
+    /// </summary>
     [DataContract]
-    sealed class TaskMessageItem : IExtensibleDataObject
+    public sealed class TaskMessageItem : IExtensibleDataObject
     {
+        /// <summary>
+        /// This wrapper is used with Service Fabric collections to persist TaskMessage.
+        /// </summary>
         public TaskMessageItem(TaskMessage taskMessage)
         {
             this.TaskMessage = taskMessage ?? throw new ArgumentNullException(nameof(taskMessage));
         }
 
+        /// <summary>
+        /// TaskMessage defined in TaskHub Core.
+        /// </summary>
         [DataMember]
         public TaskMessage TaskMessage { get; private set; }
 
+        /// <summary>
+        /// TaskMessage ExtensionData.
+        /// </summary>
         public ExtensionDataObject ExtensionData { get; set; }
     }
 }
