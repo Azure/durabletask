@@ -172,9 +172,13 @@ namespace DurableTask.Core
                                 this.context.CompleteOrchestration(this.result.Result);
                             }
                         }
-
-                        // TODO: It is an error if result is not completed when all OpenTasks are done.
-                        // Throw an exception in that case.
+                        else
+                        {
+                            // It is an error if result is not completed when all OpenTasks are done.
+                            // Throw an exception in that case.
+                            var exception = new Exception("Possible constraint violation: No 'open' tasks remain but the orchestrator is incomplete. Please verify that only DurableTask APIs are awaited.");
+                            this.context.FailOrchestration(exception);
+                        }
                     }
                 }
                 catch (NonDeterministicOrchestrationException exception)
