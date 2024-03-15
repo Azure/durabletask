@@ -127,9 +127,29 @@ namespace DurableTask.AzureStorage.Storage
 
         private async Task<T> MakeStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string accountName, string operationName, string? clientRequestId = null, bool force = false)
         {
+            Guid guid = Guid.NewGuid();
+
             if (!force)
             {
+                this.Settings?.Logger.PartitionManagerInfo(
+                    this.Settings?.StorageAccountDetails?.AccountName,
+                    this.Settings?.TaskHubName,
+                    this.Settings?.WorkerId,
+                    string.Empty,
+                    $"Before WaitAsync Id:{guid.ToString()}" +
+                    $"| Semaphore currentCount = {requestThrottleSemaphore.CurrentCount}" +
+                    $"| Semaphore initialCount = {this.Settings?.MaxStorageOperationConcurrency}");
+
                 await requestThrottleSemaphore.WaitAsync();
+
+                this.Settings?.Logger.PartitionManagerInfo(
+                    this.Settings?.StorageAccountDetails?.AccountName,
+                    this.Settings?.TaskHubName,
+                    this.Settings?.WorkerId,
+                    string.Empty,
+                    $"After WaitAsync Id:{guid.ToString()}" +
+                    $"| Semaphore currentCount = {requestThrottleSemaphore.CurrentCount}" +
+                    $"| Semaphore initialCount = {this.Settings?.MaxStorageOperationConcurrency}");
             }
 
             try
@@ -144,7 +164,25 @@ namespace DurableTask.AzureStorage.Storage
             {
                 if (!force)
                 {
+                    this.Settings?.Logger.PartitionManagerInfo(
+                        this.Settings?.StorageAccountDetails?.AccountName,
+                        this.Settings?.TaskHubName,
+                        this.Settings?.WorkerId,
+                        string.Empty,
+                        $"Before Release Id:{guid.ToString()}" +
+                        $"| Semaphore currentCount = {requestThrottleSemaphore.CurrentCount}" +
+                        $"| Semaphore initialCount = {this.Settings?.MaxStorageOperationConcurrency}");
+
                     requestThrottleSemaphore.Release();
+
+                    this.Settings?.Logger.PartitionManagerInfo(
+                        this.Settings?.StorageAccountDetails?.AccountName,
+                        this.Settings?.TaskHubName,
+                        this.Settings?.WorkerId,
+                        string.Empty,
+                        $"After Release Id:{guid.ToString()}" +
+                        $"| Semaphore currentCount = {requestThrottleSemaphore.CurrentCount}" +
+                        $"| Semaphore initialCount = {this.Settings?.MaxStorageOperationConcurrency}");
                 }
             }
         }
