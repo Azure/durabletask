@@ -7,7 +7,7 @@
     <IncludeSymbols>true</IncludeSymbols>
     <Description>Azure Storage provider extension for the Durable Task Framework.</Description>
     <PackageTags>Azure Task Durable Orchestration Workflow Activity Reliable AzureStorage</PackageTags>
-    <PackageId>Microsoft.Azure.DurableTask.AzureStorage</PackageId>
+    <PackageId>Microsoft.Azure.DurableTask.AzureStorage.1.13.6_testlog</PackageId>
     <PublishRepositoryUrl>true</PublishRepositoryUrl> 
     <EmbedUntrackedSources>true</EmbedUntrackedSources> 
     <DebugSymbols>true</DebugSymbols> 
