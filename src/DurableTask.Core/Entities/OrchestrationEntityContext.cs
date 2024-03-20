@@ -73,6 +73,14 @@ namespace DurableTask.Core.Entities
         /// </summary>
         public Guid? CurrentCriticalSectionId => this.criticalSectionId;
 
+        void CheckEntitySupport()
+        {
+            if (!this.EntitiesAreSupported)
+            {
+                throw new NotSupportedException("Durable entities are not supported by the current backend configuration.");
+            }
+        }
+
         /// <summary>
         /// Enumerate all the entities that are available for calling from within a critical section. 
         /// This set contains all the entities that were locked prior to entering the critical section,
@@ -81,6 +89,8 @@ namespace DurableTask.Core.Entities
         /// <returns>An enumeration of all the currently available entities.</returns>
         public IEnumerable<EntityId> GetAvailableEntities()
         {
+            this.CheckEntitySupport();
+
             if (this.IsInsideCriticalSection)
             {
                 foreach (var e in this.availableLocks!)
@@ -227,6 +237,8 @@ namespace DurableTask.Core.Entities
             (DateTime Original, DateTime Capped)? scheduledTimeUtc,
             string? input)
         {
+            this.CheckEntitySupport();
+
             var request = new RequestMessage()
             {
                 ParentInstanceId = this.instanceId,
@@ -251,6 +263,8 @@ namespace DurableTask.Core.Entities
         /// <returns>The event to send.</returns>
         public EntityMessageEvent EmitAcquireMessage(Guid lockRequestId, EntityId[] entities)
         {
+            this.CheckEntitySupport();
+
             // All the entities in entity[] need to be locked, but to avoid deadlock, the locks have to be acquired
             // sequentially, in order. So, we send the lock request to the first entity; when the first lock
             // is granted by the first entity, the first entity will forward the lock request to the second entity,

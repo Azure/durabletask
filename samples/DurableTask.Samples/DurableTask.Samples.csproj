@@ -11,7 +11,6 @@
     <PackageReference Include="CommandLineParser" version="1.9.71" />
     <PackageReference Include="EnterpriseLibrary.SemanticLogging" Version="2.0.1406.1" />
     <PackageReference Include="ncrontab" version="1.0.0" />
-    <PackageReference Include="Newtonsoft.Json" version="11.0.2" />
   </ItemGroup>
 
   <ItemGroup>
