@@ -148,6 +148,22 @@ namespace DurableTask.Core.Tests
             }
         }
 
+        [TestMethod]
+        public void TaskFailureOnNullContextTaskActivity()
+        {
+            TaskActivity activity = new ThrowInvalidOperationExceptionAsync();
+            string input = JsonConvert.SerializeObject(new string[] { "test" });
+
+            // Pass a null context to check that it doesn't affect error handling.
+            Task<string> task = activity.RunAsync(null, input);
+
+            Assert.IsTrue(task.IsFaulted);
+            Assert.IsNotNull(task.Exception);
+            Assert.IsNotNull(task.Exception?.InnerException);
+            Assert.IsInstanceOfType(task.Exception?.InnerException, typeof(TaskFailureException));
+            Assert.AreEqual("This is a test exception", task.Exception?.InnerException?.Message);
+        }
+
         class ExceptionHandlingOrchestration : TaskOrchestration<object, string>
         {
             public override async Task<object> RunTask(OrchestrationContext context, string input)
@@ -218,6 +234,14 @@ namespace DurableTask.Core.Tests
         class ThrowInvalidOperationException : TaskActivity<string, string>
         {
             protected override string Execute(TaskContext context, string input)
+            {
+                throw new InvalidOperationException("This is a test exception");
+            }
+        }
+
+        class ThrowInvalidOperationExceptionAsync : AsyncTaskActivity<string, string>
+        {
+            protected override Task<string> ExecuteAsync(TaskContext context, string input)
             {
                 throw new InvalidOperationException("This is a test exception");
             }

@@ -439,6 +439,10 @@ namespace DurableTask.Core
         ///     and version set to an empty string. Methods can then be invoked from task orchestrations
         ///     by calling ScheduleTask(name, version) with name as the method name and string.Empty as the version.
         /// </summary>
+        /// <remarks>
+        ///     This is deprecated and exists only for back-compatibility.
+        ///     See <see cref="AddTaskActivitiesFromInterfaceV2"/>, which adds support for C# interface features such as inheritance, generics, and method overloading.
+        /// </remarks>
         /// <typeparam name="T">Interface</typeparam>
         /// <param name="activities">Object that implements this interface</param>
         public TaskHubWorker AddTaskActivitiesFromInterface<T>(T activities)
@@ -452,6 +456,10 @@ namespace DurableTask.Core
         ///     and version set to an empty string. Methods can then be invoked from task orchestrations
         ///     by calling ScheduleTask(name, version) with name as the method name and string.Empty as the version.
         /// </summary>
+        /// <remarks>
+        ///     This is deprecated and exists only for back-compatibility.
+        ///     See <see cref="AddTaskActivitiesFromInterfaceV2"/>, which adds support for C# interface features such as inheritance, generics, and method overloading.
+        /// </remarks>
         /// <typeparam name="T">Interface</typeparam>
         /// <param name="activities">Object that implements this interface</param>
         /// <param name="useFullyQualifiedMethodNames">
@@ -469,6 +477,23 @@ namespace DurableTask.Core
         ///     and version set to an empty string. Methods can then be invoked from task orchestrations
         ///     by calling ScheduleTask(name, version) with name as the method name and string.Empty as the version.
         /// </summary>
+        /// <typeparam name="T">Interface</typeparam>
+        /// <param name="activities">Object that implements this interface</param>
+        public TaskHubWorker AddTaskActivitiesFromInterfaceV2<T>(object activities)
+        {
+            return this.AddTaskActivitiesFromInterfaceV2(typeof(T), activities);
+        }
+
+        /// <summary>
+        ///     Infers and adds every method in the specified interface T on the
+        ///     passed in object as a different TaskActivity with Name set to the method name
+        ///     and version set to an empty string. Methods can then be invoked from task orchestrations
+        ///     by calling ScheduleTask(name, version) with name as the method name and string.Empty as the version.
+        /// </summary>
+        /// <remarks>
+        ///     This is deprecated and exists only for back-compatibility.
+        ///     See <see cref="AddTaskActivitiesFromInterfaceV2"/>, which adds support for C# interface features such as inheritance, generics, and method overloading.
+        /// </remarks>
         /// <param name="interface">Interface type.</param>
         /// <param name="activities">Object that implements the <paramref name="interface"/> interface</param>
         /// <param name="useFullyQualifiedMethodNames">
@@ -477,16 +502,7 @@ namespace DurableTask.Core
         /// </param>
         public TaskHubWorker AddTaskActivitiesFromInterface(Type @interface, object activities, bool useFullyQualifiedMethodNames = false)
         {
-            if (!@interface.IsInterface)
-            {
-                throw new Exception("Contract can only be an interface.");
-            }
-
-            if (!@interface.IsAssignableFrom(activities.GetType()))
-            {
-                throw new ArgumentException($"{activities.GetType().FullName} does not implement {@interface.FullName}", nameof(activities));
-            }
-
+            this.ValidateActivitiesInterfaceType(@interface, activities);
             foreach (MethodInfo methodInfo in @interface.GetMethods())
             {
                 TaskActivity taskActivity = new ReflectionBasedTaskActivity(activities, methodInfo);
@@ -495,6 +511,29 @@ namespace DurableTask.Core
                         NameVersionHelper.GetDefaultName(methodInfo, useFullyQualifiedMethodNames),
                         NameVersionHelper.GetDefaultVersion(methodInfo), taskActivity);
                 this.activityManager.Add(creator);
+            }
+
+            return this;
+        }
+
+        /// <summary>
+        ///     Infers and adds every method in the specified interface T on the
+        ///     passed in object as a different TaskActivity with Name set to the method name
+        ///     and version set to an empty string. Methods can then be invoked from task orchestrations
+        ///     by calling ScheduleTask(name, version) with name as the method name and string.Empty as the version.
+        /// </summary>
+        /// <param name="interface">Interface type.</param>
+        /// <param name="activities">Object that implements the <paramref name="interface"/> interface</param>
+        public TaskHubWorker AddTaskActivitiesFromInterfaceV2(Type @interface, object activities)
+        {
+            this.ValidateActivitiesInterfaceType(@interface, activities);
+            var methods = NameVersionHelper.GetAllInterfaceMethods(@interface, (MethodInfo m) => NameVersionHelper.GetFullyQualifiedMethodName(@interface.ToString(), m));
+            foreach (MethodInfo methodInfo in methods)
+            {
+                TaskActivity taskActivity = new ReflectionBasedTaskActivity(activities, methodInfo);
+                string name = NameVersionHelper.GetFullyQualifiedMethodName(@interface.ToString(), methodInfo);
+                ObjectCreator<TaskActivity> creator = new NameValueObjectCreator<TaskActivity>(name, NameVersionHelper.GetDefaultVersion(methodInfo), taskActivity);
+                this.AddTaskActivities(creator);
             }
 
             return this;
@@ -589,6 +628,19 @@ namespace DurableTask.Core
         public void Dispose()
         {
             ((IDisposable)this.slimLock).Dispose();
+        }
+
+        private void ValidateActivitiesInterfaceType(Type @interface, object activities)
+        {
+            if (!@interface.IsInterface)
+            {
+                throw new Exception("Contract can only be an interface.");
+            }
+
+            if (!@interface.IsAssignableFrom(activities.GetType()))
+            {
+                throw new ArgumentException($"type {activities.GetType().FullName} does not implement {@interface.FullName}");
+            }
         }
     }
 }

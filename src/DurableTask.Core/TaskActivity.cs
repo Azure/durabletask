@@ -136,7 +136,7 @@ namespace DurableTask.Core
             {
                 string details = null;
                 FailureDetails failureDetails = null;
-                if (context.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions)
+                if (context != null && context.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions)
                 {
                     details = Utils.SerializeCause(e, DataConverter);
                 }
