@@ -19,7 +19,7 @@ variables:
     ${{ if eq(variables['Build.Reason'], 'Schedule') }}:
       value: 'ci.$(Build.BuildNumber)'
     ${{ else }}:
-      value: 'test.$(Build.BuildNumber)'
+      value: ''
 
 steps:
 # Start by restoring all the dependencies. This needs to be its own task
