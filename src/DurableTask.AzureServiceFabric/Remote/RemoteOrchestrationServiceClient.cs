@@ -378,7 +378,7 @@ namespace DurableTask.AzureServiceFabric.Remote
                         return response;
                     }
                 }
-                catch (Exception ex) when (ex is SocketException || ex is WebException)
+                catch (Exception ex) when (ex is SocketException || ex is WebException || ex is HttpRequestException)
                 {
                     exception = ex;
                 }

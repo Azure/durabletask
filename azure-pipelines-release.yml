@@ -1,3 +1,10 @@
+schedules:
+- cron: '0 8 * * *'
+  displayName: Daily midnight (PDT) build
+  branches:
+    include:
+    - main
+
 trigger: none
 pr: none
 
@@ -11,10 +18,8 @@ variables:
   - name: PackageSuffix
     ${{ if eq(variables['Build.Reason'], 'Schedule') }}:
       value: 'ci.$(Build.BuildNumber)'
-    ${{ if eq(variables['Build.Reason'], 'Manual') }}:
-      value: 'pr.$(Build.BuildNumber)'
     ${{ else }}:
-      value: ''
+      value: 'test.$(Build.BuildNumber)'
 
 steps:
 # Start by restoring all the dependencies. This needs to be its own task
