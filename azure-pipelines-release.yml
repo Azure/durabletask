@@ -1,6 +1,6 @@
 schedules:
-- cron: '0 8 * * *'
-  displayName: Daily midnight (PDT) build
+- cron: '0 5 * * *'
+  displayName: Daily 10pm (PDT) build
   branches:
     include:
     - main
