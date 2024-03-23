@@ -1,11 +1,7 @@
-schedules:
-- cron: '0 5 * * *'
-  displayName: Daily 10pm (PDT) build
-  branches:
-    include:
-    - main
+trigger:
+- main
+- dajusto/patch-nightly-build
 
-trigger: none
 pr: none
 
 pool:
@@ -16,7 +12,7 @@ pool:
 variables:
 
   - name: PackageSuffix
-    ${{ if eq(variables['Build.Reason'], 'Schedule') }}:
+    ${{ if eq(variables['Build.Reason'], 'IndividualCI') }}:
       value: 'ci.$(Build.BuildNumber)'
     ${{ else }}:
       value: ''
