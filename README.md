@@ -41,6 +41,8 @@ Unit tests also require [Azure Storage Emulator](https://docs.microsoft.com/azur
 
 > Note: While it's possible to use in tests a real Azure Storage account it is not recommended to do so because many tests will fail with a 409 Conflict error. This is because tests delete and quickly recreate the same storage tables, and Azure Storage doesn't do well in these conditions. If you really want to change Azure Storage connection string you can do so via the **StorageConnectionString** app.config value in the test project, or by defining a **DurableTaskTestStorageConnectionString** environment variable. 
 
+<!--
 There is a gitter for this repo, but it's not currently being monitored. We're leaving the link for it up for now and will update this message if anything changes.
 
 [![Join the chat at https://gitter.im/azure/durabletask](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/azure/durabletask?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) 
+-->
