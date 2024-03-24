@@ -1174,7 +1174,17 @@ namespace DurableTask.AzureStorage.Tracking
                 var tasks = new List<Task>(blobsToDelete.Count);
                 foreach (var blobName in blobsToDelete)
                 {
-                    tasks.Add(this.messageManager.DeleteBlobAsync(blobName));
+                    Task task;
+                    if (Uri.TryCreate(blobName, UriKind.Absolute, out Uri blobUri))
+                    {
+                        task = this.messageManager.DeleteBlobAsync(blobUri);
+                    }
+                    else
+                    {
+                        // backwards compatibility path: construct blob URI from blob name and delete
+                        task = this.messageManager.DeleteBlobAsync(blobName);
+                    }
+                    tasks.Add(task);
                 }
                 await Task.WhenAll(tasks);
             }
@@ -1237,8 +1247,21 @@ namespace DurableTask.AzureStorage.Tracking
             if (historyEntity.Properties.TryGetValue(blobPropertyName, out EntityProperty blobProperty))
             {
                 // This is a large message
-                string blobName = blobProperty.StringValue;
-                string blobUrl = this.messageManager.GetBlobUrl(blobName);
+                string blobData = blobProperty.StringValue;
+
+                // We now store blobs as absolute URIs to minimize chance of 'blob not found' errors
+                // For backwards compatibility to versions where we only stored the blobname, we check if the blob is a URI
+                string blobUrl;
+                if (!Uri.TryCreate(blobData, UriKind.Absolute, out Uri _))
+                {
+                    // backwards compatibility path: we construct the URL from the blobName
+                    blobUrl = this.messageManager.GetBlobUrl(blobData);
+                }
+                else
+                {
+                    blobUrl = blobData;
+                }
+
                 instanceEntity.Properties[instancePropertyName] = new EntityProperty(blobUrl);
             }
             else
@@ -1263,7 +1286,10 @@ namespace DurableTask.AzureStorage.Tracking
                     // Clear out the original property value and create a new "*BlobName"-suffixed property.
                     // The runtime will look for the new "*BlobName"-suffixed column to know if a property is stored in a blob.
                     string blobPropertyName = GetBlobPropertyName(propertyName);
-                    entity.Properties.Add(blobPropertyName, new EntityProperty(blobName));
+
+                    // Store blob URL so the blob can always be downloaded from the absolute path
+                    string bloburl = this.messageManager.GetBlobUrl(blobName);
+                    entity.Properties.Add(blobPropertyName, new EntityProperty(bloburl));
                     entity.Properties[propertyName].StringValue = string.Empty;
 
                     // if necessary, keep track of all the blobs associated with this execution
@@ -1281,7 +1307,19 @@ namespace DurableTask.AzureStorage.Tracking
                 if (entity.Properties.TryGetValue(blobPropertyName, out EntityProperty property))
                 {
                     string blobName = property.StringValue;
-                    string decompressedMessage = await this.messageManager.DownloadAndDecompressAsBytesAsync(blobName);
+
+                    // We now store blob URIs instead of just blob names to prevent blob not found errors
+                    string decompressedMessage;
+                    if (Uri.TryCreate(blobName, UriKind.Absolute, out Uri blobUri))
+                    {
+                        decompressedMessage = await this.messageManager.DownloadAndDecompressAsBytesAsync(blobUri);
+                    }
+                    else
+                    {
+                        // backwards compatibility path: construct blob URI from blob name and download
+                        decompressedMessage = await this.messageManager.DownloadAndDecompressAsBytesAsync(blobName);
+                    }
+
                     entity.Properties[propertyName] = new EntityProperty(decompressedMessage);
                     entity.Properties.Remove(blobPropertyName);
 
