@@ -19,7 +19,6 @@
     <MajorVersion>2</MajorVersion>
     <MinorVersion>16</MinorVersion>
     <PatchVersion>2</PatchVersion>
-    <VersionSuffix>$(PackageSuffix)</VersionSuffix>
     <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
     <FileVersion>$(VersionPrefix).0</FileVersion>
     <!-- FileVersionRevision is expected to be set by the CI. This is useful for distinguishing between multiple builds of the same version. -->
@@ -30,10 +29,10 @@
 
   <!-- This version is used as the nuget package version -->
   <PropertyGroup Condition="$(VersionSuffix) == ''">
-    <Version>$(MajorVersion).$(MinorVersion).$(PatchVersion)</Version>
+    <Version>$(VersionPrefix)</Version>
   </PropertyGroup>
   <PropertyGroup Condition="$(VersionSuffix) != ''">
-    <Version>$(MajorVersion).$(MinorVersion).$(PatchVersion)-$(VersionSuffix)</Version>
+    <Version>$(VersionPrefix)-$(VersionSuffix)</Version>
   </PropertyGroup>
   
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">

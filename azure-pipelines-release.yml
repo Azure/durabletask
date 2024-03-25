@@ -10,7 +10,7 @@ pool:
 
 variables:
 
-  - name: PackageSuffix
+  - name: VersionSuffix
     ${{ if eq(variables['Build.Reason'], 'IndividualCI') }}:
       value: 'ci.$(Build.BuildNumber)'
     ${{ else }}:
