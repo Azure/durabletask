@@ -1,6 +1,5 @@
 trigger:
 - main
-- dajusto/patch-nightly-build
 
 pr: none
 
