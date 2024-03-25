@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage.Storage
 {
     using System;
+    using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
@@ -131,25 +132,12 @@ namespace DurableTask.AzureStorage.Storage
 
             if (!force)
             {
-                this.Settings?.Logger.PartitionManagerInfo(
-                    this.Settings?.StorageAccountDetails?.AccountName,
-                    this.Settings?.TaskHubName,
-                    this.Settings?.WorkerId,
-                    string.Empty,
-                    $"Before WaitAsync Id:{guid.ToString()}" +
-                    $"| Semaphore currentCount = {requestThrottleSemaphore.CurrentCount}" +
-                    $"| Semaphore initialCount = {this.Settings?.MaxStorageOperationConcurrency}");
+                var cTkWait = new CancellationTokenSource();
+                await WaitAndLog(guid, "Wait", cTkWait.Token);
 
                 await requestThrottleSemaphore.WaitAsync();
 
-                this.Settings?.Logger.PartitionManagerInfo(
-                    this.Settings?.StorageAccountDetails?.AccountName,
-                    this.Settings?.TaskHubName,
-                    this.Settings?.WorkerId,
-                    string.Empty,
-                    $"After WaitAsync Id:{guid.ToString()}" +
-                    $"| Semaphore currentCount = {requestThrottleSemaphore.CurrentCount}" +
-                    $"| Semaphore initialCount = {this.Settings?.MaxStorageOperationConcurrency}");
+                cTkWait.Cancel();
             }
 
             try
@@ -164,26 +152,33 @@ namespace DurableTask.AzureStorage.Storage
             {
                 if (!force)
                 {
-                    this.Settings?.Logger.PartitionManagerInfo(
-                        this.Settings?.StorageAccountDetails?.AccountName,
-                        this.Settings?.TaskHubName,
-                        this.Settings?.WorkerId,
-                        string.Empty,
-                        $"Before Release Id:{guid.ToString()}" +
-                        $"| Semaphore currentCount = {requestThrottleSemaphore.CurrentCount}" +
-                        $"| Semaphore initialCount = {this.Settings?.MaxStorageOperationConcurrency}");
+                    var cTkRelease = new CancellationTokenSource();
+                    await WaitAndLog(guid, "Release", cTkRelease.Token);
 
                     requestThrottleSemaphore.Release();
 
-                    this.Settings?.Logger.PartitionManagerInfo(
-                        this.Settings?.StorageAccountDetails?.AccountName,
-                        this.Settings?.TaskHubName,
-                        this.Settings?.WorkerId,
-                        string.Empty,
-                        $"After Release Id:{guid.ToString()}" +
-                        $"| Semaphore currentCount = {requestThrottleSemaphore.CurrentCount}" +
-                        $"| Semaphore initialCount = {this.Settings?.MaxStorageOperationConcurrency}");
+                    cTkRelease.Cancel();
                 }
+            }
+        }
+
+        private async Task WaitAndLog(Guid guid, string waitOrRelease, CancellationToken cTk)
+        {
+            await Task.Delay(this.Settings.MaxWaitForSemaphoreLoggingInSeconds * 1000, cTk);
+
+            if (!cTk.IsCancellationRequested)
+            {
+                StackTrace stackTrace = new StackTrace();
+
+                this.Settings?.Logger.PartitionManagerInfo(
+                    this.Settings?.StorageAccountDetails?.AccountName,
+                    this.Settings?.TaskHubName,
+                    this.Settings?.WorkerId,
+                    string.Empty,
+                    $"Before {waitOrRelease} Id:{guid.ToString()}" +
+                    $"| Semaphore currentCount = {requestThrottleSemaphore.CurrentCount}" +
+                    $"| Semaphore initialCount = {this.Settings?.MaxStorageOperationConcurrency}" +
+                    $"| StackTrace : {stackTrace.ToString()}");
             }
         }
 
