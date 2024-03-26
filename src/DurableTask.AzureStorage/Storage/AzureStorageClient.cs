@@ -133,7 +133,7 @@ namespace DurableTask.AzureStorage.Storage
             if (!force)
             {
                 var cTkWait = new CancellationTokenSource();
-                await WaitAndLog(guid, "Wait", cTkWait.Token);
+                _ = WaitAndLog(guid, "Wait", cTkWait.Token);
 
                 await requestThrottleSemaphore.WaitAsync();
 
@@ -153,7 +153,7 @@ namespace DurableTask.AzureStorage.Storage
                 if (!force)
                 {
                     var cTkRelease = new CancellationTokenSource();
-                    await WaitAndLog(guid, "Release", cTkRelease.Token);
+                    _ = WaitAndLog(guid, "Release", cTkRelease.Token);
 
                     requestThrottleSemaphore.Release();
 
