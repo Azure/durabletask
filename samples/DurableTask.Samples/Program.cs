@@ -22,7 +22,9 @@ namespace DurableTask.Samples
     using System.IO;
     using System.Linq;
     using System.Threading;
+    using System.Threading.Tasks;
     using DurableTask.AzureStorage;
+    using DurableTask.AzureStorage.ControlQueueHeartbeat;
     using DurableTask.Core;
     using DurableTask.Core.Tracing;
     using DurableTask.Samples.AverageCalculator;
@@ -129,6 +131,19 @@ namespace DurableTask.Samples
                             instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(MigrateOrchestration), instanceId,
                                 new MigrateOrchestrationData { SubscriptionId = "03a1cd39-47ac-4a57-9ff5-a2c2a2a76088", IsDisabled = false }).Result;
                             break;
+                        case "ControlQueueHeartbeatMonitor":
+                            CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+                            var taskWorker1 = TriggerTaskHubWithMonitor("workerId1", "taskHub1", cancellationTokenSource.Token);
+                            var taskWorker2 = TriggerTaskHubWithMonitor("workerId2", "taskHub1", cancellationTokenSource.Token);
+                            var taskWorker3 = TriggerTaskHubWithMonitor("WorkerId1", "taskHub1", cancellationTokenSource.Token);
+
+                            Task.Delay(TimeSpan.FromMinutes(5)).Wait();
+
+                            cancellationTokenSource.Cancel();
+                            taskWorker1.StopAsync().Wait();
+                            taskWorker2.StopAsync().Wait();
+                            taskWorker3.StopAsync().Wait();
+                            break;
                         default:
                             throw new Exception("Unsupported Orchestration Name: " + ArgumentOptions.StartInstance);
                     }
@@ -213,6 +228,53 @@ namespace DurableTask.Samples
                     Console.WriteLine("Skip Worker");
                 }
             }
+        }
+
+        private static TaskHubWorker TriggerTaskHubWithMonitor(string workerId, string taskHubName, CancellationToken cancellationToken)
+        {
+            string storageConnectionString = GetSetting("StorageConnectionString");
+
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountDetails = new StorageAccountDetails { ConnectionString = storageConnectionString },
+                TaskHubName = taskHubName,
+                UseTablePartitionManagement = true,
+                PartitionCount = 10,
+                ControlQueueHearbeatOrchestrationInterval = TimeSpan.FromSeconds(5),
+                ControlQueueOrchHeartbeatDetectionInterval = TimeSpan.FromSeconds(10),
+                ControlQueueOrchHeartbeatDetectionThreshold = TimeSpan.FromSeconds(10),
+                WorkerId = workerId
+            };
+
+            var orchestrationServiceAndClient = new AzureStorageOrchestrationService(settings);
+            var taskHubClient = new TaskHubClient(orchestrationServiceAndClient);
+            var taskHubWorker = new TaskHubWorker(orchestrationServiceAndClient);
+
+            var controlQueueHealthMonitor = (IControlQueueHelper)orchestrationServiceAndClient;
+            var task = controlQueueHealthMonitor.StartControlQueueHeartbeatMonitorAsync(
+                taskHubClient,
+                taskHubWorker,
+                async (orchestrationInstance, controlQueueHeartbeatTaskInputContext, controlQueueHeartbeatTaskContext, cancellationToken) =>
+                {
+                    FileWriter.WriteLogControlQueueProgram($"Heartbeat coming from instanceId {orchestrationInstance.InstanceId} " +
+                        $"running for controlQueueHeartbeatTaskInputContext = [{controlQueueHeartbeatTaskInputContext}] " +
+                        $"with orchestrator running with = [{controlQueueHeartbeatTaskContext}].");
+
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        throw new InvalidOperationException($"Dummy exception.");
+                    }
+
+                    await Task.CompletedTask;
+                },
+                async (workerId, ownerId, isControlQueueOwner, controlQueueName, instanceId, controlQueueHeartbeatDetectionInfo, cancellationToken) =>
+                {
+                    FileWriter.WriteLogControlQueueProgram($"Act on taskhubworker {workerId} [isControlQueueOwner={isControlQueueOwner}] where control queue {controlQueueName} with controlQueueHeartbeatDetectionInfo {controlQueueHeartbeatDetectionInfo.ToString()} owned by ownerId {ownerId} is either found stuck or too slow, using instanceId {instanceId}.");
+                    await Task.CompletedTask;
+                },
+                cancellationToken);
+            taskHubWorker.StartAsync().Wait();
+            return taskHubWorker;
         }
 
         public static string GetSetting(string name)
