@@ -15,12 +15,14 @@ namespace DurableTask.AzureStorage
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Diagnostics.Tracing;
     using System.Linq;
     using System.Net;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.AzureStorage.ControlQueueHeartbeat;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
@@ -40,10 +42,11 @@ namespace DurableTask.AzureStorage
     public sealed class AzureStorageOrchestrationService :
         IOrchestrationService,
         IOrchestrationServiceClient,
-        IDisposable, 
+        IDisposable,
         IOrchestrationServiceQueryClient,
         IOrchestrationServicePurgeClient,
-        IEntityOrchestrationService
+        IEntityOrchestrationService,
+        IControlQueueHelper
     {
         static readonly HistoryEvent[] EmptyHistoryEventList = new HistoryEvent[0];
 
@@ -155,7 +158,7 @@ namespace DurableTask.AzureStorage
 
             if (this.settings.UseTablePartitionManagement && this.settings.UseLegacyPartitionManagement)
             {
-                throw new ArgumentException("Cannot use both TablePartitionManagement and LegacyPartitionManagement. For improved reliability, consider using the TablePartitionManager.");  
+                throw new ArgumentException("Cannot use both TablePartitionManagement and LegacyPartitionManagement. For improved reliability, consider using the TablePartitionManager.");
             }
             else if (this.settings.UseTablePartitionManagement)
             {
@@ -183,6 +186,8 @@ namespace DurableTask.AzureStorage
                 this.settings.TaskHubName.ToLowerInvariant() + "-applease",
                 this.settings.TaskHubName.ToLowerInvariant() + "-appleaseinfo",
                 this.settings.AppLeaseOptions);
+
+            semaphoreSlimForControlQueueMonitorCallBack = new SemaphoreSlim(this.settings.PartitionCount);
         }
 
         internal string WorkerId => this.settings.WorkerId;
@@ -239,9 +244,14 @@ namespace DurableTask.AzureStorage
                 throw new ArgumentOutOfRangeException(nameof(settings), "The number of partitions must be a positive integer and no greater than 16.");
             }
 
-            if (string.IsNullOrEmpty(settings.TaskHubName))
+            if (string.IsNullOrWhiteSpace(settings.TaskHubName))
             {
                 throw new ArgumentNullException(nameof(settings), $"A {nameof(settings.TaskHubName)} value must be configured in the settings.");
+            }
+
+            if (settings.ControlQueueHearbeatOrchestrationInterval > settings.ControlQueueOrchHeartbeatDetectionThreshold)
+            {
+                throw new ArgumentException(nameof(settings), $"{nameof(settings.ControlQueueHearbeatOrchestrationInterval)} must not be more than {nameof(settings.ControlQueueOrchHeartbeatDetectionThreshold)}");
             }
 
             // TODO: More validation.
@@ -630,7 +640,7 @@ namespace DurableTask.AzureStorage
             // Need to check for leases in Azure Table Storage. Scale Controller calls into this method.
             int partitionCount;
             Table partitionTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.PartitionTableName);
-            
+
             // Check if table partition manager is used. If so, get partition count from table.
             // Else, get the partition count from the blobs.
             if (await partitionTable.ExistsAsync())
@@ -872,12 +882,12 @@ namespace DurableTask.AzureStorage
             var messages = session.CurrentMessageBatch;
             TraceContextBase parentTraceContext = null;
             bool foundEventRaised = false;
-            foreach(var message in messages)
+            foreach (var message in messages)
             {
                 if (message.SerializableTraceContext != null)
                 {
                     var traceContext = TraceContextBase.Restore(message.SerializableTraceContext);
-                    switch(message.TaskMessage.Event)
+                    switch (message.TaskMessage.Event)
                     {
                         // Dependency Execution finished.
                         case TaskCompletedEvent tc:
@@ -901,15 +911,16 @@ namespace DurableTask.AzureStorage
                             break;
                         default:
                             // When internal error happens, multiple message could come, however, it should not be prioritized.
-                            if (parentTraceContext == null || 
+                            if (parentTraceContext == null ||
                                 parentTraceContext.OrchestrationTraceContexts.Count < traceContext.OrchestrationTraceContexts.Count)
                             {
                                 parentTraceContext = traceContext;
                             }
 
                             break;
-                    }                   
-                } else
+                    }
+                }
+                else
                 {
 
                     // In this case, we set the parentTraceContext later in this method
@@ -917,7 +928,7 @@ namespace DurableTask.AzureStorage
                     {
                         foundEventRaised = true;
                     }
-                }            
+                }
             }
 
             // When EventRaisedEvent is present, it will not, out of the box, share the same operation
@@ -934,12 +945,12 @@ namespace DurableTask.AzureStorage
 
         static bool IsActivityOrOrchestrationFailedOrCompleted(IList<MessageData> messages)
         {
-            foreach(var message in messages)
+            foreach (var message in messages)
             {
                 if (message.TaskMessage.Event is DurableTask.Core.History.SubOrchestrationInstanceCompletedEvent ||
                     message.TaskMessage.Event is DurableTask.Core.History.SubOrchestrationInstanceFailedEvent ||
                     message.TaskMessage.Event is DurableTask.Core.History.TaskCompletedEvent ||
-                    message.TaskMessage.Event is DurableTask.Core.History.TaskFailedEvent  ||
+                    message.TaskMessage.Event is DurableTask.Core.History.TaskFailedEvent ||
                     message.TaskMessage.Event is DurableTask.Core.History.TimerFiredEvent)
                 {
                     return true;
@@ -1133,13 +1144,13 @@ namespace DurableTask.AzureStorage
 
             // Correlation
             CorrelationTraceClient.Propagate(() =>
+            {
+                // In case of Extended Session, Emit the Dependency Telemetry. 
+                if (workItem.IsExtendedSession)
                 {
-                    // In case of Extended Session, Emit the Dependency Telemetry. 
-                    if (workItem.IsExtendedSession)
-                    {
-                        this.TrackExtendedSessionDependencyTelemetry(session);
-                    }
-                });
+                    this.TrackExtendedSessionDependencyTelemetry(session);
+                }
+            });
 
             TraceContextBase currentTraceContextBaseOnComplete = null;
             CorrelationTraceClient.Propagate(() =>
@@ -1224,7 +1235,7 @@ namespace DurableTask.AzureStorage
             TaskMessage continuedAsNewMessage,
             OrchestrationState orchestrationState)
         {
-            return 
+            return
                 (outboundMessages.Count != 0 || orchestratorMessages.Count != 0 || timerMessages.Count != 0) &&
                 (orchestrationState.OrchestrationStatus != OrchestrationStatus.Completed) &&
                 (orchestrationState.OrchestrationStatus != OrchestrationStatus.Failed);
@@ -1266,7 +1277,7 @@ namespace DurableTask.AzureStorage
             bool dependencyTelemetryStarted)
         {
             TraceContextBase currentTraceContextBaseOnComplete = null;
-            
+
             if (dependencyTelemetryStarted)
             {
                 // DependencyTelemetry will be included on an outbound queue
@@ -1276,7 +1287,7 @@ namespace DurableTask.AzureStorage
             }
             else
             {
-                switch(orchestrationState.OrchestrationStatus)
+                switch (orchestrationState.OrchestrationStatus)
                 {
                     case OrchestrationStatus.Completed:
                     case OrchestrationStatus.Failed:
@@ -1692,7 +1703,7 @@ namespace DurableTask.AzureStorage
                 {
                     throw new InvalidOperationException($"An Orchestration instance with the status {existingInstance.State.OrchestrationStatus} already exists.");
                 }
-                
+
                 return;
             }
 
@@ -1993,7 +2004,7 @@ namespace DurableTask.AzureStorage
             while (!cancellationToken.IsCancellationRequested)
             {
                 OrchestrationState? state = await this.GetOrchestrationStateAsync(instanceId, executionId);
-                
+
                 if (state != null &&
                     state.OrchestrationStatus != OrchestrationStatus.Running &&
                     state.OrchestrationStatus != OrchestrationStatus.Suspended &&
@@ -2007,9 +2018,9 @@ namespace DurableTask.AzureStorage
                     }
                     return state;
                 }
-                
+
                 timeout -= statusPollingInterval;
-                
+
                 // For a user-provided timeout of `TimeSpan.Zero`,
                 // we want to check the status of the orchestration once and then return.
                 // Therefore, we check the timeout condition after the status check.
@@ -2045,6 +2056,417 @@ namespace DurableTask.AzureStorage
         }
 
         #endregion
+
+        #region IControlQueueHelper
+
+        /// <inheritdoc/>
+        public async Task StartControlQueueHeartbeatMonitorAsync(
+            TaskHubClient taskHubClient,
+            TaskHubWorker taskHubWorker,
+            Func<OrchestrationInstance, ControlQueueHeartbeatTaskInputContext, ControlQueueHeartbeatTaskContext, CancellationToken, Task> callBackHeartOrchAsync,
+            Func<string, string?, bool, string, string, ControlQueueHeartbeatDetectionInfo, CancellationToken, Task> callBackControlQueueValidation,
+            CancellationToken cancellationToken)
+        {
+            // Validate if taskHubClient and taskHubWorker used is of correct type and settings.
+            ValidateTaskHubClient(taskHubClient);
+            ValidateTaskHubWorker(taskHubWorker);
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+
+            // Schedule orchestrator instance for each control-queue.
+            await ScheduleControlQueueHeartbeatOrchestrations(taskHubClient, false);
+
+            // Register orchestrator for control-queue heartbeat.
+            RegisterControlQueueHeartbeatOrchestration(taskHubWorker, callBackHeartOrchAsync);
+
+            // Gets control-queue name to orchestrator instance id dictionary.
+            Dictionary<string, string> controlQueueOrchInstanceIds = GetControlQueueToInstanceIdInfo();
+
+            // Waiting for detection interval initial to give time to worker to allow some draining of messages from control-queue.
+            await Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval, cancellationToken);
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var localCancellationTokenSource = new CancellationTokenSource(this.settings.ControlQueueOrchHeartbeatDetectionInterval);
+                var linkedCancelationTokenSrc = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, localCancellationTokenSource.Token);
+
+                if (!cancellationToken.IsCancellationRequested)
+                {
+                    Dictionary<string, string?> controlQueueOwnerIds = new Dictionary<string, string?>();
+
+                    try
+                    {
+                        // Gets control-queue name to owner id dictionary.
+                        controlQueueOwnerIds = await GetControlQueueOwnerIds();
+                    }
+                    catch (Exception ex)
+                    {
+                        // [Logs] Add exception details for failure at fetching owners of control-queue.
+                        FileWriter.WriteLogControlQueueMonitor($"ControlQueueOwnerIdsFetchFailed" +
+                            $"exception: {ex.ToString()}" +
+                            $"message: failed to fetch owner ids for control-queues.");
+                    }
+
+                    Parallel.ForEach(controlQueueOrchInstanceIds, async (controlQueueOrchInstanceId) =>
+                    {
+                        var controlQueueName = controlQueueOrchInstanceId.Key;
+                        var instanceId = controlQueueOrchInstanceId.Value;
+
+                        if ((controlQueueOwnerIds.Count == 0))
+                        {
+                            // If controlQueueOwnerIds was failed, run the callback with ownerId as null and ControlQueueHeartbeatDetectionInfo as ControlQueueOwnerFetchFailed.
+                            await RunCallBack(callBackControlQueueValidation, null, controlQueueName, instanceId, ControlQueueHeartbeatDetectionInfo.ControlQueueOwnerFetchFailed, linkedCancelationTokenSrc.Token);
+                        }
+                        else
+                        {
+                            var ownerId = controlQueueOwnerIds[controlQueueName];
+
+                            // Fetch orchestration instance and validate control-queue stuck.
+                            await ValidateControlQueueOrchestrationAsync(taskHubClient, callBackControlQueueValidation, ownerId, controlQueueName, instanceId, linkedCancelationTokenSrc.Token);
+                        }
+                    });
+                }
+
+                // Waiting for detection interval.
+                await Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval, linkedCancelationTokenSrc.Token);
+            }
+        }
+
+        /// <inheritdoc/>
+        public async Task ScheduleControlQueueHeartbeatOrchestrations(TaskHubClient taskHubClient, bool force = false)
+        {
+            // Validate taskhubclient.
+            ValidateTaskHubClient(taskHubClient);
+
+            // Get control-queue to instance-id map.
+            Dictionary<string, string> controlQueueOrchInstanceIds = GetControlQueueToInstanceIdInfo();
+
+            foreach (var controlQueueOrchInstanceId in controlQueueOrchInstanceIds)
+            {
+                var controlQueueName = controlQueueOrchInstanceId.Key;
+                var instanceId = controlQueueOrchInstanceId.Value;
+
+                if (!force)
+                {
+                    var state = await taskHubClient.GetOrchestrationStateAsync(instanceId);
+
+                    // if the orchestration instance is not completed, then don't add orchestration instance again.
+                    if (state != null && (
+                         state.OrchestrationStatus == OrchestrationStatus.Pending
+                         || state.OrchestrationStatus == OrchestrationStatus.Running
+                         || state.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew
+                         ))
+                    {
+                        // [Logs] Orchestration instance already exists with state and orchestration id. 
+                        FileWriter.WriteLogControlQueueMonitor($"ControlQueueHeartbeatOrchestrationsAlreadyQueued" +
+                            $"controlQueueName: {controlQueueName}" +
+                            $"instanceId: {instanceId}" +
+                            $"message: orchestration already present in incomplete state.");
+
+                        continue;
+                    }
+                }
+
+                // Creating input context for control queue with control-queue name, taskhub name, and partition count.
+                var orchInput = new ControlQueueHeartbeatTaskInputContext(controlQueueName, this.settings.TaskHubName, this.settings.PartitionCount);
+
+                // Creating the orchestration instance.
+                await taskHubClient.CreateOrchestrationInstanceAsync(
+                    ControlQueueHeartbeatTaskOrchestratorV1.OrchestrationName,
+                    ControlQueueHeartbeatTaskOrchestratorV1.OrchestrationVersion,
+                    controlQueueOrchInstanceId.Value,
+                    orchInput);
+            }
+        }
+
+        /// <inheritdoc/>
+        public void RegisterControlQueueHeartbeatOrchestration(TaskHubWorker taskHubWorker, Func<OrchestrationInstance, ControlQueueHeartbeatTaskInputContext, ControlQueueHeartbeatTaskContext, CancellationToken, Task> callBack)
+        {
+            ValidateTaskHubWorker(taskHubWorker);
+
+            if (!isControlQueueOrchestratorsRegistered)
+            {
+                lock (controlQueueOrchestratorsRegistrationLock)
+                {
+                    if (!isControlQueueOrchestratorsRegistered)
+                    {
+                        // Creating initial context object for orchestration. 
+                        // This context will be available for each orchestration ran of this type in the taskhubworker.
+                        ControlQueueHeartbeatTaskOrchestratorV1 controlQueueHeartbeatTaskOrchestrator = new ControlQueueHeartbeatTaskOrchestratorV1(
+                            new ControlQueueHeartbeatTaskContext(
+                                this.settings.TaskHubName,
+                                this.settings.PartitionCount),
+                            this.settings.ControlQueueHearbeatOrchestrationInterval,
+                            callBack);
+
+                        var objectCreator = new NameValueObjectCreator<TaskOrchestration>(ControlQueueHeartbeatTaskOrchestratorV1.OrchestrationName, ControlQueueHeartbeatTaskOrchestratorV1.OrchestrationVersion, controlQueueHeartbeatTaskOrchestrator);
+
+                        // Registering task orchestration. 
+                        taskHubWorker.AddTaskOrchestrations(objectCreator);
+                    }
+                }
+            }
+        }
+
+        /// <inheritdoc/>
+        public string GetControlQueueInstanceId(int[] controlQueueNumbers, string instanceIdPrefix = "")
+        {
+            var instanceId = string.Empty;
+            int suffix = 0;
+            bool foundInstanceId = false;
+
+            var partitionCount = this.settings.PartitionCount;
+
+            // Validating control-queue numbers are valid.
+            foreach (var controlQueueNumber in controlQueueNumbers)
+            {
+                if (controlQueueNumber < 0 && controlQueueNumber >= partitionCount)
+                {
+                    throw new InvalidOperationException($"{nameof(controlQueueNumbers)} has at least one value which is not in range of [0,{partitionCount - 1}] with partition count = {partitionCount}.");
+                }
+            }
+
+            // Updating suffix and checking control-queue being from provided list until found one.
+            while (!foundInstanceId)
+            {
+                suffix++;
+                instanceId = $"{instanceIdPrefix}{suffix}";
+                var controlQueueNumber = (int)Fnv1aHashHelper.ComputeHash(instanceId) % partitionCount;
+
+                if (controlQueueNumbers.Any(x => x == controlQueueNumber))
+                {
+                    foundInstanceId = true;
+                }
+            }
+
+            return instanceId;
+        }
+
+        private void ValidateTaskHubWorker(TaskHubWorker taskHubWorker)
+        {
+            if (!(taskHubWorker.orchestrationService is AzureStorageOrchestrationService azureStorageOrchestrationServiceTaskHubWorker))
+            {
+                throw new InvalidOperationException($"TaskhubWorker is not using AzureStorageOrchestrationService.");
+            }
+
+            if (!(this.settings.TaskHubName.Equals(azureStorageOrchestrationServiceTaskHubWorker.settings.TaskHubName)
+                && this.settings.PartitionCount == azureStorageOrchestrationServiceTaskHubWorker.settings.PartitionCount))
+            {
+                throw new InvalidOperationException($"TaskhubWorker's AzureStorageOrchestrationService is not having either TaskHubName and/or PartitionCount mismatch.");
+            }
+        }
+
+        private void ValidateTaskHubClient(TaskHubClient taskHubClient)
+        {
+            if (!(taskHubClient.ServiceClient is AzureStorageOrchestrationService azureStorageOrchestrationService))
+            {
+                throw new InvalidOperationException($"TaskhubClient is not using AzureStorageOrchestrationService.");
+            }
+
+            if (!(this.settings.TaskHubName.Equals(azureStorageOrchestrationService.settings.TaskHubName)
+                && this.settings.PartitionCount == azureStorageOrchestrationService.settings.PartitionCount))
+            {
+                throw new InvalidOperationException($"TaskhubClient's AzureStorageOrchestrationService is not having either TaskHubName and/or PartitionCount mismatch.");
+            }
+        }
+
+        private async Task ValidateControlQueueOrchestrationAsync(
+            TaskHubClient taskHubClient,
+            Func<string, string?, bool, string, string, ControlQueueHeartbeatDetectionInfo, CancellationToken, Task> callBack,
+            string? ownerId,
+            string controlQueueName,
+            string instanceId,
+            CancellationToken cancellationToken)
+        {
+            DateTime currentTimeUTC = DateTime.UtcNow;
+
+            // Make it time boxed.
+            var timeBoxedActivity = Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval, cancellationToken);
+            var orchInstanceTask = taskHubClient.GetOrchestrationStateAsync(instanceId);
+
+            await Task.WhenAny(timeBoxedActivity, orchInstanceTask);
+
+            if (!orchInstanceTask.IsCompleted)
+            {
+                // orchestrator fetch step timed out.
+                FileWriter.WriteLogControlQueueMonitor($"OrchestrationInstanceNotFound" +
+                    $"controlQueueName: {controlQueueName}" +
+                    $"instanceId: {instanceId}" +
+                    $"message: orchestration instance couldn't fetch in time.");
+
+                // Run the callback with ownerId and ControlQueueHeartbeatDetectionInfo as OrchestrationInstanceNotFound.
+                await RunCallBack(callBack, ownerId, controlQueueName, instanceId, ControlQueueHeartbeatDetectionInfo.OrchestrationInstanceNotFound, cancellationToken);
+            }
+            if (orchInstanceTask.Result == null)
+            {
+                // orchestrator instance not found in control-queue..
+                FileWriter.WriteLogControlQueueMonitor($"OrchestrationInstanceFetchTimedOut" +
+                    $"controlQueueName: {controlQueueName}" +
+                    $"instanceId: {instanceId}" +
+                    $"message: orchestration instance not found.");
+
+                // Run the callback with ownerId and ControlQueueHeartbeatDetectionInfo as OrchestrationInstanceNotFound.
+                await RunCallBack(callBack, ownerId, controlQueueName, instanceId, ControlQueueHeartbeatDetectionInfo.OrchestrationInstanceFetchTimedOut, cancellationToken);
+            }
+            else
+            {
+                var orchInstance = orchInstanceTask.Result;
+
+                var lastUpdatedTimeUTC = orchInstance.LastUpdatedTime;
+
+                var diffInSeconds = currentTimeUTC - lastUpdatedTimeUTC;
+
+                // If difference in last updated time and current time is greater than threshold, then log the 'OrchestrationInstanceStuck' and run callback.
+                if (this.settings.ControlQueueOrchHeartbeatDetectionThreshold < diffInSeconds)
+                {
+                    // orchestrator instance not found in control-queue..
+                    FileWriter.WriteLogControlQueueMonitor($"OrchestrationInstanceStuck" +
+                        $"controlQueueName: {controlQueueName}" +
+                        $"instanceId: {instanceId}" +
+                        $"lastUpdatedTimeUTC: {lastUpdatedTimeUTC.ToLongTimeString()}" +
+                        $"currentTimeUTC: {currentTimeUTC.ToLongTimeString()}" +
+                        $"message: orchestration instance is stuck.");
+
+                    await RunCallBack(callBack, ownerId, controlQueueName, instanceId, ControlQueueHeartbeatDetectionInfo.OrchestrationInstanceStuck, cancellationToken);
+                }
+            }
+        }
+
+        private async Task RunCallBack(
+            Func<string, string?, bool, string, string, ControlQueueHeartbeatDetectionInfo, CancellationToken, Task> callBack,
+            string? ownerId,
+            string controlQueueName,
+            string instanceId,
+            ControlQueueHeartbeatDetectionInfo controlQueueHeartbeatDetectionInfo,
+            CancellationToken cancellationToken)
+        {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            bool gotSemaphore = false;
+
+            try
+            {
+                // waiting on semaphore with timeout to avoid thread hogging and starvation.
+                gotSemaphore = await semaphoreSlimForControlQueueMonitorCallBack.WaitAsync(this.settings.ControlQueueOrchHeartbeatDetectionThreshold);
+
+                var isControlQueueOwner = this.settings.WorkerId.Equals(ownerId);
+
+                if (gotSemaphore)
+                {
+                    var delayTask = Task.Delay(this.settings.ControlQueueHearbeatOrchestrationInterval, cancellationToken);
+                    var callBackTask = callBack(this.settings.WorkerId, ownerId, isControlQueueOwner, controlQueueName, instanceId, controlQueueHeartbeatDetectionInfo, cancellationToken);
+
+                    // Do not allow callBackTask to run forever.
+                    await Task.WhenAll(callBackTask, delayTask);
+
+                    if (!callBackTask.IsCompleted)
+                    {
+                        // [Logs] Add log for long running callback.
+                        FileWriter.WriteLogControlQueueMonitor($"ControlQueueMonitorCallbackTerminated" +
+                            $"controlQueueName: {controlQueueName}" +
+                            $"instanceId: {instanceId}" +
+                            $"duration: {stopwatch.ElapsedMilliseconds}" +
+                            $"message: callback is taking too long to cmplete.");
+                    }
+                }
+            }
+            // Not throwing anything beyond this.
+            catch (Exception ex)
+            {
+                FileWriter.WriteLogControlQueueMonitor($"ControlQueueMonitorCallbackFailed " +
+                    $"controlQueueName: {controlQueueName}" +
+                    $"instanceId: {instanceId}" +
+                    $"Exception: {ex.ToString()} " +
+                    $"ElapsedMilliseconds: {stopwatch.ElapsedMilliseconds} ");
+            }
+            // ensuring semaphore is released.
+            finally
+            {
+                if (gotSemaphore)
+                {
+                    semaphoreSlimForControlQueueMonitorCallBack.Release();
+                }
+            }
+        }
+
+        private async Task<Dictionary<string, string?>> GetControlQueueOwnerIds()
+        {
+            if (this.settings.UseTablePartitionManagement)
+            {
+                return GetControlQueueOwnerIdsFromTableLeases();
+            }
+            else
+            {
+                return await GetControlQueueOwnerIdsFromBlobLeasesAsync();
+            }
+        }
+
+        private Dictionary<string, string?> GetControlQueueOwnerIdsFromTableLeases()
+        {
+            // Get table leases.
+            IEnumerable<TableLease> ownershipLeases = this.ListTableLeases();
+
+            string ownershipInfo = string.Empty;
+
+            Dictionary<string, string?> controlQueueOwnerIds = new Dictionary<string, string?>();
+
+            // Tranform the table lease to control-queue name to owner-id map.
+            foreach (var ownershipLease in ownershipLeases)
+            {
+                var controlQueueName = ownershipLease.RowKey ?? string.Empty;
+                controlQueueOwnerIds[controlQueueName] = ownershipLease.CurrentOwner;
+                ownershipInfo += $"[PartitionId={ownershipLease.RowKey}, Owner={ownershipLease.CurrentOwner}, NextOwner={ownershipLease.NextOwner}, OwnedSince={ownershipLease.OwnedSince}]";
+            }
+
+            FileWriter.WriteLogControlQueueMonitor($"OwnershipInfo for all control queues: {ownershipInfo}");
+            return controlQueueOwnerIds;
+        }
+
+        private async Task<Dictionary<string, string?>> GetControlQueueOwnerIdsFromBlobLeasesAsync()
+        {
+            // Get blob leases.
+            IEnumerable<BlobLease> ownershipLeases = await this.ListBlobLeasesAsync();
+
+            string ownershipInfo = string.Empty;
+
+            Dictionary<string, string?> controlQueueOwnerIds = new Dictionary<string, string?>();
+
+            // Tranform the blob lease to control-queue name to owner-id map.
+            foreach (var ownershipLease in ownershipLeases)
+            {
+                controlQueueOwnerIds[ownershipLease.PartitionId] = ownershipLease.Owner;
+                ownershipInfo += $"[PartitionId={ownershipLease.PartitionId}, Owner={ownershipLease.Owner}, Token={ownershipLease.Token}, Epoch={ownershipLease.Epoch}]";
+            }
+
+            FileWriter.WriteLogControlQueueMonitor($"OwnershipInfo for all control queues: {ownershipInfo}");
+            return controlQueueOwnerIds;
+        }
+
+        private Dictionary<string, string> GetControlQueueToInstanceIdInfo()
+        {
+            var partitionCount = this.settings.PartitionCount;
+            var controlQueueOrchInstanceIds = new Dictionary<string, string>();
+
+            // Generate control-queue name to instance id map.
+            for (int controlQueueNumber = 0; controlQueueNumber < partitionCount; controlQueueNumber++)
+            {
+                var controlQueueName = GetControlQueueName(this.settings.TaskHubName, controlQueueNumber);
+                var instanceIdPrefix = $"DTF_PC_{partitionCount}_CQ_{controlQueueNumber}_";
+
+                string instanceId = GetControlQueueInstanceId(new int[] { controlQueueNumber }, instanceIdPrefix);
+
+                controlQueueOrchInstanceIds[controlQueueName] = instanceId;
+            }
+
+            return controlQueueOrchInstanceIds;
+        }
+
+        private SemaphoreSlim semaphoreSlimForControlQueueMonitorCallBack;
+
+        private bool isControlQueueOrchestratorsRegistered = false;
+
+        private object controlQueueOrchestratorsRegistrationLock = new object();
+
+        #endregion IControlQueueHelper
 
         // TODO: Change this to a sticky assignment so that partition count changes can
         //       be supported: https://github.com/Azure/azure-functions-durable-extension/issues/1

@@ -32,6 +32,12 @@ namespace DurableTask.AzureStorage
 
         internal static readonly TimeSpan DefaultMaxQueuePollingInterval = TimeSpan.FromSeconds(30);
 
+        internal static readonly TimeSpan DefaultControlQueueHearbeatOrchestrationInterval = TimeSpan.FromSeconds(60);
+
+        internal static readonly TimeSpan DefaultControlQueueOrchHeartbeatDetectionInterval = TimeSpan.FromSeconds(600);
+
+        internal static readonly TimeSpan DefaultControlQueueOrchHeartbeatDetectionThreshold = TimeSpan.FromSeconds(600);
+
         LogHelper logHelper;
 
         /// <summary>
@@ -176,6 +182,21 @@ namespace DurableTask.AzureStorage
         /// Maximum interval for polling control and work-item queues.
         /// </summary>
         public TimeSpan MaxQueuePollingInterval { get; set; } = DefaultMaxQueuePollingInterval;
+
+        /// <summary>
+        /// Time interval between control queue heartbeat orchestration.
+        /// </summary>
+        public TimeSpan ControlQueueHearbeatOrchestrationInterval { get; set; } = DefaultControlQueueHearbeatOrchestrationInterval;
+
+        /// <summary>
+        /// Time interval between control queue heartbeat orchestration.
+        /// </summary>
+        public TimeSpan ControlQueueOrchHeartbeatDetectionInterval { get; set; } = DefaultControlQueueOrchHeartbeatDetectionInterval;
+
+        /// <summary>
+        /// Time interval between control queue heartbeat orchestration.
+        /// </summary>
+        public TimeSpan ControlQueueOrchHeartbeatDetectionThreshold { get; set; } = DefaultControlQueueOrchHeartbeatDetectionThreshold;
 
         /// <summary>
         /// If true, takes a lease on the task hub container, allowing for only one app to process messages in a task hub at a time.
