@@ -55,6 +55,12 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
             if (controlQueueHeartbeatTaskContextInput == null)
             {
                 // [Logs] Add log for failure of the orchestrator.
+                // Structured logging: ControlQueueHeartbeatTaskOrchestratorFailed
+                // -> orchestrationInstance: context.OrchestrationInstance.ToString()
+                // -> initialControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
+                // -> inputControlQueueHeartbeatTaskContext: null
+                // -> duration: stopwatchOrch.ElapsedMilliseconds
+                // -> message : input context orchestration is null.
                 FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorFailed." +
                     $"OrchestrationInstance:{context.OrchestrationInstance} " +
                     $"controlQueueHeartbeatTaskContextInit:{controlQueueHeartbeatTaskContextInit}, " +
@@ -71,6 +77,12 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
             if (!isOrchestratorRunningInCorrectContext)
             {
                 // [Logs] Add log for mistmatch in context.
+                // Structured logging: ControlQueueHeartbeatTaskOrchestratorFailed
+                // -> orchestrationInstance: context.OrchestrationInstance.ToString()
+                // -> initialControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
+                // -> inputControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
+                // -> duration: stopwatchOrch.ElapsedMilliseconds
+                // -> message : Input and initial context for orchestration .
                 FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorContextMismatch" +
                     $"OrchestrationInstance:{context.OrchestrationInstance} " +
                     $"controlQueueHeartbeatTaskContextInit:{controlQueueHeartbeatTaskContextInit}, " +
@@ -109,6 +121,11 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
                             if (!callBackTask.IsCompleted)
                             {
                                 // [Logs] Add log for long running callback.
+                                // Structured logging: ControlQueueHeartbeatTaskOrchestratorCallbackTerminated
+                                // -> orchestrationInstance: context.OrchestrationInstance.ToString()
+                                // -> initialControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
+                                // -> inputControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
+                                // -> duration: stopwatchOrch.ElapsedMilliseconds
                                 FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorCallbackTerminated " +
                                     $"OrchestrationInstance:{context.OrchestrationInstance} " +
                                     $"controlQueueHeartbeatTaskContextInit:{controlQueueHeartbeatTaskContextInit}, " +
@@ -122,6 +139,11 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
                         else
                         {
                             // [Logs] Add log for too many callbacks running. Share the semaphore-count for #callBacks allowed, and wait time for semaphore; and ask to reduce the run-time for callback.
+                            // Structured logging: ControlQueueHeartbeatTaskOrchestratorTooManyActiveCallback
+                            // -> orchestrationInstance: context.OrchestrationInstance.ToString()
+                            // -> initialControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
+                            // -> inputControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
+                            // -> duration: stopwatchOrch.ElapsedMilliseconds
                             FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorTooManyActiveCallback " +
                                 $"OrchestrationInstance:{context.OrchestrationInstance} " +
                                 $"controlQueueHeartbeatTaskContextInit:{controlQueueHeartbeatTaskContextInit}, " +
@@ -134,6 +156,12 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
                     catch (Exception ex)
                     {
                         // [Logs] Add exception details for callback failure.
+                        // Structured logging: ControlQueueHeartbeatTaskOrchestratorCallbackFailure
+                        // -> orchestrationInstance: context.OrchestrationInstance.ToString()
+                        // -> initialControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
+                        // -> inputControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
+                        // -> duration: stopwatchOrch.ElapsedMilliseconds
+                        // -> exception : ex.ToString()
                         FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorCallbackFailure " +
                             $"OrchestrationInstance:{context.OrchestrationInstance} " +
                             $"controlQueueHeartbeatTaskContextInit:{controlQueueHeartbeatTaskContextInit}, " +
@@ -157,6 +185,11 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
                     FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorV1 Stopping OrchestrationInstance:{context.OrchestrationInstance} controlQueueHeartbeatTaskContextInit:{controlQueueHeartbeatTaskContextInit}, controlQueueHeartbeatTaskContextInput: {controlQueueHeartbeatTaskContextInput}");
 
                     // [Logs] Add log for a heartbeat message from current instance. 
+                    // Structured logging: ControlQueueHeartbeatTaskOrchestratorCallbackNotQueued
+                    // -> orchestrationInstance: context.OrchestrationInstance.ToString()
+                    // -> initialControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
+                    // -> inputControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
+                    // -> duration: stopwatchOrch.ElapsedMilliseconds
                     FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorCallbackNotQueued " +
                         $"OrchestrationInstance:{context.OrchestrationInstance} " +
                         $"controlQueueHeartbeatTaskContextInit:{controlQueueHeartbeatTaskContextInit}, " +
@@ -167,6 +200,11 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
             }
 
             // [Logs] Add log for a heartbeat message from current instance. 
+            // Structured logging: ControlQueueHeartbeatTaskOrchestrator
+            // -> orchestrationInstance: context.OrchestrationInstance.ToString()
+            // -> initialControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
+            // -> inputControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
+            // -> duration: stopwatchOrch.ElapsedMilliseconds
             FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestrator " +
                 $"OrchestrationInstance:{context.OrchestrationInstance} " +
                 $"controlQueueHeartbeatTaskContextInit:{controlQueueHeartbeatTaskContextInit}, " +
