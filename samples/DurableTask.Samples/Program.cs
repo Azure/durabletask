@@ -240,9 +240,9 @@ namespace DurableTask.Samples
                 TaskHubName = taskHubName,
                 UseTablePartitionManagement = true,
                 PartitionCount = 10,
-                ControlQueueHearbeatOrchestrationInterval = TimeSpan.FromSeconds(5),
-                ControlQueueOrchHeartbeatDetectionInterval = TimeSpan.FromSeconds(10),
-                ControlQueueOrchHeartbeatDetectionThreshold = TimeSpan.FromSeconds(10),
+                ControlQueueHearbeatOrchestrationInterval = TimeSpan.FromSeconds(10),
+                ControlQueueOrchHeartbeatDetectionInterval = TimeSpan.FromSeconds(20),
+                ControlQueueOrchHeartbeatDetectionThreshold = TimeSpan.FromSeconds(30),
                 WorkerId = workerId
             };
 

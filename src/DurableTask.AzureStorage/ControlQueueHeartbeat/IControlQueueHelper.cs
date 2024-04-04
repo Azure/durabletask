@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using DurableTask.Core;
@@ -32,7 +33,7 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
         /// <param name="taskHubClient">TaskHubClient object.</param>
         /// <param name="force">If true, creates new instances of orchestrator, otherwise creates only if there is no running instance of orchestrator with same instance id..</param>
         /// <returns>Task result.</returns>
-        Task ScheduleControlQueueHeartbeatOrchestrations(TaskHubClient taskHubClient, bool force = false);
+        Task ScheduleControlQueueHeartbeatOrchestrationsAsync(TaskHubClient taskHubClient, bool force = false);
 
         /// <summary>
         /// Adds orchestrator instance of type <see cref="ControlQueueHeartbeatTaskOrchestratorV1"/> to TaskHubWorkerObject.
@@ -46,9 +47,9 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
         /// <summary>
         /// Gets instanceId which is targeted for mentioned control-queue names.
         /// </summary>
-        /// <param name="controlQueueNumbers">Array of controlQueueNumbers.</param>
+        /// <param name="controlQueueNumbers">Collection of controlQueueNumbers.</param>
         /// <param name="instanceIdPrefix">InstanceId prefix.</param>
         /// <returns>InstanceId for control-queue.</returns>
-        string GetControlQueueInstanceId(int[] controlQueueNumbers, string instanceIdPrefix = "");
+        string GetControlQueueInstanceId(HashSet<int>  controlQueueNumbers, string instanceIdPrefix = "");
     }
 }

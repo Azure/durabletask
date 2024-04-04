@@ -2074,7 +2074,7 @@ namespace DurableTask.AzureStorage
             Stopwatch stopwatch = Stopwatch.StartNew();
 
             // Schedule orchestrator instance for each control-queue.
-            await ScheduleControlQueueHeartbeatOrchestrations(taskHubClient, false);
+            await ScheduleControlQueueHeartbeatOrchestrationsAsync(taskHubClient, false);
 
             // Register orchestrator for control-queue heartbeat.
             RegisterControlQueueHeartbeatOrchestration(taskHubWorker, callBackHeartOrchAsync);
@@ -2128,7 +2128,7 @@ namespace DurableTask.AzureStorage
                         });
                     }
                 }
-                catch(TaskCanceledException ex)
+                catch (TaskCanceledException ex)
                 {
                     // [Logs] Add exception details for task cancelation. This implies, one iteration took longer than time provided.
                     FileWriter.WriteLogControlQueueMonitor($"StartControlQueueHeartbeatMonitorTaskCanceled " +
@@ -2145,7 +2145,7 @@ namespace DurableTask.AzureStorage
         }
 
         /// <inheritdoc/>
-        public async Task ScheduleControlQueueHeartbeatOrchestrations(TaskHubClient taskHubClient, bool force = false)
+        public async Task ScheduleControlQueueHeartbeatOrchestrationsAsync(TaskHubClient taskHubClient, bool force = false)
         {
             // Validate taskhubclient.
             ValidateTaskHubClient(taskHubClient);
@@ -2221,8 +2221,15 @@ namespace DurableTask.AzureStorage
         }
 
         /// <inheritdoc/>
-        public string GetControlQueueInstanceId(int[] controlQueueNumbers, string instanceIdPrefix = "")
+        public string GetControlQueueInstanceId(HashSet<int> controlQueueNumbers, string instanceIdPrefix = "")
         {
+            _ = controlQueueNumbers == null ? throw new ArgumentNullException(nameof(controlQueueNumbers))
+                : controlQueueNumbers.Count == 0 ?
+                    throw new ArgumentException($"{nameof(controlQueueNumbers)} must contain at least one element.")
+                    : controlQueueNumbers.Any(x => x < 0 || x >= this.settings.PartitionCount) ?
+                        throw new ArgumentException($"{nameof(controlQueueNumbers)} must contain values in range [0, {this.settings.PartitionCount}].")
+                        : controlQueueNumbers;
+
             var instanceId = string.Empty;
             int suffix = 0;
             bool foundInstanceId = false;
@@ -2256,7 +2263,12 @@ namespace DurableTask.AzureStorage
 
         private void ValidateTaskHubWorker(TaskHubWorker taskHubWorker)
         {
-            if (!(taskHubWorker.orchestrationService is AzureStorageOrchestrationService azureStorageOrchestrationServiceTaskHubWorker))
+            if(taskHubWorker == null)
+            {
+                throw new ArgumentNullException(nameof(taskHubWorker));
+            }
+
+            if (!(taskHubWorker.orchestrationService is AzureStorageOrchestrationService azureStorageOrchestrationServiceTaskHubWorker) || azureStorageOrchestrationServiceTaskHubWorker == null)
             {
                 throw new InvalidOperationException($"TaskhubWorker is not using AzureStorageOrchestrationService.");
             }
@@ -2270,13 +2282,18 @@ namespace DurableTask.AzureStorage
 
         private void ValidateTaskHubClient(TaskHubClient taskHubClient)
         {
-            if (!(taskHubClient.ServiceClient is AzureStorageOrchestrationService azureStorageOrchestrationService))
+            if (taskHubClient == null)
+            {
+                throw new ArgumentNullException(nameof(taskHubClient));
+            }
+
+            if (!(taskHubClient.ServiceClient is AzureStorageOrchestrationService azureStorageOrchestrationServiceTaskHubClient))
             {
                 throw new InvalidOperationException($"TaskhubClient is not using AzureStorageOrchestrationService.");
             }
 
-            if (!(this.settings.TaskHubName.Equals(azureStorageOrchestrationService.settings.TaskHubName)
-                && this.settings.PartitionCount == azureStorageOrchestrationService.settings.PartitionCount))
+            if (!(this.settings.TaskHubName.Equals(azureStorageOrchestrationServiceTaskHubClient.settings.TaskHubName)
+                && this.settings.PartitionCount == azureStorageOrchestrationServiceTaskHubClient.settings.PartitionCount))
             {
                 throw new InvalidOperationException($"TaskhubClient's AzureStorageOrchestrationService is not having either TaskHubName and/or PartitionCount mismatch.");
             }
@@ -2453,7 +2470,7 @@ namespace DurableTask.AzureStorage
             return controlQueueOwnerIds;
         }
 
-        private Dictionary<string, string> GetControlQueueToInstanceIdInfo()
+        internal Dictionary<string, string> GetControlQueueToInstanceIdInfo()
         {
             var partitionCount = this.settings.PartitionCount;
             var controlQueueOrchInstanceIds = new Dictionary<string, string>();
@@ -2464,7 +2481,7 @@ namespace DurableTask.AzureStorage
                 var controlQueueName = GetControlQueueName(this.settings.TaskHubName, controlQueueNumber);
                 var instanceIdPrefix = $"DTF_PC_{partitionCount}_CQ_{controlQueueNumber}_";
 
-                string instanceId = GetControlQueueInstanceId(new int[] { controlQueueNumber }, instanceIdPrefix);
+                string instanceId = GetControlQueueInstanceId(new HashSet<int> { controlQueueNumber }, instanceIdPrefix);
 
                 controlQueueOrchInstanceIds[controlQueueName] = instanceId;
             }
@@ -2482,7 +2499,7 @@ namespace DurableTask.AzureStorage
 
         // TODO: Change this to a sticky assignment so that partition count changes can
         //       be supported: https://github.com/Azure/azure-functions-durable-extension/issues/1
-        async Task<ControlQueue?> GetControlQueueAsync(string instanceId)
+        internal async Task<ControlQueue?> GetControlQueueAsync(string instanceId)
         {
             uint partitionIndex = Fnv1aHashHelper.ComputeHash(instanceId) % (uint)this.settings.PartitionCount;
             string queueName = GetControlQueueName(this.settings.TaskHubName, (int)partitionIndex);
