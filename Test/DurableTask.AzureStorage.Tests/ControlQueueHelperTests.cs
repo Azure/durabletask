@@ -77,7 +77,7 @@ namespace DurableTask.AzureStorage.Tests
 
             var cancellationTokenSrc = new CancellationTokenSource();
 
-            var taskHandle = controlQueueHelper.StartControlQueueHeartbeatMonitorAsync(
+            await controlQueueHelper.StartControlQueueHeartbeatMonitorAsync(
                 taskHubClient,
                 taskHubWorker,
                 async (x, y, z, cancelationToken) => { await Task.CompletedTask; },
@@ -88,16 +88,12 @@ namespace DurableTask.AzureStorage.Tests
                 },
                 cancellationTokenSrc.Token);
 
-            await Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval + this.settings.ControlQueueOrchHeartbeatDetectionThreshold);
-
             // Scheduling of all orchestrator should happen.
             foreach (var instanceId in controlQueueToInstanceInfo.Values)
             {
                 var orchIsntance = await taskHubClient.GetOrchestrationStateAsync(instanceId);
                 Assert.IsNotNull(orchIsntance);
             }
-
-            await Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval + this.settings.ControlQueueOrchHeartbeatDetectionThreshold);
 
             // Orchestrator registration completed.
             var objectCreator = new NameValueObjectCreator<TaskOrchestration>(
@@ -107,12 +103,38 @@ namespace DurableTask.AzureStorage.Tests
 
             Assert.ThrowsException<InvalidOperationException>(() => { taskHubWorker.AddTaskOrchestrations(objectCreator); });
 
+            await Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval + this.settings.ControlQueueOrchHeartbeatDetectionThreshold);
+
+            var detectionCountDuplicate = new Dictionary<string, int>();
+
             // Should trigger delegate for control-queue stuck.
             foreach (var controlQueueName in controlQueueToInstanceInfo.Keys)
             {
+                detectionCountDuplicate[controlQueueName] = detectionCount[controlQueueName];
                 Assert.IsTrue(detectionCount[controlQueueName] > 0);
             }
 
+
+            await Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval + this.settings.ControlQueueOrchHeartbeatDetectionThreshold);
+            cancellationTokenSrc.Cancel();
+
+            // Give it some time to cancel the ongoing operations.
+            await Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval);
+
+            // Should trigger delegate for control-queue stuck.
+            foreach (var controlQueueName in controlQueueToInstanceInfo.Keys)
+            {
+                Assert.IsFalse(detectionCountDuplicate[controlQueueName] == detectionCount[controlQueueName]);
+                detectionCountDuplicate[controlQueueName] = detectionCount[controlQueueName];
+            }
+
+            await Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval + this.settings.ControlQueueOrchHeartbeatDetectionThreshold);
+
+            // Should trigger delegate for control-queue stuck.
+            foreach (var controlQueueName in controlQueueToInstanceInfo.Keys)
+            {
+                Assert.IsTrue(detectionCountDuplicate[controlQueueName] == detectionCount[controlQueueName]);
+            }
         }
 
         [TestMethod]

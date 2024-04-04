@@ -44,7 +44,7 @@ namespace DurableTask.Samples
         static ObservableEventListener eventListener;
 
         [STAThread]
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
             eventListener = new ObservableEventListener();
             eventListener.LogToConsole();
@@ -133,9 +133,9 @@ namespace DurableTask.Samples
                             break;
                         case "ControlQueueHeartbeatMonitor":
                             CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-                            var taskWorker1 = TriggerTaskHubWithMonitor("workerId1", "taskHub1", cancellationTokenSource.Token);
-                            var taskWorker2 = TriggerTaskHubWithMonitor("workerId2", "taskHub1", cancellationTokenSource.Token);
-                            var taskWorker3 = TriggerTaskHubWithMonitor("WorkerId1", "taskHub1", cancellationTokenSource.Token);
+                            var taskWorker1 = await TriggerTaskHubWithMonitor("workerId1", "taskHub1", cancellationTokenSource.Token);
+                            var taskWorker2 = await TriggerTaskHubWithMonitor("workerId2", "taskHub1", cancellationTokenSource.Token);
+                            var taskWorker3 = await TriggerTaskHubWithMonitor("WorkerId1", "taskHub1", cancellationTokenSource.Token);
 
                             Task.Delay(TimeSpan.FromMinutes(5)).Wait();
 
@@ -230,7 +230,7 @@ namespace DurableTask.Samples
             }
         }
 
-        private static TaskHubWorker TriggerTaskHubWithMonitor(string workerId, string taskHubName, CancellationToken cancellationToken)
+        private static async Task<TaskHubWorker> TriggerTaskHubWithMonitor(string workerId, string taskHubName, CancellationToken cancellationToken)
         {
             string storageConnectionString = GetSetting("StorageConnectionString");
 
@@ -251,7 +251,7 @@ namespace DurableTask.Samples
             var taskHubWorker = new TaskHubWorker(orchestrationServiceAndClient);
 
             var controlQueueHealthMonitor = (IControlQueueHelper)orchestrationServiceAndClient;
-            var task = controlQueueHealthMonitor.StartControlQueueHeartbeatMonitorAsync(
+            await controlQueueHealthMonitor.StartControlQueueHeartbeatMonitorAsync(
                 taskHubClient,
                 taskHubWorker,
                 async (orchestrationInstance, controlQueueHeartbeatTaskInputContext, controlQueueHeartbeatTaskContext, cancellationToken) =>

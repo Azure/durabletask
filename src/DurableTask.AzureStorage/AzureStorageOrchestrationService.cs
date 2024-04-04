@@ -2059,6 +2059,8 @@ namespace DurableTask.AzureStorage
 
         #region IControlQueueHelper
 
+        private Task controlQueueTaskLoop;
+
         /// <inheritdoc/>
         public async Task StartControlQueueHeartbeatMonitorAsync(
             TaskHubClient taskHubClient,
@@ -2081,6 +2083,11 @@ namespace DurableTask.AzureStorage
 
             // Gets control-queue name to orchestrator instance id dictionary.
             Dictionary<string, string> controlQueueOrchInstanceIds = GetControlQueueToInstanceIdInfo();
+            controlQueueTaskLoop = StartControlQueueHeartbeatValidationLoop(taskHubClient, callBackControlQueueValidation, stopwatch, controlQueueOrchInstanceIds, cancellationToken);
+        }
+
+        private async Task StartControlQueueHeartbeatValidationLoop(TaskHubClient taskHubClient, Func<string, string?, bool, string, string, ControlQueueHeartbeatDetectionInfo, CancellationToken, Task> callBackControlQueueValidation, Stopwatch stopwatch, Dictionary<string, string> controlQueueOrchInstanceIds, CancellationToken cancellationToken)
+        {
 
             // Waiting for detection interval initial to give time to worker to allow some draining of messages from control-queue.
             await Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval, cancellationToken);
