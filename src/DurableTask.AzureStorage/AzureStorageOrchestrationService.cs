@@ -2090,41 +2090,51 @@ namespace DurableTask.AzureStorage
                 var localCancellationTokenSource = new CancellationTokenSource(this.settings.ControlQueueOrchHeartbeatDetectionInterval);
                 var linkedCancelationTokenSrc = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, localCancellationTokenSource.Token);
 
-                if (!cancellationToken.IsCancellationRequested)
+                try
                 {
-                    Dictionary<string, string?> controlQueueOwnerIds = new Dictionary<string, string?>();
-
-                    try
+                    if (!cancellationToken.IsCancellationRequested)
                     {
-                        // Gets control-queue name to owner id dictionary.
-                        controlQueueOwnerIds = await GetControlQueueOwnerIds();
-                    }
-                    catch (Exception ex)
-                    {
-                        // [Logs] Add exception details for failure at fetching owners of control-queue.
-                        FileWriter.WriteLogControlQueueMonitor($"ControlQueueOwnerIdsFetchFailed" +
-                            $"exception: {ex.ToString()}" +
-                            $"message: failed to fetch owner ids for control-queues.");
-                    }
+                        Dictionary<string, string?> controlQueueOwnerIds = new Dictionary<string, string?>();
 
-                    Parallel.ForEach(controlQueueOrchInstanceIds, async (controlQueueOrchInstanceId) =>
-                    {
-                        var controlQueueName = controlQueueOrchInstanceId.Key;
-                        var instanceId = controlQueueOrchInstanceId.Value;
-
-                        if ((controlQueueOwnerIds.Count == 0))
+                        try
                         {
-                            // If controlQueueOwnerIds was failed, run the callback with ownerId as null and ControlQueueHeartbeatDetectionInfo as ControlQueueOwnerFetchFailed.
-                            await RunCallBack(callBackControlQueueValidation, null, controlQueueName, instanceId, ControlQueueHeartbeatDetectionInfo.ControlQueueOwnerFetchFailed, linkedCancelationTokenSrc.Token);
+                            // Gets control-queue name to owner id dictionary.
+                            controlQueueOwnerIds = await GetControlQueueOwnerIds();
                         }
-                        else
+                        catch (Exception ex)
                         {
-                            var ownerId = controlQueueOwnerIds[controlQueueName];
-
-                            // Fetch orchestration instance and validate control-queue stuck.
-                            await ValidateControlQueueOrchestrationAsync(taskHubClient, callBackControlQueueValidation, ownerId, controlQueueName, instanceId, linkedCancelationTokenSrc.Token);
+                            // [Logs] Add exception details for failure at fetching owners of control-queue.
+                            FileWriter.WriteLogControlQueueMonitor($"ControlQueueOwnerIdsFetchFailed" +
+                                $"exception: {ex.ToString()}" +
+                                $"message: failed to fetch owner ids for control-queues.");
                         }
-                    });
+
+                        Parallel.ForEach(controlQueueOrchInstanceIds, async (controlQueueOrchInstanceId) =>
+                        {
+                            var controlQueueName = controlQueueOrchInstanceId.Key;
+                            var instanceId = controlQueueOrchInstanceId.Value;
+
+                            if ((controlQueueOwnerIds.Count == 0))
+                            {
+                                // If controlQueueOwnerIds was failed, run the callback with ownerId as null and ControlQueueHeartbeatDetectionInfo as ControlQueueOwnerFetchFailed.
+                                await RunCallBack(callBackControlQueueValidation, null, controlQueueName, instanceId, ControlQueueHeartbeatDetectionInfo.ControlQueueOwnerFetchFailed, linkedCancelationTokenSrc.Token);
+                            }
+                            else
+                            {
+                                var ownerId = controlQueueOwnerIds[controlQueueName];
+
+                                // Fetch orchestration instance and validate control-queue stuck.
+                                await ValidateControlQueueOrchestrationAsync(taskHubClient, callBackControlQueueValidation, ownerId, controlQueueName, instanceId, linkedCancelationTokenSrc.Token);
+                            }
+                        });
+                    }
+                }
+                catch(TaskCanceledException ex)
+                {
+                    // [Logs] Add exception details for task cancelation. This implies, one iteration took longer than time provided.
+                    FileWriter.WriteLogControlQueueMonitor($"StartControlQueueHeartbeatMonitorTaskCanceled " +
+                        $"exception: {ex.ToString()}" +
+                        $"message: failed to complete full iteration within time provided.");
                 }
 
                 // Waiting for detection interval.

@@ -99,8 +99,8 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
                     {
                         if (gotSemaphore)
                         {
-                            var cancellationTokenSrc = new CancellationTokenSource(controlQueueHearbeatOrchestrationInterval);
-                            var delayTask = Task.Delay(controlQueueHearbeatOrchestrationInterval, cancellationTokenSrc.Token);
+                            var cancellationTokenSrc = new CancellationTokenSource();
+                            var delayTask = Task.Delay(controlQueueHearbeatOrchestrationInterval);
                             var callBackTask = this.callBack(context.OrchestrationInstance, controlQueueHeartbeatTaskContextInput, controlQueueHeartbeatTaskContextInit, cancellationTokenSrc.Token);
 
                             // Do not allow callBackTask to run forever.
@@ -109,37 +109,38 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
                             if (!callBackTask.IsCompleted)
                             {
                                 // [Logs] Add log for long running callback.
-                                FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorCallbackTerminated" +
+                                FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorCallbackTerminated " +
                                     $"OrchestrationInstance:{context.OrchestrationInstance} " +
                                     $"controlQueueHeartbeatTaskContextInit:{controlQueueHeartbeatTaskContextInit}, " +
                                     $"controlQueueHeartbeatTaskContextInput: {controlQueueHeartbeatTaskContextInput}" +
                                     $"duration: {stopwatch.ElapsedMilliseconds}" +
                                     $"message: callback is taking too long to cmplete.");
                             }
+
+                            cancellationTokenSrc.Cancel();
                         }
                         else
                         {
                             // [Logs] Add log for too many callbacks running. Share the semaphore-count for #callBacks allowed, and wait time for semaphore; and ask to reduce the run-time for callback.
-                            FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorTooManyActiveCallback" +
+                            FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorTooManyActiveCallback " +
                                 $"OrchestrationInstance:{context.OrchestrationInstance} " +
                                 $"controlQueueHeartbeatTaskContextInit:{controlQueueHeartbeatTaskContextInit}, " +
                                 $"controlQueueHeartbeatTaskContextInput: {controlQueueHeartbeatTaskContextInput}" +
                                 $"duration: {stopwatch.ElapsedMilliseconds}" +
                                 $"message: too many active callbacks, skipping runnning this instance of callback.");
-
                         }
                     }
                     // Not throwing anything beyond this.
                     catch (Exception ex)
                     {
                         // [Logs] Add exception details for callback failure.
-                        FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorCallbackFailure" +
+                        FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorCallbackFailure " +
                             $"OrchestrationInstance:{context.OrchestrationInstance} " +
                             $"controlQueueHeartbeatTaskContextInit:{controlQueueHeartbeatTaskContextInit}, " +
                             $"controlQueueHeartbeatTaskContextInput: {controlQueueHeartbeatTaskContextInput}" +
                             $"exception: {ex.ToString()}" +
                             $"duration: {stopwatch.ElapsedMilliseconds}" +
-                            $"message: the partition count and taskhub information are not matching.");
+                            $"message: the task was failed.");
                     }
                     // ensuring semaphore is released.
                     finally
@@ -156,7 +157,7 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
                     FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorV1 Stopping OrchestrationInstance:{context.OrchestrationInstance} controlQueueHeartbeatTaskContextInit:{controlQueueHeartbeatTaskContextInit}, controlQueueHeartbeatTaskContextInput: {controlQueueHeartbeatTaskContextInput}");
 
                     // [Logs] Add log for a heartbeat message from current instance. 
-                    FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorCallbackNotQueued" +
+                    FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorCallbackNotQueued " +
                         $"OrchestrationInstance:{context.OrchestrationInstance} " +
                         $"controlQueueHeartbeatTaskContextInit:{controlQueueHeartbeatTaskContextInit}, " +
                         $"controlQueueHeartbeatTaskContextInput: {controlQueueHeartbeatTaskContextInput}" +
