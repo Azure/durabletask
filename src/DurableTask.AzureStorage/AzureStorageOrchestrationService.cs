@@ -2087,8 +2087,7 @@ namespace DurableTask.AzureStorage
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                var localCancellationTokenSource = new CancellationTokenSource(this.settings.ControlQueueOrchHeartbeatDetectionInterval);
-                var linkedCancelationTokenSrc = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, localCancellationTokenSource.Token);
+                var taskWait = Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval);
 
                 try
                 {
@@ -2117,14 +2116,14 @@ namespace DurableTask.AzureStorage
                             if ((controlQueueOwnerIds.Count == 0))
                             {
                                 // If controlQueueOwnerIds was failed, run the callback with ownerId as null and ControlQueueHeartbeatDetectionInfo as ControlQueueOwnerFetchFailed.
-                                await RunCallBack(callBackControlQueueValidation, null, controlQueueName, instanceId, ControlQueueHeartbeatDetectionInfo.ControlQueueOwnerFetchFailed, linkedCancelationTokenSrc.Token);
+                                await RunCallBack(callBackControlQueueValidation, null, controlQueueName, instanceId, ControlQueueHeartbeatDetectionInfo.ControlQueueOwnerFetchFailed, cancellationToken);
                             }
                             else
                             {
                                 var ownerId = controlQueueOwnerIds[controlQueueName];
 
                                 // Fetch orchestration instance and validate control-queue stuck.
-                                await ValidateControlQueueOrchestrationAsync(taskHubClient, callBackControlQueueValidation, ownerId, controlQueueName, instanceId, linkedCancelationTokenSrc.Token);
+                                await ValidateControlQueueOrchestrationAsync(taskHubClient, callBackControlQueueValidation, ownerId, controlQueueName, instanceId, cancellationToken);
                             }
                         });
                     }
@@ -2138,8 +2137,11 @@ namespace DurableTask.AzureStorage
                 }
 
                 // Waiting for detection interval.
-                await Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval, linkedCancelationTokenSrc.Token);
+                await taskWait;
             }
+
+            FileWriter.WriteLogControlQueueMonitor($"StartControlQueueHeartbeatMonitorCancellationRequested " +
+                $"message: failed to complete full iteration within time provided.");
         }
 
         /// <inheritdoc/>
