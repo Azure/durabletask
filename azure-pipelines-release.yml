@@ -219,10 +219,6 @@ steps:
 
 # Next, we push directly to ADO
 steps:
-- task: NuGetToolInstaller@1
-  displayName: 'Use NuGet '
-
-steps:
 - task: NuGetCommand@2
   displayName: 'Push to durabletask ADO feed'
   inputs:
