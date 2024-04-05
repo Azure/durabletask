@@ -217,6 +217,16 @@ steps:
   displayName: 'Publish nuget packages to Artifacts'
   artifact: PackageOutput
 
+- task: PowerShell@2
+  inputs:
+    targetType: 'inline'
+    script: ls $(build.artifactStagingDirectory)
+
+- task: PowerShell@2
+  inputs:
+    targetType: 'inline'
+    script: ls $(build.artifactStagingDirectory)/PackageOutput
+
 # Next, push the payload to the ADO feed
 - task: NuGetToolInstaller@1
   displayName: 'Use NuGet '
