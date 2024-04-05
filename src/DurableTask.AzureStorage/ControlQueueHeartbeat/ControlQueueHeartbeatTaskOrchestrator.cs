@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using DurableTask.Core;
@@ -10,7 +9,7 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
     /// Control-queue heartbeat orchestrator.
     /// This is supposed to be initialized with ControlQueueHeartbeatTaskContext informing orchestrator about configuration of taskhubworker and heartbeat interval.
     /// </summary>
-    internal class ControlQueueHeartbeatTaskOrchestrator : TaskOrchestration<string, ControlQueueHeartbeatTaskInputContext>
+    internal class ControlQueueHeartbeatTaskOrchestrator : TaskOrchestration<ControlQueueHeartbeatTaskResult, ControlQueueHeartbeatTaskInputContext>
     {
         public const string OrchestrationName = "ControlQueueHeartbeatTaskOrchestrator";
 
@@ -45,11 +44,8 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
             this.cancellationTokenSrc = new CancellationTokenSource();
         }
 
-        public override async Task<string> RunTask(OrchestrationContext context, ControlQueueHeartbeatTaskInputContext controlQueueHeartbeatTaskContextInput)
+        public override async Task<ControlQueueHeartbeatTaskResult> RunTask(OrchestrationContext context, ControlQueueHeartbeatTaskInputContext controlQueueHeartbeatTaskContextInput)
         {
-            // Stopwatch to calculate time to complete orchestrator.
-            Stopwatch stopwatchOrch = Stopwatch.StartNew();
-
             // Checks for input being null and complete gracefully.
             if (controlQueueHeartbeatTaskContextInput == null)
             {
@@ -58,15 +54,13 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
                 // -> orchestrationInstance: context.OrchestrationInstance.ToString()
                 // -> initialControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
                 // -> inputControlQueueHeartbeatTaskContext: null
-                // -> duration: stopwatchOrch.ElapsedMilliseconds
                 // -> message : input context orchestration is null.
                 FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorFailed." +
                     $"OrchestrationInstance:{context.OrchestrationInstance} " +
                     $"controlQueueHeartbeatTaskContextInit:{controlQueueHeartbeatTaskContextInit}, " +
-                    $"duration: {stopwatchOrch.ElapsedMilliseconds}" +
                     $"message: controlQueueHeartbeatTaskContextInput is null. Completing the orchestration.");
 
-                return "Failed";
+                return ControlQueueHeartbeatTaskResult.InvalidInput;
             }
 
             var isOrchestratorRunningInCorrectContext = controlQueueHeartbeatTaskContextInput.PartitionCount == controlQueueHeartbeatTaskContextInit.PartitionCount
@@ -80,16 +74,14 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
                 // -> orchestrationInstance: context.OrchestrationInstance.ToString()
                 // -> initialControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
                 // -> inputControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
-                // -> duration: stopwatchOrch.ElapsedMilliseconds
                 // -> message : Input and initial context for orchestration .
                 FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorContextMismatch" +
                     $"OrchestrationInstance:{context.OrchestrationInstance} " +
                     $"controlQueueHeartbeatTaskContextInit:{controlQueueHeartbeatTaskContextInit}, " +
                     $"controlQueueHeartbeatTaskContextInput: {controlQueueHeartbeatTaskContextInput}" +
-                    $"duration: {stopwatchOrch.ElapsedMilliseconds}" +
                     $"message: the partition count and taskhub information are not matching.");
 
-                return "Failed";
+                return ControlQueueHeartbeatTaskResult.InputContextMismatch;
             }
 
             // Waiting for heartbeat orchestration interval.
@@ -105,22 +97,6 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
                 {
                     await this.callBack(context.OrchestrationInstance, controlQueueHeartbeatTaskContextInput, controlQueueHeartbeatTaskContextInit, this.cancellationTokenSrc.Token);
                 });
-
-                if (!isQueued)
-                {
-                    // [Logs] Add log for a heartbeat message from current instance. 
-                    // Structured logging: ControlQueueHeartbeatTaskOrchestratorCallbackNotQueued
-                    // -> orchestrationInstance: context.OrchestrationInstance.ToString()
-                    // -> initialControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
-                    // -> inputControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
-                    // -> duration: stopwatchOrch.ElapsedMilliseconds
-                    FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorCallbackNotQueued " +
-                        $"OrchestrationInstance:{context.OrchestrationInstance} " +
-                        $"controlQueueHeartbeatTaskContextInit:{controlQueueHeartbeatTaskContextInit}, " +
-                        $"controlQueueHeartbeatTaskContextInput: {controlQueueHeartbeatTaskContextInput}" +
-                        $"duration: {stopwatchOrch.ElapsedMilliseconds}" +
-                        $"message: Callback for orchestrator could not be queued.");
-                }
             }
 
             // [Logs] Add log for a heartbeat message from current instance. 
@@ -128,17 +104,15 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
             // -> orchestrationInstance: context.OrchestrationInstance.ToString()
             // -> initialControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
             // -> inputControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
-            // -> duration: stopwatchOrch.ElapsedMilliseconds
             FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestrator " +
                 $"OrchestrationInstance:{context.OrchestrationInstance} " +
                 $"controlQueueHeartbeatTaskContextInit:{controlQueueHeartbeatTaskContextInit}, " +
                 $"controlQueueHeartbeatTaskContextInput: {controlQueueHeartbeatTaskContextInput}" +
-                $"duration: {stopwatchOrch.ElapsedMilliseconds}" +
                 $"message: Sending signal for control-queue heartbeat.");
 
             context.ContinueAsNew(controlQueueHeartbeatTaskContextInput);
 
-            return "Succeeded";
+            return ControlQueueHeartbeatTaskResult.Succeeded;
         }
     }
 }
