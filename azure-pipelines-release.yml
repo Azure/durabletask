@@ -217,8 +217,10 @@ steps:
   displayName: 'Publish nuget packages to Artifacts'
   artifact: PackageOutput
 
-# Next, we push directly to ADO
-steps:
+# Next, push the payload to the ADO feed
+- task: NuGetToolInstaller@1
+  displayName: 'Use NuGet '
+
 - task: NuGetCommand@2
   displayName: 'Push to durabletask ADO feed'
   inputs:
