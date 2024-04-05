@@ -15,7 +15,6 @@ namespace DurableTask.AzureStorage
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
-    using System.Diagnostics;
     using System.Diagnostics.Tracing;
     using System.Linq;
     using System.Net;
@@ -186,8 +185,6 @@ namespace DurableTask.AzureStorage
                 this.settings.TaskHubName.ToLowerInvariant() + "-applease",
                 this.settings.TaskHubName.ToLowerInvariant() + "-appleaseinfo",
                 this.settings.AppLeaseOptions);
-
-            semaphoreSlimForControlQueueMonitorCallBack = new SemaphoreSlim(this.settings.PartitionCount);
         }
 
         internal string WorkerId => this.settings.WorkerId;
@@ -2059,8 +2056,6 @@ namespace DurableTask.AzureStorage
 
         #region IControlQueueHelper
 
-        private Task controlQueueTaskLoop;
-
         /// <inheritdoc/>
         public async Task StartControlQueueHeartbeatMonitorAsync(
             TaskHubClient taskHubClient,
@@ -2073,22 +2068,25 @@ namespace DurableTask.AzureStorage
             ValidateTaskHubClient(taskHubClient);
             ValidateTaskHubWorker(taskHubWorker);
 
-            Stopwatch stopwatch = Stopwatch.StartNew();
-
             // Schedule orchestrator instance for each control-queue.
-            await ScheduleControlQueueHeartbeatOrchestrationsAsync(taskHubClient, false);
+            await ScheduleControlQueueHeartbeatOrchestrationsAsync(taskHubClient, cancellationToken, false);
 
             // Register orchestrator for control-queue heartbeat.
             RegisterControlQueueHeartbeatOrchestration(taskHubWorker, callBackHeartOrchAsync);
 
             // Gets control-queue name to orchestrator instance id dictionary.
             Dictionary<string, string> controlQueueOrchInstanceIds = GetControlQueueToInstanceIdInfo();
-            controlQueueTaskLoop = StartControlQueueHeartbeatValidationLoop(taskHubClient, callBackControlQueueValidation, stopwatch, controlQueueOrchInstanceIds, cancellationToken);
+
+            // Keeping it alive.
+            controlQueueTaskLoop = StartControlQueueHeartbeatValidationLoop(taskHubClient, callBackControlQueueValidation, controlQueueOrchInstanceIds, cancellationToken);
         }
 
-        private async Task StartControlQueueHeartbeatValidationLoop(TaskHubClient taskHubClient, Func<string, string?, bool, string, string, ControlQueueHeartbeatDetectionInfo, CancellationToken, Task> callBackControlQueueValidation, Stopwatch stopwatch, Dictionary<string, string> controlQueueOrchInstanceIds, CancellationToken cancellationToken)
+        private async Task StartControlQueueHeartbeatValidationLoop(
+            TaskHubClient taskHubClient, 
+            Func<string, string?, bool, string, string, ControlQueueHeartbeatDetectionInfo, CancellationToken, Task> callBackControlQueueValidation, 
+            Dictionary<string, string> controlQueueOrchInstanceIds, 
+            CancellationToken cancellationToken)
         {
-
             // Waiting for detection interval initial to give time to worker to allow some draining of messages from control-queue.
             await Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval, cancellationToken);
 
@@ -2096,77 +2094,65 @@ namespace DurableTask.AzureStorage
             {
                 var taskWait = Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval);
 
-                try
+                if (!cancellationToken.IsCancellationRequested)
                 {
-                    if (!cancellationToken.IsCancellationRequested)
+                    Dictionary<string, string?> controlQueueOwnerIds = new Dictionary<string, string?>();
+
+                    try
                     {
-                        Dictionary<string, string?> controlQueueOwnerIds = new Dictionary<string, string?>();
+                        // Make it time boxed.
+                        var delayTask = Task.Delay(this.settings.ControlQueueHearbeatOrchestrationInterval, cancellationToken);
 
-                        try
+                        // Gets control-queue name to owner id dictionary.
+                        var controlQueueOwnerIdsTask = GetControlQueueOwnerIds();
+
+                        // helps in deciding its time boxed.
+                        await Task.WhenAny(delayTask, controlQueueOwnerIdsTask);
+
+                        if (!controlQueueOwnerIdsTask.IsCompleted)
                         {
-                            var delayTask = Task.Delay(this.settings.ControlQueueHearbeatOrchestrationInterval, cancellationToken);
-                            var controlQueueOwnerIdsTask = GetControlQueueOwnerIds();
-                            // Gets control-queue name to owner id dictionary.
-
-                            await Task.WhenAny(delayTask, controlQueueOwnerIdsTask);
-
-                            if (!controlQueueOwnerIdsTask.IsCompleted)
-                            {
-                                // [Logs] Add log for long running ControlQueueOwnerIdsFetch.
-                                // Structured logging: ControlQueueOwnerIdsFetchTerminated
-                                // -> TaskHubName: this.settings.TaskHubName
-                                // -> WorkerId: this.settings.WorkerId
-                                FileWriter.WriteLogControlQueueMonitor($"ControlQueueOwnerIdsFetchTerminated" +
-                                    $"duration: {stopwatch.ElapsedMilliseconds}" +
-                                    $"message: callback is taking too long to cmplete.");
-                            }
-                            else
-                            {
-                                controlQueueOwnerIds = controlQueueOwnerIdsTask.Result;
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            // [Logs] Add exception details for failure at fetching owners of control-queue.
-                            // Structured logging: ControlQueueOwnerIdsFetchFailed
+                            // [Logs] Add log for long running ControlQueueOwnerIdsFetch.
+                            // Structured logging: ControlQueueOwnerIdsFetchTerminated
                             // -> TaskHubName: this.settings.TaskHubName
                             // -> WorkerId: this.settings.WorkerId
-                            FileWriter.WriteLogControlQueueMonitor($"ControlQueueOwnerIdsFetchFailed" +
-                                $"exception: {ex.ToString()}" +
-                                $"message: failed to fetch owner ids for control-queues.");
+                            FileWriter.WriteLogControlQueueMonitor($"ControlQueueOwnerIdsFetchTerminated" +
+                                $"message: callback is taking too long to cmplete.");
                         }
-
-                        Parallel.ForEach(controlQueueOrchInstanceIds, async (controlQueueOrchInstanceId) =>
+                        else
                         {
-                            var controlQueueName = controlQueueOrchInstanceId.Key;
-                            var instanceId = controlQueueOrchInstanceId.Value;
-
-                            if ((controlQueueOwnerIds.Count == 0))
-                            {
-                                // If controlQueueOwnerIds was failed, run the callback with ownerId as null and ControlQueueHeartbeatDetectionInfo as ControlQueueOwnerFetchFailed.
-                                await RunCallBack(callBackControlQueueValidation, null, controlQueueName, instanceId, ControlQueueHeartbeatDetectionInfo.ControlQueueOwnerFetchFailed, cancellationToken);
-                            }
-                            else
-                            {
-                                var ownerId = controlQueueOwnerIds[controlQueueName];
-
-                                // Fetch orchestration instance and validate control-queue stuck.
-                                await ValidateControlQueueOrchestrationAsync(taskHubClient, callBackControlQueueValidation, ownerId, controlQueueName, instanceId, cancellationToken);
-                            }
-                        });
+                            controlQueueOwnerIds = controlQueueOwnerIdsTask.Result;
+                        }
                     }
-                }
-                catch (TaskCanceledException ex)
-                {
-                    // [Logs] Add exception details for task cancelation. This implies, one iteration took longer than time provided.
-                    // Structured logging: StartControlQueueHeartbeatMonitorTaskCanceled
-                    // -> TaskHubName: this.settings.TaskHubName
-                    // -> WorkerId: this.settings.WorkerId
-                    FileWriter.WriteLogControlQueueMonitor($"StartControlQueueHeartbeatMonitorTaskCanceled " +
-                        $"exception: {ex.ToString()}" +
-                        $"message: failed to complete full iteration within time provided.");
-                }
+                    catch (Exception ex)
+                    {
+                        // [Logs] Add exception details for failure at fetching owners of control-queue.
+                        // Structured logging: ControlQueueOwnerIdsFetchFailed
+                        // -> TaskHubName: this.settings.TaskHubName
+                        // -> WorkerId: this.settings.WorkerId
+                        FileWriter.WriteLogControlQueueMonitor($"ControlQueueOwnerIdsFetchFailed" +
+                            $"exception: {ex.ToString()}" +
+                            $"message: failed to fetch owner ids for control-queues.");
+                    }
 
+                    Parallel.ForEach(controlQueueOrchInstanceIds, async (controlQueueOrchInstanceId) =>
+                    {
+                        var controlQueueName = controlQueueOrchInstanceId.Key;
+                        var instanceId = controlQueueOrchInstanceId.Value;
+
+                        if ((controlQueueOwnerIds.Count == 0))
+                        {
+                            // If controlQueueOwnerIds was failed, run the callback with ownerId as null and ControlQueueHeartbeatDetectionInfo as ControlQueueOwnerFetchFailed.
+                            QueueCallBack(callBackControlQueueValidation, null, controlQueueName, instanceId, ControlQueueHeartbeatDetectionInfo.ControlQueueOwnerFetchFailed, cancellationToken);
+                        }
+                        else
+                        {
+                            var ownerId = controlQueueOwnerIds[controlQueueName];
+
+                            // Fetch orchestration instance and validate control-queue stuck.
+                            await ValidateControlQueueOrchestrationAsync(taskHubClient, callBackControlQueueValidation, ownerId, controlQueueName, instanceId, cancellationToken);
+                        }
+                    });
+                }
                 // Waiting for detection interval.
                 await taskWait;
             }
@@ -2179,7 +2165,7 @@ namespace DurableTask.AzureStorage
         }
 
         /// <inheritdoc/>
-        public async Task ScheduleControlQueueHeartbeatOrchestrationsAsync(TaskHubClient taskHubClient, bool force = false)
+        public async Task ScheduleControlQueueHeartbeatOrchestrationsAsync(TaskHubClient taskHubClient, CancellationToken cancellationToken, bool force = false)
         {
             // Validate taskhubclient.
             ValidateTaskHubClient(taskHubClient);
@@ -2189,6 +2175,11 @@ namespace DurableTask.AzureStorage
 
             foreach (var controlQueueOrchInstanceId in controlQueueOrchInstanceIds)
             {
+                if(cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+
                 var controlQueueName = controlQueueOrchInstanceId.Key;
                 var instanceId = controlQueueOrchInstanceId.Value;
 
@@ -2222,8 +2213,8 @@ namespace DurableTask.AzureStorage
 
                 // Creating the orchestration instance.
                 await taskHubClient.CreateOrchestrationInstanceAsync(
-                    ControlQueueHeartbeatTaskOrchestratorV1.OrchestrationName,
-                    ControlQueueHeartbeatTaskOrchestratorV1.OrchestrationVersion,
+                    ControlQueueHeartbeatTaskOrchestrator.OrchestrationName,
+                    ControlQueueHeartbeatTaskOrchestrator.OrchestrationVersion,
                     controlQueueOrchInstanceId.Value,
                     orchInput);
             }
@@ -2234,28 +2225,25 @@ namespace DurableTask.AzureStorage
         {
             ValidateTaskHubWorker(taskHubWorker);
 
-            if (!isControlQueueOrchestratorsRegistered)
+            // Creating initial context object for orchestration. 
+            // This context will be available for each orchestration ran of this type in the taskhubworker.
+            ControlQueueHeartbeatTaskOrchestrator controlQueueHeartbeatTaskOrchestrator = new ControlQueueHeartbeatTaskOrchestrator(
+                new ControlQueueHeartbeatTaskContext(
+                    this.settings.TaskHubName,
+                    this.settings.PartitionCount),
+                this.settings.ControlQueueHearbeatOrchestrationInterval,
+                callBack);
+
+            var objectCreator = new NameValueObjectCreator<TaskOrchestration>(ControlQueueHeartbeatTaskOrchestrator.OrchestrationName, ControlQueueHeartbeatTaskOrchestrator.OrchestrationVersion, controlQueueHeartbeatTaskOrchestrator);
+
+            try
             {
-                lock (controlQueueOrchestratorsRegistrationLock)
-                {
-                    if (!isControlQueueOrchestratorsRegistered)
-                    {
-                        // Creating initial context object for orchestration. 
-                        // This context will be available for each orchestration ran of this type in the taskhubworker.
-                        ControlQueueHeartbeatTaskOrchestratorV1 controlQueueHeartbeatTaskOrchestrator = new ControlQueueHeartbeatTaskOrchestratorV1(
-                            new ControlQueueHeartbeatTaskContext(
-                                this.settings.TaskHubName,
-                                this.settings.PartitionCount),
-                            this.settings.ControlQueueHearbeatOrchestrationInterval,
-                            callBack);
-
-                        var objectCreator = new NameValueObjectCreator<TaskOrchestration>(ControlQueueHeartbeatTaskOrchestratorV1.OrchestrationName, ControlQueueHeartbeatTaskOrchestratorV1.OrchestrationVersion, controlQueueHeartbeatTaskOrchestrator);
-
-                        // Think about if it should be made idempotent too, taskhubworker is independent of current instance of AzStorageOrchService.
-                        // Registering task orchestration. 
-                        taskHubWorker.AddTaskOrchestrations(objectCreator);
-                    }
-                }
+                // Registering task orchestration. 
+                taskHubWorker.AddTaskOrchestrations(objectCreator);
+            }
+            catch (InvalidOperationException)
+            {
+                // Ignoring it, as orchestration is already registered. This keeps the operation idempotent.
             }
         }
 
@@ -2367,7 +2355,7 @@ namespace DurableTask.AzureStorage
                     $"message: orchestration instance couldn't fetch in time.");
 
                 // Run the callback with ownerId and ControlQueueHeartbeatDetectionInfo as OrchestrationInstanceNotFound.
-                await RunCallBack(callBack, ownerId, controlQueueName, instanceId, ControlQueueHeartbeatDetectionInfo.OrchestrationInstanceNotFound, cancellationToken);
+                QueueCallBack(callBack, ownerId, controlQueueName, instanceId, ControlQueueHeartbeatDetectionInfo.OrchestrationInstanceNotFound, cancellationToken);
             }
 
             if (orchInstanceTask.Result == null)
@@ -2383,7 +2371,7 @@ namespace DurableTask.AzureStorage
                     $"message: orchestration instance not found.");
 
                 // Run the callback with ownerId and ControlQueueHeartbeatDetectionInfo as OrchestrationInstanceNotFound.
-                await RunCallBack(callBack, ownerId, controlQueueName, instanceId, ControlQueueHeartbeatDetectionInfo.OrchestrationInstanceFetchTimedOut, cancellationToken);
+                QueueCallBack(callBack, ownerId, controlQueueName, instanceId, ControlQueueHeartbeatDetectionInfo.OrchestrationInstanceFetchTimedOut, cancellationToken);
             }
             else
             {
@@ -2411,12 +2399,12 @@ namespace DurableTask.AzureStorage
                         $"currentTimeUTC: {currentTimeUTC.ToLongTimeString()}" +
                         $"message: orchestration instance is stuck.");
 
-                    await RunCallBack(callBack, ownerId, controlQueueName, instanceId, ControlQueueHeartbeatDetectionInfo.OrchestrationInstanceStuck, cancellationToken);
+                    QueueCallBack(callBack, ownerId, controlQueueName, instanceId, ControlQueueHeartbeatDetectionInfo.OrchestrationInstanceStuck, cancellationToken);
                 }
             }
         }
 
-        private async Task RunCallBack(
+        private void QueueCallBack(
             Func<string, string?, bool, string, string, ControlQueueHeartbeatDetectionInfo, CancellationToken, Task> callBack,
             string? ownerId,
             string controlQueueName,
@@ -2424,64 +2412,31 @@ namespace DurableTask.AzureStorage
             ControlQueueHeartbeatDetectionInfo controlQueueHeartbeatDetectionInfo,
             CancellationToken cancellationToken)
         {
-            Stopwatch stopwatch = Stopwatch.StartNew();
-            bool gotSemaphore = false;
+            var isControlQueueOwner = this.settings.WorkerId.Equals(ownerId);
 
-            try
+            if (!cancellationToken.IsCancellationRequested)
             {
-                // waiting on semaphore with timeout to avoid thread hogging and starvation.
-                gotSemaphore = await semaphoreSlimForControlQueueMonitorCallBack.WaitAsync(this.settings.ControlQueueOrchHeartbeatDetectionThreshold);
-
-                var isControlQueueOwner = this.settings.WorkerId.Equals(ownerId);
-
-                if (gotSemaphore)
-                {
-                    var delayTask = Task.Delay(this.settings.ControlQueueHearbeatOrchestrationInterval, cancellationToken);
-                    var callBackTask = callBack(this.settings.WorkerId, ownerId, isControlQueueOwner, controlQueueName, instanceId, controlQueueHeartbeatDetectionInfo, cancellationToken);
-
-                    // Do not allow callBackTask to run forever.
-                    await Task.WhenAll(callBackTask, delayTask);
-
-                    if (!callBackTask.IsCompleted)
+                // No wait to complete provided delegate. The current orchestrator need to be very thin and quick to run. 
+                bool isQueued = ThreadPool.QueueUserWorkItem(async (_) =>
                     {
-                        // [Logs] Add log for long running callback.
-                        // Structured logging: ControlQueueMonitorCallbackTerminated
-                        // -> TaskHubName: this.settings.TaskHubName
-                        // -> WorkerId: this.settings.WorkerId
-                        // -> instanceId: instanceId
-                        // -> controlQueueName: controlQueueName
-                        // -> duration: stopwatch.ElapsedMilliseconds
-                        FileWriter.WriteLogControlQueueMonitor($"ControlQueueMonitorCallbackTerminated" +
-                            $"controlQueueName: {controlQueueName}" +
-                            $"instanceId: {instanceId}" +
-                            $"duration: {stopwatch.ElapsedMilliseconds}" +
-                            $"message: callback is taking too long to cmplete.");
-                    }
-                }
-            }
-            // Not throwing anything beyond this.
-            catch (Exception ex)
-            {
-                // [Logs] Add log for callback failure.
-                // Structured logging: ControlQueueMonitorCallbackFailed
-                // -> TaskHubName: this.settings.TaskHubName
-                // -> WorkerId: this.settings.WorkerId
-                // -> instanceId: instanceId
-                // -> controlQueueName: controlQueueName
-                // -> duration: stopwatch.ElapsedMilliseconds
-                // -> exception: ex.ToString()
-                FileWriter.WriteLogControlQueueMonitor($"ControlQueueMonitorCallbackFailed " +
-                    $"controlQueueName: {controlQueueName}" +
-                    $"instanceId: {instanceId}" +
-                    $"Exception: {ex.ToString()} " + 
-                    $"ElapsedMilliseconds: {stopwatch.ElapsedMilliseconds} ");
-            }
-            // ensuring semaphore is released.
-            finally
-            {
-                if (gotSemaphore)
+                        await callBack(this.settings.WorkerId, ownerId, isControlQueueOwner, controlQueueName, instanceId, controlQueueHeartbeatDetectionInfo, cancellationToken);
+                    });
+
+                if (!isQueued)
                 {
-                    semaphoreSlimForControlQueueMonitorCallBack.Release();
+                    // Structured logging: MonitorControlQueueHeartbeatCallbackNotQueued
+                    // -> TaskHubName: this.settings.TaskHubName
+                    // -> WorkerId: this.settings.WorkerId
+                    // -> instanceId: instanceId
+                    // -> controlQueueName: controlQueueName
+                    // -> lastUpdatedTimeUTC: lastUpdatedTimeUTC.ToLongTimeString()
+                    // -> currentTimeUTC: currentTimeUTC.ToLongTimeString()
+                    FileWriter.WriteLogControlQueueMonitor($"MonitorControlQueueHeartbeatCallbackNotQueued" +
+                        $"controlQueueName: {controlQueueName}" +
+                        $"instanceId: {instanceId}" +
+                        $"isControlQueueOwner: {isControlQueueOwner}" +
+                        $"controlQueueHeartbeatDetectionInfo: {controlQueueHeartbeatDetectionInfo}" +
+                        $"message: callback couln't be queued.");
                 }
             }
         }
@@ -2559,9 +2514,7 @@ namespace DurableTask.AzureStorage
             return controlQueueOrchInstanceIds;
         }
 
-        private SemaphoreSlim semaphoreSlimForControlQueueMonitorCallBack;
-
-        private bool isControlQueueOrchestratorsRegistered = false;
+        private Task controlQueueTaskLoop;
 
         private object controlQueueOrchestratorsRegistrationLock = new object();
 

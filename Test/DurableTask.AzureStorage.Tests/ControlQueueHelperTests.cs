@@ -29,15 +29,18 @@ namespace DurableTask.AzureStorage.Tests
     [TestClass]
     public class ControlQueueHelperTests
     {
-        IControlQueueHelper controlQueueHelper;
-        AzureStorageOrchestrationService azureStorageOrchestrationService;
-        AzureStorageOrchestrationServiceSettings settings;
-        int partitionCount = 4;
-        Dictionary<string, int> controlQueueNumberToNameMap;
+        private IControlQueueHelper controlQueueHelper;
+        private AzureStorageOrchestrationService azureStorageOrchestrationService;
+        private AzureStorageOrchestrationServiceSettings settings;
+        private int partitionCount = 4;
+        private Dictionary<string, int> controlQueueNumberToNameMap;
+        private CancellationTokenSource cancellationTokenSource;
 
         [TestInitialize]
         public void Initialize()
         {
+            cancellationTokenSource = new CancellationTokenSource();
+
             settings = new AzureStorageOrchestrationServiceSettings()
             {
                 StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
@@ -97,9 +100,9 @@ namespace DurableTask.AzureStorage.Tests
 
             // Orchestrator registration completed.
             var objectCreator = new NameValueObjectCreator<TaskOrchestration>(
-                ControlQueueHeartbeatTaskOrchestratorV1.OrchestrationName,
-                ControlQueueHeartbeatTaskOrchestratorV1.OrchestrationVersion,
-                typeof(ControlQueueHeartbeatTaskOrchestratorV1));
+                ControlQueueHeartbeatTaskOrchestrator.OrchestrationName,
+                ControlQueueHeartbeatTaskOrchestrator.OrchestrationVersion,
+                typeof(ControlQueueHeartbeatTaskOrchestrator));
 
             Assert.ThrowsException<InvalidOperationException>(() => { taskHubWorker.AddTaskOrchestrations(objectCreator); });
 
@@ -143,7 +146,7 @@ namespace DurableTask.AzureStorage.Tests
             var utcBefore = DateTime.UtcNow;
 
             var taskHubClient = new TaskHubClient(azureStorageOrchestrationService);
-            await controlQueueHelper.ScheduleControlQueueHeartbeatOrchestrationsAsync(taskHubClient, true);
+            await controlQueueHelper.ScheduleControlQueueHeartbeatOrchestrationsAsync(taskHubClient, cancellationTokenSource.Token, true);
 
             var controlQueueToInstanceInfo = azureStorageOrchestrationService.GetControlQueueToInstanceIdInfo();
 
@@ -156,7 +159,7 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.IsTrue(orchIsntance.CreatedTime >= utcBefore && orchIsntance.CreatedTime <= utcNow);
             }
 
-            await controlQueueHelper.ScheduleControlQueueHeartbeatOrchestrationsAsync(taskHubClient, false);
+            await controlQueueHelper.ScheduleControlQueueHeartbeatOrchestrationsAsync(taskHubClient, cancellationTokenSource.Token, false);
 
             foreach (var instanceId in controlQueueToInstanceInfo.Values)
             {
@@ -182,7 +185,7 @@ namespace DurableTask.AzureStorage.Tests
 
             Assert.ThrowsExceptionAsync<ArgumentNullException>(async () =>
             {
-                await controlQueueHelper.ScheduleControlQueueHeartbeatOrchestrationsAsync(null);
+                await controlQueueHelper.ScheduleControlQueueHeartbeatOrchestrationsAsync(null, cancellationTokenSource.Token);
             });
 
             IOrchestrationServiceClient orchestrationService = new Mock<IOrchestrationServiceClient>().Object;
@@ -190,12 +193,12 @@ namespace DurableTask.AzureStorage.Tests
 
             Assert.ThrowsExceptionAsync<InvalidOperationException>(async () =>
             {
-                await controlQueueHelper.ScheduleControlQueueHeartbeatOrchestrationsAsync(taskHubClientDiff);
+                await controlQueueHelper.ScheduleControlQueueHeartbeatOrchestrationsAsync(taskHubClientDiff, cancellationTokenSource.Token);
             });
 
             Assert.ThrowsExceptionAsync<InvalidOperationException>(async () =>
             {
-                await controlQueueHelper.ScheduleControlQueueHeartbeatOrchestrationsAsync(taskHubClient);
+                await controlQueueHelper.ScheduleControlQueueHeartbeatOrchestrationsAsync(taskHubClient, cancellationTokenSource.Token);
             });
         }
 
@@ -206,9 +209,9 @@ namespace DurableTask.AzureStorage.Tests
             controlQueueHelper.RegisterControlQueueHeartbeatOrchestration(taskHubWorker, async (x, y, z, cancellationToken) => { await Task.CompletedTask; });
 
             var objectCreator = new NameValueObjectCreator<TaskOrchestration>(
-                ControlQueueHeartbeatTaskOrchestratorV1.OrchestrationName,
-                ControlQueueHeartbeatTaskOrchestratorV1.OrchestrationVersion,
-                typeof(ControlQueueHeartbeatTaskOrchestratorV1));
+                ControlQueueHeartbeatTaskOrchestrator.OrchestrationName,
+                ControlQueueHeartbeatTaskOrchestrator.OrchestrationVersion,
+                typeof(ControlQueueHeartbeatTaskOrchestrator));
 
             Assert.ThrowsException<InvalidOperationException>(() => { taskHubWorker.AddTaskOrchestrations(objectCreator); });
         }

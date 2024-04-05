@@ -15,7 +15,7 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
         /// </summary>
         /// <param name="taskHubClient">TaskHubClient object.</param>
         /// <param name="taskHubWorker">TaskHubWorker object.</param>
-        /// <param name="callBackHeartOrchAsync">Callback to run with each execution of the orchestrator of type <see cref="ControlQueueHeartbeatTaskOrchestratorV1"/>.</param>
+        /// <param name="callBackHeartOrchAsync">Callback to run with each execution of the orchestrator of type <see cref="ControlQueueHeartbeatTaskOrchestrator"/>.</param>
         /// <param name="callBackControlQueueValidation">Callback to run with each time the detects fault of type <see cref="ControlQueueHeartbeatDetectionInfo"/>.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>Task result.</returns>
@@ -28,18 +28,19 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
 #nullable disable
 
         /// <summary>
-        /// Adds orchestrator instances of type <see cref="ControlQueueHeartbeatTaskOrchestratorV1"/> for each control queue. 
+        /// Adds orchestrator instances of type <see cref="ControlQueueHeartbeatTaskOrchestrator"/> for each control queue. 
         /// </summary>
         /// <param name="taskHubClient">TaskHubClient object.</param>
+        /// <param name="cancellationToken">CancellationToken.</param>
         /// <param name="force">If true, creates new instances of orchestrator, otherwise creates only if there is no running instance of orchestrator with same instance id..</param>
         /// <returns>Task result.</returns>
-        Task ScheduleControlQueueHeartbeatOrchestrationsAsync(TaskHubClient taskHubClient, bool force = false);
+        Task ScheduleControlQueueHeartbeatOrchestrationsAsync(TaskHubClient taskHubClient, CancellationToken cancellationToken, bool force = false);
 
         /// <summary>
-        /// Adds orchestrator instance of type <see cref="ControlQueueHeartbeatTaskOrchestratorV1"/> to TaskHubWorkerObject.
+        /// Adds orchestrator instance of type <see cref="ControlQueueHeartbeatTaskOrchestrator"/> to TaskHubWorkerObject.
         /// </summary>
         /// <param name="taskHubWorker">TaskHubWorker object.</param>
-        /// <param name="callBackHeartOrchAsync">Callback to run with each execution of the orchestrator of type <see cref="ControlQueueHeartbeatTaskOrchestratorV1"/>.</param>
+        /// <param name="callBackHeartOrchAsync">Callback to run with each execution of the orchestrator of type <see cref="ControlQueueHeartbeatTaskOrchestrator"/>.</param>
         void RegisterControlQueueHeartbeatOrchestration(
             TaskHubWorker taskHubWorker, 
             Func<OrchestrationInstance, ControlQueueHeartbeatTaskInputContext, ControlQueueHeartbeatTaskContext, CancellationToken, Task> callBackHeartOrchAsync);

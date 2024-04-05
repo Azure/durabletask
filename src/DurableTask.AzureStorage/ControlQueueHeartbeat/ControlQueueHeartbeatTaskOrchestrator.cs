@@ -10,7 +10,7 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
     /// Control-queue heartbeat orchestrator.
     /// This is supposed to be initialized with ControlQueueHeartbeatTaskContext informing orchestrator about configuration of taskhubworker and heartbeat interval.
     /// </summary>
-    internal class ControlQueueHeartbeatTaskOrchestratorV1 : TaskOrchestration<string, ControlQueueHeartbeatTaskInputContext>
+    internal class ControlQueueHeartbeatTaskOrchestrator : TaskOrchestration<string, ControlQueueHeartbeatTaskInputContext>
     {
         public const string OrchestrationName = "ControlQueueHeartbeatTaskOrchestrator";
 
@@ -22,10 +22,10 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
 
         private Func<OrchestrationInstance, ControlQueueHeartbeatTaskInputContext, ControlQueueHeartbeatTaskContext, CancellationToken, Task> callBack;
 
-        private SemaphoreSlim semaphoreSlim;
+        private CancellationTokenSource cancellationTokenSrc;
 
         /// <summary>
-        /// ControlQueueHeartbeatTaskOrchestratorV1 constructor.
+        /// ControlQueueHeartbeatTaskOrchestrator constructor.
         /// </summary>
         /// <param name="controlQueueHeartbeatTaskContext">ControlQueueHeartbeatTaskContext object, informs about configuration of taskhubworker orchestrator is running in.</param>
         /// <param name="controlQueueHearbeatOrchestrationInterval">Interval between two heartbeats.</param>
@@ -33,7 +33,7 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
         ///     A callback to allow user process/emit custom metrics for heartbeat execution.
         /// </param>
         /// <exception cref="ArgumentNullException">Throws if provided ControlQueueHeartbeatTaskContext object is null.</exception>
-        internal ControlQueueHeartbeatTaskOrchestratorV1(
+        internal ControlQueueHeartbeatTaskOrchestrator(
             ControlQueueHeartbeatTaskContext controlQueueHeartbeatTaskContext,
             TimeSpan controlQueueHearbeatOrchestrationInterval,
             Func<OrchestrationInstance, ControlQueueHeartbeatTaskInputContext, ControlQueueHeartbeatTaskContext, CancellationToken, Task> callBack)
@@ -42,8 +42,7 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
             this.controlQueueHearbeatOrchestrationInterval = controlQueueHearbeatOrchestrationInterval;
             this.callBack = callBack;
 
-            // At worst case, allowing max of 2 heartbeat of a control-queue to run callbacks. 
-            this.semaphoreSlim = new SemaphoreSlim(2 * controlQueueHeartbeatTaskContext.PartitionCount);
+            this.cancellationTokenSrc = new CancellationTokenSource();
         }
 
         public override async Task<string> RunTask(OrchestrationContext context, ControlQueueHeartbeatTaskInputContext controlQueueHeartbeatTaskContextInput)
@@ -104,86 +103,11 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
                 // No wait to complete provided delegate. The current orchestrator need to be very thin and quick to run. 
                 bool isQueued = ThreadPool.QueueUserWorkItem(async (_) =>
                 {
-                    var gotSemaphore = await semaphoreSlim.WaitAsync(controlQueueHearbeatOrchestrationInterval);
-                    Stopwatch stopwatch = Stopwatch.StartNew();
-
-                    try
-                    {
-                        if (gotSemaphore)
-                        {
-                            var cancellationTokenSrc = new CancellationTokenSource();
-                            var delayTask = Task.Delay(controlQueueHearbeatOrchestrationInterval);
-                            var callBackTask = this.callBack(context.OrchestrationInstance, controlQueueHeartbeatTaskContextInput, controlQueueHeartbeatTaskContextInit, cancellationTokenSrc.Token);
-
-                            // Do not allow callBackTask to run forever.
-                            await Task.WhenAll(callBackTask, delayTask);
-
-                            if (!callBackTask.IsCompleted)
-                            {
-                                // [Logs] Add log for long running callback.
-                                // Structured logging: ControlQueueHeartbeatTaskOrchestratorCallbackTerminated
-                                // -> orchestrationInstance: context.OrchestrationInstance.ToString()
-                                // -> initialControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
-                                // -> inputControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
-                                // -> duration: stopwatchOrch.ElapsedMilliseconds
-                                FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorCallbackTerminated " +
-                                    $"OrchestrationInstance:{context.OrchestrationInstance} " +
-                                    $"controlQueueHeartbeatTaskContextInit:{controlQueueHeartbeatTaskContextInit}, " +
-                                    $"controlQueueHeartbeatTaskContextInput: {controlQueueHeartbeatTaskContextInput}" +
-                                    $"duration: {stopwatch.ElapsedMilliseconds}" +
-                                    $"message: callback is taking too long to cmplete.");
-                            }
-
-                            cancellationTokenSrc.Cancel();
-                        }
-                        else
-                        {
-                            // [Logs] Add log for too many callbacks running. Share the semaphore-count for #callBacks allowed, and wait time for semaphore; and ask to reduce the run-time for callback.
-                            // Structured logging: ControlQueueHeartbeatTaskOrchestratorTooManyActiveCallback
-                            // -> orchestrationInstance: context.OrchestrationInstance.ToString()
-                            // -> initialControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
-                            // -> inputControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
-                            // -> duration: stopwatchOrch.ElapsedMilliseconds
-                            FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorTooManyActiveCallback " +
-                                $"OrchestrationInstance:{context.OrchestrationInstance} " +
-                                $"controlQueueHeartbeatTaskContextInit:{controlQueueHeartbeatTaskContextInit}, " +
-                                $"controlQueueHeartbeatTaskContextInput: {controlQueueHeartbeatTaskContextInput}" +
-                                $"duration: {stopwatch.ElapsedMilliseconds}" +
-                                $"message: too many active callbacks, skipping runnning this instance of callback.");
-                        }
-                    }
-                    // Not throwing anything beyond this.
-                    catch (Exception ex)
-                    {
-                        // [Logs] Add exception details for callback failure.
-                        // Structured logging: ControlQueueHeartbeatTaskOrchestratorCallbackFailure
-                        // -> orchestrationInstance: context.OrchestrationInstance.ToString()
-                        // -> initialControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
-                        // -> inputControlQueueHeartbeatTaskContext: controlQueueHeartbeatTaskContextInit.ToString()
-                        // -> duration: stopwatchOrch.ElapsedMilliseconds
-                        // -> exception : ex.ToString()
-                        FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorCallbackFailure " +
-                            $"OrchestrationInstance:{context.OrchestrationInstance} " +
-                            $"controlQueueHeartbeatTaskContextInit:{controlQueueHeartbeatTaskContextInit}, " +
-                            $"controlQueueHeartbeatTaskContextInput: {controlQueueHeartbeatTaskContextInput}" +
-                            $"exception: {ex.ToString()}" +
-                            $"duration: {stopwatch.ElapsedMilliseconds}" +
-                            $"message: the task was failed.");
-                    }
-                    // ensuring semaphore is released.
-                    finally
-                    {
-                        if (gotSemaphore)
-                        {
-                            semaphoreSlim.Release();
-                        }
-                    }
+                    await this.callBack(context.OrchestrationInstance, controlQueueHeartbeatTaskContextInput, controlQueueHeartbeatTaskContextInit, this.cancellationTokenSrc.Token);
                 });
 
                 if (!isQueued)
                 {
-                    FileWriter.WriteLogControlQueueOrch($"ControlQueueHeartbeatTaskOrchestratorV1 Stopping OrchestrationInstance:{context.OrchestrationInstance} controlQueueHeartbeatTaskContextInit:{controlQueueHeartbeatTaskContextInit}, controlQueueHeartbeatTaskContextInput: {controlQueueHeartbeatTaskContextInput}");
-
                     // [Logs] Add log for a heartbeat message from current instance. 
                     // Structured logging: ControlQueueHeartbeatTaskOrchestratorCallbackNotQueued
                     // -> orchestrationInstance: context.OrchestrationInstance.ToString()
