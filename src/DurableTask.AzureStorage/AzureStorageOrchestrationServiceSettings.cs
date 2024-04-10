@@ -124,6 +124,11 @@ namespace DurableTask.AzureStorage
         public int MaxStorageOperationConcurrency { get; set; } = Environment.ProcessorCount * 25;
 
         /// <summary>
+        /// Max wait time to wait for semaphore to process after which log should be added.
+        /// </summary>
+        public int MaxWaitForSemaphoreLoggingInSeconds { get; set; } = 20;
+
+        /// <summary>
         /// Gets the maximum number of orchestrator actions to checkpoint at a time.
         /// </summary>
         public int MaxCheckpointBatchSize { get; set; }

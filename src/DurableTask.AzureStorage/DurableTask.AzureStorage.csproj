@@ -24,7 +24,7 @@
     <PatchVersion>1</PatchVersion>
 
     <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
-    <FileVersion>$(VersionPrefix).0</FileVersion>
+    <FileVersion>$(VersionPrefix)-semaphorelogs.4</FileVersion>
     <!-- FileVersionRevision is expected to be set by the CI. This is useful for distinguishing between multiple builds of the same version. -->
     <FileVersion Condition="'$(FileVersionRevision)' != ''">$(VersionPrefix).$(FileVersionRevision)</FileVersion>
     <!-- The assembly version is only the major/minor pair, making it easier to do in-place upgrades -->

@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage.Storage
 {
     using System;
+    using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Monitoring;
@@ -127,9 +128,16 @@ namespace DurableTask.AzureStorage.Storage
 
         private async Task<T> MakeStorageRequest<T>(Func<OperationContext, CancellationToken, Task<T>> storageRequest, string accountName, string operationName, string? clientRequestId = null, bool force = false)
         {
+            Guid guid = Guid.NewGuid();
+
             if (!force)
             {
+                var cTkWait = new CancellationTokenSource();
+                _ = WaitAndLog(guid, "Wait", cTkWait.Token);
+
                 await requestThrottleSemaphore.WaitAsync();
+
+                cTkWait.Cancel();
             }
 
             try
@@ -144,7 +152,12 @@ namespace DurableTask.AzureStorage.Storage
             {
                 if (!force)
                 {
+                    var cTkRelease = new CancellationTokenSource();
+                    _ = WaitAndLog(guid, "Release", cTkRelease.Token);
+
                     requestThrottleSemaphore.Release();
+
+                    cTkRelease.Cancel();
                 }
             }
         }
@@ -160,5 +173,28 @@ namespace DurableTask.AzureStorage.Storage
 
         private static string GetAccountName(StorageCredentials credentials, AzureStorageOrchestrationServiceSettings settings, StorageUri serviceUri, string service) =>
             credentials.AccountName ?? settings.StorageAccountDetails?.AccountName ?? serviceUri.GetAccountName(service) ?? "(unknown)";
+        
+        private async Task WaitAndLog(Guid guid, string waitOrRelease, CancellationToken cTk)
+        {
+            if (this.Settings.MaxWaitForSemaphoreLoggingInSeconds >= 0)
+            {
+                await Task.Delay(this.Settings.MaxWaitForSemaphoreLoggingInSeconds * 1000, cTk);
+
+                if (!cTk.IsCancellationRequested)
+                {
+                    StackTrace stackTrace = new StackTrace();
+
+                    this.Settings?.Logger.PartitionManagerInfo(
+                        this.Settings?.StorageAccountDetails?.AccountName,
+                        this.Settings?.TaskHubName,
+                        this.Settings?.WorkerId,
+                        string.Empty,
+                        $"Before {waitOrRelease} Id:{guid.ToString()}, processId: {Thread.CurrentThread.ManagedThreadId}" +
+                        $"| Semaphore currentCount = {requestThrottleSemaphore.CurrentCount}" +
+                        $"| Semaphore initialCount = {this.Settings?.MaxStorageOperationConcurrency}" +
+                        $"| StackTrace : {stackTrace.ToString()}");
+                }
+            }
+        }
     }
 }
