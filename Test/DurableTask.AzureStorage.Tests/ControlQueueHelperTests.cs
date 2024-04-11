@@ -48,7 +48,7 @@ namespace DurableTask.AzureStorage.Tests
                 PartitionCount = partitionCount,
                 ControlQueueHearbeatOrchestrationInterval = TimeSpan.FromSeconds(5),
                 ControlQueueOrchHeartbeatDetectionInterval = TimeSpan.FromSeconds(5),
-                ControlQueueOrchHeartbeatDetectionThreshold = TimeSpan.FromSeconds(5),
+                ControlQueueOrchHeartbeatLatencyThreshold = TimeSpan.FromSeconds(5),
             };
 
             azureStorageOrchestrationService = new AzureStorageOrchestrationService(settings);
@@ -106,7 +106,7 @@ namespace DurableTask.AzureStorage.Tests
 
             Assert.ThrowsException<InvalidOperationException>(() => { taskHubWorker.AddTaskOrchestrations(objectCreator); });
 
-            await Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval + this.settings.ControlQueueOrchHeartbeatDetectionThreshold);
+            await Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval + this.settings.ControlQueueOrchHeartbeatLatencyThreshold);
 
             var detectionCountDuplicate = new Dictionary<string, int>();
 
@@ -118,7 +118,7 @@ namespace DurableTask.AzureStorage.Tests
             }
 
 
-            await Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval + this.settings.ControlQueueOrchHeartbeatDetectionThreshold);
+            await Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval + this.settings.ControlQueueOrchHeartbeatLatencyThreshold);
             cancellationTokenSrc.Cancel();
 
             // Give it some time to cancel the ongoing operations.
@@ -131,7 +131,7 @@ namespace DurableTask.AzureStorage.Tests
                 detectionCountDuplicate[controlQueueName] = detectionCount[controlQueueName];
             }
 
-            await Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval + this.settings.ControlQueueOrchHeartbeatDetectionThreshold);
+            await Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval + this.settings.ControlQueueOrchHeartbeatLatencyThreshold);
 
             // Should trigger delegate for control-queue stuck.
             foreach (var controlQueueName in controlQueueToInstanceInfo.Keys)

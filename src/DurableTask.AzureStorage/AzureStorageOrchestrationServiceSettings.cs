@@ -36,7 +36,7 @@ namespace DurableTask.AzureStorage
 
         internal static readonly TimeSpan DefaultControlQueueOrchHeartbeatDetectionInterval = TimeSpan.FromSeconds(600);
 
-        internal static readonly TimeSpan DefaultControlQueueOrchHeartbeatDetectionThreshold = TimeSpan.FromSeconds(600);
+        internal static readonly TimeSpan DefaultControlQueueOrchHeartbeatLatencyThreshold = TimeSpan.FromSeconds(600);
 
         LogHelper logHelper;
 
@@ -189,14 +189,14 @@ namespace DurableTask.AzureStorage
         public TimeSpan ControlQueueHearbeatOrchestrationInterval { get; set; } = DefaultControlQueueHearbeatOrchestrationInterval;
 
         /// <summary>
-        /// Time interval between control queue heartbeat orchestration.
+        /// Time interval between control queue heartbeat detection.
         /// </summary>
         public TimeSpan ControlQueueOrchHeartbeatDetectionInterval { get; set; } = DefaultControlQueueOrchHeartbeatDetectionInterval;
 
         /// <summary>
-        /// Time interval between control queue heartbeat orchestration.
+        /// Time threshold for latency in control queue heartbeat.
         /// </summary>
-        public TimeSpan ControlQueueOrchHeartbeatDetectionThreshold { get; set; } = DefaultControlQueueOrchHeartbeatDetectionThreshold;
+        public TimeSpan ControlQueueOrchHeartbeatLatencyThreshold { get; set; } = DefaultControlQueueOrchHeartbeatLatencyThreshold;
 
         /// <summary>
         /// If true, takes a lease on the task hub container, allowing for only one app to process messages in a task hub at a time.

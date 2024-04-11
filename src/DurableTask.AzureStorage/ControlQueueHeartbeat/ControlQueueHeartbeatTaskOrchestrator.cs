@@ -93,6 +93,7 @@ namespace DurableTask.AzureStorage.ControlQueueHeartbeat
             if (!context.IsReplaying)
             {
                 // No wait to complete provided delegate. The current orchestrator need to be very thin and quick to run. 
+                // This is queued as independently to avoid long running callbacks and safe guard the orchestrator for its frequency and failures occur in callbacks. 
                 bool isQueued = ThreadPool.QueueUserWorkItem(async (_) =>
                 {
                     await this.callBack(context.OrchestrationInstance, controlQueueHeartbeatTaskContextInput, controlQueueHeartbeatTaskContextInit, this.cancellationTokenSrc.Token);

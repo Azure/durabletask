@@ -246,9 +246,9 @@ namespace DurableTask.AzureStorage
                 throw new ArgumentNullException(nameof(settings), $"A {nameof(settings.TaskHubName)} value must be configured in the settings.");
             }
 
-            if (settings.ControlQueueHearbeatOrchestrationInterval > settings.ControlQueueOrchHeartbeatDetectionThreshold)
+            if (settings.ControlQueueHearbeatOrchestrationInterval > settings.ControlQueueOrchHeartbeatLatencyThreshold)
             {
-                throw new ArgumentException(nameof(settings), $"{nameof(settings.ControlQueueHearbeatOrchestrationInterval)} must not be more than {nameof(settings.ControlQueueOrchHeartbeatDetectionThreshold)}");
+                throw new ArgumentException(nameof(settings), $"{nameof(settings.ControlQueueHearbeatOrchestrationInterval)} must not be more than {nameof(settings.ControlQueueOrchHeartbeatLatencyThreshold)}");
             }
 
             // TODO: More validation.
@@ -2064,6 +2064,12 @@ namespace DurableTask.AzureStorage
             Func<string, string?, bool, string, string, ControlQueueHeartbeatDetectionInfo, CancellationToken, Task> callBackControlQueueValidation,
             CancellationToken cancellationToken)
         {
+            if(controlQueueTaskStarted)
+            {
+                // [Logs] Add log for not starting again.
+                return;
+            }
+
             // Validate if taskHubClient and taskHubWorker used is of correct type and settings.
             ValidateTaskHubClient(taskHubClient);
             ValidateTaskHubWorker(taskHubWorker);
@@ -2077,6 +2083,9 @@ namespace DurableTask.AzureStorage
             // Gets control-queue name to orchestrator instance id dictionary.
             Dictionary<string, string> controlQueueOrchInstanceIds = GetControlQueueToInstanceIdInfo();
 
+            // started
+            controlQueueTaskStarted = true;
+
             // Keeping it alive.
             controlQueueTaskLoop = StartControlQueueHeartbeatValidationLoop(taskHubClient, callBackControlQueueValidation, controlQueueOrchInstanceIds, cancellationToken);
         }
@@ -2087,81 +2096,90 @@ namespace DurableTask.AzureStorage
             Dictionary<string, string> controlQueueOrchInstanceIds, 
             CancellationToken cancellationToken)
         {
-            // Waiting for detection interval initial to give time to worker to allow some draining of messages from control-queue.
-            await Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval, cancellationToken);
-
-            while (!cancellationToken.IsCancellationRequested)
+            try
             {
-                var taskWait = Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval);
+                // Waiting for detection interval initial to give time to worker to allow some draining of messages from control-queue.
+                await Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval, cancellationToken);
 
-                if (!cancellationToken.IsCancellationRequested)
+                while (!cancellationToken.IsCancellationRequested && controlQueueTaskStarted)
                 {
-                    Dictionary<string, string?> controlQueueOwnerIds = new Dictionary<string, string?>();
+                    var taskWait = Task.Delay(this.settings.ControlQueueOrchHeartbeatDetectionInterval);
 
-                    try
+                    if (!cancellationToken.IsCancellationRequested)
                     {
-                        // Make it time boxed.
-                        var delayTask = Task.Delay(this.settings.ControlQueueHearbeatOrchestrationInterval, cancellationToken);
+                        Dictionary<string, string?> controlQueueOwnerIds = new Dictionary<string, string?>();
 
-                        // Gets control-queue name to owner id dictionary.
-                        var controlQueueOwnerIdsTask = GetControlQueueOwnerIds();
-
-                        // helps in deciding its time boxed.
-                        await Task.WhenAny(delayTask, controlQueueOwnerIdsTask);
-
-                        if (!controlQueueOwnerIdsTask.IsCompleted)
+                        try
                         {
-                            // [Logs] Add log for long running ControlQueueOwnerIdsFetch.
-                            // Structured logging: ControlQueueOwnerIdsFetchTerminated
+                            // Make it time boxed.
+                            var delayTask = Task.Delay(this.settings.ControlQueueHearbeatOrchestrationInterval, cancellationToken);
+
+                            // Gets control-queue name to owner id dictionary.
+                            var controlQueueOwnerIdsTask = GetControlQueueOwnerIds();
+
+                            // helps in deciding its time boxed.
+                            await Task.WhenAny(delayTask, controlQueueOwnerIdsTask);
+
+                            if (!controlQueueOwnerIdsTask.IsCompleted)
+                            {
+                                // [Logs] Add log for long running ControlQueueOwnerIdsFetch.
+                                // Structured logging: ControlQueueOwnerIdsFetchTerminated
+                                // -> TaskHubName: this.settings.TaskHubName
+                                // -> WorkerId: this.settings.WorkerId
+                                FileWriter.WriteLogControlQueueMonitor($"ControlQueueOwnerIdsFetchTerminated" +
+                                    $"message: callback is taking too long to cmplete.");
+                            }
+                            else
+                            {
+                                controlQueueOwnerIds = controlQueueOwnerIdsTask.Result;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            // [Logs] Add exception details for failure at fetching owners of control-queue.
+                            // Structured logging: ControlQueueOwnerIdsFetchFailed
                             // -> TaskHubName: this.settings.TaskHubName
                             // -> WorkerId: this.settings.WorkerId
-                            FileWriter.WriteLogControlQueueMonitor($"ControlQueueOwnerIdsFetchTerminated" +
-                                $"message: callback is taking too long to cmplete.");
+                            FileWriter.WriteLogControlQueueMonitor($"ControlQueueOwnerIdsFetchFailed" +
+                                $"exception: {ex.ToString()}" +
+                                $"message: failed to fetch owner ids for control-queues.");
                         }
-                        else
+
+                        Parallel.ForEach(controlQueueOrchInstanceIds, async (controlQueueOrchInstanceId) =>
                         {
-                            controlQueueOwnerIds = controlQueueOwnerIdsTask.Result;
-                        }
+                            var controlQueueName = controlQueueOrchInstanceId.Key;
+                            var instanceId = controlQueueOrchInstanceId.Value;
+
+                            if ((controlQueueOwnerIds.Count == 0))
+                            {
+                                // If controlQueueOwnerIds was failed, run the callback with ownerId as null and ControlQueueHeartbeatDetectionInfo as ControlQueueOwnerFetchFailed.
+                                QueueCallBack(callBackControlQueueValidation, null, controlQueueName, instanceId, ControlQueueHeartbeatDetectionInfo.ControlQueueOwnerFetchFailed, cancellationToken);
+                            }
+                            else
+                            {
+                                var ownerId = controlQueueOwnerIds[controlQueueName];
+
+                                // Fetch orchestration instance and validate control-queue stuck.
+                                await ValidateControlQueueOrchestrationAsync(taskHubClient, callBackControlQueueValidation, ownerId, controlQueueName, instanceId, cancellationToken);
+                            }
+                        });
                     }
-                    catch (Exception ex)
-                    {
-                        // [Logs] Add exception details for failure at fetching owners of control-queue.
-                        // Structured logging: ControlQueueOwnerIdsFetchFailed
-                        // -> TaskHubName: this.settings.TaskHubName
-                        // -> WorkerId: this.settings.WorkerId
-                        FileWriter.WriteLogControlQueueMonitor($"ControlQueueOwnerIdsFetchFailed" +
-                            $"exception: {ex.ToString()}" +
-                            $"message: failed to fetch owner ids for control-queues.");
-                    }
-
-                    Parallel.ForEach(controlQueueOrchInstanceIds, async (controlQueueOrchInstanceId) =>
-                    {
-                        var controlQueueName = controlQueueOrchInstanceId.Key;
-                        var instanceId = controlQueueOrchInstanceId.Value;
-
-                        if ((controlQueueOwnerIds.Count == 0))
-                        {
-                            // If controlQueueOwnerIds was failed, run the callback with ownerId as null and ControlQueueHeartbeatDetectionInfo as ControlQueueOwnerFetchFailed.
-                            QueueCallBack(callBackControlQueueValidation, null, controlQueueName, instanceId, ControlQueueHeartbeatDetectionInfo.ControlQueueOwnerFetchFailed, cancellationToken);
-                        }
-                        else
-                        {
-                            var ownerId = controlQueueOwnerIds[controlQueueName];
-
-                            // Fetch orchestration instance and validate control-queue stuck.
-                            await ValidateControlQueueOrchestrationAsync(taskHubClient, callBackControlQueueValidation, ownerId, controlQueueName, instanceId, cancellationToken);
-                        }
-                    });
+                    // Waiting for detection interval.
+                    await taskWait;
                 }
-                // Waiting for detection interval.
-                await taskWait;
             }
+            finally
+            {
+                controlQueueTaskStarted = false;
 
-            // Structured logging: StartControlQueueHeartbeatMonitorCancellationRequested
-            // -> TaskHubName: this.settings.TaskHubName
-            // -> WorkerId: this.settings.WorkerId
-            FileWriter.WriteLogControlQueueMonitor($"StartControlQueueHeartbeatMonitorCancellationRequested " +
-                $"message: failed to complete full iteration within time provided.");
+                // Structured logging: StartControlQueueHeartbeatMonitorStopped
+                // -> TaskHubName: this.settings.TaskHubName
+                // -> WorkerId: this.settings.WorkerId
+                // -> IsCancellationRequested = cancellationToken.IsCancellationRequested 
+                FileWriter.WriteLogControlQueueMonitor($"StartControlQueueHeartbeatMonitorCancellationRequested " +
+                    $"message: Stopped. " +
+                    $"IsCancellationRequested = {cancellationToken.IsCancellationRequested}");
+            }
         }
 
         /// <inheritdoc/>
@@ -2382,7 +2400,7 @@ namespace DurableTask.AzureStorage
                 var diffInSeconds = currentTimeUTC - lastUpdatedTimeUTC;
 
                 // If difference in last updated time and current time is greater than threshold, then log the 'OrchestrationInstanceStuck' and run callback.
-                if (this.settings.ControlQueueOrchHeartbeatDetectionThreshold < diffInSeconds)
+                if (this.settings.ControlQueueOrchHeartbeatLatencyThreshold < diffInSeconds)
                 {
                     // orchestrator instance not found in control-queue..
                     // Structured logging: OrchestrationInstanceStuck
@@ -2515,6 +2533,8 @@ namespace DurableTask.AzureStorage
         }
 
         private Task controlQueueTaskLoop;
+
+        private bool controlQueueTaskStarted = false;
 
         private object controlQueueOrchestratorsRegistrationLock = new object();
 
