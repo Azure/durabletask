@@ -19,9 +19,12 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using Azure;
+    using Azure.Data.Tables;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
     using DurableTask.AzureStorage.Storage;
+    using Microsoft.WindowsAzure.Storage.Table;
 
     class ControlQueue : TaskHubQueue, IDisposable
     {
@@ -102,6 +105,30 @@ namespace DurableTask.AzureStorage.Messaging
                         var batchMessages = new ConcurrentBag<MessageData>();
                         await batch.ParallelForEachAsync(async delegate (QueueMessage queueMessage)
                         {
+                            // if deuque count is large, just flag it as poison. Don't even deserialize it!
+                            if (queueMessage.DequeueCount > 5) // TODO: make configurable
+                            {
+                                var poisonMessage = new DynamicTableEntity(this.Name, "")
+                                {
+                                    Properties =
+                                    {
+                                        ["TheFullMessage"] = new EntityProperty(queueMessage.Message)
+                                    }
+                                };
+
+                                // add to poison table
+                                var poisonMessagesTable = this.azureStorageClient.GetTableReference("PoisonMessagesTable");
+                                await poisonMessagesTable.CreateIfNotExistsAsync();
+                                await poisonMessagesTable.InsertAsync(poisonMessage);
+
+                                // delete from queue so it doesn't get processed again.
+                                await this.storageQueue.DeleteMessageAsync(queueMessage);
+
+                                // TODO: here we should do a forceful update in the instance table. The code doesn't seem to make that easy today :(
+                                return; // ignore this message completely
+                            }
+
+
                             MessageData messageData;
                             try
                             {
