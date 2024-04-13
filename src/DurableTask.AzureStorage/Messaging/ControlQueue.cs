@@ -24,6 +24,7 @@ namespace DurableTask.AzureStorage.Messaging
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
     using DurableTask.AzureStorage.Storage;
+    using DurableTask.Core;
     using Microsoft.WindowsAzure.Storage.Table;
 
     class ControlQueue : TaskHubQueue, IDisposable
@@ -105,6 +106,7 @@ namespace DurableTask.AzureStorage.Messaging
                         var batchMessages = new ConcurrentBag<MessageData>();
                         await batch.ParallelForEachAsync(async delegate (QueueMessage queueMessage)
                         {
+                            bool isPoison = false;
                             // if deuque count is large, just flag it as poison. Don't even deserialize it!
                             if (queueMessage.DequeueCount > 5) // TODO: make configurable
                             {
@@ -124,9 +126,11 @@ namespace DurableTask.AzureStorage.Messaging
                                 // delete from queue so it doesn't get processed again.
                                 await this.storageQueue.DeleteMessageAsync(queueMessage);
 
-                                // TODO: here we should do a forceful update in the instance table. The code doesn't seem to make that easy today :(
+                                // since isPoison is `true`, we'll override the deserialized message w/ a suspend event
+                                isPoison = true;
                                 return; // ignore this message completely
                             }
+
 
 
                             MessageData messageData;
@@ -134,7 +138,7 @@ namespace DurableTask.AzureStorage.Messaging
                             {
                                 messageData = await this.messageManager.DeserializeQueueMessageAsync(
                                     queueMessage,
-                                    this.storageQueue.Name);
+                                    this.storageQueue.Name,isPoison);
                             }
                             catch (Exception e)
                             {

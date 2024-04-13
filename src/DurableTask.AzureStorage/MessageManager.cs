@@ -22,6 +22,7 @@ namespace DurableTask.AzureStorage
     using System.Text;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Storage;
+    using DurableTask.Core.History;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Serialization;
 
@@ -139,9 +140,18 @@ namespace DurableTask.AzureStorage
             return false;
         }
 
-        public async Task<MessageData> DeserializeQueueMessageAsync(QueueMessage queueMessage, string queueName)
+        public async Task<MessageData> DeserializeQueueMessageAsync(QueueMessage queueMessage, string queueName, bool isPoison = false)
         {
+            // TODO: if it's poison, we should consider the possibility that deserialization fails. In that case, it may be impossible
+            // to properly transition an orchestrator to the failed state :( . But we can move the poison message to a poison queue.
             MessageData envelope = this.DeserializeMessageData(queueMessage.Message);
+
+            // override HistoryEvent w/ a suspend event if it's a poisonMessage
+            if (isPoison)
+            {
+                ExecutionSuspendedEvent suspendEvent = new ExecutionSuspendedEvent(-1, "poison message detected");
+                envelope.TaskMessage.Event = suspendEvent;
+            }
 
             if (!string.IsNullOrEmpty(envelope.CompressedBlobName))
             {
