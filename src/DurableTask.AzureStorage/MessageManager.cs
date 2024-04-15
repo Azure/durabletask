@@ -149,7 +149,7 @@ namespace DurableTask.AzureStorage
             // override HistoryEvent w/ a suspend event if it's a poisonMessage
             if (isPoison)
             {
-                ExecutionSuspendedEvent suspendEvent = new ExecutionSuspendedEvent(-1, "poison message detected");
+                ExecutionTerminatedEvent suspendEvent = new ExecutionTerminatedEvent(-1, "poison message detected");
                 envelope.TaskMessage.Event = suspendEvent;
             }
 
