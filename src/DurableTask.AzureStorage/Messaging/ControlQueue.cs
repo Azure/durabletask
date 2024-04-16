@@ -56,7 +56,7 @@ namespace DurableTask.AzureStorage.Messaging
             var queueMessage = messageData.OriginalQueueMessage;
 
             // if deuque count is large, just flag it as poison. Don't even deserialize it!
-            if (queueMessage.DequeueCount > 0) // TODO: make configurable
+            if (queueMessage.DequeueCount > 5) // TODO: make configurable
             {
                 var poisonMessage = new DynamicTableEntity(queueMessage.Id, this.Name)
                 {

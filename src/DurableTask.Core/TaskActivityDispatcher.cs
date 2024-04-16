@@ -192,6 +192,12 @@ namespace DurableTask.Core
 
                         try
                         {
+                            if (scheduledEvent.IsPoison)
+                            {
+                                var exception = new TaskFailureException("poison activity message detected!", details: "poison activity message detected!");
+                                throw exception;
+                            }
+
                             string? output = await taskActivity.RunAsync(context, scheduledEvent.Input);
                             responseEvent = new TaskCompletedEvent(-1, scheduledEvent.EventId, output);
                         }

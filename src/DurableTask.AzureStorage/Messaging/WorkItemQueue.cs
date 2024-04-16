@@ -17,6 +17,7 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Storage;
+    using Microsoft.WindowsAzure.Storage.Table;
 
     class WorkItemQueue : TaskHubQueue
     {
@@ -29,6 +30,37 @@ namespace DurableTask.AzureStorage.Messaging
         }
 
         protected override TimeSpan MessageVisibilityTimeout => this.settings.WorkItemQueueVisibilityTimeout;
+
+        private async Task HandleIfPoisonMessageAsync(MessageData messageData)
+        {
+            // TODO: put in superclass?
+            var isPoison = false;
+            var queueMessage = messageData.OriginalQueueMessage;
+
+            // if deuque count is large, just flag it as poison. Don't even deserialize it!
+            if (queueMessage.DequeueCount > 5) // TODO: make configurable
+            {
+                var poisonMessage = new DynamicTableEntity(queueMessage.Id, this.Name)
+                {
+                    Properties =
+                    {
+                        ["TheFullMessage"] = new EntityProperty(queueMessage.Message)
+                    }
+                };
+
+                // add to poison table
+                var poisonMessagesTable = this.azureStorageClient.GetTableReference("PoisonMessagesTable");
+                await poisonMessagesTable.CreateIfNotExistsAsync();
+                await poisonMessagesTable.InsertAsync(poisonMessage);
+
+                // delete from queue so it doesn't get processed again.
+                await this.storageQueue.DeleteMessageAsync(queueMessage);
+
+                // since isPoison is `true`, we'll override the deserialized message w/ a suspend event
+                isPoison = true;
+            }
+            messageData.TaskMessage.Event.IsPoison = isPoison;
+        }
 
         public async Task<MessageData> GetMessageAsync(CancellationToken cancellationToken)
         {
@@ -44,9 +76,11 @@ namespace DurableTask.AzureStorage.Messaging
                         continue;
                     }
 
+                    // TODO: maybe the message manager should handle the poison?
                     MessageData data = await this.messageManager.DeserializeQueueMessageAsync(
                         queueMessage,
                         this.storageQueue.Name);
+                    await this.HandleIfPoisonMessageAsync(data);
 
                     this.backoffHelper.Reset();
                     return data;
