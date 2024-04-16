@@ -19,13 +19,9 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using Azure;
-    using Azure.Data.Tables;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
     using DurableTask.AzureStorage.Storage;
-    using DurableTask.Core;
-    using Microsoft.WindowsAzure.Storage.Table;
 
     class ControlQueue : TaskHubQueue, IDisposable
     {
