@@ -60,7 +60,6 @@ namespace DurableTask.AzureStorage.Messaging
 
         public async Task HandleIfPoisonMessageAsync(MessageData messageData)
         {
-            var isPoison = false;
             var queueMessage = messageData.OriginalQueueMessage;
 
             if (queueMessage.DequeueCount > this.settings.PoisonMessageDeuqueCountThreshold)
