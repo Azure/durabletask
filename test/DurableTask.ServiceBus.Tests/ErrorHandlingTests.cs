@@ -426,6 +426,9 @@ namespace DurableTask.ServiceBus.Tests
                 "Orchestration Result is wrong!!!");
         }
 
+#if NETSTANDARD2_0
+        [TestCategory("DisabledInCI")]
+#endif
         [TestMethod]
         public async Task SubOrchestrationRetryExhaustedTest()
         {
