@@ -426,7 +426,7 @@ namespace DurableTask.ServiceBus.Tests
                 "Orchestration Result is wrong!!!");
         }
 
-#if NETSTANDARD2_0
+#if NETCOREAPP
         [TestCategory("DisabledInCI")]
 #endif
         [TestMethod]
