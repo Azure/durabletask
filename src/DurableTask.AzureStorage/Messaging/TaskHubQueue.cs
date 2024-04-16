@@ -85,6 +85,7 @@ namespace DurableTask.AzureStorage.Messaging
                 // since isPoison is `true`, we'll override the deserialized message w/ a suspend event
                 messageData.TaskMessage.Event.IsPoison = true;
 
+                // provide guidance, which is backend-specific
                 string guidance = $"Queue message ID '{queueMessage.Id}' was dequeued {queueMessage.DequeueCount} times," +
                     $" which is greater than the threshold poison message threshold ({maxThreshold}). " +
                     $"The message has been moved to the '{poisonMessageTableName}' table for manual review. " +
