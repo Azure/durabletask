@@ -83,9 +83,8 @@ namespace DurableTask.AzureStorage.Messaging
                 await this.storageQueue.DeleteMessageAsync(queueMessage);
 
                 // since isPoison is `true`, we'll override the deserialized message w/ a suspend event
-                isPoison = true;
+                messageData.TaskMessage.Event.IsPoison = true;
             }
-            messageData.TaskMessage.Event.IsPoison = isPoison;
         }
 
         public string Name => this.storageQueue.Name;
