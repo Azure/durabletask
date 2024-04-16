@@ -31,37 +31,6 @@ namespace DurableTask.AzureStorage.Messaging
 
         protected override TimeSpan MessageVisibilityTimeout => this.settings.WorkItemQueueVisibilityTimeout;
 
-        private async Task HandleIfPoisonMessageAsync(MessageData messageData)
-        {
-            // TODO: put in superclass?
-            var isPoison = false;
-            var queueMessage = messageData.OriginalQueueMessage;
-
-            // if deuque count is large, just flag it as poison. Don't even deserialize it!
-            if (queueMessage.DequeueCount > this.settings.PoisonMessageDeuqueCountThreshold) // TODO: make configurable
-            {
-                var poisonMessage = new DynamicTableEntity(queueMessage.Id, this.Name)
-                {
-                    Properties =
-                    {
-                        ["RawMessage"] = new EntityProperty(queueMessage.Message)
-                    }
-                };
-
-                // add to poison table
-                var poisonMessageTableName = this.settings.TaskHubName.ToLowerInvariant() + "-poison";
-                var poisonMessagesTable = this.azureStorageClient.GetTableReference(poisonMessageTableName); await poisonMessagesTable.CreateIfNotExistsAsync();
-                await poisonMessagesTable.InsertAsync(poisonMessage);
-
-                // delete from queue so it doesn't get processed again.
-                await this.storageQueue.DeleteMessageAsync(queueMessage);
-
-                // since isPoison is `true`, we'll override the deserialized message w/ a suspend event
-                isPoison = true;
-            }
-            messageData.TaskMessage.Event.IsPoison = isPoison;
-        }
-
         public async Task<MessageData> GetMessageAsync(CancellationToken cancellationToken)
         {
             while (!cancellationToken.IsCancellationRequested)

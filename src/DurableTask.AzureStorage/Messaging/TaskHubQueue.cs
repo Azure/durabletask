@@ -22,6 +22,7 @@ namespace DurableTask.AzureStorage.Messaging
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
     using DurableTask.Core.History;
+    using Microsoft.WindowsAzure.Storage.Table;
 
     abstract class TaskHubQueue
     {
@@ -55,6 +56,36 @@ namespace DurableTask.AzureStorage.Messaging
             }
 
             this.backoffHelper = new BackoffPollingHelper(minPollingDelay, maxPollingDelay);
+        }
+
+        public async Task HandleIfPoisonMessageAsync(MessageData messageData)
+        {
+            var isPoison = false;
+            var queueMessage = messageData.OriginalQueueMessage;
+
+            if (queueMessage.DequeueCount > this.settings.PoisonMessageDeuqueCountThreshold)
+            {
+                var poisonMessage = new DynamicTableEntity(queueMessage.Id, this.Name)
+                {
+                    Properties =
+                    {
+                        ["RawMessage"] = new EntityProperty(queueMessage.Message)
+                    }
+                };
+
+                // add to poison table
+                var poisonMessageTableName = this.settings.TaskHubName.ToLowerInvariant() + "-poison";
+                var poisonMessagesTable = this.azureStorageClient.GetTableReference(poisonMessageTableName);
+                await poisonMessagesTable.CreateIfNotExistsAsync();
+                await poisonMessagesTable.InsertAsync(poisonMessage);
+
+                // delete from queue so it doesn't get processed again.
+                await this.storageQueue.DeleteMessageAsync(queueMessage);
+
+                // since isPoison is `true`, we'll override the deserialized message w/ a suspend event
+                isPoison = true;
+            }
+            messageData.TaskMessage.Event.IsPoison = isPoison;
         }
 
         public string Name => this.storageQueue.Name;
