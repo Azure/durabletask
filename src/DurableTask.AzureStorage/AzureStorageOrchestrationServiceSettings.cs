@@ -118,6 +118,11 @@ namespace DurableTask.AzureStorage
         public int MaxConcurrentTaskEntityWorkItems { get; set; } = 100;
 
         /// <summary>
+        /// Gets or sets the maximum dequeue count of any message before it is flagged as a "poison message".
+        /// The default value is 20.
+        /// </summary>
+        public int PoisonMessageDeuqueCountThreshold { get; set; } = 20;
+        /// <summary>
         /// Gets or sets the maximum number of concurrent storage operations that can be executed in the context
         /// of a single orchestration instance.
         /// </summary>

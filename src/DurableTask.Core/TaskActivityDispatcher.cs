@@ -194,7 +194,9 @@ namespace DurableTask.Core
                         {
                             if (scheduledEvent.IsPoison)
                             {
-                                var exception = new TaskFailureException("poison activity message detected!", details: "poison activity message detected!");
+                                // TODO: improve wording here
+                                var errorMessage = $"The activity invocation request for '{scheduledEvent.Name}' was labeled a 'poison message'.";
+                                var exception = new TaskFailureException(errorMessage, details: errorMessage);
                                 throw exception;
                             }
 

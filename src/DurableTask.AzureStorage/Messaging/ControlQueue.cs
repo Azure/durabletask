@@ -55,19 +55,19 @@ namespace DurableTask.AzureStorage.Messaging
             var isPoison = false;
             var queueMessage = messageData.OriginalQueueMessage;
 
-            // if deuque count is large, just flag it as poison. Don't even deserialize it!
-            if (queueMessage.DequeueCount > 5) // TODO: make configurable
+            if (queueMessage.DequeueCount > this.settings.PoisonMessageDeuqueCountThreshold)
             {
                 var poisonMessage = new DynamicTableEntity(queueMessage.Id, this.Name)
                 {
                     Properties =
                     {
-                        ["TheFullMessage"] = new EntityProperty(queueMessage.Message)
+                        ["RawMessage"] = new EntityProperty(queueMessage.Message)
                     }
                 };
 
                 // add to poison table
-                var poisonMessagesTable = this.azureStorageClient.GetTableReference("PoisonMessagesTable");
+                var poisonMessageTableName = this.settings.TaskHubName.ToLowerInvariant() + "-poison";
+                var poisonMessagesTable = this.azureStorageClient.GetTableReference(poisonMessageTableName);
                 await poisonMessagesTable.CreateIfNotExistsAsync();
                 await poisonMessagesTable.InsertAsync(poisonMessage);
 
