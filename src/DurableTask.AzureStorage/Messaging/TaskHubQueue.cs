@@ -87,7 +87,7 @@ namespace DurableTask.AzureStorage.Messaging
 
                 string guidance = $"Queue message ID '{queueMessage.Id}' was dequeued {queueMessage.DequeueCount} times," +
                     $" which is greater than the threshold poison message threshold ({maxThreshold}). " +
-                    $"The message has been moved to {poisonMessageTableName} for manual review. " +
+                    $"The message has been moved to the '{poisonMessageTableName}' table for manual review. " +
                     $"This will fail the consuming orchestrator, activity, or entity";
                 messageData.TaskMessage.Event.PoisonGuidance = guidance;
             }
