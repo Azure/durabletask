@@ -346,17 +346,17 @@ namespace DurableTask.Core
                 // execution started event was poisonous. It seems wrong that the poison message handling is 'leaking' into DTFx.Core. I wonder if there's
                 // a way to make this compensantion occur strictly at the DTFx.AS level. What we want to avoid though is the orchestrator from replaying, that would
                 // cause the poison condition to trigger.
-                if (workItem.NewMessages.Count == 1 && workItem.NewMessages[0].Event is ExecutionTerminatedEvent poisonCandidate && poisonCandidate.Input.Contains("poison"))
-                {
-                    isCompleted = true;
-                    var executionStartedEvent = new ExecutionStartedEvent(-1, "");
-                    workItem.OrchestrationRuntimeState.AddEvent(executionStartedEvent);
-                    workItem.OrchestrationRuntimeState.AddEvent(poisonCandidate);
-
-                    workItem.OrchestrationRuntimeState.AddEvent(poisonCandidate);
-                }
+                //if (workItem.NewMessages.Count == 1 && workItem.NewMessages[0].Event is ExecutionTerminatedEvent poisonCandidate && poisonCandidate.Input.Contains("poison"))
+                //{
+                //    isCompleted = true;
+                //    var executionStartedEvent = new ExecutionStartedEvent(-1, "");
+                //    workItem.OrchestrationRuntimeState.AddEvent(executionStartedEvent);
+                //    workItem.OrchestrationRuntimeState.AddEvent(poisonCandidate);
+                //
+                //    workItem.OrchestrationRuntimeState.AddEvent(poisonCandidate);
+                //}
                 // Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
-                else if (!ReconcileMessagesWithState(workItem, nameof(TaskOrchestrationDispatcher), this.errorPropagationMode, logHelper))
+                if (!ReconcileMessagesWithState(workItem, nameof(TaskOrchestrationDispatcher), this.errorPropagationMode, logHelper))
                 {
                     // TODO : mark an orchestration as faulted if there is data corruption
                     this.logHelper.DroppingOrchestrationWorkItem(workItem, "Received work-item for an invalid orchestration");
@@ -368,7 +368,6 @@ namespace DurableTask.Core
                     isCompleted = true;
                     traceActivity?.Dispose();
                 }
-
                 else
                 {
                     do

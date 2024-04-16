@@ -197,6 +197,17 @@ namespace DurableTask.Core
 
         void ProcessEvent(HistoryEvent historyEvent)
         {
+            if (historyEvent.IsPoison)
+            {
+                var terminationEvent = new ExecutionTerminatedEvent(-1, "detected poison!");
+                historyEvent = terminationEvent;
+
+                var taskCompletionSource = new TaskCompletionSource<string>();
+                taskCompletionSource.SetResult("");
+
+                this.result = taskCompletionSource.Task;
+            }
+
             bool overrideSuspension = historyEvent.EventType == EventType.ExecutionResumed || historyEvent.EventType == EventType.ExecutionTerminated;
             if (this.context.IsSuspended && !overrideSuspension)
             {

@@ -50,6 +50,36 @@ namespace DurableTask.AzureStorage.Messaging
 
         protected override TimeSpan MessageVisibilityTimeout => this.settings.ControlQueueVisibilityTimeout;
 
+        private async Task HandleIfPoisonMessageAsync(MessageData messageData)
+        {
+            var isPoison = false;
+            var queueMessage = messageData.OriginalQueueMessage;
+
+            // if deuque count is large, just flag it as poison. Don't even deserialize it!
+            if (queueMessage.DequeueCount > 0) // TODO: make configurable
+            {
+                var poisonMessage = new DynamicTableEntity(queueMessage.Id, this.Name)
+                {
+                    Properties =
+                    {
+                        ["TheFullMessage"] = new EntityProperty(queueMessage.Message)
+                    }
+                };
+
+                // add to poison table
+                var poisonMessagesTable = this.azureStorageClient.GetTableReference("PoisonMessagesTable");
+                await poisonMessagesTable.CreateIfNotExistsAsync();
+                await poisonMessagesTable.InsertAsync(poisonMessage);
+
+                // delete from queue so it doesn't get processed again.
+                await this.storageQueue.DeleteMessageAsync(queueMessage);
+
+                // since isPoison is `true`, we'll override the deserialized message w/ a suspend event
+                isPoison = true;
+            }
+            messageData.TaskMessage.Event.IsPoison = isPoison;
+        }
+
         public async Task<IReadOnlyList<MessageData>> GetMessagesAsync(CancellationToken cancellationToken)
         {
             using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(this.releaseCancellationToken, cancellationToken))
@@ -106,38 +136,15 @@ namespace DurableTask.AzureStorage.Messaging
                         var batchMessages = new ConcurrentBag<MessageData>();
                         await batch.ParallelForEachAsync(async delegate (QueueMessage queueMessage)
                         {
-                            bool isPoison = false;
-                            // if deuque count is large, just flag it as poison. Don't even deserialize it!
-                            if (queueMessage.DequeueCount > 5) // TODO: make configurable
-                            {
-                                var poisonMessage = new DynamicTableEntity(queueMessage.Id, this.Name)
-                                {
-                                    Properties =
-                                    {
-                                        ["TheFullMessage"] = new EntityProperty(queueMessage.Message)
-                                    }
-                                };
-
-                                // add to poison table
-                                var poisonMessagesTable = this.azureStorageClient.GetTableReference("PoisonMessagesTable");
-                                await poisonMessagesTable.CreateIfNotExistsAsync();
-                                await poisonMessagesTable.InsertAsync(poisonMessage);
-
-                                // delete from queue so it doesn't get processed again.
-                                await this.storageQueue.DeleteMessageAsync(queueMessage);
-
-                                // since isPoison is `true`, we'll override the deserialized message w/ a suspend event
-                                isPoison = true;
-                            }
-
-
-
                             MessageData messageData;
                             try
                             {
                                 messageData = await this.messageManager.DeserializeQueueMessageAsync(
                                     queueMessage,
-                                    this.storageQueue.Name,isPoison);
+                                    this.storageQueue.Name);
+
+                                await this.HandleIfPoisonMessageAsync(messageData);
+
                             }
                             catch (Exception e)
                             {

@@ -1046,14 +1046,6 @@ namespace DurableTask.AzureStorage
                     message = null;
                     return true;
                 }
-                // It's possible for the the original `ExecutionStarted` event to be poisonous, so here we account for that case.
-                // Though it is a misnomber to claim this is an executable instance in that case. I wonder if instead we should add a branching condition
-                // at the calling site of this method.
-                else if (newMessages.Count == 1 && newMessages[0].Event is ExecutionTerminatedEvent poisonEventCandidate && poisonEventCandidate.Input.Contains("poison"))
-                {
-                    message = null;
-                    return true;
-                }
                 else
                 {
                     // A non-zero event count usually happens when an instance's history is overwritten by a
