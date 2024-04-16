@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage
 {
     using System;
+    using System.Collections.Specialized;
     using System.Diagnostics.Tracing;
     using System.Runtime.CompilerServices;
     using DurableTask.AzureStorage.Logging;
@@ -507,11 +508,12 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(EventIds.WaitingForMoreMessages, Level = EventLevel.Informational, Version = 2)]
+        [Event(EventIds.WaitingForMoreMessages, Level = EventLevel.Informational, Version = 3)]
         public void WaitingForMoreMessages(
             string Account,
             string TaskHub,
             string PartitionId,
+            string Details,
             string AppName,
             string ExtensionVersion)
         {
@@ -520,6 +522,7 @@ namespace DurableTask.AzureStorage
                 Account,
                 TaskHub,
                 PartitionId,
+                Details,
                 AppName,
                 ExtensionVersion);
         }
