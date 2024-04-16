@@ -17,7 +17,6 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Storage;
-    using Microsoft.WindowsAzure.Storage.Table;
 
     class WorkItemQueue : TaskHubQueue
     {
