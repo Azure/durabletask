@@ -44,7 +44,6 @@ namespace DurableTask.AzureStorage.Messaging
                         continue;
                     }
 
-                    // TODO: maybe the message manager should handle the poison?
                     MessageData data = await this.messageManager.DeserializeQueueMessageAsync(
                         queueMessage,
                         this.storageQueue.Name);

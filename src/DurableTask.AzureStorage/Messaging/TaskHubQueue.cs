@@ -82,7 +82,7 @@ namespace DurableTask.AzureStorage.Messaging
                 // delete from queue so it doesn't get processed again.
                 await this.storageQueue.DeleteMessageAsync(queueMessage);
 
-                // since isPoison is `true`, we'll override the deserialized message w/ a suspend event
+                // since isPoison is `true`, we'll override the deserialized message
                 messageData.TaskMessage.Event.IsPoison = true;
 
                 // provide guidance, which is backend-specific

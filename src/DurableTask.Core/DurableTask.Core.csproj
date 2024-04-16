@@ -20,7 +20,6 @@
     <MinorVersion>16</MinorVersion>
     <PatchVersion>2</PatchVersion>
     <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
-	<VersionSuffix>pmh.2</VersionSuffix>
     <FileVersion>$(VersionPrefix).0</FileVersion>
     <!-- FileVersionRevision is expected to be set by the CI. This is useful for distinguishing between multiple builds of the same version. -->
     <FileVersion Condition="'$(FileVersionRevision)' != ''">$(VersionPrefix).$(FileVersionRevision)</FileVersion>
