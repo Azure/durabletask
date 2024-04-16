@@ -22,7 +22,6 @@ namespace DurableTask.AzureStorage.Messaging
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
     using DurableTask.Core.History;
-    using Microsoft.WindowsAzure.Storage.Queue.Protocol;
     using Microsoft.WindowsAzure.Storage.Table;
 
     abstract class TaskHubQueue
