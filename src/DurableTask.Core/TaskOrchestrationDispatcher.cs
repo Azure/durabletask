@@ -342,19 +342,6 @@ namespace DurableTask.Core
 
             try
             {
-                // it appears the dispatcher demands that an orchestrator have an executionStarted event. Here, we compensate for the case where the
-                // execution started event was poisonous. It seems wrong that the poison message handling is 'leaking' into DTFx.Core. I wonder if there's
-                // a way to make this compensantion occur strictly at the DTFx.AS level. What we want to avoid though is the orchestrator from replaying, that would
-                // cause the poison condition to trigger.
-                //if (workItem.NewMessages.Count == 1 && workItem.NewMessages[0].Event is ExecutionTerminatedEvent poisonCandidate && poisonCandidate.Input.Contains("poison"))
-                //{
-                //    isCompleted = true;
-                //    var executionStartedEvent = new ExecutionStartedEvent(-1, "");
-                //    workItem.OrchestrationRuntimeState.AddEvent(executionStartedEvent);
-                //    workItem.OrchestrationRuntimeState.AddEvent(poisonCandidate);
-                //
-                //    workItem.OrchestrationRuntimeState.AddEvent(poisonCandidate);
-                //}
                 // Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
                 if (!ReconcileMessagesWithState(workItem, nameof(TaskOrchestrationDispatcher), this.errorPropagationMode, logHelper))
                 {
