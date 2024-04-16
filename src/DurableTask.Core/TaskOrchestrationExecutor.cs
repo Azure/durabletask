@@ -199,9 +199,7 @@ namespace DurableTask.Core
         {
             if (historyEvent.IsPoison)
             {
-                // TODO: improve wording here
-                var errorMessage = $"The 'XXXX' was detected as a poison message.";
-                var terminationEvent = new ExecutionTerminatedEvent(-1, errorMessage);
+                var terminationEvent = new ExecutionTerminatedEvent(-1, historyEvent.PoisonGuidance);
                 historyEvent = terminationEvent;
 
                 var taskCompletionSource = new TaskCompletionSource<string>();

@@ -98,5 +98,10 @@ namespace DurableTask.Core.History
         /// Gets or sets whether this is a poison message.
         /// </summary>
         public bool IsPoison { get; set; } = false;
+
+        /// <summary>
+        /// Gets or sets user-facing details for why a message was labeled as poison.
+        /// </summary>
+        public string PoisonGuidance { get; set; } = "";
     }
 }

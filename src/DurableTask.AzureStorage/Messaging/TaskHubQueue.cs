@@ -22,6 +22,7 @@ namespace DurableTask.AzureStorage.Messaging
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
     using DurableTask.Core.History;
+    using Microsoft.WindowsAzure.Storage.Queue.Protocol;
     using Microsoft.WindowsAzure.Storage.Table;
 
     abstract class TaskHubQueue
@@ -61,8 +62,8 @@ namespace DurableTask.AzureStorage.Messaging
         public async Task HandleIfPoisonMessageAsync(MessageData messageData)
         {
             var queueMessage = messageData.OriginalQueueMessage;
-
-            if (queueMessage.DequeueCount > this.settings.PoisonMessageDeuqueCountThreshold)
+            var maxThreshold = this.settings.PoisonMessageDeuqueCountThreshold;
+            if (queueMessage.DequeueCount > maxThreshold)
             {
                 var poisonMessage = new DynamicTableEntity(queueMessage.Id, this.Name)
                 {
@@ -73,8 +74,8 @@ namespace DurableTask.AzureStorage.Messaging
                 };
 
                 // add to poison table
-                var poisonMessageTableName = this.settings.TaskHubName.ToLowerInvariant() + "-poison";
-                var poisonMessagesTable = this.azureStorageClient.GetTableReference(poisonMessageTableName);
+                string poisonMessageTableName = this.settings.TaskHubName.ToLowerInvariant() + "-poison";
+                Table poisonMessagesTable = this.azureStorageClient.GetTableReference(poisonMessageTableName);
                 await poisonMessagesTable.CreateIfNotExistsAsync();
                 await poisonMessagesTable.InsertAsync(poisonMessage);
 
@@ -83,6 +84,12 @@ namespace DurableTask.AzureStorage.Messaging
 
                 // since isPoison is `true`, we'll override the deserialized message w/ a suspend event
                 messageData.TaskMessage.Event.IsPoison = true;
+
+                string guidance = $"Queue message ID '{queueMessage.Id}' was dequeued {queueMessage.DequeueCount} times," +
+                    $" which is greater than the threshold poison message threshold ({maxThreshold}). " +
+                    $"The message has been moved to {poisonMessageTableName} for manual review. " +
+                    $"This will fail the consuming orchestrator, activity, or entity";
+                messageData.TaskMessage.Event.PoisonGuidance = guidance;
             }
         }
 
