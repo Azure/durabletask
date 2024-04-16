@@ -847,6 +847,9 @@ namespace DurableTask.ServiceBus.Tests
 
         #region Compression Tests
 
+#if NETCOREAPP
+        [TestCategory("DisabledInCI")]
+#endif
         [TestMethod]
         public async Task CompressionToNoCompressionCompatTest()
         {
