@@ -73,7 +73,7 @@ namespace DurableTask.AzureStorage.Messaging
                 };
 
                 // add to poison table
-                string poisonMessageTableName = this.settings.TaskHubName.ToLowerInvariant() + "-poison";
+                string poisonMessageTableName = this.settings.TaskHubName.ToLowerInvariant() + "Poison";
                 Table poisonMessagesTable = this.azureStorageClient.GetTableReference(poisonMessageTableName);
                 await poisonMessagesTable.CreateIfNotExistsAsync();
                 await poisonMessagesTable.InsertAsync(poisonMessage);
