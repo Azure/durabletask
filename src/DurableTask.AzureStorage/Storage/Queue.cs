@@ -27,12 +27,15 @@ namespace DurableTask.AzureStorage.Storage
         readonly AzureStorageClient azureStorageClient;
         readonly AzureStorageOrchestrationServiceStats stats;
         readonly QueueClient queueClient;
+        // TODO: I don't love this map. I think we should use our own AzStorage Queue class to keep track of popReceipts instead. We may need to change quite a few interfaces in response though, so they take our Queue class instead of the Az Storage SDK Queue abstraction
+        readonly Dictionary<string, string> messageIdPopReceipts;
 
         public Queue(AzureStorageClient azureStorageClient, QueueServiceClient queueServiceClient, string queueName)
         {
             this.azureStorageClient = azureStorageClient;
             this.stats = this.azureStorageClient.Stats;
             this.queueClient = queueServiceClient.GetQueueClient(queueName);
+            this.messageIdPopReceipts = new Dictionary<string, string>();
         }
 
         public string Name => this.queueClient.Name;
@@ -61,14 +64,25 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task UpdateMessageAsync(QueueMessage queueMessage, TimeSpan visibilityTimeout, Guid? clientRequestId = null, CancellationToken cancellationToken = default)
         {
+            string popReceipt = queueMessage.PopReceipt; // default case
+            if (this.messageIdPopReceipts.TryGetValue(queueMessage.MessageId, out string foundReceipt))
+            {
+                // TODO: we should log something if we cannot find a pop receipt
+                popReceipt = foundReceipt;
+            }
+
             using IDisposable scope = OperationContext.CreateClientRequestScope(clientRequestId);
-            await this.queueClient
+            Response<UpdateReceipt> response = await this.queueClient
                 .UpdateMessageAsync(
                     queueMessage.MessageId,
-                    queueMessage.PopReceipt,
+                    popReceipt,
                     visibilityTimeout: visibilityTimeout,
                     cancellationToken: cancellationToken)
                 .DecorateFailure();
+
+            this.messageIdPopReceipts[queueMessage.MessageId] = response.Value.PopReceipt;
+
+            UpdateReceipt receipt = response.Value;
 
             this.stats.MessagesUpdated.Increment();
         }
@@ -82,6 +96,7 @@ namespace DurableTask.AzureStorage.Storage
                     queueMessage.PopReceipt,
                     cancellationToken)
                 .DecorateFailure();
+            this.messageIdPopReceipts.Remove(queueMessage.MessageId);
         }
 
         public async Task<QueueMessage?> GetMessageAsync(TimeSpan visibilityTimeout, CancellationToken cancellationToken = default)
@@ -93,6 +108,7 @@ namespace DurableTask.AzureStorage.Storage
                 return null;
             }
 
+            this.messageIdPopReceipts.Add(message.MessageId, message.PopReceipt);
             this.stats.MessagesRead.Increment();
             return message;
         }
