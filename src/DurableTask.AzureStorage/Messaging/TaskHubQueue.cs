@@ -90,6 +90,17 @@ namespace DurableTask.AzureStorage.Messaging
                     $"The message has been moved to the '{poisonMessageTableName}' table for manual review. " +
                     $"This will fail the consuming orchestrator, activity, or entity";
                 messageData.TaskMessage.Event.PoisonGuidance = guidance;
+
+                this.settings.Logger.PoisonMessageDetected(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    messageData.TaskMessage.Event.EventType.ToString(),
+                    messageData.TaskMessage.Event.EventId,
+                    messageData.OriginalQueueMessage.Id,
+                    messageData.TaskMessage.OrchestrationInstance.InstanceId,
+                    messageData.TaskMessage.OrchestrationInstance.ExecutionId,
+                    this.Name,
+                    messageData.OriginalQueueMessage.DequeueCount);
             }
         }
 
