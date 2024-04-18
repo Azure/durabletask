@@ -101,6 +101,7 @@ namespace DurableTask.Core.History
 
         /// <summary>
         /// Gets or sets user-facing details for why a message was labeled as poison.
+        /// This is to be set by each storage provider.
         /// </summary>
         public string PoisonGuidance { get; set; } = "";
     }

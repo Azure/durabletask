@@ -194,6 +194,10 @@ namespace DurableTask.Core
                         {
                             if (scheduledEvent.IsPoison)
                             {
+                                // if the activity is "poison", then we should not executed again. Instead, we'll manually fail the activity
+                                // by throwing an exception on behalf of the user-code. In the exception, we provide the storage-provider's guidance
+                                // on how to deal with the poison message.
+                                // TODO: this exception seems to not be getting de-serialized correctly on the orchestrator end. Why?
                                 var exception = new TaskFailureException(scheduledEvent.PoisonGuidance, details: scheduledEvent.PoisonGuidance);
                                 throw exception;
                             }
