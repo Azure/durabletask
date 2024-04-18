@@ -59,10 +59,10 @@ namespace DurableTask.AzureStorage.Storage
             this.stats.MessagesSent.Increment();
         }
 
-        public async Task UpdateMessageAsync(QueueMessage queueMessage, TimeSpan visibilityTimeout, Guid? clientRequestId = null, CancellationToken cancellationToken = default)
+        public async Task<QueueMessage> UpdateMessageAsync(QueueMessage queueMessage, TimeSpan visibilityTimeout, Guid? clientRequestId = null, CancellationToken cancellationToken = default)
         {
             using IDisposable scope = OperationContext.CreateClientRequestScope(clientRequestId);
-            await this.queueClient
+            UpdateReceipt receipt = await this.queueClient
                 .UpdateMessageAsync(
                     queueMessage.MessageId,
                     queueMessage.PopReceipt,
@@ -71,6 +71,7 @@ namespace DurableTask.AzureStorage.Storage
                 .DecorateFailure();
 
             this.stats.MessagesUpdated.Increment();
+            return queueMessage.Update(receipt);
         }
 
         public async Task DeleteMessageAsync(QueueMessage queueMessage, Guid? clientRequestId = null, CancellationToken cancellationToken = default)

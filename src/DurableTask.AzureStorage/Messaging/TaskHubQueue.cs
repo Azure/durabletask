@@ -212,7 +212,7 @@ namespace DurableTask.AzureStorage.Messaging
             return initialVisibilityDelay;
         }
 
-        public virtual Task AbandonMessageAsync(MessageData message, SessionBase? session = null)
+        public virtual Task<QueueMessage> AbandonMessageAsync(MessageData message, SessionBase? session = null)
         {
             QueueMessage queueMessage = message.OriginalQueueMessage;
             TaskMessage taskMessage = message.TaskMessage;
@@ -227,7 +227,7 @@ namespace DurableTask.AzureStorage.Messaging
                 sequenceNumber);
         }
 
-        protected async Task AbandonMessageAsync(
+        protected async Task<QueueMessage> AbandonMessageAsync(
             QueueMessage queueMessage,
             TaskMessage? taskMessage,
             OrchestrationInstance? instance,
@@ -276,7 +276,7 @@ namespace DurableTask.AzureStorage.Messaging
             {
                 // We "abandon" the message by settings its visibility timeout using an exponential backoff algorithm.
                 // This allows it to be reprocessed on this node or another node at a later time, hopefully successfully.
-                await this.storageQueue.UpdateMessageAsync(
+                return await this.storageQueue.UpdateMessageAsync(
                     queueMessage,
                     TimeSpan.FromSeconds(numSecondsToWait),
                     traceActivityId);
@@ -293,10 +293,12 @@ namespace DurableTask.AzureStorage.Messaging
                     taskEventId,
                     details: $"Caller: {nameof(AbandonMessageAsync)}",
                     queueMessage.PopReceipt);
+
+                return queueMessage;
             }
         }
 
-        public async Task RenewMessageAsync(MessageData message, SessionBase session)
+        public async Task<QueueMessage> RenewMessageAsync(MessageData message, SessionBase session)
         {
             QueueMessage queueMessage = message.OriginalQueueMessage;
             TaskMessage taskMessage = message.TaskMessage;
@@ -316,7 +318,7 @@ namespace DurableTask.AzureStorage.Messaging
 
             try
             {
-                await this.storageQueue.UpdateMessageAsync(
+                return await this.storageQueue.UpdateMessageAsync(
                     queueMessage,
                     this.MessageVisibilityTimeout,
                     session?.TraceActivityId);
@@ -325,6 +327,7 @@ namespace DurableTask.AzureStorage.Messaging
             {
                 // Message may have been processed and deleted already.
                 this.HandleMessagingExceptions(e, message, $"Caller: {nameof(RenewMessageAsync)}");
+                return queueMessage;
             }
         }
 
