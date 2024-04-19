@@ -43,7 +43,8 @@ namespace DurableTask.AzureStorage
         IDisposable, 
         IOrchestrationServiceQueryClient,
         IOrchestrationServicePurgeClient,
-        IEntityOrchestrationService
+        IEntityOrchestrationService,
+        IControlQueueHelper
     {
         static readonly HistoryEvent[] EmptyHistoryEventList = new HistoryEvent[0];
 
@@ -2048,7 +2049,7 @@ namespace DurableTask.AzureStorage
 
         // TODO: Change this to a sticky assignment so that partition count changes can
         //       be supported: https://github.com/Azure/azure-functions-durable-extension/issues/1
-        async Task<ControlQueue?> GetControlQueueAsync(string instanceId)
+        internal async Task<ControlQueue?> GetControlQueueAsync(string instanceId)
         {
             uint partitionIndex = Fnv1aHashHelper.ComputeHash(instanceId) % (uint)this.settings.PartitionCount;
             string queueName = GetControlQueueName(this.settings.TaskHubName, (int)partitionIndex);
@@ -2074,6 +2075,89 @@ namespace DurableTask.AzureStorage
             System.Diagnostics.Debug.Assert(cachedQueue != null);
             return cachedQueue;
         }
+
+        #region IControlQueueHelper
+
+        private object lockObject = new object();
+
+        private Dictionary<string, int> controlQueueNumberToNames;
+
+        private Dictionary<string, int> ControlQueueNamesToPartitionIndex 
+        {
+            get
+            {
+                if(controlQueueNumberToNames == null)
+                {
+                    lock (lockObject)
+                    {
+                        if (controlQueueNumberToNames == null)
+                        {
+                            controlQueueNumberToNames = new Dictionary<string, int>();
+                            for (int controlQueueNumber = 0; controlQueueNumber < this.settings.PartitionCount; controlQueueNumber++)
+                            {
+                                var controlQueueName = GetControlQueueName(this.settings.TaskHubName, controlQueueNumber);
+                                controlQueueNumberToNames[controlQueueName] = controlQueueNumber;
+                            }
+                        }
+                    }
+                }
+
+                return controlQueueNumberToNames;
+            }
+        }
+
+        /// <inheritdoc/>
+        public string GetControlQueueInstanceId(HashSet<string> controlQueueNames, string instanceIdPrefix = "")
+        {
+            _ = controlQueueNames == null ? throw new ArgumentNullException(nameof(controlQueueNames))
+                : controlQueueNames.Count == 0 ?
+                    throw new ArgumentException($"{nameof(controlQueueNames)} must contain at least one element.")
+                    : controlQueueNames.Any(x => !ControlQueueNamesToPartitionIndex.Keys.Contains(x.ToLowerInvariant())) ?
+                        throw new ArgumentException($"{nameof(controlQueueNames)} must be valid control queue names")
+                        : controlQueueNames;
+
+            HashSet<int> controlQueueNumbers = new HashSet<int>();
+            foreach (var controlQueueName in controlQueueNames)
+            {
+                controlQueueNumbers.Add(ControlQueueNamesToPartitionIndex[controlQueueName.ToLowerInvariant()]);
+            }
+
+            return GetControlQueueInstanceId(controlQueueNumbers, instanceIdPrefix);
+        }
+
+        /// <inheritdoc/>
+        public string GetControlQueueInstanceId(HashSet<int> controlQueueNumbers, string instanceIdPrefix = "")
+        {
+            _ = controlQueueNumbers == null ? throw new ArgumentNullException(nameof(controlQueueNumbers))
+                : controlQueueNumbers.Count == 0 ?
+                    throw new ArgumentException($"{nameof(controlQueueNumbers)} must contain at least one element.")
+                    : controlQueueNumbers.Any(x => x < 0 || x >= this.settings.PartitionCount) ?
+                        throw new ArgumentException($"{nameof(controlQueueNumbers)} must contain values in range [0, {this.settings.PartitionCount}].")
+                        : controlQueueNumbers;
+
+            var instanceId = string.Empty;
+            int suffix = 0;
+            bool foundInstanceId = false;
+
+            var partitionCount = this.settings.PartitionCount;
+
+            // Updating suffix and checking control-queue being from provided list until found one.
+            while (!foundInstanceId)
+            {
+                suffix++;
+                instanceId = $"{instanceIdPrefix}{suffix}";
+                var controlQueueNumber = (int)Fnv1aHashHelper.ComputeHash(instanceId) % partitionCount;
+
+                if (controlQueueNumbers.Any(x => x == controlQueueNumber))
+                {
+                    foundInstanceId = true;
+                }
+            }
+
+            return instanceId;
+        }
+
+        #endregion IControlQueueHelper
 
         /// <summary>
         /// Disposes of the current object.
