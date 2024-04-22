@@ -131,7 +131,17 @@ namespace DurableTask.Core
                                 this.context.CurrentUtcDateTime = decisionStartedEvent.Timestamp;
                                 continue;
                             }
-
+                            
+                            if (historyEvent.EventType == EventType.ExecutionStarted)
+                            {
+                                var executionStartedEvent = (ExecutionStartedEvent)historyEvent;
+                                // get the instance version from version field on the ExecutionStartedEvent
+                                var instanceVersion = executionStartedEvent.Version;
+                                // copy the instance version to OrchestrationInstance in TaskOrchestrationContext
+                                // so that it can be used in the orchestration code
+                                this.context.OrchestrationInstance.InstanceVersion = instanceVersion;
+                            }
+                            
                             this.ProcessEvent(historyEvent);
                             historyEvent.IsPlayed = true;
                         }
