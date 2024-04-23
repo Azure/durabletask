@@ -29,12 +29,6 @@ namespace DurableTask.Core
         public string InstanceId { get; set; }
 
         /// <summary>
-        /// The version of this orchestration instance
-        /// </summary>
-        [DataMember]
-        public string InstanceVersion { get; set; }
-
-        /// <summary>
         /// The execution id, unique to the execution of this instance
         /// </summary>
         [DataMember]
@@ -45,8 +39,7 @@ namespace DurableTask.Core
             return new OrchestrationInstance
             {
                 ExecutionId = ExecutionId,
-                InstanceId = InstanceId,
-                InstanceVersion = InstanceVersion
+                InstanceId = InstanceId
             };
         }
 
@@ -59,9 +52,7 @@ namespace DurableTask.Core
         [SuppressMessage("ReSharper", "NonReadonlyMemberInGetHashCode")]
         public override int GetHashCode()
         {
-            return (this.InstanceId ?? string.Empty).GetHashCode() 
-              ^ (this.InstanceVersion ?? string.Empty).GetHashCode() 
-              ^ (this.ExecutionId ?? string.Empty).GetHashCode();
+            return (this.InstanceId ?? string.Empty).GetHashCode() ^ (this.ExecutionId ?? string.Empty).GetHashCode();
         }
 
         /// <summary>
@@ -72,7 +63,7 @@ namespace DurableTask.Core
         /// </returns>
         public override string ToString()
         {
-            return $"[InstanceId: {this.InstanceId}, [InstanceVersion: {this.InstanceVersion}, ExecutionId: {this.ExecutionId}]";
+            return $"[InstanceId: {this.InstanceId}, ExecutionId: {this.ExecutionId}]";
         }
 
         /// <summary>
