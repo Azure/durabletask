@@ -21,6 +21,9 @@ namespace DurableTask.Core
     using DurableTask.Core.Exceptions;
     using Newtonsoft.Json;
 
+    // NOTE: This class is very similar to https://github.com/microsoft/durabletask-dotnet/blob/main/src/Abstractions/TaskFailureDetails.cs.
+    //       Any functional changes to this class should be mirrored in that class and vice versa.
+
     /// <summary>
     /// Details of an activity, orchestration, or entity operation failure.
     /// </summary>
@@ -129,11 +132,6 @@ namespace DurableTask.Core
         /// <returns>Returns <c>true</c> if the <see cref="ErrorType"/> value matches <typeparamref name="T"/>; <c>false</c> otherwise.</returns>
         public bool IsCausedBy<T>() where T : Exception
         {
-            if (string.IsNullOrEmpty(this.ErrorType))
-            {
-                return false;
-            }
-
             // This check works for .NET exception types defined in System.Core.PrivateLib (aka mscorelib.dll)
             Type? exceptionType = Type.GetType(this.ErrorType, throwOnError: false);
 

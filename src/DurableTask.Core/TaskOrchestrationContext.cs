@@ -638,10 +638,11 @@ namespace DurableTask.Core
                     details = orchestrationFailureException.Details;
                 }
             }
-            else if (failure is TaskFailedException tfe && this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
+            else if (failure is TaskFailedException taskFailedException &&
+                this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
             {
                 // Propagate the original FailureDetails
-                failureDetails = tfe.FailureDetails;
+                failureDetails = taskFailedException.FailureDetails;
             }
             else
             {
