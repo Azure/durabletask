@@ -208,7 +208,6 @@ namespace DurableTask.Core
                 {
                     case EventType.ExecutionStarted:
                         var executionStartedEvent = (ExecutionStartedEvent)historyEvent;
-                        this.context.Version = executionStartedEvent.Version;
                         this.result = this.taskOrchestration.Execute(this.context, executionStartedEvent.Input);
                         break;
                     case EventType.ExecutionTerminated:

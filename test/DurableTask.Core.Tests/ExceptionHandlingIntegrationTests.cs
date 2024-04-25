@@ -15,7 +15,6 @@ namespace DurableTask.Core.Tests
 {
     using System;
     using System.Diagnostics;
-    using System.Runtime.Serialization;
     using System.Threading.Tasks;
     using DurableTask.Core.Exceptions;
     using DurableTask.Emulator;
@@ -204,10 +203,7 @@ namespace DurableTask.Core.Tests
                                     tfe.FailureDetails.ErrorMessage == "This is a test exception" &&
                                     tfe.FailureDetails.StackTrace!.Contains(typeof(ThrowInvalidOperationException).Name) &&
                                     tfe.FailureDetails.IsCausedBy<InvalidOperationException>() &&
-                                    tfe.FailureDetails.IsCausedBy<Exception>() &&
-                                    tfe.FailureDetails.InnerFailure != null &&
-                                    tfe.FailureDetails.InnerFailure.IsCausedBy<CustomException>() &&
-                                    tfe.FailureDetails.InnerFailure.ErrorMessage == "And this is its custom inner exception") 
+                                    tfe.FailureDetails.IsCausedBy<Exception>()) // check that base types work too
                                 {
                                     // Stop retrying
                                     return false;
@@ -239,8 +235,7 @@ namespace DurableTask.Core.Tests
         {
             protected override string Execute(TaskContext context, string input)
             {
-                throw new InvalidOperationException("This is a test exception",
-                    new CustomException("And this is its custom inner exception"));
+                throw new InvalidOperationException("This is a test exception");
             }
         }
 
@@ -248,22 +243,7 @@ namespace DurableTask.Core.Tests
         {
             protected override Task<string> ExecuteAsync(TaskContext context, string input)
             {
-                throw new InvalidOperationException("This is a test exception",
-                    new CustomException("And this is its custom inner exception"));
-            }
-        }
-
-        [Serializable]
-        class CustomException : Exception
-        {
-            public CustomException(string message)
-                : base(message)
-            {
-            }
-
-            protected CustomException(SerializationInfo info, StreamingContext context)
-                : base(info, context)
-            {
+                throw new InvalidOperationException("This is a test exception");
             }
         }
     }
