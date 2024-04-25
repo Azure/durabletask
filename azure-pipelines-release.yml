@@ -1,10 +1,27 @@
-trigger: none
+trigger:
+- main
+
 pr: none
 
 pool:
   name: '1ES-Hosted-DurableTaskFramework'
   demands:
     - ImageOverride -equals MMS2022TLS
+
+variables:
+
+  - name: VersionSuffix
+    # The `Build.Reason` env var gets populated with `IndividualCI` on an automatic run of the CI,
+    # such as when a commit is made to `main`. If the CI is manually run, it will get populated with
+    # "Manual". For more details on these `Build.X` vars, see: https://learn.microsoft.com/en-us/azure/devops/pipelines/build/variables?view=azure-devops&tabs=yaml#build-variables-devops-services
+    ${{ if eq(variables['Build.Reason'], 'IndividualCI') }}:
+      # The `Build.BuildNumber` env var is an automatically-generated "build ID"
+      # for any given ADO run. It is usually the date format yyddmm.<counter> where
+      # `yyddmm` is a date formatter, and <counter> is a daily counter in case of multiple
+      # builds on the same date.
+      value: 'ci.$(Build.BuildNumber)'
+    ${{ else }}:
+      value: ''
 
 steps:
 # Start by restoring all the dependencies. This needs to be its own task

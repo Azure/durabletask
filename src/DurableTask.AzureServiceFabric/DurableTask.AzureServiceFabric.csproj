@@ -13,17 +13,16 @@
     <Description>Orchestration message and runtime state is stored in Azure Service Fabric reliable collections.</Description>
     <Authors>Microsoft</Authors>
     <Platforms>AnyCPU;x64</Platforms>
+    <NoWarn>$(NoWarn);NU5104</NoWarn>
  </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
     <PackageReference Include="ImpromptuInterface" Version="6.2.2" />
-    <PackageReference Include="Newtonsoft.Json" Version="7.0.1" />
     <Reference Include="System.Web" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
     <PackageReference Include="ImpromptuInterface" Version="6.2.2" />
-    <PackageReference Include="Newtonsoft.Json" Version="7.0.1" />
     <Reference Include="System.Web" />
   </ItemGroup>
 

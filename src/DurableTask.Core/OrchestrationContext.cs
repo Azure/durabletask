@@ -18,6 +18,7 @@ namespace DurableTask.Core
     using System.Threading;
     using System.Threading.Tasks;
     using Castle.DynamicProxy;
+    using DurableTask.Core.Entities;
     using DurableTask.Core.Serializing;
 
     /// <summary>
@@ -68,6 +69,11 @@ namespace DurableTask.Core
         internal ErrorPropagationMode ErrorPropagationMode { get; set; }
 
         /// <summary>
+        /// Information about backend entity support, or null if the configured backend does not support entities.
+        /// </summary>
+        internal TaskOrchestrationEntityParameters EntityParameters { get; set; }
+           
+        /// <summary>
         ///     Create a proxy client class to schedule remote TaskActivities via a strongly typed interface.
         /// </summary>
         /// <typeparam name="T">The interface for the proxy client</typeparam>
@@ -85,27 +91,25 @@ namespace DurableTask.Core
         ///     If true, the method name translation from the interface contains
         ///     the interface name, if false then only the method name is used
         /// </param>
+        /// <remarks>
+        ///     This is deprecated and exists only for back-compatibility.
+        ///     See <see cref="CreateClientV2"/>, which adds support for C# interface features such as inheritance, generics, and method overloading.
+        /// </remarks>
         /// <returns></returns>
         public virtual T CreateClient<T>(bool useFullyQualifiedMethodNames) where T : class
         {
-            if (!typeof(T).IsInterface && !typeof(T).IsClass)
-            {
-                throw new InvalidOperationException($"{nameof(T)} must be an interface or class.");
-            }
+            return CreateClient<T>(() => new ScheduleProxy(this, useFullyQualifiedMethodNames));
+        }
 
-            IInterceptor scheduleProxy = new ScheduleProxy(this, useFullyQualifiedMethodNames);
-
-            if (typeof(T).IsClass)
-            {
-                if (typeof(T).IsSealed)
-                {
-                    throw new InvalidOperationException("Class cannot be sealed.");
-                }
-
-                return ProxyGenerator.CreateClassProxy<T>(scheduleProxy);
-            }
-
-            return ProxyGenerator.CreateInterfaceProxyWithoutTarget<T>(scheduleProxy);
+        /// <summary>
+        ///     Create a proxy client class to schedule remote TaskActivities via a strongly typed interface.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
+        public virtual T CreateClientV2<T>() where T : class
+        {
+            return CreateClient<T>(() => new ScheduleProxyV2(this, typeof(T).ToString()));
         }
 
         /// <summary>
@@ -404,5 +408,33 @@ namespace DurableTask.Core
         ///     the first execution of this orchestration instance.
         /// </param>
         public abstract void ContinueAsNew(string newVersion, object input);
+
+        /// <summary>
+        ///     Create a proxy client class to schedule remote TaskActivities via a strongly typed interface.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
+        private static T CreateClient<T>(Func<IInterceptor> createScheduleProxy) where T : class
+        {
+            if (!typeof(T).IsInterface && !typeof(T).IsClass)
+            {
+                throw new InvalidOperationException($"{nameof(T)} must be an interface or class.");
+            }
+
+            IInterceptor scheduleProxy = createScheduleProxy();
+
+            if (typeof(T).IsClass)
+            {
+                if (typeof(T).IsSealed)
+                {
+                    throw new InvalidOperationException("Class cannot be sealed.");
+                }
+
+                return ProxyGenerator.CreateClassProxy<T>(scheduleProxy);
+            }
+
+            return ProxyGenerator.CreateInterfaceProxyWithoutTarget<T>(scheduleProxy);
+        }
     }
 }

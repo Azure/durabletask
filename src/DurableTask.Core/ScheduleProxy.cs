@@ -21,6 +21,10 @@ namespace DurableTask.Core
     using Castle.DynamicProxy;
     using DurableTask.Core.Common;
 
+    /// <remarks>
+    ///     This is deprecated and exists only for back-compatibility.
+    ///     See <see cref="ScheduleProxyV2"/>, which adds support for C# interface features such as inheritance, generics, and method overloading.
+    /// </remarks>
     internal class ScheduleProxy : IInterceptor
     {
         private readonly OrchestrationContext context;
@@ -64,7 +68,7 @@ namespace DurableTask.Core
                 arguments.Add(new Utils.TypeMetadata { AssemblyName = typeArg.Assembly.FullName!, FullyQualifiedTypeName = typeArg.FullName });
             }
 
-            string normalizedMethodName = NameVersionHelper.GetDefaultName(invocation.Method, this.useFullyQualifiedMethodNames);
+            string normalizedMethodName = this.NormalizeMethodName(invocation.Method);
 
             if (returnType == typeof(Task))
             {
@@ -92,6 +96,11 @@ namespace DurableTask.Core
             });
 
             return;
+        }
+
+        protected virtual string NormalizeMethodName(MethodInfo method)
+        {
+            return NameVersionHelper.GetDefaultName(method, this.useFullyQualifiedMethodNames);
         }
     }
 }
