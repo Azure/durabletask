@@ -15,6 +15,7 @@ namespace DurableTask.Core.Tests
 {
     using System;
     using System.Diagnostics;
+    using System.Runtime.Serialization;
     using System.Threading.Tasks;
     using DurableTask.Core.Exceptions;
     using DurableTask.Emulator;
@@ -148,6 +149,22 @@ namespace DurableTask.Core.Tests
             }
         }
 
+        [TestMethod]
+        public void TaskFailureOnNullContextTaskActivity()
+        {
+            TaskActivity activity = new ThrowInvalidOperationExceptionAsync();
+            string input = JsonConvert.SerializeObject(new string[] { "test" });
+
+            // Pass a null context to check that it doesn't affect error handling.
+            Task<string> task = activity.RunAsync(null, input);
+
+            Assert.IsTrue(task.IsFaulted);
+            Assert.IsNotNull(task.Exception);
+            Assert.IsNotNull(task.Exception?.InnerException);
+            Assert.IsInstanceOfType(task.Exception?.InnerException, typeof(TaskFailureException));
+            Assert.AreEqual("This is a test exception", task.Exception?.InnerException?.Message);
+        }
+
         class ExceptionHandlingOrchestration : TaskOrchestration<object, string>
         {
             public override async Task<object> RunTask(OrchestrationContext context, string input)
@@ -187,7 +204,10 @@ namespace DurableTask.Core.Tests
                                     tfe.FailureDetails.ErrorMessage == "This is a test exception" &&
                                     tfe.FailureDetails.StackTrace!.Contains(typeof(ThrowInvalidOperationException).Name) &&
                                     tfe.FailureDetails.IsCausedBy<InvalidOperationException>() &&
-                                    tfe.FailureDetails.IsCausedBy<Exception>()) // check that base types work too
+                                    tfe.FailureDetails.IsCausedBy<Exception>() &&
+                                    tfe.FailureDetails.InnerFailure != null &&
+                                    tfe.FailureDetails.InnerFailure.IsCausedBy<CustomException>() &&
+                                    tfe.FailureDetails.InnerFailure.ErrorMessage == "And this is its custom inner exception") 
                                 {
                                     // Stop retrying
                                     return false;
@@ -219,7 +239,31 @@ namespace DurableTask.Core.Tests
         {
             protected override string Execute(TaskContext context, string input)
             {
-                throw new InvalidOperationException("This is a test exception");
+                throw new InvalidOperationException("This is a test exception",
+                    new CustomException("And this is its custom inner exception"));
+            }
+        }
+
+        class ThrowInvalidOperationExceptionAsync : AsyncTaskActivity<string, string>
+        {
+            protected override Task<string> ExecuteAsync(TaskContext context, string input)
+            {
+                throw new InvalidOperationException("This is a test exception",
+                    new CustomException("And this is its custom inner exception"));
+            }
+        }
+
+        [Serializable]
+        class CustomException : Exception
+        {
+            public CustomException(string message)
+                : base(message)
+            {
+            }
+
+            protected CustomException(SerializationInfo info, StreamingContext context)
+                : base(info, context)
+            {
             }
         }
     }
