@@ -54,6 +54,11 @@ namespace DurableTask.Core
         public OrchestrationInstance OrchestrationInstance { get; internal protected set; }
 
         /// <summary>
+        /// Version of the currently executing orchestration
+        /// </summary>
+        public string Version { get; internal protected set; }
+
+        /// <summary>
         /// Replay-safe current UTC datetime
         /// </summary>
         public virtual DateTime CurrentUtcDateTime { get; internal set; }
