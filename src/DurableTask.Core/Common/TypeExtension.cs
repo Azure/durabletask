@@ -22,6 +22,16 @@ namespace DurableTask.Core.Common
 
     internal static class TypeExtension
     {
+        internal static void HandleTypeValidationError(string metadataInfo)
+        {
+            var isCancellationTokenWarningOnly = true;
+
+            if (isCancellationTokenWarningOnly)
+            {
+                throw new InvalidOperationException($"Dangerous type deserialization found while converting method to task-activity for {metadataInfo}.");
+            }
+        }
+
         /// <summary>
         /// Checks if a type has any dangerous object which can conflict with native OS event handle.
         /// E.g., CancellationToken, etc.

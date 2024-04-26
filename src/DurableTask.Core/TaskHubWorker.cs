@@ -21,6 +21,7 @@ namespace DurableTask.Core
     using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.Core.Common;
     using DurableTask.Core.Entities;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.Logging;
@@ -315,6 +316,9 @@ namespace DurableTask.Core
         {
             foreach (Type type in taskOrchestrationTypes)
             {
+                // Validate for generic type argument of Taskxxxx.
+                ValidateTaskType(type, typeof(TaskOrchestration<,,,>));
+
                 ObjectCreator<TaskOrchestration> creator = new DefaultObjectCreator<TaskOrchestration>(type);
                 this.orchestrationManager.Add(creator);
             }
@@ -333,6 +337,11 @@ namespace DurableTask.Core
         {
             foreach (ObjectCreator<TaskOrchestration> creator in taskOrchestrationCreators)
             {
+                var instance = creator.Create();
+
+                // Validate for generic type argument of Taskxxxx.
+                ValidateTaskType(instance.GetType(), typeof(TaskOrchestration<,,,>));
+
                 this.orchestrationManager.Add(creator);
             }
 
@@ -357,7 +366,7 @@ namespace DurableTask.Core
                     type.Name,
                     string.Empty,
                     type);
-                
+
                 this.entityManager.Add(creator);
             }
 
@@ -394,6 +403,9 @@ namespace DurableTask.Core
         {
             foreach (TaskActivity instance in taskActivityObjects)
             {
+                // Validate for generic type argument of Taskxxxx.
+                ValidateTaskType(instance.GetType(), typeof(AsyncTaskActivity<,>));
+
                 ObjectCreator<TaskActivity> creator = new DefaultObjectCreator<TaskActivity>(instance);
                 this.activityManager.Add(creator);
             }
@@ -409,6 +421,9 @@ namespace DurableTask.Core
         {
             foreach (Type type in taskActivityTypes)
             {
+                // Validate for generic type argument of Taskxxxx.
+                ValidateTaskType(type, typeof(AsyncTaskActivity<,>));
+
                 ObjectCreator<TaskActivity> creator = new DefaultObjectCreator<TaskActivity>(type);
                 this.activityManager.Add(creator);
             }
@@ -641,6 +656,51 @@ namespace DurableTask.Core
             {
                 throw new ArgumentException($"type {activities.GetType().FullName} does not implement {@interface.FullName}");
             }
+        }
+
+        private static void ValidateTaskType(Type sourceType, Type targetType)
+        {
+            var type = GetTargetType(sourceType, targetType);
+
+            if (type != null)
+            {
+                var genericArguments = type.GetGenericArguments();
+
+                if (genericArguments != null)
+                {
+                    foreach (var genericArgument in genericArguments)
+                    {
+                        if (genericArgument.IsEqualOrContainsNativeType())
+                        {
+                            TypeExtension.HandleTypeValidationError($"GenericArgument: {genericArgument.FullName} for type: {type.FullName} for source type: {sourceType.FullName}.");
+                        }
+                    }
+                }
+            }
+        }
+
+        private static Type GetTargetType(Type derivedType, Type targetType)
+        {
+            if (derivedType != null)
+            {
+                if(derivedType.Name.Equals(targetType.Name))
+                {
+                    return derivedType;
+                }
+
+                Type currentType = derivedType.BaseType;
+                while (currentType != null)
+                {
+                    if (currentType.Name.Equals(targetType.Name))
+                    {
+                        return currentType;
+                    }
+                    currentType = currentType.BaseType;
+                }
+                return null;
+            }
+
+            return null;
         }
     }
 }
