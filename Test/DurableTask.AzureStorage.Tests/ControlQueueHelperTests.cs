@@ -202,5 +202,46 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.IsTrue(controlQueueNumberToInstanceIds[cQN].Count > 0);
             }
         }
+
+        [TestMethod]
+        [DataRow(new int[] { 0, 1, 2, 3 })]
+        [DataRow(new int[] { 2, 3 })]
+        [DataRow(new int[] { 1, 3 })]
+        [DataRow(new int[] { 0, 1 })]
+        [DataRow(new int[] { 0, 2 })]
+        [DataRow(new int[] { 0, 3 })]
+        [DataRow(new int[] { 0 })]
+        [DataRow(new int[] { 1 })]
+        [DataRow(new int[] { 3 })]
+        public async Task GetControlQueueInstanceId_ControlQueueNumbers_ConstPrefix(int[] controlQueueNumbers)
+        {
+            Dictionary<int, List<string>> controlQueueNumberToInstanceIds = new Dictionary<int, List<string>>();
+
+            var controlQueueNumbersHashSet = new HashSet<int>();
+
+            foreach (var cQN in controlQueueNumbers)
+            {
+                controlQueueNumbersHashSet.Add(cQN);
+                controlQueueNumberToInstanceIds[cQN] = new List<string>();
+            }
+
+
+            for (int i = 0; i < 100; i++)
+            {
+                var instanceId = controlQueueHelper.GetControlQueueInstanceId(controlQueueNumbersHashSet, $"prefix_");
+
+                var controlQueue = await azureStorageOrchestrationService.GetControlQueueAsync(instanceId);
+                var controlQueueNumber = controlQueueNumberToNameMap[controlQueue.Name];
+
+                controlQueueNumberToInstanceIds[controlQueueNumber].Add(instanceId);
+
+                Assert.IsTrue(controlQueueNumbers.Any(x => x == controlQueueNumber));
+            }
+
+            foreach (var cQN in controlQueueNumbers)
+            {
+                Assert.IsTrue(controlQueueNumberToInstanceIds[cQN].Count > 0);
+            }
+        }
     }
 }

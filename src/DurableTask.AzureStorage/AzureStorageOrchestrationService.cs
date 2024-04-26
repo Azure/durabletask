@@ -2051,7 +2051,7 @@ namespace DurableTask.AzureStorage
         //       be supported: https://github.com/Azure/azure-functions-durable-extension/issues/1
         internal async Task<ControlQueue?> GetControlQueueAsync(string instanceId)
         {
-            uint partitionIndex = Fnv1aHashHelper.ComputeHash(instanceId) % (uint)this.settings.PartitionCount;
+            uint partitionIndex = GetPartitionIndex(instanceId);
             string queueName = GetControlQueueName(this.settings.TaskHubName, (int)partitionIndex);
 
             ControlQueue cachedQueue;
@@ -2074,6 +2074,11 @@ namespace DurableTask.AzureStorage
 
             System.Diagnostics.Debug.Assert(cachedQueue != null);
             return cachedQueue;
+        }
+
+        private uint GetPartitionIndex(string instanceId)
+        {
+            return Fnv1aHashHelper.ComputeHash(instanceId) % (uint)this.settings.PartitionCount;
         }
 
         #region IControlQueueHelper
@@ -2141,12 +2146,17 @@ namespace DurableTask.AzureStorage
 
             var partitionCount = this.settings.PartitionCount;
 
+            var randomString = Guid.NewGuid().ToString().Substring(24);
+            var instanceIdPrefixWithRandomness = $"{instanceIdPrefix}{randomString}";
+
             // Updating suffix and checking control-queue being from provided list until found one.
             while (!foundInstanceId)
             {
                 suffix++;
-                instanceId = $"{instanceIdPrefix}{suffix}";
-                var controlQueueNumber = (int)Fnv1aHashHelper.ComputeHash(instanceId) % partitionCount;
+                instanceId = $"{instanceIdPrefixWithRandomness}{suffix}";
+                uint controlQueueNumber = GetPartitionIndex(instanceId);
+
+                GetControlQueueName(this.settings.TaskHubName, (int)controlQueueNumber);
 
                 if (controlQueueNumbers.Any(x => x == controlQueueNumber))
                 {
