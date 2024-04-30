@@ -801,8 +801,8 @@ namespace DurableTask.Core
             var executionStartedEvent = new ExecutionStartedEvent(-1, action.Input)
             {
                 Tags = OrchestrationTags.MergeTags(
-                    runtimeState.Tags,
-                    new Dictionary<string, string>() { { OrchestrationTags.FireAndForget, "" } }),
+                    new Dictionary<string, string>() { { OrchestrationTags.FireAndForget, "" } },
+                    runtimeState.Tags),
                 OrchestrationInstance = destination,
                 ScheduledStartTime = action.ScheduledStartTime,
                 ParentInstance = new ParentInstance
