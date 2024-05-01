@@ -145,10 +145,7 @@ namespace DurableTask.AzureStorage.Tracking
             }
             else if (this.ExcludeEntities)
             {
-                conditions.Add(TableQuery.CombineFilters(
-                     TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.LessThan, "@"),
-                     TableOperators.Or,
-                     TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.GreaterThanOrEqual, "A")));
+                conditions.Add($"{nameof(OrchestrationInstanceStatus.PartitionKey)} lt '@' or {nameof(OrchestrationInstanceStatus.PartitionKey)} ge 'A'");
             }
 
             if (this.InstanceId != null)
