@@ -565,7 +565,7 @@ namespace DurableTask.Core
                         break;
 
                     default:
-                            throw new EntitySchedulerException($"Unexpected event type {e.EventType} in entity scheduler history.");
+                        throw new EntitySchedulerException($"Unexpected event type {e.EventType} in entity scheduler history.");
                 }
             }
 
