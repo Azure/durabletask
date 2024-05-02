@@ -563,6 +563,11 @@ namespace DurableTask.Core
                         }
 
                         break;
+
+                    default:
+                        {
+                            throw new EntitySchedulerException($"Unexpected event type {e.EventType} in entity scheduler history.");
+                        }
                 }
             }
 
@@ -801,8 +806,8 @@ namespace DurableTask.Core
             var executionStartedEvent = new ExecutionStartedEvent(-1, action.Input)
             {
                 Tags = OrchestrationTags.MergeTags(
-                    new Dictionary<string, string>() { { OrchestrationTags.FireAndForget, "" } },
-                    runtimeState.Tags),
+                    newTags: new Dictionary<string, string>() { { OrchestrationTags.FireAndForget, "" } },
+                    existingTags: runtimeState.Tags),
                 OrchestrationInstance = destination,
                 ScheduledStartTime = action.ScheduledStartTime,
                 ParentInstance = new ParentInstance
