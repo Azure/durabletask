@@ -12,11 +12,6 @@
 //  ----------------------------------------------------------------------------------
 namespace DurableTask.Core
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Diagnostics;
-    using System.Threading;
-    using System.Threading.Tasks;
     using DurableTask.Core.Common;
     using DurableTask.Core.Entities;
     using DurableTask.Core.Entities.EventFormat;
@@ -27,6 +22,11 @@ namespace DurableTask.Core
     using DurableTask.Core.Middleware;
     using DurableTask.Core.Tracing;
     using Newtonsoft.Json;
+    using System;
+    using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.Threading;
+    using System.Threading.Tasks;
 
     /// <summary>
     /// Dispatcher for orchestrations and entities to handle processing and renewing, completion of orchestration events.
@@ -882,6 +882,36 @@ namespace DurableTask.Core
             this.logHelper.EntityBatchExecuted(request, result);
 
             return result;
+        }
+
+        /// <summary>
+        /// Test only. 
+        /// </summary>
+        public HistoryEvent TestScheduleSendEvent()
+        {
+            // Initialize arguments to pass to ProcessSendStartMessage(). 
+            var effects = new WorkItemEffects();
+            effects.taskIdCounter = 0;
+            effects.InstanceMessages = new List<TaskMessage>();
+            
+            var mockEntityStartEvent = new ExecutionStartedEvent(-1, null)
+            {
+                OrchestrationInstance = new OrchestrationInstance(),
+                Name = "testentity",
+                Version = "1.0",
+            };
+            var runtimeState = new OrchestrationRuntimeState();
+            runtimeState.AddEvent(mockEntityStartEvent);
+            var action = new StartNewOrchestrationOperationAction()
+            {
+                InstanceId = "testsample",
+                Name = "test",
+                Version = "1.0",
+                Input = null,
+            };
+            
+            this.ProcessSendStartMessage(effects, runtimeState,action);
+            return effects.InstanceMessages[0].Event;
         }
     }
 }
