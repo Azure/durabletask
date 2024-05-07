@@ -20,11 +20,11 @@ namespace DurableTask.Core.Entities
         public EntityTestHelper(IOrchestrationService service)
         {
             this.orchestrationService = service;
-            this.dispatcher ??= CreateTestEntityDispatcherInstance();
+            this.dispatcher = CreateTestEntityDispatcherInstance();
         }
 
         /// <summary>
-        /// Create a  instance of the TaskEntityDispatcher class for testing.
+        /// Create an instance of the TaskEntityDispatcher class for testing.
         /// </summary>
         /// <returns>Instance created for testing.</returns>
         public TaskEntityDispatcher CreateTestEntityDispatcherInstance()
@@ -46,7 +46,7 @@ namespace DurableTask.Core.Entities
         /// <summary>
         /// Method to test orchestration settings when entities schedule it.
         /// </summary>
-        /// <returns> HistoryEvent contains the schedule message.</returns>
+        /// <returns> HistoryEvent contains the scheduled message.</returns>
         public HistoryEvent TestScheduleOrchestrationTags()
         {
             return this.dispatcher.TestScheduleSendEvent();

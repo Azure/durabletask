@@ -887,7 +887,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Test only. 
         /// </summary>
-        public HistoryEvent TestScheduleSendEvent()
+        internal HistoryEvent TestScheduleSendEvent()
         {
             // Initialize arguments to pass to ProcessSendStartMessage(). 
             var effects = new WorkItemEffects();
