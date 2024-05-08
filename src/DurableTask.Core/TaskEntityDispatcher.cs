@@ -182,7 +182,7 @@ namespace DurableTask.Core
             }
         }
 
-        class WorkItemEffects
+        internal class WorkItemEffects
         {
             public List<TaskMessage> ActivityMessages;
             public List<TaskMessage> TimerMessages;
@@ -794,7 +794,7 @@ namespace DurableTask.Core
             });
         }
 
-        void ProcessSendStartMessage(WorkItemEffects effects, OrchestrationRuntimeState runtimeState, StartNewOrchestrationOperationAction action)
+        internal void ProcessSendStartMessage(WorkItemEffects effects, OrchestrationRuntimeState runtimeState, StartNewOrchestrationOperationAction action)
         {
             OrchestrationInstance destination = new OrchestrationInstance()
             {
@@ -882,36 +882,6 @@ namespace DurableTask.Core
             this.logHelper.EntityBatchExecuted(request, result);
 
             return result;
-        }
-
-        /// <summary>
-        /// Test only. 
-        /// </summary>
-        internal HistoryEvent TestScheduleSendEvent()
-        {
-            // Initialize arguments to pass to ProcessSendStartMessage(). 
-            var effects = new WorkItemEffects();
-            effects.taskIdCounter = 0;
-            effects.InstanceMessages = new List<TaskMessage>();
-            
-            var mockEntityStartEvent = new ExecutionStartedEvent(-1, null)
-            {
-                OrchestrationInstance = new OrchestrationInstance(),
-                Name = "testentity",
-                Version = "1.0",
-            };
-            var runtimeState = new OrchestrationRuntimeState();
-            runtimeState.AddEvent(mockEntityStartEvent);
-            var action = new StartNewOrchestrationOperationAction()
-            {
-                InstanceId = "testsample",
-                Name = "test",
-                Version = "1.0",
-                Input = null,
-            };
-            
-            this.ProcessSendStartMessage(effects, runtimeState,action);
-            return effects.InstanceMessages[0].Event;
         }
     }
 }
