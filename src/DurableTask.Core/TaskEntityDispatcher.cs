@@ -12,11 +12,6 @@
 //  ----------------------------------------------------------------------------------
 namespace DurableTask.Core
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Diagnostics;
-    using System.Threading;
-    using System.Threading.Tasks;
     using DurableTask.Core.Common;
     using DurableTask.Core.Entities;
     using DurableTask.Core.Entities.EventFormat;
@@ -27,6 +22,11 @@ namespace DurableTask.Core
     using DurableTask.Core.Middleware;
     using DurableTask.Core.Tracing;
     using Newtonsoft.Json;
+    using System;
+    using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.Threading;
+    using System.Threading.Tasks;
 
     /// <summary>
     /// Dispatcher for orchestrations and entities to handle processing and renewing, completion of orchestration events.
@@ -182,7 +182,7 @@ namespace DurableTask.Core
             }
         }
 
-        class WorkItemEffects
+        internal class WorkItemEffects
         {
             public List<TaskMessage> ActivityMessages;
             public List<TaskMessage> TimerMessages;
@@ -563,6 +563,9 @@ namespace DurableTask.Core
                         }
 
                         break;
+
+                    default:
+                        throw new EntitySchedulerException($"The entity with instanceId '{instanceId}' received an unexpected event type of type '{e.EventType}'. This is not a valid entity message. This is a framework-internal error, please report this issue in the GitHub repo: 'https://github.com/Azure/durabletask/'");
                 }
             }
 
@@ -791,7 +794,7 @@ namespace DurableTask.Core
             });
         }
 
-        void ProcessSendStartMessage(WorkItemEffects effects, OrchestrationRuntimeState runtimeState, StartNewOrchestrationOperationAction action)
+        internal void ProcessSendStartMessage(WorkItemEffects effects, OrchestrationRuntimeState runtimeState, StartNewOrchestrationOperationAction action)
         {
             OrchestrationInstance destination = new OrchestrationInstance()
             {
@@ -801,8 +804,8 @@ namespace DurableTask.Core
             var executionStartedEvent = new ExecutionStartedEvent(-1, action.Input)
             {
                 Tags = OrchestrationTags.MergeTags(
-                    runtimeState.Tags,
-                    new Dictionary<string, string>() { { OrchestrationTags.FireAndForget, "" } }),
+                    newTags: new Dictionary<string, string>() { { OrchestrationTags.FireAndForget, "" } },
+                    existingTags: runtimeState.Tags),
                 OrchestrationInstance = destination,
                 ScheduledStartTime = action.ScheduledStartTime,
                 ParentInstance = new ParentInstance
