@@ -80,9 +80,9 @@ namespace DurableTask.Core.Tests
             Assert.IsInstanceOfType(resultEvent, typeof(ExecutionStartedEvent));
             var executionStartedEvent = (ExecutionStartedEvent)resultEvent;
 
-            // The resulting event should not contain a fire and forget tag
+            // The resulting event should contain a fire and forget tag
             bool hasFireAndForgetTag = executionStartedEvent.Tags.ContainsKey(OrchestrationTags.FireAndForget);
-            Assert.IsFalse(hasFireAndForgetTag);
+            Assert.IsTrue(hasFireAndForgetTag);
         }
     }
 }
