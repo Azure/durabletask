@@ -29,6 +29,7 @@ namespace DurableTask.AzureStorage
     /// </summary>
     internal class DataContractJsonConverter : JsonConverter
     {
+        public JsonConverter alternativeSerializer = null;
         public override bool CanConvert(Type objectType)
         {
             if (objectType == null)
@@ -59,50 +60,32 @@ namespace DurableTask.AzureStorage
                 throw new ArgumentNullException(nameof(serializer));
             }
 
-            using (var stream = new MemoryStream())
-            using (var writer = new StreamWriter(stream))
-            using (var jsonWriter = new JsonTextWriter(writer))
+            try
             {
-                jsonWriter.WriteToken(reader, writeChildren: true);
-                jsonWriter.Flush();
-                stream.Position = 0;
+                // compensation case
+                this.alternativeSerializer.Deserialize(reader, objectType);
+            }
+            catch
+            {
+                using (var stream = new MemoryStream())
+                using (var writer = new StreamWriter(stream))
+                using (var jsonWriter = new JsonTextWriter(writer))
+                {
+                    jsonWriter.WriteToken(reader, writeChildren: true);
+                    jsonWriter.Flush();
+                    stream.Position = 0;
 
-                var contractSerializer = CreateSerializer(objectType, serializer);
-                return contractSerializer.ReadObject(stream);
+                    var contractSerializer = CreateSerializer(objectType, serializer);
+                    return contractSerializer.ReadObject(stream);
+                }
             }
         }
 
         /// <inheritdoc />
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
         {
-            if (writer == null)
-            {
-                throw new ArgumentNullException(nameof(writer));
-            }
-
-            if (value == null)
-            {
-                writer.WriteNull();
-                return;
-            }
-
-            if (serializer == null)
-            {
-                throw new ArgumentNullException(nameof(serializer));
-            }
-
-            using (var memoryStream = new MemoryStream())
-            {
-                var contractSerializer = CreateSerializer(value.GetType(), serializer);
-                contractSerializer.WriteObject(memoryStream, value);
-                memoryStream.Position = 0;
-
-                using (var streamReader = new StreamReader(memoryStream))
-                using (var jsonReader = new JsonTextReader(streamReader))
-                {
-                    writer.WriteToken(jsonReader, writeChildren: true);
-                }
-            }
+            // ignore data contract, use Newtonsoft
+            this.alternativeSerializer.Serialize(writer, value);
         }
 
         private static DataContractJsonSerializer CreateSerializer(Type type, JsonSerializer serializer)
