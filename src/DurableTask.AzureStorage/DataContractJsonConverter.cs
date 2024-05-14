@@ -61,31 +61,31 @@ namespace DurableTask.AzureStorage
                 throw new ArgumentNullException(nameof(serializer));
             }
 
+            // JsonReader is forward only, need to make a copy so we can read it twice.
+            using var stream = new MemoryStream();
+            using var writer = new StreamWriter(stream);
+            using var jsonWriter = new JsonTextWriter(writer);
+            jsonWriter.WriteToken(reader, writeChildren: true);
+            jsonWriter.Flush();
+            stream.Position = 0;
+
             try
             {
-                // compensation case
-                return this.alternativeSerializer.Deserialize(reader, objectType);
+                using var reader2 = new JsonTextReader(new StreamReader(stream));
+                return this.alternativeSerializer.Deserialize(reader2, objectType);
             }
             catch
             {
-                using (var stream = new MemoryStream())
-                using (var writer = new StreamWriter(stream))
-                using (var jsonWriter = new JsonTextWriter(writer))
-                {
-                    jsonWriter.WriteToken(reader, writeChildren: true);
-                    jsonWriter.Flush();
-                    stream.Position = 0;
-
-                    var contractSerializer = CreateSerializer(objectType, serializer);
-                    return contractSerializer.ReadObject(stream);
-                }
+                stream.Position = 0;
+                DataContractJsonSerializer contractSerializer = CreateSerializer(objectType, serializer);
+                return contractSerializer.ReadObject(stream);
             }
         }
 
         /// <inheritdoc />
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
         {
-            // ignore data contract, use Newtonsoft
+            // Ignore data contract, use Newtonsoft
             this.alternativeSerializer.Serialize(writer, value);
         }
 

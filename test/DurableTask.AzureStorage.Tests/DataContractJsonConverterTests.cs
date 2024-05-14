@@ -14,7 +14,10 @@ namespace DurableTask.AzureStorage.Tests
         {
             Converters =
             {
-                new DataContractJsonConverter(),
+                new DataContractJsonConverter()
+                {
+                    alternativeSerializer = new JsonSerializer(),
+                },
             }
         };
 
