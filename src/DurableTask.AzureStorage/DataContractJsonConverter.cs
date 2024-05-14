@@ -29,7 +29,8 @@ namespace DurableTask.AzureStorage
     /// </summary>
     internal class DataContractJsonConverter : JsonConverter
     {
-        public JsonConverter alternativeSerializer = null;
+        public JsonSerializer alternativeSerializer = null;
+
         public override bool CanConvert(Type objectType)
         {
             if (objectType == null)
@@ -63,7 +64,7 @@ namespace DurableTask.AzureStorage
             try
             {
                 // compensation case
-                this.alternativeSerializer.Deserialize(reader, objectType);
+                return this.alternativeSerializer.Deserialize(reader, objectType);
             }
             catch
             {

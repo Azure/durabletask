@@ -61,7 +61,7 @@ namespace DurableTask.AzureStorage
 #endif
             };
 
-            var newtonSoftSerializer = JsonSerializer.Create(taskMessageSerializerSettings);
+            JsonSerializer newtonSoftSerializer = JsonSerializer.Create(taskMessageSerializerSettings);
 
             if (this.settings.UseDataContractSerialization) // for hotfix to work, set setting to `true`
             {
