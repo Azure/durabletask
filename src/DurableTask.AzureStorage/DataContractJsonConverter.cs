@@ -72,6 +72,7 @@ namespace DurableTask.AzureStorage
             try
             {
                 using var reader2 = new JsonTextReader(new StreamReader(stream));
+                reader2.CloseInput = false;
                 return this.alternativeSerializer.Deserialize(reader2, objectType);
             }
             catch

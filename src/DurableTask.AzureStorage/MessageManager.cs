@@ -50,7 +50,7 @@ namespace DurableTask.AzureStorage
         {
             this.settings = settings;
             this.azureStorageClient = azureStorageClient;
-            this.blobContainer = this.azureStorageClient.GetBlobContainerReference(blobContainerName);
+            this.blobContainer = this.azureStorageClient?.GetBlobContainerReference(blobContainerName);
             this.taskMessageSerializerSettings = new JsonSerializerSettings
             {
                 TypeNameHandling = TypeNameHandling.Objects,
@@ -67,7 +67,7 @@ namespace DurableTask.AzureStorage
             {
                 var dataConverter = new DataContractJsonConverter();
                 dataConverter.alternativeSerializer = newtonSoftSerializer;
-                this.taskMessageSerializerSettings.Converters.Add(new DataContractJsonConverter());
+                this.taskMessageSerializerSettings.Converters.Add(dataConverter);
             }
 
             // We _need_ to create the Json serializer after providing the data converter,
