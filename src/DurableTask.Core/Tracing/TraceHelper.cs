@@ -20,7 +20,6 @@ namespace DurableTask.Core.Tracing
     using System.Runtime.ExceptionServices;
     using DurableTask.Core.Common;
     using DurableTask.Core.History;
-    using DurableTask.Core.Serializing;
 
     /// <summary>
     ///     Helper class for logging/tracing

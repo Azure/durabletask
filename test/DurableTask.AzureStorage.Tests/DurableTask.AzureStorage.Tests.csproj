@@ -9,15 +9,22 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
     <PackageReference Include="Microsoft.Extensions.Logging" Version="2.2.0" />
     <PackageReference Include="Microsoft.WindowsAzure.ConfigurationManager" version="3.2.1" />
+<<<<<<< HEAD
     <PackageReference Include="Newtonsoft.Json" version="7.0.1" />
     <PackageReference Include="WindowsAzure.Storage" version="8.7.0" />
+=======
+    <PackageReference Include="WindowsAzure.Storage" version="7.2.1" />
+>>>>>>> main
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' != 'net462'">
     <PackageReference Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.0.0-beta.3" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="3.1.6" />
+<<<<<<< HEAD
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
     <PackageReference Include="System.Configuration.ConfigurationManager" Version="4.5.0" />
+=======
+>>>>>>> main
     <PackageReference Include="WindowsAzure.Storage" version="9.3.3" />
   </ItemGroup>
 

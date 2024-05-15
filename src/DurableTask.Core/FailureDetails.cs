@@ -14,12 +14,18 @@
 namespace DurableTask.Core
 {
     using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Reflection;
     using System.Runtime.Serialization;
     using DurableTask.Core.Exceptions;
     using Newtonsoft.Json;
 
+    // NOTE: This class is very similar to https://github.com/microsoft/durabletask-dotnet/blob/main/src/Abstractions/TaskFailureDetails.cs.
+    //       Any functional changes to this class should be mirrored in that class and vice versa.
+
     /// <summary>
-    /// Details of an activity or orchestration failure.
+    /// Details of an activity, orchestration, or entity operation failure.
     /// </summary>
     [Serializable]
     public class FailureDetails : IEquatable<FailureDetails>
@@ -40,6 +46,16 @@ namespace DurableTask.Core
             this.StackTrace = stackTrace;
             this.InnerFailure = innerFailure;
             this.IsNonRetriable = isNonRetriable;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="FailureDetails"/> class from an exception object.
+        /// </summary>
+        /// <param name="e">The exception used to generate the failure details.</param>
+        /// <param name="innerFailure">The inner cause of the failure.</param>
+        public FailureDetails(Exception e, FailureDetails innerFailure)
+            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, innerFailure, false)
+        {
         }
 
         /// <summary>
@@ -116,7 +132,33 @@ namespace DurableTask.Core
         /// <returns>Returns <c>true</c> if the <see cref="ErrorType"/> value matches <typeparamref name="T"/>; <c>false</c> otherwise.</returns>
         public bool IsCausedBy<T>() where T : Exception
         {
+            // This check works for .NET exception types defined in System.Core.PrivateLib (aka mscorelib.dll)
             Type? exceptionType = Type.GetType(this.ErrorType, throwOnError: false);
+
+            // For exception types defined in the same assembly as the target exception type.
+            exceptionType ??= typeof(T).Assembly.GetType(this.ErrorType, throwOnError: false);
+
+            // For custom exception types defined in the app's assembly.
+            exceptionType ??= Assembly.GetCallingAssembly().GetType(this.ErrorType, throwOnError: false);
+
+            if (exceptionType == null)
+            {
+                // This last check works for exception types defined in any loaded assembly (e.g. NuGet packages, etc.).
+                // This is a fallback that should rarely be needed except in obscure cases.
+                List<Type> matchingExceptionTypes = AppDomain.CurrentDomain.GetAssemblies()
+                    .Select(a => a.GetType(this.ErrorType, throwOnError: false))
+                    .Where(t => t is not null)
+                    .ToList();
+                if (matchingExceptionTypes.Count == 1)
+                {
+                    exceptionType = matchingExceptionTypes[0];
+                }
+                else if (matchingExceptionTypes.Count > 1)
+                {
+                    throw new AmbiguousMatchException($"Multiple exception types with the name '{this.ErrorType}' were found.");
+                }
+            }
+
             return exceptionType != null && typeof(T).IsAssignableFrom(exceptionType);
         }
 

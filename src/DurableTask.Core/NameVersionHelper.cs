@@ -14,7 +14,9 @@
 namespace DurableTask.Core
 {
     using System;
+    using System.Collections.Generic;
     using System.Dynamic;
+    using System.Linq;
     using System.Reflection;
 
     /// <summary>
@@ -98,6 +100,57 @@ namespace DurableTask.Core
             }
 
             return declaringType + "." + methodName;
+        }
+
+        /// <summary>
+        /// Gets the fully qualified method name by joining a prefix representing the declaring type and a suffix representing the parameter list.
+        /// For example,
+        /// "DurableTask.Emulator.Tests.EmulatorFunctionalTests+IInheritedTestOrchestrationTasksB`2[System.Int32,System.String].Juggle.(Int32,Boolean)"
+        /// would be the result for the method `Juggle(int, bool)` as member of
+        /// generic type interface declared like `DurableTask.Emulator.Tests.EmulatorFunctionalTests.IInheritedTestOrchestrationTasksB{int, string}`,
+        /// even if the method were inherited from a base interface.
+        /// </summary>
+        /// <param name="declaringType">typically the result of call to Type.ToString(): Type.FullName is more verbose</param>
+        /// <param name="methodInfo"></param>
+        /// <returns></returns>
+        internal static string GetFullyQualifiedMethodName(string declaringType, MethodInfo methodInfo)
+        {
+            IEnumerable<string> paramTypeNames = methodInfo.GetParameters().Select(x => x.ParameterType.Name);
+            string paramTypeNamesCsv = string.Join(",", paramTypeNames);
+            string methodNameWithParameterList = $"{methodInfo.Name}.({paramTypeNamesCsv})";
+            return GetFullyQualifiedMethodName(declaringType, methodNameWithParameterList);
+        }
+
+        /// <summary>
+        /// Gets all methods from an interface, including those inherited from a base interface
+        /// </summary>
+        /// <param name="t"></param>
+        /// <param name="getMethodUniqueId"></param>
+        /// <param name="visited"></param>
+        /// <returns></returns>
+        internal static IList<MethodInfo> GetAllInterfaceMethods(Type t, Func<MethodInfo, string> getMethodUniqueId, HashSet<string> visited = null)
+        {
+            if (visited == null)
+            {
+                visited = new HashSet<string>();
+            }
+            List<MethodInfo> result = new List<MethodInfo>();
+            foreach (MethodInfo m in t.GetMethods())
+            {
+                string name = getMethodUniqueId(m);
+                if (!visited.Contains(name))
+                {
+                    // In some cases, such as when a generic type interface inherits an interface with the same name, Task.GetMethod includes the methods from the base interface.
+                    // This check is to avoid dupicates from these.
+                    result.Add(m);
+                    visited.Add(name);
+                }
+            }
+            foreach (Type baseInterface in t.GetInterfaces())
+            {
+                result.AddRange(GetAllInterfaceMethods(baseInterface, getMethodUniqueId, visited: visited));
+            }
+            return result;
         }
     }
 }

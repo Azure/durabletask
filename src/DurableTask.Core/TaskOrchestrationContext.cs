@@ -17,10 +17,12 @@ namespace DurableTask.Core
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Globalization;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core.Command;
     using DurableTask.Core.Common;
+    using DurableTask.Core.Entities;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using DurableTask.Core.Serializing;
@@ -34,6 +36,7 @@ namespace DurableTask.Core
         private bool executionCompletedOrTerminated;
         private int idCounter;
         private readonly Queue<HistoryEvent> eventsWhileSuspended;
+        private readonly IDictionary<int, OrchestratorAction> suspendedActionsMap;
 
         public bool IsSuspended { get; private set; }
 
@@ -47,6 +50,7 @@ namespace DurableTask.Core
         public TaskOrchestrationContext(
             OrchestrationInstance orchestrationInstance,
             TaskScheduler taskScheduler,
+            TaskOrchestrationEntityParameters entityParameters = null,
             ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
         {
             Utils.UnusedParameter(taskScheduler);
@@ -58,8 +62,10 @@ namespace DurableTask.Core
             this.ErrorDataConverter = JsonDataConverter.Default;
             OrchestrationInstance = orchestrationInstance;
             IsReplaying = false;
+            this.EntityParameters = entityParameters;
             ErrorPropagationMode = errorPropagationMode;
             this.eventsWhileSuspended = new Queue<HistoryEvent>();
+            this.suspendedActionsMap = new SortedDictionary<int, OrchestratorAction>();
         }
 
         public IEnumerable<OrchestratorAction> OrchestratorActions => this.orchestratorActionsMap.Values;
@@ -196,7 +202,12 @@ namespace DurableTask.Core
             }
 
             int id = this.idCounter++;
+<<<<<<< HEAD
             string serializedEventData = this.MessageDataConverter.SerializeInternal(eventData);
+=======
+
+            string serializedEventData = this.MessageDataConverter.SerializeInternal(eventData);             
+>>>>>>> main
 
             var action = new SendEventOrchestratorAction
             {
@@ -416,7 +427,6 @@ namespace DurableTask.Core
             }
         }
 
-
         public void HandleTaskCompletedEvent(TaskCompletedEvent completedEvent)
         {
             int taskId = completedEvent.TaskScheduledId;
@@ -497,8 +507,8 @@ namespace DurableTask.Core
                 // When using ErrorPropagationMode.UseFailureDetails we instead use FailureDetails to convey
                 // error information, which doesn't involve any serialization at all.
                 Exception cause = this.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions ?
-                    Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter) :
-                    null;
+                    Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter) 
+                    : null;
 
                 var failedException = new SubOrchestrationFailedException(failedEvent.EventId, taskId, info.Name,
                     info.Version,
@@ -565,11 +575,35 @@ namespace DurableTask.Core
         public void HandleExecutionSuspendedEvent(ExecutionSuspendedEvent suspendedEvent)
         {
             this.IsSuspended = true;
+
+            // When the orchestrator is suspended, a task could potentially be added to the orchestratorActionsMap.
+            // This could lead to the task being executed repeatedly without completion until the orchestrator is resumed.
+            // To prevent this scenario, check if orchestratorActionsMap is empty before proceeding.
+            if (this.orchestratorActionsMap.Any())
+            {
+                // If not, store its contents to a temporary dictionary to allow processing of the task later when orchestrator resumes.
+                foreach (var pair in this.orchestratorActionsMap)
+                {
+                    this.suspendedActionsMap.Add(pair.Key, pair.Value);
+                }
+                this.orchestratorActionsMap.Clear();
+            }
         }
 
         public void HandleExecutionResumedEvent(ExecutionResumedEvent resumedEvent, Action<HistoryEvent> eventProcessor)
         {
             this.IsSuspended = false;
+
+            // Add the actions stored in the suspendedActionsMap before back to orchestratorActionsMap to ensure proper sequencing.
+            if (this.suspendedActionsMap.Any())
+            {
+                foreach(var pair in this.suspendedActionsMap)
+                {
+                    this.orchestratorActionsMap.Add(pair.Key, pair.Value);
+                }
+                this.suspendedActionsMap.Clear();
+            }
+
             while (eventsWhileSuspended.Count > 0)
             {
                 eventProcessor(eventsWhileSuspended.Dequeue());
@@ -608,7 +642,13 @@ namespace DurableTask.Core
                     details = orchestrationFailureException.Details;
                 }
             }
-            else 
+            else if (failure is TaskFailedException taskFailedException &&
+                this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
+            {
+                // Propagate the original FailureDetails
+                failureDetails = taskFailedException.FailureDetails;
+            }
+            else
             {
                 if (this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
                 {
