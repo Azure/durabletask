@@ -22,6 +22,10 @@ namespace DurableTask.AzureStorage.Messaging
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
     using DurableTask.AzureStorage.Storage;
+    using DurableTask.AzureStorage.Tracking;
+    using DurableTask.Core;
+    using DurableTask.Core.History;
+    using Microsoft.WindowsAzure.Storage.Table;
 
     class ControlQueue : TaskHubQueue, IDisposable
     {
@@ -45,6 +49,199 @@ namespace DurableTask.AzureStorage.Messaging
         public bool IsReleased { get; private set; }
 
         protected override TimeSpan MessageVisibilityTimeout => this.settings.ControlQueueVisibilityTimeout;
+
+        internal async Task<InstanceStatus?> FetchInstanceStatusInternalAsync(string instanceId, bool fetchInput)
+        {
+            if (instanceId == null)
+            {
+                throw new ArgumentNullException(nameof(instanceId));
+            }
+
+            var queryCondition = new OrchestrationInstanceStatusQueryCondition
+            {
+                InstanceId = instanceId,
+                FetchInput = fetchInput,
+            };
+
+            string instancesTableName = settings.InstanceTableName;
+
+            var instancesTable = this.azureStorageClient.GetTableReference(instancesTableName);
+
+            var tableEntitiesResponseInfo = await instancesTable.ExecuteQueryAsync(queryCondition.ToTableQuery<DynamicTableEntity>());
+
+            var tableEntity = tableEntitiesResponseInfo.ReturnedEntities.FirstOrDefault();
+
+            OrchestrationState? orchestrationState = null;
+            if (tableEntity != null)
+            {
+                orchestrationState = await this.ConvertFromAsync(tableEntity);
+            }
+
+            this.settings.Logger.FetchedInstanceStatus(
+                this.storageAccountName,
+                this.settings.TaskHubName,
+                instanceId,
+                orchestrationState?.OrchestrationInstance.ExecutionId ?? string.Empty,
+                orchestrationState?.OrchestrationStatus.ToString() ?? "NotFound",
+                tableEntitiesResponseInfo.ElapsedMilliseconds);
+
+            if (tableEntity == null || orchestrationState == null)
+            {
+                return null;
+            }
+
+            return new InstanceStatus(orchestrationState, tableEntity.ETag);
+        }
+
+        async Task<OrchestrationState> ConvertFromAsync(DynamicTableEntity tableEntity)
+        {
+            var orchestrationInstanceStatus = await CreateOrchestrationInstanceStatusAsync(tableEntity.Properties);
+            var instanceId = KeySanitation.UnescapePartitionKey(tableEntity.PartitionKey);
+            return await ConvertFromAsync(orchestrationInstanceStatus, instanceId);
+        }
+
+        private async Task<OrchestrationInstanceStatus> CreateOrchestrationInstanceStatusAsync(IDictionary<string, EntityProperty> properties)
+        {
+            var instance = new OrchestrationInstanceStatus();
+            EntityProperty property;
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.ExecutionId), out property))
+            {
+                instance.ExecutionId = property.StringValue;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.Name), out property))
+            {
+                instance.Name = property.StringValue;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.Version), out property))
+            {
+                instance.Version = property.StringValue;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.Input), out property))
+            {
+                instance.Input = property.StringValue;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.Output), out property))
+            {
+                instance.Output = property.StringValue;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.CustomStatus), out property))
+            {
+                instance.CustomStatus = property.StringValue;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.CreatedTime), out property) && property.DateTime is { } createdTime)
+            {
+                instance.CreatedTime = createdTime;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.LastUpdatedTime), out property) && property.DateTime is { } lastUpdatedTime)
+            {
+                instance.LastUpdatedTime = lastUpdatedTime;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.CompletedTime), out property))
+            {
+                instance.CompletedTime = property.DateTime;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.RuntimeStatus), out property))
+            {
+                instance.RuntimeStatus = property.StringValue;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.ScheduledStartTime), out property))
+            {
+                instance.ScheduledStartTime = property.DateTime;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.Generation), out property) && property.Int32Value is { } generation)
+            {
+                instance.Generation = generation;
+            }
+
+            if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.Tags), out property) && property.StringValue is { Length: > 0 } tags)
+            {
+                instance.Tags = TagsSerializer.Deserialize(tags);
+            }
+            else if (properties.TryGetValue(nameof(OrchestrationInstanceStatus.Tags) + "BlobName", out property) && property.StringValue is { Length: > 0 } blob)
+            {
+                var blobContents = await messageManager.DownloadAndDecompressAsBytesAsync(blob);
+                instance.Tags = TagsSerializer.Deserialize(blobContents);
+            }
+
+            return instance;
+        }
+
+        async Task<OrchestrationState> ConvertFromAsync(OrchestrationInstanceStatus orchestrationInstanceStatus, string instanceId)
+        {
+            var orchestrationState = new OrchestrationState();
+            if (!Enum.TryParse(orchestrationInstanceStatus.RuntimeStatus, out orchestrationState.OrchestrationStatus))
+            {
+                // This is not expected, but could happen if there is invalid data in the Instances table.
+                orchestrationState.OrchestrationStatus = (OrchestrationStatus)(-1);
+            }
+
+            orchestrationState.OrchestrationInstance = new OrchestrationInstance
+            {
+                InstanceId = instanceId,
+                ExecutionId = orchestrationInstanceStatus.ExecutionId,
+            };
+
+            orchestrationState.Name = orchestrationInstanceStatus.Name;
+            orchestrationState.Version = orchestrationInstanceStatus.Version;
+            orchestrationState.Status = orchestrationInstanceStatus.CustomStatus;
+            orchestrationState.CreatedTime = orchestrationInstanceStatus.CreatedTime;
+            orchestrationState.CompletedTime = orchestrationInstanceStatus.CompletedTime.GetValueOrDefault();
+            orchestrationState.LastUpdatedTime = orchestrationInstanceStatus.LastUpdatedTime;
+            orchestrationState.Input = orchestrationInstanceStatus.Input;
+            orchestrationState.Output = orchestrationInstanceStatus.Output;
+            orchestrationState.ScheduledStartTime = orchestrationInstanceStatus.ScheduledStartTime;
+            orchestrationState.Generation = orchestrationInstanceStatus.Generation;
+            orchestrationState.Tags = orchestrationInstanceStatus.Tags;
+
+            if (this.settings.FetchLargeMessageDataEnabled)
+            {
+                if (MessageManager.TryGetLargeMessageReference(orchestrationState.Input, out Uri blobUrl))
+                {
+                    string json = await this.messageManager.DownloadAndDecompressAsBytesAsync(blobUrl);
+
+                    // Depending on which blob this is, we interpret it differently.
+                    if (blobUrl.AbsolutePath.EndsWith("ExecutionStarted.json.gz"))
+                    {
+                        // The downloaded content is an ExecutedStarted message payload that
+                        // was created when the orchestration was started.
+                        MessageData msg = this.messageManager.DeserializeMessageData(json);
+                        if (msg?.TaskMessage?.Event is ExecutionStartedEvent startEvent)
+                        {
+                            orchestrationState.Input = startEvent.Input;
+                        }
+                        else
+                        {
+                            this.settings.Logger.GeneralWarning(
+                                this.storageAccountName,
+                                this.settings.TaskHubName,
+                                $"Orchestration input blob URL '{blobUrl}' contained unrecognized data.",
+                                instanceId);
+                        }
+                    }
+                    else
+                    {
+                        // The downloaded content is the raw input JSON
+                        orchestrationState.Input = json;
+                    }
+                }
+
+                orchestrationState.Output = await this.messageManager.FetchLargeMessageIfNecessary(orchestrationState.Output);
+            }
+
+            return orchestrationState;
+        }
 
         public async Task<IReadOnlyList<MessageData>> GetMessagesAsync(CancellationToken cancellationToken)
         {
@@ -108,6 +305,19 @@ namespace DurableTask.AzureStorage.Messaging
                                 messageData = await this.messageManager.DeserializeQueueMessageAsync(
                                     queueMessage,
                                     this.storageQueue.Name);
+
+                                var instanceId = messageData.TaskMessage.OrchestrationInstance.InstanceId;
+                                InstanceStatus? status = await FetchInstanceStatusInternalAsync(instanceId, false);
+                                if (status != null)
+                                {
+                                    if (status.State.OrchestrationStatus == OrchestrationStatus.Terminated)
+                                    {
+                                        // delete the message, the orchestration is terminated, we won't load it's history
+                                        // TODO: possibly do not delete, but move to poison message table?
+                                        // TODO: add log!
+                                        await this.InnerQueue.DeleteMessageAsync(queueMessage);
+                                    }
+                                }
                             }
                             catch (Exception e)
                             {
