@@ -17,14 +17,9 @@
   <!-- Version Info -->
   <PropertyGroup>
     <MajorVersion>2</MajorVersion>
-<<<<<<< HEAD
-    <MinorVersion>15</MinorVersion>
-    <PatchVersion>1</PatchVersion>
-
-=======
     <MinorVersion>17</MinorVersion>
     <PatchVersion>0</PatchVersion>
->>>>>>> main
+
     <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
     <FileVersion>$(VersionPrefix).0</FileVersion>
     <!-- FileVersionRevision is expected to be set by the CI. This is useful for distinguishing between multiple builds of the same version. -->
@@ -37,14 +32,10 @@
   <PropertyGroup Condition="$(VersionSuffix) == ''">
     <Version>$(VersionPrefix)</Version>
   </PropertyGroup>
-<<<<<<< HEAD
-
-=======
   <PropertyGroup Condition="$(VersionSuffix) != ''">
     <Version>$(VersionPrefix)-$(VersionSuffix)</Version>
   </PropertyGroup>
-  
->>>>>>> main
+
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="1.1.1" />
     <!--Newtonsoft.Json 7.0.1 is kept for backwards compatibility with Functions runtime V1, so we supress warning NU1903. -->

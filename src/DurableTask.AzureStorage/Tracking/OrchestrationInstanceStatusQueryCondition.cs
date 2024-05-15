@@ -68,16 +68,12 @@ namespace DurableTask.AzureStorage.Tracking
         public bool FetchOutput { get; set; } = true;
 
         /// <summary>
-<<<<<<< HEAD
-        /// Get the corresponding OData filter.
-=======
         /// Whether to exclude entities from the results.
         /// </summary>
         public bool ExcludeEntities { get; set; } = false;
 
         /// <summary>
-        /// Get the TableQuery object
->>>>>>> main
+        /// Get the corresponding OData filter.
         /// </summary>
         /// <returns></returns>
         internal ODataCondition ToOData()
