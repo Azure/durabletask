@@ -212,22 +212,29 @@ namespace DurableTask.AzureStorage.Messaging
             return initialVisibilityDelay;
         }
 
-        public virtual Task<QueueMessage> AbandonMessageAsync(MessageData message, SessionBase? session = null)
+        public virtual async Task AbandonMessageAsync(MessageData message, SessionBase? session = null)
         {
             QueueMessage queueMessage = message.OriginalQueueMessage;
             TaskMessage taskMessage = message.TaskMessage;
             OrchestrationInstance instance = taskMessage.OrchestrationInstance;
             long sequenceNumber = message.SequenceNumber;
 
-            return this.AbandonMessageAsync(
+            UpdateReceipt? receipt = await this.AbandonMessageAsync(
                 queueMessage,
                 taskMessage,
                 instance,
                 session?.TraceActivityId,
                 sequenceNumber);
+
+            // If we've successfully abandoned the message, update the pop receipt
+            // (even though we'll likely no longer interact with this message)
+            if (receipt is not null)
+            {
+                message.Update(receipt);
+            }
         }
 
-        protected async Task<QueueMessage> AbandonMessageAsync(
+        protected async Task<UpdateReceipt?> AbandonMessageAsync(
             QueueMessage queueMessage,
             TaskMessage? taskMessage,
             OrchestrationInstance? instance,
@@ -294,11 +301,11 @@ namespace DurableTask.AzureStorage.Messaging
                     details: $"Caller: {nameof(AbandonMessageAsync)}",
                     queueMessage.PopReceipt);
 
-                return queueMessage;
+                return null;
             }
         }
 
-        public async Task<QueueMessage> RenewMessageAsync(MessageData message, SessionBase session)
+        public async Task RenewMessageAsync(MessageData message, SessionBase session)
         {
             QueueMessage queueMessage = message.OriginalQueueMessage;
             TaskMessage taskMessage = message.TaskMessage;
@@ -318,16 +325,18 @@ namespace DurableTask.AzureStorage.Messaging
 
             try
             {
-                return await this.storageQueue.UpdateMessageAsync(
+                UpdateReceipt receipt = await this.storageQueue.UpdateMessageAsync(
                     queueMessage,
                     this.MessageVisibilityTimeout,
                     session?.TraceActivityId);
+
+                // Update the pop receipt
+                message.Update(receipt);
             }
             catch (Exception e)
             {
                 // Message may have been processed and deleted already.
                 this.HandleMessagingExceptions(e, message, $"Caller: {nameof(RenewMessageAsync)}");
-                return queueMessage;
             }
         }
 

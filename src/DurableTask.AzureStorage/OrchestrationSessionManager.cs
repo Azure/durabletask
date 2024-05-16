@@ -314,7 +314,7 @@ namespace DurableTask.AzureStorage
                 filteredMessages = filteredMessages.Except(messagesToDefer);
 
                 // Defer messages on a background thread to avoid blocking the dequeue loop
-                _ = Task.Run(() => messagesToDefer.ParallelForEachAsync(msg => _ = controlQueue.AbandonMessageAsync(msg, session: null)));
+                _ = Task.Run(() => messagesToDefer.ParallelForEachAsync(msg => controlQueue.AbandonMessageAsync(msg, session: null)));
             }
 
             if (messagesToDiscard?.Count > 0)

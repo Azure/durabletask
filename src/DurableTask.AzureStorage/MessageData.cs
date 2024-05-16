@@ -106,6 +106,11 @@ namespace DurableTask.AzureStorage
         internal long TotalMessageSizeBytes { get; set; }
 
         internal MessageFormatFlags MessageFormat { get; set; }
+
+        internal void Update(UpdateReceipt receipt)
+        {
+            this.OriginalQueueMessage = this.OriginalQueueMessage.Update(receipt);
+        }
     }
 
     /// <summary>

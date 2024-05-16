@@ -1349,7 +1349,7 @@ namespace DurableTask.AzureStorage
             // Reset the visibility of the message to ensure it doesn't get picked up by anyone else.
             await session.CurrentMessageBatch.ParallelForEachAsync(
                 this.settings.MaxStorageOperationConcurrency,
-                async message => message.OriginalQueueMessage = await controlQueue.RenewMessageAsync(message, session));
+                message => controlQueue.RenewMessageAsync(message, session));
 
             workItem.LockedUntilUtc = DateTime.UtcNow.Add(this.settings.ControlQueueVisibilityTimeout);
         }
@@ -1531,7 +1531,7 @@ namespace DurableTask.AzureStorage
             session.StartNewLogicalTraceScope();
 
             // Reset the visibility of the message to ensure it doesn't get picked up by anyone else.
-            session.MessageData.OriginalQueueMessage = await this.workItemQueue.RenewMessageAsync(session.MessageData, session);
+            await this.workItemQueue.RenewMessageAsync(session.MessageData, session);
 
             workItem.LockedUntilUtc = DateTime.UtcNow.Add(this.settings.WorkItemQueueVisibilityTimeout);
             return workItem;
@@ -1559,7 +1559,7 @@ namespace DurableTask.AzureStorage
 
             session.StartNewLogicalTraceScope();
 
-            _ = await this.workItemQueue.AbandonMessageAsync(session.MessageData, session);
+            await this.workItemQueue.AbandonMessageAsync(session.MessageData, session);
 
             if (this.activeActivitySessions.TryRemove(workItem.Id, out _))
             {
