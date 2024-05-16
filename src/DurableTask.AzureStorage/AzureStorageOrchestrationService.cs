@@ -1380,7 +1380,7 @@ namespace DurableTask.AzureStorage
         {
             await messages.ParallelForEachAsync(
                 this.settings.MaxStorageOperationConcurrency,
-                message => _ = session.ControlQueue.AbandonMessageAsync(message, session));
+                message => session.ControlQueue.AbandonMessageAsync(message, session));
 
             // Remove the messages from the current batch. The remaining messages
             // may still be able to be processed
