@@ -21,6 +21,7 @@ namespace DurableTask.Core
     using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.Core.Entities;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.Logging;
     using DurableTask.Core.Middleware;
@@ -34,10 +35,13 @@ namespace DurableTask.Core
     {
         readonly INameVersionObjectManager<TaskActivity> activityManager;
         readonly INameVersionObjectManager<TaskOrchestration> orchestrationManager;
+        readonly INameVersionObjectManager<TaskEntity> entityManager;
 
         readonly DispatchMiddlewarePipeline orchestrationDispatchPipeline = new DispatchMiddlewarePipeline();
+        readonly DispatchMiddlewarePipeline entityDispatchPipeline = new DispatchMiddlewarePipeline();
         readonly DispatchMiddlewarePipeline activityDispatchPipeline = new DispatchMiddlewarePipeline();
 
+        readonly bool dispatchEntitiesSeparately;
         readonly SemaphoreSlim slimLock = new SemaphoreSlim(1, 1);
         readonly LogHelper logHelper;
 
@@ -51,6 +55,7 @@ namespace DurableTask.Core
 
         TaskActivityDispatcher activityDispatcher;
         TaskOrchestrationDispatcher orchestrationDispatcher;
+        TaskEntityDispatcher entityDispatcher;
 
         /// <summary>
         ///     Create a new TaskHubWorker with given OrchestrationService
@@ -60,7 +65,8 @@ namespace DurableTask.Core
             : this(
                   orchestrationService,
                   new NameVersionObjectManager<TaskOrchestration>(),
-                  new NameVersionObjectManager<TaskActivity>())
+                  new NameVersionObjectManager<TaskActivity>(),
+                  new NameVersionObjectManager<TaskEntity>())
         {
         }
 
@@ -75,6 +81,7 @@ namespace DurableTask.Core
                   orchestrationService,
                   new NameVersionObjectManager<TaskOrchestration>(),
                   new NameVersionObjectManager<TaskActivity>(),
+                  new NameVersionObjectManager<TaskEntity>(),
                   loggerFactory)
         {
         }
@@ -93,10 +100,10 @@ namespace DurableTask.Core
                 orchestrationService,
                 orchestrationObjectManager,
                 activityObjectManager,
+                new NameVersionObjectManager<TaskEntity>(),
                 loggerFactory: null)
         {
         }
-
 
         /// <summary>
         ///     Create a new <see cref="TaskHubWorker"/> with given <see cref="IOrchestrationService"/> and name version managers
@@ -110,11 +117,36 @@ namespace DurableTask.Core
             INameVersionObjectManager<TaskOrchestration> orchestrationObjectManager,
             INameVersionObjectManager<TaskActivity> activityObjectManager,
             ILoggerFactory loggerFactory = null)
+             : this(
+                orchestrationService,
+                orchestrationObjectManager,
+                activityObjectManager,
+                new NameVersionObjectManager<TaskEntity>(),
+                loggerFactory)
+        {
+        }
+
+        /// <summary>
+        ///     Create a new TaskHubWorker with given OrchestrationService and name version managers
+        /// </summary>
+        /// <param name="orchestrationService">Reference the orchestration service implementation</param>
+        /// <param name="orchestrationObjectManager">NameVersionObjectManager for Orchestrations</param>
+        /// <param name="activityObjectManager">NameVersionObjectManager for Activities</param>
+        /// <param name="entityObjectManager">The NameVersionObjectManager for entities. The version is the entity key.</param>
+        /// <param name="loggerFactory">The <see cref="ILoggerFactory"/> to use for logging</param>
+        public TaskHubWorker(
+            IOrchestrationService orchestrationService,
+            INameVersionObjectManager<TaskOrchestration> orchestrationObjectManager,
+            INameVersionObjectManager<TaskActivity> activityObjectManager,
+            INameVersionObjectManager<TaskEntity> entityObjectManager,
+            ILoggerFactory loggerFactory = null)
         {
             this.orchestrationManager = orchestrationObjectManager ?? throw new ArgumentException("orchestrationObjectManager");
             this.activityManager = activityObjectManager ?? throw new ArgumentException("activityObjectManager");
+            this.entityManager = entityObjectManager ?? throw new ArgumentException("entityObjectManager");
             this.orchestrationService = orchestrationService ?? throw new ArgumentException("orchestrationService");
             this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
+            this.dispatchEntitiesSeparately = (orchestrationService as IEntityOrchestrationService)?.EntityBackendProperties?.UseSeparateQueueForEntityWorkItems ?? false;
         }
 
         /// <summary>
@@ -151,6 +183,15 @@ namespace DurableTask.Core
         public void AddOrchestrationDispatcherMiddleware(Func<DispatchMiddlewareContext, Func<Task>, Task> middleware)
         {
             this.orchestrationDispatchPipeline.Add(middleware ?? throw new ArgumentNullException(nameof(middleware)));
+        }
+
+        /// <summary>
+        /// Adds a middleware delegate to the entity dispatch pipeline.
+        /// </summary>
+        /// <param name="middleware">Delegate to invoke whenever a message is dispatched to an entity.</param>
+        public void AddEntityDispatcherMiddleware(Func<DispatchMiddlewareContext, Func<Task>, Task> middleware)
+        {
+            this.entityDispatchPipeline.Add(middleware ?? throw new ArgumentNullException(nameof(middleware)));
         }
 
         /// <summary>
@@ -192,9 +233,24 @@ namespace DurableTask.Core
                     this.logHelper,
                     this.ErrorPropagationMode);
 
+                if (this.dispatchEntitiesSeparately)
+                {
+                    this.entityDispatcher = new TaskEntityDispatcher(
+                        this.orchestrationService,
+                        this.entityManager,
+                        this.entityDispatchPipeline,
+                        this.logHelper,
+                        this.ErrorPropagationMode);
+                }
+
                 await this.orchestrationService.StartAsync();
                 await this.orchestrationDispatcher.StartAsync();
                 await this.activityDispatcher.StartAsync();
+
+                if (this.dispatchEntitiesSeparately)
+                {
+                    await this.entityDispatcher.StartAsync();
+                }
 
                 this.logHelper.TaskHubWorkerStarted(sw.Elapsed);
                 this.isStarted = true;
@@ -233,6 +289,7 @@ namespace DurableTask.Core
                     {
                         this.orchestrationDispatcher.StopAsync(isForced),
                         this.activityDispatcher.StopAsync(isForced),
+                        this.dispatchEntitiesSeparately ? this.entityDispatcher.StopAsync(isForced) : Task.CompletedTask,
                     };
 
                     await Task.WhenAll(dispatcherShutdowns);
@@ -277,6 +334,53 @@ namespace DurableTask.Core
             foreach (ObjectCreator<TaskOrchestration> creator in taskOrchestrationCreators)
             {
                 this.orchestrationManager.Add(creator);
+            }
+
+            return this;
+        }
+
+        /// <summary>
+        ///     Loads user defined TaskEntity classes in the TaskHubWorker
+        /// </summary>
+        /// <param name="taskEntityTypes">Types deriving from TaskEntity class</param>
+        /// <returns></returns>
+        public TaskHubWorker AddTaskEntities(params Type[] taskEntityTypes)
+        {
+            if (!this.dispatchEntitiesSeparately)
+            {
+                throw new NotSupportedException("The configured backend does not support separate entity dispatch.");
+            }
+
+            foreach (Type type in taskEntityTypes)
+            {
+                ObjectCreator<TaskEntity> creator = new NameValueObjectCreator<TaskEntity>(
+                    type.Name,
+                    string.Empty,
+                    type);
+                
+                this.entityManager.Add(creator);
+            }
+
+            return this;
+        }
+
+        /// <summary>
+        ///     Loads user defined TaskEntity classes in the TaskHubWorker
+        /// </summary>
+        /// <param name="taskEntityCreators">
+        ///     User specified ObjectCreators that will
+        ///     create classes deriving TaskEntities with specific names and versions
+        /// </param>
+        public TaskHubWorker AddTaskEntities(params ObjectCreator<TaskEntity>[] taskEntityCreators)
+        {
+            if (!this.dispatchEntitiesSeparately)
+            {
+                throw new NotSupportedException("The configured backend does not support separate entity dispatch.");
+            }
+
+            foreach (ObjectCreator<TaskEntity> creator in taskEntityCreators)
+            {
+                this.entityManager.Add(creator);
             }
 
             return this;
@@ -335,6 +439,10 @@ namespace DurableTask.Core
         ///     and version set to an empty string. Methods can then be invoked from task orchestrations
         ///     by calling ScheduleTask(name, version) with name as the method name and string.Empty as the version.
         /// </summary>
+        /// <remarks>
+        ///     This is deprecated and exists only for back-compatibility.
+        ///     See <see cref="AddTaskActivitiesFromInterfaceV2"/>, which adds support for C# interface features such as inheritance, generics, and method overloading.
+        /// </remarks>
         /// <typeparam name="T">Interface</typeparam>
         /// <param name="activities">Object that implements this interface</param>
         public TaskHubWorker AddTaskActivitiesFromInterface<T>(T activities)
@@ -348,6 +456,10 @@ namespace DurableTask.Core
         ///     and version set to an empty string. Methods can then be invoked from task orchestrations
         ///     by calling ScheduleTask(name, version) with name as the method name and string.Empty as the version.
         /// </summary>
+        /// <remarks>
+        ///     This is deprecated and exists only for back-compatibility.
+        ///     See <see cref="AddTaskActivitiesFromInterfaceV2"/>, which adds support for C# interface features such as inheritance, generics, and method overloading.
+        /// </remarks>
         /// <typeparam name="T">Interface</typeparam>
         /// <param name="activities">Object that implements this interface</param>
         /// <param name="useFullyQualifiedMethodNames">
@@ -365,6 +477,23 @@ namespace DurableTask.Core
         ///     and version set to an empty string. Methods can then be invoked from task orchestrations
         ///     by calling ScheduleTask(name, version) with name as the method name and string.Empty as the version.
         /// </summary>
+        /// <typeparam name="T">Interface</typeparam>
+        /// <param name="activities">Object that implements this interface</param>
+        public TaskHubWorker AddTaskActivitiesFromInterfaceV2<T>(object activities)
+        {
+            return this.AddTaskActivitiesFromInterfaceV2(typeof(T), activities);
+        }
+
+        /// <summary>
+        ///     Infers and adds every method in the specified interface T on the
+        ///     passed in object as a different TaskActivity with Name set to the method name
+        ///     and version set to an empty string. Methods can then be invoked from task orchestrations
+        ///     by calling ScheduleTask(name, version) with name as the method name and string.Empty as the version.
+        /// </summary>
+        /// <remarks>
+        ///     This is deprecated and exists only for back-compatibility.
+        ///     See <see cref="AddTaskActivitiesFromInterfaceV2"/>, which adds support for C# interface features such as inheritance, generics, and method overloading.
+        /// </remarks>
         /// <param name="interface">Interface type.</param>
         /// <param name="activities">Object that implements the <paramref name="interface"/> interface</param>
         /// <param name="useFullyQualifiedMethodNames">
@@ -373,16 +502,7 @@ namespace DurableTask.Core
         /// </param>
         public TaskHubWorker AddTaskActivitiesFromInterface(Type @interface, object activities, bool useFullyQualifiedMethodNames = false)
         {
-            if (!@interface.IsInterface)
-            {
-                throw new Exception("Contract can only be an interface.");
-            }
-
-            if (!@interface.IsAssignableFrom(activities.GetType()))
-            {
-                throw new ArgumentException($"{activities.GetType().FullName} does not implement {@interface.FullName}", nameof(activities));
-            }
-
+            this.ValidateActivitiesInterfaceType(@interface, activities);
             foreach (MethodInfo methodInfo in @interface.GetMethods())
             {
                 TaskActivity taskActivity = new ReflectionBasedTaskActivity(activities, methodInfo);
@@ -391,6 +511,29 @@ namespace DurableTask.Core
                         NameVersionHelper.GetDefaultName(methodInfo, useFullyQualifiedMethodNames),
                         NameVersionHelper.GetDefaultVersion(methodInfo), taskActivity);
                 this.activityManager.Add(creator);
+            }
+
+            return this;
+        }
+
+        /// <summary>
+        ///     Infers and adds every method in the specified interface T on the
+        ///     passed in object as a different TaskActivity with Name set to the method name
+        ///     and version set to an empty string. Methods can then be invoked from task orchestrations
+        ///     by calling ScheduleTask(name, version) with name as the method name and string.Empty as the version.
+        /// </summary>
+        /// <param name="interface">Interface type.</param>
+        /// <param name="activities">Object that implements the <paramref name="interface"/> interface</param>
+        public TaskHubWorker AddTaskActivitiesFromInterfaceV2(Type @interface, object activities)
+        {
+            this.ValidateActivitiesInterfaceType(@interface, activities);
+            var methods = NameVersionHelper.GetAllInterfaceMethods(@interface, (MethodInfo m) => NameVersionHelper.GetFullyQualifiedMethodName(@interface.ToString(), m));
+            foreach (MethodInfo methodInfo in methods)
+            {
+                TaskActivity taskActivity = new ReflectionBasedTaskActivity(activities, methodInfo);
+                string name = NameVersionHelper.GetFullyQualifiedMethodName(@interface.ToString(), methodInfo);
+                ObjectCreator<TaskActivity> creator = new NameValueObjectCreator<TaskActivity>(name, NameVersionHelper.GetDefaultVersion(methodInfo), taskActivity);
+                this.AddTaskActivities(creator);
             }
 
             return this;
@@ -485,6 +628,19 @@ namespace DurableTask.Core
         public void Dispose()
         {
             ((IDisposable)this.slimLock).Dispose();
+        }
+
+        private void ValidateActivitiesInterfaceType(Type @interface, object activities)
+        {
+            if (!@interface.IsInterface)
+            {
+                throw new Exception("Contract can only be an interface.");
+            }
+
+            if (!@interface.IsAssignableFrom(activities.GetType()))
+            {
+                throw new ArgumentException($"type {activities.GetType().FullName} does not implement {@interface.FullName}");
+            }
         }
     }
 }

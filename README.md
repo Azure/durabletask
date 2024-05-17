@@ -25,7 +25,13 @@ The core programming model for the Durable Task Framework is contained in the [D
 
 ## Learning more
 
-The associated wiki contains more details about the framework and how it can be used: https://github.com/Azure/durabletask/wiki. You can also find great information in [this blog series](https://abhikmitra.github.io/blog/durable-task/). In some cases, the [Durable Functions documentation](https://docs.microsoft.com/en-us/azure/azure-functions/durable/) can actually be useful in learning things about the underlying framework, although not everything will apply. Lastly, you can watch a video with some of the original maintainers in [this Channel 9 video](https://channel9.msdn.com/Shows/On-NET/Building-workflows-with-the-Durable-Task-Framework).
+There are several places where you can learn more about this framework. Note that some are external and not owned by Microsoft:
+
+- [This repo's wiki](https://github.com/Azure/durabletask/wiki), which contains more details about the framework and how it can be used.
+- The following blog series contains useful information: https://abhikmitra.github.io/blog/durable-task/
+- Several useful samples are available here: https://github.com/kaushiksk/durabletask-samples
+- You can watch a video with some of the original maintainers in [Building Workflows with the Durable Task Framework](https://learn.microsoft.com/shows/on-net/building-workflows-with-the-durable-task-framework).
+- In some cases, the [Azure Durable Functions documentation](https://learn.microsoft.com/azure/azure-functions/durable/) can actually be useful in learning things about the underlying framework, although not everything will apply.
 
 ## Development Notes
 
@@ -35,6 +41,8 @@ Unit tests also require [Azure Storage Emulator](https://docs.microsoft.com/azur
 
 > Note: While it's possible to use in tests a real Azure Storage account it is not recommended to do so because many tests will fail with a 409 Conflict error. This is because tests delete and quickly recreate the same storage tables, and Azure Storage doesn't do well in these conditions. If you really want to change Azure Storage connection string you can do so via the **StorageConnectionString** app.config value in the test project, or by defining a **DurableTaskTestStorageConnectionString** environment variable. 
 
+<!--
 There is a gitter for this repo, but it's not currently being monitored. We're leaving the link for it up for now and will update this message if anything changes.
 
 [![Join the chat at https://gitter.im/azure/durabletask](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/azure/durabletask?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) 
+-->
