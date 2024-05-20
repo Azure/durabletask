@@ -62,7 +62,7 @@ namespace ApplicationInsightsSample
             var settings = new AzureStorageOrchestrationServiceSettings
             {
                 TaskHubName = "AppInsightsSample",
-                StorageConnectionString = "UseDevelopmentStorage=true",
+                StorageAccountClientProvider = new StorageAccountClientProvider("UseDevelopmentStorage=true"),
             };
             IOrchestrationService service = new AzureStorageOrchestrationService(settings);
             return service;

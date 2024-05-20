@@ -133,7 +133,7 @@ namespace DurableTask.AzureStorage.Logging
                 string executionId,
                 string messageId,
                 int age,
-                int dequeueCount,
+                long dequeueCount,
                 string nextVisibleTime,
                 long sizeInBytes,
                 string partitionId,
@@ -186,7 +186,7 @@ namespace DurableTask.AzureStorage.Logging
             public int Age { get; }
 
             [StructuredLogField]
-            public int DequeueCount { get; }
+            public long DequeueCount { get; }
 
             [StructuredLogField]
             public string NextVisibleTime { get; }
@@ -581,7 +581,7 @@ namespace DurableTask.AzureStorage.Logging
                 string instanceId,
                 string executionId,
                 string partitionId,
-                int dequeueCount,
+                long dequeueCount,
                 string popReceipt)
             {
                 this.Account = account;
@@ -621,7 +621,7 @@ namespace DurableTask.AzureStorage.Logging
             public string PartitionId { get; }
 
             [StructuredLogField]
-            public int DequeueCount { get; }
+            public long DequeueCount { get; }
 
             [StructuredLogField]
             public string PopReceipt { get; }
@@ -666,7 +666,7 @@ namespace DurableTask.AzureStorage.Logging
                 string instanceId,
                 string executionId,
                 string partitionId,
-                int dequeueCount)
+                long dequeueCount)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
@@ -704,7 +704,7 @@ namespace DurableTask.AzureStorage.Logging
             public string PartitionId { get; }
 
             [StructuredLogField]
-            public int DequeueCount { get; }
+            public long DequeueCount { get; }
 
             public override EventId EventId => new EventId(
                 EventIds.PoisonMessageDetected,
