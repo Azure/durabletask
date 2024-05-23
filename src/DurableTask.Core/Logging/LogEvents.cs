@@ -632,7 +632,7 @@ namespace DurableTask.Core.Logging
                 StructuredEventSource.Log.TerminatingInstance(
                     this.InstanceId,
                     this.ExecutionId,
-                    this.Details,
+                    Details: string.Empty, // User-provided details may contain sensitive data, so we don't log it.
                     Utils.AppName,
                     Utils.PackageVersion);
         }
@@ -668,7 +668,7 @@ namespace DurableTask.Core.Logging
                 StructuredEventSource.Log.SuspendingInstance(
                     this.InstanceId,
                     this.ExecutionId,
-                    this.Details,
+                    Details: string.Empty, // User-provided details may contain sensitive data, so we don't log it.
                     Utils.AppName,
                     Utils.PackageVersion);
         }
@@ -704,7 +704,7 @@ namespace DurableTask.Core.Logging
                 StructuredEventSource.Log.ResumingInstance(
                     this.InstanceId,
                     this.ExecutionId,
-                    this.Details,
+                    Details: string.Empty, // User-provided details may contain sensitive data, so we don't log it.
                     Utils.AppName,
                     Utils.PackageVersion);
         }
@@ -1085,7 +1085,7 @@ namespace DurableTask.Core.Logging
                     this.InstanceId,
                     this.ExecutionId,
                     this.RuntimeStatus,
-                    this.Details,
+                    Details: string.Empty, // Failure details may contain sensitive information, don't log them.
                     this.SizeInBytes,
                     Utils.AppName,
                     Utils.PackageVersion);
@@ -1540,7 +1540,7 @@ namespace DurableTask.Core.Logging
                     this.ExecutionId,
                     this.Name,
                     this.TaskEventId,
-                    Utils.RedactUserCodeExceptions ? LogHelper.GetRedactedExceptionDetails(this.exception) : this.Details, // We have to be extra guarded about logging user exceptions to EventSource (ETW)
+                    Details: string.Empty, // Details may contain sensitive data, so we don't log them
                     Utils.AppName,
                     Utils.PackageVersion);
         }

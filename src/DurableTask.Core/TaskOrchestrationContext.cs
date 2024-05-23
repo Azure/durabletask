@@ -615,8 +615,8 @@ namespace DurableTask.Core
 
             string reason = failure.Message;
 
-            // string details is legacy, FailureDetails is the newer way to share failure information
-            string details = null;
+            // failureDetailsString is legacy, FailureDetails is the newer way to share failure information
+            string failureDetailsString = null;
             FailureDetails failureDetails = null;
 
             // correlation 
@@ -635,7 +635,7 @@ namespace DurableTask.Core
                 }
                 else
                 {
-                    details = orchestrationFailureException.Details;
+                    failureDetailsString = orchestrationFailureException.Details;
                 }
             }
             else if (failure is TaskFailedException taskFailedException &&
@@ -652,14 +652,14 @@ namespace DurableTask.Core
                 }
                 else
                 {
-                    details = $"Unhandled exception while executing orchestration: {failure}\n\t{failure.StackTrace}";
+                    failureDetailsString = $"Unhandled exception while executing orchestration: {failure}\n\t{failure.StackTrace}";
                 }
             }
 
-            CompleteOrchestration(reason, details, OrchestrationStatus.Failed, failureDetails);
+            CompleteOrchestration(reason, failureDetailsString, OrchestrationStatus.Failed, failureDetails);
         }
 
-        public void CompleteOrchestration(string result, string details, OrchestrationStatus orchestrationStatus, FailureDetails failureDetails = null)
+        public void CompleteOrchestration(string result, string failureDetailsString, OrchestrationStatus orchestrationStatus, FailureDetails failureDetails = null)
         {
             int id = this.idCounter++;
             OrchestrationCompleteOrchestratorAction completedOrchestratorAction;
@@ -678,7 +678,7 @@ namespace DurableTask.Core
 
                 completedOrchestratorAction = new OrchestrationCompleteOrchestratorAction();
                 completedOrchestratorAction.Result = result;
-                completedOrchestratorAction.Details = details;
+                completedOrchestratorAction.Details = failureDetailsString;
                 completedOrchestratorAction.OrchestrationStatus = orchestrationStatus;
                 completedOrchestratorAction.FailureDetails = failureDetails;
             }
