@@ -130,8 +130,6 @@ namespace DurableTask.Core
                 // Distributed tracing: start a new trace activity derived from the orchestration's trace context.
                 Activity? traceActivity = TraceHelper.StartTraceActivityForTaskExecution(scheduledEvent, orchestrationInstance);
 
-                this.logHelper.TaskActivityStarting(orchestrationInstance, scheduledEvent);
-
                 if (scheduledEvent.Name == null)
                 {
                     string message = $"The activity worker received a {nameof(EventType.TaskScheduled)} event that does not specify an activity name.";
