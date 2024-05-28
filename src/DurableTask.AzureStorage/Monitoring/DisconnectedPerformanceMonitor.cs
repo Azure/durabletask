@@ -16,10 +16,12 @@ namespace DurableTask.AzureStorage.Monitoring
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Net;
     using System.Text;
     using System.Threading.Tasks;
+    using Azure;
+    using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Storage;
-    using Microsoft.WindowsAzure.Storage;
 
     /// <summary>
     /// Utility class for collecting performance information for a Durable Task hub without actually running inside a Durable Task worker.
@@ -49,37 +51,21 @@ namespace DurableTask.AzureStorage.Monitoring
         /// </summary>
         /// <param name="storageConnectionString">The connection string for the Azure Storage account to monitor.</param>
         /// <param name="taskHub">The name of the task hub within the specified storage account.</param>
-        public DisconnectedPerformanceMonitor(string storageConnectionString, string taskHub)
-            : this(CloudStorageAccount.Parse(storageConnectionString), taskHub)
-        {
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="DisconnectedPerformanceMonitor"/> class.
-        /// </summary>
-        /// <param name="storageAccount">The Azure Storage account to monitor.</param>
-        /// <param name="taskHub">The name of the task hub within the specified storage account.</param>
         /// <param name="maxPollingIntervalMilliseconds">The maximum interval in milliseconds for polling control and work-item queues.</param>
-        public DisconnectedPerformanceMonitor(
-            CloudStorageAccount storageAccount,
-            string taskHub,
-            int? maxPollingIntervalMilliseconds = null)
-            : this(storageAccount, GetSettings(taskHub, maxPollingIntervalMilliseconds))
+        public DisconnectedPerformanceMonitor(string storageConnectionString, string taskHub, int? maxPollingIntervalMilliseconds = null)
+            : this(GetSettings(storageConnectionString, taskHub, maxPollingIntervalMilliseconds))
         {
         }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DisconnectedPerformanceMonitor"/> class.
         /// </summary>
-        /// <param name="storageAccount">The Azure Storage account to monitor.</param>
         /// <param name="settings">The orchestration service settings.</param>
-        public DisconnectedPerformanceMonitor(
-            CloudStorageAccount storageAccount,
-            AzureStorageOrchestrationServiceSettings settings)
+        public DisconnectedPerformanceMonitor(AzureStorageOrchestrationServiceSettings settings)
         {
             this.settings = settings;
 
-            this.azureStorageClient = new AzureStorageClient(storageAccount, settings);
+            this.azureStorageClient = new AzureStorageClient(settings);
 
             this.maxPollingLatency = (int)settings.MaxQueuePollingInterval.TotalMilliseconds;
             this.highLatencyThreshold = Math.Min(this.maxPollingLatency, 1000);
@@ -98,10 +84,16 @@ namespace DurableTask.AzureStorage.Monitoring
         internal QueueMetricHistory WorkItemQueueLatencies => this.workItemQueueLatencies;
 
         static AzureStorageOrchestrationServiceSettings GetSettings(
+            string connectionString,
             string taskHub,
             int? maxPollingIntervalMilliseconds = null)
         {
-            var settings = new AzureStorageOrchestrationServiceSettings { TaskHubName = taskHub };
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider(connectionString),
+                TaskHubName = taskHub,
+            };
+
             if (maxPollingIntervalMilliseconds != null)
             {
                 settings.MaxQueuePollingInterval = TimeSpan.FromMilliseconds(maxPollingIntervalMilliseconds.Value);
@@ -171,13 +163,13 @@ namespace DurableTask.AzureStorage.Monitoring
             {
                 await Task.WhenAll(tasks);
             }
-            catch (StorageException e) when (e.RequestInformation?.HttpStatusCode == 404)
+            catch (DurableTaskStorageException dtse) when (dtse.InnerException is RequestFailedException rfe && rfe.Status == (int)HttpStatusCode.NotFound)
             {
                 // The queues are not yet provisioned.
                 this.settings.Logger.GeneralWarning(
                     this.azureStorageClient.QueueAccountName,
                     this.settings.TaskHubName,
-                    $"Task hub has not been provisioned: {e.RequestInformation.ExtendedErrorInformation?.ErrorMessage}");
+                    $"Task hub has not been provisioned: {rfe.Message}");
                 return false;
             }
 
@@ -231,21 +223,20 @@ namespace DurableTask.AzureStorage.Monitoring
         static async Task<TimeSpan> GetQueueLatencyAsync(Queue queue)
         {
             DateTimeOffset now = DateTimeOffset.UtcNow;
-            QueueMessage firstMessage = await queue.PeekMessageAsync();
+            PeekedMessage firstMessage = await queue.PeekMessageAsync();
             if (firstMessage == null)
             {
                 return TimeSpan.MinValue;
             }
 
             // Make sure we always return a non-negative timespan in the success case.
-            TimeSpan latency = now.Subtract(firstMessage.InsertionTime.GetValueOrDefault(now));
+            TimeSpan latency = now.Subtract(firstMessage.InsertedOn.GetValueOrDefault(now));
             return latency < TimeSpan.Zero ? TimeSpan.Zero : latency;
         }
 
-        static async Task<int> GetQueueLengthAsync(Queue queue)
+        static Task<int> GetQueueLengthAsync(Queue queue)
         {
-            await queue.FetchAttributesAsync();
-            return queue.ApproximateMessageCount.GetValueOrDefault(0);
+            return queue.GetApproximateMessagesCountAsync();
         }
 
         struct QueueMetric
@@ -264,12 +255,11 @@ namespace DurableTask.AzureStorage.Monitoring
 
             DateTimeOffset now = DateTimeOffset.Now;
 
-            Task fetchTask = workItemQueue.FetchAttributesAsync();
-            Task<QueueMessage> peekTask = workItemQueue.PeekMessageAsync();
-            await Task.WhenAll(fetchTask, peekTask);
+            Task<PeekedMessage> peekTask = workItemQueue.PeekMessageAsync();
+            Task<int> lengthTask = workItemQueue.GetApproximateMessagesCountAsync();
+            await Task.WhenAll(lengthTask, peekTask);
 
-            int queueLength = workItemQueue.ApproximateMessageCount.GetValueOrDefault(0);
-            TimeSpan age = now.Subtract((peekTask.Result?.InsertionTime).GetValueOrDefault(now));
+            TimeSpan age = now.Subtract((peekTask.Result?.InsertedOn).GetValueOrDefault(now));
             if (age < TimeSpan.Zero)
             {
                 age = TimeSpan.Zero;
@@ -277,7 +267,7 @@ namespace DurableTask.AzureStorage.Monitoring
 
             return new WorkItemQueueData
             {
-                QueueLength = queueLength,
+                QueueLength = lengthTask.Result,
                 FirstMessageAge = age,
             };
         }
@@ -299,9 +289,7 @@ namespace DurableTask.AzureStorage.Monitoring
             // We treat all control queues like one big queue and sum the lengths together.
             foreach (Queue queue in controlQueues)
             {
-                await queue.FetchAttributesAsync();
-                int queueLength = queue.ApproximateMessageCount.GetValueOrDefault(0);
-                result.AggregateQueueLength += queueLength;
+                result.AggregateQueueLength += await queue.GetApproximateMessagesCountAsync();
             }
 
             return result;
@@ -596,22 +584,6 @@ namespace DurableTask.AzureStorage.Monitoring
 
                 builder.Remove(builder.Length - 1, 1).Append(']');
                 return builder.ToString();
-            }
-
-            static void ThrowIfNegative(string paramName, double value)
-            {
-                if (value < 0.0)
-                {
-                    throw new ArgumentOutOfRangeException(paramName, value, $"{paramName} cannot be negative.");
-                }
-            }
-
-            static void ThrowIfPositive(string paramName, double value)
-            {
-                if (value > 0.0)
-                {
-                    throw new ArgumentOutOfRangeException(paramName, value, $"{paramName} cannot be positive.");
-                }
             }
         }
     }

@@ -14,6 +14,7 @@
 #nullable enable
 namespace DurableTask.AzureStorage.Tests
 {
+    using DurableTask.AzureStorage.Partitioning;
     using DurableTask.Core;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using System;
@@ -38,7 +39,7 @@ namespace DurableTask.AzureStorage.Tests
             var settings = new AzureStorageOrchestrationServiceSettings
             {
                 TaskHubName = testName,
-                StorageConnectionString = this.connection,
+                StorageAccountClientProvider = new StorageAccountClientProvider(this.connection),
                 WorkerId = "0",
                 AppName = testName,
                 UseTablePartitionManagement = true,
@@ -46,13 +47,12 @@ namespace DurableTask.AzureStorage.Tests
             var service = new AzureStorageOrchestrationService(settings);
             await service.StartAsync();
 
-
-            WaitForCondition(
+            await WaitForConditionAsync(
                 timeout: TimeSpan.FromSeconds(5),
-                condition: () =>
+                condition: async t =>
                 {
-                    var partitions = service.ListTableLeases();
-                    Assert.AreEqual(4, partitions.Count());
+                    var partitions = await service.ListTableLeasesAsync(t).ToListAsync(t);
+                    Assert.AreEqual(4, partitions.Count);
                     return partitions.All(p => p.CurrentOwner == "0");
                 });
 
@@ -75,7 +75,7 @@ namespace DurableTask.AzureStorage.Tests
                 var settings = new AzureStorageOrchestrationServiceSettings
                 {
                     TaskHubName = testName,
-                    StorageConnectionString = this.connection,
+                    StorageAccountClientProvider = new StorageAccountClientProvider(this.connection),
                     AppName = testName,
                     UseTablePartitionManagement = true,
                     WorkerId = i.ToString(),
@@ -86,12 +86,12 @@ namespace DurableTask.AzureStorage.Tests
             var startTasks = services.Select(service => service.StartAsync());
             await Task.WhenAll(startTasks);
 
-            WaitForCondition(
+            await WaitForConditionAsync(
                 timeout: TimeSpan.FromSeconds(30),
-                condition: () =>
+                condition: async t =>
                 {
-                    var partitions = services[0].ListTableLeases();
-                    Assert.AreEqual(4, partitions.Count());
+                    var partitions = await services[0].ListTableLeasesAsync(t).ToListAsync(t);
+                    Assert.AreEqual(4, partitions.Count);
                     return ((partitions.Count(p => p.CurrentOwner == "0") == 2) &&
                             (partitions.Count(p => p.CurrentOwner == "1") == 2));
                 });
@@ -116,7 +116,7 @@ namespace DurableTask.AzureStorage.Tests
                 var settings = new AzureStorageOrchestrationServiceSettings
                 {
                     TaskHubName = testName,
-                    StorageConnectionString = this.connection,
+                    StorageAccountClientProvider = new StorageAccountClientProvider(this.connection),
                     AppName = testName,
                     UseTablePartitionManagement = true,
                     WorkerId = i.ToString(),
@@ -126,13 +126,13 @@ namespace DurableTask.AzureStorage.Tests
 
             var startTasks = services.Select(service => service.StartAsync());
             await Task.WhenAll(startTasks);
-            
-            WaitForCondition(
+
+            await WaitForConditionAsync(
                 timeout: TimeSpan.FromSeconds(30),
-                condition: () =>
+                condition: async t =>
                 {
-                    var partitions = services[0].ListTableLeases();
-                    Assert.AreEqual(4, partitions.Count());
+                    var partitions = await services[0].ListTableLeasesAsync(t).ToListAsync(t);
+                    Assert.AreEqual(4, partitions.Count);
                     return ((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
                                 (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
                                 (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
@@ -159,7 +159,7 @@ namespace DurableTask.AzureStorage.Tests
                 var settings = new AzureStorageOrchestrationServiceSettings
                 {
                     TaskHubName = testName,
-                    StorageConnectionString = this.connection,
+                    StorageAccountClientProvider = new StorageAccountClientProvider(this.connection),
                     AppName = testName,
                     UseTablePartitionManagement = true,
                     WorkerId = i.ToString(),
@@ -169,12 +169,12 @@ namespace DurableTask.AzureStorage.Tests
 
             await services[0].StartAsync();
             // Wait for worker[0] to acquire all the partitions. Then start the other three workers.
-            WaitForCondition(
+            await WaitForConditionAsync(
                 timeout: TimeSpan.FromSeconds(5),
-                condition: () =>
+                condition: async t =>
                 {
-                    var partitions = services[0].ListTableLeases();
-                    Assert.AreEqual(4, partitions.Count());
+                    var partitions = await services[0].ListTableLeasesAsync(t).ToListAsync(t);
+                    Assert.AreEqual(4, partitions.Count);
                     return partitions.All(p => p.CurrentOwner == "0");
                 });
             await services[1].StartAsync();
@@ -182,12 +182,12 @@ namespace DurableTask.AzureStorage.Tests
             await services[3].StartAsync();
             
             // Check that each worker has acquired one partition.
-            WaitForCondition(
+            await WaitForConditionAsync(
                 timeout: TimeSpan.FromSeconds(30),
-                condition: () =>
+                condition: async t =>
                 {
-                    var partitions = services[0].ListTableLeases();
-                    Assert.AreEqual(4, partitions.Count());
+                    var partitions = await services[0].ListTableLeasesAsync(t).ToListAsync(t);
+                    Assert.AreEqual(4, partitions.Count);
                     return ((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
                                 (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
                                 (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
@@ -214,7 +214,7 @@ namespace DurableTask.AzureStorage.Tests
                 var settings = new AzureStorageOrchestrationServiceSettings
                 {
                     TaskHubName = testName,
-                    StorageConnectionString = this.connection,
+                    StorageAccountClientProvider = new StorageAccountClientProvider(this.connection),
                     AppName = testName,
                     UseTablePartitionManagement = true,
                     WorkerId = i.ToString(),
@@ -227,12 +227,12 @@ namespace DurableTask.AzureStorage.Tests
                 await services[i].StartAsync();
             }
             
-            WaitForCondition(
+            await WaitForConditionAsync(
                 timeout: TimeSpan.FromSeconds(30),
-                condition: () =>
+                condition: async t =>
                 {
-                    var partitions = services[0].ListTableLeases();
-                    Assert.AreEqual(4, partitions.Count());
+                    var partitions = await services[0].ListTableLeasesAsync(t).ToListAsync(t);
+                    Assert.AreEqual(4, partitions.Count);
                     return
                         (partitions.Count(p => p.CurrentOwner == "0") == 1) &&
                         (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
@@ -245,14 +245,14 @@ namespace DurableTask.AzureStorage.Tests
                 await services[i].StartAsync();
             }
 
-            var oldDistribution = services[0].ListTableLeases();
+            var oldDistribution = await services[0].ListTableLeasesAsync().ToListAsync();
             stopwatch.Start();
             bool isDistributionChanged = false;
 
             while (stopwatch.Elapsed < timeout)
             {
-                var newDistribution = services[0].ListTableLeases();
-                Assert.AreEqual(oldDistribution.Count(), newDistribution.Count());
+                var newDistribution = await services[0].ListTableLeasesAsync().ToListAsync();
+                Assert.AreEqual(oldDistribution.Count, newDistribution.Count);
                 isDistributionChanged = !(oldDistribution.Zip(newDistribution, (p1, p2) =>
                                         p1.CurrentOwner == p2.CurrentOwner && p1.NextOwner== p2.NextOwner).All(result => result));
                 
@@ -278,7 +278,7 @@ namespace DurableTask.AzureStorage.Tests
                 var settings = new AzureStorageOrchestrationServiceSettings
                 {
                     TaskHubName = testName,
-                    StorageConnectionString = this.connection,
+                    StorageAccountClientProvider = new StorageAccountClientProvider(this.connection),
                     AppName = testName,
                     UseTablePartitionManagement = true,
                     WorkerId = i.ToString(),
@@ -290,12 +290,12 @@ namespace DurableTask.AzureStorage.Tests
             await Task.WhenAll(startTasks);
 
             // wait for the partitions to be distributed equally among four workers.
-            WaitForCondition(
+            await WaitForConditionAsync(
                 timeout: TimeSpan.FromSeconds(30),
-                condition: () =>
+                condition: async t =>
                 {
-                    var partitions = services[0].ListTableLeases();
-                    Assert.AreEqual(4, partitions.Count());
+                    var partitions = await services[0].ListTableLeasesAsync(t).ToListAsync(t);
+                    Assert.AreEqual(4, partitions.Count);
                     return ((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
                                 (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
                                 (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
@@ -305,12 +305,12 @@ namespace DurableTask.AzureStorage.Tests
 
             bool isBalanced = false;
 
-            WaitForCondition(
+            await WaitForConditionAsync(
                 timeout: TimeSpan.FromSeconds(10),
-                condition: () =>
+                condition: async t =>
                 {
-                    var partitions = services[0].ListTableLeases();
-                    Assert.AreEqual(4, partitions.Count());
+                    var partitions = await services[0].ListTableLeasesAsync(t).ToListAsync(t);
+                    Assert.AreEqual(4, partitions.Count);
 
                     // Assert that two partitions have the same CurrentOwner value and the other two have unique CurrentOwner values
                     int distinctCurrentOwnersCount = partitions.Select(x => x.CurrentOwner).Distinct().Count();
@@ -336,7 +336,7 @@ namespace DurableTask.AzureStorage.Tests
                 var settings = new AzureStorageOrchestrationServiceSettings
                 {
                     TaskHubName = testName,
-                    StorageConnectionString = this.connection,
+                    StorageAccountClientProvider = new StorageAccountClientProvider(this.connection),
                     AppName = testName,
                     UseTablePartitionManagement = true,
                     WorkerId = i.ToString(),
@@ -348,12 +348,12 @@ namespace DurableTask.AzureStorage.Tests
             await Task.WhenAll(startTasks);
 
             // wait for the partitions to be distributed equally among four workers.
-            WaitForCondition(
+            await WaitForConditionAsync(
                 timeout: TimeSpan.FromSeconds(30),
-                condition: () =>
+                condition: async t =>
                 {
-                    var partitions = services[0].ListTableLeases();
-                    Assert.AreEqual(4, partitions.Count());
+                    var partitions = await services[0].ListTableLeasesAsync(t).ToListAsync(t);
+                    Assert.AreEqual(4, partitions.Count);
                     return ((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
                                 (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
                                 (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
@@ -369,12 +369,12 @@ namespace DurableTask.AzureStorage.Tests
             await Task.WhenAll(tasks);
 
 
-            WaitForCondition(
+            await WaitForConditionAsync(
                 timeout: TimeSpan.FromSeconds(10),
-                condition: () =>
+                condition: async t =>
                 {
-                    var partitions = services[0].ListTableLeases();
-                    Assert.AreEqual(4, partitions.Count());
+                    var partitions = await services[0].ListTableLeasesAsync(t).ToListAsync(t);
+                    Assert.AreEqual(4, partitions.Count);
                     return partitions.All(p => p.CurrentOwner == "0");
                 });
 
@@ -395,7 +395,7 @@ namespace DurableTask.AzureStorage.Tests
                 var settings = new AzureStorageOrchestrationServiceSettings
                 {
                     TaskHubName = testName,
-                    StorageConnectionString = this.connection,
+                    StorageAccountClientProvider = new StorageAccountClientProvider(this.connection),
                     AppName = testName,
                     UseTablePartitionManagement = true,
                     WorkerId = i.ToString(),
@@ -407,12 +407,12 @@ namespace DurableTask.AzureStorage.Tests
             await Task.WhenAll(startTasks);
 
             // wait for the partitions to be distributed equally among four workers.
-            WaitForCondition(
+            await WaitForConditionAsync(
                 timeout: TimeSpan.FromSeconds(30),
-                condition: () =>
+                condition: async t =>
                 {
-                    var partitions = services[0].ListTableLeases();
-                    Assert.AreEqual(4, partitions.Count());
+                    var partitions = await services[0].ListTableLeasesAsync(t).ToListAsync(t);
+                    Assert.AreEqual(4, partitions.Count);
                     return ((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
                                 (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
                                 (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
@@ -423,12 +423,12 @@ namespace DurableTask.AzureStorage.Tests
 
             bool isBalanced = false;
 
-            WaitForCondition(
+            await WaitForConditionAsync(
                 timeout: TimeSpan.FromSeconds(40),
-                condition: () =>
+                condition: async t =>
                 {
-                    var partitions = services[0].ListTableLeases();
-                    Assert.AreEqual(4, partitions.Count());
+                    var partitions = await services[0].ListTableLeasesAsync(t).ToListAsync(t);
+                    Assert.AreEqual(4, partitions.Count);
 
                     // Assert that two partitions have the same CurrentOwner value and the other two have unique CurrentOwner values
                     int distinctCurrentOwnersCount = partitions.Select(x => x.CurrentOwner).Distinct().Count();
@@ -458,7 +458,7 @@ namespace DurableTask.AzureStorage.Tests
                 var settings = new AzureStorageOrchestrationServiceSettings
                 {
                     TaskHubName = testName,
-                    StorageConnectionString = this.connection,
+                    StorageAccountClientProvider = new StorageAccountClientProvider(this.connection),
                     AppName = testName,
                     UseTablePartitionManagement = true,
                     WorkerId = i.ToString(),
@@ -470,12 +470,12 @@ namespace DurableTask.AzureStorage.Tests
             await Task.WhenAll(startTasks);
 
             // wait for the partitions to be distributed equally among four workers.
-            WaitForCondition(
+            await WaitForConditionAsync(
                 timeout: TimeSpan.FromSeconds(30),
-                condition: () =>
+                condition: async t =>
                 {
-                    var partitions = services[0].ListTableLeases();
-                    Assert.AreEqual(4, partitions.Count());
+                    var partitions = await services[0].ListTableLeasesAsync(t).ToListAsync(t);
+                    Assert.AreEqual(4, partitions.Count);
                     return  ((partitions.Count(p => p.CurrentOwner == "0") == 1) &&
                                 (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
                                 (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
@@ -486,12 +486,12 @@ namespace DurableTask.AzureStorage.Tests
             services[2].KillPartitionManagerLoop();
             services[1].KillPartitionManagerLoop();
 
-            WaitForCondition(
+            await WaitForConditionAsync(
                 timeout: TimeSpan.FromSeconds(40),
-                condition: () =>
+                condition: async t =>
                 {
-                    var partitions = services[0].ListTableLeases();
-                    Assert.AreEqual(4, partitions.Count());
+                    var partitions = await services[0].ListTableLeasesAsync(t).ToListAsync(t);
+                    Assert.AreEqual(4, partitions.Count);
                     return partitions.All(p => p.CurrentOwner == "0");
                 });
 
@@ -518,7 +518,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 var settings = new AzureStorageOrchestrationServiceSettings()
                 {
-                    StorageConnectionString = this.connection,
+                    StorageAccountClientProvider = new StorageAccountClientProvider(this.connection),
                     TaskHubName = "TestUnhealthyWorker",
                     PartitionCount = 1,
                     WorkerId = i.ToString(),
@@ -540,9 +540,13 @@ namespace DurableTask.AzureStorage.Tests
 
             await taskHubWorkers[0].StartAsync();
             // Ensure worker 0 acquired the partition.
-            WaitForCondition(
+            await WaitForConditionAsync(
                 timeout: TimeSpan.FromSeconds(2),
-                condition: () => services[0].ListTableLeases().Single().CurrentOwner == "0");
+                condition: async t =>
+                {
+                    TablePartitionLease lease = await services[0].ListTableLeasesAsync(t).SingleAsync(t);
+                    return lease.CurrentOwner == "0";
+                });
             await taskHubWorkers[1].StartAsync();
 
             using var cts = new CancellationTokenSource();
@@ -550,9 +554,13 @@ namespace DurableTask.AzureStorage.Tests
                 // Kill worker[0] and start a new worker. 
                 // The new worker will take over the partitions of worker[0].
                 services[0].KillPartitionManagerLoop();
-                WaitForCondition(
+                await WaitForConditionAsync(
                     timeout: TimeSpan.FromSeconds(40),
-                    condition: () => services[0].ListTableLeases().Single().CurrentOwner == "1");
+                    condition: async t =>
+                    {
+                        TablePartitionLease lease = await services[0].ListTableLeasesAsync(t).SingleAsync(t);
+                        return lease.CurrentOwner == "1";
+                    });
 
                 // After worker[1] takes over the lease, restart the worker[0].
                 services[0].SimulateUnhealthyWorker(cts.Token);
@@ -592,7 +600,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 var settings = new AzureStorageOrchestrationServiceSettings()
                 {
-                    StorageConnectionString = this.connection,
+                    StorageAccountClientProvider = new StorageAccountClientProvider(this.connection),
                     TaskHubName = nameof(EnsureOwnedQueueExclusive),
                     PartitionCount = 4,
                     WorkerId = i.ToString(),
@@ -623,8 +631,8 @@ namespace DurableTask.AzureStorage.Tests
             while (!isBalanced)
             {
                 Assert.IsTrue(sw.Elapsed <= timeout, "Timeout expired!");
-                var partitions = services[0].ListTableLeases();
-                Assert.AreEqual(4, partitions.Count());
+                var partitions = await services[0].ListTableLeasesAsync().ToListAsync();
+                Assert.AreEqual(4, partitions.Count);
                 isBalanced = (partitions.Count(p => p.CurrentOwner == "0") == 1) &&
                              (partitions.Count(p => p.CurrentOwner == "1") == 1) &&
                              (partitions.Count(p => p.CurrentOwner == "2") == 1) &&
@@ -702,7 +710,7 @@ namespace DurableTask.AzureStorage.Tests
             return true; // No common elements found, arrays are unique
         }
 
-        static void WaitForCondition(TimeSpan timeout, Func<bool> condition)
+        static async ValueTask WaitForConditionAsync(TimeSpan timeout, Func<CancellationToken, ValueTask<bool>> condition)
         {
             if (Debugger.IsAttached)
             {
@@ -710,11 +718,19 @@ namespace DurableTask.AzureStorage.Tests
                 timeout = TimeSpan.FromMinutes(3);
             }
 
-            var sw = Stopwatch.StartNew();
-            while (!condition())
+            using var tokenSource = new CancellationTokenSource();
+            tokenSource.CancelAfter(timeout);
+
+            try
             {
-                Assert.IsTrue(sw.Elapsed < timeout, "Timeout expired");
-                Thread.Sleep(TimeSpan.FromSeconds(1));
+                while (!await condition(tokenSource.Token))
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(1), tokenSource.Token);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                Assert.Fail("Timeout expired");
             }
         }
     }

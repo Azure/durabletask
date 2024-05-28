@@ -19,6 +19,7 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+    using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
     using DurableTask.Core.History;
@@ -43,7 +44,6 @@ namespace DurableTask.AzureStorage.Messaging
             this.messageManager = messageManager;
             this.storageAccountName = azureStorageClient.QueueAccountName;
             this.settings = azureStorageClient.Settings;
-
 
             this.storageQueue = this.azureStorageClient.GetQueueReference(queueName);
 
@@ -109,8 +109,6 @@ namespace DurableTask.AzureStorage.Messaging
                 
                 string rawContent = await this.messageManager.SerializeMessageDataAsync(data);
 
-                QueueMessage queueMessage = new QueueMessage(rawContent);
-
                 this.settings.Logger.SendingMessage(
                     outboundTraceActivityId,
                     this.storageAccountName,
@@ -127,7 +125,7 @@ namespace DurableTask.AzureStorage.Messaging
                     data.Episode.GetValueOrDefault(-1));
 
                 await this.storageQueue.AddMessageAsync(
-                    queueMessage,
+                    rawContent,
                     GetVisibilityDelay(taskMessage),
                     session?.TraceActivityId);
 
@@ -254,7 +252,7 @@ namespace DurableTask.AzureStorage.Messaging
                     this.settings.TaskHubName,
                     eventType,
                     taskEventId,
-                    queueMessage.Id,
+                    queueMessage.MessageId,
                     instanceId,
                     executionId,
                     this.storageQueue.Name,
@@ -266,7 +264,7 @@ namespace DurableTask.AzureStorage.Messaging
                 this.settings.TaskHubName,
                 eventType,
                 taskEventId,
-                queueMessage.Id,
+                queueMessage.MessageId,
                 instanceId,
                 executionId,
                 this.storageQueue.Name,
@@ -288,7 +286,7 @@ namespace DurableTask.AzureStorage.Messaging
                 // Message may have been processed and deleted already.
                 this.HandleMessagingExceptions(
                     e,
-                    queueMessage.Id,
+                    queueMessage.MessageId,
                     instanceId,
                     executionId,
                     eventType,
@@ -312,7 +310,7 @@ namespace DurableTask.AzureStorage.Messaging
                 this.storageQueue.Name,
                 message.TaskMessage.Event.EventType.ToString(),
                 Utils.GetTaskEventId(message.TaskMessage.Event),
-                queueMessage.Id,
+                queueMessage.MessageId,
                 queueMessage.PopReceipt,
                 (int)this.MessageVisibilityTimeout.TotalSeconds);
 
@@ -340,7 +338,7 @@ namespace DurableTask.AzureStorage.Messaging
                 this.settings.TaskHubName,
                 taskMessage.Event.EventType.ToString(),
                 Utils.GetTaskEventId(taskMessage.Event),
-                queueMessage.Id,
+                queueMessage.MessageId,
                 taskMessage.OrchestrationInstance.InstanceId,
                 taskMessage.OrchestrationInstance.ExecutionId,
                 this.storageQueue.Name,
@@ -377,7 +375,7 @@ namespace DurableTask.AzureStorage.Messaging
 
         void HandleMessagingExceptions(Exception e, MessageData message, string details)
         {
-            string messageId = message.OriginalQueueMessage.Id;
+            string messageId = message.OriginalQueueMessage.MessageId;
             string instanceId = message.TaskMessage.OrchestrationInstance.InstanceId;
             string executionId = message.TaskMessage.OrchestrationInstance.ExecutionId;
             string eventType = message.TaskMessage.Event.EventType.ToString() ?? string.Empty;

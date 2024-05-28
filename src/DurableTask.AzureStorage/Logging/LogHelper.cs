@@ -69,7 +69,7 @@ namespace DurableTask.AzureStorage.Logging
             string executionId,
             string messageId,
             int age,
-            int dequeueCount,
+            long dequeueCount,
             string nextVisibleTime,
             long sizeInBytes,
             string partitionId,
@@ -210,7 +210,7 @@ namespace DurableTask.AzureStorage.Logging
             string instanceId,
             string executionId,
             string partitionId,
-            int dequeueCount,
+            long dequeueCount,
             string popReceipt)
         {
             var logEvent = new LogEvents.DuplicateMessageDetected(
@@ -236,7 +236,7 @@ namespace DurableTask.AzureStorage.Logging
             string instanceId,
             string executionId,
             string partitionId,
-            int dequeueCount)
+            long dequeueCount)
         {
             var logEvent = new LogEvents.PoisonMessageDetected(
                 account,
