@@ -564,8 +564,6 @@ namespace DurableTask.Core
 
                         break;
 
-                    default:
-                        throw new EntitySchedulerException($"The entity with instanceId '{instanceId}' received an unexpected event type of type '{e.EventType}'. This is not a valid entity message. This is a framework-internal error, please report this issue in the GitHub repo: 'https://github.com/Azure/durabletask/'");
                 }
             }
 
