@@ -212,22 +212,29 @@ namespace DurableTask.AzureStorage.Messaging
             return initialVisibilityDelay;
         }
 
-        public virtual Task AbandonMessageAsync(MessageData message, SessionBase? session = null)
+        public virtual async Task AbandonMessageAsync(MessageData message, SessionBase? session = null)
         {
             QueueMessage queueMessage = message.OriginalQueueMessage;
             TaskMessage taskMessage = message.TaskMessage;
             OrchestrationInstance instance = taskMessage.OrchestrationInstance;
             long sequenceNumber = message.SequenceNumber;
 
-            return this.AbandonMessageAsync(
+            UpdateReceipt? receipt = await this.AbandonMessageAsync(
                 queueMessage,
                 taskMessage,
                 instance,
                 session?.TraceActivityId,
                 sequenceNumber);
+
+            // If we've successfully abandoned the message, update the pop receipt
+            // (even though we'll likely no longer interact with this message)
+            if (receipt is not null)
+            {
+                message.Update(receipt);
+            }
         }
 
-        protected async Task AbandonMessageAsync(
+        protected async Task<UpdateReceipt?> AbandonMessageAsync(
             QueueMessage queueMessage,
             TaskMessage? taskMessage,
             OrchestrationInstance? instance,
@@ -276,7 +283,7 @@ namespace DurableTask.AzureStorage.Messaging
             {
                 // We "abandon" the message by settings its visibility timeout using an exponential backoff algorithm.
                 // This allows it to be reprocessed on this node or another node at a later time, hopefully successfully.
-                await this.storageQueue.UpdateMessageAsync(
+                return await this.storageQueue.UpdateMessageAsync(
                     queueMessage,
                     TimeSpan.FromSeconds(numSecondsToWait),
                     traceActivityId);
@@ -293,6 +300,8 @@ namespace DurableTask.AzureStorage.Messaging
                     taskEventId,
                     details: $"Caller: {nameof(AbandonMessageAsync)}",
                     queueMessage.PopReceipt);
+
+                return null;
             }
         }
 
@@ -316,10 +325,13 @@ namespace DurableTask.AzureStorage.Messaging
 
             try
             {
-                await this.storageQueue.UpdateMessageAsync(
+                UpdateReceipt receipt = await this.storageQueue.UpdateMessageAsync(
                     queueMessage,
                     this.MessageVisibilityTimeout,
                     session?.TraceActivityId);
+
+                // Update the pop receipt
+                message.Update(receipt);
             }
             catch (Exception e)
             {

@@ -126,7 +126,8 @@ namespace DurableTask.AzureStorage.Messaging
                                     e.ToString());
 
                                 // Abandon the message so we can try it again later.
-                                await this.AbandonMessageAsync(queueMessage);
+                                // Note: We will fetch the message again from the queue before retrying, so no need to read the receipt
+                                _ = await this.AbandonMessageAsync(queueMessage);
                                 return;
                             }
 
@@ -191,7 +192,7 @@ namespace DurableTask.AzureStorage.Messaging
         }
 
         // This overload is intended for cases where we aren't able to deserialize an instance of MessageData.
-        public Task AbandonMessageAsync(QueueMessage queueMessage)
+        public Task<UpdateReceipt?> AbandonMessageAsync(QueueMessage queueMessage)
         {
             this.stats.PendingOrchestratorMessages.TryRemove(queueMessage.MessageId, out _);
             return base.AbandonMessageAsync(
