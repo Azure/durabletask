@@ -325,13 +325,10 @@ namespace DurableTask.AzureStorage.Messaging
 
             try
             {
-                UpdateReceipt receipt = await this.storageQueue.UpdateMessageAsync(
-                    queueMessage,
+                await this.storageQueue.UpdateMessageAsync(
+                    message,
                     this.MessageVisibilityTimeout,
                     session?.TraceActivityId);
-
-                // Update the pop receipt
-                message.Update(receipt);
             }
             catch (Exception e)
             {
