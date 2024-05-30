@@ -220,7 +220,7 @@ namespace DurableTask.Core
             Type orchestrationType,
             string? instanceId,
             object? input,
-            OrchestrationStatus[] dedupeStatuses)
+            OrchestrationStatus[]? dedupeStatuses)
         {
             return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 NameVersionHelper.GetDefaultName(orchestrationType),
@@ -316,8 +316,8 @@ namespace DurableTask.Core
             string version,
             string? instanceId,
             object? input,
-            IDictionary<string, string> tags,
-            OrchestrationStatus[] dedupeStatuses)
+            IDictionary<string, string>? tags,
+            OrchestrationStatus[]? dedupeStatuses)
         {
             return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
                 name,
@@ -346,8 +346,8 @@ namespace DurableTask.Core
             string version,
             string? instanceId,
             object? input,
-            IDictionary<string, string> tags,
-            OrchestrationStatus[] dedupeStatuses,
+            IDictionary<string, string>? tags,
+            OrchestrationStatus[]? dedupeStatuses,
             DateTime startAt)
         {
             return this.InternalCreateOrchestrationInstanceWithRaisedEventAsync(
