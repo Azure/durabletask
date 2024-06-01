@@ -1085,7 +1085,7 @@ namespace DurableTask.Core.Logging
                     this.InstanceId,
                     this.ExecutionId,
                     this.RuntimeStatus,
-                    Details: string.Empty, // Failure details may contain sensitive information, don't log them.
+                    Details: Sanitizer.Sanitize(this.Details), // Failure details may contain sensitive information, so we sanitize them
                     this.SizeInBytes,
                     Utils.AppName,
                     Utils.PackageVersion);
@@ -1540,7 +1540,7 @@ namespace DurableTask.Core.Logging
                     this.ExecutionId,
                     this.Name,
                     this.TaskEventId,
-                    Details: string.Empty, // Details may contain sensitive data, so we don't log them
+                    Details: Sanitizer.Sanitize(this.Details),
                     Utils.AppName,
                     Utils.PackageVersion);
         }
