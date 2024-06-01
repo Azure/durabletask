@@ -10,7 +10,7 @@ using System.Text.RegularExpressions;
 namespace DurableTask.Core.Logging
 {
     /// <summary>
-    /// Class
+    /// Regex-based sanitizer to redact sensitive information from logs
     /// </summary>
     internal static class Sanitizer
     {
