@@ -626,9 +626,9 @@ namespace DurableTask.Core
                     CorrelationTraceClient.TrackException(failure);
                 });
 
+            // In this block, we always create a failureDetails variable, which is needed to produce sanitized telemetry
             if (failure is OrchestrationFailureException orchestrationFailureException)
             {
-                // When not serializing exceptions, we instead construct FailureDetails objects
                 failureDetails = orchestrationFailureException.FailureDetails;
                 if (this.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions)
                 {
