@@ -628,12 +628,9 @@ namespace DurableTask.Core
 
             if (failure is OrchestrationFailureException orchestrationFailureException)
             {
-                if (this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
-                {
-                    // When not serializing exceptions, we instead construct FailureDetails objects
-                    failureDetails = orchestrationFailureException.FailureDetails;
-                }
-                else
+                // When not serializing exceptions, we instead construct FailureDetails objects
+                failureDetails = orchestrationFailureException.FailureDetails;
+                if (this.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions)
                 {
                     failureDetailsString = orchestrationFailureException.Details;
                 }
@@ -646,20 +643,19 @@ namespace DurableTask.Core
             }
             else
             {
-                if (this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
-                {
-                    failureDetails = new FailureDetails(failure);
-                }
-                else
+                failureDetails = new FailureDetails(failure);
+                if (this.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions)
                 {
                     failureDetailsString = $"Unhandled exception while executing orchestration: {failure}\n\t{failure.StackTrace}";
+
                 }
             }
 
             CompleteOrchestration(reason, failureDetailsString, OrchestrationStatus.Failed, failureDetails);
         }
 
-        public void CompleteOrchestration(string result, string failureDetailsString, OrchestrationStatus orchestrationStatus, FailureDetails failureDetails = null)
+#nullable enable
+        public void CompleteOrchestration(string result, string failureDetailsString, OrchestrationStatus orchestrationStatus, FailureDetails? failureDetails = null)
         {
             int id = this.idCounter++;
             OrchestrationCompleteOrchestratorAction completedOrchestratorAction;
@@ -686,6 +682,7 @@ namespace DurableTask.Core
             completedOrchestratorAction.Id = id;
             this.orchestratorActionsMap.Add(id, completedOrchestratorAction);
         }
+#nullable disable
 
         class OpenTaskInfo
         {

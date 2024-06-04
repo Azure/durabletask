@@ -1054,7 +1054,10 @@ namespace DurableTask.Core.Logging
                 this.RuntimeStatus = action.OrchestrationStatus.ToString();
                 this.Details = action.Details;
                 this.SizeInBytes = Encoding.UTF8.GetByteCount(action.Result ?? string.Empty);
+                this.SanitizedMessage = action.FailureDetails != null ? $"{action.FailureDetails.ErrorType}\n{action.FailureDetails.StackTrace}" : string.Empty;
             }
+
+            private string SanitizedMessage { get;  }
 
             [StructuredLogField]
             public string InstanceId { get; }
@@ -1085,7 +1088,7 @@ namespace DurableTask.Core.Logging
                     this.InstanceId,
                     this.ExecutionId,
                     this.RuntimeStatus,
-                    Details: Sanitizer.Sanitize(this.Details), // Failure details may contain sensitive information, so we sanitize them
+                    Details: this.SanitizedMessage, // Failure details may contain sensitive information, so we sanitize them
                     this.SizeInBytes,
                     Utils.AppName,
                     Utils.PackageVersion);
@@ -1494,8 +1497,6 @@ namespace DurableTask.Core.Logging
 
         internal class TaskActivityFailure : StructuredLogEvent, IEventSourceEvent
         {
-            readonly Exception exception;
-
             public TaskActivityFailure(
                 OrchestrationInstance instance,
                 string name,
@@ -1507,8 +1508,10 @@ namespace DurableTask.Core.Logging
                 this.Name = name;
                 this.TaskEventId = taskEvent.EventId;
                 this.Details = exception.ToString();
-                this.exception = exception;
+                this.sanitizedDetails = $"{exception.GetType().FullName}\n{exception.StackTrace}";
             }
+
+            private string sanitizedDetails { get; }
 
             [StructuredLogField]
             public string InstanceId { get; }
@@ -1540,7 +1543,7 @@ namespace DurableTask.Core.Logging
                     this.ExecutionId,
                     this.Name,
                     this.TaskEventId,
-                    Details: Sanitizer.Sanitize(this.Details),
+                    Details: sanitizedDetails,
                     Utils.AppName,
                     Utils.PackageVersion);
         }
