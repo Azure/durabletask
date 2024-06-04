@@ -1054,10 +1054,10 @@ namespace DurableTask.Core.Logging
                 this.RuntimeStatus = action.OrchestrationStatus.ToString();
                 this.Details = action.Details;
                 this.SizeInBytes = Encoding.UTF8.GetByteCount(action.Result ?? string.Empty);
-                this.SanitizedMessage = action.FailureDetails != null ? $"{action.FailureDetails.ErrorType}\n{action.FailureDetails.StackTrace}" : string.Empty;
+                this.sanitizedDetails = action.FailureDetails != null ? $"{action.FailureDetails.ErrorType}\n{action.FailureDetails.StackTrace}" : string.Empty;
             }
 
-            private string SanitizedMessage { get;  }
+            private string sanitizedDetails { get;  }
 
             [StructuredLogField]
             public string InstanceId { get; }
@@ -1088,7 +1088,7 @@ namespace DurableTask.Core.Logging
                     this.InstanceId,
                     this.ExecutionId,
                     this.RuntimeStatus,
-                    Details: this.SanitizedMessage, // Failure details may contain sensitive information, so we sanitize them
+                    Details: this.sanitizedDetails, // Failure details may contain sensitive information, so we sanitize them
                     this.SizeInBytes,
                     Utils.AppName,
                     Utils.PackageVersion);
