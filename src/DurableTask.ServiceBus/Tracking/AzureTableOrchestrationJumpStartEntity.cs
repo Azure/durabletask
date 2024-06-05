@@ -16,8 +16,7 @@ namespace DurableTask.ServiceBus.Tracking
     using System;
     using System.Collections.Generic;
     using System.Globalization;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Table;
+    using Azure.Data.Tables;
     using DurableTask.Core.Tracking;
 
     /// <summary>
@@ -65,32 +64,6 @@ namespace DurableTask.ServiceBus.Tracking
                              AzureTableConstants.JoinDelimiter + State.OrchestrationInstance.InstanceId +
                              AzureTableConstants.JoinDelimiter + State.OrchestrationInstance.ExecutionId;
             return new [] { entity1 };
-        }
-
-        /// <summary>
-        /// Write an entity to a dictionary of entity properties
-        /// </summary>
-        /// <param name="operationContext">The operation context</param>
-        public override IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext)
-        {
-            IDictionary<string, EntityProperty> returnValues = base.WriteEntity(operationContext);
-            returnValues.Add("JumpStartTime", new EntityProperty(JumpStartTime));
-            return returnValues;
-        }
-
-        /// <summary>
-        /// Read an entity properties based on the supplied dictionary or entity properties
-        /// </summary>
-        /// <param name="properties">Dictionary of properties to read for the entity</param>
-        /// <param name="operationContext">The operation context</param>
-        public override void ReadEntity(IDictionary<string, EntityProperty> properties,
-            OperationContext operationContext)
-        {
-            base.ReadEntity(properties, operationContext);
-            JumpStartTime =
-                GetValue("JumpStartTime", properties, property => property.DateTimeOffsetValue)
-                    .GetValueOrDefault()
-                    .DateTime;
         }
 
         /// <summary>

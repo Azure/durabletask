@@ -15,11 +15,11 @@ namespace DurableTask.ServiceBus.Tracking
 {
     using System;
     using System.Collections.Generic;
+    using System.Runtime.Serialization;
+    using Azure.Data.Tables;
     using DurableTask.Core;
     using DurableTask.Core.Common;
     using DurableTask.Core.Serializing;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Table;
 
     /// <summary>
     /// History Tracking Entity for an orchestration's state
@@ -50,7 +50,158 @@ namespace DurableTask.ServiceBus.Tracking
         /// <summary>
         /// Gets or sets the orchestration state for the entity
         /// </summary>
+        [IgnoreDataMember]
         public OrchestrationState State { get; set; }
+
+#pragma warning disable 1591
+        // In order to maintain table schema with the new Azure SDK, we need the following accessors.
+        // As a result, public accessors with the "State" prefix do not need to be documented.
+        [DataMember(Name = "InstanceId")]
+        public string StateInstanceId
+        {
+            get => State.OrchestrationInstance.InstanceId;
+            set => State.OrchestrationInstance.InstanceId = value;
+        }
+
+        [DataMember(Name = "ExecutionId")]
+        public string StateExecutionId
+        {
+            get => State.OrchestrationInstance.ExecutionId;
+            set => State.OrchestrationInstance.ExecutionId = value;
+        }
+
+        [DataMember(Name = "ParentInstanceId")]
+        public string StateParentInstanceId
+        {
+            get => State.ParentInstance?.OrchestrationInstance.InstanceId;
+            set
+            {
+                if (State.ParentInstance != null)
+                {
+                    State.ParentInstance.OrchestrationInstance.InstanceId = value;
+                }
+            }
+        }
+
+        [DataMember(Name = "ParentExecutionId")]
+        public string StateParentExecutionId
+        {
+            get => State.ParentInstance?.OrchestrationInstance.ExecutionId;
+            set
+            {
+                if (State.ParentInstance != null)
+                {
+                    State.ParentInstance.OrchestrationInstance.ExecutionId = value;
+                }
+            }
+        }
+
+        [DataMember(Name = "Name")]
+        public string StateName
+        {
+            get => State.Name;
+            set => State.Name = value;
+        }
+
+        [DataMember(Name = "Version")]
+        public string StateVersion
+        {
+            get => State.Version;
+            set => State.Version = value;
+        }
+
+        [DataMember(Name = "Status")]
+        public string StateStatus
+        {
+            get => State.Status;
+            set => State.Status = value;
+        }
+
+        [DataMember(Name = "Tags")]
+        public string StateTags
+        {
+            get => State.Tags != null ? this.dataConverter.Serialize(State.Tags) : null;
+            set
+            {
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    State.Tags = null;
+                }
+
+                State.Tags = this.dataConverter.Deserialize<IDictionary<string, string>>(value);
+            }
+        }
+
+        [DataMember(Name = "OrchestrationStatus")]
+        public string StateOrchestrationStatus
+        {
+            get => State.OrchestrationStatus.ToString();
+            set
+            {
+                if (!Enum.TryParse(value, out State.OrchestrationStatus))
+                {
+                    throw new InvalidOperationException("Invalid status string in state " + value);
+                }
+            }
+        }
+
+        [DataMember(Name = "CreatedTime")]
+        public DateTime StateCreatedTime
+        {
+            get => State.CreatedTime;
+            set => State.CreatedTime = value;
+        }
+
+        [DataMember(Name = "CompletedTime")]
+        public DateTime StateCompletedTime
+        {
+            get => State.CompletedTime;
+            set => State.CompletedTime = value;
+        }
+
+        [DataMember(Name = "LastUpdatedTime")]
+        public DateTime StateLastUpdatedTime
+        {
+            get => State.LastUpdatedTime;
+            set => State.LastUpdatedTime = value;
+        }
+
+        [DataMember(Name = "Size")]
+        public long StateSize
+        {
+            get => State.Size;
+            set => State.Size = value;
+        }
+
+        [DataMember(Name = "CompressedSize")]
+        public long StateCompressedSize
+        {
+            get => State.CompressedSize;
+            set => State.CompressedSize = value;
+        }
+
+        [DataMember(Name = "Input")]
+        public string StateInput
+        {
+            get => State.Input.Truncate(ServiceBusConstants.MaxStringLengthForAzureTableColumn);
+            set => State.Input = value;
+
+        }
+
+        [DataMember(Name = "Output")]
+        public string StateOutput
+        {
+            get => State.Output.Truncate(ServiceBusConstants.MaxStringLengthForAzureTableColumn);
+            set => State.Output = value;
+        }
+
+        [DataMember(Name = "ScheduledStartTime")]
+        public DateTime? StateScheduledStartTime
+        {
+            get => State.ScheduledStartTime;
+            set => State.ScheduledStartTime = value;
+        }
+#pragma warning restore 1591
 
         internal override IEnumerable<ITableEntity> BuildDenormalizedEntities()
         {
@@ -63,116 +214,6 @@ namespace DurableTask.ServiceBus.Tracking
 
             return new [] { entity1 };
             // TODO : additional indexes for efficient querying in the future
-        }
-
-        /// <summary>
-        /// Write an entity to a dictionary of entity properties
-        /// </summary>
-        /// <param name="operationContext">The operation context</param>
-        public override IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext)
-        {
-            var returnValues = new Dictionary<string, EntityProperty>();
-
-            returnValues.Add("InstanceId", new EntityProperty(State.OrchestrationInstance.InstanceId));
-            returnValues.Add("ExecutionId", new EntityProperty(State.OrchestrationInstance.ExecutionId));
-
-            if (State.ParentInstance != null)
-            {
-                returnValues.Add("ParentInstanceId", new EntityProperty(State.ParentInstance.OrchestrationInstance.InstanceId));
-                returnValues.Add("ParentExecutionId", new EntityProperty(State.ParentInstance.OrchestrationInstance.ExecutionId));
-            }
-
-            returnValues.Add("TaskTimeStamp", new EntityProperty(TaskTimeStamp));
-            returnValues.Add("Name", new EntityProperty(State.Name));
-            returnValues.Add("Version", new EntityProperty(State.Version));
-            returnValues.Add("Status", new EntityProperty(State.Status));
-            returnValues.Add("Tags", new EntityProperty(State.Tags != null ? this.dataConverter.Serialize(State.Tags) : null));
-            returnValues.Add("OrchestrationStatus", new EntityProperty(State.OrchestrationStatus.ToString()));
-            returnValues.Add("CreatedTime", new EntityProperty(State.CreatedTime));
-            returnValues.Add("CompletedTime", new EntityProperty(State.CompletedTime));
-            returnValues.Add("LastUpdatedTime", new EntityProperty(State.LastUpdatedTime));
-            returnValues.Add("Size", new EntityProperty(State.Size));
-            returnValues.Add("CompressedSize", new EntityProperty(State.CompressedSize));
-            returnValues.Add("Input", new EntityProperty(State.Input.Truncate(ServiceBusConstants.MaxStringLengthForAzureTableColumn)));
-            returnValues.Add("Output", new EntityProperty(State.Output.Truncate(ServiceBusConstants.MaxStringLengthForAzureTableColumn)));
-            returnValues.Add("ScheduledStartTime", new EntityProperty(State.ScheduledStartTime));
-
-            return returnValues;
-        }
-
-        /// <summary>
-        /// Read an entity properties based on the supplied dictionary or entity properties
-        /// </summary>
-        /// <param name="properties">Dictionary of properties to read for the entity</param>
-        /// <param name="operationContext">The operation context</param>
-        public override void ReadEntity(IDictionary<string, EntityProperty> properties,
-            OperationContext operationContext)
-        {
-            State = new OrchestrationState
-            {
-                OrchestrationInstance = new OrchestrationInstance
-                {
-                    InstanceId = GetValue("InstanceId", properties, property => property.StringValue),
-                    ExecutionId = GetValue("ExecutionId", properties, property => property.StringValue)
-                },
-                ParentInstance = new ParentInstance
-                {
-                    Name = null,
-                    TaskScheduleId = -1,
-                    Version = null,
-                    OrchestrationInstance = new OrchestrationInstance
-                    {
-                        InstanceId = GetValue("ParentInstanceId", properties, property => property.StringValue),
-                        ExecutionId = GetValue("ParentExecutionId", properties, property => property.StringValue)
-                    }
-                },
-                Name = GetValue("Name", properties, property => property.StringValue),
-                Version = GetValue("Version", properties, property => property.StringValue),
-                Status = GetValue("Status", properties, property => property.StringValue),
-                Tags = GetTagsFromString(properties),
-                CreatedTime =
-                    GetValue("CreatedTime", properties, property => property.DateTimeOffsetValue)
-                        .GetValueOrDefault()
-                        .DateTime,
-                CompletedTime =
-                    GetValue("CompletedTime", properties, property => property.DateTimeOffsetValue)
-                        .GetValueOrDefault()
-                        .DateTime,
-                LastUpdatedTime =
-                    GetValue("LastUpdatedTime", properties, property => property.DateTimeOffsetValue)
-                        .GetValueOrDefault()
-                        .DateTime,
-                Size = GetValue("Size", properties, property => property.Int64Value).GetValueOrDefault(),
-                CompressedSize =
-                    GetValue("CompressedSize", properties, property => property.Int64Value).GetValueOrDefault(),
-                Input = GetValue("Input", properties, property => property.StringValue),
-                Output = GetValue("Output", properties, property => property.StringValue),
-                ScheduledStartTime = GetValue("ScheduledStartTime", properties, property => property.DateTimeOffsetValue)
-                    .GetValueOrDefault()
-                    .DateTime,
-            };
-
-            TaskTimeStamp =
-                GetValue("TaskTimeStamp", properties, property => property.DateTimeOffsetValue)
-                    .GetValueOrDefault()
-                    .DateTime;
-
-            string orchestrationStatusStr = GetValue("OrchestrationStatus", properties, property => property.StringValue);
-            if (!Enum.TryParse(orchestrationStatusStr, out State.OrchestrationStatus))
-            {
-                throw new InvalidOperationException("Invalid status string in state " + orchestrationStatusStr);
-            }
-        }
-
-        private IDictionary<string, string> GetTagsFromString(IDictionary<string, EntityProperty> properties)
-        {
-            string strTags = GetValue("Tags", properties, property => property.StringValue);
-            if (string.IsNullOrWhiteSpace(strTags))
-            {
-                return null;
-            }
-
-            return this.dataConverter.Deserialize<IDictionary<string, string>>(strTags);
         }
 
         /// <summary>

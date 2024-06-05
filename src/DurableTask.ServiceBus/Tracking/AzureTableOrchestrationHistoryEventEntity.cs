@@ -15,10 +15,10 @@ namespace DurableTask.ServiceBus.Tracking
 {
     using System;
     using System.Collections.Generic;
+    using System.Runtime.Serialization;
+    using Azure.Data.Tables;
     using DurableTask.Core.History;
     using DurableTask.Core.Serializing;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Table;
     using Newtonsoft.Json;
 
     /// <summary>
@@ -93,7 +93,30 @@ namespace DurableTask.ServiceBus.Tracking
         /// <summary>
         /// Gets or set the history event detail for the tracking entity
         /// </summary>
+        [IgnoreDataMember]
         public HistoryEvent HistoryEvent { get; set; }
+
+#pragma warning disable 1591
+        // In order to maintain table schema with the new Azure SDK, we need the following accessor.
+        // As a result, this HistoryEventJson does not need to be documented.
+        [DataMember(Name = "HistoryEvent")]
+        public string HistoryEventJson
+        {
+            get
+            {
+                var serializedHistoryEvent = JsonConvert.SerializeObject(HistoryEvent, WriteJsonSettings);
+                if (!string.IsNullOrWhiteSpace(serializedHistoryEvent) &&
+                serializedHistoryEvent.Length > ServiceBusConstants.MaxStringLengthForAzureTableColumn)
+                {
+                    serializedHistoryEvent = JsonConvert.SerializeObject(new GenericEvent(HistoryEvent.EventId,
+                        serializedHistoryEvent.Substring(0, ServiceBusConstants.MaxStringLengthForAzureTableColumn) + " ....(truncated)..]"),
+                        WriteJsonSettings);
+                }
+                return serializedHistoryEvent;
+            }
+            set => HistoryEvent = JsonConvert.DeserializeObject<HistoryEvent>(value, ReadJsonSettings);
+        }
+#pragma warning restore 1591
 
         internal override IEnumerable<ITableEntity> BuildDenormalizedEntities()
         {
@@ -108,55 +131,6 @@ namespace DurableTask.ServiceBus.Tracking
                             ExecutionId + AzureTableConstants.JoinDelimiter + SequenceNumber;
 
             return new[] { entity };
-        }
-
-        /// <summary>
-        /// Write an entity to a dictionary of entity properties
-        /// </summary>
-        /// <param name="operationContext">The operation context</param>
-        public override IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext)
-        {
-            string serializedHistoryEvent = JsonConvert.SerializeObject(HistoryEvent, WriteJsonSettings);
-
-            // replace with a generic event with the truncated history so at least we have some record
-            // note that this makes the history stored in the instance store unreplayable. so any replay logic
-            // that we build will have to especially check for this event and flag the orchestration as unplayable if it sees this event
-            if (!string.IsNullOrWhiteSpace(serializedHistoryEvent) &&
-                serializedHistoryEvent.Length > ServiceBusConstants.MaxStringLengthForAzureTableColumn)
-            {
-                serializedHistoryEvent = JsonConvert.SerializeObject(new GenericEvent(HistoryEvent.EventId,
-                    serializedHistoryEvent.Substring(0, ServiceBusConstants.MaxStringLengthForAzureTableColumn) + " ....(truncated)..]"),
-                    WriteJsonSettings);
-            }
-
-            var returnValues = new Dictionary<string, EntityProperty>();
-            returnValues.Add("InstanceId", new EntityProperty(InstanceId));
-            returnValues.Add("ExecutionId", new EntityProperty(ExecutionId));
-            returnValues.Add("TaskTimeStamp", new EntityProperty(TaskTimeStamp));
-            returnValues.Add("SequenceNumber", new EntityProperty(SequenceNumber));
-            returnValues.Add("HistoryEvent", new EntityProperty(serializedHistoryEvent));
-
-            return returnValues;
-        }
-
-        /// <summary>
-        /// Read an entity properties based on the supplied dictionary or entity properties
-        /// </summary>
-        /// <param name="properties">Dictionary of properties to read for the entity</param>
-        /// <param name="operationContext">The operation context</param>
-        public override void ReadEntity(IDictionary<string, EntityProperty> properties,
-            OperationContext operationContext)
-        {
-            InstanceId = GetValue("InstanceId", properties, property => property.StringValue);
-            ExecutionId = GetValue("ExecutionId", properties, property => property.StringValue);
-            SequenceNumber = GetValue("SequenceNumber", properties, property => property.Int32Value).GetValueOrDefault();
-            TaskTimeStamp =
-                GetValue("TaskTimeStamp", properties, property => property.DateTimeOffsetValue)
-                    .GetValueOrDefault()
-                    .DateTime;
-
-            string serializedHistoryEvent = GetValue("HistoryEvent", properties, property => property.StringValue);
-            HistoryEvent = JsonConvert.DeserializeObject<HistoryEvent>(serializedHistoryEvent, ReadJsonSettings);
         }
 
         /// <summary>

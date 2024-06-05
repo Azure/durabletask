@@ -23,6 +23,7 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
+	<PackageReference Include="Azure.Data.Tables" Version="12.8.3" />
     <PackageReference Include="ImpromptuInterface" version="6.2.2" />
     <PackageReference Include="Microsoft.Azure.KeyVault.Core" version="1.0.0" />
     <PackageReference Include="Microsoft.Data.Edm" version="5.8.5" />
@@ -36,6 +37,7 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+	<PackageReference Include="Azure.Data.Tables" Version="12.8.3" />
     <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.17.0" />
     <PackageReference Include="WindowsAzure.Storage" Version="9.3.3" />
   </ItemGroup>
