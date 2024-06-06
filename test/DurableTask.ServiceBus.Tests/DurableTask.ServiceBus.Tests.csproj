@@ -10,8 +10,8 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
-	<PackageReference Include="Azure.Data.Tables" Version="12.8.3" />
-	<PackageReference Include="Azure.Storage.Blobs" Version="12.20.0" />
+    <PackageReference Include="Azure.Data.Tables" Version="12.8.3" />
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.20.0" />
     <PackageReference Include="CommandLineParser" version="1.9.71" />
     <PackageReference Include="EnterpriseLibrary.SemanticLogging" version="2.0.1406.1" />
     <PackageReference Include="ImpromptuInterface" version="6.2.2" />
@@ -29,8 +29,8 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netcoreapp3.1'">
-	<PackageReference Include="Azure.Data.Tables" Version="12.8.3" />
-	<PackageReference Include="Azure.Storage.Blobs" Version="12.20.0" />
+    <PackageReference Include="Azure.Data.Tables" Version="12.8.3" />
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.20.0" />
     <PackageReference Include="EnterpriseLibrary.SemanticLogging.NetCore" Version="2.0.1406.4" />
     <PackageReference Include="MSTest.TestAdapter" Version="1.4.0" />
     <PackageReference Include="MSTest.TestFramework" Version="1.4.0" />

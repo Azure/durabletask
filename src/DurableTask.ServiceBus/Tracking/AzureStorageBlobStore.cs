@@ -41,7 +41,7 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         /// <summary>
-        /// Construct a blob storage client instance with hub name and cloud storage account
+        /// Creates a new AzureStorageBlobStore using the supplied hub name, endpoint and token credential
         /// </summary>
         /// <param name="hubName">The hub name</param>
         /// <param name="endpoint">Uri Endpoint for the blob store</param>

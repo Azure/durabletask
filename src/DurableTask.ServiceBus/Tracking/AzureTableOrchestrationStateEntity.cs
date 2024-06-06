@@ -60,14 +60,22 @@ namespace DurableTask.ServiceBus.Tracking
         public string StateInstanceId
         {
             get => State.OrchestrationInstance.InstanceId;
-            set => State.OrchestrationInstance.InstanceId = value;
+            set
+            {
+                CreateStateIfNotExists();
+                State.OrchestrationInstance.InstanceId = value;
+            }
         }
 
         [DataMember(Name = "ExecutionId")]
         public string StateExecutionId
         {
             get => State.OrchestrationInstance.ExecutionId;
-            set => State.OrchestrationInstance.ExecutionId = value;
+            set
+            {
+                CreateStateIfNotExists();
+                State.OrchestrationInstance.ExecutionId = value;
+            }
         }
 
         [DataMember(Name = "ParentInstanceId")]
@@ -76,10 +84,8 @@ namespace DurableTask.ServiceBus.Tracking
             get => State.ParentInstance?.OrchestrationInstance.InstanceId;
             set
             {
-                if (State.ParentInstance != null)
-                {
-                    State.ParentInstance.OrchestrationInstance.InstanceId = value;
-                }
+                CreateStateIfNotExists();
+                State.ParentInstance.OrchestrationInstance.InstanceId = value;
             }
         }
 
@@ -89,10 +95,8 @@ namespace DurableTask.ServiceBus.Tracking
             get => State.ParentInstance?.OrchestrationInstance.ExecutionId;
             set
             {
-                if (State.ParentInstance != null)
-                {
-                    State.ParentInstance.OrchestrationInstance.ExecutionId = value;
-                }
+                CreateStateIfNotExists();
+                State.ParentInstance.OrchestrationInstance.ExecutionId = value;
             }
         }
 
@@ -100,21 +104,33 @@ namespace DurableTask.ServiceBus.Tracking
         public string StateName
         {
             get => State.Name;
-            set => State.Name = value;
+            set
+            {
+                CreateStateIfNotExists();
+                State.Name = value;
+            }
         }
 
         [DataMember(Name = "Version")]
         public string StateVersion
         {
             get => State.Version;
-            set => State.Version = value;
+            set
+            {
+                CreateStateIfNotExists();
+                State.Version = value;
+            }
         }
 
         [DataMember(Name = "Status")]
         public string StateStatus
         {
             get => State.Status;
-            set => State.Status = value;
+            set
+            {
+                CreateStateIfNotExists();
+                State.Status = value;
+            }
         }
 
         [DataMember(Name = "Tags")]
@@ -123,6 +139,7 @@ namespace DurableTask.ServiceBus.Tracking
             get => State.Tags != null ? this.dataConverter.Serialize(State.Tags) : null;
             set
             {
+                CreateStateIfNotExists();
                 if (string.IsNullOrWhiteSpace(value))
                 {
                     State.Tags = null;
@@ -138,6 +155,7 @@ namespace DurableTask.ServiceBus.Tracking
             get => State.OrchestrationStatus.ToString();
             set
             {
+                CreateStateIfNotExists();
                 if (!Enum.TryParse(value, out State.OrchestrationStatus))
                 {
                     throw new InvalidOperationException("Invalid status string in state " + value);
@@ -149,42 +167,66 @@ namespace DurableTask.ServiceBus.Tracking
         public DateTime StateCreatedTime
         {
             get => State.CreatedTime;
-            set => State.CreatedTime = value;
+            set
+            {
+                CreateStateIfNotExists();
+                State.CreatedTime = value;
+            }
         }
 
         [DataMember(Name = "CompletedTime")]
         public DateTime StateCompletedTime
         {
             get => State.CompletedTime;
-            set => State.CompletedTime = value;
+            set
+            {
+                CreateStateIfNotExists();
+                State.CompletedTime = value;
+            }
         }
 
         [DataMember(Name = "LastUpdatedTime")]
         public DateTime StateLastUpdatedTime
         {
             get => State.LastUpdatedTime;
-            set => State.LastUpdatedTime = value;
+            set
+            {
+                CreateStateIfNotExists();
+                State.LastUpdatedTime = value;
+            }
         }
 
         [DataMember(Name = "Size")]
         public long StateSize
         {
             get => State.Size;
-            set => State.Size = value;
+            set
+            {
+                CreateStateIfNotExists();
+                State.Size = value;
+            }
         }
 
         [DataMember(Name = "CompressedSize")]
         public long StateCompressedSize
         {
             get => State.CompressedSize;
-            set => State.CompressedSize = value;
+            set
+            {
+                CreateStateIfNotExists();
+                State.CompressedSize = value;
+            }
         }
 
         [DataMember(Name = "Input")]
         public string StateInput
         {
             get => State.Input.Truncate(ServiceBusConstants.MaxStringLengthForAzureTableColumn);
-            set => State.Input = value;
+            set
+            {
+                CreateStateIfNotExists();
+                State.Input = value;
+            }
 
         }
 
@@ -192,14 +234,54 @@ namespace DurableTask.ServiceBus.Tracking
         public string StateOutput
         {
             get => State.Output.Truncate(ServiceBusConstants.MaxStringLengthForAzureTableColumn);
-            set => State.Output = value;
+            set
+            {
+                CreateStateIfNotExists();
+                State.Output = value;
+            }
         }
 
         [DataMember(Name = "ScheduledStartTime")]
         public DateTime? StateScheduledStartTime
         {
             get => State.ScheduledStartTime;
-            set => State.ScheduledStartTime = value;
+            set
+            {
+                CreateStateIfNotExists();
+                State.ScheduledStartTime = value;
+            }
+        }
+
+        private void CreateStateIfNotExists()
+        {
+            if (this.State == null)
+            {
+                this.State = new OrchestrationState
+                {
+                    OrchestrationInstance = new OrchestrationInstance(),
+                    ParentInstance = new ParentInstance
+                    {
+                        Name = null,
+                        TaskScheduleId = -1,
+                        Version = null,
+                        OrchestrationInstance = new OrchestrationInstance(),
+                    }
+                };
+            }
+            if (this.State.OrchestrationInstance == null)
+            {
+                this.State.OrchestrationInstance = new OrchestrationInstance();
+            }
+            if (this.State.ParentInstance == null)
+            {
+                this.State.ParentInstance = new ParentInstance
+                {
+                    Name = null,
+                    TaskScheduleId = -1,
+                    Version = null,
+                    OrchestrationInstance = new OrchestrationInstance(),
+                };
+            }
         }
 #pragma warning restore 1591
 

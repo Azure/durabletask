@@ -67,7 +67,7 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         /// <summary>
-        /// Construct a blob storage client instance with hub name and cloud storage account
+        /// Construct a blob storage client instance with hub name uri endpoint and a token credential
         /// </summary>
         /// <param name="hubName">The hub name</param>
         /// <param name="endpoint">Uri Endpoint for the blob store</param>
