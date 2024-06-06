@@ -8,7 +8,7 @@
 
     <!-- Version Info -->
   <PropertyGroup>
-    <MajorVersion>3</MajorVersion>
+    <MajorVersion>4</MajorVersion>
     <MinorVersion>0</MinorVersion>
     <PatchVersion>0</PatchVersion>
 
