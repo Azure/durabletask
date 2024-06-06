@@ -95,7 +95,7 @@ namespace DurableTask.ServiceBus.Tracking
         internal async Task CreateJumpStartTableIfNotExistsAsync()
         {
             await this.tableClient.CreateTableIfNotExistsAsync(JumpStartTableName);
-            this.historyTableClient = tableClient.GetTableClient(JumpStartTableName);
+            this.jumpStartTableClient = tableClient.GetTableClient(JumpStartTableName);
         }
 
         internal async Task DeleteTableIfExistsAsync()
