@@ -23,7 +23,6 @@ namespace DurableTask.ServiceBus.Tests
     using Azure.Storage.Blobs;
     using Azure.Storage.Blobs.Models;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using Microsoft.WindowsAzure.Storage.Blob;
     using DurableTask.ServiceBus.Tracking;
 
     [TestClass]

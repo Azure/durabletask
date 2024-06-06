@@ -17,7 +17,6 @@ namespace DurableTask.ServiceBus.Tests
     using DurableTask.ServiceBus.Tracking;
     using Azure.Data.Tables;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using Microsoft.WindowsAzure.Storage.Table;
 
     [TestClass]
     public class AzureTableClientTest
