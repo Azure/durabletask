@@ -656,7 +656,7 @@ namespace DurableTask.Core
                 }
             }
 
-            // save exception so it can be retrieve during ETW logging. See LogEvents.OrchestrationCompleted for more details
+            // save exception so it can be retrieved and sanitized during logging. See LogEvents.OrchestrationCompleted for more details
             runtimeState.Exception = failure;
             CompleteOrchestration(reason, details, OrchestrationStatus.Failed, failureDetails);
         }
