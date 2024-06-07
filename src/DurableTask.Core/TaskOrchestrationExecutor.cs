@@ -165,7 +165,7 @@ namespace DurableTask.Core
                                     ExceptionDispatchInfo.Capture(exception).Throw();
                                 }
                                 
-                                this.context.FailOrchestration(exception);
+                                this.context.FailOrchestration(exception, this.orchestrationRuntimeState);
                             }
                             else
                             {
@@ -179,7 +179,7 @@ namespace DurableTask.Core
                 }
                 catch (NonDeterministicOrchestrationException exception)
                 {
-                    this.context.FailOrchestration(exception);
+                    this.context.FailOrchestration(exception, this.orchestrationRuntimeState);
                 }
 
                 return new OrchestratorExecutionResult

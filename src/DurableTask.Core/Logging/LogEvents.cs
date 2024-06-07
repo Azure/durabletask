@@ -1049,15 +1049,18 @@ namespace DurableTask.Core.Logging
                 OrchestrationRuntimeState runtimeState,
                 OrchestrationCompleteOrchestratorAction action)
             {
+
                 this.InstanceId = runtimeState.OrchestrationInstance.InstanceId;
                 this.ExecutionId = runtimeState.OrchestrationInstance.ExecutionId;
                 this.RuntimeStatus = action.OrchestrationStatus.ToString();
-                this.Details = action.Details;
                 this.SizeInBytes = Encoding.UTF8.GetByteCount(action.Result ?? string.Empty);
-                this.sanitizedDetails = action.FailureDetails != null ? $"{action.FailureDetails.ErrorType}\n{action.FailureDetails.StackTrace}" : string.Empty;
-            }
 
-            private string sanitizedDetails { get;  }
+#nullable enable
+                Exception? exception = runtimeState.Exception;
+                string redactedException = exception != null ? LogHelper.GetRedactedExceptionDetails(exception) : string.Empty;
+                this.Details = redactedException;
+            }
+#nullable disable
 
             [StructuredLogField]
             public string InstanceId { get; }
@@ -1088,7 +1091,7 @@ namespace DurableTask.Core.Logging
                     this.InstanceId,
                     this.ExecutionId,
                     this.RuntimeStatus,
-                    Details: this.sanitizedDetails, // Failure details may contain sensitive information, so we sanitize them
+                    this.Details,
                     this.SizeInBytes,
                     Utils.AppName,
                     Utils.PackageVersion);
@@ -1507,11 +1510,11 @@ namespace DurableTask.Core.Logging
                 this.ExecutionId = instance.ExecutionId;
                 this.Name = name;
                 this.TaskEventId = taskEvent.EventId;
-                this.Details = exception.ToString();
-                this.sanitizedDetails = $"{exception.GetType().FullName}\n{exception.StackTrace}";
+#nullable enable
+                string redactedException = LogHelper.GetRedactedExceptionDetails(exception);
+                this.Details = redactedException;
             }
-
-            private string sanitizedDetails { get; }
+#nullable disable
 
             [StructuredLogField]
             public string InstanceId { get; }
@@ -1543,7 +1546,7 @@ namespace DurableTask.Core.Logging
                     this.ExecutionId,
                     this.Name,
                     this.TaskEventId,
-                    Details: sanitizedDetails,
+                    this.Details,
                     Utils.AppName,
                     Utils.PackageVersion);
         }

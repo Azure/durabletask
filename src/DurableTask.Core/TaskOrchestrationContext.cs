@@ -203,7 +203,7 @@ namespace DurableTask.Core
 
             int id = this.idCounter++;
 
-            string serializedEventData = this.MessageDataConverter.SerializeInternal(eventData);             
+            string serializedEventData = this.MessageDataConverter.SerializeInternal(eventData);
 
             var action = new SendEventOrchestratorAction
             {
@@ -503,7 +503,7 @@ namespace DurableTask.Core
                 // When using ErrorPropagationMode.UseFailureDetails we instead use FailureDetails to convey
                 // error information, which doesn't involve any serialization at all.
                 Exception cause = this.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions ?
-                    Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter) 
+                    Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter)
                     : null;
 
                 var failedException = new SubOrchestrationFailedException(failedEvent.EventId, taskId, info.Name,
@@ -593,7 +593,7 @@ namespace DurableTask.Core
             // Add the actions stored in the suspendedActionsMap before back to orchestratorActionsMap to ensure proper sequencing.
             if (this.suspendedActionsMap.Any())
             {
-                foreach(var pair in this.suspendedActionsMap)
+                foreach (var pair in this.suspendedActionsMap)
                 {
                     this.orchestratorActionsMap.Add(pair.Key, pair.Value);
                 }
@@ -606,7 +606,7 @@ namespace DurableTask.Core
             }
         }
 
-        public void FailOrchestration(Exception failure)
+        public void FailOrchestration(Exception failure, OrchestrationRuntimeState runtimeState)
         {
             if (failure == null)
             {
@@ -615,8 +615,8 @@ namespace DurableTask.Core
 
             string reason = failure.Message;
 
-            // failureDetailsString is legacy, FailureDetails is the newer way to share failure information
-            string failureDetailsString = null;
+            // string details is legacy, FailureDetails is the newer way to share failure information
+            string details = null;
             FailureDetails failureDetails = null;
 
             // correlation 
@@ -626,13 +626,16 @@ namespace DurableTask.Core
                     CorrelationTraceClient.TrackException(failure);
                 });
 
-            // In this block, we always create a failureDetails variable, which is needed to produce sanitized telemetry
             if (failure is OrchestrationFailureException orchestrationFailureException)
             {
-                failureDetails = orchestrationFailureException.FailureDetails;
-                if (this.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions)
+                if (this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
                 {
-                    failureDetailsString = orchestrationFailureException.Details;
+                    // When not serializing exceptions, we instead construct FailureDetails objects
+                    failureDetails = orchestrationFailureException.FailureDetails;
+                }
+                else
+                {
+                    details = orchestrationFailureException.Details;
                 }
             }
             else if (failure is TaskFailedException taskFailedException &&
@@ -643,19 +646,22 @@ namespace DurableTask.Core
             }
             else
             {
-                failureDetails = new FailureDetails(failure);
-                if (this.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions)
+                if (this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
                 {
-                    failureDetailsString = $"Unhandled exception while executing orchestration: {failure}\n\t{failure.StackTrace}";
-
+                    failureDetails = new FailureDetails(failure);
+                }
+                else
+                {
+                    details = $"Unhandled exception while executing orchestration: {failure}\n\t{failure.StackTrace}";
                 }
             }
 
-            CompleteOrchestration(reason, failureDetailsString, OrchestrationStatus.Failed, failureDetails);
+            // save exception so it can be retrieve during ETW logging. See LogEvents.OrchestrationCompleted for more details
+            runtimeState.Exception = failure;
+            CompleteOrchestration(reason, details, OrchestrationStatus.Failed, failureDetails);
         }
 
-#nullable enable
-        public void CompleteOrchestration(string result, string failureDetailsString, OrchestrationStatus orchestrationStatus, FailureDetails? failureDetails = null)
+        public void CompleteOrchestration(string result, string details, OrchestrationStatus orchestrationStatus, FailureDetails failureDetails = null)
         {
             int id = this.idCounter++;
             OrchestrationCompleteOrchestratorAction completedOrchestratorAction;
@@ -674,7 +680,7 @@ namespace DurableTask.Core
 
                 completedOrchestratorAction = new OrchestrationCompleteOrchestratorAction();
                 completedOrchestratorAction.Result = result;
-                completedOrchestratorAction.Details = failureDetailsString;
+                completedOrchestratorAction.Details = details;
                 completedOrchestratorAction.OrchestrationStatus = orchestrationStatus;
                 completedOrchestratorAction.FailureDetails = failureDetails;
             }
@@ -682,7 +688,6 @@ namespace DurableTask.Core
             completedOrchestratorAction.Id = id;
             this.orchestratorActionsMap.Add(id, completedOrchestratorAction);
         }
-#nullable disable
 
         class OpenTaskInfo
         {

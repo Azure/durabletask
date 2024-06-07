@@ -135,6 +135,11 @@ namespace DurableTask.Core
         public FailureDetails? FailureDetails => ExecutionCompletedEvent?.FailureDetails;
 
         /// <summary>
+        /// Failure associated with an orchestration.
+        /// </summary>
+        internal Exception? Exception { get; set; }
+
+        /// <summary>
         /// Gets the orchestration name from the ExecutionStartedEvent
         /// </summary>
         public string Name => GetExecutionStartedEventOrThrow().Name;
