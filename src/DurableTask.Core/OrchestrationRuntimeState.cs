@@ -135,7 +135,10 @@ namespace DurableTask.Core
         public FailureDetails? FailureDetails => ExecutionCompletedEvent?.FailureDetails;
 
         /// <summary>
-        /// Failure associated with an orchestration.
+        /// Failure that caused an orchestrator to complete, if any.
+        /// <remarks>
+        /// This property was introduced to sanitize exceptions during logging. See it's usage in <see cref="LogEvents.OrchestrationCompleted"/>.
+        /// </remarks>
         /// </summary>
         internal Exception? Exception { get; set; }
 
