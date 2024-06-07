@@ -1057,10 +1057,11 @@ namespace DurableTask.Core.Logging
 
 #nullable enable
                 Exception? exception = runtimeState.Exception;
-                string redactedException = exception != null ? LogHelper.GetRedactedExceptionDetails(exception) : string.Empty;
-                this.Details = redactedException;
+                this.exception = exception;
+                this.Details = action.Details ?? string.Empty;
             }
-#nullable disable
+
+            private Exception? exception { get; }
 
             [StructuredLogField]
             public string InstanceId { get; }
@@ -1091,11 +1092,12 @@ namespace DurableTask.Core.Logging
                     this.InstanceId,
                     this.ExecutionId,
                     this.RuntimeStatus,
-                    this.Details,
+                    this.exception != null ? LogHelper.GetRedactedExceptionDetails(this.exception) : string.Empty,
                     this.SizeInBytes,
                     Utils.AppName,
                     Utils.PackageVersion);
         }
+#nullable disable
 
         /// <summary>
         /// Log event representing an orchestration aborted event, which can happen if the host is shutting down.
@@ -1511,10 +1513,11 @@ namespace DurableTask.Core.Logging
                 this.Name = name;
                 this.TaskEventId = taskEvent.EventId;
 #nullable enable
-                string redactedException = LogHelper.GetRedactedExceptionDetails(exception);
-                this.Details = redactedException;
+                this.exception = exception;
+                this.Details = exception.ToString();
             }
-#nullable disable
+
+            private Exception exception;
 
             [StructuredLogField]
             public string InstanceId { get; }
@@ -1546,10 +1549,11 @@ namespace DurableTask.Core.Logging
                     this.ExecutionId,
                     this.Name,
                     this.TaskEventId,
-                    this.Details,
+                    LogHelper.GetRedactedExceptionDetails(this.exception),
                     Utils.AppName,
                     Utils.PackageVersion);
         }
+#nullable disable
 
         internal class TaskActivityAborted : StructuredLogEvent, IEventSourceEvent
         {
