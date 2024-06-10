@@ -203,7 +203,7 @@ namespace DurableTask.Core
 
             int id = this.idCounter++;
 
-            string serializedEventData = this.MessageDataConverter.SerializeInternal(eventData);             
+            string serializedEventData = this.MessageDataConverter.SerializeInternal(eventData);
 
             var action = new SendEventOrchestratorAction
             {
@@ -503,7 +503,7 @@ namespace DurableTask.Core
                 // When using ErrorPropagationMode.UseFailureDetails we instead use FailureDetails to convey
                 // error information, which doesn't involve any serialization at all.
                 Exception cause = this.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions ?
-                    Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter) 
+                    Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter)
                     : null;
 
                 var failedException = new SubOrchestrationFailedException(failedEvent.EventId, taskId, info.Name,
@@ -593,7 +593,7 @@ namespace DurableTask.Core
             // Add the actions stored in the suspendedActionsMap before back to orchestratorActionsMap to ensure proper sequencing.
             if (this.suspendedActionsMap.Any())
             {
-                foreach(var pair in this.suspendedActionsMap)
+                foreach (var pair in this.suspendedActionsMap)
                 {
                     this.orchestratorActionsMap.Add(pair.Key, pair.Value);
                 }
@@ -606,7 +606,7 @@ namespace DurableTask.Core
             }
         }
 
-        public void FailOrchestration(Exception failure)
+        public void FailOrchestration(Exception failure, OrchestrationRuntimeState runtimeState)
         {
             if (failure == null)
             {
@@ -656,6 +656,8 @@ namespace DurableTask.Core
                 }
             }
 
+            // save exception so it can be retrieved and sanitized during logging. See LogEvents.OrchestrationCompleted for more details
+            runtimeState.Exception = failure;
             CompleteOrchestration(reason, details, OrchestrationStatus.Failed, failureDetails);
         }
 
