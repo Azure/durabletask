@@ -1052,7 +1052,6 @@ namespace DurableTask.Core.Logging
                 OrchestrationRuntimeState runtimeState,
                 OrchestrationCompleteOrchestratorAction action)
             {
-
                 this.InstanceId = runtimeState.OrchestrationInstance!.InstanceId;
                 this.ExecutionId = runtimeState.OrchestrationInstance.ExecutionId;
                 this.RuntimeStatus = action.OrchestrationStatus.ToString();
