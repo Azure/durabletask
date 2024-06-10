@@ -1045,23 +1045,23 @@ namespace DurableTask.Core.Logging
         /// </summary>
         internal class OrchestrationCompleted : StructuredLogEvent, IEventSourceEvent
         {
+#nullable enable
+            readonly Exception? exception;
+
             public OrchestrationCompleted(
                 OrchestrationRuntimeState runtimeState,
                 OrchestrationCompleteOrchestratorAction action)
             {
 
-                this.InstanceId = runtimeState.OrchestrationInstance.InstanceId;
+                this.InstanceId = runtimeState.OrchestrationInstance!.InstanceId;
                 this.ExecutionId = runtimeState.OrchestrationInstance.ExecutionId;
                 this.RuntimeStatus = action.OrchestrationStatus.ToString();
                 this.SizeInBytes = Encoding.UTF8.GetByteCount(action.Result ?? string.Empty);
 
-#nullable enable
                 Exception? exception = runtimeState.Exception;
                 this.exception = exception;
                 this.Details = action.Details ?? string.Empty;
             }
-
-            private Exception? exception { get; }
 
             [StructuredLogField]
             public string InstanceId { get; }
@@ -1502,6 +1502,9 @@ namespace DurableTask.Core.Logging
 
         internal class TaskActivityFailure : StructuredLogEvent, IEventSourceEvent
         {
+#nullable enable
+            readonly Exception exception;
+
             public TaskActivityFailure(
                 OrchestrationInstance instance,
                 string name,
@@ -1512,12 +1515,9 @@ namespace DurableTask.Core.Logging
                 this.ExecutionId = instance.ExecutionId;
                 this.Name = name;
                 this.TaskEventId = taskEvent.EventId;
-#nullable enable
                 this.exception = exception;
                 this.Details = exception.ToString();
             }
-
-            private Exception exception;
 
             [StructuredLogField]
             public string InstanceId { get; }

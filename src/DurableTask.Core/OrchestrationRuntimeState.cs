@@ -136,10 +136,10 @@ namespace DurableTask.Core
 
         /// <summary>
         /// Failure that caused an orchestrator to complete, if any.
+        /// </summary>
         /// <remarks>
         /// This property was introduced to sanitize exceptions during logging. See it's usage in <see cref="LogEvents.OrchestrationCompleted"/>.
         /// </remarks>
-        /// </summary>
         internal Exception? Exception { get; set; }
 
         /// <summary>
