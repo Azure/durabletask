@@ -632,7 +632,7 @@ namespace DurableTask.Core.Logging
                 StructuredEventSource.Log.TerminatingInstance(
                     this.InstanceId,
                     this.ExecutionId,
-                    Details: $"(Redacted {this.Details?.Length ?? 0} characters}), // User-provided details may contain sensitive data, so we don't log it.
+                    Details: $"(Redacted {this.Details?.Length ?? 0} characters)", // User-provided details may contain sensitive data, so we don't log it.
                     Utils.AppName,
                     Utils.PackageVersion);
         }
@@ -668,7 +668,7 @@ namespace DurableTask.Core.Logging
                 StructuredEventSource.Log.SuspendingInstance(
                     this.InstanceId,
                     this.ExecutionId,
-                    Details: string.Empty, // User-provided details may contain sensitive data, so we don't log it.
+                    Details: $"(Redacted {this.Details?.Length ?? 0} characters)", // User-provided details may contain sensitive data, so we don't log it.
                     Utils.AppName,
                     Utils.PackageVersion);
         }
@@ -704,7 +704,7 @@ namespace DurableTask.Core.Logging
                 StructuredEventSource.Log.ResumingInstance(
                     this.InstanceId,
                     this.ExecutionId,
-                    Details: string.Empty, // User-provided details may contain sensitive data, so we don't log it.
+                    Details: $"(Redacted {this.Details?.Length ?? 0} characters)", // User-provided details may contain sensitive data, so we don't log it.
                     Utils.AppName,
                     Utils.PackageVersion);
         }
