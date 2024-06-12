@@ -329,6 +329,7 @@ namespace DurableTask.AzureStorage.Partitioning
             var allShards = new Dictionary<string, T>();
             var takenLeases = new Dictionary<string, T>();
             var workerToShardCount = new Dictionary<string, int>();
+            var workerToShardList = new Dictionary<string, List<string>>();
             var expiredLeases = new List<T>();
 
             var allLeases = await this.leaseManager.ListLeasesAsync();
@@ -357,10 +358,12 @@ namespace DurableTask.AzureStorage.Partitioning
                     if (workerToShardCount.TryGetValue(assignedTo, out count))
                     {
                         workerToShardCount[assignedTo] = count + 1;
+                        workerToShardList[assignedTo].Add(lease.PartitionId);
                     }
                     else
                     {
                         workerToShardCount.Add(assignedTo, 1);
+                        workerToShardList[assignedTo] = new List<string>() { lease.PartitionId };
                     }
                 }
             }
@@ -368,10 +371,21 @@ namespace DurableTask.AzureStorage.Partitioning
             if (!workerToShardCount.ContainsKey(this.workerName))
             {
                 workerToShardCount.Add(this.workerName, 0);
+                workerToShardList[this.workerName] = new List<string>();
             }
 
             int shardCount = allShards.Count;
             int workerCount = workerToShardCount.Count;
+
+            var informationPerWorker = workerToShardList.Select(kv => $"Machine is `{kv.Key}`, Partitions are `{string.Join(";", kv.Value)}` ");
+            var message = "Current Distribution of Partitions: " + string.Join(" | ", informationPerWorker);
+
+            this.settings.Logger.PartitionManagerInfo(
+                this.accountName,
+                this.taskHub,
+                this.workerName,
+                "",
+                message);
 
             if (shardCount > 0)
             {
@@ -728,9 +742,16 @@ namespace DurableTask.AzureStorage.Partitioning
                             lease.Token,
                             this.leaseType);
                     }
-                    catch (LeaseLostException)
+                    catch (LeaseLostException ex)
                     {
                         // We have already shutdown the processor so we can ignore any LeaseLost at this point
+                        // Still, we log a warning just in case
+                        this.settings.Logger.PartitionManagerWarning(
+                            this.accountName,
+                            this.taskHub,
+                            this.workerName,
+                            lease.PartitionId,
+                            $"Encountered lease lost exception while releasing owned {this.leaseType}: {ex}");
                     }
                     catch (Exception ex)
                     {
