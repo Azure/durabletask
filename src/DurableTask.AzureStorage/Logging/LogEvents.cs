@@ -2654,5 +2654,74 @@ namespace DurableTask.AzureStorage.Logging
                 Utils.AppName,
                 Utils.ExtensionVersion);
         }
+
+        internal class AzureStorageTaskHubMetrics : StructuredLogEvent, IEventSourceEvent
+        {
+            public AzureStorageTaskHubMetrics(
+                string account,
+                string taskHub,
+                int partitionCount,
+                int workItemQueueLength,
+                string workItemQueueLatency,
+                double workItemQueueLatencyTrend,
+                string controlQueueLengths,
+                string controlQueueLatencies)
+            {
+                this.Account = account;
+                this.TaskHub = taskHub;
+                this.PartitionCount = partitionCount;
+                this.WorkItemQueueLength = workItemQueueLength;
+                this.WorkItemQueueLatency = workItemQueueLatency;
+                this.WorkItemQueueLatencyTrend = workItemQueueLatencyTrend;
+                this.ControlQueueLengths = controlQueueLengths;
+                this.ControlQueueLatencies = controlQueueLatencies;
+            }
+
+            [StructuredLogField]
+            public string Account { get; }
+
+            [StructuredLogField]
+            public string TaskHub { get; }
+
+            [StructuredLogField]
+            public int PartitionCount { get; }
+
+            [StructuredLogField]
+            public int WorkItemQueueLength { get; }
+
+            [StructuredLogField]
+            public string WorkItemQueueLatency { get; }
+
+            [StructuredLogField]
+            public double WorkItemQueueLatencyTrend { get; }
+
+            [StructuredLogField]
+            public string ControlQueueLengths { get; }
+
+            [StructuredLogField]
+            public string ControlQueueLatencies { get; }
+
+            public override EventId EventId => new EventId(
+                EventIds.AzureStorageTaskHubMetrics,
+                nameof(EventIds.AzureStorageTaskHubMetrics));
+
+            public override LogLevel Level => LogLevel.Information;
+
+            protected override string CreateLogMessage() => $"$Storage metrics: TaskHub={TaskHub}, PartitionCount={PartitionCount}, " +
+                $"WorkItemQueueLength={WorkItemQueueLength}, WorkItemQueueLatency={WorkItemQueueLatency}, WorkItemQueueLatencyTrend={WorkItemQueueLatencyTrend}," +
+                $"ControlQueueLengths={ControlQueueLengths}, ControlQueueLatencies={ControlQueueLatencies}";
+
+            void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.AzureStorageTaskHubMetrics(
+                this.Account,
+                this.TaskHub,
+                this.PartitionCount,
+                this.WorkItemQueueLength,
+                this.WorkItemQueueLatency,
+                this.WorkItemQueueLatencyTrend,
+                this.ControlQueueLengths,
+                this.ControlQueueLatencies,
+                Utils.AppName,
+                Utils.ExtensionVersion);
+        }
     }
 }
