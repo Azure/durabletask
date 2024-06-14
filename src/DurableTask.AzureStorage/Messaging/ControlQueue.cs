@@ -105,30 +105,27 @@ namespace DurableTask.AzureStorage.Messaging
                             MessageData messageData;
                             try
                             {
+                                // try to de-serialize message
                                 messageData = await this.messageManager.DeserializeQueueMessageAsync(
                                     queueMessage,
                                     this.storageQueue.Name);
 
+                                // if successful, check if it's a poison message. If so, we handle it
+                                // and log metadata about it as the de-serialization succeeded.
                                 await this.HandleIfPoisonMessageAsync(messageData);
-
                             }
-                            catch (Exception e)
+                            catch (Exception exception)
                             {
-                                // We have limited information about the details of the message
-                                // since we failed to deserialize it.
-                                this.settings.Logger.MessageFailure(
-                                    this.storageAccountName,
-                                    this.settings.TaskHubName,
-                                    queueMessage.Id /* MessageId */,
-                                    string.Empty /* InstanceId */,
-                                    string.Empty /* ExecutionId */,
-                                    this.storageQueue.Name,
-                                    string.Empty /* EventType */,
-                                    0 /* TaskEventId */,
-                                    e.ToString());
+                                // Deserialization errors can be persistent, so we check if this is a poison message.
+                                bool isPoisonMessage = await this.TryHandlingDeserializationPoisonMessage(queueMessage, exception);
+                                if (isPoisonMessage)
+                                {
+                                    // we have already handled the poison message, so we move on.
+                                    return;
+                                }
 
-                                // Abandon the message so we can try it again later.
-                                await this.AbandonMessageAsync(queueMessage);
+                                // This is not a poison message (at least not yet), so we abandon it to retry later.
+                                await this.AbandonMessageAsync(queueMessage, exception);
                                 return;
                             }
 
@@ -193,8 +190,22 @@ namespace DurableTask.AzureStorage.Messaging
         }
 
         // This overload is intended for cases where we aren't able to deserialize an instance of MessageData.
-        public Task AbandonMessageAsync(QueueMessage queueMessage)
+        public Task AbandonMessageAsync(QueueMessage queueMessage, Exception exception)
         {
+
+            // We have limited information about the details of the message
+            // since we failed to deserialize it.
+            this.settings.Logger.MessageFailure(
+                this.storageAccountName,
+                this.settings.TaskHubName,
+                queueMessage.Id /* MessageId */,
+                string.Empty /* InstanceId */,
+                string.Empty /* ExecutionId */,
+                this.storageQueue.Name,
+                string.Empty /* EventType */,
+                0 /* TaskEventId */,
+                exception.ToString());
+
             this.stats.PendingOrchestratorMessages.TryRemove(queueMessage.Id, out _);
             return base.AbandonMessageAsync(
                 queueMessage,

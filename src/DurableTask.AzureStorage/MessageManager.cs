@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.AzureStorage
 {
     using System;
@@ -118,9 +118,10 @@ namespace DurableTask.AzureStorage
         /// <returns>Actual string representation of message.</returns>
         public async Task<string> FetchLargeMessageIfNecessary(string message)
         {
-            if (TryGetLargeMessageReference(message, out Uri blobUrl))
+            if (TryGetLargeMessageReference(message, out Uri? blobUrl))
             {
-                return await this.DownloadAndDecompressAsBytesAsync(blobUrl);
+                // we know blobUrl is not null because TryGetLargeMessageReference returned true
+                return await this.DownloadAndDecompressAsBytesAsync(blobUrl!);
             }
             else
             {
@@ -128,7 +129,7 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        internal static bool TryGetLargeMessageReference(string messagePayload, out Uri blobUrl)
+        internal static bool TryGetLargeMessageReference(string messagePayload, out Uri? blobUrl)
         {
             if (Uri.IsWellFormedUriString(messagePayload, UriKind.Absolute))
             {
@@ -314,6 +315,7 @@ namespace DurableTask.AzureStorage
             return storageOperationCount;
         }
     }
+#nullable disable
 
 #if NETSTANDARD2_0
     class TypeNameSerializationBinder : ISerializationBinder
