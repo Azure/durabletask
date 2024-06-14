@@ -161,9 +161,9 @@ namespace DurableTask.AzureStorage
             {
                 envelope = this.DeserializeMessageData(Encoding.UTF8.GetString(body));
             }
-            catch
+            catch(JsonReaderException)
             {
-                // This catch block is a hotfix for sev1 and better implementation might be needed in future. 
+                // This catch block is a hotfix and better implementation might be needed in future. 
                 // DTFx.AzureStorage 1.x and 2.x use different encoding methods. Adding this line to enable forward compatibility.
                 envelope = this.DeserializeMessageData(Encoding.UTF8.GetString(Convert.FromBase64String(Encoding.UTF8.GetString(body))));
             }
