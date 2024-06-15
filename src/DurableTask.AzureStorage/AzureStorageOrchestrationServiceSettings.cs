@@ -318,5 +318,11 @@ namespace DurableTask.AzureStorage
         /// Consumers that require separate dispatch (such as the new out-of-proc v2 SDKs) must set this to true.
         /// </summary>
         public bool UseSeparateQueueForEntityWorkItems { get; set; } = false;
+
+        /// <summary>
+        /// Enabled explicit placement of instance to parition id.
+        /// if the instance id ends with !nnn, where nnn is an unsigned number, it indicates explicit partition placement
+        /// </summary>
+        public bool EnableExplicitPartitionPlacement { get; set; } = false;
     }
 }
