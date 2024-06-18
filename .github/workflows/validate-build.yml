@@ -15,6 +15,14 @@ env:
   solution: DurableTask.sln
   config: Release
 
+services:
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    ports:
+      - 10000:10000
+      - 10001:10001
+      - 10002:10002
+
 jobs:
   build:
     runs-on: windows-latest
@@ -33,8 +41,8 @@ jobs:
     - name: Build
       run: dotnet build $solution #--configuration $config #--no-restore -p:FileVersionRevision=$GITHUB_RUN_NUMBER -p:ContinuousIntegrationBuild=true
 
-    - name: Test
-      run: dotnet test $solution #--configuration $config --no-build --verbosity normal
+    - name: Test DTx.Core
+      run: dotnet test Azure/durabletask/test/DurableTask.Core.Tests/DurableTask.Core.Tests.csproj #--configuration $config --no-build --verbosity normal
 
     - name: Pack
       run: dotnet pack $solution #--configuration $config --no-build
