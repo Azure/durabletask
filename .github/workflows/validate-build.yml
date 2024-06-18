@@ -45,7 +45,7 @@ jobs:
       run: azurite --silent &
 
     - name: Test DTx.Core
-      run: dotnet test Azure/durabletask/test/DurableTask.Core.Tests/DurableTask.Core.Tests.csproj #--configuration $config --no-build --verbosity normal
+      run: dotnet test ./test/DurableTask.Core.Tests/DurableTask.Core.Tests.csproj #--configuration $config --no-build --verbosity normal
 
     - name: Pack
       run: dotnet pack $solution #--configuration $config --no-build
