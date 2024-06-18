@@ -58,7 +58,7 @@ jobs:
       run: dotnet test ./test/DurableTask.Core.Tests/DurableTask.Core.Tests.csproj #--configuration $config --no-build --verbosity normal
 
     - name: Test DTFx.AzureStorage
-      run: dotnet test ./test/DurableTask.Core.Tests/DurableTask.AzureStorage.Tests.csproj #--configuration $config --no-build --verbosity normal
+      run: dotnet test ./test/DurableTask.AzureStorage.Tests/DurableTask.AzureStorage.Tests.csproj #--configuration $config --no-build --verbosity normal
 
     # - name: Pack
     #   run: dotnet pack $solution #--configuration $config --no-build
