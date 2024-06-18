@@ -54,14 +54,17 @@ jobs:
     - name: Start Azurite
       run: azurite --silent &
 
-    - name: Test DTx.Core
+    - name: Test DTFx.Core
       run: dotnet test ./test/DurableTask.Core.Tests/DurableTask.Core.Tests.csproj #--configuration $config --no-build --verbosity normal
 
-    - name: Pack
-      run: dotnet pack $solution #--configuration $config --no-build
+    - name: Test DTFx.AzureStorage
+      run: dotnet test ./test/DurableTask.Core.Tests/DurableTask.AzureStorage.Tests.csproj #--configuration $config --no-build --verbosity normal
 
-    - name: Upload
-      uses: actions/upload-artifact@v3
-      with:
-        name: pkg
-        path: out/pkg
+    # - name: Pack
+    #   run: dotnet pack $solution #--configuration $config --no-build
+
+    # - name: Upload
+    #   uses: actions/upload-artifact@v3
+    #   with:
+    #     name: pkg
+    #     path: out/pkg
