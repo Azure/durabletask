@@ -81,8 +81,11 @@ namespace DurableTask.ServiceBus.Tests
 
             Stream stream = new MemoryStream(Encoding.UTF8.GetBytes(testContent));
             await this.blobStorageClient.UploadStreamBlobAsync(key1, stream);
+            stream.Position = 0;
             await this.blobStorageClient.UploadStreamBlobAsync(key2, stream);
+            stream.Position = 0;
             await this.blobStorageClient.UploadStreamBlobAsync(key3, stream);
+            stream.Position = 0;
 
             var dateTime = new DateTime(2015, 05, 17);
             await this.blobStorageClient.DeleteExpiredContainersAsync(dateTime);

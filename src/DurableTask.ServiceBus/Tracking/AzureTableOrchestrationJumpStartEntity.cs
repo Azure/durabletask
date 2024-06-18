@@ -16,6 +16,7 @@ namespace DurableTask.ServiceBus.Tracking
     using System;
     using System.Collections.Generic;
     using System.Globalization;
+    using System.Runtime.Serialization;
     using Azure.Data.Tables;
     using DurableTask.Core.Tracking;
 
@@ -49,6 +50,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// <summary>
         /// Gets a OrchestrationJumpStartInstanceEntity
         /// </summary>
+        [IgnoreDataMember]
         public OrchestrationJumpStartInstanceEntity OrchestrationJumpStartInstanceEntity => new OrchestrationJumpStartInstanceEntity
         {
             State = State,

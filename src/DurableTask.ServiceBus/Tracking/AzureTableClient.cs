@@ -59,6 +59,8 @@ namespace DurableTask.ServiceBus.Tracking
 
             this.tableClient = new TableServiceClient(tableConnectionString);
             this.hubName = hubName;
+            this.jumpStartTableClient = tableClient.GetTableClient(JumpStartTableName);
+            this.historyTableClient = tableClient.GetTableClient(TableName);
         }
 
         public AzureTableClient(string hubName, Uri endpoint, TokenCredential credential)
@@ -80,6 +82,8 @@ namespace DurableTask.ServiceBus.Tracking
 
             this.tableClient = new TableServiceClient(endpoint, credential);
             this.hubName = hubName;
+            this.jumpStartTableClient = tableClient.GetTableClient(JumpStartTableName);
+            this.historyTableClient = tableClient.GetTableClient(TableName);
         }
 
         public string TableName => AzureTableConstants.InstanceHistoryTableNamePrefix + "00" + this.hubName;
@@ -88,14 +92,14 @@ namespace DurableTask.ServiceBus.Tracking
 
         internal async Task CreateTableIfNotExistsAsync()
         {
-            await this.tableClient.CreateTableIfNotExistsAsync(TableName);
             this.historyTableClient = tableClient.GetTableClient(TableName);
+            await this.tableClient.CreateTableIfNotExistsAsync(TableName);
         }
 
         internal async Task CreateJumpStartTableIfNotExistsAsync()
         {
-            await this.tableClient.CreateTableIfNotExistsAsync(JumpStartTableName);
             this.jumpStartTableClient = tableClient.GetTableClient(JumpStartTableName);
+            await this.tableClient.CreateTableIfNotExistsAsync(JumpStartTableName);
         }
 
         internal async Task DeleteTableIfExistsAsync()
@@ -392,7 +396,7 @@ namespace DurableTask.ServiceBus.Tracking
             where T : class, ITableEntity
         {
             var pageableResults = tableClient.QueryAsync<T>(filter: filter, 
-                maxPerPage: count > 0? count: default);
+                maxPerPage: count > 0? count: null);
 
             var results = new List<T>();
 

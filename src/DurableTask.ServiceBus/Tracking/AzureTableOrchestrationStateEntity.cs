@@ -26,6 +26,7 @@ namespace DurableTask.ServiceBus.Tracking
     /// </summary>
     public class AzureTableOrchestrationStateEntity : AzureTableCompositeTableEntity
     {
+        [IgnoreDataMember]
         readonly DataConverter dataConverter;
 
         /// <summary>
