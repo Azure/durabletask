@@ -52,7 +52,7 @@ jobs:
       run: npm install -g azurite
 
     - name: Start Azurite
-      run: azurite --silent &
+      run: azurite --silent --queuePort 10001 &
 
     - name: Test DTFx.Core
       run: dotnet test ./test/DurableTask.Core.Tests/DurableTask.Core.Tests.csproj #--configuration $config --no-build --verbosity normal
