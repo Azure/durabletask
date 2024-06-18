@@ -33,10 +33,16 @@ jobs:
     - name: Build
       run: dotnet build $solution #--configuration $config #--no-restore -p:FileVersionRevision=$GITHUB_RUN_NUMBER -p:ContinuousIntegrationBuild=true
 
-    - name: Run Azurite
-      run: |
-        docker pull mcr.microsoft.com/azure-storage/azurite
-        docker run -d -p 10000:10000 -p 10001:10001 -p 10002:10002 --name azurite mcr.microsoft.com/azure-storage/azurite
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '16.x'
+
+    - name: Install Azurite
+      run: npm install -g azurite
+
+    - name: Start Azurite
+      run: azurite --silent &
 
     - name: Test DTx.Core
       run: dotnet test Azure/durabletask/test/DurableTask.Core.Tests/DurableTask.Core.Tests.csproj #--configuration $config --no-build --verbosity normal
