@@ -31,13 +31,13 @@ jobs:
       run: dotnet restore $solution
 
     - name: Build
-      run: dotnet build $solution --configuration $config #--no-restore -p:FileVersionRevision=$GITHUB_RUN_NUMBER -p:ContinuousIntegrationBuild=true
+      run: dotnet build $solution #--configuration $config #--no-restore -p:FileVersionRevision=$GITHUB_RUN_NUMBER -p:ContinuousIntegrationBuild=true
 
     - name: Test
-      run: dotnet test $solution --configuration $config --no-build --verbosity normal
+      run: dotnet test $solution #--configuration $config --no-build --verbosity normal
 
     - name: Pack
-      run: dotnet pack $solution --configuration $config --no-build
+      run: dotnet pack $solution #--configuration $config --no-build
 
     - name: Upload
       uses: actions/upload-artifact@v3
