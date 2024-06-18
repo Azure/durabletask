@@ -1,0 +1,48 @@
+name: Validate Build
+
+on:
+  push:
+    branches:
+      - main
+      - 'dajusto/add-tests-as-gh-action'
+    paths-ignore: [ '**.md' ]
+  pull_request:
+    branches:
+      - main
+    paths-ignore: [ '**.md' ]
+
+env:
+  solution: DurableTask.sln
+  config: Release
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        global-json-file: global.json
+
+    - name: Restore dependencies
+      run: dotnet restore $solution
+
+    - name: Build
+      run: dotnet build $solution --configuration $config --no-restore -p:FileVersionRevision=$GITHUB_RUN_NUMBER -p:ContinuousIntegrationBuild=true
+
+    - name: Test
+      run: dotnet test $solution --configuration $config --no-build --verbosity normal
+
+    - name: Pack
+      run: dotnet pack $solution --configuration $config --no-build
+
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with:
+        name: pkg
+        path: out/pkg
