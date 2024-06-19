@@ -128,9 +128,10 @@ namespace DurableTask.ServiceBus.Tracking
         public async Task<Page<AzureTableOrchestrationStateEntity>> QueryOrchestrationStatesSegmentedAsync(
             OrchestrationStateQuery stateQuery, string continuationToken, int count)
         {
+            int? nullIfNegativeCount = count < 0 ? null : count;
             var query = CreateQueryInternal(stateQuery, false);
-            var pageableResults = this.historyTableClient.QueryAsync<AzureTableOrchestrationStateEntity>(filter: query, maxPerPage: count);
-            await using var enumerator = pageableResults.AsPages(continuationToken, count).GetAsyncEnumerator();
+            var pageableResults = this.historyTableClient.QueryAsync<AzureTableOrchestrationStateEntity>(filter: query, maxPerPage: nullIfNegativeCount);
+            await using var enumerator = pageableResults.AsPages(continuationToken, nullIfNegativeCount).GetAsyncEnumerator();
             return await enumerator.MoveNextAsync() ? enumerator.Current : default;
         }
 
@@ -144,9 +145,10 @@ namespace DurableTask.ServiceBus.Tracking
         public async Task<Page<AzureTableOrchestrationStateEntity>> QueryJumpStartOrchestrationsSegmentedAsync(
             OrchestrationStateQuery stateQuery, string continuationToken, int count)
         {
+            int? nullIfNegativeCount = count < 0 ? null : count;
             var query = CreateQueryInternal(stateQuery, true);
-            var pageableResults = this.jumpStartTableClient.QueryAsync<AzureTableOrchestrationStateEntity>(filter: query, maxPerPage: count);
-            await using var enumerator = pageableResults.AsPages(continuationToken, count).GetAsyncEnumerator();
+            var pageableResults = this.jumpStartTableClient.QueryAsync<AzureTableOrchestrationStateEntity>(filter: query, maxPerPage: nullIfNegativeCount);
+            await using var enumerator = pageableResults.AsPages(continuationToken, nullIfNegativeCount).GetAsyncEnumerator();
             return await enumerator.MoveNextAsync() ? enumerator.Current : default;
         }
 
@@ -392,11 +394,12 @@ namespace DurableTask.ServiceBus.Tracking
             return results;
         }
 
-        async Task<IEnumerable<T>> ReadAllEntitiesAsync<T>(string filter, TableClient tableClient, int count = -1)
+        async Task<IEnumerable<T>> ReadAllEntitiesAsync<T>(string filter, TableClient tableClient, int? count = null)
             where T : class, ITableEntity
         {
+            count = count < 0? null : count;
             var pageableResults = tableClient.QueryAsync<T>(filter: filter, 
-                maxPerPage: count > 0? count: null);
+                maxPerPage: count);
 
             var results = new List<T>();
 
@@ -404,7 +407,7 @@ namespace DurableTask.ServiceBus.Tracking
             {
                 results.Add(entity);
 
-                if(count > 0 && results.Count >= count)
+                if(count != null && results.Count >= count)
                 {
                     break;
                 }
