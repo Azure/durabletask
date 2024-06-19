@@ -51,14 +51,11 @@ jobs:
     - name: Install Azurite
       run: npm install -g azurite
 
-    - name: Start Azurite
-      run: azurite --silent --blobPort 10000 --queuePort 10001 --tablePort 10002 &
-
     - name: Test DTFx.Core
-      run: dotnet test ./test/DurableTask.Core.Tests/DurableTask.Core.Tests.csproj #--configuration $config --no-build --verbosity normal
+      run: azurite --silent --blobPort 10000 --queuePort 10001 --tablePort 10002 & dotnet test ./test/DurableTask.Core.Tests/DurableTask.Core.Tests.csproj #--configuration $config --no-build --verbosity normal
 
     - name: Test DTFx.AzureStorage
-      run: dotnet test ./test/DurableTask.AzureStorage.Tests/DurableTask.AzureStorage.Tests.csproj #--configuration $config --no-build --verbosity normal
+      run: azurite --silent --blobPort 10000 --queuePort 10001 --tablePort 10002 & dotnet test ./test/DurableTask.AzureStorage.Tests/DurableTask.AzureStorage.Tests.csproj #--configuration $config --no-build --verbosity normal
 
     # - name: Pack
     #   run: dotnet pack $solution #--configuration $config --no-build
