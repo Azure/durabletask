@@ -1,0 +1,59 @@
+name: Validate Build (DTFx.Core)
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore: [ '**.md' ]
+  pull_request:
+    branches:
+      - main
+    paths-ignore: [ '**.md' ]
+
+env:
+  solution: DurableTask.sln
+  config: Release
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+
+    - name: Set up .NET Core 2.1
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '2.1.x'
+
+    - name: Set up .NET Core 3.1
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '3.1.x'
+
+    - name: Restore dependencies
+      run: dotnet restore $solution
+
+    - name: Build
+      run: dotnet build $solution #--configuration $config #--no-restore -p:FileVersionRevision=$GITHUB_RUN_NUMBER -p:ContinuousIntegrationBuild=true
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '16.x'
+
+    - name: Install Azurite
+      run: npm install -g azurite
+
+    - name: Test DTFx.Core
+      run: azurite --silent --blobPort 10000 --queuePort 10001 --tablePort 10002 & dotnet test ./test/DurableTask.Core.Tests/DurableTask.Core.Tests.csproj #--configuration $config --no-build --verbosity normal
+
+    # Azure Storage is commented out until DTFx.AS v2 is enabled, where Azurite can be used to run unit tests
+    # - name: Test DTFx.AzureStorage
+    #   run: azurite --silent --blobPort 10000 --queuePort 10001 --tablePort 10002 & dotnet test ./test/DurableTask.AzureStorage.Tests/DurableTask.AzureStorage.Tests.csproj #--configuration $config --no-build --verbosity normal
+
