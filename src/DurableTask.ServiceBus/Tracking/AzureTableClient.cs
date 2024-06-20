@@ -128,11 +128,8 @@ namespace DurableTask.ServiceBus.Tracking
         public async Task<Page<AzureTableOrchestrationStateEntity>> QueryOrchestrationStatesSegmentedAsync(
             OrchestrationStateQuery stateQuery, string continuationToken, int count)
         {
-            int? nullIfNegativeCount = count < 0 ? null : count;
             var query = CreateQueryInternal(stateQuery, false);
-            var pageableResults = this.historyTableClient.QueryAsync<AzureTableOrchestrationStateEntity>(filter: query, maxPerPage: nullIfNegativeCount);
-            await using var enumerator = pageableResults.AsPages(continuationToken, nullIfNegativeCount).GetAsyncEnumerator();
-            return await enumerator.MoveNextAsync() ? enumerator.Current : default;
+            return await QueryTableSegmentAsync<AzureTableOrchestrationStateEntity>(this.historyTableClient, query, continuationToken, count);
         }
 
         public Task<IEnumerable<AzureTableOrchestrationStateEntity>> QueryJumpStartOrchestrationsAsync(OrchestrationStateQuery stateQuery)
@@ -145,17 +142,23 @@ namespace DurableTask.ServiceBus.Tracking
         public async Task<Page<AzureTableOrchestrationStateEntity>> QueryJumpStartOrchestrationsSegmentedAsync(
             OrchestrationStateQuery stateQuery, string continuationToken, int count)
         {
-            int? nullIfNegativeCount = count < 0 ? null : count;
             var query = CreateQueryInternal(stateQuery, true);
-            var pageableResults = this.jumpStartTableClient.QueryAsync<AzureTableOrchestrationStateEntity>(filter: query, maxPerPage: nullIfNegativeCount);
-            await using var enumerator = pageableResults.AsPages(continuationToken, nullIfNegativeCount).GetAsyncEnumerator();
-            return await enumerator.MoveNextAsync() ? enumerator.Current : default;
+            return await QueryTableSegmentAsync<AzureTableOrchestrationStateEntity>(this.jumpStartTableClient, query, continuationToken, count);
         }
 
         public Task<IEnumerable<AzureTableOrchestrationJumpStartEntity>> QueryJumpStartOrchestrationsAsync(DateTime startTime, DateTime endTime, int count)
         {
             var query = CreateJumpStartQuery(startTime, endTime);
             return ReadAllEntitiesAsync<AzureTableOrchestrationJumpStartEntity>(query, this.jumpStartTableClient, count);
+        }
+
+        internal async Task<Page<T>> QueryTableSegmentAsync<T>(TableClient tableClient, string query, string continuationToken, int count)
+            where T : class, ITableEntity
+        {
+            int? nullIfNegativeCount = count < 0 ? null : count;
+            var pageableResults = tableClient.QueryAsync<T>(filter: query, maxPerPage: nullIfNegativeCount);
+            await using var enumerator = pageableResults.AsPages(continuationToken, nullIfNegativeCount).GetAsyncEnumerator();
+            return await enumerator.MoveNextAsync() ? enumerator.Current : default;
         }
 
         internal string CreateJumpStartQuery(DateTime startTime, DateTime endTime)
