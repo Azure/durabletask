@@ -93,7 +93,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// <summary>
         /// Gets or set the history event detail for the tracking entity
         /// </summary>
-        [IgnoreDataMember]
+        [IgnoreDataMember] // see HistoryEventJson
         public HistoryEvent HistoryEvent { get; set; }
 
 #pragma warning disable 1591
