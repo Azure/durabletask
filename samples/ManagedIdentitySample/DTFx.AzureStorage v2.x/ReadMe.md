@@ -15,4 +15,4 @@ Before running this sample, you must
         * Storage Blob Data Contributor
         * Storage Table Data Contributor
 4. Add the identity information to your app or configuration. In the sample here, client secret credential requires clientId, clientSecret and tenantId. 
-4. Set `AccountName` to contain the name of the storage account. AccountName can be replaced with Storage Account BlobServiceUri, TableServiceUri and QueueServiceUri. 
+4. Set `AccountName` the name of the storage account. AccountName can be replaced with Storage Account BlobServiceUri, TableServiceUri and QueueServiceUri. 

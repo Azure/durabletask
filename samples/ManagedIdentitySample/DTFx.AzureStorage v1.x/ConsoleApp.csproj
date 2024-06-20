@@ -7,11 +7,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 	<ItemGroup>
-		<PackageReference Include="azure.identity" Version="1.11.0" />
+		<PackageReference Include="Azure.Identity" Version="1.11.0" />
 		<PackageReference Include="Microsoft.Azure.DurableTask.AzureStorage" Version="1.17.3" />
-		<PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="8.0.0" />
 	</ItemGroup>
 
 </Project>

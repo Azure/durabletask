@@ -3,7 +3,6 @@ using Azure.Identity;
 using DurableTask.AzureStorage;
 using DurableTask.Core;
 using Microsoft.WindowsAzure.Storage.Auth;
-using Microsoft.Extensions.Configuration;
 
 internal class Program
 {
