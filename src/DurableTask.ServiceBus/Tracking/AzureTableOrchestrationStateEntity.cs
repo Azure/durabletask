@@ -24,7 +24,7 @@ namespace DurableTask.ServiceBus.Tracking
     /// <summary>
     /// History Tracking Entity for an orchestration's state
     /// </summary>
-    public class AzureTableOrchestrationStateEntity : AzureTableCompositeTableEntity
+    internal class AzureTableOrchestrationStateEntity : AzureTableCompositeTableEntity
     {
         [IgnoreDataMember]
         readonly DataConverter dataConverter;
@@ -54,9 +54,43 @@ namespace DurableTask.ServiceBus.Tracking
         [IgnoreDataMember]
         public OrchestrationState State { get; set; }
 
-#pragma warning disable 1591
-        // In order to maintain table schema with the new Azure SDK, we need the following accessors.
-        // As a result, public accessors with the "State" prefix do not need to be documented.
+
+
+        internal override IEnumerable<ITableEntity> BuildDenormalizedEntities()
+        {
+            var entity1 = new AzureTableOrchestrationStateEntity(State);
+
+            entity1.PartitionKey = AzureTableConstants.InstanceStatePrefix;
+            entity1.RowKey = AzureTableConstants.InstanceStateExactRowPrefix +
+                             AzureTableConstants.JoinDelimiter + State.OrchestrationInstance.InstanceId +
+                             AzureTableConstants.JoinDelimiter + State.OrchestrationInstance.ExecutionId;
+
+            return new [] { entity1 };
+            // TODO : additional indexes for efficient querying in the future
+        }
+
+        /// <summary>
+        /// Returns a string that represents the current object.
+        /// </summary>
+        /// <returns>
+        /// A string that represents the current object.
+        /// </returns>
+        /// <filterpriority>2</filterpriority>
+        public override string ToString()
+        {
+            // ReSharper disable once UseStringInterpolation
+            return string.Format(
+                "Instance Id: {0} Execution Id: {1} Name: {2} Version: {3} CreatedTime: {4} CompletedTime: {5} LastUpdated: {6} Status: {7} User Status: {8} Input: {9} Output: {10} Size: {11} CompressedSize: {12}",
+                State.OrchestrationInstance.InstanceId, State.OrchestrationInstance.ExecutionId, State.Name,
+                State.Version, State.CreatedTime, State.CompletedTime,
+                State.LastUpdatedTime, State.OrchestrationStatus, State.Status, State.Input, State.Output, State.Size,
+                State.CompressedSize);
+        }
+
+        #region
+        // Public Accessors with the Sate prefix are equivalent to those in the already existing State Property.
+        // These are used only to safely interact with the Azure Table Storage SDK which reads and writes using reflection.
+        // This is an artifact of updating from and SDK that did not use reflection.
         [DataMember(Name = "InstanceId")]
         public string StateInstanceId
         {
@@ -284,37 +318,6 @@ namespace DurableTask.ServiceBus.Tracking
                 };
             }
         }
-#pragma warning restore 1591
-
-        internal override IEnumerable<ITableEntity> BuildDenormalizedEntities()
-        {
-            var entity1 = new AzureTableOrchestrationStateEntity(State);
-
-            entity1.PartitionKey = AzureTableConstants.InstanceStatePrefix;
-            entity1.RowKey = AzureTableConstants.InstanceStateExactRowPrefix +
-                             AzureTableConstants.JoinDelimiter + State.OrchestrationInstance.InstanceId +
-                             AzureTableConstants.JoinDelimiter + State.OrchestrationInstance.ExecutionId;
-
-            return new [] { entity1 };
-            // TODO : additional indexes for efficient querying in the future
-        }
-
-        /// <summary>
-        /// Returns a string that represents the current object.
-        /// </summary>
-        /// <returns>
-        /// A string that represents the current object.
-        /// </returns>
-        /// <filterpriority>2</filterpriority>
-        public override string ToString()
-        {
-            // ReSharper disable once UseStringInterpolation
-            return string.Format(
-                "Instance Id: {0} Execution Id: {1} Name: {2} Version: {3} CreatedTime: {4} CompletedTime: {5} LastUpdated: {6} Status: {7} User Status: {8} Input: {9} Output: {10} Size: {11} CompressedSize: {12}",
-                State.OrchestrationInstance.InstanceId, State.OrchestrationInstance.ExecutionId, State.Name,
-                State.Version, State.CreatedTime, State.CompletedTime,
-                State.LastUpdatedTime, State.OrchestrationStatus, State.Status, State.Input, State.Output, State.Size,
-                State.CompressedSize);
-        }
+        #endregion
     }
 }

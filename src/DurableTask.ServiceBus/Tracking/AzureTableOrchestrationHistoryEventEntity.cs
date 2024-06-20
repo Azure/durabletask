@@ -24,7 +24,7 @@ namespace DurableTask.ServiceBus.Tracking
     /// <summary>
     /// History Tracking entity for orchestration history events
     /// </summary>
-    public class AzureTableOrchestrationHistoryEventEntity : AzureTableCompositeTableEntity
+    internal class AzureTableOrchestrationHistoryEventEntity : AzureTableCompositeTableEntity
     {
         private static readonly JsonSerializerSettings WriteJsonSettings = new JsonSerializerSettings
         {
@@ -96,28 +96,6 @@ namespace DurableTask.ServiceBus.Tracking
         [IgnoreDataMember] // see HistoryEventJson
         public HistoryEvent HistoryEvent { get; set; }
 
-#pragma warning disable 1591
-        // In order to maintain table schema with the new Azure SDK, we need the following accessor.
-        // As a result, this HistoryEventJson does not need to be documented.
-        [DataMember(Name = "HistoryEvent")]
-        public string HistoryEventJson
-        {
-            get
-            {
-                var serializedHistoryEvent = JsonConvert.SerializeObject(HistoryEvent, WriteJsonSettings);
-                if (!string.IsNullOrWhiteSpace(serializedHistoryEvent) &&
-                serializedHistoryEvent.Length > ServiceBusConstants.MaxStringLengthForAzureTableColumn)
-                {
-                    serializedHistoryEvent = JsonConvert.SerializeObject(new GenericEvent(HistoryEvent.EventId,
-                        serializedHistoryEvent.Substring(0, ServiceBusConstants.MaxStringLengthForAzureTableColumn) + " ....(truncated)..]"),
-                        WriteJsonSettings);
-                }
-                return serializedHistoryEvent;
-            }
-            set => HistoryEvent = JsonConvert.DeserializeObject<HistoryEvent>(value, ReadJsonSettings);
-        }
-#pragma warning restore 1591
-
         internal override IEnumerable<ITableEntity> BuildDenormalizedEntities()
         {
             var entity = new AzureTableOrchestrationHistoryEventEntity(InstanceId,
@@ -143,5 +121,27 @@ namespace DurableTask.ServiceBus.Tracking
         {
             return $"Instance Id: {InstanceId} Execution Id: {ExecutionId} Seq: {SequenceNumber.ToString()} Time: {TaskTimeStamp} HistoryEvent: {HistoryEvent.EventType.ToString()}";
         }
+
+        #region
+        // This public accessor is only used to safely interact with the Azure Table Storage SDK, which reads and writes using reflection.
+        // This is an artifact of updating from and SDK that did not use reflection.
+        [DataMember(Name = "HistoryEvent")]
+        public string HistoryEventJson
+        {
+            get
+            {
+                var serializedHistoryEvent = JsonConvert.SerializeObject(HistoryEvent, WriteJsonSettings);
+                if (!string.IsNullOrWhiteSpace(serializedHistoryEvent) &&
+                serializedHistoryEvent.Length > ServiceBusConstants.MaxStringLengthForAzureTableColumn)
+                {
+                    serializedHistoryEvent = JsonConvert.SerializeObject(new GenericEvent(HistoryEvent.EventId,
+                        serializedHistoryEvent.Substring(0, ServiceBusConstants.MaxStringLengthForAzureTableColumn) + " ....(truncated)..]"),
+                        WriteJsonSettings);
+                }
+                return serializedHistoryEvent;
+            }
+            set => HistoryEvent = JsonConvert.DeserializeObject<HistoryEvent>(value, ReadJsonSettings);
+        }
+        #endregion
     }
 }

@@ -22,10 +22,6 @@ namespace DurableTask.ServiceBus.Tracking
     using Azure.Storage.Blobs;
     using Azure.Storage.Blobs.Models;
 
-    //using Microsoft.WindowsAzure.Storage;
-    //using Microsoft.WindowsAzure.Storage.Blob;
-    //using Microsoft.WindowsAzure.Storage.RetryPolicies;
-
     /// <summary>
     /// A client to access the Azure blob storage.
     /// </summary>
@@ -171,5 +167,5 @@ namespace DurableTask.ServiceBus.Tracking
             var tasks = containers.ToList().Select(container => this.blobServiceClient.DeleteBlobContainerAsync(container.Name));
             await Task.WhenAll(tasks);
         }
-            }
+    }
 }

@@ -23,7 +23,7 @@ namespace DurableTask.ServiceBus.Tracking
     /// <summary>
     /// History Tracking Entity for orchestration jump start event
     /// </summary>
-    public class AzureTableOrchestrationJumpStartEntity : AzureTableOrchestrationStateEntity
+    internal class AzureTableOrchestrationJumpStartEntity : AzureTableOrchestrationStateEntity
     {
         /// <summary>
         /// Gets or sets the date and time for the jump start event
