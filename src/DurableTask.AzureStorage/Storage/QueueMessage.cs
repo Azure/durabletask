@@ -21,20 +21,27 @@ namespace DurableTask.AzureStorage.Storage
         public QueueMessage(CloudQueueMessage cloudQueueMessage)
         {
             this.CloudQueueMessage = cloudQueueMessage;
-            this.Message = this.CloudQueueMessage.AsString;
             this.Id = this.CloudQueueMessage.Id;
         }
 
         public QueueMessage(string message)
         {
             this.CloudQueueMessage = new CloudQueueMessage(message);
-            this.Message = this.CloudQueueMessage.AsString;
             this.Id = this.CloudQueueMessage.Id;
         }
 
         public CloudQueueMessage CloudQueueMessage { get; }
 
-        public string Message { get; }
+        public string Message {
+            get
+            {
+                // Obtaining the contents of a queueMessage can yield de-serializations exceptions.
+                // For example, if the message was encoded with a different encoding than the one used to decode it, this will throw.
+                // There are many cases where we don't actually need the message contents, such as when we're just trying to peek at the message's Age
+                // in the ScaleController. Therefore, we delay the decoding of the message until it's actually needed.
+                return this.CloudQueueMessage.AsString;
+            }
+        }
 
         public string Id { get; }
 
