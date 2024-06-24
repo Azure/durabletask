@@ -184,15 +184,15 @@ namespace DurableTask.ServiceBus.Tracking
                 secondaryFilters = filters.Item2;
             }
 
-            string filterExpression = GetPrimaryFilterExpression(primaryFilter, useTimeRangePrimaryFilter);
-            if (string.IsNullOrWhiteSpace(filterExpression))
+            string query = GetPrimaryFilterExpression(primaryFilter, useTimeRangePrimaryFilter);
+            if (string.IsNullOrWhiteSpace(query))
             {
                 throw new InvalidOperationException("Invalid primary filter");
             }
 
             if (secondaryFilters != null)
             {
-                filterExpression = secondaryFilters.Aggregate(filterExpression,
+                query = secondaryFilters.Aggregate(query,
                     (current, filter) =>
                     {
                         string newFilter = current;
@@ -206,7 +206,7 @@ namespace DurableTask.ServiceBus.Tracking
                     });
             }
 
-            return filterExpression;
+            return query;
         }
 
         string GetPrimaryFilterExpression(OrchestrationStateQueryFilter filter, bool isJumpStartTable)
