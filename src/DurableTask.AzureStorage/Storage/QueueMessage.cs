@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage.Storage
 {
     using System;
+    using System.Text;
     using Microsoft.WindowsAzure.Storage.Queue;
 
     class QueueMessage
@@ -21,7 +22,22 @@ namespace DurableTask.AzureStorage.Storage
         public QueueMessage(CloudQueueMessage cloudQueueMessage)
         {
             this.CloudQueueMessage = cloudQueueMessage;
-            this.Message = this.CloudQueueMessage.AsString;
+            try
+            {
+                this.Message = this.CloudQueueMessage.AsString;
+            }
+            catch (FormatException)
+            {
+                try
+                {
+                    System.Reflection.PropertyInfo rawStringProperty = typeof(CloudQueueMessage).GetProperty("RawString", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    this.Message = (string)rawStringProperty.GetValue(this.CloudQueueMessage);
+                }
+                catch (Exception)
+                {
+                    throw new InvalidOperationException("Failed to read the cloud queue message.");
+                }
+            }
             this.Id = this.CloudQueueMessage.Id;
         }
 
