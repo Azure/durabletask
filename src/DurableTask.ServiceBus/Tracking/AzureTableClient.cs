@@ -121,7 +121,7 @@ namespace DurableTask.ServiceBus.Tracking
         public Task<IEnumerable<AzureTableOrchestrationStateEntity>> QueryOrchestrationStatesAsync(
             OrchestrationStateQuery stateQuery)
         {
-            var query = CreateQueryInternal(stateQuery,false);
+            var query = CreateQueryInternal(stateQuery, false);
             return ReadAllEntitiesAsync<AzureTableOrchestrationStateEntity>(query, this.historyTableClient);
         }
 
@@ -267,13 +267,13 @@ namespace DurableTask.ServiceBus.Tracking
 
         string GetSecondaryFilterExpression(OrchestrationStateQueryFilter filter)
         {
-            string filterExpression;
+            string query;
 
             if (filter is OrchestrationStateInstanceFilter orchestrationStateInstanceFilter)
             {
                 if (orchestrationStateInstanceFilter.StartsWith)
                 {
-                    filterExpression = string.Format(CultureInfo.InvariantCulture,
+                    query = string.Format(CultureInfo.InvariantCulture,
                         AzureTableConstants.InstanceQuerySecondaryFilterRangeTemplate,
                         orchestrationStateInstanceFilter.InstanceId, ComputeNextKeyInRange(orchestrationStateInstanceFilter.InstanceId));
                 }
@@ -281,12 +281,12 @@ namespace DurableTask.ServiceBus.Tracking
                 {
                     if (string.IsNullOrWhiteSpace(orchestrationStateInstanceFilter.ExecutionId))
                     {
-                        filterExpression = string.Format(CultureInfo.InvariantCulture,
+                        query = string.Format(CultureInfo.InvariantCulture,
                             AzureTableConstants.InstanceQuerySecondaryFilterTemplate, orchestrationStateInstanceFilter.InstanceId);
                     }
                     else
                     {
-                        filterExpression = string.Format(CultureInfo.InvariantCulture,
+                        query = string.Format(CultureInfo.InvariantCulture,
                             AzureTableConstants.InstanceQuerySecondaryFilterExactTemplate, orchestrationStateInstanceFilter.InstanceId,
                             orchestrationStateInstanceFilter.ExecutionId);
                     }
@@ -296,12 +296,12 @@ namespace DurableTask.ServiceBus.Tracking
             {
                 if (orchestrationStateNameVersionFilter.Version == null)
                 {
-                    filterExpression = string.Format(CultureInfo.InvariantCulture,
+                    query = string.Format(CultureInfo.InvariantCulture,
                         AzureTableConstants.NameVersionQuerySecondaryFilterTemplate, orchestrationStateNameVersionFilter.Name);
                 }
                 else
                 {
-                    filterExpression = string.Format(CultureInfo.InvariantCulture,
+                    query = string.Format(CultureInfo.InvariantCulture,
                         AzureTableConstants.NameVersionQuerySecondaryFilterExactTemplate, orchestrationStateNameVersionFilter.Name,
                         orchestrationStateNameVersionFilter.Version);
                 }
@@ -309,7 +309,7 @@ namespace DurableTask.ServiceBus.Tracking
             else if (filter is OrchestrationStateStatusFilter orchestrationStateStatusFilter)
             {
                 string template = AzureTableConstants.StatusQuerySecondaryFilterTemplate;
-                filterExpression = string.Format(CultureInfo.InvariantCulture,
+                query = string.Format(CultureInfo.InvariantCulture,
                     template, ComparisonOperatorMap[orchestrationStateStatusFilter.ComparisonType], orchestrationStateStatusFilter.Status);
             }
             else if (filter is OrchestrationStateTimeRangeFilter orchestrationStateTimeRangeFilter)
@@ -323,15 +323,15 @@ namespace DurableTask.ServiceBus.Tracking
                 switch (orchestrationStateTimeRangeFilter.FilterType)
                 {
                     case OrchestrationStateTimeRangeFilterType.OrchestrationCreatedTimeFilter:
-                        filterExpression = string.Format(CultureInfo.InvariantCulture,
+                        query = string.Format(CultureInfo.InvariantCulture,
                             AzureTableConstants.CreatedTimeRangeQuerySecondaryFilterTemplate, startTime, endTime);
                         break;
                     case OrchestrationStateTimeRangeFilterType.OrchestrationCompletedTimeFilter:
-                        filterExpression = string.Format(CultureInfo.InvariantCulture,
+                        query = string.Format(CultureInfo.InvariantCulture,
                             AzureTableConstants.CompletedTimeRangeQuerySecondaryFilterTemplate, startTime, endTime);
                         break;
                     case OrchestrationStateTimeRangeFilterType.OrchestrationLastUpdatedTimeFilter:
-                        filterExpression = string.Format(CultureInfo.InvariantCulture,
+                        query = string.Format(CultureInfo.InvariantCulture,
                             AzureTableConstants.LastUpdatedTimeRangeQuerySecondaryFilterTemplate, startTime, endTime);
                         break;
                     default:
@@ -343,7 +343,7 @@ namespace DurableTask.ServiceBus.Tracking
                 throw new InvalidOperationException("Unsupported filter type: " + filter.GetType());
             }
 
-            return filterExpression;
+            return query;
         }
 
         private static readonly DateTimeOffset MinDateTime = new DateTimeOffset(1601, 1, 1, 0, 0, 0, TimeSpan.Zero);

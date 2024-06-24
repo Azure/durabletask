@@ -50,7 +50,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// <summary>
         /// Gets a OrchestrationJumpStartInstanceEntity
         /// </summary>
-        [IgnoreDataMember]
+        [IgnoreDataMember] //This data is accessed by JumpStartTime above, and the AzureStoreHelpers region in AzureTableOrchestrationStateEntity.cs
         public OrchestrationJumpStartInstanceEntity OrchestrationJumpStartInstanceEntity => new OrchestrationJumpStartInstanceEntity
         {
             State = State,

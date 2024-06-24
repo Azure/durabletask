@@ -122,7 +122,7 @@ namespace DurableTask.ServiceBus.Tracking
             return $"Instance Id: {InstanceId} Execution Id: {ExecutionId} Seq: {SequenceNumber.ToString()} Time: {TaskTimeStamp} HistoryEvent: {HistoryEvent.EventType.ToString()}";
         }
 
-        #region
+        #region AzureStorageHelpers
         // This public accessor is only used to safely interact with the Azure Table Storage SDK, which reads and writes using reflection.
         // This is an artifact of updating from and SDK that did not use reflection.
         [DataMember(Name = "HistoryEvent")]

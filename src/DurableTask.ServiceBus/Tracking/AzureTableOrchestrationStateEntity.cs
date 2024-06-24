@@ -26,7 +26,7 @@ namespace DurableTask.ServiceBus.Tracking
     /// </summary>
     internal class AzureTableOrchestrationStateEntity : AzureTableCompositeTableEntity
     {
-        [IgnoreDataMember]
+        [IgnoreDataMember] // This property needs to be ignored to safely be skipped by the Azure Storage SDK
         readonly DataConverter dataConverter;
 
         /// <summary>
@@ -51,7 +51,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// <summary>
         /// Gets or sets the orchestration state for the entity
         /// </summary>
-        [IgnoreDataMember]
+        [IgnoreDataMember] // See AzureStorageHelpers Region
         public OrchestrationState State { get; set; }
 
 
@@ -87,10 +87,11 @@ namespace DurableTask.ServiceBus.Tracking
                 State.CompressedSize);
         }
 
-        #region
+        #region AzureStorageHelpers
         // Public Accessors with the Sate prefix are equivalent to those in the already existing State Property.
         // These are used only to safely interact with the Azure Table Storage SDK which reads and writes using reflection.
-        // This is an artifact of updating from and SDK that did not use reflection.
+        // This is an artifact of updating from an SDK that did not use reflection.
+
         [DataMember(Name = "InstanceId")]
         public string StateInstanceId
         {
