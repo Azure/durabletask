@@ -27,18 +27,11 @@ namespace DurableTask.AzureStorage.Storage
             }
             catch (FormatException)
             {
-                // This try-catch block ensures backward compatibility with DTFx.AzureStorage v1.x.
-                // It should only be executed in scenarios requiring this compatibility.
-                try
-                {
-                    // RawString is an internal property of CloudQueueMessage.
-                    System.Reflection.PropertyInfo rawStringProperty = typeof(CloudQueueMessage).GetProperty("RawString", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                    this.Message = (string)rawStringProperty.GetValue(this.CloudQueueMessage);
-                }
-                catch (Exception) // If failed to read the RawString property, throw an exception.
-                {
-                    throw new InvalidOperationException("Failed to read the cloud queue message.");
-                }
+                // This try-catch block ensures forwards compatibility with DTFx.AzureStorage v2.x, which does not guarantee base64 encoding of messages (messages not encoded at all).
+                // Therefore, if we try to decode those messages as base64, we will have a format exception that will yield a poison message
+                // RawString is an internal property of CloudQueueMessage, so we need to obtain it via reflection.
+                System.Reflection.PropertyInfo rawStringProperty = typeof(CloudQueueMessage).GetProperty("RawString", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                this.Message = (string)rawStringProperty.GetValue(this.CloudQueueMessage);
             }
             this.Id = this.CloudQueueMessage.Id;
         }
