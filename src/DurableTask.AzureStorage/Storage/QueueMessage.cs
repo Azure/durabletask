@@ -14,7 +14,6 @@
 namespace DurableTask.AzureStorage.Storage
 {
     using System;
-    using System.Text;
     using Microsoft.WindowsAzure.Storage.Queue;
 
     class QueueMessage
@@ -28,12 +27,15 @@ namespace DurableTask.AzureStorage.Storage
             }
             catch (FormatException)
             {
+                // This try-catch block ensures backward compatibility with DTFx.AzureStorage v1.x.
+                // It should only be executed in scenarios requiring this compatibility.
                 try
                 {
+                    // RawString is an internal property of CloudQueueMessage.
                     System.Reflection.PropertyInfo rawStringProperty = typeof(CloudQueueMessage).GetProperty("RawString", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
                     this.Message = (string)rawStringProperty.GetValue(this.CloudQueueMessage);
                 }
-                catch (Exception)
+                catch (Exception) // If failed to read the RawString property, throw an exception.
                 {
                     throw new InvalidOperationException("Failed to read the cloud queue message.");
                 }
