@@ -14,7 +14,6 @@
 namespace DurableTask.AzureStorage.Storage
 {
     using System;
-    using System.Text;
     using Microsoft.WindowsAzure.Storage.Queue;
 
     class QueueMessage
