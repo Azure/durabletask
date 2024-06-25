@@ -5,14 +5,14 @@
         <TargetFrameworks>netstandard2.0</TargetFrameworks>
         <PackageId>Microsoft.Azure.DurableTask.ApplicationInsights</PackageId>
         <!-- NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
-        <NoWarn>NU5125;NU5048</NoWarn>
+        <NoWarn>NU5125;NU5048;CS7035</NoWarn>  <!-- TODO: addition of CS7035 (version format doesn't follow convention) is a temporary workaround during 1ES migration -->
     </PropertyGroup>
 
     <!-- Version Info -->
     <PropertyGroup>
         <MajorVersion>0</MajorVersion>
         <MinorVersion>1</MinorVersion>
-        <PatchVersion>4</PatchVersion>
+        <PatchVersion>6</PatchVersion>
         <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
         <FileVersion>$(VersionPrefix).0</FileVersion>
         <!-- FileVersionRevision is expected to be set by the CI. This is useful for distinguishing between multiple builds of the same version. -->

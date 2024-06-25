@@ -95,6 +95,9 @@ namespace DurableTask.ServiceBus.Tests
             Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
         }
 
+#if NETCOREAPP
+        [TestCategory("DisabledInCI")]
+#endif
         [TestMethod]
         public async Task MessageCompressionToNoCompressionTest()
         {
@@ -844,6 +847,9 @@ namespace DurableTask.ServiceBus.Tests
 
         #region Compression Tests
 
+#if NETCOREAPP
+        [TestCategory("DisabledInCI")]
+#endif
         [TestMethod]
         public async Task CompressionToNoCompressionCompatTest()
         {

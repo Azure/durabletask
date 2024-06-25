@@ -88,8 +88,8 @@ namespace DurableTask.Core.Exceptions
         public int EventId { get; set; }
 
         /// <summary>
-        /// Gets additional details about the failure. May be <c>null</c> if the failure details collection is not enabled.
+        /// Gets or sets additional details about the failure. May be <c>null</c> if the failure details collection is not enabled.
         /// </summary>
-        public FailureDetails? FailureDetails { get; internal set; }
+        public FailureDetails? FailureDetails { get; set; }
     }
 }

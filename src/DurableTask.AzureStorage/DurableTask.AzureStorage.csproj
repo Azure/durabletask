@@ -14,14 +14,14 @@
     <DebugType>embedded</DebugType> 
     <IncludeSymbols>false</IncludeSymbols> 
     <!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
-    <NoWarn>NU5125;NU5048</NoWarn>
+    <NoWarn>NU5125;NU5048;CS7035</NoWarn> <!-- TODO: addition of CS7035 (version format doesn't follow convention) is a temporary workaround during 1ES migration -->
   </PropertyGroup>
 
   <!-- Version Info -->
   <PropertyGroup>
     <MajorVersion>1</MajorVersion>
     <MinorVersion>17</MinorVersion>
-    <PatchVersion>2</PatchVersion>
+    <PatchVersion>3</PatchVersion>
     <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
     <VersionSuffix>poisonmessagehandler.1</VersionSuffix>
     <FileVersion>$(VersionPrefix).0</FileVersion>

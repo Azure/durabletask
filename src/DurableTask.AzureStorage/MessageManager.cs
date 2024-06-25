@@ -60,12 +60,16 @@ namespace DurableTask.AzureStorage
                 Binder = new TypeNameSerializationBinder(settings.CustomMessageTypeBinder),
 #endif
             };
-            this.serializer = JsonSerializer.Create(taskMessageSerializerSettings);
 
             if (this.settings.UseDataContractSerialization)
             {
                 this.taskMessageSerializerSettings.Converters.Add(new DataContractJsonConverter());
             }
+
+            // We _need_ to create the Json serializer after providing the data converter,
+            // otherwise the converters will be ignored.
+            this.serializer = JsonSerializer.Create(taskMessageSerializerSettings);
+
         }
 
         public async Task<bool> EnsureContainerAsync()
