@@ -19,10 +19,12 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+    using Azure.Data.Tables;
     using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
     using DurableTask.Core.History;
+
 
     abstract class TaskHubQueue
     {
@@ -149,6 +151,96 @@ namespace DurableTask.AzureStorage.Messaging
 
             return data;
         }
+
+        public async Task HandleIfPoisonMessageAsync(MessageData messageData)
+        {
+            QueueMessage queueMessage = messageData.OriginalQueueMessage;
+            int maxThreshold = this.settings.PoisonMessageDeuqueCountThreshold;
+
+            if (queueMessage.DequeueCount > maxThreshold)
+            {
+                // Create the poison message table if it doesn't exist
+                string poisonMessageTableName = this.settings.TaskHubName.ToLowerInvariant() + "Poison";
+                Table poisonMessagesTable = this.azureStorageClient.GetTableReference(poisonMessageTableName);
+                await poisonMessagesTable.CreateIfNotExistsAsync();
+
+                // provide guidance, which is backend-specific
+                string guidance = $"Queue message ID '{queueMessage.MessageId}' was dequeued {queueMessage.DequeueCount} times," +
+                    $" which is greater than the threshold poison message threshold ({maxThreshold}). " +
+                    $"The message has been moved to the '{poisonMessageTableName}' table for manual review. " +
+                    $"This will fail the consuming orchestrator, activity, or entity";
+                messageData.TaskMessage.Event.PoisonGuidance = guidance;
+
+                // Add the message to the poison message table
+                TableEntity tableEntity = new TableEntity(queueMessage.MessageId, this.Name)
+                {
+                    ["RawMessage"] = queueMessage.Body,
+                    ["Reason"] = guidance
+                };
+
+                await poisonMessagesTable.InsertEntityAsync(tableEntity);
+
+                // Delete the message from the queue
+                await this.storageQueue.DeleteMessageAsync(queueMessage);
+
+                // Since isPoison is `true`, we'll override the deserialized message
+                messageData.TaskMessage.Event.IsPoison = true;
+
+                this.settings.Logger.PoisonMessageDetected(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    messageData.TaskMessage.Event.EventType.ToString(),
+                    messageData.TaskMessage.Event.EventId,
+                    messageData.OriginalQueueMessage.MessageId,
+                    messageData.TaskMessage.OrchestrationInstance.InstanceId,
+                    messageData.TaskMessage.OrchestrationInstance.ExecutionId,
+                    this.Name,
+                    messageData.OriginalQueueMessage.DequeueCount);
+            }
+        }
+
+        public async Task<bool> TryHandlingDeserializationPoisonMessage(QueueMessage queueMessage, Exception deserializationException)
+        {
+            var maxThreshold = this.settings.PoisonMessageDeuqueCountThreshold;
+            bool isPoisonMessage = queueMessage.DequeueCount > maxThreshold;
+
+            if (isPoisonMessage)
+            {
+                isPoisonMessage = true;
+                string guidance = $"Queue message ID '{queueMessage.MessageId}' was dequeued {queueMessage.DequeueCount} times," +
+                    $" which is greater than the threshold poison message threshold ({maxThreshold}). " +
+                    $"A de-serialization error ocurred: \n {deserializationException}";
+
+                // Create poison message table if it doesn't exist and add the poison message
+                TableEntity tableEntity = new TableEntity(queueMessage.MessageId, this.Name)
+                {
+                    ["RawMessage"] = queueMessage.Body,
+                    ["Reason"] = guidance
+                };
+
+                string poisonMessageTableName = this.settings.TaskHubName.ToLowerInvariant() + "Poison";
+                Table poisonMessagesTable = this.azureStorageClient.GetTableReference(poisonMessageTableName);
+                await poisonMessagesTable.CreateIfNotExistsAsync();
+
+                await poisonMessagesTable.InsertEntityAsync(tableEntity);
+
+                // Delete the message from the queue
+                await this.storageQueue.DeleteMessageAsync(queueMessage);
+
+                this.settings.Logger.PoisonMessageDetected(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    string.Empty,
+                    0,
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    this.Name,
+                    queueMessage.DequeueCount);
+            }
+            return isPoisonMessage;
+        }
+
 
         static string? GetSerializableTraceContext(TaskMessage taskMessage)
         {

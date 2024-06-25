@@ -93,5 +93,16 @@ namespace DurableTask.Core.History
         /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
         /// </summary>
         public ExtensionDataObject? ExtensionData { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether this is a poison message.
+        /// </summary>
+        public bool IsPoison { get; set; } = false;
+
+        /// <summary>
+        /// Gets or sets user-facing details for why a message was labeled as poison.
+        /// This is to be set by each storage provider.
+        /// </summary>
+        public string PoisonGuidance { get; set; } = "";
     }
 }

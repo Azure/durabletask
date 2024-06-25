@@ -197,6 +197,22 @@ namespace DurableTask.Core
 
         void ProcessEvent(HistoryEvent historyEvent)
         {
+            if (historyEvent.IsPoison)
+            {
+                // If the message is labeled as "poison", then we should avoid processing it again.
+                // Therefore, we replace the event "in place" with an "ExecutionTerminatedEvent", so the
+                // orchestrator stops immediately.
+
+                var terminationEvent = new ExecutionTerminatedEvent(-1, historyEvent.PoisonGuidance);
+                historyEvent = terminationEvent;
+
+                // since replay is not guaranteed, we need to populate `this.result`
+                // with a completed task
+                var taskCompletionSource = new TaskCompletionSource<string>();
+                taskCompletionSource.SetResult("");
+                this.result = taskCompletionSource.Task;
+            }
+
             bool overrideSuspension = historyEvent.EventType == EventType.ExecutionResumed || historyEvent.EventType == EventType.ExecutionTerminated;
             if (this.context.IsSuspended && !overrideSuspension)
             {
