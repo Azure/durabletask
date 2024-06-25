@@ -62,7 +62,7 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         /// <summary>
-        /// Creates a new AzureTableInstanceStore using the supplied hub name, Uri endpoint, and Token Crednetial
+        /// Creates a new AzureTableInstanceStore using the supplied hub name, Uri endpoint, and Token Credential
         /// </summary>
         /// <param name="hubName">The hub name for this instance store</param>
         /// <param name="endpoint">Uri Endpoint for the instance store</param>
