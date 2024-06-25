@@ -306,7 +306,7 @@ namespace DurableTask.ServiceBus.Tests
             {
                 var eeStartedEvent = new ExecutionStartedEvent(-1, "EVENT_" + instanceId + "_" + genId + "_" + i);
 
-                historyEntities.Add(new AzureTableOrchestrationHistoryEventEntity(instanceId, genId, i, DateTime.Now,
+                historyEntities.Add(new AzureTableOrchestrationHistoryEventEntity(instanceId, genId, i, DateTime.UtcNow,
                     eeStartedEvent));
             }
 
