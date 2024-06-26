@@ -22,12 +22,6 @@ internal class Program
 
         // Get the token
         var accessToken = await credential.GetTokenAsync(new Azure.Core.TokenRequestContext(scopes));
-        
-        var acredential = new Microsoft.WindowsAzure.Storage.Auth.TokenCredential(
-              accessToken.Token,
-              RenewTokenFuncAsync,
-              null,
-              TimeSpan.FromMinutes(5));
 
         var service = new AzureStorageOrchestrationService(new AzureStorageOrchestrationServiceSettings
         {
@@ -58,14 +52,6 @@ internal class Program
         Console.WriteLine($"Orchestration result : {result.Output}");
 
         await worker.StopAsync();
-    }
-
-    public static Task<NewTokenAndFrequency> RenewTokenFuncAsync(object state, CancellationToken cancellationToken)
-    {
-        var credential = new DefaultAzureCredential();
-        var initialToken = credential.GetToken(new TokenRequestContext(new[] { "https://storage.azure.com/.default" }));
-        var expiresAfter = initialToken.ExpiresOn - DateTimeOffset.UtcNow - TimeSpan.FromMinutes(10);
-        return Task.FromResult(new NewTokenAndFrequency(initialToken.Token, expiresAfter));
     }
 }
 
