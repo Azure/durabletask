@@ -16,14 +16,14 @@ namespace DurableTask.ServiceBus.Tracking
     using System;
     using System.Collections.Generic;
     using System.Globalization;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Table;
+    using System.Runtime.Serialization;
+    using Azure.Data.Tables;
     using DurableTask.Core.Tracking;
 
     /// <summary>
     /// History Tracking Entity for orchestration jump start event
     /// </summary>
-    public class AzureTableOrchestrationJumpStartEntity : AzureTableOrchestrationStateEntity
+    internal class AzureTableOrchestrationJumpStartEntity : AzureTableOrchestrationStateEntity
     {
         /// <summary>
         /// Gets or sets the date and time for the jump start event
@@ -50,6 +50,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// <summary>
         /// Gets a OrchestrationJumpStartInstanceEntity
         /// </summary>
+        [IgnoreDataMember] //This data is accessed by JumpStartTime above, and the AzureStoreHelpers region in AzureTableOrchestrationStateEntity.cs
         public OrchestrationJumpStartInstanceEntity OrchestrationJumpStartInstanceEntity => new OrchestrationJumpStartInstanceEntity
         {
             State = State,
@@ -65,32 +66,6 @@ namespace DurableTask.ServiceBus.Tracking
                              AzureTableConstants.JoinDelimiter + State.OrchestrationInstance.InstanceId +
                              AzureTableConstants.JoinDelimiter + State.OrchestrationInstance.ExecutionId;
             return new [] { entity1 };
-        }
-
-        /// <summary>
-        /// Write an entity to a dictionary of entity properties
-        /// </summary>
-        /// <param name="operationContext">The operation context</param>
-        public override IDictionary<string, EntityProperty> WriteEntity(OperationContext operationContext)
-        {
-            IDictionary<string, EntityProperty> returnValues = base.WriteEntity(operationContext);
-            returnValues.Add("JumpStartTime", new EntityProperty(JumpStartTime));
-            return returnValues;
-        }
-
-        /// <summary>
-        /// Read an entity properties based on the supplied dictionary or entity properties
-        /// </summary>
-        /// <param name="properties">Dictionary of properties to read for the entity</param>
-        /// <param name="operationContext">The operation context</param>
-        public override void ReadEntity(IDictionary<string, EntityProperty> properties,
-            OperationContext operationContext)
-        {
-            base.ReadEntity(properties, operationContext);
-            JumpStartTime =
-                GetValue("JumpStartTime", properties, property => property.DateTimeOffsetValue)
-                    .GetValueOrDefault()
-                    .DateTime;
         }
 
         /// <summary>
