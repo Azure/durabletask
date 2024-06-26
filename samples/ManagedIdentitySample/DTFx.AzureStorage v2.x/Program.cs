@@ -6,12 +6,7 @@ internal class Program
 {
     private static async Task Main(string[] args)
     {
-        // Create your credential object based on the configuration. 
-        // The Sample belows shows how to use a client secret credential.
-        var clientid = "YourClientId";
-        var clientsecret = "YourClientSecret";
-        var tenantid = "YourTenantId";
-        var credential = new ClientSecretCredential(tenantid, clientid, clientsecret);
+        var credential = new DefaultAzureCredential();
         
         // Pass the credential created to the StorageAccountClientProvider to start an AzureStorageOrchestrationService
         var service = new AzureStorageOrchestrationService(new AzureStorageOrchestrationServiceSettings
