@@ -2,7 +2,7 @@
 
 This sample demonstrates how to configure a Identity based connection when using DurableTask.AzureStorage v1.x as the orchestration provider for a Durable Task project.
 
-> Note: 
+> Note:
 > Identity based connection **is not supported** with .NET framework 4.x with DurableTask.AzureStorage v1.x
 
 ## Configuration Prerequisites
