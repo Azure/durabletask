@@ -13,17 +13,18 @@ internal class Program
         var tenantid = "YourTenantId";
         var credential = new ClientSecretCredential(tenantid, clientid, clientsecret);
         
-        // Pass the credential created to the StorageAccountClientProvider to start a AzureStorageOrchestrationService
+        // Pass the credential created to the StorageAccountClientProvider to start an AzureStorageOrchestrationService
         var service = new AzureStorageOrchestrationService(new AzureStorageOrchestrationServiceSettings
         {
             StorageAccountClientProvider = new StorageAccountClientProvider("AccountName", credential),
         });
 
-
         var client = new TaskHubClient(service);
         var worker = new TaskHubWorker(service);
+
         worker.AddTaskOrchestrations(typeof(SampleOrchestration));
         worker.AddTaskActivities(typeof(SampleActivity));
+
         await worker.StartAsync();
 
         var instance = await client.CreateOrchestrationInstanceAsync(typeof(SampleOrchestration), "World");
