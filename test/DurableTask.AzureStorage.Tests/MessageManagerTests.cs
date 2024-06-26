@@ -10,16 +10,11 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.AzureStorage.Tests
 {
     using System;
-    using System.Collections.Concurrent;
     using System.Collections.Generic;
-    using System.Diagnostics;
-    using System.Reflection;
-    using System.Text.RegularExpressions;
-    using System.Threading.Tasks;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core.History;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -31,7 +26,6 @@ namespace DurableTask.AzureStorage.Tests
         [DataTestMethod]
         [DataRow("System.Collections.Generic.Dictionary`2[[System.String, System.Private.CoreLib],[System.String, System.Private.CoreLib]]")]
         [DataRow("System.Collections.Generic.Dictionary`2[[System.String, mscorlib],[System.String, mscorlib]]")]
-
         public void DeserializesStandardTypes(string dictionaryType)
         {
             // Given
@@ -75,6 +69,23 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual("tagValue", startedEvent.Tags["tag1"]);
         }
 
+        [DataTestMethod]
+        [DataRow("blob.bin")]
+        [DataRow("@#$%!")]
+        [DataRow("foo/bar/b@z.tar.gz")]
+        public void GetBlobUrlUnescaped(string blob)
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider("UseDevelopmentStorage=true"),
+            };
+
+            const string container = "@entity12345";
+            var manager = new MessageManager(settings, new AzureStorageClient(settings), container);
+            var expected = $"http://127.0.0.1:10000/devstoreaccount1/{container}/{blob}";
+            Assert.AreEqual(expected, manager.GetBlobUrl(blob));
+        }
+
         private string GetMessage(string dictionaryType)
             => "{\"$type\":\"DurableTask.AzureStorage.MessageData\",\"ActivityId\":\"5406d369-4369-4673-afae-6671a2fa1e57\",\"TaskMessage\":{\"$type\":\"DurableTask.Core.TaskMessage\",\"Event\":{\"$type\":\"DurableTask.Core.History.ExecutionStartedEvent\",\"OrchestrationInstance\":{\"$type\":\"DurableTask.Core.OrchestrationInstance\",\"InstanceId\":\"2.2-34a2c9d4-306e-4467-8470-a8018b2e4f11\",\"ExecutionId\":\"aae324dcc8f943e490b37ec5e5bbf9da\"},\"EventType\":0,\"ParentInstance\":null,\"Name\":\"OrchestrationName\",\"Version\":\"2.0\",\"Input\":\"input\",\"Tags\":{\"$type\":\""
             + dictionaryType
@@ -82,12 +93,14 @@ namespace DurableTask.AzureStorage.Tests
 
         private MessageManager SetupMessageManager(ICustomTypeBinder binder)
         {
-            var azureStorageClient = new AzureStorageClient(new AzureStorageOrchestrationServiceSettings() { StorageConnectionString = "UseDevelopmentStorage=true" });
-            return new MessageManager(
-                new AzureStorageOrchestrationServiceSettings()
+            var azureStorageClient = new AzureStorageClient(
+                new AzureStorageOrchestrationServiceSettings
                 {
-                    CustomMessageTypeBinder = binder
-                },
+                    StorageAccountClientProvider = new StorageAccountClientProvider("UseDevelopmentStorage=true"),
+                });
+
+            return new MessageManager(
+                new AzureStorageOrchestrationServiceSettings { CustomMessageTypeBinder = binder },
                 azureStorageClient,
                 "$root");
         }
@@ -100,7 +113,7 @@ namespace DurableTask.AzureStorage.Tests
             throw new NotImplementedException();
         }
 
-        public Type BindToType(string assemblyName, string typeName)
+        public Type? BindToType(string assemblyName, string typeName)
         {
             if (typeName == "KnownType")
             {
@@ -113,10 +126,11 @@ namespace DurableTask.AzureStorage.Tests
 
     internal class PrimitiveTypeBinder : ICustomTypeBinder
     {
-        bool hasStandardLib;
+        readonly bool hasStandardLib;
+
         public PrimitiveTypeBinder() 
         {
-            hasStandardLib = typeof(string).AssemblyQualifiedName.Contains("mscorlib");
+            hasStandardLib = typeof(string).AssemblyQualifiedName!.Contains("mscorlib");
         }
 
         public void BindToName(Type serializedType, out string assemblyName, out string typeName)
@@ -128,10 +142,10 @@ namespace DurableTask.AzureStorage.Tests
         {
             if (hasStandardLib)
             {
-                return Type.GetType(typeName.Replace("System.Private.CoreLib", "mscorlib"));
+                return Type.GetType(typeName.Replace("System.Private.CoreLib", "mscorlib"))!;
             }
 
-            return Type.GetType(typeName.Replace("mscorlib", "System.Private.CoreLib"));
+            return Type.GetType(typeName.Replace("mscorlib", "System.Private.CoreLib"))!;
         }
     }
 }

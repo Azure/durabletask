@@ -14,9 +14,8 @@
 namespace Correlation.Samples
 {
     using System;
-    using DurableTask.AzureStorage;
-    using System.Configuration;
     using System.IO;
+    using DurableTask.AzureStorage;
     using Microsoft.Extensions.Configuration;
 
     public static class TestHelpers
@@ -39,10 +38,10 @@ namespace Correlation.Samples
 
             var settings = new AzureStorageOrchestrationServiceSettings
             {
-                StorageConnectionString = storageConnectionString,
-                TaskHubName = Configuration["taskHubName"],
-                ExtendedSessionsEnabled = enableExtendedSessions,
                 ExtendedSessionIdleTimeout = TimeSpan.FromSeconds(extendedSessionTimeoutInSeconds),
+                ExtendedSessionsEnabled = enableExtendedSessions,
+                StorageAccountClientProvider = new StorageAccountClientProvider(storageConnectionString),
+                TaskHubName = Configuration["taskHubName"],
             };
 
             return new TestOrchestrationHost(settings);

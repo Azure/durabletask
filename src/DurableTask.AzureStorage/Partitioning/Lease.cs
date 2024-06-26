@@ -11,6 +11,9 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System.Threading;
+using System.Threading.Tasks;
+
 namespace DurableTask.AzureStorage.Partitioning
 {
     /// <summary>Contains partition ownership information.</summary>
@@ -53,7 +56,10 @@ namespace DurableTask.AzureStorage.Partitioning
 
         /// <summary>Determines whether the lease is expired.</summary>
         /// <returns>true if the lease is expired; otherwise, false.</returns>
-        public virtual bool IsExpired => false;
+        public virtual Task<bool> IsExpiredAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(false);
+        }
 
         /// <summary>Determines whether this instance is equal to the specified object.</summary>
         /// <param name="obj">The object to compare.</param>

@@ -71,7 +71,7 @@ namespace OpenTelemetrySample
             var settings = new AzureStorageOrchestrationServiceSettings
             {
                 TaskHubName = "OpenTelemetrySampleTaskHub",
-                StorageConnectionString = "UseDevelopmentStorage=true",
+                StorageAccountClientProvider = new StorageAccountClientProvider("UseDevelopmentStorage=true"),
             };
 
             IOrchestrationService service = new AzureStorageOrchestrationService(settings);

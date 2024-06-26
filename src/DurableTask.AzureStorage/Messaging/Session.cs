@@ -14,7 +14,7 @@
 namespace DurableTask.AzureStorage.Messaging
 {
     using System;
-    using DurableTask.AzureStorage.Storage;
+    using Azure.Storage.Queues.Models;
     using DurableTask.Core;
 
     abstract class SessionBase
@@ -63,8 +63,8 @@ namespace DurableTask.AzureStorage.Messaging
                 Utils.GetTaskEventId(taskMessage.Event),
                 taskMessage.OrchestrationInstance.InstanceId,
                 taskMessage.OrchestrationInstance.ExecutionId,
-                queueMessage.Id,
-                Math.Max(0, (int)DateTimeOffset.UtcNow.Subtract(queueMessage.InsertionTime.Value).TotalMilliseconds),
+                queueMessage.MessageId,
+                Math.Max(0, (int)DateTimeOffset.UtcNow.Subtract(queueMessage.InsertedOn.Value).TotalMilliseconds),
                 data.SequenceNumber,
                 data.Episode.GetValueOrDefault(-1),
                 isExtendedSession);
