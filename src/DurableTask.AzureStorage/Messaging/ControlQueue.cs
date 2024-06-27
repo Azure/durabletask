@@ -22,6 +22,10 @@ namespace DurableTask.AzureStorage.Messaging
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
     using DurableTask.AzureStorage.Storage;
+    using DurableTask.AzureStorage.Tracking;
+    using DurableTask.Core;
+    using DurableTask.Core.History;
+    using Microsoft.WindowsAzure.Storage.Table;
 
     class ControlQueue : TaskHubQueue, IDisposable
     {
