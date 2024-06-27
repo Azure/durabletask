@@ -10,7 +10,6 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-#nullable enable
 namespace DurableTask.AzureStorage
 {
     using System;
@@ -50,7 +49,7 @@ namespace DurableTask.AzureStorage
         {
             this.settings = settings;
             this.azureStorageClient = azureStorageClient;
-            this.blobContainer = this.azureStorageClient.GetBlobContainerReference(blobContainerName);
+            this.blobContainer = this.azureStorageClient?.GetBlobContainerReference(blobContainerName);
             this.taskMessageSerializerSettings = new JsonSerializerSettings
             {
                 TypeNameHandling = TypeNameHandling.Objects,
@@ -73,7 +72,7 @@ namespace DurableTask.AzureStorage
             this.serializer = JsonSerializer.Create(taskMessageSerializerSettings);
 
         }
-
+#nullable enable
         public async Task<bool> EnsureContainerAsync()
         {
             bool created = false;
