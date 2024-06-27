@@ -63,12 +63,10 @@ namespace DurableTask.AzureStorage
 
             JsonSerializer newtonSoftSerializer = JsonSerializer.Create(taskMessageSerializerSettings);
 
-            if (this.settings.UseDataContractSerialization) // for hotfix to work, set setting to `true`
-            {
-                var dataConverter = new DataContractJsonConverter();
-                dataConverter.alternativeSerializer = newtonSoftSerializer;
-                this.taskMessageSerializerSettings.Converters.Add(dataConverter);
-            }
+            //hotfix is always allowed
+            var dataConverter = new DataContractJsonConverter();
+            dataConverter.alternativeSerializer = newtonSoftSerializer;
+            this.taskMessageSerializerSettings.Converters.Add(dataConverter);
 
             // We _need_ to create the Json serializer after providing the data converter,
             // otherwise the converters will be ignored.
