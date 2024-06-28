@@ -15,7 +15,6 @@ namespace DurableTask.AzureStorage.Tests
             TypeNameHandling = TypeNameHandling.Objects,
             Converters =
             {
-                new DataContractJsonConverter(),
                 new DataContractJsonConverter()
                 {
                     alternativeSerializer = JsonSerializer.Create(new JsonSerializerSettings
