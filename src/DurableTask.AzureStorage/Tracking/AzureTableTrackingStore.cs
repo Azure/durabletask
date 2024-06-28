@@ -27,6 +27,7 @@ namespace DurableTask.AzureStorage.Tracking
     using System.Threading.Tasks;
     using Azure;
     using Azure.Data.Tables;
+    using DurableTask.AzureStorage.Linq;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
@@ -542,9 +543,9 @@ namespace DurableTask.AzureStorage.Tracking
 
         AsyncPageable<OrchestrationState> QueryStateAsync(string filter = null, IEnumerable<string> select = null, CancellationToken cancellationToken = default)
         {
-            return new AsyncPageableAsyncProjection<OrchestrationInstanceStatus, OrchestrationState>(
-                this.InstancesTable.ExecuteQueryAsync<OrchestrationInstanceStatus>(filter, select: select, cancellationToken: cancellationToken),
-                (s, t) => new ValueTask<OrchestrationState>(this.ConvertFromAsync(s, KeySanitation.UnescapePartitionKey(s.PartitionKey), t)));
+            return this.InstancesTable.ExecuteQueryAsync<OrchestrationInstanceStatus>(filter, select: select, cancellationToken: cancellationToken)
+                .TransformPagesAsync((p, t) => p.Values
+                    .SelectAsync((s, t) => new ValueTask<OrchestrationState>(this.ConvertFromAsync(s, KeySanitation.UnescapePartitionKey(s.PartitionKey), t))));
         }
 
         async Task<PurgeHistoryResult> DeleteHistoryAsync(
@@ -674,7 +675,7 @@ namespace DurableTask.AzureStorage.Tracking
             CancellationToken cancellationToken = default)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
-            List<OrchestrationStatus> runtimeStatusList =  runtimeStatus?.Where(
+            List<OrchestrationStatus> runtimeStatusList = runtimeStatus?.Where(
                status => status == OrchestrationStatus.Completed ||
                     status == OrchestrationStatus.Terminated ||
                     status == OrchestrationStatus.Canceled ||
@@ -812,7 +813,7 @@ namespace DurableTask.AzureStorage.Tracking
             int estimatedBytes = 0;
             IList<HistoryEvent> newEvents = newRuntimeState.NewEvents;
             IList<HistoryEvent> allEvents = newRuntimeState.Events;
-            TrackingStoreContext context = (TrackingStoreContext) trackingStoreContext;
+            TrackingStoreContext context = (TrackingStoreContext)trackingStoreContext;
 
             int episodeNumber = Utils.GetEpisodeNumber(newRuntimeState);
 
