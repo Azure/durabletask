@@ -70,7 +70,8 @@ namespace DurableTask.AzureStorage.Storage
 
         public AsyncPageable<Blob> ListBlobsAsync(string? prefix = null, CancellationToken cancellationToken = default)
         {
-            return this.blobContainerClient.GetBlobsAsync(BlobTraits.Metadata, BlobStates.None, prefix, cancellationToken)
+            return this.blobContainerClient
+                .GetBlobsAsync(BlobTraits.Metadata, BlobStates.None, prefix, cancellationToken)
                 .DecorateFailure()
                 .TransformPages(p => p.Values
                     .Where(b => !IsHnsFolder(b))
