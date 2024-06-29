@@ -68,14 +68,14 @@ namespace DurableTask.AzureStorage.Linq
             }
 
             public override IAsyncEnumerable<Page<TResult>> AsPages(string? continuationToken = null, int? pageSizeHint = null) =>
-                new AsyncPageableProjectionEnumerable(this.source.AsPages(continuationToken, pageSizeHint), this.transform);
+                new AsyncPageableTransformationEnumerable(this.source.AsPages(continuationToken, pageSizeHint), this.transform);
 
-            sealed class AsyncPageableProjectionEnumerable : IAsyncEnumerable<Page<TResult>>
+            sealed class AsyncPageableTransformationEnumerable : IAsyncEnumerable<Page<TResult>>
             {
                 readonly IAsyncEnumerable<Page<TSource>> source;
                 readonly Func<Page<TSource>, IEnumerable<TResult>> transform;
 
-                public AsyncPageableProjectionEnumerable(IAsyncEnumerable<Page<TSource>> source, Func<Page<TSource>, IEnumerable<TResult>> transform)
+                public AsyncPageableTransformationEnumerable(IAsyncEnumerable<Page<TSource>> source, Func<Page<TSource>, IEnumerable<TResult>> transform)
                 {
                     this.source = source;
                     this.transform = transform;
@@ -108,14 +108,14 @@ namespace DurableTask.AzureStorage.Linq
             }
 
             public override IAsyncEnumerable<Page<TResult>> AsPages(string? continuationToken = null, int? pageSizeHint = null) =>
-                new AsyncPageableProjectionEnumerable(this.source.AsPages(continuationToken, pageSizeHint), this.transformAsync);
+                new AsyncPageableAsyncTransformationEnumerable(this.source.AsPages(continuationToken, pageSizeHint), this.transformAsync);
 
-            sealed class AsyncPageableProjectionEnumerable : IAsyncEnumerable<Page<TResult>>
+            sealed class AsyncPageableAsyncTransformationEnumerable : IAsyncEnumerable<Page<TResult>>
             {
                 readonly IAsyncEnumerable<Page<TSource>> source;
                 readonly Func<Page<TSource>, CancellationToken, IAsyncEnumerable<TResult>> transformAsync;
 
-                public AsyncPageableProjectionEnumerable(IAsyncEnumerable<Page<TSource>> source, Func<Page<TSource>, CancellationToken, IAsyncEnumerable<TResult>> transformAsync)
+                public AsyncPageableAsyncTransformationEnumerable(IAsyncEnumerable<Page<TSource>> source, Func<Page<TSource>, CancellationToken, IAsyncEnumerable<TResult>> transformAsync)
                 {
                     this.source = source;
                     this.transformAsync = transformAsync;
