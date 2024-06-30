@@ -27,7 +27,6 @@ using Microsoft.WindowsAzure.Storage.Auth;
 // - Azure Blob Data Contributor
 // - Azure Queue Data Contributor
 // - Azure Table Data Contributor
-const string AzureStorageScope = "https://storage.azure.com/.default";
 DefaultAzureCredential credential = new();
 
 // Create a diagnostic logger factory for reading telemetry
@@ -40,7 +39,7 @@ ILoggerFactory loggerFactory = LoggerFactory.Create(b => b
 using AzureEventSourceLogForwarder logForwarder = new(loggerFactory);
 logForwarder.Start();
 
-AccessToken accessToken = await credential.GetTokenAsync(new TokenRequestContext([AzureStorageScope]));
+NewTokenAndFrequency initialTokenInfo = await GetTokenInfoAsync(credential);
 AzureStorageOrchestrationService service = new(new AzureStorageOrchestrationServiceSettings
 {
     StorageAccountDetails = new StorageAccountDetails
@@ -48,10 +47,10 @@ AzureStorageOrchestrationService service = new(new AzureStorageOrchestrationServ
         AccountName = "YourStorageAccount",
         EndpointSuffix = "core.windows.net",
         StorageCredentials = new StorageCredentials(new Microsoft.WindowsAzure.Storage.Auth.TokenCredential(
-            accessToken.Token,
-            RenewTokenFuncAsync,
+            initialTokenInfo.Token,
+            GetTokenInfoAsync,
             credential,
-            TimeSpan.FromMinutes(5)))
+            initialTokenInfo.Frequency.GetValueOrDefault()))
     },
     LoggerFactory = loggerFactory,
 });
@@ -72,13 +71,15 @@ logger.LogInformation("Orchestration output: {Output}", state.Output);
 
 await worker.StopAsync();
 
-static async Task<NewTokenAndFrequency> RenewTokenFuncAsync(object state, CancellationToken cancellationToken)
+static async Task<NewTokenAndFrequency> GetTokenInfoAsync(object state, CancellationToken cancellationToken = default)
 {
+    const string AzureStorageScope = "https://storage.azure.com/.default";
+
     if (state is not DefaultAzureCredential credential)
         throw new InvalidOperationException();
 
     AccessToken accessToken = await credential.GetTokenAsync(new TokenRequestContext([AzureStorageScope]), cancellationToken);
-    TimeSpan refreshFrequency = accessToken.ExpiresOn - DateTimeOffset.UtcNow - TimeSpan.FromMinutes(10);
+    TimeSpan refreshFrequency = accessToken.ExpiresOn - DateTimeOffset.UtcNow - TimeSpan.FromMinutes(10); // 10 minutes before expiration
     return new NewTokenAndFrequency(accessToken.Token, refreshFrequency);
 }
 
