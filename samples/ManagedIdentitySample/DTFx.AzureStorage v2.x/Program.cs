@@ -1,53 +1,71 @@
-﻿using DurableTask.AzureStorage;
-using DurableTask.Core;
+﻿//  ----------------------------------------------------------------------------------
+//  Copyright Microsoft Corporation
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//  http://www.apache.org/licenses/LICENSE-2.0
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//  ----------------------------------------------------------------------------------
+
+using System;
+using System.Threading.Tasks;
 using Azure.Identity;
+using DurableTask.AzureStorage;
+using DurableTask.Core;
+using Microsoft.Extensions.Azure;
+using Microsoft.Extensions.Logging;
 
-internal class Program
+// Create a DefaultAzureCredential used to access the Azure Storage Account.
+// The identity will require the following roles on the resource:
+// - Azure Blob Data Contributor
+// - Azure Queue Data Contributor
+// - Azure Table Data Contributor
+DefaultAzureCredential credential = new();
+
+// Create a diagnostic logger factory for reading telemetry
+ILoggerFactory loggerFactory = LoggerFactory.Create(b => b
+    .AddConsole()
+    .AddFilter("Azure.Core", LogLevel.Warning)
+    .AddFilter("Azure.Identity", LogLevel.Warning));
+
+// The Azure SDKs used by the Azure.Identity and Azure Storage client libraries write their telemetry via Event Sources
+using AzureEventSourceLogForwarder logForwarder = new(loggerFactory);
+logForwarder.Start();
+
+AzureStorageOrchestrationService service = new(new AzureStorageOrchestrationServiceSettings
 {
-    private static async Task Main(string[] args)
-    {
-        var credential = new DefaultAzureCredential();
-        
-        // Pass the credential created to the StorageAccountClientProvider to start an AzureStorageOrchestrationService
-        var service = new AzureStorageOrchestrationService(new AzureStorageOrchestrationServiceSettings
-        {
-            StorageAccountClientProvider = new StorageAccountClientProvider("AccountName", credential),
-        });
+    LoggerFactory = loggerFactory,
+    StorageAccountClientProvider = new StorageAccountClientProvider("YourStorageAccount", credential),
+});
 
-        var client = new TaskHubClient(service);
-        var worker = new TaskHubWorker(service);
+TaskHubClient client = new(service, loggerFactory: loggerFactory);
+TaskHubWorker worker = new(service, loggerFactory);
 
-        worker.AddTaskOrchestrations(typeof(SampleOrchestration));
-        worker.AddTaskActivities(typeof(SampleActivity));
+worker.AddTaskOrchestrations(typeof(SampleOrchestration));
+worker.AddTaskActivities(typeof(SampleActivity));
 
-        await worker.StartAsync();
+await worker.StartAsync();
 
-        var instance = await client.CreateOrchestrationInstanceAsync(typeof(SampleOrchestration), "World");
+OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(typeof(SampleOrchestration), "World");
+OrchestrationState state = await client.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(1));
 
-        var result = await client.WaitForOrchestrationAsync(instance, TimeSpan.FromMinutes(1));
+ILogger logger = loggerFactory.CreateLogger(nameof(Program));
+logger.LogInformation("Orchestration output: {Output}", state.Output);
 
-        Console.WriteLine($"Orchestration result : {result.Output}");
-        
-        await worker.StopAsync();
-    }
+await worker.StopAsync();
+
+internal sealed class SampleOrchestration : TaskOrchestration<string, string>
+{
+    public override Task<string> RunTask(OrchestrationContext context, string input) =>
+        context.ScheduleTask<string>(typeof(SampleActivity), input);
 }
 
-public class SampleOrchestration : TaskOrchestration<string, string>
+internal sealed class SampleActivity : TaskActivity<string, string>
 {
-    public override async Task<string> RunTask(OrchestrationContext context, string input)
-    {
-        await context.ScheduleTask<string>(typeof(SampleActivity), input);
-
-        return "Orchestrator Finished!";
-    }
+    protected override string Execute(TaskContext context, string input) =>
+        "Hello, " + input + "!";
 }
-
-public class SampleActivity : TaskActivity<string, string>
-{
-    protected override string Execute(TaskContext context, string input)
-    {
-        Console.WriteLine("saying hello to " + input);
-        return "Hello " + input + "!";
-    }
-}
-
