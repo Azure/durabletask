@@ -23,6 +23,7 @@ namespace DurableTask.AzureStorage.Linq
 
     static class AsyncEnumerableExtensions
     {
+        // Note: like Enumerable.Select, SelectAsync only supports projecting TSource to TResult
         public static async IAsyncEnumerable<TResult> SelectAsync<TSource, TResult>(
             this IEnumerable<TSource> source,
             Func<TSource, CancellationToken, ValueTask<TResult>> selectAsync,
@@ -38,7 +39,6 @@ namespace DurableTask.AzureStorage.Linq
                 throw new ArgumentNullException(nameof(selectAsync));
             }
 
-            // Note: like Enumerable.Select, SelectAsync only supports projecting TSource to TResult
             foreach (TSource item in source)
             {
                 yield return await selectAsync(item, cancellationToken);
