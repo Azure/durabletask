@@ -70,6 +70,8 @@ namespace DurableTask.AzureStorage.Storage
 
         public AsyncPageable<Blob> ListBlobsAsync(string? prefix = null, CancellationToken cancellationToken = default)
         {
+            // GetBlobsAsync will return directories if hierarchical namespace (HNS) is enabled,
+            // so we must filter them out by checking for a special piece of metadata called "hdi_isfolder"
             return this.blobContainerClient
                 .GetBlobsAsync(BlobTraits.Metadata, BlobStates.None, prefix, cancellationToken)
                 .DecorateFailure()
@@ -108,7 +110,8 @@ namespace DurableTask.AzureStorage.Storage
 
         static bool IsHnsFolder(BlobItem item)
         {
-            // See https://github.com/Azure/azure-sdk-for-python/issues/24814
+            // Check the optional "hdi_isfolder" value in the metadata to determine whether
+            // the blob is actually a directory. See https://github.com/Azure/azure-sdk-for-python/issues/24814
             return item.Metadata != null
                 && item.Metadata.TryGetValue("hdi_isfolder", out string value)
                 && bool.TryParse(value, out bool isFolder)

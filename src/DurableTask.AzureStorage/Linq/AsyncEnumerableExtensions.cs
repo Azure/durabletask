@@ -25,7 +25,7 @@ namespace DurableTask.AzureStorage.Linq
     {
         public static async IAsyncEnumerable<TResult> SelectAsync<TSource, TResult>(
             this IEnumerable<TSource> source,
-            Func<TSource, CancellationToken, ValueTask<TResult>> projectAsync,
+            Func<TSource, CancellationToken, ValueTask<TResult>> selectAsync,
             [EnumeratorCancellation] CancellationToken cancellationToken = default(CancellationToken))
         {
             if (source == null)
@@ -33,14 +33,14 @@ namespace DurableTask.AzureStorage.Linq
                 throw new ArgumentNullException(nameof(source));
             }
 
-            if (projectAsync == null)
+            if (selectAsync == null)
             {
-                throw new ArgumentNullException(nameof(projectAsync));
+                throw new ArgumentNullException(nameof(selectAsync));
             }
 
             foreach (TSource item in source)
             {
-                yield return await projectAsync(item, cancellationToken);
+                yield return await selectAsync(item, cancellationToken);
             }
         }
 
@@ -68,14 +68,14 @@ namespace DurableTask.AzureStorage.Linq
             }
 
             public override IAsyncEnumerable<Page<TResult>> AsPages(string? continuationToken = null, int? pageSizeHint = null) =>
-                new AsyncPageableTransformationEnumerable(this.source.AsPages(continuationToken, pageSizeHint), this.transform);
+                new AsyncEnumerable(this.source.AsPages(continuationToken, pageSizeHint), this.transform);
 
-            sealed class AsyncPageableTransformationEnumerable : IAsyncEnumerable<Page<TResult>>
+            sealed class AsyncEnumerable : IAsyncEnumerable<Page<TResult>>
             {
                 readonly IAsyncEnumerable<Page<TSource>> source;
                 readonly Func<Page<TSource>, IEnumerable<TResult>> transform;
 
-                public AsyncPageableTransformationEnumerable(IAsyncEnumerable<Page<TSource>> source, Func<Page<TSource>, IEnumerable<TResult>> transform)
+                public AsyncEnumerable(IAsyncEnumerable<Page<TSource>> source, Func<Page<TSource>, IEnumerable<TResult>> transform)
                 {
                     this.source = source;
                     this.transform = transform;
@@ -108,14 +108,14 @@ namespace DurableTask.AzureStorage.Linq
             }
 
             public override IAsyncEnumerable<Page<TResult>> AsPages(string? continuationToken = null, int? pageSizeHint = null) =>
-                new AsyncPageableAsyncTransformationEnumerable(this.source.AsPages(continuationToken, pageSizeHint), this.transformAsync);
+                new AsyncEnumerable(this.source.AsPages(continuationToken, pageSizeHint), this.transformAsync);
 
-            sealed class AsyncPageableAsyncTransformationEnumerable : IAsyncEnumerable<Page<TResult>>
+            sealed class AsyncEnumerable : IAsyncEnumerable<Page<TResult>>
             {
                 readonly IAsyncEnumerable<Page<TSource>> source;
                 readonly Func<Page<TSource>, CancellationToken, IAsyncEnumerable<TResult>> transformAsync;
 
-                public AsyncPageableAsyncTransformationEnumerable(IAsyncEnumerable<Page<TSource>> source, Func<Page<TSource>, CancellationToken, IAsyncEnumerable<TResult>> transformAsync)
+                public AsyncEnumerable(IAsyncEnumerable<Page<TSource>> source, Func<Page<TSource>, CancellationToken, IAsyncEnumerable<TResult>> transformAsync)
                 {
                     this.source = source;
                     this.transformAsync = transformAsync;
