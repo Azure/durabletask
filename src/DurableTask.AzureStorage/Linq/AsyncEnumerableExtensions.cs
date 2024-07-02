@@ -38,12 +38,15 @@ namespace DurableTask.AzureStorage.Linq
                 throw new ArgumentNullException(nameof(selectAsync));
             }
 
+            // Note: like Enumerable.Select, SelectAsync only supports projecting TSource to TResult
             foreach (TSource item in source)
             {
                 yield return await selectAsync(item, cancellationToken);
             }
         }
 
+        // Note: The TransformPages methods support potentially complex transformations
+        // by using delegates that return IEnumerable<TResult> and IAsyncEnumerable<TResult>
         public static AsyncPageable<TResult> TransformPages<TSource, TResult>(this AsyncPageable<TSource> source, Func<Page<TSource>, IEnumerable<TResult>> transform)
             where TSource : notnull
             where TResult : notnull =>
