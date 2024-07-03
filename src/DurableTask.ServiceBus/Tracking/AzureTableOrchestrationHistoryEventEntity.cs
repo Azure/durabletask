@@ -35,11 +35,7 @@ namespace DurableTask.ServiceBus.Tracking
         private static readonly JsonSerializerSettings ReadJsonSettings = new JsonSerializerSettings
         {
             TypeNameHandling = TypeNameHandling.Objects,
-#if NETSTANDARD2_0
             SerializationBinder = new PackageUpgradeSerializationBinder()
-#else
-            Binder = new PackageUpgradeSerializationBinder()
-#endif
         };
 
         /// <summary>

@@ -2,7 +2,7 @@
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net462</TargetFrameworks>
+    <TargetFramework>netstandard2.0</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
     <NoWarn>NU5125;NU5048;CS7035</NoWarn> <!-- TODO: addition of CS7035 (version format doesn't follow convention) is a temporary workaround during 1ES migration -->
@@ -34,12 +34,6 @@
   <PropertyGroup Condition="$(VersionSuffix) != ''">
     <Version>$(VersionPrefix)-$(VersionSuffix)</Version>
   </PropertyGroup>
-  
-  <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="1.1.1" />
-    <!--Newtonsoft.Json 7.0.1 is kept for backwards compatibility with Functions runtime V1, so we supress warning NU1903. -->
-    <PackageReference Include="Newtonsoft.Json" Version="7.0.1" NoWarn="NU1903" />
-  </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="2.2.0" />
