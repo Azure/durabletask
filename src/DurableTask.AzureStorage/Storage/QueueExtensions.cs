@@ -27,6 +27,11 @@ namespace DurableTask.AzureStorage.Storage
                 throw new ArgumentNullException(nameof(queue));
             }
 
+            if (messageData == null)
+            {
+                throw new ArgumentNullException(nameof(messageData));
+            }
+
             UpdateReceipt receipt = await queue.UpdateMessageAsync(messageData.OriginalQueueMessage, visibilityTimeout, clientRequestId, cancellationToken);
             messageData.Update(receipt);
         }
