@@ -21,19 +21,15 @@ namespace DurableTask.AzureStorage.Storage
     using System.Threading.Tasks;
     using Azure;
 
-    class TableQueryResponse<T> : IAsyncEnumerable<T> where T : notnull
+    class TableQueryResponse<T> : AsyncPageable<T> where T : notnull
     {
-        readonly AsyncPageable<T> _query;
+        readonly AsyncPageable<T> query;
 
-        public TableQueryResponse(AsyncPageable<T> query)
-        {
-            this._query = query ?? throw new ArgumentNullException(nameof(query));
-        }
+        public TableQueryResponse(AsyncPageable<T> query) =>
+            this.query = query ?? throw new ArgumentNullException(nameof(query));
 
-        public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
-        {
-            return this._query.GetAsyncEnumerator(cancellationToken);
-        }
+        public override IAsyncEnumerable<Page<T>> AsPages(string? continuationToken = null, int? pageSizeHint = null) =>
+            this.query.AsPages(continuationToken, pageSizeHint);
 
         public async Task<TableQueryResults<T>> GetResultsAsync(string? continuationToken = null, int? pageSizeHint = null, CancellationToken cancellationToken = default)
         {
@@ -41,7 +37,7 @@ namespace DurableTask.AzureStorage.Storage
 
             int pages = 0;
             var entities = new List<T>();
-            await foreach (Page<T> page in this._query.AsPages(continuationToken, pageSizeHint).WithCancellation(cancellationToken))
+            await foreach (Page<T> page in this.query.AsPages(continuationToken, pageSizeHint).WithCancellation(cancellationToken))
             {
                 pages++;
                 entities.AddRange(page.Values);
@@ -50,8 +46,5 @@ namespace DurableTask.AzureStorage.Storage
             sw.Stop();
             return new TableQueryResults<T>(entities, sw.Elapsed, pages);
         }
-
-        public static implicit operator AsyncPageable<T>(TableQueryResponse<T> response) =>
-            response._query;
     }
 }

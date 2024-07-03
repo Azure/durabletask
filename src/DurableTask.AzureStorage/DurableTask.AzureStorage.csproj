@@ -14,7 +14,7 @@
     <DebugType>embedded</DebugType>
     <IncludeSymbols>false</IncludeSymbols>
     <!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
-    <NoWarn>NU5125;NU5048</NoWarn>
+    <NoWarn>NU5125;NU5048;CS7035</NoWarn> <!-- TODO: addition of CS7035 (version format doesn't follow convention) is a temporary workaround during 1ES migration -->
   </PropertyGroup>
 
   <!-- Version Info -->
@@ -40,7 +40,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Azure.Core" Version="1.39.0" />
+    <PackageReference Include="Azure.Core" Version="1.40.0" />
     <PackageReference Include="Azure.Data.Tables" Version="12.8.3" />
     <PackageReference Include="Azure.Storage.Blobs" Version="12.20.0" />
     <PackageReference Include="Azure.Storage.Queues" Version="12.18.0" />

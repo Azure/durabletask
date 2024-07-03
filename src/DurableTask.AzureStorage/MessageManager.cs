@@ -156,7 +156,17 @@ namespace DurableTask.AzureStorage
         {
             // TODO: Deserialize with Stream?
             byte[] body = queueMessage.Body.ToArray();
-            MessageData envelope = this.DeserializeMessageData(Encoding.UTF8.GetString(body));
+            MessageData envelope;
+            try
+            {
+                envelope = this.DeserializeMessageData(Encoding.UTF8.GetString(body));
+            }
+            catch(JsonReaderException)
+            {
+                // This catch block is a hotfix and better implementation might be needed in future. 
+                // DTFx.AzureStorage 1.x and 2.x use different encoding methods. Adding this line to enable forward compatibility.
+                envelope = this.DeserializeMessageData(Encoding.UTF8.GetString(Convert.FromBase64String(Encoding.UTF8.GetString(body))));
+            }
 
             if (!string.IsNullOrEmpty(envelope.CompressedBlobName))
             {

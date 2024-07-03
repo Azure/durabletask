@@ -14,12 +14,14 @@
 namespace DurableTask.AzureStorage.Storage
 {
     using System;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using Azure;
     using Azure.Storage.Blobs;
     using Azure.Storage.Blobs.Models;
     using Azure.Storage.Blobs.Specialized;
+    using DurableTask.AzureStorage.Linq;
     using DurableTask.AzureStorage.Net;
 
     class BlobContainer
@@ -68,9 +70,14 @@ namespace DurableTask.AzureStorage.Storage
 
         public AsyncPageable<Blob> ListBlobsAsync(string? prefix = null, CancellationToken cancellationToken = default)
         {
-            return new AsyncPageableProjection<BlobItem, Blob>(
-                this.blobContainerClient.GetBlobsAsync(BlobTraits.Metadata, BlobStates.None, prefix, cancellationToken),
-                x => this.GetBlobReference(x.Name)).DecorateFailure();
+            // GetBlobsAsync will return directories if hierarchical namespace (HNS) is enabled,
+            // so we must filter them out by checking for a special piece of metadata called "hdi_isfolder"
+            return this.blobContainerClient
+                .GetBlobsAsync(BlobTraits.Metadata, BlobStates.None, prefix, cancellationToken)
+                .DecorateFailure()
+                .TransformPages(p => p.Values
+                    .Where(b => !IsHnsFolder(b))
+                    .Select(b => this.GetBlobReference(b.Name)));
         }
 
         public async Task<string> AcquireLeaseAsync(TimeSpan leaseInterval, string leaseId, CancellationToken cancellationToken = default)
@@ -99,6 +106,16 @@ namespace DurableTask.AzureStorage.Storage
                 .GetBlobLeaseClient(leaseId)
                 .RenewAsync(cancellationToken: cancellationToken)
                 .DecorateFailure();
+        }
+
+        static bool IsHnsFolder(BlobItem item)
+        {
+            // Check the optional "hdi_isfolder" value in the metadata to determine whether
+            // the blob is actually a directory. See https://github.com/Azure/azure-sdk-for-python/issues/24814
+            return item.Metadata != null
+                && item.Metadata.TryGetValue("hdi_isfolder", out string value)
+                && bool.TryParse(value, out bool isFolder)
+                && isFolder;
         }
     }
 }
