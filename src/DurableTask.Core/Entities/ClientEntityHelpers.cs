@@ -67,6 +67,9 @@ namespace DurableTask.Core.Entities
                 Id = "fix-orphaned-lock", // we don't know the original id but it does not matter
             };
 
+            // Since entities are always calling continue-as-new (which changes the executionID), we need to clear it.
+            // By clearing it, we ensure the event is received by the current entity execution.
+            targetInstance.ExecutionId = null;
             return new EntityMessageEvent(EntityMessageEventNames.ReleaseMessageEventName, message, targetInstance);
         }
 
