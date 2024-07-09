@@ -11,6 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+#nullable enable
 namespace DurableTask.AzureStorage.Messaging
 {
     using System;
@@ -31,13 +32,13 @@ namespace DurableTask.AzureStorage.Messaging
 
         protected override TimeSpan MessageVisibilityTimeout => this.settings.WorkItemQueueVisibilityTimeout;
 
-        public async Task<MessageData> GetMessageAsync(CancellationToken cancellationToken)
+        public async Task<MessageData?> GetMessageAsync(CancellationToken cancellationToken)
         {
             while (!cancellationToken.IsCancellationRequested)
             {
                 try
                 {
-                    QueueMessage queueMessage = await  this.storageQueue.GetMessageAsync(this.settings.WorkItemQueueVisibilityTimeout, cancellationToken);
+                    QueueMessage? queueMessage = await  this.storageQueue.GetMessageAsync(this.settings.WorkItemQueueVisibilityTimeout, cancellationToken);
 
                     if (queueMessage == null)
                     {
@@ -45,12 +46,26 @@ namespace DurableTask.AzureStorage.Messaging
                         continue;
                     }
 
-                    MessageData data = await this.messageManager.DeserializeQueueMessageAsync(
+                    try
+                    {
+                        MessageData data = await this.messageManager.DeserializeQueueMessageAsync(
                         queueMessage,
                         this.storageQueue.Name);
 
-                    this.backoffHelper.Reset();
-                    return data;
+                        this.backoffHelper.Reset();
+                        return data;
+                    }
+                    catch (Exception exception)
+                    {
+                        // Deserialization errors can be persistent, so we check if this is a poison message.
+                        bool isPoisonMessage = await this.TryHandlingDeserializationPoisonMessage(queueMessage, exception);
+                        if (isPoisonMessage)
+                        {
+                            // we have already handled the poison message, so we move on.
+                            continue;
+                        }
+                    }
+                    
                 }
                 catch (Exception e)
                 {

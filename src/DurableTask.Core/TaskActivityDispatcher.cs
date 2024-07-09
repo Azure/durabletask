@@ -23,6 +23,7 @@ namespace DurableTask.Core
     using DurableTask.Core.Logging;
     using DurableTask.Core.Middleware;
     using DurableTask.Core.Tracing;
+    using DurableTask.Core.Serializing;
 
     /// <summary>
     /// Dispatcher for task activities to handle processing and renewing of work items
@@ -190,6 +191,20 @@ namespace DurableTask.Core
 
                         try
                         {
+                            if (scheduledEvent.IsPoison)
+                            {
+                                // If the activity is "poison", then we should not executed again. Instead, we'll manually fail the activity
+                                // by throwing an exception on behalf of the user-code. In the exception, we provide the storage-provider's guidance
+                                // on how to deal with the poison message.
+                                // We need to account for all possible deserialization modes, so we construct an exception valid in all modes.
+                                // TODO: revise - this is clunky
+                                var exception = new Exception(scheduledEvent.PoisonGuidance);
+                                var failureDetails = new FailureDetails(exception);
+                                var details = Utils.SerializeCause(exception, JsonDataConverter.Default);
+                                var taskFailure = new TaskFailureException(details, exception, details).WithFailureDetails(failureDetails);
+                                throw taskFailure;
+                            }
+
                             string? output = await taskActivity.RunAsync(context, scheduledEvent.Input);
                             responseEvent = new TaskCompletedEvent(-1, scheduledEvent.EventId, output);
                         }
