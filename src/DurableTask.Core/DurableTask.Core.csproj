@@ -18,9 +18,8 @@
   <PropertyGroup>
     <MajorVersion>2</MajorVersion>
     <MinorVersion>17</MinorVersion>
-    <PatchVersion>2</PatchVersion>
+    <PatchVersion>1</PatchVersion>
     <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
-    <VersionSuffix>queuedrainer.1</VersionSuffix>
     <FileVersion>$(VersionPrefix).0</FileVersion>
     <!-- FileVersionRevision is expected to be set by the CI. This is useful for distinguishing between multiple builds of the same version. -->
     <FileVersion Condition="'$(FileVersionRevision)' != ''">$(VersionPrefix).$(FileVersionRevision)</FileVersion>
