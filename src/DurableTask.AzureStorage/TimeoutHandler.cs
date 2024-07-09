@@ -128,9 +128,11 @@ namespace DurableTask.AzureStorage
 
                     }
 
+                    T result = await operationTask;
+
                     cts.Cancel();
 
-                    return await operationTask;
+                    return result;
                 }
             }
         }
