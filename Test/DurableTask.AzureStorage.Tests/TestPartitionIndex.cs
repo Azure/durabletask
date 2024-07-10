@@ -29,6 +29,22 @@ namespace DurableTask.AzureStorage.Tests
         private CancellationTokenSource cancellationTokenSource;
         private const string TaskHub = "taskHubName";
 
+        private Dictionary<uint, string> partitionToInstanceId = new Dictionary<uint, string>()
+        {
+            { 0, "sampleinstanceid!13"},
+            { 1, "sampleinstanceid!3"},
+            { 2, "sampleinstanceid!11"},
+            { 3, "sampleinstanceid!1"}
+        };
+
+        private Dictionary<uint, string> partitionToInstanceIdWithExplicitPartitionPlacement = new Dictionary<uint, string>()
+        {
+            { 0, "sampleinstanceid!0"},
+            { 1, "sampleinstanceid!1"},
+            { 2, "sampleinstanceid!2"},
+            { 3, "sampleinstanceid!3"}
+        };
+
         [TestInitialize]
         public void Initialize()
         {
@@ -53,40 +69,32 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        [DataRow(20, false)]
-        [DataRow(20, true)]
-        public void GetPartitionIndexTest(int maxInstanceIdCount, bool enableExplicitPartitionPlacement)
+        public void GetPartitionIndexTest_EnableExplicitPartitionPlacement_False()
         {
-            settings.EnableExplicitPartitionPlacement = enableExplicitPartitionPlacement;
+            settings.EnableExplicitPartitionPlacement = false;
 
-            for (uint instanceIdSuffix = 0; instanceIdSuffix < settings.PartitionCount * 4; instanceIdSuffix++)
+            foreach (var kvp in partitionToInstanceId)
             {
-                Dictionary<uint, int> indexNumberToCount = new Dictionary<uint, int>();
+                var instanceId = kvp.Value;
+                var expectedPartitionIndex = kvp.Key;
+                var partitionIndex = azureStorageOrchestrationService.GetPartitionIndex(instanceId);
 
-                for (uint indexCount = 0; indexCount < settings.PartitionCount; indexCount++)
-                {
-                    indexNumberToCount[indexCount] = 0;
-                }
+                Assert.AreEqual(expectedPartitionIndex, partitionIndex);
+            }
+        }
 
-                for (int instanceCount = 0; instanceCount < maxInstanceIdCount; instanceCount++)
-                {
-                    var instanceIdPrefix = Guid.NewGuid().ToString();
+        [TestMethod]
+        public void GetPartitionIndexTest_EnableExplicitPartitionPlacement_True()
+        {
+            settings.EnableExplicitPartitionPlacement = true;
 
-                    var instanceId = $"{instanceIdPrefix}!{instanceIdSuffix}";
+            foreach (var kvp in partitionToInstanceIdWithExplicitPartitionPlacement)
+            {
+                var instanceId = kvp.Value;
+                var expectedPartitionIndex = kvp.Key;
+                var partitionIndex = azureStorageOrchestrationService.GetPartitionIndex(instanceId);
 
-                    var partitionIndex = azureStorageOrchestrationService.GetPartitionIndex(instanceId);
-
-                    indexNumberToCount[partitionIndex]++;
-                }
-
-                if (enableExplicitPartitionPlacement)
-                {
-                    Assert.AreEqual(indexNumberToCount[(uint)(instanceIdSuffix % settings.PartitionCount)], maxInstanceIdCount);
-                }
-                else
-                {
-                    Assert.AreNotEqual(indexNumberToCount[(uint)(instanceIdSuffix % settings.PartitionCount)], maxInstanceIdCount);
-                }
+                Assert.AreEqual(expectedPartitionIndex, partitionIndex);
             }
         }
     }
