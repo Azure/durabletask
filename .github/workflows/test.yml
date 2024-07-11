@@ -11,7 +11,7 @@ on:
     paths-ignore: [ '**.md' ]
 
 jobs:
-  build: # Call re-useable build workflow
+  invoke-build-workflow: # Call re-useable build workflow
     uses: ./.github/workflows/build.yml
 
   test:
@@ -19,13 +19,6 @@ jobs:
     needs: build # Can only test after build completes
   
     steps:
-    - uses: actions/checkout@v3
-      with:
-        submodules: true
-
-    - name: Build
-      uses: ./.github/workflows/build.yml
-
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
