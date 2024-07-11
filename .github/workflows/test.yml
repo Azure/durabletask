@@ -10,13 +10,13 @@ on:
       - main
     paths-ignore: [ '**.md' ]
 
-env:
-  solution: DurableTask.sln
-  config: Release
-
 jobs:
-  build:
+  build: # Call re-useable build workflow
+    uses: ./.github/workflows/build.yml
+
+  test:
     runs-on: windows-latest
+    needs: build # Can only test after build completes
   
     steps:
     - uses: actions/checkout@v3
