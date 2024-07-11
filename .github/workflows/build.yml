@@ -5,6 +5,7 @@ name: Build
 
 on:
   workflow_call: # this means this runs only when called in another workflow
+  workflow_dispatch: # allows for the workflow to run manually see: https://docs.github.com/en/actions/using-workflows/manually-running-a-workflow
 
 env:
   solution: DurableTask.sln

@@ -7,8 +7,9 @@ on:
     paths-ignore: [ '**.md' ]
   pull_request:
     branches:
-      - main
+      - '**' # run on all pull requests
     paths-ignore: [ '**.md' ]
+  workflow_dispatch: # allows for the workflow to run manually see: https://docs.github.com/en/actions/using-workflows/manually-running-a-workflow
 
 jobs:
   invoke-build-workflow: # Call re-useable build workflow

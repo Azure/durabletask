@@ -11,6 +11,7 @@ on:
     branches: [ "main", "feature/**" ]
   schedule:
     - cron: '0 0 * * 1' # Weekly Monday run, needed for weekly reports
+  workflow_dispatch: # allows for the workflow to run manually see: https://docs.github.com/en/actions/using-workflows/manually-running-a-workflow
 
 env:
   solution: DurableTask.sln
@@ -22,11 +23,14 @@ jobs:
 
   analyze:
     name: Analyze
+    needs: invoke-build-workflow # Can only test after build completes
+
     runs-on: windows-latest
     permissions:
       actions: read
       contents: read
       security-events: write
+
 
     strategy:
       fail-fast: false
@@ -50,26 +54,6 @@ jobs:
 
         # Details on CodeQL's query packs refer to : https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
         # queries: security-extended,security-and-quality
-
-    # Build DTFx project
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v3
-
-    - name: Set up .NET Core 2.1
-      uses: actions/setup-dotnet@v3
-      with:
-        dotnet-version: '2.1.x'
-
-    - name: Set up .NET Core 3.1
-      uses: actions/setup-dotnet@v3
-      with:
-        dotnet-version: '3.1.x'
-
-    - name: Restore dependencies
-      run: dotnet restore $solution
-
-    - name: Build
-      run: dotnet build $solution
 
     # Run CodeQL analysis
     - name: Perform CodeQL Analysis
