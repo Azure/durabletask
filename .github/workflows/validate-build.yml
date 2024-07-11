@@ -53,7 +53,6 @@ jobs:
     - name: Test DTFx.Core
       run: azurite --silent --blobPort 10000 --queuePort 10001 --tablePort 10002 & dotnet test ./test/DurableTask.Core.Tests/DurableTask.Core.Tests.csproj #--configuration $config --no-build --verbosity normal
 
-    # Azure Storage is commented out until DTFx.AS v2 is enabled, where Azurite can be used to run unit tests
-    # - name: Test DTFx.AzureStorage
-    #   run: azurite --silent --blobPort 10000 --queuePort 10001 --tablePort 10002 & dotnet test ./test/DurableTask.AzureStorage.Tests/DurableTask.AzureStorage.Tests.csproj #--configuration $config --no-build --verbosity normal
+    - name: Test DTFx.AzureStorage
+      run: azurite --silent --blobPort 10000 --queuePort 10001 --tablePort 10002 & dotnet test ./test/DurableTask.AzureStorage.Tests/DurableTask.AzureStorage.Tests.csproj #--configuration $config --no-build --verbosity normal
 
