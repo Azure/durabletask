@@ -17,13 +17,12 @@ env:
 jobs:
   build:
     runs-on: windows-latest
-
+  
     steps:
     - uses: actions/checkout@v3
       with:
         submodules: true
 
-    steps:
     - name: Build
       uses: ./.github/workflows/build.yml
 
