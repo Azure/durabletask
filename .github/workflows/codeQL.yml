@@ -47,7 +47,7 @@ jobs:
     - name: Download built-code
       uses: actions/download-artifact@v2
       with:
-        name: build-artifacts
+        name: built-code
         path: ./  # This path will match the upload path
 
     # Initializes the CodeQL tools for scanning.

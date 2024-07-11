@@ -20,10 +20,6 @@ jobs:
     needs: invoke-build-workflow # Can only test after build completes
   
     steps:
-    # - uses: actions/checkout@v3
-    #   with:
-    #     submodules: true
-
     - name: Download built-code
       uses: actions/download-artifact@v2
       with:
