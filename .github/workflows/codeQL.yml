@@ -25,6 +25,10 @@ on:
     - cron: '0 0 * * 1'
     # Weekly Monday run, needed for weekly reports
 
+env:
+  solution: DurableTask.sln
+  config: Release
+
 jobs:
   analyze:
     name: Analyze
@@ -60,8 +64,8 @@ jobs:
 
     # Autobuild attempts to build any compiled languages  (C/C++, C#, Go, or Java).
     # If this step fails, then you should remove it and run the build manually (see below)
-    - name: Autobuild
-      uses: github/codeql-action/autobuild@v2
+    # - name: Autobuild
+    #   uses: github/codeql-action/autobuild@v2
 
     # ℹ️ Command-line programs to run using the OS shell.
     # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
@@ -73,6 +77,27 @@ jobs:
     #   echo "Run, Build Application using script"
     #   ./location_of_script_within_repo/buildscript.sh
 
+    # Manually build DTFx project
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+
+    - name: Set up .NET Core 2.1
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '2.1.x'
+
+    - name: Set up .NET Core 3.1
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '3.1.x'
+
+    - name: Restore dependencies
+      run: dotnet restore $solution
+
+    - name: Build
+      run: dotnet build $solution
+
+    # Perform CodeQL analysis
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
       with:
