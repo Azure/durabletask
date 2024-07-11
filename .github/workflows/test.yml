@@ -19,6 +19,10 @@ jobs:
     needs: build # Can only test after build completes
   
     steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
