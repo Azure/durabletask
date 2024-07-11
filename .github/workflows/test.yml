@@ -20,9 +20,15 @@ jobs:
     needs: invoke-build-workflow # Can only test after build completes
   
     steps:
-    - uses: actions/checkout@v3
+    # - uses: actions/checkout@v3
+    #   with:
+    #     submodules: true
+
+    - name: Download built-code
+      uses: actions/download-artifact@v2
       with:
-        submodules: true
+        name: build-artifacts
+        path: ./  # This path will match the upload path
 
     - name: Set up Node.js
       uses: actions/setup-node@v3

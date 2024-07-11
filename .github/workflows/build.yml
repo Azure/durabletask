@@ -4,7 +4,7 @@
 name: Build
 
 on:
-  workflow_call: # this means this runs only when called in another workflow
+  workflow_call: # allows to be invoked as part of a larger workflow
   workflow_dispatch: # allows for the workflow to run manually see: https://docs.github.com/en/actions/using-workflows/manually-running-a-workflow
 
 env:
@@ -33,8 +33,11 @@ jobs:
       with:
         dotnet-version: '3.1.x'
 
-    - name: Restore dependencies
-      run: dotnet restore $solution
-
     - name: Build
-      run: dotnet build $solution #--configuration $config #--no-restore -p:FileVersionRevision=$GITHUB_RUN_NUMBER -p:ContinuousIntegrationBuild=true
+      run: dotnet build $solution -p:FileVersionRevision=$GITHUB_RUN_NUMBER -p:ContinuousIntegrationBuild=true
+
+    - name: Upload built-code # allows next job to consume built project
+      uses: actions/upload-artifact@v2
+      with:
+        name: built-code
+        path: ./

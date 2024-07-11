@@ -8,9 +8,10 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    branches: [ "main", "feature/**" ]
+    branches: [ "main"]
   schedule:
     - cron: '0 0 * * 1' # Weekly Monday run, needed for weekly reports
+  workflow_call: # allows to be invoked as part of a larger workflow
   workflow_dispatch: # allows for the workflow to run manually see: https://docs.github.com/en/actions/using-workflows/manually-running-a-workflow
 
 env:
@@ -40,8 +41,14 @@ jobs:
         # Learn more about CodeQL language support at https://aka.ms/codeql-docs/language-support
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+    # - name: Checkout repository
+    #   uses: actions/checkout@v3
+
+    - name: Download built-code
+      uses: actions/download-artifact@v2
+      with:
+        name: build-artifacts
+        path: ./  # This path will match the upload path
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
