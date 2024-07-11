@@ -20,7 +20,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: ./build.yml
+      uses: ./.github/workflows/build.yml
 
     - name: Set up Node.js
       uses: actions/setup-node@v3
