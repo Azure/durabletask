@@ -8,17 +8,18 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    # Run on all pull requests
-    branches: [ "**" ]
+    branches: [ "main", "feature/**" ]
   schedule:
-      # Weekly Monday run, needed for weekly reports
-    - cron: '0 0 * * 1'
+    - cron: '0 0 * * 1' # Weekly Monday run, needed for weekly reports
 
 env:
   solution: DurableTask.sln
   config: Release
 
 jobs:
+  invoke-build-workflow: # Call re-useable build workflow
+    uses: ./.github/workflows/build.yml
+
   analyze:
     name: Analyze
     runs-on: windows-latest
