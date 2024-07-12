@@ -9,20 +9,40 @@ steps:
       sleep 5
     displayName: 'Install and Run Azurite'
 
-  - task: DotNetCoreCLI@2
-    displayName: 'dotnet build'
+  - task: VSBuild@1
+    displayName: 'Build (Core Tests)'
     inputs:
-      projects: DurableTask.sln
-      verbosityRestore: Detailed
-      verbosityPack: Detailed
+      solution: '.\Test\DurableTask.Core.Tests\DurableTask.Core.Tests.csproj'
+      vsVersion: '16.0'
+      logFileVerbosity: minimal
+      configuration: Release
+      msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+  - task: VSBuild@1
+    displayName: 'Build (AzureStorage Tests)'
+    inputs:
+      solution: '.\Test\DurableTask.AzureStorage.Tests\DurableTask.AzureStorage.Tests.csproj'
+      vsVersion: '16.0'
+      logFileVerbosity: minimal
+      configuration: Release
+      msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+  - task: VSBuild@1
+    displayName: 'Build (Emulator Tests)'
+    inputs:
+      solution: '.\Test\DurableTask.Emulator.Tests\DurableTask.Emulator.Tests.csproj'
+      vsVersion: '16.0'
+      logFileVerbosity: minimal
+      configuration: Release
+      msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
   - task: VSTest@2
     displayName: 'Run unit and functional tests'
     inputs:
       testAssemblyVer2: |
-        **\bin\Debug\netcoreapp3.1\DurableTask.AzureStorage.Tests.dll
-        **\bin\Debug\netcoreapp3.1\DurableTask.Core.Tests.dll
-        **\bin\Debug\netcoreapp3.1\DurableTask.Emulator.Tests.dll
+        **\bin\**\DurableTask.AzureStorage.Tests.dll
+        **\bin\**\DurableTask.Core.Tests.dll
+        **\bin\**\DurableTask.Emulator.Tests.dll
         !**\obj\**
         testFiltercriteria: 'TestCategory!=DisabledInCI'
         vsTestVersion: 16.0
