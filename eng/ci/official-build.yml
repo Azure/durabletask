@@ -31,3 +31,4 @@ extends:
               dependsOn: []
               jobs:
                   - template: /eng/templates/build.yml@self
+                  - template: /eng/templates/sign.yml@self

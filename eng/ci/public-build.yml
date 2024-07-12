@@ -53,5 +53,5 @@ extends:
     stages:
     - stage: Build & Test
       jobs:
-      - template: /eng/ci/templates/build.yml@self # TODO: This also signs, refactor signing step out for speed
-      - template: /eng/ci/templates/test.yml@self
+      - template: /eng/templates/build.yml@self # TODO: This also signs, refactor signing step out for speed
+      - template: /eng/templates/test.yml@self
