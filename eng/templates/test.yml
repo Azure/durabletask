@@ -20,9 +20,9 @@ steps:
     displayName: 'Run unit and functional tests'
     inputs:
       testAssemblyVer2: |
-        **\bin\Debug\netstandard2.0\DurableTask.AzureStorage.Tests.dll
-        **\bin\Debug\netstandard2.0\DurableTask.Core.Tests.dll
-        **\bin\Debug\netstandard2.0\DurableTask.Emulator.Tests.dll
+        **\bin\Debug\netcoreapp3.1\DurableTask.AzureStorage.Tests.dll
+        **\bin\Debug\netcoreapp3.1\DurableTask.Core.Tests.dll
+        **\bin\Debug\netcoreapp3.1\DurableTask.Emulator.Tests.dll
         !**\obj\**
         testFiltercriteria: 'TestCategory!=DisabledInCI'
         vsTestVersion: 16.0
