@@ -9,6 +9,13 @@ steps:
       sleep 5
     displayName: 'Install and Run Azurite'
 
+  - task: DotNetCoreCLI@2
+    displayName: 'dotnet build'
+    inputs:
+      projects: DurableTask.sln
+      verbosityRestore: Detailed
+      verbosityPack: Detailed
+
   - task: VSTest@2
     displayName: 'Run unit and functional tests'
     inputs:
