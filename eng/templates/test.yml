@@ -9,6 +9,14 @@ steps:
       sleep 5
     displayName: 'Install and Run Azurite'
 
+  - task: DotNetCoreCLI@2
+    displayName: 'Restore nuget dependencies'
+    inputs:
+        command: restore
+        verbosityRestore: Minimal
+        projects: |
+            DurableTask.sln
+
   - task: VSBuild@1
     displayName: 'Build (Core Tests)'
     inputs:
