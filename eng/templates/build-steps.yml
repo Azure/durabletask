@@ -1,0 +1,45 @@
+steps:
+# Start by restoring all the dependencies. This needs to be its own task
+# from what I can tell. We specifically only target DurableTask.AzureStorage
+# and its direct dependencies.
+
+- task: DotNetCoreCLI@2
+  displayName: 'Restore nuget dependencies'
+  inputs:
+      command: restore
+      verbosityRestore: Minimal
+      projects: |
+          src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln
+          src/DurableTask.Emulator/DurableTask.Emulator.csproj
+          src/DurableTask.ServiceBus/DurableTask.ServiceBus.csproj
+          src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj
+          src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj
+
+
+# Build the filtered solution in release mode, specifying the continuous integration flag.
+- task: VSBuild@1
+  displayName: 'Build (AzureStorage)'
+  inputs:
+    solution: 'src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln'
+    vsVersion: '16.0'
+    logFileVerbosity: minimal
+    configuration: Release
+    msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+- task: VSBuild@1
+  displayName: 'Build (ApplicationInsights)'
+  inputs:
+    solution: 'src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj'
+    vsVersion: '16.0'
+    logFileVerbosity: minimal
+    configuration: Release
+    msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+- task: VSBuild@1
+  displayName: 'Build (Emulator)'
+  inputs:
+    solution: 'src/DurableTask.Emulator/DurableTask.Emulator.csproj'
+    vsVersion: '16.0'
+    logFileVerbosity: minimal
+    configuration: Release
+    msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
