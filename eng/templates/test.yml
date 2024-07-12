@@ -10,7 +10,7 @@ jobs:
           echo "azurite installed"
           azurite --silent --location azurite1 --debug azurite1\debug.txt --queuePort 10001 &
           echo "azurite started"
-          sleep
+          sleep 5
         displayName: 'Install and Run Azurite'
 
       - task: VSTest@2
