@@ -1,4 +1,4 @@
-name: Validate Build (AzureStorageScenarioTests 1/2)
+name: Validate Build (AzureStorageScenarioTests 2/2)
 
 on:
   push:
@@ -51,4 +51,4 @@ jobs:
       run: npm install -g azurite
 
     - name: Test DTFx.AzureStorage (AzureStorageScenarioTests 1/2)
-      run: azurite --skipApiVersionCheck --silent --blobPort 10000 --queuePort 10001 --tablePort 10002 & dotnet test ./test/DurableTask.AzureStorage.Tests/DurableTask.AzureStorage.Tests.csproj --filter "ClassName=DurableTask.AzureStorage.Tests.AzureStorageScenarioTests & FullyQualifiedName!=DurableTask.AzureStorage.Tests.AzureStorageScenarioTests.LargeTableTextMessagePayloads_SizeViolation_BlobUrl & FullyQualifiedName!=DurableTask.AzureStorage.Tests.AzureStorageScenarioTests.LargeTableTextMessagePayloads_FetchLargeMessages & FullyQualifiedName!=DurableTask.AzureStorage.Tests.AzureStorageScenarioTests.ScheduledStart_Inline & FullyQualifiedName!=DurableTask.AzureStorage.Tests.AzureStorageScenarioTests.ScheduledStart_Activity"
+      run: azurite --skipApiVersionCheck --silent --blobPort 10000 --queuePort 10001 --tablePort 10002 & dotnet test ./test/DurableTask.AzureStorage.Tests/DurableTask.AzureStorage.Tests.csproj --filter "FullyQualifiedName=DurableTask.AzureStorage.Tests.AzureStorageScenarioTests.LargeTableTextMessagePayloads_SizeViolation_BlobUrl & FullyQualifiedName=DurableTask.AzureStorage.Tests.AzureStorageScenarioTests.LargeTableTextMessagePayloads_FetchLargeMessages & FullyQualifiedName=DurableTask.AzureStorage.Tests.AzureStorageScenarioTests.ScheduledStart_Inline & FullyQualifiedName=DurableTask.AzureStorage.Tests.AzureStorageScenarioTests.ScheduledStart_Activity"
