@@ -48,7 +48,7 @@ extends:
       skipBuildTagsForGitHubPullRequests: ${{ variables['System.PullRequest.IsFork'] }}
 
     stages:
-    - stage: Build & Test
+    - stage: Validate
       jobs:
       - template: /eng/templates/build.yml@self # TODO: This also signs, refactor signing step out for speed
       - template: /eng/templates/test.yml@self
