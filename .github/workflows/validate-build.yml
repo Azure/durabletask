@@ -54,5 +54,5 @@ jobs:
       run: azurite --silent --blobPort 10000 --queuePort 10001 --tablePort 10002 & dotnet test ./test/DurableTask.Core.Tests/DurableTask.Core.Tests.csproj #--configuration $config --no-build --verbosity normal
 
     - name: Test DTFx.AzureStorage (except DurableTask.AzureStorage.Tests)
-      run: azurite --skipApiVersionCheck --silent --blobPort 10000 --queuePort 10001 --tablePort 10002 & dotnet test ./test/DurableTask.AzureStorage.Tests/DurableTask.AzureStorage.Tests.csproj --filter "FullyQualifiedName!~DurableTask.AzureStorage.Tests*" #--configuration $config --no-build --verbosity normal
+      run: azurite --skipApiVersionCheck --silent --blobPort 10000 --queuePort 10001 --tablePort 10002 & dotnet test ./test/DurableTask.AzureStorage.Tests/DurableTask.AzureStorage.Tests.csproj --filter "FullyQualifiedName!~DurableTask.AzureStorage.Tests.*" #--configuration $config --no-build --verbosity normal
 
