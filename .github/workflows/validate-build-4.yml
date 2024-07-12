@@ -50,4 +50,4 @@ jobs:
     - name: Install Azurite
       run: npm install -g azurite
     - name: Test DTFx.AzureStorage (DurableTask.AzureStorage.Tests except AzureStorageScaleTests and AzureStorageScenarioTests)
-      run: azurite --skipApiVersionCheck --silent --blobPort 10000 --queuePort 10001 --tablePort 10002 & dotnet test ./test/DurableTask.AzureStorage.Tests/DurableTask.AzureStorage.Tests.csproj --filter "FullyQualifiedName~DurableTask.AzureStorage.Tests.AzureStorageScenarioTests*"
+      run: azurite --skipApiVersionCheck --silent --blobPort 10000 --queuePort 10001 --tablePort 10002 & dotnet test ./test/DurableTask.AzureStorage.Tests/DurableTask.AzureStorage.Tests.csproj --filter "FullyQualifiedName~DurableTask.AzureStorage.Tests.AzureStorageScenarioTests"
