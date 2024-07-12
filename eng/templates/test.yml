@@ -17,17 +17,17 @@ jobs:
         displayName: 'Run unit and functional tests'
         inputs:
           testAssemblyVer2: |
-          **\bin\Debug\net462\DurableTask.AzureStorage.Tests.dll
-          **\bin\Debug\net462\DurableTask.Core.Tests.dll
-          **\bin\Debug\net462\DurableTask.Emulator.Tests.dll
-          !**\obj\**
-          testFiltercriteria: 'TestCategory!=DisabledInCI'
-          vsTestVersion: 16.0
-          distributionBatchType: basedOnExecutionTime
-          platform: 'any cpu'
-          configuration: 'Debug'
-          diagnosticsEnabled: True
-          collectDumpOn: always
-          rerunFailedTests: true
-          rerunFailedThreshold: 20
-          rerunMaxAttempts: 2
+            **\bin\Debug\net462\DurableTask.AzureStorage.Tests.dll
+            **\bin\Debug\net462\DurableTask.Core.Tests.dll
+            **\bin\Debug\net462\DurableTask.Emulator.Tests.dll
+            !**\obj\**
+            testFiltercriteria: 'TestCategory!=DisabledInCI'
+            vsTestVersion: 16.0
+            distributionBatchType: basedOnExecutionTime
+            platform: 'any cpu'
+            configuration: 'Debug'
+            diagnosticsEnabled: True
+            collectDumpOn: always
+            rerunFailedTests: true
+            rerunFailedThreshold: 20
+            rerunMaxAttempts: 2
