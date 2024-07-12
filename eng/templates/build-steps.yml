@@ -2,6 +2,11 @@ steps:
 # Start by restoring all the dependencies. This needs to be its own task
 # from what I can tell. We specifically only target DurableTask.AzureStorage
 # and its direct dependencies.
+- task: UseDotNet@2
+  displayName: 'Use the .NET Core 3.1 SDK'
+  inputs:
+    packageType: 'sdk'
+    version: '3.1.x'
 
 - task: DotNetCoreCLI@2
   displayName: 'Restore nuget dependencies'
