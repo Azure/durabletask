@@ -55,4 +55,3 @@ jobs:
 
     - name: Test DTFx.AzureStorage (DurableTask.AzureStorage.Net tests)
       run: azurite --skipApiVersionCheck --silent --blobPort 10000 --queuePort 10001 --tablePort 10002 & dotnet test ./test/DurableTask.AzureStorage.Tests/DurableTask.AzureStorage.Tests.csproj --filter "FullyQualifiedName~DurableTask.AzureStorage.Net" #--configuration $config --no-build --verbosity normal
-
