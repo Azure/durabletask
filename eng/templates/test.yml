@@ -19,13 +19,42 @@ steps:
             .\Test\DurableTask.AzureStorage.Tests\DurableTask.AzureStorage.Tests.csproj
             .\Test\DurableTask.Emulator.Tests\DurableTask.Emulator.Tests.csproj
 
+  # Build the filtered solution in release mode, specifying the continuous integration flag.
+  - task: VSBuild@1
+    displayName: 'Build (AzureStorage)'
+    inputs:
+      solution: 'src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln'
+      vsVersion: '16.0'
+      logFileVerbosity: minimal
+      configuration: Debug
+      msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+  - task: VSBuild@1
+    displayName: 'Build (ApplicationInsights)'
+    inputs:
+      solution: 'src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj'
+      vsVersion: '16.0'
+      logFileVerbosity: minimal
+      configuration: Debug
+      msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+  - task: VSBuild@1
+    displayName: 'Build (Emulator)'
+    inputs:
+      solution: 'src/DurableTask.Emulator/DurableTask.Emulator.csproj'
+      vsVersion: '16.0'
+      logFileVerbosity: minimal
+      configuration: Debug
+      msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+
   - task: VSBuild@1
     displayName: 'Build (Core Tests)'
     inputs:
       solution: '.\Test\DurableTask.Core.Tests\DurableTask.Core.Tests.csproj'
       vsVersion: '16.0'
       logFileVerbosity: minimal
-      configuration: Release
+      configuration: Debug
       msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
   - task: VSBuild@1
@@ -34,7 +63,7 @@ steps:
       solution: '.\Test\DurableTask.AzureStorage.Tests\DurableTask.AzureStorage.Tests.csproj'
       vsVersion: '16.0'
       logFileVerbosity: minimal
-      configuration: Release
+      configuration: Debug
       msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
   - task: VSBuild@1
@@ -43,7 +72,7 @@ steps:
       solution: '.\Test\DurableTask.Emulator.Tests\DurableTask.Emulator.Tests.csproj'
       vsVersion: '16.0'
       logFileVerbosity: minimal
-      configuration: Release
+      configuration: Debug
       msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
   - task: VSTest@2
