@@ -53,6 +53,8 @@ extends:
     - stage: Validate
       jobs:
       - job: Validate
+        strategy:
+          parallel: 20
         steps:
         # Build the code and the tests
         - template: /eng/templates/build-steps.yml@self
