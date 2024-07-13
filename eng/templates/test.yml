@@ -27,5 +27,5 @@ steps:
         diagnosticsEnabled: True
         collectDumpOn: always
         rerunFailedTests: true
-        rerunFailedThreshold: 20
-        rerunMaxAttempts: 2
+        rerunFailedThreshold: 30
+        rerunMaxAttempts: 3
