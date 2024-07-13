@@ -1,3 +1,13 @@
+parameters:
+- name: buildConfiguration
+  type: string
+  default: 'Release'
+
+parameters:
+- name: buildTests
+  type: boolean
+  default: false
+
 steps:
 # Start by restoring all the dependencies. This needs to be its own task
 # from what I can tell. We specifically only target DurableTask.AzureStorage
@@ -38,7 +48,7 @@ steps:
     solution: 'src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln'
     vsVersion: '16.0'
     logFileVerbosity: minimal
-    configuration: Release
+    configuration: ${{ parameters.buildConfiguration }}
     msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
 - task: VSBuild@1
@@ -47,7 +57,7 @@ steps:
     solution: 'src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj'
     vsVersion: '16.0'
     logFileVerbosity: minimal
-    configuration: Release
+    configuration: ${{ parameters.buildConfiguration }}
     msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
 - task: VSBuild@1
@@ -56,5 +66,33 @@ steps:
     solution: 'src/DurableTask.Emulator/DurableTask.Emulator.csproj'
     vsVersion: '16.0'
     logFileVerbosity: minimal
-    configuration: Release
+    configuration: ${{ parameters.buildConfiguration }}
     msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+- ${{ if eq(parameters.buildTests, true) }}:
+  - task: VSBuild@1
+    displayName: 'Build (Core Tests)'
+    inputs:
+      solution: '.\Test\DurableTask.Core.Tests\DurableTask.Core.Tests.csproj'
+      vsVersion: '16.0'
+      logFileVerbosity: minimal
+      configuration: ${{ parameters.buildConfiguration }}
+      msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+  - task: VSBuild@1
+    displayName: 'Build (AzureStorage Tests)'
+    inputs:
+      solution: '.\Test\DurableTask.AzureStorage.Tests\DurableTask.AzureStorage.Tests.csproj'
+      vsVersion: '16.0'
+      logFileVerbosity: minimal
+      configuration: ${{ parameters.buildConfiguration }}
+      msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+  - task: VSBuild@1
+    displayName: 'Build (Emulator Tests)'
+    inputs:
+      solution: '.\Test\DurableTask.Emulator.Tests\DurableTask.Emulator.Tests.csproj'
+      vsVersion: '16.0'
+      logFileVerbosity: minimal
+      configuration: ${{ parameters.buildConfiguration }}
+      msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true

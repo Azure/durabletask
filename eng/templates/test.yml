@@ -48,32 +48,6 @@ steps:
       msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
 
-  - task: VSBuild@1
-    displayName: 'Build (Core Tests)'
-    inputs:
-      solution: '.\Test\DurableTask.Core.Tests\DurableTask.Core.Tests.csproj'
-      vsVersion: '16.0'
-      logFileVerbosity: minimal
-      configuration: Debug
-      msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
-
-  - task: VSBuild@1
-    displayName: 'Build (AzureStorage Tests)'
-    inputs:
-      solution: '.\Test\DurableTask.AzureStorage.Tests\DurableTask.AzureStorage.Tests.csproj'
-      vsVersion: '16.0'
-      logFileVerbosity: minimal
-      configuration: Debug
-      msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
-
-  - task: VSBuild@1
-    displayName: 'Build (Emulator Tests)'
-    inputs:
-      solution: '.\Test\DurableTask.Emulator.Tests\DurableTask.Emulator.Tests.csproj'
-      vsVersion: '16.0'
-      logFileVerbosity: minimal
-      configuration: Debug
-      msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
   - task: VSTest@2
     displayName: 'Run unit and functional tests'
