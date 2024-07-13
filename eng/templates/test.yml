@@ -9,45 +9,6 @@ steps:
       sleep 5
     displayName: 'Install and Run Azurite'
 
-  - task: DotNetCoreCLI@2
-    displayName: 'Restore nuget dependencies'
-    inputs:
-        command: restore
-        verbosityRestore: Minimal
-        projects: |
-            .\Test\DurableTask.Core.Tests\DurableTask.Core.Tests.csproj
-            .\Test\DurableTask.AzureStorage.Tests\DurableTask.AzureStorage.Tests.csproj
-            .\Test\DurableTask.Emulator.Tests\DurableTask.Emulator.Tests.csproj
-
-  # Build the filtered solution in release mode, specifying the continuous integration flag.
-  - task: VSBuild@1
-    displayName: 'Build (AzureStorage)'
-    inputs:
-      solution: 'src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln'
-      vsVersion: '16.0'
-      logFileVerbosity: minimal
-      configuration: Debug
-      msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
-
-  - task: VSBuild@1
-    displayName: 'Build (ApplicationInsights)'
-    inputs:
-      solution: 'src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj'
-      vsVersion: '16.0'
-      logFileVerbosity: minimal
-      configuration: Debug
-      msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
-
-  - task: VSBuild@1
-    displayName: 'Build (Emulator)'
-    inputs:
-      solution: 'src/DurableTask.Emulator/DurableTask.Emulator.csproj'
-      vsVersion: '16.0'
-      logFileVerbosity: minimal
-      configuration: Debug
-      msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
-
-
 
   - task: VSTest@2
     displayName: 'Run unit and functional tests'
