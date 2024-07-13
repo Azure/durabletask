@@ -50,7 +50,7 @@ extends:
       skipBuildTagsForGitHubPullRequests: ${{ variables['System.PullRequest.IsFork'] }}
 
     stages:
-    - stage: DTFx.CoreValidate
+    - stage: DTFxCoreValidate
       jobs:
       - job: Validate
         strategy:
@@ -68,7 +68,7 @@ extends:
         - template: /eng/templates/test.yml@self
           parameters:
             testAssembly: '**\bin\**\netcoreapp3.1\DurableTask.Core.Tests.dll'
-    - stage: DTFx.ASValidate
+    - stage: DTFxASValidate
       jobs:
       - job: Validate
         strategy:
@@ -86,7 +86,7 @@ extends:
         - template: /eng/templates/test.yml@self
           parameters:
             testAssembly: '**\bin\**\netcoreapp3.1\DurableTask.AzureStorage.Tests.dll'
-    - stage: DTFx.EmulatorValidate
+    - stage: DTFxEmulatorValidate
       jobs:
       - job: Validate
         strategy:
