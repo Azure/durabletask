@@ -316,7 +316,46 @@ namespace DurableTask.Emulator
 
             if (ret == timeOutTask)
             {
-                throw new TimeoutException("timed out or canceled while waiting for orchestration to complete");
+                // for debug
+                // might have finished already
+                string debug = "";
+                lock (this.thisLock)
+                {
+                    if (this.instanceStore.ContainsKey(instanceId))
+                    {
+                        Dictionary<string, OrchestrationState> stateMap = this.instanceStore[instanceId];
+
+                        if (stateMap != null && stateMap.Count > 0)
+                        {
+                            OrchestrationState state = null;
+                            if (string.IsNullOrWhiteSpace(executionId))
+                            {
+                                IOrderedEnumerable<OrchestrationState> sortedStateMap = stateMap.Values.OrderByDescending(os => os.CreatedTime);
+                                state = sortedStateMap.First();
+                            }
+                            else
+                            {
+                                if (stateMap.ContainsKey(executionId))
+                                {
+                                    state = this.instanceStore[instanceId][executionId];
+                                }
+                            }
+
+                            if (state != null
+                                && state.OrchestrationStatus != OrchestrationStatus.Running
+                                && state.OrchestrationStatus != OrchestrationStatus.Pending)
+                            {
+                                // if only master id was specified then continueAsNew is a not a terminal state
+                                if (!(string.IsNullOrWhiteSpace(executionId) && state.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew))
+                                {
+                                    tcs.TrySetResult(state);
+                                }
+                            }
+                            debug = $"State: {state.OrchestrationStatus}, LastUpdate: {state.LastUpdatedTime}";
+                        }
+                    }
+                }
+                throw new TimeoutException($"timed out or canceled while waiting for orchestration to complete. Debug {debug}");
             }
 
             cts.Cancel();
