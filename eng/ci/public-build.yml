@@ -69,6 +69,7 @@ extends:
           parameters:
             testAssembly: '**\bin\**\netcoreapp3.1\DurableTask.Core.Tests.dll'
     - stage: DTFxASValidate
+      dependsOn: []
       jobs:
       - job: Validate
         strategy:
@@ -87,6 +88,7 @@ extends:
           parameters:
             testAssembly: '**\bin\**\netcoreapp3.1\DurableTask.AzureStorage.Tests.dll'
     - stage: DTFxEmulatorValidate
+      dependsOn: []
       jobs:
       - job: Validate
         strategy:
