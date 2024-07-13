@@ -318,5 +318,12 @@ namespace DurableTask.AzureStorage
         /// Consumers that require separate dispatch (such as the new out-of-proc v2 SDKs) must set this to true.
         /// </summary>
         public bool UseSeparateQueueForEntityWorkItems { get; set; } = false;
+
+        /// <summary>
+        /// Gets or sets the maximum number of history events for a single orchestration instance.
+        /// An orchestrator that goes beyond this limit is automatically terminated.
+        /// By default, this is null, which means there is no limit.
+        /// </summary>
+        public int? MaxHistoryEvents { get; set; } = null;
     }
 }

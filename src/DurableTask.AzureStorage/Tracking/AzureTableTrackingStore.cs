@@ -14,7 +14,6 @@
 namespace DurableTask.AzureStorage.Tracking
 {
     using System;
-    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
@@ -226,21 +225,35 @@ namespace DurableTask.AzureStorage.Tracking
 
             return new OrchestrationHistory(historyEvents, checkpointCompletionTime, eTagValue, trackingStoreContext);
         }
-
+#nullable enable
         async Task<TableEntitiesResponseInfo<DynamicTableEntity>> GetHistoryEntitiesResponseInfoAsync(string instanceId, string expectedExecutionId, IList<string> projectionColumns, CancellationToken cancellationToken = default(CancellationToken))
         {
             var sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
             string filterCondition = TableQuery.GenerateFilterCondition(PartitionKeyProperty, QueryComparisons.Equal, sanitizedInstanceId);
-            if (!string.IsNullOrEmpty(expectedExecutionId))
-            {
-                // Filter down to a specific generation.
-                var rowKeyOrExecutionId = TableQuery.CombineFilters(
-                    TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.Equal, SentinelRowKey),
-                    TableOperators.Or,
-                    TableQuery.GenerateFilterCondition("ExecutionId", QueryComparisons.Equal, expectedExecutionId));
 
-                filterCondition = TableQuery.CombineFilters(filterCondition, TableOperators.And, rowKeyOrExecutionId);
+            // we need to get the executionID to account for continueAsNew scenarios, where a given instanceID may have multiple histories
+            // we can obtain this from the sentinel row, which always has the latest executionID
+            if (string.IsNullOrWhiteSpace(expectedExecutionId))
+            {
+                var sentinelRowFilter = TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.Equal, SentinelRowKey);
+                var sentinelRowForInstanceIdFilter = TableQuery.CombineFilters(filterCondition, TableOperators.And, sentinelRowFilter);
+
+                TableQuery<DynamicTableEntity> sentinelRowQuery = new TableQuery<DynamicTableEntity>().Where(sentinelRowForInstanceIdFilter);
+                var sentinelRowQueryResponse = await this.HistoryTable.ExecuteQueryAsync(sentinelRowQuery, cancellationToken);
+
+                if (sentinelRowQueryResponse.ReturnedEntities != null && sentinelRowQueryResponse.ReturnedEntities.Count > 0)
+                {
+                    expectedExecutionId = sentinelRowQueryResponse.ReturnedEntities.FirstOrDefault().Properties["ExecutionId"].StringValue;
+                }
             }
+
+            // Filter down to a specific generation.
+            var rowKeyOrExecutionId = TableQuery.CombineFilters(
+                TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.Equal, SentinelRowKey),
+                TableOperators.Or,
+                TableQuery.GenerateFilterCondition("ExecutionId", QueryComparisons.Equal, expectedExecutionId));
+
+            filterCondition = TableQuery.CombineFilters(filterCondition, TableOperators.And, rowKeyOrExecutionId);
 
             TableQuery<DynamicTableEntity> query = new TableQuery<DynamicTableEntity>().Where(filterCondition);
 
@@ -250,9 +263,11 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             var tableEntitiesResponseInfo = await this.HistoryTable.ExecuteQueryAsync(query, cancellationToken);
-
             return tableEntitiesResponseInfo;
+
+
         }
+#nullable disable
 
         async Task<IList<DynamicTableEntity>> QueryHistoryAsync(TableQuery<DynamicTableEntity> query, string instanceId, CancellationToken cancellationToken)
         {

@@ -515,6 +515,23 @@ namespace DurableTask.AzureStorage
                        batch.OrchestrationExecutionId,
                        cancellationToken);
 
+                    int numEvents = history.Events.Count;
+                    bool hasMaximumHistorySize = this.settings.MaxHistoryEvents != null;
+                    if (hasMaximumHistorySize && numEvents > this.settings.MaxHistoryEvents)
+                    {
+                        // number of history events exceeds limit, fail this orchestrator
+                        this.settings.Logger.OrchestrationProcessingFailure(
+                            this.storageAccountName,
+                            this.settings.TaskHubName,
+                            batch.OrchestrationInstanceId,
+                            batch.OrchestrationExecutionId,
+                            $"Orchestration has {numEvents} events, exceeding the limit of {this.settings.MaxHistoryEvents}. Orchestrator will be terminated.");
+
+                        // Fail the orchestrator by creating Terminate event
+                        ExecutionTerminatedEvent terminateEvent = new ExecutionTerminatedEvent(-1, $"Orchestrator exceeded maximum history size: {this.settings.MaxHistoryEvents}");
+                        history.Events.Add(terminateEvent);
+                    }
+
                     batch.OrchestrationState = new OrchestrationRuntimeState(history.Events);
                     batch.ETag = history.ETag;
                     batch.LastCheckpointTime = history.LastCheckpointTime;
