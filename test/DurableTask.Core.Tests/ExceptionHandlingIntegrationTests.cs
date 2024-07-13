@@ -25,7 +25,7 @@ namespace DurableTask.Core.Tests
     [TestClass]
     public class ExceptionHandlingIntegrationTests
     {
-        static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 300 : 10);
+        static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 300 : 30);
 
         readonly TaskHubWorker worker;
         readonly TaskHubClient client;

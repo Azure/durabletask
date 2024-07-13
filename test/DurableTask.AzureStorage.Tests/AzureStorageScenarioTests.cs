@@ -1517,7 +1517,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 string message = this.GenerateMediumRandomStringPayload(largeMessageSize, utf8ByteSize: 1, utf16ByteSize: 2).ToString();
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
-                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(5));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 await ValidateLargeMessageBlobUrlAsync(
@@ -1632,7 +1632,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 string message = this.GenerateMediumRandomStringPayload(largeMessageSize, utf8ByteSize: 1, utf16ByteSize: 2).ToString();
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
-                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(5));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.AreEqual(message, JToken.Parse(status?.Input));

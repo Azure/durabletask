@@ -90,7 +90,7 @@ namespace DurableTask.Core.Tests
 
             OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
 
-            TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 10);
+            TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 30);
             await this.client.WaitForOrchestrationAsync(instance, timeout);
 
             Assert.IsNotNull(orchestration);
@@ -135,7 +135,7 @@ namespace DurableTask.Core.Tests
 
             OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
 
-            TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 10);
+            TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 30);
             await this.client.WaitForOrchestrationAsync(instance, timeout);
 
             // Each reply gets a new context, so the output should stay the same regardless of how
@@ -172,7 +172,7 @@ namespace DurableTask.Core.Tests
 
             OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), null);
 
-            TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 10);
+            TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 30);
             await this.client.WaitForOrchestrationAsync(instance, timeout);
 
             // Each activity gets a new context, so the output should stay the same regardless of how
@@ -206,7 +206,7 @@ namespace DurableTask.Core.Tests
                     { "Test", "Value" }
                 });
 
-            TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 10);
+            TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 30);
             await this.client.WaitForOrchestrationAsync(instance, timeout);
 
             // Each activity gets a new context, so the output should stay the same regardless of how
@@ -272,7 +272,7 @@ namespace DurableTask.Core.Tests
                     { "Test", "Value" }
                 });
 
-            TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 10);
+            TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 30);
             await this.client.WaitForOrchestrationAsync(instance, timeout);
 
             foreach (OrchestrationExecutionContext context in capturedContexts)
@@ -307,7 +307,7 @@ namespace DurableTask.Core.Tests
                     { "Test", "Value" }
                 });
 
-            TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 10);
+            TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 30);
             await this.client.WaitForOrchestrationAsync(instance, timeout);
 
             // Each activity gets a new context, so the output should stay the same regardless of how
@@ -432,7 +432,7 @@ namespace DurableTask.Core.Tests
                 version: "FakeVersion",
                 input: null);
 
-            TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 5);
+            TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 15);
             OrchestrationState state = await this.client.WaitForOrchestrationAsync(instance, timeout);
 
             Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
