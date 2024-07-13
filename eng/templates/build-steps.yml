@@ -3,7 +3,6 @@ parameters:
   type: string
   default: 'Release'
 
-parameters:
 - name: buildTests
   type: boolean
   default: false
