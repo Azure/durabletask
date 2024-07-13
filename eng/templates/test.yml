@@ -1,4 +1,5 @@
 steps:
+  # Install Azurite
   - bash: |
       echo "Installing azurite"
       npm install -g azurite
@@ -9,9 +10,9 @@ steps:
       sleep 5
     displayName: 'Install and Run Azurite'
 
-
+  # Run tests
   - task: VSTest@2
-    displayName: 'Run unit and functional tests'
+    displayName: 'Run tests'
     inputs:
       testAssemblyVer2: |
         **\bin\**\DurableTask.AzureStorage.Tests.dll
