@@ -50,7 +50,7 @@ extends:
       skipBuildTagsForGitHubPullRequests: ${{ variables['System.PullRequest.IsFork'] }}
 
     stages:
-    - stage: Validate
+    - stage: DTFx.CoreValidate
       jobs:
       - job: Validate
         strategy:
@@ -66,3 +66,41 @@ extends:
             buildTests: true 
         # Run tests
         - template: /eng/templates/test.yml@self
+          parameters:
+            testAssembly: '**\bin\**\netcoreapp3.1\DurableTask.Core.Tests.dll'
+    - stage: DTFx.ASValidate
+      jobs:
+      - job: Validate
+        strategy:
+          parallel: 13
+        steps:
+        # Build the code and the tests
+        - template: /eng/templates/build-steps.yml@self
+          parameters:
+            # The tests only build in the 'Debug' configuration.
+            # In the release configuration, the packages don't expose their internals
+            # to the test projects.
+            buildConfiguration: 'Debug'
+            buildTests: true 
+        # Run tests
+        - template: /eng/templates/test.yml@self
+          parameters:
+            testAssembly: '**\bin\**\netcoreapp3.1\DurableTask.AzureStorage.Tests.dll'
+    - stage: DTFx.EmulatorValidate
+      jobs:
+      - job: Validate
+        strategy:
+          parallel: 13
+        steps:
+        # Build the code and the tests
+        - template: /eng/templates/build-steps.yml@self
+          parameters:
+            # The tests only build in the 'Debug' configuration.
+            # In the release configuration, the packages don't expose their internals
+            # to the test projects.
+            buildConfiguration: 'Debug'
+            buildTests: true 
+        # Run tests
+        - template: /eng/templates/test.yml@self
+          parameters:
+            testAssembly: '**\bin\**\netcoreapp3.1\DurableTask.Emulator.Tests.dll'
