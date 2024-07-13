@@ -15,12 +15,12 @@ steps:
     displayName: 'Run tests'
     inputs:
       testAssemblyVer2: |
-        **\bin\**\DurableTask.AzureStorage.Tests.dll
-        **\bin\**\DurableTask.Core.Tests.dll
-        **\bin\**\DurableTask.Emulator.Tests.dll
+        **\bin\net462\DurableTask.AzureStorage.Tests.dll
+        **\bin\net462\DurableTask.Core.Tests.dll
+        **\bin\net462\DurableTask.Emulator.Tests.dll
         !**\obj\**
         testFiltercriteria: 'TestCategory!=DisabledInCI'
-        vsTestVersion: 16.0
+        vsTestVersion: 17.0
         distributionBatchType: basedOnExecutionTime
         platform: 'any cpu'
         configuration: 'Debug'
