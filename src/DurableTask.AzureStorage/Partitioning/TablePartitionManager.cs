@@ -352,7 +352,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     bool renewedLease = false;
                     bool drainedLease = false;
                     bool releasedLease = false;
-                    bool isListeningToOwnedQueue = false;
+                    bool isListeningToOwnedQueue = true;
                     ETag etag = partition.ETag;
 
                     // String previousOwner is for the steal process logs. Only used for stealing leases of any worker which is in shutdown process in this loop.
