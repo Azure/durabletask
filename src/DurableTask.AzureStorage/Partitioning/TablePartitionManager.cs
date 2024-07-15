@@ -352,10 +352,17 @@ namespace DurableTask.AzureStorage.Partitioning
                     bool renewedLease = false;
                     bool drainedLease = false;
                     bool releasedLease = false;
+                    bool isListeningToOwnedQueue = false;
                     ETag etag = partition.ETag;
 
                     // String previousOwner is for the steal process logs. Only used for stealing leases of any worker which is in shutdown process in this loop.
                     string previousOwner = partition.CurrentOwner ?? this.workerName;
+
+                    // If the partition is owned by this worker, check if the worker is listening to the owned control queue.
+                    if(partition.CurrentOwner == this.workerName)
+                    {
+                        isListeningToOwnedQueue = this.service.CheckIfListeningToOwnedQueue(partition);
+                    }
 
                     if (!isShuttingDown)
                     {
@@ -407,7 +414,9 @@ namespace DurableTask.AzureStorage.Partitioning
                             throw;
                         }
 
-                        if (claimedLease)
+                        // Worker should listen to the control queue if 1) worker just claimed the lease,
+                        // or 2) worker is already the lease owner but hasn't listened to the queue yet for some reason.
+                        if (claimedLease || !isListeningToOwnedQueue)
                         {
                             // Notify the orchestration session manager that we acquired a lease for one of the partitions.
                             // This will cause it to start reading control queue messages for that partition.

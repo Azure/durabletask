@@ -18,6 +18,7 @@ namespace DurableTask.AzureStorage
     using System.Diagnostics.Tracing;
     using System.Linq;
     using System.Net;
+    using System.Runtime.CompilerServices;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
@@ -572,6 +573,12 @@ namespace DurableTask.AzureStorage
             {
                 this.orchestrationSessionManager.RemoveQueue(partition.RowKey, CloseReason.LeaseLost, nameof(DropLostControlQueue));
             }
+        }
+
+        internal bool CheckIfListeningToOwnedQueue(TablePartitionLease partition)
+        {
+            return this.allControlQueues.TryGetValue(partition.RowKey, out ControlQueue controlQueue) &&
+                this.OwnedControlQueues.Contains(controlQueue);
         }
 
         internal Task OnOwnershipLeaseReleasedAsync(BlobPartitionLease lease, CloseReason reason)
