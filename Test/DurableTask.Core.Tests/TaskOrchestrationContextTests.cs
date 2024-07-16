@@ -24,7 +24,7 @@ namespace DurableTask.Core.Tests
             var timer = context.CreateTimer<bool>(originalTime, false);
 
             var resultTime = ((CreateTimerOrchestratorAction)context.OrchestratorActions.Single()).FireAt;
-            Assert.AreEqual(DateTimeKind.Utc, resultTime.Kind);
+            Assert.AreEqual(originalTime.ToUniversalTime(), resultTime);
         }
     }
 }
