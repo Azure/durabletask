@@ -1295,7 +1295,9 @@ namespace DurableTask.AzureStorage.Tests
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
-
+                // by convention, DateTime objects are expected to be in UTC, but previous version of DTFx.AzureStorage
+                // performed a implicit conversions to UTC when different timezones where used. This test ensures
+                // that behavior is backwards compatible, despite not being recommended.
                 var now = useUtc ? DateTime.UtcNow : DateTime.Now;
                 var fireAt = now.AddSeconds(3);
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.DelayedCurrentTimeInline), fireAt);
