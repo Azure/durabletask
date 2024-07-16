@@ -513,7 +513,7 @@ namespace DurableTask.AzureStorage.Tracking
                 yield break;
             }
 
-            IEnumerable<Task<OrchestrationState>> instanceQueries = instanceIds.Select(instance => this.GetStateAsync(instance, allExecutions: true, fetchInput: false, cancellationToken).SingleAsync().AsTask());
+            IEnumerable<Task<OrchestrationState>> instanceQueries = instanceIds.Select(instance => this.GetStateAsync(instance, allExecutions: true, fetchInput: false, cancellationToken).SingleOrDefaultAsync().AsTask());
             foreach (OrchestrationState state in await Task.WhenAll(instanceQueries))
             {
                 if (state != null)
