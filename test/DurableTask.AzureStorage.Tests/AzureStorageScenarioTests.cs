@@ -1285,6 +1285,28 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        [DataTestMethod]
+        [DataRow(true, true)]
+        [DataRow(true, false)]
+        [DataRow(false, true)]
+        [DataRow(false, false)]
+        public async Task TimerDelay(bool enableExtendedSessions, bool useUtc)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                var now = useUtc ? DateTime.UtcNow : DateTime.Now;
+                var fireAt = now.AddSeconds(3);
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.DelayedCurrentTimeInline), fireAt);
+
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                await host.StopAsync();
+            }
+        }
+
         /// <summary>
         /// End-to-end test which validates that orchestrations run concurrently of each other (up to 100 by default).
         /// </summary>
@@ -3301,11 +3323,11 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
-            internal class DelayedCurrentTimeInline : TaskOrchestration<DateTime, string>
+            internal class DelayedCurrentTimeInline : TaskOrchestration<DateTime, DateTime>
             {
-                public override async Task<DateTime> RunTask(OrchestrationContext context, string input)
+                public override async Task<DateTime> RunTask(OrchestrationContext context, DateTime fireAt)
                 {
-                    await context.CreateTimer<bool>(context.CurrentUtcDateTime.Add(TimeSpan.FromSeconds(3)), true);
+                    await context.CreateTimer<bool>(fireAt, true);
                     return context.CurrentUtcDateTime;
                 }
             }
