@@ -29,6 +29,7 @@
     <!-- We don't really make use of these dependencies, but 1ES somehow detects them in our test project and flags them for update.
 	Since this is just a test project, and to prevent "warning fatigue" so real CVEs stand out, we choose to upgrade the dependency explicitly to remove the false alarm.-->
     <PackageReference Include="System.Data.SqlClient" Version="4.8.6" /> <!-- Version 4.3.1 was detected by default-->
+	<PackageReference Include="Microsoft.Data.Services.Client" Version="5.8.4" /> <!-- Without this, we resolve Microsoft.Data.OData 5.8.2, which is flagged-->
   </ItemGroup>
 
   <ItemGroup>
@@ -49,9 +50,6 @@
   <ItemGroup>
     <None Update="large.jpeg">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="testhost.dll.config" Condition="'$(TargetFramework)' == 'netcoreapp2.1'">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
 
