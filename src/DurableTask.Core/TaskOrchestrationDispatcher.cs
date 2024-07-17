@@ -28,6 +28,7 @@ namespace DurableTask.Core
     using DurableTask.Core.Middleware;
     using DurableTask.Core.Serializing;
     using DurableTask.Core.Tracing;
+    using ActivityStatusCode = Tracing.ActivityStatusCode;
 
     /// <summary>
     /// Dispatcher for orchestrations to handle processing and renewing, completion of orchestration events
