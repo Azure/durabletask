@@ -31,6 +31,7 @@ namespace DurableTask.AzureStorage.Tests
         {
             string storageConnectionString = GetTestStorageAccountConnectionString();
 
+            // TODO: update Microsoft.Extensions.Logging to avoid the following warning suppression
 #pragma warning disable CS0618 // Type or member is obsolete
             var settings = new AzureStorageOrchestrationServiceSettings
             {

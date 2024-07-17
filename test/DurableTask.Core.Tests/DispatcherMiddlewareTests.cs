@@ -43,6 +43,7 @@ namespace DurableTask.Core.Tests
             // configure logging so traces are emitted during tests.
             // This facilitates debugging when tests fail.
 
+            // TODO: update Microsoft.Extensions.Logging to avoid the following warning suppression
 #pragma warning disable CS0618 // Type or member is obsolete
             var loggerFactory = new LoggerFactory().AddConsole(LogLevel.Trace);
 #pragma warning restore CS0618 // Type or member is obsolete
