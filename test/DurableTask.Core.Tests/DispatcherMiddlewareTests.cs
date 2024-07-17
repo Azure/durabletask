@@ -10,6 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
+#if !NET462 // TODO: For some reason tests aren't discoverable in the 1ES CI pipeline when using NET462, leading to errors. Need to investigate.
 #nullable enable
 namespace DurableTask.Core.Tests
 {
@@ -115,7 +116,6 @@ namespace DurableTask.Core.Tests
             Assert.AreNotSame(instance1, instance2);
             Assert.AreEqual(instance1!.InstanceId, instance2!.InstanceId);
         }
-#if !NET462
 
         [TestMethod]
         public async Task OrchestrationDispatcherMiddlewareContextFlow()
