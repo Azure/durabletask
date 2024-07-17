@@ -68,7 +68,7 @@ extends:
         - template: /eng/templates/test.yml@self
           parameters:
             # TODO: for some reason we're unable to run the net462 tests in the CI
-            testAssembly: '**\bin\Debug\netcoreapp3.1\DurableTask.Core.Tests.dll'
+            testAssembly: '**\bin\Debug\**\DurableTask.Core.Tests.dll'
     - stage: DTFxASValidate
       dependsOn: []
       jobs:
