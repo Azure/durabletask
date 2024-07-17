@@ -59,7 +59,7 @@ namespace DurableTask.Core.Tests
         }
 
         [TestCleanup]
-        public async Task TestCleanup()
+        public async Task CleanupTests()
         {
             await this.worker!.StopAsync(true);
         }
