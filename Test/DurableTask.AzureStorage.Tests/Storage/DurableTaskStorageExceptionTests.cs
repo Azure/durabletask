@@ -13,11 +13,11 @@
 #nullable enable
 namespace DurableTask.AzureStorage.Tests.Storage
 {
+    using System.Net;
     using Azure;
     using Azure.Storage.Blobs.Models;
     using DurableTask.AzureStorage.Storage;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using System.Net;
 
     [TestClass]
     public class DurableTaskStorageExceptionTests
