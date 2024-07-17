@@ -35,12 +35,12 @@ namespace DurableTask.AzureStorage.Storage
         }
 
         public DurableTaskStorageException(RequestFailedException requestFailedException)
-            : base(requestFailedException.Message, requestFailedException)
+            : base("An error occurred while communicating with Azure Storage", requestFailedException)
         {
-            this.HttpStatusCode = requestFailedException.Status;
-            if (requestFailedException?.ErrorCode == BlobErrorCode.LeaseLost)
+            if (requestFailedException != null)
             {
-                LeaseLost = true;
+                this.HttpStatusCode = requestFailedException.Status;
+                this.LeaseLost = requestFailedException.ErrorCode != null && requestFailedException.ErrorCode == BlobErrorCode.LeaseLost;
             }
         }
 
