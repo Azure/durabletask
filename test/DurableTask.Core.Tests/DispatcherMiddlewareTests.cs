@@ -39,7 +39,7 @@ namespace DurableTask.Core.Tests
         TaskHubClient client = null!;
 
         [TestInitialize]
-        public void InitializeTests()
+        public async void InitializeTests()
         {
             // configure logging so traces are emitted during tests.
             // This facilitates debugging when tests fail.
@@ -51,18 +51,18 @@ namespace DurableTask.Core.Tests
             var service = new LocalOrchestrationService();
             this.worker = new TaskHubWorker(service, loggerFactory);
 
-            this.worker
+            await this.worker
                 .AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration), typeof(ParentWorkflow), typeof(ChildWorkflow))
                 .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
-                .StartAsync().RunSynchronously();
+                .StartAsync();
 
             this.client = new TaskHubClient(service);
         }
 
-        [TestCleanup()]
-        public void CleanupTests()
+        [TestCleanup]
+        public async void CleanupTests()
         {
-            this.worker!.StopAsync(true).RunSynchronously();
+            await this.worker!.StopAsync(true);
         }
 
         [TestMethod]
@@ -448,6 +448,6 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
             Assert.AreEqual("FakeActivity,FakeActivityVersion,SomeInput", state.Output);
         }
-#endif
     }
 }
+#endif
