@@ -38,7 +38,7 @@ namespace DurableTask.Core.Tests
         TaskHubClient client = null!;
 
         [TestInitialize]
-        public async Task Initialize()
+        public async Task InitializeTests()
         {
             // configure logging so traces are emitted during tests.
             // This facilitates debugging when tests fail.
