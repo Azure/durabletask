@@ -10,6 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
+#if !NET462
 #nullable enable
 namespace DurableTask.Core.Tests
 {
@@ -449,3 +450,5 @@ namespace DurableTask.Core.Tests
         }
     }
 }
+
+#endif
