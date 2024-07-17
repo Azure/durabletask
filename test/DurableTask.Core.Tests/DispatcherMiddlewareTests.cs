@@ -10,7 +10,6 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-#if !NET462
 #nullable enable
 namespace DurableTask.Core.Tests
 {
@@ -38,7 +37,7 @@ namespace DurableTask.Core.Tests
         TaskHubWorker worker = null!;
         TaskHubClient client = null!;
 
-        [TestInitialize]
+        [TestInitialize()]
         public async Task InitializeTests()
         {
             // configure logging so traces are emitted during tests.
@@ -59,7 +58,7 @@ namespace DurableTask.Core.Tests
             this.client = new TaskHubClient(service);
         }
 
-        [TestCleanup]
+        [TestCleanup()]
         public async Task CleanupTests()
         {
             await this.worker!.StopAsync(true);
@@ -116,6 +115,7 @@ namespace DurableTask.Core.Tests
             Assert.AreNotSame(instance1, instance2);
             Assert.AreEqual(instance1!.InstanceId, instance2!.InstanceId);
         }
+#if !NET462
 
         [TestMethod]
         public async Task OrchestrationDispatcherMiddlewareContextFlow()
@@ -448,7 +448,6 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
             Assert.AreEqual("FakeActivity,FakeActivityVersion,SomeInput", state.Output);
         }
+#endif
     }
 }
-
-#endif
