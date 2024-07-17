@@ -24,17 +24,17 @@ namespace DurableTask.AzureStorage.Storage
         {
         }
 
-        public DurableTaskStorageException(string message)
+        public DurableTaskStorageException(string? message)
             : base(message)
         {
         }
 
-        public DurableTaskStorageException(string message, Exception inner)
+        public DurableTaskStorageException(string? message, Exception? inner)
             : base(message, inner)
         {
         }
 
-        public DurableTaskStorageException(RequestFailedException requestFailedException)
+        public DurableTaskStorageException(RequestFailedException? requestFailedException)
             : base("An error occurred while communicating with Azure Storage", requestFailedException)
         {
             if (requestFailedException != null)
