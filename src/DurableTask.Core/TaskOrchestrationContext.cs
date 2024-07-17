@@ -249,7 +249,7 @@ namespace DurableTask.Core
             var createTimerOrchestratorAction = new CreateTimerOrchestratorAction
             {
                 Id = id,
-                FireAt = fireAt.ToUniversalTime(),
+                FireAt = fireAt,
             };
 
             this.orchestratorActionsMap.Add(id, createTimerOrchestratorAction);
