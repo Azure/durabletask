@@ -3346,7 +3346,18 @@ namespace DurableTask.AzureStorage.Tests
             {
                 public override async Task<DateTime> RunTask(OrchestrationContext context, DateTime fireAt)
                 {
+                    // We are not actually using context.CurrentUtcDateTime here because we need
+                    // more control over the value passed to CreateTimer for test purposes.
+                    // However, adding some delay over context.CurrentUtcDateTime is a very common use case,
+                    // so we want to make sure the result is always in UTC.
+                    var timeInTheFuture = context.CurrentUtcDateTime.AddSeconds(1);
+                    if (timeInTheFuture.Kind != DateTimeKind.Utc)
+                    {
+                        throw new Exception($"context.CurrentUtcDateTime.Kind is {context.CurrentUtcDateTime.Kind}, but must be Utc");
+                    }
+
                     await context.CreateTimer<bool>(fireAt, true);
+                    
                     return context.CurrentUtcDateTime;
                 }
             }
