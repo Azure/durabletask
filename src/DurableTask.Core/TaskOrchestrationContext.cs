@@ -245,11 +245,16 @@ namespace DurableTask.Core
 
         public override async Task<T> CreateTimer<T>(DateTime fireAt, T state, CancellationToken cancelToken)
         {
+            if (fireAt.Kind != DateTimeKind.Utc)
+            {
+                throw new ArgumentException("The fireAt parameter must have DateTimeKind.Utc", nameof(fireAt));
+            }
+
             int id = this.idCounter++;
             var createTimerOrchestratorAction = new CreateTimerOrchestratorAction
             {
                 Id = id,
-                FireAt = fireAt.ToUniversalTime(),
+                FireAt = fireAt,
             };
 
             this.orchestratorActionsMap.Add(id, createTimerOrchestratorAction);
