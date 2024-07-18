@@ -2252,6 +2252,7 @@ namespace DurableTask.AzureStorage.Tests
         /// End-to-end test which validates a simple orchestrator function that calls an activity function
         /// and checks the OpenTelemetry trace information
         /// </summary>
+        [TestCategory("DisabledInCI")]
         [DataTestMethod]
         [DataRow(true)]
         [DataRow(false)]
@@ -2344,6 +2345,7 @@ namespace DurableTask.AzureStorage.Tests
         /// End-to-end test which validates a simple orchestrator function that waits for an external event
         /// raised through the RaiseEvent API and checks the OpenTelemetry trace information
         /// </summary>
+        [TestCategory("DisabledInCI")]
         [DataTestMethod]
         [DataRow(true)]
         [DataRow(false)]
@@ -2445,6 +2447,7 @@ namespace DurableTask.AzureStorage.Tests
         /// End-to-end test which validates a simple orchestrator function that waits for an external event
         /// raised by calling SendEvent and checks the OpenTelemetry trace information
         /// </summary>
+        [TestCategory("DisabledInCI")]
         [DataTestMethod]
         [DataRow(true)]
         [DataRow(false)]

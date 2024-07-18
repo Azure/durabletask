@@ -19,6 +19,7 @@ namespace DurableTask.Core.Tests
     using System.Threading.Tasks;
     using DurableTask.Core.Exceptions;
     using DurableTask.Emulator;
+    using Microsoft.Extensions.Logging;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Newtonsoft.Json;
 
@@ -32,9 +33,17 @@ namespace DurableTask.Core.Tests
 
         public ExceptionHandlingIntegrationTests()
         {
+            // configure logging so traces are emitted during tests.
+            // This facilitates debugging when tests fail.
+
+            // TODO: update Microsoft.Extensions.Logging to avoid the following warning suppression
+#pragma warning disable CS0618 // Type or member is obsolete
+            var loggerFactory = new LoggerFactory().AddConsole(LogLevel.Trace);
+#pragma warning restore CS0618 // Type or member is obsolete
+
             var service = new LocalOrchestrationService();
-            this.worker = new TaskHubWorker(service);
-            this.client = new TaskHubClient(service);
+            this.worker = new TaskHubWorker(service, loggerFactory);
+            this.client = new TaskHubClient(service, loggerFactory: loggerFactory);
         }
 
         [DataTestMethod]

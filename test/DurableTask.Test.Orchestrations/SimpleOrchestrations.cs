@@ -409,6 +409,11 @@ namespace DurableTask.Test.Orchestrations
                 responderOrchestration = Task.FromResult("Herkimer is done");
             }
 
+            // before sending the event, wait a few seconds to ensure the sub-orchestrator exists
+            // otherwise, we risk a race condition where the event is dicarded because the instances table
+            // does not yet have the sub-orchestrator instance in it.
+            await context.CreateTimer<object>(context.CurrentUtcDateTime.AddSeconds(10), state: null);
+
             // send the id of this orchestration to the responder
             var responderInstance = new OrchestrationInstance() { InstanceId = responderId };
             context.SendEvent(responderInstance, channelName, context.OrchestrationInstance.InstanceId);

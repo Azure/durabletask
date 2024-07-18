@@ -31,7 +31,7 @@ resources:
     ref: refs/tags/release
 
 extends:
-  # The template we extend injects compliance-checks into the pipleine, such as SDL and CodeQL
+  # The template we extend injects compliance-checks into the pipeline, such as SDL and CodeQL
   template: v1/1ES.Unofficial.PipelineTemplate.yml@1es
   parameters:
     pool:
@@ -67,7 +67,7 @@ extends:
         # Run tests
         - template: /eng/templates/test.yml@self
           parameters:
-            testAssembly: '**\bin\**\netcoreapp3.1\DurableTask.Core.Tests.dll'
+            testAssembly: '**\bin\**\DurableTask.Core.Tests.dll'
     - stage: DTFxASValidate
       dependsOn: []
       jobs:
@@ -86,7 +86,7 @@ extends:
         # Run tests
         - template: /eng/templates/test.yml@self
           parameters:
-            testAssembly: '**\bin\**\netcoreapp3.1\DurableTask.AzureStorage.Tests.dll'
+            testAssembly: '**\bin\**\DurableTask.AzureStorage.Tests.dll'
     - stage: DTFxEmulatorValidate
       dependsOn: []
       jobs:
@@ -105,4 +105,4 @@ extends:
         # Run tests
         - template: /eng/templates/test.yml@self
           parameters:
-            testAssembly: '**\bin\**\netcoreapp3.1\DurableTask.Emulator.Tests.dll'
+            testAssembly: '**\bin\**\DurableTask.Emulator.Tests.dll'

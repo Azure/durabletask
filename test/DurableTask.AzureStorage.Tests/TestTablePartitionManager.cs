@@ -446,7 +446,6 @@ namespace DurableTask.AzureStorage.Tests
 
         // Start with four workers and four partitions. Then kill three workers.
         // Test that the remaining worker will take all the partitions.
-        [TestCategory("DisabledInCI")]
         [TestMethod]
         public async Task TestKillThreeWorker()
         {
@@ -586,7 +585,6 @@ namespace DurableTask.AzureStorage.Tests
         /// Ensure that all instances should be processed sucessfully.
         /// </summary>
         /// <returns></returns>
-        [TestCategory("DisabledInCI")]
         [TestMethod]
         public async Task EnsureOwnedQueueExclusive()
         {
