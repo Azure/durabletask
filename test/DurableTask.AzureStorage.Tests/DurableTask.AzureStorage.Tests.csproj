@@ -14,7 +14,7 @@
     <!-- Increasing Azure.Monitor.OpenTelemetry.Exporter to 1.0.0-beta.5 or beyond brings Systems.DiagnosticSource 7.x, which is uncompatible with netcoreapp3.1.
     The warning reads:
 	  "System.Diagnostics.DiagnosticSource 7.0.0-rc.1.22426.10 doesn't support netcoreapp3.1 and has not been tested with it
-      Consider upgrading your TargetFramework to net6.0 or later. You may also set <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings> 
+	  Consider upgrading your TargetFramework to net6.0 or later. You may also set <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings> 
 	  in the project file to ignore this warning and attempt to run in this unsupported configuration at your own risk."-->
     <PackageReference Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.0.0-beta.4" />
     <PackageReference Include="System.Configuration.ConfigurationManager" Version="4.5.0" />
