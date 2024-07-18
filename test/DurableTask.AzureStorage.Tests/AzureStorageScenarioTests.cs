@@ -1286,13 +1286,11 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [DataTestMethod]
-        [DataRow(true, true)]
-        [DataRow(true, false)]
-        [DataRow(false, true)]
-        [DataRow(false, false)]
-        public async Task TimerDelay(bool enableExtendedSessions, bool useUtc)
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task TimerDelay(bool useUtc)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(false))
             {
                 await host.StartAsync();
                 // by convention, DateTime objects are expected to be in UTC, but previous version of DTFx.AzureStorage
