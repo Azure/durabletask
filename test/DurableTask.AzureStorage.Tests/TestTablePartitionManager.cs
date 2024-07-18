@@ -657,6 +657,78 @@ namespace DurableTask.AzureStorage.Tests
             await Task.WhenAll(stopServiceTasks);
         }
 
+        /// <summary>
+        /// End to end test to simulate one worker with one partition.
+        /// Simulate that one worker becomes unhealthy, and then back to a healthy again before the owned lease expires.
+        /// Make sure the worker can still listen to owned control queue without claiming the lease.
+        /// </summary>
+        [TestMethod]
+        public async Task TestWorkerRestartBeforeLeaseExpired()
+        {
+            const int WorkerCount = 2;
+            const int InstanceCount = 50;
+            var services = new AzureStorageOrchestrationService[WorkerCount];
+            var taskHubWorkers = new TaskHubWorker[WorkerCount];
+
+            var settings = new AzureStorageOrchestrationServiceSettings()
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider(this.connection),
+                TaskHubName = "WorkerRestartBeforeLeaseExpired",
+                PartitionCount = 1,
+                // Set a long lease interval to make sure the lease won't expire during the test.
+                LeaseInterval = TimeSpan.FromMinutes(5),
+                WorkerId = "0",
+                UseTablePartitionManagement = true,
+            };
+
+            for (int i = 0; i < WorkerCount; i++)
+            {
+                services[i] = new AzureStorageOrchestrationService(settings);
+                // Two workers share the same worker id since here we want to simulate a worker restart.
+                taskHubWorkers[i] = new TaskHubWorker(services[i]);
+                taskHubWorkers[i].AddTaskOrchestrations(typeof(LongRunningOrchestrator));
+            }
+
+            // Create orchestration instances.
+            var client = new TaskHubClient(services[0]);
+            var createInstanceTasks = new Task<OrchestrationInstance>[InstanceCount];
+            for (int i = 0; i < InstanceCount; i++)
+            {
+                createInstanceTasks[i] = client.CreateOrchestrationInstanceAsync(typeof(LongRunningOrchestrator), input: null);
+            }
+            OrchestrationInstance[] instances = await Task.WhenAll(createInstanceTasks);
+
+            await taskHubWorkers[0].StartAsync();
+
+            // Ensure worker acquired the partition.
+            await WaitForConditionAsync(
+                timeout: TimeSpan.FromSeconds(2),
+                condition: async t =>
+                {
+                    TablePartitionLease lease = await services[0].ListTableLeasesAsync(t).SingleAsync(t);
+                    return lease.CurrentOwner == "0";
+                });
+
+            using var cts = new CancellationTokenSource();
+            {
+                // Simulate a worker crashed and back to healthy again before the lease expires.
+                // To achieve this, we stop worker[0] table partition management loop and start worker[1].
+                services[0].KillPartitionManagerLoop();
+                await taskHubWorkers[1].StartAsync();
+
+                // Worker[1] that shares name "0" should owned the partition without cliaming the lease. 
+                await Task.Delay(1000);
+                Assert.AreEqual(1, services[1].OwnedControlQueues.Count());
+
+                // Check all the instances could be processed successfully. 
+                OrchestrationState[] states = await Task.WhenAll(
+                    instances.Select(i => client.WaitForOrchestrationAsync(i, TimeSpan.FromSeconds(30))));
+                Assert.IsTrue(
+                    Array.TrueForAll(states, s => s?.OrchestrationStatus == OrchestrationStatus.Completed),
+                    "Not all orchestrations completed successfully!");
+            }
+        }
+
         [KnownType(typeof(Hello))]
         internal class HelloOrchestrator : TaskOrchestration<string, string>
         {

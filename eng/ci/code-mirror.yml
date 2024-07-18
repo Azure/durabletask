@@ -4,6 +4,7 @@ trigger:
     # These are the branches we'll mirror to our internal ADO instance
     # Keep this set limited as appropriate (don't mirror individual user branches).
     - main
+    - durabletask-core-v2
 
 resources:
   repositories:

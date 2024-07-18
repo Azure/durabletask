@@ -582,6 +582,14 @@ namespace DurableTask.AzureStorage
 
         internal async Task OnTableLeaseAcquiredAsync(TablePartitionLease lease)
         {
+            // Check if the worker is already listening to the control queue.
+            if (this.allControlQueues.TryGetValue(lease.RowKey, out ControlQueue queue) &&
+                this.OwnedControlQueues.Contains(queue))
+            {
+                return;
+            }
+
+            // If the worker hasn't listened to the queue yet, then add it.
             var controlQueue = new ControlQueue(this.azureStorageClient, lease.RowKey, this.messageManager);
             await controlQueue.CreateIfNotExistsAsync();
             this.orchestrationSessionManager.AddQueue(lease.RowKey, controlQueue, this.shutdownSource.Token);
