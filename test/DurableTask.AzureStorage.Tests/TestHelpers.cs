@@ -31,8 +31,11 @@ namespace DurableTask.AzureStorage.Tests
         {
             string storageConnectionString = GetTestStorageAccountConnectionString();
 
-            // TODO: update Microsoft.Extensions.Logging to avoid the following warning suppression
-#pragma warning disable CS0618 // Type or member is obsolete
+            var loggerFactory = LoggerFactory.Create(builder =>
+            {
+                builder.AddConsole().SetMinimumLevel(LogLevel.Trace);
+            });
+
             var settings = new AzureStorageOrchestrationServiceSettings
             {
                 ExtendedSessionIdleTimeout = TimeSpan.FromSeconds(extendedSessionTimeoutInSeconds),
@@ -42,9 +45,8 @@ namespace DurableTask.AzureStorage.Tests
                 TaskHubName = GetTestTaskHubName(),
 
                 // Setting up a logger factory to enable the new DurableTask.Core logs
-                LoggerFactory = new LoggerFactory().AddConsole(LogLevel.Trace),
+                LoggerFactory = loggerFactory,
             };
-#pragma warning restore CS0618 // Type or member is obsolete
 
             // Give the caller a chance to make test-specific changes to the settings
             modifySettingsAction?.Invoke(settings);
