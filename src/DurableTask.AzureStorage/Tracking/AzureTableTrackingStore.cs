@@ -846,6 +846,7 @@ namespace DurableTask.AzureStorage.Tracking
                 bool isFinalEvent = i == newEvents.Count - 1;
 
                 HistoryEvent historyEvent = newEvents[i];
+                ConvertTimeToUtc(historyEvent);
                 var historyEntity = TableEntityConverter.Serialize(historyEvent);
                 historyEntity.PartitionKey = sanitizedInstanceId;
 
@@ -1010,6 +1011,28 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             return eTagValue;
+        }
+
+        private static void ConvertTimeToUtc(HistoryEvent historyEvent)
+        {
+            switch (historyEvent.EventType)
+            {
+                case EventType.TimerCreated:
+                    var timerCreatedEvent = (TimerCreatedEvent)historyEvent;
+                    if (timerCreatedEvent.FireAt.Kind != DateTimeKind.Utc)
+                    {
+                        timerCreatedEvent.FireAt = timerCreatedEvent.FireAt.ToUniversalTime();
+                    }
+                    break;
+
+                case EventType.TimerFired:
+                    var timerFiredEvent = (TimerFiredEvent)historyEvent;
+                    if (timerFiredEvent.FireAt.Kind != DateTimeKind.Utc)
+                    {
+                        timerFiredEvent.FireAt = timerFiredEvent.FireAt.ToUniversalTime();
+                    }
+                    break;
+            }
         }
 
         static int GetEstimatedByteCount(TableEntity entity)
