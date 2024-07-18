@@ -37,8 +37,8 @@ namespace DurableTask.Core.Tests
         TaskHubWorker worker = null!;
         TaskHubClient client = null!;
 
-        [TestInitialize()]
-        public async Task InitializeTests()
+        [TestInitialize]
+        public void InitializeTests()
         {
             // configure logging so traces are emitted during tests.
             // This facilitates debugging when tests fail.
@@ -50,18 +50,22 @@ namespace DurableTask.Core.Tests
             var service = new LocalOrchestrationService();
             this.worker = new TaskHubWorker(service, loggerFactory);
 
-            await this.worker
+            // We use `GetAwaiter().GetResult()` because otherwise this method will fail with:
+            // "X has wrong signature. The method must be non-static, public, does not return a value and should not take any parameter."
+            this.worker
                 .AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration), typeof(ParentWorkflow), typeof(ChildWorkflow))
                 .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
-                .StartAsync();
+                .StartAsync().GetAwaiter().GetResult();
 
             this.client = new TaskHubClient(service);
         }
 
-        [TestCleanup()]
-        public async Task CleanupTests()
+        [TestCleanup]
+        public void CleanupTests()
         {
-            await this.worker!.StopAsync(true);
+            // We use `GetAwaiter().GetResult()` because otherwise this method will fail with:
+            // "X has wrong signature. The method must be non-static, public, does not return a value and should not take any parameter."
+            this.worker!.StopAsync(true).GetAwaiter().GetResult();
         }
 
         [TestMethod]
