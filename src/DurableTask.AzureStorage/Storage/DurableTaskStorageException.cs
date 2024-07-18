@@ -24,23 +24,23 @@ namespace DurableTask.AzureStorage.Storage
         {
         }
 
-        public DurableTaskStorageException(string message)
+        public DurableTaskStorageException(string? message)
             : base(message)
         {
         }
 
-        public DurableTaskStorageException(string message, Exception inner)
+        public DurableTaskStorageException(string? message, Exception? inner)
             : base(message, inner)
         {
         }
 
-        public DurableTaskStorageException(RequestFailedException requestFailedException)
-            : base(requestFailedException.Message, requestFailedException)
+        public DurableTaskStorageException(RequestFailedException? requestFailedException)
+            : base("An error occurred while communicating with Azure Storage", requestFailedException)
         {
-            this.HttpStatusCode = requestFailedException.Status;
-            if (requestFailedException?.ErrorCode == BlobErrorCode.LeaseLost)
+            if (requestFailedException != null)
             {
-                LeaseLost = true;
+                this.HttpStatusCode = requestFailedException.Status;
+                this.LeaseLost = requestFailedException.ErrorCode != null && requestFailedException.ErrorCode == BlobErrorCode.LeaseLost;
             }
         }
 
