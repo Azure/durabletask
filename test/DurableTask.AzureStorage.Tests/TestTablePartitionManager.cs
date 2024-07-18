@@ -726,7 +726,6 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.IsTrue(
                     Array.TrueForAll(states, s => s?.OrchestrationStatus == OrchestrationStatus.Completed),
                     "Not all orchestrations completed successfully!");
-                nytian marked this conversation as resolved.
             }
         }
 
