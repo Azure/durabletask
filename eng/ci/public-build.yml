@@ -67,7 +67,7 @@ extends:
         # Run tests
         - template: /eng/templates/test.yml@self
           parameters:
-            testAssembly: '**\bin\**\DurableTask.Core.Tests.dll'
+            testAssembly: '**\bin\Debug\netcoreapp3.1\DurableTask.Core.Tests.dll'
     - stage: DTFxASValidate
       dependsOn: []
       jobs:

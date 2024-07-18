@@ -10,7 +10,6 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-#if !NET462 // TODO: For some reason tests aren't discoverable in the 1ES CI pipeline when using NET462, leading to errors. Need to investigate.
 #nullable enable
 namespace DurableTask.Core.Tests
 {
@@ -450,4 +449,3 @@ namespace DurableTask.Core.Tests
         }
     }
 }
-#endif
