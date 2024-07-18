@@ -53,8 +53,7 @@ extends:
     - stage: DTFxCoreValidate
       jobs:
       - job: Validate
-        strategy:
-          parallel: 13
+
         steps:
         # Build the code and the tests
         - template: /eng/templates/build-steps.yml@self
@@ -67,7 +66,7 @@ extends:
         # Run tests
         - template: /eng/templates/test.yml@self
           parameters:
-            testAssembly: '**\bin\Debug\**\DurableTask.Core.Tests.dll'
+            testAssembly: '**\bin\**\DurableTask.Core.Tests.dll'
     - stage: DTFxASValidate
       dependsOn: []
       jobs:
