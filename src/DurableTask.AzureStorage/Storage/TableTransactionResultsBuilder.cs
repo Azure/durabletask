@@ -13,16 +13,33 @@
 #nullable enable
 namespace DurableTask.AzureStorage.Storage
 {
+    using System;
     using System.Collections.Generic;
+    using Azure;
 
-    class TableEntitiesResponseInfo<T>
+    sealed class TableTransactionResultsBuilder
     {
-        public long ElapsedMilliseconds { get; set; }
+        TimeSpan _elapsed;
+        int _requestCount;
+        List<Response> _responses = new List<Response>();
 
-        public int RequestCount { get; set; }
+        public TableTransactionResultsBuilder Add(TableTransactionResults batch)
+        {
+            if (batch == null)
+            {
+                throw new ArgumentNullException(nameof(batch));
+            }
 
-        public IList<T>? ReturnedEntities { get; set; }
+            this._responses.AddRange(batch.Responses);
+            this._elapsed += batch.Elapsed;
+            this._requestCount += batch.RequestCount;
 
-        public string? ContinuationToken { get; set; }
+            return this;
+        }
+
+        public TableTransactionResults ToResults()
+        {
+            return new TableTransactionResults(this._responses, this._elapsed, this._requestCount);
+        }
     }
 }

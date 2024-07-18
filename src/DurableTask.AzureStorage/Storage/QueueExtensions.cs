@@ -11,17 +11,29 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
+using System.Threading;
+using System;
+using System.Threading.Tasks;
+using Azure.Storage.Queues.Models;
+
 namespace DurableTask.AzureStorage.Storage
 {
-    using System.Collections.Generic;
-    using Microsoft.WindowsAzure.Storage.Table;
-
-    class TableResultResponseInfo
+    static class QueueExtensions
     {
-        public long ElapsedMilliseconds { get; set; }
+        public static async Task UpdateMessageAsync(this Queue queue, MessageData messageData, TimeSpan visibilityTimeout, Guid? clientRequestId = null, CancellationToken cancellationToken = default)
+        {
+            if (queue == null)
+            {
+                throw new ArgumentNullException(nameof(queue));
+            }
 
-        public int RequestCount { get; set; }
+            if (messageData == null)
+            {
+                throw new ArgumentNullException(nameof(messageData));
+            }
 
-        public IList<TableResult>? TableResults { get; set; }
+            UpdateReceipt receipt = await queue.UpdateMessageAsync(messageData.OriginalQueueMessage, visibilityTimeout, clientRequestId, cancellationToken);
+            messageData.Update(receipt);
+        }
     }
 }

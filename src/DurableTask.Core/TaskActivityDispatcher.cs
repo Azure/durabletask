@@ -23,6 +23,7 @@ namespace DurableTask.Core
     using DurableTask.Core.Logging;
     using DurableTask.Core.Middleware;
     using DurableTask.Core.Tracing;
+    using ActivityStatusCode = Tracing.ActivityStatusCode;
 
     /// <summary>
     /// Dispatcher for task activities to handle processing and renewing of work items

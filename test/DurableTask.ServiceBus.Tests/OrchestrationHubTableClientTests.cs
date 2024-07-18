@@ -36,7 +36,7 @@ namespace DurableTask.ServiceBus.Tests
         {
             var r = new Random();
             this.tableClient = new AzureTableClient("test00" + r.Next(0, 10000),
-                "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://127.0.0.1:10002/");
+                "UseDevelopmentStorage=true");
             this.tableClient.CreateTableIfNotExistsAsync().Wait();
 
             this.client = TestHelpers.CreateTaskHubClient();

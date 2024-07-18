@@ -2,27 +2,29 @@
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net462</TargetFrameworks>
+    <TargetFramework>netstandard2.0</TargetFramework>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <IncludeSymbols>true</IncludeSymbols>
     <Description>Azure Storage provider extension for the Durable Task Framework.</Description>
     <PackageTags>Azure Task Durable Orchestration Workflow Activity Reliable AzureStorage</PackageTags>
     <PackageId>Microsoft.Azure.DurableTask.AzureStorage</PackageId>
-    <PublishRepositoryUrl>true</PublishRepositoryUrl> 
-    <EmbedUntrackedSources>true</EmbedUntrackedSources> 
-    <DebugSymbols>true</DebugSymbols> 
-    <DebugType>embedded</DebugType> 
-    <IncludeSymbols>false</IncludeSymbols> 
-    <!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>embedded</DebugType>
+    <IncludeSymbols>false</IncludeSymbols>
+    <PackageReadmeFile>.\README.md</PackageReadmeFile>
+	<!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
     <NoWarn>NU5125;NU5048;CS7035</NoWarn> <!-- TODO: addition of CS7035 (version format doesn't follow convention) is a temporary workaround during 1ES migration -->
   </PropertyGroup>
 
   <!-- Version Info -->
   <PropertyGroup>
-    <MajorVersion>1</MajorVersion>
-    <MinorVersion>17</MinorVersion>
-    <PatchVersion>3</PatchVersion>
+    <MajorVersion>2</MajorVersion>
+    <MinorVersion>0</MinorVersion>
+    <PatchVersion>0</PatchVersion>
     <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
+    <VersionSuffix>preview.6</VersionSuffix>
     <FileVersion>$(VersionPrefix).0</FileVersion>
     <!-- FileVersionRevision is expected to be set by the CI. This is useful for distinguishing between multiple builds of the same version. -->
     <FileVersion Condition="'$(FileVersionRevision)' != ''">$(VersionPrefix).$(FileVersionRevision)</FileVersion>
@@ -38,23 +40,22 @@
     <Version>$(VersionPrefix)-$(VersionSuffix)</Version>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="1.1.1" />
-    <PackageReference Include="WindowsAzure.Storage" version="7.2.1" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="2.2.0" />
-    <!--Change the Storage SDK version with extreme caution, otherwise may break Durable Functions usage with Azure Storage Extension. -->
-    <PackageReference Include="WindowsAzure.Storage" version="9.3.1" />
-  </ItemGroup>
-
   <ItemGroup>
-    <PackageReference Include="Azure.Data.Tables" Version="12.8.0" />
+    <PackageReference Include="Azure.Core" Version="1.41.0" />
+    <PackageReference Include="Azure.Data.Tables" Version="12.8.3" />
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.20.0" />
+    <PackageReference Include="Azure.Storage.Queues" Version="12.18.0" />
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="6.0.0" />
+    <PackageReference Include="System.Linq.Async" Version="6.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="2.2.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\DurableTask.Core\DurableTask.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include=".\..\..\README.md" Pack="true" PackagePath="\"/>
   </ItemGroup>
 
   <ItemGroup Condition="'$(Configuration)'=='Release'">

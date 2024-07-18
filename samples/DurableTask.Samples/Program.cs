@@ -55,7 +55,7 @@ namespace DurableTask.Samples
 
                 var settings = new AzureStorageOrchestrationServiceSettings
                 {
-                    StorageAccountDetails = new StorageAccountDetails { ConnectionString = storageConnectionString },
+                    StorageAccountClientProvider = new StorageAccountClientProvider(storageConnectionString),
                     TaskHubName = taskHubName,
                 };
 

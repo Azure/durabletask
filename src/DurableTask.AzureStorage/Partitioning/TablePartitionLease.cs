@@ -21,7 +21,7 @@ namespace DurableTask.AzureStorage.Partitioning
     /// <summary>
     /// The partition lease used by the table partition manager.
     /// </summary>
-    public class TableLease : ITableEntity
+    public class TablePartitionLease : ITableEntity
     {
         // Constant partition key value used for all rows in the partition table. The actual value doesn't matter
         // as long as all entries use the same partition key value.
@@ -30,7 +30,7 @@ namespace DurableTask.AzureStorage.Partitioning
         /// <summary>
         /// Required atrribute of Azure.Data.Tables storage entity. It is always set to <see cref="DefaultPartitionKey"/>.
         /// </summary>
-        public string PartitionKey { get; set; } = DefaultPartitionKey;        
+        public string PartitionKey { get; set; } = DefaultPartitionKey;
 
         /// <summary>
         /// The name of the partition/control queue.

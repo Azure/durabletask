@@ -19,6 +19,7 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
     using DurableTask.AzureStorage.Storage;
@@ -116,7 +117,7 @@ namespace DurableTask.AzureStorage.Messaging
                                 this.settings.Logger.MessageFailure(
                                     this.storageAccountName,
                                     this.settings.TaskHubName,
-                                    queueMessage.Id /* MessageId */,
+                                    queueMessage.MessageId /* MessageId */,
                                     string.Empty /* InstanceId */,
                                     string.Empty /* ExecutionId */,
                                     this.storageQueue.Name,
@@ -125,12 +126,13 @@ namespace DurableTask.AzureStorage.Messaging
                                     e.ToString());
 
                                 // Abandon the message so we can try it again later.
-                                await this.AbandonMessageAsync(queueMessage);
+                                // Note: We will fetch the message again from the queue before retrying, so no need to read the receipt
+                                _ = await this.AbandonMessageAsync(queueMessage);
                                 return;
                             }
 
                             // Check to see whether we've already dequeued this message.
-                            if (!this.stats.PendingOrchestratorMessages.TryAdd(queueMessage.Id, 1))
+                            if (!this.stats.PendingOrchestratorMessages.TryAdd(queueMessage.MessageId, 1))
                             {
                                 // This message is already loaded in memory and is therefore a duplicate.
                                 // We will continue to process it because we need the updated pop receipt.
@@ -139,7 +141,7 @@ namespace DurableTask.AzureStorage.Messaging
                                     this.settings.TaskHubName,
                                     messageData.TaskMessage.Event.EventType.ToString(),
                                     Utils.GetTaskEventId(messageData.TaskMessage.Event),
-                                    queueMessage.Id,
+                                    queueMessage.MessageId,
                                     messageData.TaskMessage.OrchestrationInstance.InstanceId,
                                     messageData.TaskMessage.OrchestrationInstance.ExecutionId,
                                     this.Name,
@@ -190,9 +192,9 @@ namespace DurableTask.AzureStorage.Messaging
         }
 
         // This overload is intended for cases where we aren't able to deserialize an instance of MessageData.
-        public Task AbandonMessageAsync(QueueMessage queueMessage)
+        public Task<UpdateReceipt?> AbandonMessageAsync(QueueMessage queueMessage)
         {
-            this.stats.PendingOrchestratorMessages.TryRemove(queueMessage.Id, out _);
+            this.stats.PendingOrchestratorMessages.TryRemove(queueMessage.MessageId, out _);
             return base.AbandonMessageAsync(
                 queueMessage,
                 taskMessage: null,
@@ -203,13 +205,13 @@ namespace DurableTask.AzureStorage.Messaging
 
         public override Task AbandonMessageAsync(MessageData message, SessionBase? session = null)
         {
-            this.stats.PendingOrchestratorMessages.TryRemove(message.OriginalQueueMessage.Id, out _);
+            this.stats.PendingOrchestratorMessages.TryRemove(message.OriginalQueueMessage.MessageId, out _);
             return base.AbandonMessageAsync(message, session);
         }
 
         public override Task DeleteMessageAsync(MessageData message, SessionBase? session = null)
         {
-            this.stats.PendingOrchestratorMessages.TryRemove(message.OriginalQueueMessage.Id, out _);
+            this.stats.PendingOrchestratorMessages.TryRemove(message.OriginalQueueMessage.MessageId, out _);
             return base.DeleteMessageAsync(message, session);
         }
 
@@ -243,8 +245,8 @@ namespace DurableTask.AzureStorage.Messaging
             {
                 // Azure Storage is the ultimate authority on the order in which messages were received.
                 // Insertion time only has full second precision, however, so it's not always useful.
-                DateTimeOffset insertionTimeX = x.OriginalQueueMessage.InsertionTime.GetValueOrDefault();
-                DateTimeOffset insertionTimeY = y.OriginalQueueMessage.InsertionTime.GetValueOrDefault();
+                DateTimeOffset insertionTimeX = x.OriginalQueueMessage.InsertedOn.GetValueOrDefault();
+                DateTimeOffset insertionTimeY = y.OriginalQueueMessage.InsertedOn.GetValueOrDefault();
                 if (insertionTimeX != insertionTimeY)
                 {
                     return insertionTimeX.CompareTo(insertionTimeY);

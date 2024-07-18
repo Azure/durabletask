@@ -19,6 +19,10 @@ namespace DurableTask.AzureStorage.Tests
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using Azure.Data.Tables;
+    using Azure.Storage.Blobs;
+    using Azure.Storage.Blobs.Models;
+    using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
@@ -27,9 +31,6 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.Core;
     using DurableTask.Core.History;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Blob;
-    using Microsoft.WindowsAzure.Storage.Table;
 
     /// <summary>
     /// Validates the following requirements:
@@ -90,15 +91,14 @@ namespace DurableTask.AzureStorage.Tests
             PartitionManagerType partitionManagerType = PartitionManagerType.V2Safe)
         {
             string storageConnectionString = TestHelpers.GetTestStorageAccountConnectionString();
-            var storageAccount = CloudStorageAccount.Parse(storageConnectionString);
 
             string taskHubName = testName;
             var settings = new AzureStorageOrchestrationServiceSettings
             {
+                AppName = testName,
+                StorageAccountClientProvider = new StorageAccountClientProvider(storageConnectionString),
                 TaskHubName = taskHubName,
-                StorageConnectionString = storageConnectionString,
                 WorkerId = workerId,
-                AppName = testName
             };
             this.SetPartitionManagerType(settings, partitionManagerType);
 
@@ -142,11 +142,11 @@ namespace DurableTask.AzureStorage.Tests
             { }
 
             string expectedContainerName = taskHubName.ToLowerInvariant() + "-leases";
-            CloudBlobContainer taskHubContainer = storageAccount.CreateCloudBlobClient().GetContainerReference(expectedContainerName);
+            BlobContainerClient taskHubContainer = new BlobServiceClient(storageConnectionString).GetBlobContainerClient(expectedContainerName);
             Assert.IsTrue(await taskHubContainer.ExistsAsync(), $"Task hub blob container {expectedContainerName} was not created.");
 
             // Task Hub config blob
-            CloudBlob infoBlob = taskHubContainer.GetBlobReference("taskhub.json");
+            BlobClient infoBlob = taskHubContainer.GetBlobClient("taskhub.json");
             Assert.IsTrue(await infoBlob.ExistsAsync(), $"The blob {infoBlob.Name} was not created.");
 
             // Task Hub lease container
@@ -184,54 +184,24 @@ namespace DurableTask.AzureStorage.Tests
             return service;
         }
 
-        private async Task EnsureLeasesMatchControlQueue(string directoryReference, CloudBlobContainer taskHubContainer, ControlQueue[] controlQueues)
+        private async Task EnsureLeasesMatchControlQueue(string directoryReference, BlobContainerClient taskHubContainer, ControlQueue[] controlQueues)
         {
-            CloudBlobDirectory leaseDirectory = taskHubContainer.GetDirectoryReference(directoryReference);
-            IListBlobItem[] leaseBlobs = (await this.ListBlobsAsync(leaseDirectory)).ToArray();
+            BlobItem[] leaseBlobs = await taskHubContainer.GetBlobsAsync(prefix: directoryReference).ToArrayAsync();
             Assert.AreEqual(controlQueues.Length, leaseBlobs.Length, "Expected to see the same number of control queues and lease blobs.");
-            foreach (IListBlobItem blobItem in leaseBlobs)
+            foreach (BlobItem blobItem in leaseBlobs)
             {
-                string path = blobItem.Uri.AbsolutePath;
+                string path = taskHubContainer.GetBlobClient(blobItem.Name).Uri.AbsolutePath;
                 Assert.IsTrue(
                     controlQueues.Where(q => path.Contains(q.Name)).Any(),
                     $"Could not find any known control queue name in the lease name {path}");
             }
         }
 
-        public async Task<List<IListBlobItem>> ListBlobsAsync(CloudBlobDirectory client)
-        {
-            BlobContinuationToken continuationToken = null;
-            var results = new List<IListBlobItem>();
-            do
-            {
-                BlobResultSegment response = await TimeoutHandler.ExecuteWithTimeout(
-                    "ListBobs",
-                    "dummyName",
-                    new AzureStorageOrchestrationServiceSettings(),
-                    (context, timeoutToken) =>
-                    {
-                        return client.ListBlobsSegmentedAsync(
-                                useFlatBlobListing: true,
-                                blobListingDetails: BlobListingDetails.Metadata,
-                                maxResults: null,
-                                currentToken: continuationToken,
-                                options: null,
-                                operationContext: context,
-                                cancellationToken: timeoutToken);
-                    });
-
-                continuationToken = response.ContinuationToken;
-                results.AddRange(response.Results);
-            }
-            while (continuationToken != null);
-            return results;
-        }
-
         /// <summary>
         /// REQUIREMENT: Workers can be added or removed at any time and control-queue partitions are load-balanced automatically.
         /// REQUIREMENT: No two workers will ever process the same control queue.
         /// </summary>
-        [TestMethod]
+        [DataTestMethod]
         [DataRow(PartitionManagerType.V1Legacy, 30)]
         [DataRow(PartitionManagerType.V2Safe, 180)]
         public async Task MultiWorkerLeaseMovement(PartitionManagerType partitionManagerType, int timeoutInSeconds)
@@ -274,80 +244,93 @@ namespace DurableTask.AzureStorage.Tests
 
                 bool isBalanced = false;
 
-                Stopwatch sw = Stopwatch.StartNew();
-                while (sw.Elapsed < timeout)
+                using var tokenSource = new CancellationTokenSource();
+                tokenSource.CancelAfter(timeout);
+
+                try
                 {
-                    Trace.TraceInformation($"Checking current lease distribution across {currentWorkerCount} workers...");
-                    var leases = (await services[0].ListBlobLeasesAsync())
-                        .Select(
-                            lease => new
-                            {
-                                Name = lease.Blob.Name,
-                                Owner = lease.Owner,
-                            })
-                        .Where(lease => !string.IsNullOrEmpty(lease.Owner))
-                        .ToArray();
-
-                    Array.ForEach(leases, lease => Trace.TraceInformation(
-                        $"Blob: {lease.Name}, Owner: {lease.Owner}"));
-
-                    isBalanced = false;
-                    var workersWithLeases = leases.GroupBy(l => l.Owner).ToArray();
-                    if (workersWithLeases.Count() == currentWorkerCount)
+                    CancellationToken token = tokenSource.Token;
+                    while (!isBalanced)
                     {
-                        int maxLeaseCount = workersWithLeases.Max(owned => owned.Count());
-                        int minLeaseCount = workersWithLeases.Min(owned => owned.Count());
-                        int totalLeaseCount = workersWithLeases.Sum(owned => owned.Count());
+                        Trace.TraceInformation($"Checking current lease distribution across {currentWorkerCount} workers...");
+                        var leases = await services[0]
+                            .ListBlobLeasesAsync()
+                            .Select(
+                                lease => new
+                                {
+                                    lease.Blob.Name,
+                                    lease.Owner,
+                                })
+                            .Where(lease => !string.IsNullOrEmpty(lease.Owner))
+                            .ToArrayAsync(token);
 
-                        isBalanced = maxLeaseCount - minLeaseCount <= 1 && totalLeaseCount == 4;
-                        if (isBalanced)
+                        Array.ForEach(leases, lease => Trace.TraceInformation(
+                            $"Blob: {lease.Name}, Owner: {lease.Owner}"));
+
+                        isBalanced = false;
+                        var workersWithLeases = leases
+                            .GroupBy(l => l.Owner)
+                            .Select(x => x.ToArray())
+                            .ToArray();
+
+                        if (workersWithLeases.Length == currentWorkerCount)
                         {
-                            Trace.TraceInformation($"Success: Leases are balanced across {currentWorkerCount} workers.");
+                            int maxLeaseCount = workersWithLeases.Max(owned => owned.Length);
+                            int minLeaseCount = workersWithLeases.Min(owned => owned.Length);
+                            int totalLeaseCount = workersWithLeases.Sum(owned => owned.Length);
 
-                            var allQueueNames = new HashSet<string>();
-
-                            // Make sure the control queues are also assigned to the correct workers
-                            for (int j = 0; j < services.Length; j++)
+                            isBalanced = maxLeaseCount - minLeaseCount <= 1 && totalLeaseCount == 4;
+                            if (isBalanced)
                             {
-                                AzureStorageOrchestrationService service = services[j];
-                                if (service == null)
+                                Trace.TraceInformation($"Success: Leases are balanced across {currentWorkerCount} workers.");
+
+                                var allQueueNames = new HashSet<string>();
+
+                                // Make sure the control queues are also assigned to the correct workers
+                                for (int j = 0; j < services.Length; j++)
                                 {
-                                    continue;
+                                    AzureStorageOrchestrationService service = services[j];
+                                    if (service == null)
+                                    {
+                                        continue;
+                                    }
+
+                                    foreach (ControlQueue controlQueue in service.OwnedControlQueues)
+                                    {
+                                        Assert.IsTrue(allQueueNames.Add(controlQueue.Name));
+                                    }
+
+                                    Trace.TraceInformation(
+                                        "Queues owned by {0}: {1}",
+                                        service.WorkerId,
+                                        string.Join(", ", service.OwnedControlQueues.Select(q => q.Name)));
+
+                                    var ownedLeases = leases.Where(l => l.Owner == service.WorkerId);
+                                    Assert.AreEqual(
+                                        ownedLeases.Count(),
+                                        service.OwnedControlQueues.Where(queue => !queue.IsReleased).Count(),
+                                        $"Mismatch between control queue count and lease count for {service.WorkerId}");
+                                    Assert.IsTrue(
+                                        service.OwnedControlQueues.All(q => ownedLeases.Any(l => l.Name.Contains(q.Name))),
+                                        "Mismatch between queue assignment and lease ownership.");
+                                    Assert.IsTrue(
+                                        service.OwnedControlQueues.All(q => q.InnerQueue.ExistsAsync().GetAwaiter().GetResult()),
+                                        $"One or more control queues owned by {service.WorkerId} do not exist");
                                 }
 
-                                foreach (ControlQueue controlQueue in service.OwnedControlQueues)
-                                {
-                                    Assert.IsTrue(allQueueNames.Add(controlQueue.Name));
-                                }
-                                
-                                Trace.TraceInformation(
-                                    "Queues owned by {0}: {1}",
-                                    service.WorkerId,
-                                    string.Join(", ", service.OwnedControlQueues.Select(q => q.Name)));
+                                Assert.AreEqual(totalLeaseCount, allQueueNames.Count, "Unexpected number of queues!");
 
-                                var ownedLeases = leases.Where(l => l.Owner == service.WorkerId);
-                                Assert.AreEqual(
-                                    ownedLeases.Count(),
-                                    service.OwnedControlQueues.Where(queue=> !queue.IsReleased).Count(),
-                                    $"Mismatch between control queue count and lease count for {service.WorkerId}");
-                                Assert.IsTrue(
-                                    service.OwnedControlQueues.All(q => ownedLeases.Any(l => l.Name.Contains(q.Name))),
-                                    "Mismatch between queue assignment and lease ownership.");
-                                Assert.IsTrue(
-                                    service.OwnedControlQueues.All(q => q.InnerQueue.ExistsAsync().GetAwaiter().GetResult()),
-                                    $"One or more control queues owned by {service.WorkerId} do not exist");
+                                break;
                             }
-
-                            Assert.AreEqual(totalLeaseCount, allQueueNames.Count, "Unexpected number of queues!");
-
-                            break;
                         }
+
+                        await Task.Delay(TimeSpan.FromSeconds(5), token);
                     }
-
-                    Thread.Sleep(TimeSpan.FromSeconds(5));
                 }
-
-                Assert.IsTrue(isBalanced, "Failed to acquire all leases.");
+                catch (OperationCanceledException)
+                {
+                    Assert.Fail("Failed to acquire all leases.");
+                }
             }
         }
 
@@ -362,11 +345,11 @@ namespace DurableTask.AzureStorage.Tests
 
             // Create a service and enqueue N messages.
             // Make sure each partition has messages in it.
-            var settings = new AzureStorageOrchestrationServiceSettings()
+            var settings = new AzureStorageOrchestrationServiceSettings
             {
-                StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
-                TaskHubName = nameof(TestInstanceAndMessageDistribution),
                 PartitionCount = 4,
+                StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                TaskHubName = nameof(TestInstanceAndMessageDistribution),
             };
 
             var service = new AzureStorageOrchestrationService(settings);
@@ -389,8 +372,7 @@ namespace DurableTask.AzureStorage.Tests
 
             foreach (ControlQueue cloudQueue in controlQueues)
             {
-                await cloudQueue.InnerQueue.FetchAttributesAsync();
-                int messageCount = cloudQueue.InnerQueue.ApproximateMessageCount.GetValueOrDefault(-1);
+                int messageCount = await cloudQueue.InnerQueue.GetApproximateMessagesCountAsync();
 
                 Trace.TraceInformation($"Queue {cloudQueue.Name} has {messageCount} message(s).");
                 Assert.IsTrue(messageCount > 0, $"Queue {cloudQueue.Name} didn't receive any messages");
@@ -418,7 +400,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 if (tableTrackingStore != null)
                 {
-                    DynamicTableEntity[] entities = (await tableTrackingStore.HistoryTable.ExecuteQueryAsync(new TableQuery<DynamicTableEntity>())).ReturnedEntities.ToArray();
+                    TableEntity[] entities = await tableTrackingStore.HistoryTable.ExecuteQueryAsync<TableEntity>().ToArrayAsync();
                     int uniquePartitions = entities.GroupBy(e => e.PartitionKey).Count();
                     Trace.TraceInformation($"Found {uniquePartitions} unique partition(s) in table storage.");
                     Assert.AreEqual(InstanceCount, uniquePartitions, "Unexpected number of table partitions.");
@@ -437,13 +419,13 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task PartitionLost_AbandonPrefetchedSession()
         {
-            var settings = new AzureStorageOrchestrationServiceSettings()
+            var settings = new AzureStorageOrchestrationServiceSettings
             {
-                PartitionCount = 1,
-                LeaseRenewInterval = TimeSpan.FromMilliseconds(500),
-                TaskHubName = TestHelpers.GetTestTaskHubName(),
-                StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
                 ControlQueueBufferThreshold = 100,
+                LeaseRenewInterval = TimeSpan.FromMilliseconds(500),
+                PartitionCount = 1,
+                StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                TaskHubName = TestHelpers.GetTestTaskHubName(),
             };
             this.SetPartitionManagerType(settings, PartitionManagerType.V2Safe);
 
@@ -475,7 +457,7 @@ namespace DurableTask.AzureStorage.Tests
 
             // STEP 2: Force the lease to be stolen and wait for the lease status to update.
             //         The orchestration service should detect this and update its state.
-            BlobLease lease = (await service.ListBlobLeasesAsync()).Single();
+            BlobPartitionLease lease = await service.ListBlobLeasesAsync().SingleAsync();
             await lease.Blob.ChangeLeaseAsync(
                 proposedLeaseId: Guid.NewGuid().ToString(),
                 currentLeaseId: lease.Token);
@@ -496,7 +478,7 @@ namespace DurableTask.AzureStorage.Tests
 
             // STEP 4: Verify that all the enqueued messages were abandoned, i.e. put back
             //         onto the queue with their dequeue counts incremented.
-            IEnumerable<QueueMessage> queueMessages =
+            IReadOnlyCollection<PeekedMessage> queueMessages =
                 await controlQueue.InnerQueue.PeekMessagesAsync(settings.ControlQueueBatchSize);
             Assert.IsTrue(queueMessages.All(msg => msg.DequeueCount == 1));
         }
@@ -504,16 +486,17 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task MonitorIdleTaskHubDisconnected()
         {
+            string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
             var settings = new AzureStorageOrchestrationServiceSettings
             {
-                StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
-                TaskHubName = nameof(MonitorIdleTaskHubDisconnected),
                 PartitionCount = 4,
+                StorageAccountClientProvider = new StorageAccountClientProvider(connectionString),
+                TaskHubName = nameof(MonitorIdleTaskHubDisconnected),
                 UseAppLease = false,
             };
 
             var service = new AzureStorageOrchestrationService(settings);
-            var monitor = new DisconnectedPerformanceMonitor(settings.StorageConnectionString, settings.TaskHubName);
+            var monitor = new DisconnectedPerformanceMonitor(connectionString, settings.TaskHubName);
 
             await service.DeleteAsync();
 
@@ -557,16 +540,17 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task UpdateTaskHubJsonWithNewPartitionCount()
         {
+            string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
             var settings = new AzureStorageOrchestrationServiceSettings
             {
-                StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
-                TaskHubName = nameof(UpdateTaskHubJsonWithNewPartitionCount),
                 PartitionCount = 4,
+                StorageAccountClientProvider = new StorageAccountClientProvider(connectionString),
+                TaskHubName = nameof(UpdateTaskHubJsonWithNewPartitionCount),
                 UseAppLease = false,
             };
 
             var service = new AzureStorageOrchestrationService(settings);
-            var monitor = new DisconnectedPerformanceMonitor(settings.StorageConnectionString, settings.TaskHubName);
+            var monitor = new DisconnectedPerformanceMonitor(connectionString, settings.TaskHubName);
 
             // Empty the existing task hub to make sure we are starting with a clean state.
             await service.DeleteAsync();
@@ -633,17 +617,18 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task MonitorIncreasingControlQueueLoadDisconnected()
         {
-            var settings = new AzureStorageOrchestrationServiceSettings()
+            string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
+            var settings = new AzureStorageOrchestrationServiceSettings
             {
-                StorageConnectionString = TestHelpers.GetTestStorageAccountConnectionString(),
-                TaskHubName = nameof(MonitorIncreasingControlQueueLoadDisconnected),
                 PartitionCount = 4,
+                StorageAccountClientProvider = new StorageAccountClientProvider(connectionString),
+                TaskHubName = nameof(MonitorIncreasingControlQueueLoadDisconnected),
                 UseAppLease = false,
             };
 
             var service = new AzureStorageOrchestrationService(settings);
 
-            var monitor = new DisconnectedPerformanceMonitor(settings.StorageConnectionString, settings.TaskHubName);
+            var monitor = new DisconnectedPerformanceMonitor(connectionString, settings.TaskHubName);
             int simulatedWorkerCount = 0;
             await service.CreateAsync();
 

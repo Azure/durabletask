@@ -1,6 +1,6 @@
-# This build is used for public PR and CI builds.
+# This pipeline is used for public PR and CI builds.
 
-# Run on pushes to main
+# Run on changes in main
 trigger:
   batch: true
   branches:
@@ -14,7 +14,7 @@ schedules:
     branches:
       include:
       - main
-    always: true # Always run pipeline irrespective of changes since the last successful scheduled run; default is false
+    always: true # Run pipeline irrespective of no code changes since last successful run
 
 # Run on all PRs
 pr:
@@ -22,6 +22,7 @@ pr:
     include:
     - '*'
 
+# This allows us to reference 1ES templates, our pipelines extend a pre-existing template
 resources:
   repositories:
   - repository: 1es
@@ -29,10 +30,8 @@ resources:
     name: 1ESPipelineTemplates/1ESPipelineTemplates
     ref: refs/tags/release
 
-variables:
-  - template: /eng/ci/templates/variables/build.yml@self
-
 extends:
+  # The template we extend injects compliance-checks into the pipeline, such as SDL and CodeQL
   template: v1/1ES.Unofficial.PipelineTemplate.yml@1es
   parameters:
     pool:
@@ -51,7 +50,59 @@ extends:
       skipBuildTagsForGitHubPullRequests: ${{ variables['System.PullRequest.IsFork'] }}
 
     stages:
-    - stage: Build & Test
+    - stage: DTFxCoreValidate
       jobs:
-      - template: /eng/ci/templates/build.yml@self # TODO: This also signs, refactor signing step out for speed
-      - template: /eng/ci/templates/test.yml@self
+      - job: Validate
+        strategy:
+          parallel: 13
+        steps:
+        # Build the code and the tests
+        - template: /eng/templates/build-steps.yml@self
+          parameters:
+            # The tests only build in the 'Debug' configuration.
+            # In the release configuration, the packages don't expose their internals
+            # to the test projects.
+            buildConfiguration: 'Debug'
+            buildTests: true 
+        # Run tests
+        - template: /eng/templates/test.yml@self
+          parameters:
+            testAssembly: '**\bin\**\DurableTask.Core.Tests.dll'
+    - stage: DTFxASValidate
+      dependsOn: []
+      jobs:
+      - job: Validate
+        strategy:
+          parallel: 13
+        steps:
+        # Build the code and the tests
+        - template: /eng/templates/build-steps.yml@self
+          parameters:
+            # The tests only build in the 'Debug' configuration.
+            # In the release configuration, the packages don't expose their internals
+            # to the test projects.
+            buildConfiguration: 'Debug'
+            buildTests: true 
+        # Run tests
+        - template: /eng/templates/test.yml@self
+          parameters:
+            testAssembly: '**\bin\**\DurableTask.AzureStorage.Tests.dll'
+    - stage: DTFxEmulatorValidate
+      dependsOn: []
+      jobs:
+      - job: Validate
+        strategy:
+          parallel: 13
+        steps:
+        # Build the code and the tests
+        - template: /eng/templates/build-steps.yml@self
+          parameters:
+            # The tests only build in the 'Debug' configuration.
+            # In the release configuration, the packages don't expose their internals
+            # to the test projects.
+            buildConfiguration: 'Debug'
+            buildTests: true 
+        # Run tests
+        - template: /eng/templates/test.yml@self
+          parameters:
+            testAssembly: '**\bin\**\DurableTask.Emulator.Tests.dll'

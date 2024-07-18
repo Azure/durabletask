@@ -21,6 +21,7 @@ namespace DurableTask.AzureStorage
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+    using Azure;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using DurableTask.Core.Entities;
@@ -56,7 +57,7 @@ namespace DurableTask.AzureStorage
             CancellationToken cancellation = default(CancellationToken))
         {
             await this.ensureTaskHub();
-            OrchestrationState? state = (await this.trackingStore.GetStateAsync(id.ToString(), allExecutions: false, fetchInput: includeState)).FirstOrDefault();
+            OrchestrationState? state = await this.trackingStore.GetStateAsync(id.ToString(), allExecutions: false, fetchInput: includeState).FirstOrDefaultAsync();
             return await this.GetEntityMetadataAsync(state, includeStateless, includeState);
         }
 
@@ -87,7 +88,10 @@ namespace DurableTask.AzureStorage
 
             do
             {
-                DurableStatusQueryResult result = await this.trackingStore.GetStateAsync(condition, filter.PageSize ?? 100, continuationToken, cancellation);
+                Page<OrchestrationState>? page = await this.trackingStore.GetStateAsync(condition, cancellation).AsPages(continuationToken, filter.PageSize ?? 100).FirstOrDefaultAsync();
+                DurableStatusQueryResult result = page != null
+                    ? new DurableStatusQueryResult { ContinuationToken = page.ContinuationToken, OrchestrationState = page.Values }
+                    : new DurableStatusQueryResult { OrchestrationState = Array.Empty<OrchestrationState>() };
                 entityResult = await ConvertResultsAsync(result.OrchestrationState);
                 continuationToken = result.ContinuationToken;
             }
@@ -139,7 +143,10 @@ namespace DurableTask.AzureStorage
             // perform that action. Waits for all actions to finish after each page.
             do
             {
-                DurableStatusQueryResult page = await this.trackingStore.GetStateAsync(condition, 100, continuationToken, cancellation);
+                Page<OrchestrationState>? states = await this.trackingStore.GetStateAsync(condition, cancellation).AsPages(continuationToken, 100).FirstOrDefaultAsync();
+                DurableStatusQueryResult page = states != null
+                    ? new DurableStatusQueryResult { ContinuationToken = states.ContinuationToken, OrchestrationState = states.Values }
+                    : new DurableStatusQueryResult { OrchestrationState = Array.Empty<OrchestrationState>() };
                 continuationToken = page.ContinuationToken;
 
                 var tasks = new List<Task>();
@@ -174,8 +181,8 @@ namespace DurableTask.AzureStorage
 
                 async Task CheckForOrphanedLockAndFixIt(OrchestrationState state, string lockOwner)
                 {
-                    OrchestrationState? ownerState 
-                        = (await this.trackingStore.GetStateAsync(lockOwner, allExecutions: false, fetchInput: false)).FirstOrDefault();
+                    OrchestrationState? ownerState
+                        = await this.trackingStore.GetStateAsync(lockOwner, allExecutions: false, fetchInput: false).FirstOrDefaultAsync();
 
                     bool OrchestrationIsRunning(OrchestrationStatus? status)
                         => status != null && (status == OrchestrationStatus.Running || status == OrchestrationStatus.Suspended);

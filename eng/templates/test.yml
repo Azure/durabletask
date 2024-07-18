@@ -1,33 +1,33 @@
-jobs:
-  -job: RunTests
-   displayName: Run Tests
+parameters:
+- name: testAssembly
+  type: string
+  default: ''
 
-   steps:
-    - bash: |
-        echo "Installing azurite"
-        npm install -g azurite
-        mkdir azurite1
-        echo "azurite installed"
-        azurite --silent --location azurite1 --debug azurite1\debug.txt --queuePort 10001 &
-        echo "azurite started"
-        sleep
-      displayName: 'Install and Run Azurite'
 
-    - task: VSTest@2
-      displayName: 'Run unit and functional tests'
-      inputs:
-        testAssemblyVer2: |
-        **\bin\Debug\net462\DurableTask.AzureStorage.Tests.dll
-        **\bin\Debug\net462\DurableTask.Core.Tests.dll
-        **\bin\Debug\net462\DurableTask.Emulator.Tests.dll
-        !**\obj\**
-        testFiltercriteria: 'TestCategory!=DisabledInCI'
-        vsTestVersion: 16.0
-        distributionBatchType: basedOnExecutionTime
-        platform: 'any cpu'
-        configuration: 'Debug'
-        diagnosticsEnabled: True
-        collectDumpOn: always
-        rerunFailedTests: true
-        rerunFailedThreshold: 20
-        rerunMaxAttempts: 2
+steps:
+  # Install Azurite
+  - bash: |
+      echo "Installing azurite"
+      npm install -g azurite
+      mkdir azurite1
+      echo "azurite installed"
+      azurite --silent --location azurite1 --debug azurite1\debug.txt --queuePort 10001 &
+      echo "azurite started"
+      sleep 5
+    displayName: 'Install and Run Azurite'
+
+  # Run tests
+  - task: VSTest@2
+    displayName: 'Run tests'
+    inputs:
+      testAssemblyVer2: ${{ parameters.testAssembly }}
+      testFiltercriteria: 'TestCategory!=DisabledInCI'
+      vsTestVersion: 17.0
+      distributionBatchType: basedOnExecutionTime
+      platform: 'any cpu'
+      configuration: 'Debug'
+      diagnosticsEnabled: True
+      collectDumpOn: always
+      rerunFailedTests: true
+      rerunFailedThreshold: 30
+      rerunMaxAttempts: 3
