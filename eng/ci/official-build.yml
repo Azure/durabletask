@@ -3,6 +3,7 @@ trigger:
     branches:
         include:
             - main
+            - durabletask-core-v2
 
 # CI only, does not trigger on PRs.
 pr: none

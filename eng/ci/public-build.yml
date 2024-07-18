@@ -17,10 +17,7 @@ schedules:
     always: true # Run pipeline irrespective of no code changes since last successful run
 
 # Run on all PRs
-pr:
-  branches:
-    include:
-    - '*'
+pr: '*' # run on all PRs
 
 # This allows us to reference 1ES templates, our pipelines extend a pre-existing template
 resources:
