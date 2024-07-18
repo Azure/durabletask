@@ -37,7 +37,7 @@ namespace DurableTask.Core.Tests
         TaskHubWorker worker = null!;
         TaskHubClient client = null!;
 
-        [TestInitialize]
+        [TestInitialize()]
         public async Task InitializeTests()
         {
             // configure logging so traces are emitted during tests.
@@ -58,7 +58,7 @@ namespace DurableTask.Core.Tests
             this.client = new TaskHubClient(service);
         }
 
-        [TestCleanup]
+        [TestCleanup()]
         public async Task CleanupTests()
         {
             await this.worker!.StopAsync(true);
