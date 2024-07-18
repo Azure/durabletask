@@ -1,0 +1,12 @@
+<Project>
+  <!-- This is copied from: https://github.com/Azure/azure-functions-host/blob/dev/Directory.Build.props -->
+  <!-- To learn more about Directory.Build.props, see: https://learn.microsoft.com/en-us/visualstudio/msbuild/customize-by-directory?view=vs-2022
+  The basic idea is that it allows you to modify the MSBuild behavior of a `.sln` / solution by placing this at the project's root. -->
+
+  <!-- Define constants like `RepoRoot` and `EngRoot` (used for 1ES pipelines, amongst others) -->
+  <PropertyGroup>
+    <RepoRoot>$(MSBuildThisFileDirectory)</RepoRoot>
+    <EngRoot>$(RepoRoot)eng/</EngRoot>
+  </PropertyGroup>
+
+</Project>
