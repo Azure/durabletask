@@ -1106,6 +1106,11 @@ namespace DurableTask.AzureStorage
             TaskMessage continuedAsNewMessage,
             OrchestrationState orchestrationState)
         {
+            foreach (var timerMessage in timerMessages)
+            {
+                Utils.ConvertTimeToUtc(timerMessage.Event);
+            }   
+
             OrchestrationSession session;
             if (!this.orchestrationSessionManager.TryGetExistingSession(workItem.InstanceId, out session))
             {
