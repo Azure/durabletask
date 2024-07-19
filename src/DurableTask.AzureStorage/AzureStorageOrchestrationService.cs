@@ -1110,7 +1110,7 @@ namespace DurableTask.AzureStorage
             // see: https://github.com/Azure/durabletask/pull/1138
             foreach (var timerMessage in timerMessages)
             {
-                Utils.ConvertTimeToUtc(timerMessage.Event);
+                Utils.ConvertTimerEventsToUTC(timerMessage.Event);
             }   
 
             OrchestrationSession session;

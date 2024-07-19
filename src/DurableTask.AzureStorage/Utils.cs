@@ -273,7 +273,7 @@ namespace DurableTask.AzureStorage
             return obj;
         }
 
-        public static void ConvertTimeToUtc(HistoryEvent historyEvent)
+        public static void ConvertTimerEventsToUTC(HistoryEvent historyEvent)
         {
             switch (historyEvent.EventType)
             {
