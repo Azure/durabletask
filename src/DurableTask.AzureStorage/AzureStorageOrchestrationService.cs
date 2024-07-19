@@ -1106,6 +1106,8 @@ namespace DurableTask.AzureStorage
             TaskMessage continuedAsNewMessage,
             OrchestrationState orchestrationState)
         {
+            // for backwards compatibility, we transform timer timestamps to UTC prior to persisting in Azure Storage.
+            // see: https://github.com/Azure/durabletask/pull/1138
             foreach (var timerMessage in timerMessages)
             {
                 Utils.ConvertTimeToUtc(timerMessage.Event);
