@@ -1698,6 +1698,8 @@ namespace DurableTask.AzureStorage
                 throw new ArgumentException($"Only {nameof(EventType.ExecutionStarted)} messages are supported.", nameof(creationMessage));
             }
 
+            Utils.ConvertDateTimeInHistoryEventsToUTC(creationMessage.Event);
+
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
 
