@@ -273,10 +273,19 @@ namespace DurableTask.AzureStorage
             return obj;
         }
 
-        public static void ConvertTimerEventsToUTC(HistoryEvent historyEvent)
+        public static void ConvertDateTimeInHistoryEventsToUTC(HistoryEvent historyEvent)
         {
             switch (historyEvent.EventType)
             {
+                case EventType.ExecutionStarted:
+                    var executionStartedEvent = (ExecutionStartedEvent)historyEvent;
+                    if (executionStartedEvent.ScheduledStartTime.HasValue &&
+                        executionStartedEvent.ScheduledStartTime.Value.Kind != DateTimeKind.Utc)
+                    {
+                        executionStartedEvent.ScheduledStartTime = executionStartedEvent.ScheduledStartTime.Value.ToUniversalTime();
+                    }
+                    break;
+
                 case EventType.TimerCreated:
                     var timerCreatedEvent = (TimerCreatedEvent)historyEvent;
                     if (timerCreatedEvent.FireAt.Kind != DateTimeKind.Utc)
