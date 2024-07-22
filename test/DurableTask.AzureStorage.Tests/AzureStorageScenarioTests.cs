@@ -1304,7 +1304,8 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
 
-                var actualDelay = (TimeSpan)JToken.Parse(status?.Output);
+                var endTime = (DateTime)JToken.Parse(status?.Output);
+                var actualDelay = endTime - now.ToUniversalTime();
                 Assert.IsTrue(
                     actualDelay >= delay && actualDelay < delay + TimeSpan.FromSeconds(10),
                     $"Expected delay: {delay}, ActualDelay: {actualDelay}");
@@ -3332,13 +3333,12 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
-            internal class DelayedCurrentTimeInline : TaskOrchestration<TimeSpan, DateTime>
+            internal class DelayedCurrentTimeInline : TaskOrchestration<DateTime, DateTime>
             {
-                public override async Task<TimeSpan> RunTask(OrchestrationContext context, DateTime fireAt)
+                public override async Task<DateTime> RunTask(OrchestrationContext context, DateTime fireAt)
                 {
-                    var startTime = context.CurrentUtcDateTime;
                     await context.CreateTimer<bool>(fireAt, true);
-                    return context.CurrentUtcDateTime - startTime;
+                    return context.CurrentUtcDateTime;
                 }
             }
 
