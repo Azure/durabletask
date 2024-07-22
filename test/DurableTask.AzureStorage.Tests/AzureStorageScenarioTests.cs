@@ -1296,16 +1296,15 @@ namespace DurableTask.AzureStorage.Tests
                 // by convention, DateTime objects are expected to be in UTC, but previous version of DTFx.AzureStorage
                 // performed a implicit conversions to UTC when different timezones where used. This test ensures
                 // that behavior is backwards compatible, despite not being recommended.
-                var now = useUtc ? DateTime.UtcNow : DateTime.Now;
-                var delay = TimeSpan.FromSeconds(3);
-                var fireAt = now.Add(delay);
+                var startTime = useUtc ? DateTime.UtcNow : DateTime.Now;
+                var delay = TimeSpan.FromSeconds(5);
+                var fireAt = startTime.Add(delay);
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.DelayedCurrentTimeInline), fireAt);
 
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
 
-                var endTime = (DateTime)JToken.Parse(status?.Output);
-                var actualDelay = endTime - now.ToUniversalTime();
+                var actualDelay = DateTime.UtcNow - startTime.ToUniversalTime();
                 Assert.IsTrue(
                     actualDelay >= delay && actualDelay < delay + TimeSpan.FromSeconds(10),
                     $"Expected delay: {delay}, ActualDelay: {actualDelay}");
