@@ -1336,7 +1336,7 @@ namespace DurableTask.AzureStorage.Tests
                 }
 
 
-                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.JustReturnCurrentUtcTime), input: string.Empty, startAt: startAt);
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.CurrentTimeInline), input: string.Empty, startAt: startAt);
 
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
