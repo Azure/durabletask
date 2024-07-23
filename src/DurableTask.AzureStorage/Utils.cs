@@ -272,5 +272,36 @@ namespace DurableTask.AzureStorage
             }
             return obj;
         }
+
+        public static void ConvertDateTimeInHistoryEventsToUTC(HistoryEvent historyEvent)
+        {
+            switch (historyEvent.EventType)
+            {
+                case EventType.ExecutionStarted:
+                    var executionStartedEvent = (ExecutionStartedEvent)historyEvent;
+                    if (executionStartedEvent.ScheduledStartTime.HasValue &&
+                        executionStartedEvent.ScheduledStartTime.Value.Kind != DateTimeKind.Utc)
+                    {
+                        executionStartedEvent.ScheduledStartTime = executionStartedEvent.ScheduledStartTime.Value.ToUniversalTime();
+                    }
+                    break;
+
+                case EventType.TimerCreated:
+                    var timerCreatedEvent = (TimerCreatedEvent)historyEvent;
+                    if (timerCreatedEvent.FireAt.Kind != DateTimeKind.Utc)
+                    {
+                        timerCreatedEvent.FireAt = timerCreatedEvent.FireAt.ToUniversalTime();
+                    }
+                    break;
+
+                case EventType.TimerFired:
+                    var timerFiredEvent = (TimerFiredEvent)historyEvent;
+                    if (timerFiredEvent.FireAt.Kind != DateTimeKind.Utc)
+                    {
+                        timerFiredEvent.FireAt = timerFiredEvent.FireAt.ToUniversalTime();
+                    }
+                    break;
+            }
+        }
     }
 }

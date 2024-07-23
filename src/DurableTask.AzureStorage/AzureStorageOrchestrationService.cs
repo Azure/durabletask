@@ -1106,6 +1106,17 @@ namespace DurableTask.AzureStorage
             TaskMessage continuedAsNewMessage,
             OrchestrationState orchestrationState)
         {
+            // for backwards compatibility, we transform timer timestamps to UTC prior to persisting in Azure Storage.
+            // see: https://github.com/Azure/durabletask/pull/1138
+            foreach (var orchestratorMessage in orchestratorMessages)
+            {
+                Utils.ConvertDateTimeInHistoryEventsToUTC(orchestratorMessage.Event);
+            }
+            foreach (var timerMessage in timerMessages)
+            {
+                Utils.ConvertDateTimeInHistoryEventsToUTC(timerMessage.Event);
+            }   
+
             OrchestrationSession session;
             if (!this.orchestrationSessionManager.TryGetExistingSession(workItem.InstanceId, out session))
             {
@@ -1686,6 +1697,8 @@ namespace DurableTask.AzureStorage
             {
                 throw new ArgumentException($"Only {nameof(EventType.ExecutionStarted)} messages are supported.", nameof(creationMessage));
             }
+
+            Utils.ConvertDateTimeInHistoryEventsToUTC(creationMessage.Event);
 
             // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();

@@ -1285,6 +1285,71 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task TimerDelay(bool useUtc)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(false))
+            {
+                await host.StartAsync();
+                // by convention, DateTime objects are expected to be in UTC, but previous version of DTFx.AzureStorage
+                // performed a implicit conversions to UTC when different timezones where used. This test ensures
+                // that behavior is backwards compatible, despite not being recommended.
+                var startTime = useUtc ? DateTime.UtcNow : DateTime.Now;
+                var delay = TimeSpan.FromSeconds(5);
+                var fireAt = startTime.Add(delay);
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.DelayedCurrentTimeInline), fireAt);
+
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                var actualDelay = DateTime.UtcNow - startTime.ToUniversalTime();
+                Assert.IsTrue(
+                    actualDelay >= delay && actualDelay < delay + TimeSpan.FromSeconds(10),
+                    $"Expected delay: {delay}, ActualDelay: {actualDelay}");
+
+                await host.StopAsync();
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task OrchestratorStartAtAcceptsAllDateTimeKinds(bool useUtc)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(false))
+            {
+                await host.StartAsync();
+                // by convention, DateTime objects are expected to be in UTC, but previous version of DTFx.AzureStorage
+                // performed a implicit conversions to UTC when different timezones where used. This test ensures
+                // that behavior is backwards compatible, despite not being recommended.
+
+                // set up orchestrator start time
+                var currentTime = DateTime.Now;
+                var delay = TimeSpan.FromSeconds(5);
+                var startAt = currentTime.Add(delay);
+
+                if (useUtc)
+                {
+                    startAt = startAt.ToUniversalTime();
+                }
+
+
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.CurrentTimeInline), input: string.Empty, startAt: startAt);
+
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                var orchestratorState = await client.GetStateAsync(client.InstanceId);
+                var actualScheduledStartTime = status.ScheduledStartTime;
+
+                // internal representation of DateTime is always UTC
+                var expectedScheduledStartTime = startAt.ToUniversalTime();
+                Assert.AreEqual(expectedScheduledStartTime, actualScheduledStartTime);
+                await host.StopAsync();
+            }
+        }
         /// <summary>
         /// End-to-end test which validates that orchestrations run concurrently of each other (up to 100 by default).
         /// </summary>
@@ -3304,11 +3369,11 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
-            internal class DelayedCurrentTimeInline : TaskOrchestration<DateTime, string>
+            internal class DelayedCurrentTimeInline : TaskOrchestration<DateTime, DateTime>
             {
-                public override async Task<DateTime> RunTask(OrchestrationContext context, string input)
+                public override async Task<DateTime> RunTask(OrchestrationContext context, DateTime fireAt)
                 {
-                    await context.CreateTimer<bool>(context.CurrentUtcDateTime.Add(TimeSpan.FromSeconds(3)), true);
+                    await context.CreateTimer<bool>(fireAt, true);
                     return context.CurrentUtcDateTime;
                 }
             }

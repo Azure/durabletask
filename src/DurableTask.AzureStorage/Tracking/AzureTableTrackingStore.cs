@@ -846,6 +846,9 @@ namespace DurableTask.AzureStorage.Tracking
                 bool isFinalEvent = i == newEvents.Count - 1;
 
                 HistoryEvent historyEvent = newEvents[i];
+                // For backwards compatibility, we convert timer timestamps to UTC prior to persisting to Azure Storage
+                // see: https://github.com/Azure/durabletask/pull/1138
+                Utils.ConvertDateTimeInHistoryEventsToUTC(historyEvent);
                 var historyEntity = TableEntityConverter.Serialize(historyEvent);
                 historyEntity.PartitionKey = sanitizedInstanceId;
 
