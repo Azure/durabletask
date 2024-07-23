@@ -699,7 +699,7 @@ namespace DurableTask.AzureStorage.Tests
             var azureStorageClient = new AzureStorageClient(settings);
             Table partitionTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.PartitionTableName);
 
-            // read the partions table
+            // read the partition table
             var results = partitionTable.ExecuteQueryAsync<TablePartitionLease>();
             var numResults = results.CountAsync().Result;
             Assert.AreEqual(numResults, 1); // there should only be 1 partition
@@ -713,10 +713,16 @@ namespace DurableTask.AzureStorage.Tests
             partitionData.ExpiresAt = DateTime.UtcNow.AddMinutes(5);
             await partitionTable.InsertOrMergeEntityAsync(partitionData);
 
+            // guarantee table is corrrectly updated
+            results = partitionTable.ExecuteQueryAsync<TablePartitionLease>();
+            numResults = results.CountAsync().Result;
+            Assert.AreEqual(numResults, 1); // there should only be 1 partition
+            Assert.AreEqual(results.FirstAsync().Result.CurrentOwner, "0"); // ensure current owner is partition "0"
+
             // create and start new worker with the same settings, ensure it is actively listening to the queue
             worker = new TaskHubWorker(service);
             await worker.StartAsync();
-            await Task.Delay(TimeSpan.FromSeconds(15));
+            await Task.Delay(TimeSpan.FromSeconds(10));
             Assert.AreEqual(1, service.OwnedControlQueues.Count());
         }
 
