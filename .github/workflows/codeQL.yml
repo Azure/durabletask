@@ -6,9 +6,9 @@ name: "CodeQL"
 
 on:
   push:
-    branches: [ "main", "dajusto/code-ql" ] # TODO: remove development branch after approval
+    branches: [ "main", "dajusto/code-ql", "*" ] # TODO: remove development branch after approval
   pull_request:
-    branches: [ "main", "dajusto/code-ql"] # TODO: remove development branch after approval
+    branches: [ "main", "dajusto/code-ql", "*"] # TODO: remove development branch after approval
   schedule:
     - cron: '0 0 * * 1' # Weekly Monday run, needed for weekly reports
   workflow_call: # allows to be invoked as part of a larger workflow
@@ -19,13 +19,9 @@ env:
   config: Release
 
 jobs:
-  invoke-build-workflow: # Call re-useable build workflow
-    uses: ./.github/workflows/build.yml
 
   analyze:
     name: Analyze
-    needs: invoke-build-workflow # Can only test after build completes
-
     runs-on: windows-latest
     permissions:
       actions: read
@@ -41,14 +37,28 @@ jobs:
         # Learn more about CodeQL language support at https://aka.ms/codeql-docs/language-support
 
     steps:
-    # - name: Checkout repository
-    #   uses: actions/checkout@v3
-
-    - name: Download built-code
-      uses: actions/download-artifact@v2
+    - uses: actions/checkout@v3
       with:
-        name: built-code
-        path: ./  # This path will match the upload path
+        submodules: true
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+
+    - name: Set up .NET Core 2.1
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '2.1.x'
+
+    - name: Set up .NET Core 3.1
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '3.1.x'
+
+    - name: Restore dependencies
+      run: dotnet restore $solution
+
+    - name: Build
+      run: dotnet build $solution #--configuration $config #--no-restore -p:FileVersionRevision=$GITHUB_RUN_NUMBER -p:ContinuousIntegrationBuild=true
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
