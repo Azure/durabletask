@@ -3229,7 +3229,7 @@ namespace DurableTask.AzureStorage.Tests
             internal class AutoStartOrchestration : TaskOrchestration<string, string>
             {
                 private readonly TaskCompletionSource<string> tcs
-                    = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
+                    = new TaskCompletionSource<string>();
 
                 // HACK: This is just a hack to communicate result of orchestration back to test
                 public static bool OkResult;
@@ -3273,7 +3273,7 @@ namespace DurableTask.AzureStorage.Tests
                 public class Responder : TaskOrchestration<string, string, RequestInformation, string>
                 {
                     private readonly TaskCompletionSource<string> tcs
-                        = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
+                        = new TaskCompletionSource<string>();
 
                     public async override Task<string> RunTask(OrchestrationContext context, string input)
                     {
