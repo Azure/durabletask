@@ -255,7 +255,7 @@ namespace DurableTask.Core.Tests
             StringReader stringReader = new StringReader(writtenString);
             XmlReader xmlReader = XmlReader.Create(stringReader);
 
-            OrchestrationExecutionContext deserializedContext = (OrchestrationExecutionContext)dataContractSerializer.ReadObject(xmlReader);
+            OrchestrationExecutionContext deserializedContext = (OrchestrationExecutionContext)dataContractSerializer.ReadObject(xmlReader)!;
 
             Assert.AreEqual("Value", deserializedContext.OrchestrationTags["Key"]);
         }
