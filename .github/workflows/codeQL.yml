@@ -6,9 +6,9 @@ name: "CodeQL"
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "dajusto/code-ql" ] # TODO: remove development branch after approval
   pull_request:
-    branches: [ "main"]
+    branches: [ "main", "dajusto/code-ql"] # TODO: remove development branch after approval
   schedule:
     - cron: '0 0 * * 1' # Weekly Monday run, needed for weekly reports
   workflow_call: # allows to be invoked as part of a larger workflow
