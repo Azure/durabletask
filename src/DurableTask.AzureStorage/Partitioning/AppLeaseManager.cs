@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.AzureStorage.Partitioning
 {
     using System;
@@ -18,7 +18,6 @@ namespace DurableTask.AzureStorage.Partitioning
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Storage;
-    using Newtonsoft.Json;
 
     /// <summary>
     /// Class responsible for starting and stopping the partition manager. Also implements the app lease feature to ensure a single app's partition manager is started at a time.
@@ -45,10 +44,10 @@ namespace DurableTask.AzureStorage.Partitioning
 
         bool isLeaseOwner;
         int appLeaseIsStarted;
-        Task renewTask;
-        Task acquireTask;
-        CancellationTokenSource starterTokenSource;
-        CancellationTokenSource leaseRenewerCancellationTokenSource;
+        Task? renewTask;
+        Task? acquireTask;
+        CancellationTokenSource? starterTokenSource;
+        CancellationTokenSource? leaseRenewerCancellationTokenSource;
 
         public AppLeaseManager(
             AzureStorageClient azureStorageClient,
@@ -271,7 +270,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
             if (this.renewTask != null)
             {
-                this.leaseRenewerCancellationTokenSource.Cancel();
+                this.leaseRenewerCancellationTokenSource!.Cancel();
                 await this.renewTask;
             }
 
@@ -289,6 +288,10 @@ namespace DurableTask.AzureStorage.Partitioning
             bool leaseAcquired;
             if (appLeaseInfo.DesiredSwapId == this.appLeaseId)
             {
+                if (appLeaseInfo.OwnerId == null)
+                {
+                    throw new Exception("App lease info is in an invalid state. DesiredSwapId is set but OwnerId is null.");
+                }
                 leaseAcquired = await this.ChangeLeaseAsync(appLeaseInfo.OwnerId);
             }
             else
@@ -428,7 +431,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         break;
                     }
 
-                    await Task.Delay(this.options.RenewInterval, this.leaseRenewerCancellationTokenSource.Token);
+                    await Task.Delay(this.options.RenewInterval, this.leaseRenewerCancellationTokenSource!.Token);
                 }
                 catch (OperationCanceledException)
                 {
@@ -564,19 +567,24 @@ namespace DurableTask.AzureStorage.Partitioning
 
         async Task<AppLeaseInfo> GetAppLeaseInfoAsync()
         {
+            AppLeaseInfo? appLeaseInfo = null;
             if (await this.appLeaseInfoBlob.ExistsAsync())
             {
                 string serializedEventHubInfo = await this.appLeaseInfoBlob.DownloadTextAsync();
-                return Utils.DeserializeFromJson<AppLeaseInfo>(serializedEventHubInfo);
+                appLeaseInfo = Utils.DeserializeFromJson<AppLeaseInfo>(serializedEventHubInfo);
             }
 
-            return null;
+            if (appLeaseInfo == null)
+            {
+                throw new Exception("App lease info blob does not exist.");
+            }
+            return appLeaseInfo;
         }
 
         private class AppLeaseInfo
         {
-            public string OwnerId { get; set; }
-            public string DesiredSwapId { get; set; }
+            public string? OwnerId { get; set; }
+            public string? DesiredSwapId { get; set; }
         }
     }
 }
