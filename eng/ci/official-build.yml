@@ -8,6 +8,17 @@ trigger:
 # CI only, does not trigger on PRs.
 pr: none
 
+schedules:
+# Build nightly to catch any new CVEs and report SDL often.
+# We are also required to generated CodeQL reports weekly, so this
+# helps us meet that.
+- cron: "0 0 * * *"
+  displayName: Nightly Build
+  branches:
+    include:
+    - main
+  always: true
+
 resources:
     repositories:
         - repository: 1es

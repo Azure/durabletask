@@ -97,7 +97,7 @@ namespace OpenTelemetrySample
 
         class ExceptionOrchestration : TaskOrchestration<string, string>
         {
-            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            public override Task<string> RunTask(OrchestrationContext context, string input)
             {
                 throw new Exception(input);
             }
