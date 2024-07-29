@@ -13,9 +13,7 @@
 
 namespace DurableTask.AzureStorage.Tests
 {
-    using System;
     using System.Collections.Generic;
-    using System.Data;
     using System.Threading;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -25,7 +23,6 @@ namespace DurableTask.AzureStorage.Tests
         private AzureStorageOrchestrationService azureStorageOrchestrationService;
         private AzureStorageOrchestrationServiceSettings settings;
         private int partitionCount = 4;
-        private Dictionary<string, int> controlQueueNumberToNameMap;
         private CancellationTokenSource cancellationTokenSource;
         private const string TaskHub = "taskHubName";
 
@@ -58,14 +55,6 @@ namespace DurableTask.AzureStorage.Tests
             };
 
             azureStorageOrchestrationService = new AzureStorageOrchestrationService(settings);
-
-            controlQueueNumberToNameMap = new Dictionary<string, int>();
-
-            for (int i = 0; i < partitionCount; i++)
-            {
-                var controlQueueName = AzureStorageOrchestrationService.GetControlQueueName(settings.TaskHubName, i);
-                controlQueueNumberToNameMap[controlQueueName] = i;
-            }
         }
 
         [TestMethod]
