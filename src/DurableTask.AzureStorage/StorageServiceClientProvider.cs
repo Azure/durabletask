@@ -116,9 +116,11 @@ namespace DurableTask.AzureStorage
                 throw new ArgumentNullException(nameof(connectionString));
             }
 
+            options = options ?? new QueueClientOptions();
+            options.MessageEncoding = QueueMessageEncoding.Base64;
             return new DefaultStorageServiceClientProvider<QueueServiceClient, QueueClientOptions>(
                 o => new QueueServiceClient(connectionString, o),
-                options ?? new QueueClientOptions());
+                options);
         }
 
         /// <summary>
@@ -140,6 +142,8 @@ namespace DurableTask.AzureStorage
             TokenCredential tokenCredential,
             QueueClientOptions? options = null)
         {
+            options = options ?? new QueueClientOptions();
+            options.MessageEncoding = QueueMessageEncoding.Base64;
             return ForQueue(CreateDefaultServiceUri(accountName, "queue"), tokenCredential, options);
         }
 
@@ -163,9 +167,11 @@ namespace DurableTask.AzureStorage
                 throw new ArgumentNullException(nameof(tokenCredential));
             }
 
+            options = options ?? new QueueClientOptions();
+            options.MessageEncoding = QueueMessageEncoding.Base64;
             return new DefaultStorageServiceClientProvider<QueueServiceClient, QueueClientOptions>(
                 o => new QueueServiceClient(serviceUri, tokenCredential, o),
-                options ?? new QueueClientOptions());
+                options);
         }
 
         #endregion
