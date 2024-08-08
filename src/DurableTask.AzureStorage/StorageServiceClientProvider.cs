@@ -117,7 +117,8 @@ namespace DurableTask.AzureStorage
             }
 
             options = options ?? new QueueClientOptions();
-            options.MessageEncoding = QueueMessageEncoding.Base64;
+            SetQueueClientOptionsEncodingToBase64(options);
+
             return new DefaultStorageServiceClientProvider<QueueServiceClient, QueueClientOptions>(
                 o => new QueueServiceClient(connectionString, o),
                 options);
@@ -143,7 +144,8 @@ namespace DurableTask.AzureStorage
             QueueClientOptions? options = null)
         {
             options = options ?? new QueueClientOptions();
-            options.MessageEncoding = QueueMessageEncoding.Base64;
+            SetQueueClientOptionsEncodingToBase64(options);
+
             return ForQueue(CreateDefaultServiceUri(accountName, "queue"), tokenCredential, options);
         }
 
@@ -168,10 +170,16 @@ namespace DurableTask.AzureStorage
             }
 
             options = options ?? new QueueClientOptions();
-            options.MessageEncoding = QueueMessageEncoding.Base64;
+            SetQueueClientOptionsEncodingToBase64(options);
+
             return new DefaultStorageServiceClientProvider<QueueServiceClient, QueueClientOptions>(
                 o => new QueueServiceClient(serviceUri, tokenCredential, o),
                 options);
+        }
+
+        static void SetQueueClientOptionsEncodingToBase64(QueueClientOptions options)
+        {
+            options.MessageEncoding = QueueMessageEncoding.Base64;
         }
 
         #endregion
