@@ -15,10 +15,12 @@ namespace DurableTask.AzureStorage
 {
     using System;
     using System.Globalization;
+    using System.Text;
     using Azure.Core;
     using Azure.Data.Tables;
     using Azure.Storage.Blobs;
     using Azure.Storage.Queues;
+    using Azure.Storage.Queues.Models;
 
     /// <summary>
     /// Represents a <see langword="static"/> set of methods for easily creating instances of type
@@ -180,6 +182,24 @@ namespace DurableTask.AzureStorage
         static void SetQueueClientOptionsEncodingToBase64(QueueClientOptions options)
         {
             options.MessageEncoding = QueueMessageEncoding.Base64;
+            options.MessageDecodingFailed += async (QueueMessageDecodingFailedEventArgs args) =>
+            {
+                if (args.ReceivedMessage != null)
+                {
+                    QueueMessage queueMessage = args.ReceivedMessage;
+                    string base64EncodedMessage = Convert.ToBase64String(Encoding.UTF8.GetBytes(args.ReceivedMessage.Body.ToString()));
+
+                    if (args.IsRunningSynchronously)
+                    {
+                        args.Queue.UpdateMessage(queueMessage.MessageId, queueMessage.PopReceipt, base64EncodedMessage, TimeSpan.FromMinutes(5));
+                    }
+                    else
+                    {
+                        await args.Queue.UpdateMessageAsync(queueMessage.MessageId, queueMessage.PopReceipt, base64EncodedMessage, TimeSpan.FromMinutes(5));
+                    }
+                }
+            };
+
         }
 
         #endregion
