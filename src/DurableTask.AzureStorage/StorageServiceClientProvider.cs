@@ -181,7 +181,12 @@ namespace DurableTask.AzureStorage
 
         static void SetQueueClientOptionsEncodingToBase64(QueueClientOptions options)
         {
+            // Convert the encoding to base64 to ensure compatibility between DTFx.AS v2.x and DTFx.AS v1.x.
             options.MessageEncoding = QueueMessageEncoding.Base64;
+
+            // This error handler ensures compatibility between DTFx.AS v2.0.0, which uses UTF-8 encoding, and other DTFx.AS v2.x versions that will use Base64 encoding.
+            // When a queue receives a message and fails to decode it, the MessageDecodingFailed event is triggered.
+            // Each time this event occurs, we re-encode the message with Base64, allowing the queue to successfully process it.
             options.MessageDecodingFailed += async (QueueMessageDecodingFailedEventArgs args) =>
             {
                 if (args.ReceivedMessage != null)
