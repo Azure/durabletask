@@ -111,15 +111,12 @@ namespace DurableTask.AzureStorage
         /// <exception cref="ArgumentNullException">
         /// <paramref name="connectionString"/> is <see langword="null"/> or consists entirely of white space characters.
         /// </exception>
-        public static IStorageServiceClientProvider<QueueServiceClient, QueueClientOptions> ForQueue(string connectionString, QueueClientOptions? options = null)
+        public static IStorageServiceClientProvider<QueueServiceClient, QueueClientOptions> ForQueue(string connectionString, QueueClientOptions options)
         {
             if (string.IsNullOrEmpty(connectionString))
             {
                 throw new ArgumentNullException(nameof(connectionString));
             }
-
-            options = options ?? new QueueClientOptions();
-            SetQueueClientOptionsEncodingToBase64(options);
 
             return new DefaultStorageServiceClientProvider<QueueServiceClient, QueueClientOptions>(
                 o => new QueueServiceClient(connectionString, o),
@@ -143,11 +140,8 @@ namespace DurableTask.AzureStorage
         public static IStorageServiceClientProvider<QueueServiceClient, QueueClientOptions> ForQueue(
             string accountName,
             TokenCredential tokenCredential,
-            QueueClientOptions? options = null)
+            QueueClientOptions options)
         {
-            options = options ?? new QueueClientOptions();
-            SetQueueClientOptionsEncodingToBase64(options);
-
             return ForQueue(CreateDefaultServiceUri(accountName, "queue"), tokenCredential, options);
         }
 
@@ -164,47 +158,16 @@ namespace DurableTask.AzureStorage
         public static IStorageServiceClientProvider<QueueServiceClient, QueueClientOptions> ForQueue(
             Uri serviceUri,
             TokenCredential tokenCredential,
-            QueueClientOptions? options = null)
+            QueueClientOptions options)
         {
             if (tokenCredential == null)
             {
                 throw new ArgumentNullException(nameof(tokenCredential));
             }
 
-            options = options ?? new QueueClientOptions();
-            SetQueueClientOptionsEncodingToBase64(options);
-
             return new DefaultStorageServiceClientProvider<QueueServiceClient, QueueClientOptions>(
                 o => new QueueServiceClient(serviceUri, tokenCredential, o),
                 options);
-        }
-
-        static void SetQueueClientOptionsEncodingToBase64(QueueClientOptions options)
-        {
-            // Convert the encoding to base64 to ensure compatibility between DTFx.AS v2.x and DTFx.AS v1.x.
-            options.MessageEncoding = QueueMessageEncoding.Base64;
-
-            // This error handler ensures compatibility between DTFx.AS v2.0.0, which uses UTF-8 encoding, and other DTFx.AS v2.x versions that will use Base64 encoding.
-            // When a queue receives a message and fails to decode it, the MessageDecodingFailed event is triggered.
-            // Each time this event occurs, we re-encode the message with Base64, allowing the queue to successfully process it.
-            options.MessageDecodingFailed += async (QueueMessageDecodingFailedEventArgs args) =>
-            {
-                if (args.ReceivedMessage != null)
-                {
-                    QueueMessage queueMessage = args.ReceivedMessage;
-                    string base64EncodedMessage = Convert.ToBase64String(Encoding.UTF8.GetBytes(args.ReceivedMessage.Body.ToString()));
-
-                    if (args.IsRunningSynchronously)
-                    {
-                        args.Queue.UpdateMessage(queueMessage.MessageId, queueMessage.PopReceipt, base64EncodedMessage, TimeSpan.FromMinutes(5));
-                    }
-                    else
-                    {
-                        await args.Queue.UpdateMessageAsync(queueMessage.MessageId, queueMessage.PopReceipt, base64EncodedMessage, TimeSpan.FromMinutes(5));
-                    }
-                }
-            };
-
         }
 
         #endregion

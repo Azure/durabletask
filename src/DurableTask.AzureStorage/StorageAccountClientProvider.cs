@@ -30,13 +30,16 @@ namespace DurableTask.AzureStorage
         /// service clients using the given <paramref name="connectionString"/>.
         /// </summary>
         /// <param name="connectionString">An Azure Storage connection string.</param>
+        /// <param name="queueMessageEncoding">Encoding Strategy to use when encoding and decoding messages in Azure Storage Queues.</param>
         /// <exception cref="ArgumentNullException">
         /// <paramref name="connectionString"/> is <see langword="null"/> or consists entirely of white space characters.
         /// </exception>
-        public StorageAccountClientProvider(string connectionString)
+        public StorageAccountClientProvider(string connectionString, QueueMessageEncoding? queueMessageEncoding = null)
             : this(
                   StorageServiceClientProvider.ForBlob(connectionString),
-                  StorageServiceClientProvider.ForQueue(connectionString),
+                  StorageServiceClientProvider.ForQueue(connectionString, new QueueClientOptions {
+                      MessageEncoding = queueMessageEncoding ?? QueueMessageEncoding.None
+                  }),
                   StorageServiceClientProvider.ForTable(connectionString))
         { }
 
@@ -46,6 +49,7 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="accountName">An Azure Storage account name.</param>
         /// <param name="tokenCredential">A token credential for accessing the service.</param>
+        /// <param name="queueMessageEncoding">Encoding Strategy to use when encoding and decoding messages in Azure Storage Queues.</param>
         /// <returns>An Azure Blob Storage service client whose connection is based on the given <paramref name="accountName"/>.</returns>
         /// <exception cref="ArgumentNullException">
         /// <para>
@@ -54,10 +58,13 @@ namespace DurableTask.AzureStorage
         /// <para>-or-</para>
         /// <para><paramref name="tokenCredential"/> is <see langword="null"/>.</para>
         /// </exception>
-        public StorageAccountClientProvider(string accountName, TokenCredential tokenCredential)
+        public StorageAccountClientProvider(string accountName, TokenCredential tokenCredential, QueueMessageEncoding? queueMessageEncoding = null)
             : this(
                   StorageServiceClientProvider.ForBlob(accountName, tokenCredential),
-                  StorageServiceClientProvider.ForQueue(accountName, tokenCredential),
+                  StorageServiceClientProvider.ForQueue(accountName, tokenCredential, new QueueClientOptions
+                  {
+                      MessageEncoding = queueMessageEncoding ?? QueueMessageEncoding.None
+                  }),
                   StorageServiceClientProvider.ForTable(accountName, tokenCredential))
         { }
 
@@ -69,14 +76,18 @@ namespace DurableTask.AzureStorage
         /// <param name="queueServiceUri">An Azure Queue Storage service URI.</param>
         /// <param name="tableServiceUri">An Azure Table Storage service URI.</param>
         /// <param name="tokenCredential">A token credential for accessing the storage services.</param>
+        /// <param name="queueMessageEncoding">Encoding Strategy to use when encoding and decoding messages in Azure Storage Queues.</param>
         /// <exception cref="ArgumentNullException">
         /// <paramref name="blobServiceUri"/>, <paramref name="queueServiceUri"/>,
         /// <paramref name="tableServiceUri"/>, or <paramref name="tokenCredential"/> is <see langword="null"/>.
         /// </exception>
-        public StorageAccountClientProvider(Uri blobServiceUri, Uri queueServiceUri, Uri tableServiceUri, TokenCredential tokenCredential)
+        public StorageAccountClientProvider(Uri blobServiceUri, Uri queueServiceUri, Uri tableServiceUri, TokenCredential tokenCredential, QueueMessageEncoding? queueMessageEncoding = null)
             : this(
                   StorageServiceClientProvider.ForBlob(blobServiceUri, tokenCredential),
-                  StorageServiceClientProvider.ForQueue(queueServiceUri, tokenCredential),
+                  StorageServiceClientProvider.ForQueue(queueServiceUri, tokenCredential, new QueueClientOptions
+                  {
+                      MessageEncoding = queueMessageEncoding ?? QueueMessageEncoding.None
+                  }),
                   StorageServiceClientProvider.ForTable(tableServiceUri, tokenCredential))
         { }
 
