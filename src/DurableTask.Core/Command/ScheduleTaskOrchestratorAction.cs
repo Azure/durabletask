@@ -14,7 +14,7 @@
 namespace DurableTask.Core.Command
 {
     /// <summary>
-    /// Orchestrator action for scheduling activity tasks.
+    /// Orchestrator action for scheduling activity tasks. 
     /// </summary>
     public class ScheduleTaskOrchestratorAction : OrchestratorAction
     {
