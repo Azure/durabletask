@@ -27,7 +27,25 @@ namespace DurableTask.AzureStorage.Tests
             bool enableExtendedSessions,
             int extendedSessionTimeoutInSeconds = 30,
             bool fetchLargeMessages = true,
+            bool allowReplayingTerminalInstances = false,
             Action<AzureStorageOrchestrationServiceSettings>? modifySettingsAction = null)
+        {
+            AzureStorageOrchestrationServiceSettings settings = GetTestAzureStorageOrchestrationServiceSettings(
+                enableExtendedSessions,
+                extendedSessionTimeoutInSeconds,
+                fetchLargeMessages,
+                allowReplayingTerminalInstances);
+            // Give the caller a chance to make test-specific changes to the settings
+            modifySettingsAction?.Invoke(settings);
+
+            return new TestOrchestrationHost(settings);
+        }
+
+        public static AzureStorageOrchestrationServiceSettings GetTestAzureStorageOrchestrationServiceSettings(
+            bool enableExtendedSessions,
+            int extendedSessionTimeoutInSeconds = 30,
+            bool fetchLargeMessages = true,
+            bool allowReplayingTerminalInstances = false)
         {
             string storageConnectionString = GetTestStorageAccountConnectionString();
 
@@ -43,15 +61,13 @@ namespace DurableTask.AzureStorage.Tests
                 FetchLargeMessageDataEnabled = fetchLargeMessages,
                 StorageAccountClientProvider = new StorageAccountClientProvider(storageConnectionString),
                 TaskHubName = GetTestTaskHubName(),
+                AllowReplayingTerminalInstances = allowReplayingTerminalInstances,
 
                 // Setting up a logger factory to enable the new DurableTask.Core logs
                 LoggerFactory = loggerFactory,
             };
 
-            // Give the caller a chance to make test-specific changes to the settings
-            modifySettingsAction?.Invoke(settings);
-
-            return new TestOrchestrationHost(settings);
+            return settings;
         }
 
         public static string GetTestStorageAccountConnectionString()

@@ -157,6 +157,20 @@ namespace DurableTask.AzureStorage
         public bool UseAppLease { get; set; } = true;
 
         /// <summary>
+        /// When false, when an orchestrator is in a terminal state (e.g. Completed, Failed, Terminated), events for that orchestrator are discarded.
+        /// Otherwise, events for a terminal orchestrator induce a replay. This may be used to recompute the state of the orchestrator in the "Instances Table".
+        /// </summary>
+        /// <remarks>
+        /// Transactions across Azure Tables are not possible, so we independently update the "History table" and then the "Instances table"
+        /// to set the state of the orchestrator.
+        /// If a crash were to occur between these two updates, the state of the orchestrator in the "Instances table" would be incorrect.
+        /// By setting this configuration to true, you can recover from these inconsistencies by forcing a replay of the orchestrator in response
+        /// to a client event like a termination request or an external event, which gives the framework another opportunity to update the state of
+        /// the orchestrator in the "Instances table". To force a replay after enabling this configuration, just send any external event to the affected instanceId.
+        /// </remarks>
+        public bool AllowReplayingTerminalInstances { get; set; } = false;
+
+        /// <summary>
         /// If UseAppLease is true, gets or sets the AppLeaseOptions used for acquiring the lease to start the application.
         /// </summary>
         public AppLeaseOptions AppLeaseOptions { get; set; } = AppLeaseOptions.DefaultOptions;
