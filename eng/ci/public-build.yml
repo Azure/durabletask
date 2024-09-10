@@ -22,7 +22,7 @@ schedules:
 pr:
   branches:
     include:
-    - '*'
+    - *
 
 # This allows us to reference 1ES templates, our pipelines extend a pre-existing template
 resources:
