@@ -6,6 +6,7 @@ trigger:
   branches:
     include:
     - main
+    - durabletask-core-v2
 
 # Run nightly to catch new CVEs and to report SDL often.
 schedules:
@@ -14,12 +15,14 @@ schedules:
     branches:
       include:
       - main
+      - durabletask-core-v2
     always: true # Run pipeline irrespective of no code changes since last successful run
 
 # Run on all PRs
 pr:
-- main
-- '*' # run on all PRs
+  branches:
+    include:
+    - '*'
 
 # This allows us to reference 1ES templates, our pipelines extend a pre-existing template
 resources:
