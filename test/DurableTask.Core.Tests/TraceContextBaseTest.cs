@@ -24,7 +24,7 @@ namespace DurableTask.Core.Tests
     [TestClass]
     public class TraceContextBaseTest
     {
-        [TestMethod]
+        [DataTestMethod]
         public void SerializeTraceContextBase()
         {
             Foo context = new Foo();
@@ -37,7 +37,7 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual(context.Comment, ((Foo)result).Comment);
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void SerializeAndDeserializeTraceContextWithParent()
         {
             TraceContextBase context = new Foo();
@@ -49,7 +49,7 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual(expectedStartTime, result.StartTime);
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void SerializeAndDeserializeTraceContextWithMultipleOrchestrationTraceContexts()
         {
             TraceContextBase one = new Foo() { Comment = "one" };
@@ -65,7 +65,7 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual("one", ((Foo)restored.OrchestrationTraceContexts.Pop()).Comment);
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void DeserializeScenario()
         {
             var json  = "{ \"$id\":\"1\",\"$type\":\"DurableTask.Core.W3CTraceContext, DurableTask.Core\",\"Traceparent\":\"00-a422532de19d3e4f8f67af06f8f880c7-81354b086ec6fb41-02\",\"Tracestate\":null,\"ParentSpanId\":\"b69bc0f95af84240\",\"StartTime\":\"2019-05-03T23:43:27.6728211+00:00\",\"OrchestrationTraceContexts\":[{\"$id\":\"2\",\"$type\":\"DurableTask.Core.W3CTraceContext, DurableTask.Core\",\"Traceparent\":\"00-a422532de19d3e4f8f67af06f8f880c7-f86a8711d7226d42-02\",\"Tracestate\":null,\"ParentSpanId\":\"2ec2a64f22dbb143\",\"StartTime\":\"2019-05-03T23:43:12.7553182+00:00\",\"OrchestrationTraceContexts\":[{\"$ref\":\"2\"}]}]}";
@@ -73,21 +73,21 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual(DateTimeOffset.Parse("2019-05-03T23:43:27.6728211+00:00"), context.StartTime);
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void DeserializeNullScenario()
         {
             TraceContextBase context = TraceContextBase.Restore(null);
             Assert.AreEqual(typeof(NullObjectTraceContext), context.GetType());
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void DeserializeEmptyScenario()
         {
             TraceContextBase context = TraceContextBase.Restore("");
             Assert.AreEqual(typeof(NullObjectTraceContext), context.GetType());
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void GetCurrentOrchestrationRequestTraceContextScenario()
         {
             TraceContextBase currentContext = new Foo();
@@ -101,7 +101,7 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual("foo", ((Foo)currentRequestContext).Comment);
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void GetCurrentOrchestrationRequestTraceContextMultiOrchestratorScenario()
         {
             TraceContextBase currentContext = new Foo();
@@ -117,7 +117,7 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual("baz", ((Foo)currentRequestContext).Comment);
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void GetCurrentOrchestrationRequestTraceContextWithNoRequestTraceContextScenario()
         {
             TraceContextBase currentContext = new Foo();
