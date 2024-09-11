@@ -5,16 +5,12 @@ parameters:
 
 
 steps:
-  # Install Azurite
-  - bash: |
-      echo "Installing azurite"
-      npm install -g azurite
-      mkdir azurite1
-      echo "azurite installed"
-      azurite --silent --location azurite1 --debug azurite1\debug.txt --queuePort 10001 &
-      echo "azurite started"
-      sleep 5
-    displayName: 'Install and Run Azurite'
+  - task: CmdLine@2
+    displayName: 'Run Azure Storage Emulator'
+    inputs:
+      script: |
+        "%ProgramFiles(x86)%\Microsoft SDKs\Azure\Storage Emulator\AzureStorageEmulator.exe" init /server "(localdb)\MsSqlLocalDb"
+        "%ProgramFiles(x86)%\Microsoft SDKs\Azure\Storage Emulator\AzureStorageEmulator.exe" start
 
   # Run tests
   - task: VSTest@2
