@@ -2312,6 +2312,105 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        /// <summary>
+        /// End-to-end test validating the <see cref="AzureStorageOrchestrationServiceSettings.AllowReplayingTerminalInstances"/> setting.
+        /// </summary>
+        /// <remarks>
+        /// The `AllowReplayingTerminalInstances` setting was introduced to fix a gap in
+        /// the Azure Storage provider where the History table and Instance table may get out of sync.
+        ///
+        /// Namely, suppose we're updating an orchestrator from the Running state to Completed. If the DTFx process crashes
+        /// after updating the History table but before updating the Instance table, the orchestrator will be in a terminal
+        /// state according to the History table, but not the Instance table. Since the History claims the orchestrator is terminal,
+        /// we will *discard* any new events that try to reach the orchestrator, including "Terminate" requests. Therefore, the data
+        /// in the Instace table will remain incorrect until it is manually edited.
+        ///
+        /// To recover from this, users may set `AllowReplayingTerminalInstances` to true. When this is set, DTFx will not discard
+        /// events for terminal orchestrators, forcing a replay which eventually updates the instances table to the right state.
+        /// </remarks>
+        [DataTestMethod]
+        [DataRow(true, true, true)]
+        [DataRow(true, true, false)]
+        [DataRow(true, false, true)]
+        [DataRow(true, false, false)]
+        [DataRow(false, true, true)]
+        [DataRow(false, true, false)]
+        [DataRow(false, false, true)]
+        [DataRow(false, false, false)]
+        public async Task TestAllowReplayingTerminalInstances(bool enableExtendedSessions, bool sendTerminateEvent, bool allowReplayingTerminalInstances)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
+                enableExtendedSessions,
+                allowReplayingTerminalInstances: allowReplayingTerminalInstances))
+            {
+                await host.StartAsync();
+
+                // Run simple orchestrator to completion, this will help us obtain a valid terminal history for the orchestrator
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), "hello!");
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                // Simulate having an "out of date" Instance table, by setting it's runtime status to "Running".
+                // This simulates the scenario where the History table was updated, but not the Instance table.
+                var instanceId = client.InstanceId;
+                AzureStorageOrchestrationServiceSettings settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(
+                    enableExtendedSessions,
+                    allowReplayingTerminalInstances: allowReplayingTerminalInstances);
+                AzureStorageClient azureStorageClient = new AzureStorageClient(settings);
+
+                Table instanceTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName);
+                TableEntity entity = new TableEntity(instanceId, "")
+                {
+                    ["RuntimeStatus"] = OrchestrationStatus.Running.ToString("G")
+                };
+                await instanceTable.MergeEntityAsync(entity, Azure.ETag.All);
+
+                // Assert that the status in the Instance table reads "Running"
+                IList<OrchestrationState> state = await client.GetStateAsync(instanceId);
+                OrchestrationStatus forcedStatus = state.First().OrchestrationStatus;
+                Assert.AreEqual(OrchestrationStatus.Running, forcedStatus);
+
+
+                // Send event (either terminate or external event) and wait for the event to be processed.
+                // The wait is possibly flakey, but unit testing this directly is difficult today
+                if (sendTerminateEvent)
+                {
+                    // we want to test the "Terminate" event explicitly because it's the first thing users
+                    // should try when an orchestrator is in a bad state
+                    await client.TerminateAsync("Foo");
+                }
+                else
+                {
+                    // we test the raise event case because, if `AllowReplayingTerminalInstances` is set to true,
+                    // an "unregistered" external event (one that the orchestrator is not expected) allows the orchestrator
+                    // to update the Instance table to the correct state without forcing it to end up as "Terminated".
+                    await client.RaiseEventAsync("Foo", "Bar");
+                }
+                await Task.Delay(TimeSpan.FromSeconds(30));
+
+                if (allowReplayingTerminalInstances)
+                {
+                    // A replay should have occurred, forcing the instance table to be updated with a terminal status
+                    state = await client.GetStateAsync(instanceId);
+                    Assert.AreEqual(1, state.Count);
+
+                    status = state.First();
+                    OrchestrationStatus expectedStatus = sendTerminateEvent ? OrchestrationStatus.Terminated : OrchestrationStatus.Completed;
+                    Assert.AreEqual(expectedStatus, status.OrchestrationStatus);
+                }
+                else
+                {
+                    // A replay should not have occurred, the instance table should still have the "Running" status
+                    state = await client.GetStateAsync(instanceId);
+                    Assert.AreEqual(1, state.Count);
+
+                    status = state.First();
+                    Assert.AreEqual(OrchestrationStatus.Running, status.OrchestrationStatus);
+                }
+                await host.StopAsync();
+            }
+        }
+
 #if !NET462
         /// <summary>
         /// End-to-end test which validates a simple orchestrator function that calls an activity function
