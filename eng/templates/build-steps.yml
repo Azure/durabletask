@@ -15,7 +15,7 @@ steps:
       $path = "$Env:Programfiles\Microsoft SDKs\Azure"
       if (Test-Path -Path $path) {
         Write-Host "Path exists: $path"
-        Get-ChildItem -Path $directory -Recurse | ForEach-Object {
+        Get-ChildItem -Path $path -Recurse | ForEach-Object {
           Write-Host $_.FullName
         }
       } else {
