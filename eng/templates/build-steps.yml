@@ -12,23 +12,22 @@ steps:
   inputs:
     targetType: 'inline'
     script: |
-      $path = "$Env:Programfiles\Microsoft SDKs\Azure"
-      if (Test-Path -Path $path) {
-        Write-Host "Path exists: $path"
-        Get-ChildItem -Path $path | ForEach-Object {
-          Write-Host $_.FullName
-        }
-      } else {
-        Write-Host "Path does not exist: $path"
-        exit 1  # Fail the pipeline if path does not exist
-      }
-  displayName: 'Check if path exists'
+      Write-Host "Downloading Azure Storage emulator installer"
+      $downloadLink = "https://go.microsoft.com/fwlink/?linkid=717179&clcid=0x409"
+      $installer = "installer.msi"
+      Invoke-WebRequest -Uri $downloadLink -OutFile $installer
+      Write-Host "Downloaded Azure Storage emulator installer"
+      
+      Write-Host "Executing installer"
+      Start-Process msiexec.exe -ArgumentList "/i `"$msiPath`" /qn /norestart" -Wait -NoNewWindow
+      Write-Host "Executed installer"
+  displayName: 'Download and install Azure Storage emulator'
 
 - task: PowerShell@2
   inputs:
     targetType: 'inline'
     script: |
-      $path = "$Env:Programfiles\Microsoft SDKs\Azure\Emulator"
+      $path = "$Env:Programfiles\Microsoft SDKs\Azure\"
       if (Test-Path -Path $path) {
         Write-Host "Path exists: $path"
         Get-ChildItem -Path $path | ForEach-Object {
