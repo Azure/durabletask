@@ -8,140 +8,100 @@ parameters:
   default: false
 
 steps:
-- task: PowerShell@2
+# Start by restoring all the dependencies. This needs to be its own task
+# from what I can tell. We specifically only target DurableTask.AzureStorage
+# and its direct dependencies.
+# Configure all the .NET SDK versions we need
+- task: UseDotNet@2
+  displayName: 'Use the .NET Core 2.1 SDK (required for build signing)'
   inputs:
-    targetType: 'inline'
-    script: |
-      Write-Host "Downloading Azure Storage emulator installer"
-      $downloadLink = "https://go.microsoft.com/fwlink/?linkid=717179&clcid=0x409"
-      $installer = "installer.msi"
-      Invoke-WebRequest -Uri $downloadLink -OutFile $installer
-      Write-Host "Downloaded Azure Storage emulator installer"
-      
-      Write-Host "Executing installer"
-      $logFile = "installer.log"
-      Start-Process msiexec.exe -ArgumentList "/i `"$installer`" /qn /norestart /log `"$logFile`"" -Wait -NoNewWindow
-      Write-Host "Executed installer"
-      Get-Content -Path $logFile
-  displayName: 'Download and install Azure Storage emulator'
+    packageType: 'sdk'
+    version: '2.1.x'
 
-- task: CmdLine@2
-  displayName: 'Run Azure Storage Emulator'
+- task: UseDotNet@2
+  displayName: 'Use the .NET Core 3.1 SDK'
   inputs:
-    script: |
-      "%ProgramFiles(x86)%\Microsoft SDKs\Azure\Storage Emulator\AzureStorageEmulator.exe" init /server "(localdb)\MsSqlLocalDb"
-      "%ProgramFiles(x86)%\Microsoft SDKs\Azure\Storage Emulator\AzureStorageEmulator.exe" start
+    packageType: 'sdk'
+    version: '3.1.x'
 
-- task: PowerShell@2
+- task: UseDotNet@2
+  displayName: 'Use the .NET 6 SDK'
   inputs:
-    targetType: 'inline'
-    script: |
-      $path = "C:\Program Files (x86)\Microsoft SDKs\Azure\Storage Emulator\"
-      if (Test-Path -Path $path) {
-        Write-Host "Path exists: $path"
-        Get-ChildItem -Path $path | ForEach-Object {
-          Write-Host $_.FullName
-        }
-      } else {
-        Write-Host "Path does not exist: $path"
-        exit 1  # Fail the pipeline if path does not exist
-      }
-  displayName: 'Check if path exists'
+    packageType: 'sdk'
+    version: '6.0.x'
 
-# # Start by restoring all the dependencies. This needs to be its own task
-# # from what I can tell. We specifically only target DurableTask.AzureStorage
-# # and its direct dependencies.
-# # Configure all the .NET SDK versions we need
-# - task: UseDotNet@2
-#   displayName: 'Use the .NET Core 2.1 SDK (required for build signing)'
-#   inputs:
-#     packageType: 'sdk'
-#     version: '2.1.x'
+- task: DotNetCoreCLI@2
+  displayName: 'Restore nuget dependencies'
+  inputs:
+      command: restore
+      verbosityRestore: Minimal
+      projects: |
+          src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln
+          src/DurableTask.Emulator/DurableTask.Emulator.csproj
+          src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj
 
-# - task: UseDotNet@2
-#   displayName: 'Use the .NET Core 3.1 SDK'
-#   inputs:
-#     packageType: 'sdk'
-#     version: '3.1.x'
+# Build the filtered solution in release mode, specifying the continuous integration flag.
+- task: VSBuild@1
+  displayName: 'Build (AzureStorage)'
+  inputs:
+    solution: 'src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln'
+    vsVersion: '17.0'
+    logFileVerbosity: minimal
+    configuration: ${{ parameters.buildConfiguration }}
+    msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
-# - task: UseDotNet@2
-#   displayName: 'Use the .NET 6 SDK'
-#   inputs:
-#     packageType: 'sdk'
-#     version: '6.0.x'
+- task: VSBuild@1
+  displayName: 'Build (ApplicationInsights)'
+  inputs:
+    solution: 'src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj'
+    vsVersion: '17.0'
+    logFileVerbosity: minimal
+    configuration: ${{ parameters.buildConfiguration }}
+    msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
-# - task: DotNetCoreCLI@2
-#   displayName: 'Restore nuget dependencies'
-#   inputs:
-#       command: restore
-#       verbosityRestore: Minimal
-#       projects: |
-#           src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln
-#           src/DurableTask.Emulator/DurableTask.Emulator.csproj
-#           src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj
+- task: VSBuild@1
+  displayName: 'Build (Emulator)'
+  inputs:
+    solution: 'src/DurableTask.Emulator/DurableTask.Emulator.csproj'
+    vsVersion: '17.0'
+    logFileVerbosity: minimal
+    configuration: ${{ parameters.buildConfiguration }}
+    msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
-# # Build the filtered solution in release mode, specifying the continuous integration flag.
-# - task: VSBuild@1
-#   displayName: 'Build (AzureStorage)'
-#   inputs:
-#     solution: 'src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln'
-#     vsVersion: '17.0'
-#     logFileVerbosity: minimal
-#     configuration: ${{ parameters.buildConfiguration }}
-#     msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+- ${{ if eq(parameters.buildTests, true) }}:
+  - task: DotNetCoreCLI@2
+    displayName: 'Restore nuget dependencies'
+    inputs:
+        command: restore
+        verbosityRestore: Minimal
+        projects: |
+            .\Test\DurableTask.Core.Tests\DurableTask.Core.Tests.csproj
+            .\Test\DurableTask.AzureStorage.Tests\DurableTask.AzureStorage.Tests.csproj
+            .\Test\DurableTask.Emulator.Tests\DurableTask.Emulator.Tests.csproj
 
-# - task: VSBuild@1
-#   displayName: 'Build (ApplicationInsights)'
-#   inputs:
-#     solution: 'src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj'
-#     vsVersion: '17.0'
-#     logFileVerbosity: minimal
-#     configuration: ${{ parameters.buildConfiguration }}
-#     msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+  - task: VSBuild@1
+    displayName: 'Build (Core Tests)'
+    inputs:
+      solution: '.\Test\DurableTask.Core.Tests\DurableTask.Core.Tests.csproj'
+      vsVersion: '17.0'
+      logFileVerbosity: minimal
+      configuration: ${{ parameters.buildConfiguration }}
+      msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
-# - task: VSBuild@1
-#   displayName: 'Build (Emulator)'
-#   inputs:
-#     solution: 'src/DurableTask.Emulator/DurableTask.Emulator.csproj'
-#     vsVersion: '17.0'
-#     logFileVerbosity: minimal
-#     configuration: ${{ parameters.buildConfiguration }}
-#     msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+  - task: VSBuild@1
+    displayName: 'Build (AzureStorage Tests)'
+    inputs:
+      solution: '.\Test\DurableTask.AzureStorage.Tests\DurableTask.AzureStorage.Tests.csproj'
+      vsVersion: '17.0'
+      logFileVerbosity: minimal
+      configuration: ${{ parameters.buildConfiguration }}
+      msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
-# - ${{ if eq(parameters.buildTests, true) }}:
-#   - task: DotNetCoreCLI@2
-#     displayName: 'Restore nuget dependencies'
-#     inputs:
-#         command: restore
-#         verbosityRestore: Minimal
-#         projects: |
-#             .\Test\DurableTask.Core.Tests\DurableTask.Core.Tests.csproj
-#             .\Test\DurableTask.AzureStorage.Tests\DurableTask.AzureStorage.Tests.csproj
-#             .\Test\DurableTask.Emulator.Tests\DurableTask.Emulator.Tests.csproj
-
-#   - task: VSBuild@1
-#     displayName: 'Build (Core Tests)'
-#     inputs:
-#       solution: '.\Test\DurableTask.Core.Tests\DurableTask.Core.Tests.csproj'
-#       vsVersion: '17.0'
-#       logFileVerbosity: minimal
-#       configuration: ${{ parameters.buildConfiguration }}
-#       msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
-
-#   - task: VSBuild@1
-#     displayName: 'Build (AzureStorage Tests)'
-#     inputs:
-#       solution: '.\Test\DurableTask.AzureStorage.Tests\DurableTask.AzureStorage.Tests.csproj'
-#       vsVersion: '17.0'
-#       logFileVerbosity: minimal
-#       configuration: ${{ parameters.buildConfiguration }}
-#       msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
-
-#   - task: VSBuild@1
-#     displayName: 'Build (Emulator Tests)'
-#     inputs:
-#       solution: '.\Test\DurableTask.Emulator.Tests\DurableTask.Emulator.Tests.csproj'
-#       vsVersion: '17.0'
-#       logFileVerbosity: minimal
-#       configuration: ${{ parameters.buildConfiguration }}
-#       msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+  - task: VSBuild@1
+    displayName: 'Build (Emulator Tests)'
+    inputs:
+      solution: '.\Test\DurableTask.Emulator.Tests\DurableTask.Emulator.Tests.csproj'
+      vsVersion: '17.0'
+      logFileVerbosity: minimal
+      configuration: ${{ parameters.buildConfiguration }}
+      msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true

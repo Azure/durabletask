@@ -5,29 +5,44 @@ parameters:
 
 
 steps:
-  # Install Azurite
-  - bash: |
-      echo "Installing azurite"
-      npm install -g azurite
-      mkdir azurite1
-      echo "azurite installed"
-      azurite --silent --location azurite1 --debug azurite1\debug.txt --queuePort 10001 &
-      echo "azurite started"
-      sleep 5
-    displayName: 'Install and Run Azurite'
+# Install Azure Storage Emulator (Azurite does not work with DTFx.AS v1 tests)
+- task: PowerShell@2
+  inputs:
+    targetType: 'inline'
+    script: |
+      Write-Host "Downloading Azure Storage emulator installer"
+      $downloadLink = "https://go.microsoft.com/fwlink/?linkid=717179&clcid=0x409"
+      $installer = "installer.msi"
+      Invoke-WebRequest -Uri $downloadLink -OutFile $installer
+      Write-Host "Downloaded Azure Storage emulator installer"
+      
+      Write-Host "Executing installer"
+      $logFile = "installer.log"
+      Start-Process msiexec.exe -ArgumentList "/i `"$installer`" /qn /norestart /log `"$logFile`"" -Wait -NoNewWindow
+      Write-Host "Executed installer"
+      Get-Content -Path $logFile
+  displayName: 'Download and install Azure Storage emulator'
 
-  # Run tests
-  - task: VSTest@2
-    displayName: 'Run tests'
-    inputs:
-      testAssemblyVer2: ${{ parameters.testAssembly }}
-      testFiltercriteria: 'TestCategory!=DisabledInCI'
-      vsTestVersion: 17.0
-      distributionBatchType: basedOnExecutionTime
-      platform: 'any cpu'
-      configuration: 'Debug'
-      diagnosticsEnabled: True
-      collectDumpOn: always
-      rerunFailedTests: true
-      rerunFailedThreshold: 30
-      rerunMaxAttempts: 3
+# Start Azure Storage emulator
+- task: CmdLine@2
+  displayName: 'Run Azure Storage Emulator'
+  inputs:
+    script: |
+      "%ProgramFiles(x86)%\Microsoft SDKs\Azure\Storage Emulator\AzureStorageEmulator.exe" init /server "(localdb)\MsSqlLocalDb"
+      "%ProgramFiles(x86)%\Microsoft SDKs\Azure\Storage Emulator\AzureStorageEmulator.exe" start
+
+# Run tests
+- task: VSTest@2
+  displayName: 'Run tests'
+  inputs:
+    testAssemblyVer2: ${{ parameters.testAssembly }}
+    testFiltercriteria: 'TestCategory!=DisabledInCI'
+    vsTestVersion: 17.0
+    distributionBatchType: basedOnExecutionTime
+    platform: 'any cpu'
+    configuration: 'Debug'
+    diagnosticsEnabled: True
+    collectDumpOn: always
+    rerunFailedTests: true
+    rerunFailedThreshold: 30
+    rerunMaxAttempts: 3
