@@ -29,7 +29,7 @@ steps:
   inputs:
     targetType: 'inline'
     script: |
-      $path = "$Env:Programfiles\Microsoft SDKs\Azure\"
+      $path = "C:\Program Files (x86)\Microsoft SDKs\Azure\Storage Emulator\"
       if (Test-Path -Path $path) {
         Write-Host "Path exists: $path"
         Get-ChildItem -Path $path | ForEach-Object {
