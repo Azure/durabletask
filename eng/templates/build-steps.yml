@@ -19,7 +19,7 @@ steps:
       Write-Host "Downloaded Azure Storage emulator installer"
       
       Write-Host "Executing installer"
-      Start-Process msiexec.exe -ArgumentList "/i `"$msiPath`" /qn /norestart" -Wait -NoNewWindow
+      Start-Process msiexec.exe -ArgumentList "/i `"$installer`" /qn /norestart" -Wait -NoNewWindow
       Write-Host "Executed installer"
   displayName: 'Download and install Azure Storage emulator'
 
