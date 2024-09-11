@@ -31,18 +31,18 @@ steps:
       "%ProgramFiles(x86)%\Microsoft SDKs\Azure\Storage Emulator\AzureStorageEmulator.exe" init /server "(localdb)\MsSqlLocalDb"
       "%ProgramFiles(x86)%\Microsoft SDKs\Azure\Storage Emulator\AzureStorageEmulator.exe" start
 
-  # Run tests
-  - task: VSTest@2
-    displayName: 'Run tests'
-    inputs:
-      testAssemblyVer2: ${{ parameters.testAssembly }}
-      testFiltercriteria: 'TestCategory!=DisabledInCI'
-      vsTestVersion: 17.0
-      distributionBatchType: basedOnExecutionTime
-      platform: 'any cpu'
-      configuration: 'Debug'
-      diagnosticsEnabled: True
-      collectDumpOn: always
-      rerunFailedTests: true
-      rerunFailedThreshold: 30
-      rerunMaxAttempts: 3
+# Run tests
+- task: VSTest@2
+  displayName: 'Run tests'
+  inputs:
+    testAssemblyVer2: ${{ parameters.testAssembly }}
+    testFiltercriteria: 'TestCategory!=DisabledInCI'
+    vsTestVersion: 17.0
+    distributionBatchType: basedOnExecutionTime
+    platform: 'any cpu'
+    configuration: 'Debug'
+    diagnosticsEnabled: True
+    collectDumpOn: always
+    rerunFailedTests: true
+    rerunFailedThreshold: 30
+    rerunMaxAttempts: 3
