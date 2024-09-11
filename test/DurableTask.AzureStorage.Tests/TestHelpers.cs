@@ -28,7 +28,25 @@ namespace DurableTask.AzureStorage.Tests
             bool enableExtendedSessions,
             int extendedSessionTimeoutInSeconds = 30,
             bool fetchLargeMessages = true,
+            bool allowReplayingTerminalInstances = false,
             Action<AzureStorageOrchestrationServiceSettings>? modifySettingsAction = null)
+        {
+            AzureStorageOrchestrationServiceSettings settings = GetTestAzureStorageOrchestrationServiceSettings(
+                enableExtendedSessions,
+                extendedSessionTimeoutInSeconds,
+                fetchLargeMessages,
+                allowReplayingTerminalInstances);
+            // Give the caller a chance to make test-specific changes to the settings
+            modifySettingsAction?.Invoke(settings);
+
+            return new TestOrchestrationHost(settings);
+        }
+
+        public static AzureStorageOrchestrationServiceSettings GetTestAzureStorageOrchestrationServiceSettings(
+            bool enableExtendedSessions,
+            int extendedSessionTimeoutInSeconds = 30,
+            bool fetchLargeMessages = true,
+            bool allowReplayingTerminalInstances = false)
         {
             string storageConnectionString = GetTestStorageAccountConnectionString();
 
@@ -39,16 +57,14 @@ namespace DurableTask.AzureStorage.Tests
                 ExtendedSessionsEnabled = enableExtendedSessions,
                 ExtendedSessionIdleTimeout = TimeSpan.FromSeconds(extendedSessionTimeoutInSeconds),
                 FetchLargeMessageDataEnabled = fetchLargeMessages,
+                AllowReplayingTerminalInstances = allowReplayingTerminalInstances,
 
                 // Setting up a logger factory to enable the new DurableTask.Core logs
                 // TODO: Add a logger provider so we can collect these logs in memory.
                 LoggerFactory = new LoggerFactory(),
             };
 
-            // Give the caller a chance to make test-specific changes to the settings
-            modifySettingsAction?.Invoke(settings);
-
-            return new TestOrchestrationHost(settings);
+            return settings;
         }
 
         public static string GetTestStorageAccountConnectionString()
