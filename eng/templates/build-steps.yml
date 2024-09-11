@@ -15,7 +15,23 @@ steps:
       $path = "$Env:Programfiles\Microsoft SDKs\Azure"
       if (Test-Path -Path $path) {
         Write-Host "Path exists: $path"
-        Get-ChildItem -Path $path -Recurse | ForEach-Object {
+        Get-ChildItem -Path $path | ForEach-Object {
+          Write-Host $_.FullName
+        }
+      } else {
+        Write-Host "Path does not exist: $path"
+        exit 1  # Fail the pipeline if path does not exist
+      }
+  displayName: 'Check if path exists'
+
+- task: PowerShell@2
+  inputs:
+    targetType: 'inline'
+    script: |
+      $path = "$Env:Programfiles\Microsoft SDKs\Azure\Emulator"
+      if (Test-Path -Path $path) {
+        Write-Host "Path exists: $path"
+        Get-ChildItem -Path $path | ForEach-Object {
           Write-Host $_.FullName
         }
       } else {
