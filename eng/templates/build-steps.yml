@@ -25,6 +25,13 @@ steps:
       Get-Content -Path $logFile
   displayName: 'Download and install Azure Storage emulator'
 
+- task: CmdLine@2
+  displayName: 'Run Azure Storage Emulator'
+  inputs:
+    script: |
+      "%ProgramFiles(x86)%\Microsoft SDKs\Azure\Storage Emulator\AzureStorageEmulator.exe" init /server "(localdb)\MsSqlLocalDb"
+      "%ProgramFiles(x86)%\Microsoft SDKs\Azure\Storage Emulator\AzureStorageEmulator.exe" start
+
 - task: PowerShell@2
   inputs:
     targetType: 'inline'
