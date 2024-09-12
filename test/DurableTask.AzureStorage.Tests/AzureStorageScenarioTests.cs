@@ -2361,7 +2361,8 @@ namespace DurableTask.AzureStorage.Tests
                     Properties =
                     {
                         ["RuntimeStatus"] =  new EntityProperty(OrchestrationStatus.Running.ToString("G")),
-                    }
+                    },
+                    ETag = "*",
                 };
 
                 await instanceTable.MergeAsync(entity);
