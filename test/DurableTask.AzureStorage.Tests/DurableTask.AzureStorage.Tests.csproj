@@ -7,13 +7,15 @@
 
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="2.2.0" />
+	<PackageReference Include="EnterpriseLibrary.SemanticLogging.EventSourceAnalyzer" Version="2.0.1406.1" />
+	<PackageReference Include="Microsoft.Extensions.Logging" Version="2.2.0" />
     <PackageReference Include="Microsoft.WindowsAzure.ConfigurationManager" version="3.2.1" />
     <PackageReference Include="WindowsAzure.Storage" version="7.2.1" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' != 'net462'">
-    <PackageReference Include="System.Configuration.ConfigurationManager" Version="4.5.0" />
+	<PackageReference Include="EnterpriseLibrary.SemanticLogging.EventSourceAnalyzer.NetCore" Version="2.0.1406.4" />
+	<PackageReference Include="System.Configuration.ConfigurationManager" Version="4.5.0" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="3.1.6" />
     <PackageReference Include="WindowsAzure.Storage" version="9.3.3" />
     <PackageReference Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.0.0-beta.3" />
@@ -31,7 +33,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\DurableTask.Core\DurableTask.Core.csproj" />
     <ProjectReference Include="..\..\src\DurableTask.AzureStorage\DurableTask.AzureStorage.csproj" />
-    <!--<ProjectReference Include="..\DurableTask.Core.Tests\DurableTask.Core.Tests.csproj" />-->
     <ProjectReference Include="..\DurableTask.Test.Orchestrations\DurableTask.Test.Orchestrations.csproj" />
   </ItemGroup>
 
