@@ -22,7 +22,7 @@ namespace DurableTask.Core.Tests
             this.context = new MockOrchestrationContext(new OrchestrationInstance(), TaskScheduler.Default);
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public async Task Invoke_WithFailingRetryCall_ShouldThrowCorrectException()
         {
             var interceptor = new RetryInterceptor<object>(this.context, new RetryOptions(TimeSpan.FromMilliseconds(100), 1), () => throw new IOException());
