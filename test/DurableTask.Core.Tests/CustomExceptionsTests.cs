@@ -39,7 +39,7 @@ namespace DurableTask.Core.Tests
             this.customExceptions = typeof(TaskHubWorker).Assembly.GetTypes().Where(_ => typeof(Exception).IsAssignableFrom(_) && _.IsPublic).ToList();
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void CustomExceptionNamespace()
         {
             this.customExceptions.ForEach(_ =>
@@ -48,7 +48,7 @@ namespace DurableTask.Core.Tests
             });
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void CustomExceptionDefaultConstructors()
         {
             this.customExceptions.ForEach(_ =>
@@ -79,7 +79,7 @@ namespace DurableTask.Core.Tests
             });
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void CustomExceptionSerialization()
         {
             var ignoredProperties = new Dictionary<string, Type>

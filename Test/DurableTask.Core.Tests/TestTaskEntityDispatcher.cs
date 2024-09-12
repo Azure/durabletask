@@ -43,7 +43,7 @@ namespace DurableTask.Core.Tests
         /// they did not know how to handle. Eventually, this led to them deleting
         /// their own state. This test checks against that case.
         /// </summary>
-        [TestMethod]
+        [DataTestMethod]
         public void TestEntityDoesNotSetFireAndForgetTags()
         {
             TaskEntityDispatcher dispatcher = GetTaskEntityDispatcher();

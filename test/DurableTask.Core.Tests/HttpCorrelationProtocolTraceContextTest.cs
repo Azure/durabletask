@@ -25,7 +25,7 @@ namespace DurableTask.Core.Tests
     [TestClass]
     public class HttpCorrelationProtocolTraceContextTest
     {
-        [TestMethod]
+        [DataTestMethod]
         public void GetRootIdNormalCase()
         {
             var id = "|ea55fd0a-45699198bc3873c3.ea55fd0b_";
@@ -37,7 +37,7 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual(expected,traceContext.GetRootId(childId));
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void GetRootIdWithNull()
         {
             string id = null;
@@ -45,7 +45,7 @@ namespace DurableTask.Core.Tests
             Assert.IsNull(traceContext.GetRootId(id));
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void GetRootIdWithMalformed()
         {
             // Currently it doesn't fail and doesn't throw exception.
@@ -54,7 +54,7 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual("ea55fd0a-45699198bc3873c3", traceContext.GetRootId(id));
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void SetParentAndStartWithNullObject()
         {
             var traceContext = new HttpCorrelationProtocolTraceContext();

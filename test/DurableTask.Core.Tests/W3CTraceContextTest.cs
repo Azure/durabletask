@@ -25,7 +25,7 @@ namespace DurableTask.Core.Tests
     [TestClass]
     public class W3CTraceContextTest
     {
-        [TestMethod]
+        [DataTestMethod]
         public void SetParentNormalCase()
         {
             var ExpectedTraceState = "congo=t61rcWkgMzE";
@@ -54,7 +54,7 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual(parentContext.CurrentActivity.SpanId.ToHexString(), childContext.TelemetryContextOperationParentId);
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void RestoredSoThatNoCurrentActivity()
         {
             var ExpectedTraceState = "congo=t61rcWkgMzE";
@@ -78,7 +78,7 @@ namespace DurableTask.Core.Tests
         }
 
         // SetParent sometimes accept NullObject 
-        [TestMethod]
+        [DataTestMethod]
         public void SetParentWithNullObject()
         {
             var traceContext = new W3CTraceContext();

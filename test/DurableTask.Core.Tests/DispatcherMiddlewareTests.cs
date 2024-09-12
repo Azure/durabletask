@@ -55,7 +55,7 @@ namespace DurableTask.Core.Tests
             await this.worker!.StopAsync(true);
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public async Task DispatchMiddlewareContextBuiltInProperties()
         {
             TaskOrchestration? orchestration = null;
@@ -107,7 +107,7 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual(instance1!.InstanceId, instance2!.InstanceId);
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public async Task OrchestrationDispatcherMiddlewareContextFlow()
         {
             StringBuilder? output = null;
@@ -144,7 +144,7 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual("01234567899876543210", output?.ToString());
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public async Task ActivityDispatcherMiddlewareContextFlow()
         {
             StringBuilder? output = null;
@@ -181,7 +181,7 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual("01234567899876543210", output?.ToString());
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public async Task EnsureOrchestrationDispatcherMiddlewareHasAccessToRuntimeState()
         {
             OrchestrationExecutionContext? executionContext = null;
@@ -218,7 +218,7 @@ namespace DurableTask.Core.Tests
         /// <summary>
         /// Test to ensure <see cref="OrchestrationExecutionContext"/> supports DataContract serialization.
         /// </summary>
-        [TestMethod]
+        [DataTestMethod]
         public void EnsureOrchestrationExecutionContextSupportsDataContractSerialization()
         {
             OrchestrationExecutionContext orchestrationExecutionContext = new OrchestrationExecutionContext
@@ -247,7 +247,7 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual("Value", deserializedContext.OrchestrationTags["Key"]);
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public async Task EnsureSubOrchestrationDispatcherMiddlewareHasAccessToRuntimeState()
         {
             ConcurrentBag<OrchestrationExecutionContext> capturedContexts = new ConcurrentBag<OrchestrationExecutionContext>(); 
@@ -282,7 +282,7 @@ namespace DurableTask.Core.Tests
             }
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public async Task EnsureActivityDispatcherMiddlewareHasAccessToRuntimeState()
         {
             OrchestrationExecutionContext? executionContext = null;
@@ -361,7 +361,7 @@ namespace DurableTask.Core.Tests
             Assert.IsNull(orchestration, "Expected a null orchestration object in the middleware");
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public async Task MockActivityOrchestration()
         {
             // Orchestrator middleware mocks an orchestration that calls one activity
