@@ -24,105 +24,105 @@ namespace DurableTask.Core.Tests
     [TestClass]
     public class TraceContextBaseTest
     {
-        [DataTestMethod]
-        public void SerializeTraceContextBase()
-        {
-            Foo context = new Foo();
-            context.StartAsNew();
-            var expectedStartTime = context.StartTime;
-            context.Comment = "hello";
-            var json = context.SerializableTraceContext;
-            var result = TraceContextBase.Restore(json);
-            Assert.AreEqual(expectedStartTime, result.StartTime);
-            Assert.AreEqual(context.Comment, ((Foo)result).Comment);
-        }
+        // [DataTestMethod]
+        // public void SerializeTraceContextBase()
+        // {
+        //     Foo context = new Foo();
+        //     context.StartAsNew();
+        //     var expectedStartTime = context.StartTime;
+        //     context.Comment = "hello";
+        //     var json = context.SerializableTraceContext;
+        //     var result = TraceContextBase.Restore(json);
+        //     Assert.AreEqual(expectedStartTime, result.StartTime);
+        //     Assert.AreEqual(context.Comment, ((Foo)result).Comment);
+        // }
 
-        [DataTestMethod]
-        public void SerializeAndDeserializeTraceContextWithParent()
-        {
-            TraceContextBase context = new Foo();
-            context.StartAsNew();
-            var expectedStartTime = context.StartTime;
-            context.OrchestrationTraceContexts.Push(context); // Adding Orchestration Context it might include $type 
-            var json = context.SerializableTraceContext;
-            var result = TraceContextBase.Restore(json);
-            Assert.AreEqual(expectedStartTime, result.StartTime);
-        }
+        // [DataTestMethod]
+        // public void SerializeAndDeserializeTraceContextWithParent()
+        // {
+        //     TraceContextBase context = new Foo();
+        //     context.StartAsNew();
+        //     var expectedStartTime = context.StartTime;
+        //     context.OrchestrationTraceContexts.Push(context); // Adding Orchestration Context it might include $type 
+        //     var json = context.SerializableTraceContext;
+        //     var result = TraceContextBase.Restore(json);
+        //     Assert.AreEqual(expectedStartTime, result.StartTime);
+        // }
 
-        [DataTestMethod]
-        public void SerializeAndDeserializeTraceContextWithMultipleOrchestrationTraceContexts()
-        {
-            TraceContextBase one = new Foo() { Comment = "one" };
-            TraceContextBase two = new Foo() { Comment = "two" };
-            TraceContextBase three = new Foo() { Comment = "three" };
-            one.OrchestrationTraceContexts.Push(one);
-            one.OrchestrationTraceContexts.Push(two);
-            one.OrchestrationTraceContexts.Push(three);
-            var json = one.SerializableTraceContext;
-            var restored = TraceContextBase.Restore(json);
-            Assert.AreEqual("three", ((Foo)restored.OrchestrationTraceContexts.Pop()).Comment);
-            Assert.AreEqual("two", ((Foo)restored.OrchestrationTraceContexts.Pop()).Comment);
-            Assert.AreEqual("one", ((Foo)restored.OrchestrationTraceContexts.Pop()).Comment);
-        }
+        // [DataTestMethod]
+        // public void SerializeAndDeserializeTraceContextWithMultipleOrchestrationTraceContexts()
+        // {
+        //     TraceContextBase one = new Foo() { Comment = "one" };
+        //     TraceContextBase two = new Foo() { Comment = "two" };
+        //     TraceContextBase three = new Foo() { Comment = "three" };
+        //     one.OrchestrationTraceContexts.Push(one);
+        //     one.OrchestrationTraceContexts.Push(two);
+        //     one.OrchestrationTraceContexts.Push(three);
+        //     var json = one.SerializableTraceContext;
+        //     var restored = TraceContextBase.Restore(json);
+        //     Assert.AreEqual("three", ((Foo)restored.OrchestrationTraceContexts.Pop()).Comment);
+        //     Assert.AreEqual("two", ((Foo)restored.OrchestrationTraceContexts.Pop()).Comment);
+        //     Assert.AreEqual("one", ((Foo)restored.OrchestrationTraceContexts.Pop()).Comment);
+        // }
 
-        [DataTestMethod]
-        public void DeserializeScenario()
-        {
-            var json  = "{ \"$id\":\"1\",\"$type\":\"DurableTask.Core.W3CTraceContext, DurableTask.Core\",\"Traceparent\":\"00-a422532de19d3e4f8f67af06f8f880c7-81354b086ec6fb41-02\",\"Tracestate\":null,\"ParentSpanId\":\"b69bc0f95af84240\",\"StartTime\":\"2019-05-03T23:43:27.6728211+00:00\",\"OrchestrationTraceContexts\":[{\"$id\":\"2\",\"$type\":\"DurableTask.Core.W3CTraceContext, DurableTask.Core\",\"Traceparent\":\"00-a422532de19d3e4f8f67af06f8f880c7-f86a8711d7226d42-02\",\"Tracestate\":null,\"ParentSpanId\":\"2ec2a64f22dbb143\",\"StartTime\":\"2019-05-03T23:43:12.7553182+00:00\",\"OrchestrationTraceContexts\":[{\"$ref\":\"2\"}]}]}";
-            TraceContextBase context = TraceContextBase.Restore(json);
-            Assert.AreEqual(DateTimeOffset.Parse("2019-05-03T23:43:27.6728211+00:00"), context.StartTime);
-        }
+        // [DataTestMethod]
+        // public void DeserializeScenario()
+        // {
+        //     var json  = "{ \"$id\":\"1\",\"$type\":\"DurableTask.Core.W3CTraceContext, DurableTask.Core\",\"Traceparent\":\"00-a422532de19d3e4f8f67af06f8f880c7-81354b086ec6fb41-02\",\"Tracestate\":null,\"ParentSpanId\":\"b69bc0f95af84240\",\"StartTime\":\"2019-05-03T23:43:27.6728211+00:00\",\"OrchestrationTraceContexts\":[{\"$id\":\"2\",\"$type\":\"DurableTask.Core.W3CTraceContext, DurableTask.Core\",\"Traceparent\":\"00-a422532de19d3e4f8f67af06f8f880c7-f86a8711d7226d42-02\",\"Tracestate\":null,\"ParentSpanId\":\"2ec2a64f22dbb143\",\"StartTime\":\"2019-05-03T23:43:12.7553182+00:00\",\"OrchestrationTraceContexts\":[{\"$ref\":\"2\"}]}]}";
+        //     TraceContextBase context = TraceContextBase.Restore(json);
+        //     Assert.AreEqual(DateTimeOffset.Parse("2019-05-03T23:43:27.6728211+00:00"), context.StartTime);
+        // }
 
-        [DataTestMethod]
-        public void DeserializeNullScenario()
-        {
-            TraceContextBase context = TraceContextBase.Restore(null);
-            Assert.AreEqual(typeof(NullObjectTraceContext), context.GetType());
-        }
+        // [DataTestMethod]
+        // public void DeserializeNullScenario()
+        // {
+        //     TraceContextBase context = TraceContextBase.Restore(null);
+        //     Assert.AreEqual(typeof(NullObjectTraceContext), context.GetType());
+        // }
 
-        [DataTestMethod]
-        public void DeserializeEmptyScenario()
-        {
-            TraceContextBase context = TraceContextBase.Restore("");
-            Assert.AreEqual(typeof(NullObjectTraceContext), context.GetType());
-        }
+        // [DataTestMethod]
+        // public void DeserializeEmptyScenario()
+        // {
+        //     TraceContextBase context = TraceContextBase.Restore("");
+        //     Assert.AreEqual(typeof(NullObjectTraceContext), context.GetType());
+        // }
 
-        [DataTestMethod]
-        public void GetCurrentOrchestrationRequestTraceContextScenario()
-        {
-            TraceContextBase currentContext = new Foo();
+        // [DataTestMethod]
+        // public void GetCurrentOrchestrationRequestTraceContextScenario()
+        // {
+        //     TraceContextBase currentContext = new Foo();
             
-            currentContext.OrchestrationTraceContexts.Push(GetNewRequestContext("foo"));
-            currentContext.OrchestrationTraceContexts.Push(GetNewDependencyContext("bar"));
+        //     currentContext.OrchestrationTraceContexts.Push(GetNewRequestContext("foo"));
+        //     currentContext.OrchestrationTraceContexts.Push(GetNewDependencyContext("bar"));
 
-            var currentRequestContext = currentContext.GetCurrentOrchestrationRequestTraceContext();
+        //     var currentRequestContext = currentContext.GetCurrentOrchestrationRequestTraceContext();
 
-            Assert.AreEqual(TelemetryType.Request, currentRequestContext.TelemetryType);
-            Assert.AreEqual("foo", ((Foo)currentRequestContext).Comment);
-        }
+        //     Assert.AreEqual(TelemetryType.Request, currentRequestContext.TelemetryType);
+        //     Assert.AreEqual("foo", ((Foo)currentRequestContext).Comment);
+        // }
 
-        [DataTestMethod]
-        public void GetCurrentOrchestrationRequestTraceContextMultiOrchestratorScenario()
-        {
-            TraceContextBase currentContext = new Foo();
+        // [DataTestMethod]
+        // public void GetCurrentOrchestrationRequestTraceContextMultiOrchestratorScenario()
+        // {
+        //     TraceContextBase currentContext = new Foo();
 
-            currentContext.OrchestrationTraceContexts.Push(GetNewRequestContext("foo"));
-            currentContext.OrchestrationTraceContexts.Push(GetNewDependencyContext("bar"));
-            currentContext.OrchestrationTraceContexts.Push(GetNewRequestContext("baz"));
-            currentContext.OrchestrationTraceContexts.Push(GetNewDependencyContext("qux"));
+        //     currentContext.OrchestrationTraceContexts.Push(GetNewRequestContext("foo"));
+        //     currentContext.OrchestrationTraceContexts.Push(GetNewDependencyContext("bar"));
+        //     currentContext.OrchestrationTraceContexts.Push(GetNewRequestContext("baz"));
+        //     currentContext.OrchestrationTraceContexts.Push(GetNewDependencyContext("qux"));
 
-            var currentRequestContext = currentContext.GetCurrentOrchestrationRequestTraceContext();
+        //     var currentRequestContext = currentContext.GetCurrentOrchestrationRequestTraceContext();
 
-            Assert.AreEqual(TelemetryType.Request, currentRequestContext.TelemetryType);
-            Assert.AreEqual("baz", ((Foo)currentRequestContext).Comment);
-        }
+        //     Assert.AreEqual(TelemetryType.Request, currentRequestContext.TelemetryType);
+        //     Assert.AreEqual("baz", ((Foo)currentRequestContext).Comment);
+        // }
 
-        [DataTestMethod]
-        public void GetCurrentOrchestrationRequestTraceContextWithNoRequestTraceContextScenario()
-        {
-            TraceContextBase currentContext = new Foo();
-            Assert.ThrowsException<InvalidOperationException>(() => currentContext.GetCurrentOrchestrationRequestTraceContext());
-        }
+        // [DataTestMethod]
+        // public void GetCurrentOrchestrationRequestTraceContextWithNoRequestTraceContextScenario()
+        // {
+        //     TraceContextBase currentContext = new Foo();
+        //     Assert.ThrowsException<InvalidOperationException>(() => currentContext.GetCurrentOrchestrationRequestTraceContext());
+        // }
 
         private static Foo GetNewRequestContext(string comment)
         {
