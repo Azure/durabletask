@@ -2087,9 +2087,9 @@ namespace DurableTask.AzureStorage
 
         // TODO: Change this to a sticky assignment so that partition count changes can
         //       be supported: https://github.com/Azure/azure-functions-durable-extension/issues/1
-        async Task<ControlQueue?> GetControlQueueAsync(string instanceId)
+        internal async Task<ControlQueue?> GetControlQueueAsync(string instanceId)
         {
-            uint partitionIndex = Fnv1aHashHelper.ComputeHash(instanceId) % (uint)this.settings.PartitionCount;
+            uint partitionIndex = GetPartitionIndex(instanceId);
             string queueName = GetControlQueueName(this.settings.TaskHubName, (int)partitionIndex);
 
             ControlQueue cachedQueue;
@@ -2112,6 +2112,28 @@ namespace DurableTask.AzureStorage
 
             System.Diagnostics.Debug.Assert(cachedQueue != null);
             return cachedQueue;
+        }
+
+        internal uint GetPartitionIndex(string instanceId)
+        {
+            uint totalPartitions = (uint)this.settings.PartitionCount;
+
+            int placementSeparatorPosition = instanceId.LastIndexOf('!');
+
+            // if the instance id ends with !nnn, where nnn is an unsigned number, it indicates explicit partition placement
+            if (
+                this.settings.EnableExplicitPartitionPlacement
+                && placementSeparatorPosition != -1
+                && uint.TryParse(instanceId.Substring(placementSeparatorPosition + 1), out uint index))
+            {
+                var partitionId = index % totalPartitions;
+                return (uint)partitionId;
+            }
+            else
+            {
+                return Fnv1aHashHelper.ComputeHash(instanceId) % totalPartitions;
+
+            }
         }
 
         /// <summary>
