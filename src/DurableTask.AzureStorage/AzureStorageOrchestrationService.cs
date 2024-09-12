@@ -779,7 +779,7 @@ namespace DurableTask.AzureStorage
                         TraceContext = currentRequestTraceContext,
                     };
 
-                    if (!this.IsExecutableInstance(session.RuntimeState, orchestrationWorkItem.NewMessages, out string warningMessage))
+                    if (!this.IsExecutableInstance(session.RuntimeState, orchestrationWorkItem.NewMessages, settings.AllowReplayingTerminalInstances, out string warningMessage))
                     {
                         // If all messages belong to the same execution ID, then all of them need to be discarded.
                         // However, it's also possible to have messages for *any* execution ID batched together with messages
@@ -1035,7 +1035,7 @@ namespace DurableTask.AzureStorage
                 data.Episode.GetValueOrDefault(-1));
         }
 
-        bool IsExecutableInstance(OrchestrationRuntimeState runtimeState, IList<TaskMessage> newMessages, out string message)
+        bool IsExecutableInstance(OrchestrationRuntimeState runtimeState, IList<TaskMessage> newMessages, bool allowReplayingTerminalInstances, out string message)
         {
             if (runtimeState.ExecutionStartedEvent == null && !newMessages.Any(msg => msg.Event is ExecutionStartedEvent))
             {
@@ -1061,6 +1061,7 @@ namespace DurableTask.AzureStorage
             }
 
             if (runtimeState.ExecutionStartedEvent != null &&
+                !allowReplayingTerminalInstances &&
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Running &&
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Pending &&
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Suspended)
