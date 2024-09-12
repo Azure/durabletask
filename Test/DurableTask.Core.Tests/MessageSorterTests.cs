@@ -18,7 +18,7 @@ namespace DurableTask.Core.Tests
     {
         private static readonly TimeSpan ReorderWindow = TimeSpan.FromMinutes(30);
 
-        [TestMethod]
+        [DataTestMethod]
         public void SimpleInOrder()
         {
             var senderId = "A";
@@ -44,7 +44,7 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual(0, receiverSorter.NumberBufferedRequests);
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void WackySystemClock()
         {
             var senderId = "A";
@@ -71,7 +71,7 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual(0, receiverSorter.NumberBufferedRequests);
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void DelayedElement()
         {
             var senderId = "A";
@@ -102,7 +102,7 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual(0, receiverSorter.NumberBufferedRequests);
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void NoFilteringOrSortingPastReorderWindow()
         {
             var senderId = "A";
@@ -137,7 +137,7 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual(0, receiverSorter.NumberBufferedRequests);
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void DuplicatedElements()
         {
             var senderId = "A";
@@ -179,7 +179,7 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual(0, receiverSorter.NumberBufferedRequests);
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void RandomShuffleAndDuplication()
         {
             var senderId = "A";
@@ -233,7 +233,7 @@ namespace DurableTask.Core.Tests
         /// Tests that if messages get reordered beyond the supported reorder window,
         /// we still deliver them all but they may now be out of order.
         /// </summary>
-        [TestMethod]
+        [DataTestMethod]
         public void RandomCollection()
         {
             var senderId = "A";
