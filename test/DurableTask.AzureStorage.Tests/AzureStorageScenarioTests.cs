@@ -23,6 +23,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
@@ -2351,14 +2352,19 @@ namespace DurableTask.AzureStorage.Tests
                 AzureStorageOrchestrationServiceSettings settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(
                     enableExtendedSessions,
                     allowReplayingTerminalInstances: allowReplayingTerminalInstances);
+
                 AzureStorageClient azureStorageClient = new AzureStorageClient(settings);
 
                 Table instanceTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName);
-                TableEntity entity = new TableEntity(instanceId, "")
+                var entity = new DynamicTableEntity(instanceId, "")
                 {
-                    ["RuntimeStatus"] = OrchestrationStatus.Running.ToString("G")
+                    Properties =
+                    {
+                        ["RuntimeStatus"] =  new EntityProperty(OrchestrationStatus.Running.ToString("G")),
+                    }
                 };
-                await instanceTable.MergeEntityAsync(entity, Azure.ETag.All);
+
+                await instanceTable.MergeAsync(entity);
 
                 // Assert that the status in the Instance table reads "Running"
                 IList<OrchestrationState> state = await client.GetStateAsync(instanceId);
