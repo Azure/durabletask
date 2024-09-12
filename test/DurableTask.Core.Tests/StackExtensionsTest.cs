@@ -24,7 +24,7 @@ namespace DurableTask.Core.Tests
     [TestClass]
     public class StackExtensionsTest
     {
-        [TestMethod]
+        [DataTestMethod]
         public void CloneStack()
         {
             var input = new Stack<string>(); 

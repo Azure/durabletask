@@ -55,8 +55,6 @@ extends:
     - stage: DTFxCoreValidate
       jobs:
       - job: Validate
-        strategy:
-          parallel: 13
         steps:
         # Build the code and the tests
         - template: /eng/templates/build-steps.yml@self

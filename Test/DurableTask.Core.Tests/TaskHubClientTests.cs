@@ -44,7 +44,7 @@ namespace DurableTask.Core.Tests
         /// <summary>
         /// Tests that scheduled orchestrations can be created.
         /// </summary>
-        [TestMethod]
+        [DataTestMethod]
         public async Task CanCreateScheduledOrchestrations()
         {
             // create test orchestration service that allows us to inspect the generated HistoryEvents

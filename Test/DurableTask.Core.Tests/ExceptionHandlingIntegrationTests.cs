@@ -89,7 +89,7 @@ namespace DurableTask.Core.Tests
             }
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public async Task FailureDetailsOnHandled()
         {
             // The error propagation mode must be set before the worker is started
@@ -149,7 +149,7 @@ namespace DurableTask.Core.Tests
             }
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void TaskFailureOnNullContextTaskActivity()
         {
             TaskActivity activity = new ThrowInvalidOperationExceptionAsync();

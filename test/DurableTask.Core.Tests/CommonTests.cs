@@ -24,7 +24,7 @@ namespace DurableTask.Core.Tests
     [TestClass]
     public class CommonTests
     {
-        [TestMethod]
+        [DataTestMethod]
         public void DateTimeExtensionsIsSetTest()
         {
             Assert.IsTrue(DateTime.Now.IsSet());
@@ -42,7 +42,7 @@ namespace DurableTask.Core.Tests
         /// Test that the SerializeToJson utility ignores the default/global serialization config.
         /// This ensures that users may not influence our own serialization by setting modifying global settings.
         /// </summary>
-        [TestMethod]
+        [DataTestMethod]
         public void DefaultJsonConvertSettingsAreIgnored()
         {
             // set default Newtonsoft.JSON settings to drop default values (i.e 0 for numbers)
@@ -76,7 +76,7 @@ namespace DurableTask.Core.Tests
 
         }
 
-        [TestMethod]
+        [DataTestMethod]
         public void ShouldValidateEventSource()
         {
             EventSourceAnalyzer.InspectAll(DefaultEventSource.Log);
@@ -86,7 +86,7 @@ namespace DurableTask.Core.Tests
         /// Ignores the action since number of attempts is zero
         /// </summary>
         /// <returns></returns>
-        [TestMethod]
+        [DataTestMethod]
         public async Task ExecuteWithRetryIsNoOpBecauseNoAttemptsWereMade()
         {
             const int NumberOfAttempts = 0;
@@ -113,7 +113,7 @@ namespace DurableTask.Core.Tests
         /// Executes the action with retry and rethrows the exception.
         /// </summary>
         /// <returns></returns>
-        [TestMethod]
+        [DataTestMethod]
         public async Task ExecuteWithRetryThrowsByRetryCountLimit()
         {
             const int NumberOfAttempts = 3;
@@ -163,7 +163,7 @@ namespace DurableTask.Core.Tests
         /// Executes the action with retry until it succeeds.
         /// </summary>
         /// <returns></returns>
-        [TestMethod]
+        [DataTestMethod]
         public async Task ExecuteWithRetrySucceedsAfterXAttemptsMinus1()
         {
             const int NumberOfAttempts = 5;
