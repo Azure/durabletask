@@ -94,10 +94,10 @@ namespace DurableTask.Core
         /// Creates a new Work Item Dispatcher with given name and identifier method
         /// </summary>
         /// <param name="name">Name identifying this dispatcher for logging and diagnostics</param>
-        /// <param name="workItemIdentifier"></param>
-        /// <param name="fetchWorkItem"></param>
-        /// <param name="processWorkItem"></param>
-        /// <param name="renewWorkItem"></param>
+        /// <param name="workItemIdentifier">Identifier for the WorkItem</param>
+        /// <param name="fetchWorkItem">Action to fetch the work item.</param>
+        /// <param name="processWorkItem">Action to process the work item.</param>
+        /// <param name="renewWorkItem">Action to renew the work item to maintain locking.</param>
         public WorkItemDispatcher(
             string name,
             Func<T, string> workItemIdentifier,
@@ -110,7 +110,7 @@ namespace DurableTask.Core
             this.workItemIdentifier = workItemIdentifier ?? throw new ArgumentNullException(nameof(workItemIdentifier));
             this.FetchWorkItem = fetchWorkItem ?? throw new ArgumentNullException(nameof(fetchWorkItem));
             this.ProcessWorkItem = processWorkItem ?? throw new ArgumentNullException(nameof(processWorkItem));
-            this.RenewWorkItem = renewWorkItem ?? throw new ArgumentNullException(nameof(processWorkItem));
+            this.RenewWorkItem = renewWorkItem ?? throw new ArgumentNullException(nameof(renewWorkItem));
         }
 
         /// <summary>

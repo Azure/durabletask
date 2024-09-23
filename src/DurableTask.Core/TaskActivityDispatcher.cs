@@ -265,7 +265,7 @@ namespace DurableTask.Core
             }
         }
 
-        async Task RenewUntil(TaskActivityWorkItem workItem, CancellationToken cancellationToken)
+        internal async Task RenewUntil(TaskActivityWorkItem workItem, CancellationToken cancellationToken)
         {
             try
             {
