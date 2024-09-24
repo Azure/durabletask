@@ -471,7 +471,6 @@ namespace DurableTask.Core
             }
             finally
             {
-
                 Interlocked.Decrement(ref this.concurrentWorkItemCount);
                 this.concurrencyLock.Release();
             }
