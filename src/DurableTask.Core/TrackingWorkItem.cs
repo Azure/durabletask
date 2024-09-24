@@ -19,17 +19,12 @@ namespace DurableTask.Core
     /// <summary>
     /// An active tracking work item
     /// </summary>
-    public class TrackingWorkItem
+    public class TrackingWorkItem : WorkItemBase
     {
         /// <summary>
         /// The instance id of this tracking work item
         /// </summary>
         public string InstanceId;
-
-        /// <summary>
-        /// The datetime this work item is locked until
-        /// </summary>
-        public DateTime LockedUntilUtc;
 
         /// <summary>
         /// The list of new messages to process tracking for
