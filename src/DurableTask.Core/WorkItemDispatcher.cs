@@ -303,10 +303,6 @@ namespace DurableTask.Core
                         "WorkItemDispatcherDispatch-TaskCanceledException",
                         this.GetFormattedLog(dispatcherId, $"TaskCanceledException while fetching workItem, should be harmless: {exception.Message}"));
                     delaySecs = this.GetDelayInSecondsAfterOnFetchException(exception);
-                    
-                    // cancel the renewal task in case of failure after fetching.
-                    renewCancellationTokenSource.Cancel();
-                    await renewTask;
                 }
                 catch (Exception exception)
                 {
