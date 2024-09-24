@@ -221,7 +221,8 @@ namespace DurableTask.ServiceBus
                     "TrackingDispatcher",
                     item => item == null ? string.Empty : item.InstanceId,
                     FetchTrackingWorkItemAsync,
-                    ProcessTrackingWorkItemAsync)
+                    ProcessTrackingWorkItemAsync,
+                    (T,token) => Task.CompletedTask)
                 {
                     GetDelayInSecondsAfterOnFetchException = GetDelayInSecondsAfterOnFetchException,
                     GetDelayInSecondsAfterOnProcessException = GetDelayInSecondsAfterOnProcessException,
