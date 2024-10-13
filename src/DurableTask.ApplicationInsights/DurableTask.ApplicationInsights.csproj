@@ -11,8 +11,8 @@
     <!-- Version Info -->
     <PropertyGroup>
         <MajorVersion>0</MajorVersion>
-        <MinorVersion>1</MinorVersion>
-        <PatchVersion>6</PatchVersion>
+        <MinorVersion>2</MinorVersion>
+        <PatchVersion>0</PatchVersion>
         <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
         <FileVersion>$(VersionPrefix).0</FileVersion>
         <!-- FileVersionRevision is expected to be set by the CI. This is useful for distinguishing between multiple builds of the same version. -->
