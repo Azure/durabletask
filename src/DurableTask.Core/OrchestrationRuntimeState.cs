@@ -98,6 +98,19 @@ namespace DurableTask.Core
         }
 
         /// <summary>
+        /// Returns a deep copy of the object.
+        /// </summary>
+        /// <returns>Cloned object</returns>
+        public OrchestrationRuntimeState Clone()
+        {
+            return new OrchestrationRuntimeState(this.Events)
+            {
+                Size = this.Size,
+                Status = this.Status,
+            };
+        }
+
+        /// <summary>
         /// Gets the execution started event
         /// </summary>
         public ExecutionStartedEvent? ExecutionStartedEvent
@@ -188,7 +201,7 @@ namespace DurableTask.Core
         /// <remarks>
         /// An invalid orchestration runtime state means that the history is somehow corrupted.
         /// </remarks>
-        public bool IsValid => 
+        public bool IsValid =>
             this.Events.Count == 0 ||
             this.Events.Count == 1 && this.Events[0].EventType == EventType.OrchestratorStarted ||
             this.ExecutionStartedEvent != null;
@@ -253,8 +266,8 @@ namespace DurableTask.Core
                 historyEvent.EventType == EventType.TaskCompleted &&
                 !completedEventIds.Add(historyEvent.EventId))
             {
-                TraceHelper.Trace(TraceEventType.Warning, 
-                    "OrchestrationRuntimeState-DuplicateEvent", 
+                TraceHelper.Trace(TraceEventType.Warning,
+                    "OrchestrationRuntimeState-DuplicateEvent",
                     "The orchestration '{0}' has already seen a completed task with id {1}.",
                     this.OrchestrationInstance?.InstanceId ?? "",
                     historyEvent.EventId);
@@ -287,7 +300,7 @@ namespace DurableTask.Core
                     // It's not generally expected to receive multiple execution completed events for a given orchestrator, but it's possible under certain race conditions.
                     // For example: when an orchestrator is signaled to terminate at the same time as it attempts to continue-as-new.
                     var log = $"Received new {completedEvent.GetType().Name} event despite the orchestration being already in the {orchestrationStatus} state.";
-                    
+
                     if (orchestrationStatus == OrchestrationStatus.ContinuedAsNew && completedEvent.OrchestrationStatus == OrchestrationStatus.Terminated)
                     {
                         // If the orchestration planned to continue-as-new but termination is requested, we transition to the terminated state.

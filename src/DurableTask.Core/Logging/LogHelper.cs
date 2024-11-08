@@ -501,6 +501,19 @@ namespace DurableTask.Core.Logging
         }
 
         /// <summary>
+        /// Logs a warning indicating that the activity execution is poisoned and was canceled.
+        /// </summary>
+        /// <param name="instance">The orchestration instance that failed.</param>
+        /// <param name="reason">The reason for the orchestration execution becoming poisoned.</param>
+        internal void OrchestrationPoisoned(OrchestrationInstance instance, string reason)
+        {
+            if (this.IsStructuredLoggingEnabled)
+            {
+                this.WriteStructuredLog(new LogEvents.OrchestrationPoisoned(instance, reason));
+            }
+        }
+
+        /// <summary>
         /// Helper method for logging the dropping of all messages associated with the specified work item.
         /// </summary>
         /// <param name="workItem">The work item being dropped.</param>
@@ -687,12 +700,12 @@ namespace DurableTask.Core.Logging
         /// </summary>
         /// <param name="instance">The orchestration instance that scheduled this task activity.</param>
         /// <param name="taskEvent">The history event associated with this activity execution.</param>
-        /// <param name="details">More information about why the execution was canceled.</param>
+        /// <param name="details">More information about why the execution failed.</param>
         internal void TaskActivityPoisoned(OrchestrationInstance instance, TaskScheduledEvent taskEvent, string details)
         {
             if (this.IsStructuredLoggingEnabled)
             {
-                this.WriteStructuredLog(new LogEvents.TaskActivityAborted(instance, taskEvent, details));
+                this.WriteStructuredLog(new LogEvents.TaskActivityPoisoned(instance, taskEvent, details));
             }
         }
 

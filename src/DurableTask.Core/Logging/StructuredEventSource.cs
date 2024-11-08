@@ -599,6 +599,26 @@ namespace DurableTask.Core.Logging
             }
         }
 
+        [Event(EventIds.OrchestrationPoisoned, Level = EventLevel.Warning, Version = 1)]
+        internal void OrchestrationPoisoned(
+            string InstanceId,
+            string ExecutionId,
+            string Details,
+            string AppName,
+            string ExtensionVersion)
+        {
+            if (this.IsEnabled(EventLevel.Warning))
+            {
+                this.WriteEvent(
+                    EventIds.OrchestrationPoisoned,
+                    InstanceId,
+                    ExecutionId,
+                    Details,
+                    AppName,
+                    ExtensionVersion);
+            }
+        }
+
         [Event(EventIds.DiscardingMessage, Level = EventLevel.Warning, Version = 1)]
         internal void DiscardingMessage(
             string InstanceId,

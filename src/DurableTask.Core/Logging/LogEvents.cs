@@ -1138,6 +1138,45 @@ namespace DurableTask.Core.Logging
         }
 
         /// <summary>
+        /// Log event representing an orchestration becoming poisoned and being marked as failed.
+        /// </summary>
+        internal class OrchestrationPoisoned : StructuredLogEvent, IEventSourceEvent
+        {
+            public OrchestrationPoisoned(OrchestrationInstance instance, string reason)
+            {
+                this.InstanceId = instance.InstanceId;
+                this.ExecutionId = instance.ExecutionId;
+                this.Details = reason;
+            }
+
+            [StructuredLogField]
+            public string InstanceId { get; }
+
+            [StructuredLogField]
+            public string ExecutionId { get; }
+
+            [StructuredLogField]
+            public string Details { get; }
+
+            public override EventId EventId => new EventId(
+                EventIds.OrchestrationPoisoned,
+                nameof(EventIds.OrchestrationPoisoned));
+
+            public override LogLevel Level => LogLevel.Warning;
+
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Orchestration execution is poisoned and was marked as failed: {this.Details}";
+
+            void IEventSourceEvent.WriteEventSource() =>
+                StructuredEventSource.Log.OrchestrationPoisoned(
+                    this.InstanceId,
+                    this.ExecutionId,
+                    this.Details,
+                    Utils.AppName,
+                    Utils.PackageVersion);
+        }
+
+        /// <summary>
         /// Log event representing the discarding of an orchestration message that cannot be processed.
         /// </summary>
         internal class DiscardingMessage : StructuredLogEvent, IEventSourceEvent
@@ -1633,7 +1672,7 @@ namespace DurableTask.Core.Logging
             public override LogLevel Level => LogLevel.Warning;
 
             protected override string CreateLogMessage() =>
-                $"{this.InstanceId}: Task activity {GetEventDescription(this.Name, this.TaskEventId)} is poisoned and was canceled: {this.Details}";
+                $"{this.InstanceId}: Task activity {GetEventDescription(this.Name, this.TaskEventId)} is poisoned and was marked as failed: {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.TaskActivityPoisoned(
