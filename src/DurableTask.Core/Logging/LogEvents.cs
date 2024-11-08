@@ -1,4 +1,4 @@
-﻿//  ----------------------------------------------------------------------------------
+//  ----------------------------------------------------------------------------------
 //  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -1591,6 +1591,52 @@ namespace DurableTask.Core.Logging
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.TaskActivityAborted(
+                    this.InstanceId,
+                    this.ExecutionId,
+                    this.Name,
+                    this.TaskEventId,
+                    this.Details,
+                    Utils.AppName,
+                    Utils.PackageVersion);
+        }
+
+        internal class TaskActivityPoisoned : StructuredLogEvent, IEventSourceEvent
+        {
+            public TaskActivityPoisoned(OrchestrationInstance instance, TaskScheduledEvent taskEvent, string details)
+            {
+                this.InstanceId = instance.InstanceId;
+                this.ExecutionId = instance.ExecutionId;
+                this.Name = taskEvent.Name;
+                this.TaskEventId = taskEvent.EventId;
+                this.Details = details;
+            }
+
+            [StructuredLogField]
+            public string InstanceId { get; }
+
+            [StructuredLogField]
+            public string ExecutionId { get; }
+
+            [StructuredLogField]
+            public string Name { get; }
+
+            [StructuredLogField]
+            public int TaskEventId { get; }
+
+            [StructuredLogField]
+            public string Details { get; }
+
+            public override EventId EventId => new EventId(
+                EventIds.TaskActivityPoisoned,
+                nameof(EventIds.TaskActivityPoisoned));
+
+            public override LogLevel Level => LogLevel.Warning;
+
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Task activity {GetEventDescription(this.Name, this.TaskEventId)} is poisoned and was canceled: {this.Details}";
+
+            void IEventSourceEvent.WriteEventSource() =>
+                StructuredEventSource.Log.TaskActivityPoisoned(
                     this.InstanceId,
                     this.ExecutionId,
                     this.Name,

@@ -712,7 +712,7 @@ namespace DurableTask.Core.Logging
                 // TODO: Use WriteEventCore for better performance
                 this.WriteEvent(
                     EventIds.EntityLockReleased,
-                    EntityId, 
+                    EntityId,
                     InstanceId,
                     Id,
                     AppName,
@@ -808,6 +808,32 @@ namespace DurableTask.Core.Logging
                 // TODO: Use WriteEventCore for better performance
                 this.WriteEvent(
                     EventIds.TaskActivityAborted,
+                    InstanceId,
+                    ExecutionId,
+                    Name,
+                    TaskEventId,
+                    Details,
+                    AppName,
+                    ExtensionVersion);
+            }
+        }
+
+        [Event(EventIds.TaskActivityPoisoned, Level = EventLevel.Warning, Version = 1)]
+        internal void TaskActivityPoisoned(
+            string InstanceId,
+            string ExecutionId,
+            string Name,
+            int TaskEventId,
+            string Details,
+            string AppName,
+            string ExtensionVersion
+        )
+        {
+            if (this.IsEnabled(EventLevel.Warning))
+            {
+                // TODO: Use WriteEventCore for better performance
+                this.WriteEvent(
+                    EventIds.TaskActivityPoisoned,
                     InstanceId,
                     ExecutionId,
                     Name,
