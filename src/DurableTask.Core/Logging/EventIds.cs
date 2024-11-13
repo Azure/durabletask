@@ -51,6 +51,7 @@ namespace DurableTask.Core.Logging
         public const int EntityBatchExecuted = 56;
         public const int EntityLockAcquired = 57;
         public const int EntityLockReleased = 58;
+        public const int OrchestrationPoisoned = 59;
 
         public const int TaskActivityStarting = 60;
         public const int TaskActivityCompleted = 61;
@@ -60,6 +61,7 @@ namespace DurableTask.Core.Logging
         public const int RenewActivityMessageStarting = 65;
         public const int RenewActivityMessageCompleted = 66;
         public const int RenewActivityMessageFailed = 67;
+        public const int TaskActivityPoisoned = 68;
 
         public const int SuspendingInstance = 68;
         public const int ResumingInstance = 69;
