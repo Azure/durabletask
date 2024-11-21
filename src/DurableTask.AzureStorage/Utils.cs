@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.AzureStorage
 {
     using System;
@@ -143,7 +143,7 @@ namespace DurableTask.AzureStorage
         /// should be "SayHelloActivity"
         /// </summary>
         /// <param name="s"></param>
-        public static string GetTargetClassName(this string s)
+        public static string? GetTargetClassName(this string s)
         {
             if (s == null)
             {
@@ -191,9 +191,9 @@ namespace DurableTask.AzureStorage
         /// <param name="serializer">The serializer whose config will guide the deserialization.</param>
         /// <param name="jsonString">The JSON-string to deserialize.</param>
         /// <returns></returns>
-        public static T DeserializeFromJson<T>(JsonSerializer serializer, string jsonString)
+        public static T? DeserializeFromJson<T>(JsonSerializer serializer, string jsonString)
         {
-            T obj;
+            T? obj;
             using (var reader = new StringReader(jsonString))
             using (var jsonReader = new JsonTextReader(reader))
             {
@@ -209,7 +209,7 @@ namespace DurableTask.AzureStorage
         /// <typeparam name="T">The type to deserialize the JSON string into.</typeparam>
         /// <param name="stream">A stream of UTF-8 JSON.</param>
         /// <returns>The deserialized value.</returns>
-        public static T DeserializeFromJson<T>(Stream stream)
+        public static T? DeserializeFromJson<T>(Stream stream)
         {
             return DeserializeFromJson<T>(DefaultJsonSerializer, stream);
         }
@@ -222,7 +222,7 @@ namespace DurableTask.AzureStorage
         /// <param name="serializer">The serializer whose config will guide the deserialization.</param>
         /// <param name="stream">A stream of UTF-8 JSON.</param>
         /// <returns>The deserialized value.</returns>
-        public static T DeserializeFromJson<T>(JsonSerializer serializer, Stream stream)
+        public static T? DeserializeFromJson<T>(JsonSerializer serializer, Stream stream)
         {
             using var reader = new StreamReader(stream, Encoding.UTF8);
             using var jsonReader = new JsonTextReader(reader);
@@ -237,7 +237,7 @@ namespace DurableTask.AzureStorage
         /// <typeparam name="T">The type to deserialize the JSON string into.</typeparam>
         /// <param name="jsonString">The JSON-string to deserialize.</param>
         /// <returns></returns>
-        public static T DeserializeFromJson<T>(string jsonString)
+        public static T? DeserializeFromJson<T>(string jsonString)
         {
             return DeserializeFromJson<T>(DefaultJsonSerializer, jsonString);
         }
@@ -249,7 +249,7 @@ namespace DurableTask.AzureStorage
         /// <param name="jsonString">The JSON-string to deserialize.</param>
         /// <param name="type">The expected de-serialization type.</param>
         /// <returns></returns>
-        public static object DeserializeFromJson(string jsonString, Type type)
+        public static object? DeserializeFromJson(string jsonString, Type type)
         {
             return DeserializeFromJson(DefaultJsonSerializer, jsonString, type);
         }
@@ -262,9 +262,9 @@ namespace DurableTask.AzureStorage
         /// <param name="jsonString">The JSON-string to deserialize.</param>
         /// <param name="type">The expected de-serialization type.</param>
         /// <returns></returns>
-        public static object DeserializeFromJson(JsonSerializer serializer, string jsonString, Type type)
+        public static object? DeserializeFromJson(JsonSerializer serializer, string jsonString, Type type)
         {
-            object obj;
+            object? obj;
             using (var reader = new StringReader(jsonString))
             using (var jsonReader = new JsonTextReader(reader))
             {
