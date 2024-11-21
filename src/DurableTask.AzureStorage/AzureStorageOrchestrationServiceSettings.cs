@@ -280,5 +280,12 @@ namespace DurableTask.AzureStorage
         /// Consumers that require separate dispatch (such as the new out-of-proc v2 SDKs) must set this to true.
         /// </summary>
         public bool UseSeparateQueueForEntityWorkItems { get; set; } = false;
+
+        /// <summary>
+        /// Gets or sets whether or not misrouted queue message should be corrected, according to the instanceID hashing function.
+        /// This defaults to false, to avoid possible "infinite re-routing" of messages. Users may set this to true to try to recover
+        /// from accidentally changing the partitionCount of an existing TaskHub, which can lead to misrouted messages.
+        /// </summary>
+        public bool CorrectMisourtedMessages { get; set; } = false;
     }
 }
