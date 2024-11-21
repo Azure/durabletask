@@ -54,7 +54,8 @@ namespace DurableTask.Core
                 "TaskActivityDispatcher",
                 item => item.Id,
                 this.OnFetchWorkItemAsync,
-                this.OnProcessWorkItemAsync)
+                this.OnProcessWorkItemAsync,
+                this.RenewUntil)
             {
                 AbortWorkItem = orchestrationService.AbandonTaskActivityWorkItemAsync,
                 GetDelayInSecondsAfterOnFetchException = orchestrationService.GetDelayInSecondsAfterOnFetchException,
@@ -94,8 +95,6 @@ namespace DurableTask.Core
 
         async Task OnProcessWorkItemAsync(TaskActivityWorkItem workItem)
         {
-            Task? renewTask = null;
-            using var renewCancellationTokenSource = new CancellationTokenSource();
 
             TaskMessage taskMessage = workItem.TaskMessage;
             OrchestrationInstance orchestrationInstance = taskMessage.OrchestrationInstance;
@@ -143,14 +142,6 @@ namespace DurableTask.Core
 
                 this.logHelper.TaskActivityStarting(orchestrationInstance, scheduledEvent);
                 TaskActivity? taskActivity = this.objectManager.GetObject(scheduledEvent.Name, scheduledEvent.Version);
-
-                if (workItem.LockedUntilUtc < DateTime.MaxValue)
-                {
-                    // start a task to run RenewUntil
-                    renewTask = Task.Factory.StartNew(
-                        () => this.RenewUntil(workItem, renewCancellationTokenSource.Token),
-                        renewCancellationTokenSource.Token);
-                }
 
                 var dispatchContext = new DispatchMiddlewareContext();
                 dispatchContext.SetProperty(taskMessage.OrchestrationInstance);
@@ -271,23 +262,10 @@ namespace DurableTask.Core
             finally
             {
                 diagnosticActivity?.Stop(); // Ensure the activity is stopped here to prevent it from leaking out.
-                if (renewTask != null)
-                {
-                    renewCancellationTokenSource.Cancel();
-                    try
-                    {
-                        // wait the renewTask finish
-                        await renewTask;
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        // ignore
-                    }
-                }
             }
         }
 
-        async Task RenewUntil(TaskActivityWorkItem workItem, CancellationToken cancellationToken)
+        internal async Task RenewUntil(TaskActivityWorkItem workItem, CancellationToken cancellationToken)
         {
             try
             {
