@@ -30,14 +30,14 @@ namespace DurableTask.AzureStorage.Tests
         {
             { 0, "sampleinstanceid!13"},
             { 1, "sampleinstanceid!3"},
-            { 2, "sampleinstanceid!11"},
+            { 2, "sampleinstanceid!1!"},
             { 3, "sampleinstanceid!1"}
         };
 
         private Dictionary<uint, string> partitionToInstanceIdWithExplicitPartitionPlacement = new Dictionary<uint, string>()
         {
             { 0, "sampleinstanceid!0"},
-            { 1, "sampleinstanceid!1"},
+            { 1, "sampleinstanceid!2!1"},
             { 2, "sampleinstanceid!2"},
             { 3, "sampleinstanceid!3"}
         };
