@@ -755,7 +755,6 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        /// Add test for this.
         ///     Forcefully terminate the specified orchestration instance with a reason
         /// </summary>
         /// <param name="orchestrationInstance">Instance to terminate</param>
