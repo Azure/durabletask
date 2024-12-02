@@ -42,6 +42,14 @@ namespace DurableTask.AzureStorage.Tests
             { 3, "sampleinstanceid!3"}
         };
 
+        private Dictionary<uint, string> partitionToInstanceIdWithExplicitPartitionPlacementEndingWithExclamation = new Dictionary<uint, string>()
+        {
+            { 0, "sampleinstanceid!3!"},
+            { 1, "sampleinstanceid!2!"},
+            { 2, "sampleinstanceid!1!"},
+            { 3, "sampleinstanceid!0!"}
+        };
+
         [TestInitialize]
         public void Initialize()
         {
@@ -55,6 +63,9 @@ namespace DurableTask.AzureStorage.Tests
             };
 
             azureStorageOrchestrationService = new AzureStorageOrchestrationService(settings);
+
+            string str = "sampleinstanceid!0!";
+            var index = azureStorageOrchestrationService.GetPartitionIndex(str);
         }
 
         [TestMethod]
@@ -78,6 +89,36 @@ namespace DurableTask.AzureStorage.Tests
             settings.EnableExplicitPartitionPlacement = true;
 
             foreach (var kvp in partitionToInstanceIdWithExplicitPartitionPlacement)
+            {
+                var instanceId = kvp.Value;
+                var expectedPartitionIndex = kvp.Key;
+                var partitionIndex = azureStorageOrchestrationService.GetPartitionIndex(instanceId);
+
+                Assert.AreEqual(expectedPartitionIndex, partitionIndex);
+            }
+        }
+
+        [TestMethod]
+        public void GetPartitionIndexTest_EndingWithExclamation_EnableExplicitPartitionPlacement_True()
+        {
+            settings.EnableExplicitPartitionPlacement = true;
+
+            foreach (var kvp in partitionToInstanceIdWithExplicitPartitionPlacementEndingWithExclamation)
+            {
+                var instanceId = kvp.Value;
+                var expectedPartitionIndex = kvp.Key;
+                var partitionIndex = azureStorageOrchestrationService.GetPartitionIndex(instanceId);
+
+                Assert.AreEqual(expectedPartitionIndex, partitionIndex);
+            }
+        }
+
+        [TestMethod]
+        public void GetPartitionIndexTest_EndingWithExclamation_EnableExplicitPartitionPlacement_False()
+        {
+            settings.EnableExplicitPartitionPlacement = false;
+
+            foreach (var kvp in partitionToInstanceIdWithExplicitPartitionPlacementEndingWithExclamation)
             {
                 var instanceId = kvp.Value;
                 var expectedPartitionIndex = kvp.Key;

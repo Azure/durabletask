@@ -322,8 +322,10 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Whether to allow instanceIDs to use special syntax to land on a specific partition.
         /// If enabled, when an instanceID ends with suffix '!nnn', where 'nnn' is an unsigned number, the instance will land on the partition/queue for to that number.
-        /// ** DO NOT CHANGE THIS FLAG FOR PRE-EXISTING MESSAGES AS IT MAY BE CONSIDERED IN THE WRONG QUEUE **
         /// </summary>
+        /// <remarks>
+        /// It is not generally safe to change to this flag for pre-existing TaskHubs, as it may change the expected target queue for an instanceID.
+        /// </remarks>
         public bool EnableExplicitPartitionPlacement { get; set; } = false;
     }
 }
