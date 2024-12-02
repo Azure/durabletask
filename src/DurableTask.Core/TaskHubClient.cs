@@ -707,7 +707,6 @@ namespace DurableTask.Core
         }
 
         /// <summary>
-        /// Add test for this.
         ///     Raises an event in the specified orchestration instance, which eventually causes the OnEvent() method in the
         ///     orchestration to fire.
         /// </summary>
