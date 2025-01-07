@@ -17,22 +17,27 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
     using System.Diagnostics;
     using System.Net.Http;
     using System.Threading.Tasks;
-    using DurableTask.Core;
     using DurableTask.AzureServiceFabric.Remote;
-    using DurableTask.AzureServiceFabric.Service;
-
+    using DurableTask.Core;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     public static class Utilities
     {
         public static TaskHubClient CreateTaskHubClient()
         {
+            return CreateTaskHubClient(_ => { });
+        }
+
+        public static TaskHubClient CreateTaskHubClient(Action<RemoteOrchestrationServiceClient> setupServiceClient)
+        {
             var partitionProvider = new FabricPartitionEndpointResolver(new Uri(Constants.TestFabricApplicationAddress), new DefaultStringPartitionHashing());
             var httpClientHandler = new HttpClientHandler()
             {
                 ServerCertificateCustomValidationCallback = (message, certificate, chain, errors) => true
             };
-            return new TaskHubClient(new RemoteOrchestrationServiceClient(partitionProvider, httpClientHandler));
+            var serviceClient = new RemoteOrchestrationServiceClient(partitionProvider, httpClientHandler);
+            setupServiceClient(serviceClient);
+            return new TaskHubClient(serviceClient);
         }
 
         public static async Task ThrowsException<TException>(Func<Task> action, string expectedMessage) where TException : Exception

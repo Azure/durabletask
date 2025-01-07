@@ -317,7 +317,7 @@ namespace DurableTask.AzureServiceFabric.Remote
                 // TODO: Improve exception handling
                 if (result.StatusCode == HttpStatusCode.Conflict)
                 {
-                    throw await result.Content?.ReadAsAsync<OrchestrationAlreadyExistsException>();
+                    throw await (result.Content?.ReadAsAsync<OrchestrationAlreadyExistsException>() ?? Task.FromResult(new OrchestrationAlreadyExistsException()));
                 }
 
                 if (!result.IsSuccessStatusCode)
