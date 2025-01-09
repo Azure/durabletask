@@ -69,13 +69,13 @@ namespace DurableTask.AzureServiceFabric.Service
 
                 return new OkResult(this);
             }
-            catch (OrchestrationAlreadyExistsException ex)
+            catch (OrchestrationAlreadyExistsException orchestrationAlreadyExistsException)
             {
-                return Content<OrchestrationAlreadyExistsException>(System.Net.HttpStatusCode.Conflict, ex);
+                return Content<OrchestrationAlreadyExistsException>(System.Net.HttpStatusCode.Conflict, orchestrationAlreadyExistsException);
             }
-            catch (NotSupportedException ex)
+            catch (NotSupportedException notSupportedException)
             {
-                return Content<NotSupportedException>(System.Net.HttpStatusCode.BadRequest, ex);
+                return Content<NotSupportedException>(System.Net.HttpStatusCode.BadRequest, notSupportedException);
             }
         }
 
