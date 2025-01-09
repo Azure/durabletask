@@ -23,32 +23,51 @@ namespace DurableTask.AzureStorage.Tests
 
     static class TestHelpers
     {
-
         public static TestOrchestrationHost GetTestOrchestrationHost(
             bool enableExtendedSessions,
             int extendedSessionTimeoutInSeconds = 30,
             bool fetchLargeMessages = true,
+            bool allowReplayingTerminalInstances = false,
             Action<AzureStorageOrchestrationServiceSettings>? modifySettingsAction = null)
         {
-            string storageConnectionString = GetTestStorageAccountConnectionString();
-
-            var settings = new AzureStorageOrchestrationServiceSettings
-            {
-                StorageConnectionString = storageConnectionString,
-                TaskHubName = GetTestTaskHubName(),
-                ExtendedSessionsEnabled = enableExtendedSessions,
-                ExtendedSessionIdleTimeout = TimeSpan.FromSeconds(extendedSessionTimeoutInSeconds),
-                FetchLargeMessageDataEnabled = fetchLargeMessages,
-
-                // Setting up a logger factory to enable the new DurableTask.Core logs
-                // TODO: Add a logger provider so we can collect these logs in memory.
-                LoggerFactory = new LoggerFactory(),
-            };
-
+            AzureStorageOrchestrationServiceSettings settings = GetTestAzureStorageOrchestrationServiceSettings(
+                enableExtendedSessions,
+                extendedSessionTimeoutInSeconds,
+                fetchLargeMessages,
+                allowReplayingTerminalInstances);
             // Give the caller a chance to make test-specific changes to the settings
             modifySettingsAction?.Invoke(settings);
 
             return new TestOrchestrationHost(settings);
+        }
+
+        public static AzureStorageOrchestrationServiceSettings GetTestAzureStorageOrchestrationServiceSettings(
+            bool enableExtendedSessions,
+            int extendedSessionTimeoutInSeconds = 30,
+            bool fetchLargeMessages = true,
+            bool allowReplayingTerminalInstances = false)
+        {
+            string storageConnectionString = GetTestStorageAccountConnectionString();
+
+            var loggerFactory = LoggerFactory.Create(builder =>
+            {
+                builder.AddConsole().SetMinimumLevel(LogLevel.Trace);
+            });
+
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                ExtendedSessionIdleTimeout = TimeSpan.FromSeconds(extendedSessionTimeoutInSeconds),
+                ExtendedSessionsEnabled = enableExtendedSessions,
+                FetchLargeMessageDataEnabled = fetchLargeMessages,
+                StorageAccountClientProvider = new StorageAccountClientProvider(storageConnectionString),
+                TaskHubName = GetTestTaskHubName(),
+                AllowReplayingTerminalInstances = allowReplayingTerminalInstances,
+
+                // Setting up a logger factory to enable the new DurableTask.Core logs
+                LoggerFactory = loggerFactory,
+            };
+
+            return settings;
         }
 
         public static string GetTestStorageAccountConnectionString()
@@ -56,7 +75,7 @@ namespace DurableTask.AzureStorage.Tests
             string? storageConnectionString = GetTestSetting("StorageConnectionString");
             if (string.IsNullOrEmpty(storageConnectionString))
             {
-                storageConnectionString = "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://127.0.0.1:10002/";
+                storageConnectionString = "UseDevelopmentStorage=true";
             }
 
             return storageConnectionString!;

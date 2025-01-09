@@ -311,10 +311,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             if (initializeFromCurrent)
             {
                 opTelemetry.Id = activity.SpanId.ToHexString();
-                if (activity.ParentSpanId != null)
-                {
-                    opTelemetry.Context.Operation.ParentId = activity.ParentSpanId.ToHexString();
-                }
+                opTelemetry.Context.Operation.ParentId = activity.ParentSpanId.ToHexString();
             }
             else
             {

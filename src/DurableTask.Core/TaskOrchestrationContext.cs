@@ -17,6 +17,7 @@ namespace DurableTask.Core
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Globalization;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core.Command;
@@ -35,6 +36,7 @@ namespace DurableTask.Core
         private bool executionCompletedOrTerminated;
         private int idCounter;
         private readonly Queue<HistoryEvent> eventsWhileSuspended;
+        private readonly IDictionary<int, OrchestratorAction> suspendedActionsMap;
 
         public bool IsSuspended { get; private set; }
 
@@ -63,6 +65,7 @@ namespace DurableTask.Core
             this.EntityParameters = entityParameters;
             ErrorPropagationMode = errorPropagationMode;
             this.eventsWhileSuspended = new Queue<HistoryEvent>();
+            this.suspendedActionsMap = new SortedDictionary<int, OrchestratorAction>();
         }
 
         public IEnumerable<OrchestratorAction> OrchestratorActions => this.orchestratorActionsMap.Values;
@@ -200,7 +203,7 @@ namespace DurableTask.Core
 
             int id = this.idCounter++;
 
-            string serializedEventData = this.MessageDataConverter.SerializeInternal(eventData);             
+            string serializedEventData = this.MessageDataConverter.SerializeInternal(eventData);
 
             var action = new SendEventOrchestratorAction
             {
@@ -500,7 +503,7 @@ namespace DurableTask.Core
                 // When using ErrorPropagationMode.UseFailureDetails we instead use FailureDetails to convey
                 // error information, which doesn't involve any serialization at all.
                 Exception cause = this.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions ?
-                    Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter) 
+                    Utils.RetrieveCause(failedEvent.Details, this.ErrorDataConverter)
                     : null;
 
                 var failedException = new SubOrchestrationFailedException(failedEvent.EventId, taskId, info.Name,
@@ -568,18 +571,42 @@ namespace DurableTask.Core
         public void HandleExecutionSuspendedEvent(ExecutionSuspendedEvent suspendedEvent)
         {
             this.IsSuspended = true;
+
+            // When the orchestrator is suspended, a task could potentially be added to the orchestratorActionsMap.
+            // This could lead to the task being executed repeatedly without completion until the orchestrator is resumed.
+            // To prevent this scenario, check if orchestratorActionsMap is empty before proceeding.
+            if (this.orchestratorActionsMap.Any())
+            {
+                // If not, store its contents to a temporary dictionary to allow processing of the task later when orchestrator resumes.
+                foreach (var pair in this.orchestratorActionsMap)
+                {
+                    this.suspendedActionsMap.Add(pair.Key, pair.Value);
+                }
+                this.orchestratorActionsMap.Clear();
+            }
         }
 
         public void HandleExecutionResumedEvent(ExecutionResumedEvent resumedEvent, Action<HistoryEvent> eventProcessor)
         {
             this.IsSuspended = false;
+
+            // Add the actions stored in the suspendedActionsMap before back to orchestratorActionsMap to ensure proper sequencing.
+            if (this.suspendedActionsMap.Any())
+            {
+                foreach (var pair in this.suspendedActionsMap)
+                {
+                    this.orchestratorActionsMap.Add(pair.Key, pair.Value);
+                }
+                this.suspendedActionsMap.Clear();
+            }
+
             while (eventsWhileSuspended.Count > 0)
             {
                 eventProcessor(eventsWhileSuspended.Dequeue());
             }
         }
 
-        public void FailOrchestration(Exception failure)
+        public void FailOrchestration(Exception failure, OrchestrationRuntimeState runtimeState)
         {
             if (failure == null)
             {
@@ -611,6 +638,12 @@ namespace DurableTask.Core
                     details = orchestrationFailureException.Details;
                 }
             }
+            else if (failure is TaskFailedException taskFailedException &&
+                this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
+            {
+                // Propagate the original FailureDetails
+                failureDetails = taskFailedException.FailureDetails;
+            }
             else
             {
                 if (this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
@@ -623,6 +656,8 @@ namespace DurableTask.Core
                 }
             }
 
+            // save exception so it can be retrieved and sanitized during logging. See LogEvents.OrchestrationCompleted for more details
+            runtimeState.Exception = failure;
             CompleteOrchestration(reason, details, OrchestrationStatus.Failed, failureDetails);
         }
 

@@ -42,7 +42,7 @@ namespace DurableTask.Stress.Tests
                             {
                                 MaxConcurrentTaskActivityWorkItems = int.Parse(config.AppSettings.Settings["MaxConcurrentActivities"].Value),
                                 MaxConcurrentTaskOrchestrationWorkItems = int.Parse(config.AppSettings.Settings["MaxConcurrentOrchestrations"].Value),
-                                StorageAccountDetails = new StorageAccountDetails { ConnectionString = connectionString },
+                                StorageAccountClientProvider = new StorageAccountClientProvider(connectionString),
                                 TaskHubName = config.AppSettings.Settings["TaskHubName"].Value,
                             };
 
@@ -177,7 +177,7 @@ namespace DurableTask.Stress.Tests
                 {
                     MaxConcurrentTaskActivityWorkItems = int.Parse(ConfigurationManager.AppSettings["MaxConcurrentActivities"]),
                     MaxConcurrentTaskOrchestrationWorkItems = int.Parse(ConfigurationManager.AppSettings["MaxConcurrentOrchestrations"]),
-                    StorageAccountDetails = new StorageAccountDetails { ConnectionString = connectionString },
+                    StorageAccountClientProvider = new StorageAccountClientProvider(connectionString),
                     TaskHubName = ConfigurationManager.AppSettings["TaskHubName"],
                 };
 

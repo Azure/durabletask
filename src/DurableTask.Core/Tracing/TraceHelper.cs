@@ -85,7 +85,7 @@ namespace DurableTask.Core.Tracing
             DateTimeOffset startTime = startEvent.ParentTraceContext.ActivityStartTime ?? default;
 
             Activity? activity = ActivityTraceSource.StartActivity(
-                name: activityName,
+                activityName,
                 kind: activityKind,
                 parentContext: activityContext,
                 startTime: startTime);
@@ -139,7 +139,7 @@ namespace DurableTask.Core.Tracing
             }
 
             Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: CreateSpanName(TraceActivityConstants.Activity, scheduledEvent.Name, scheduledEvent.Version),
+                CreateSpanName(TraceActivityConstants.Activity, scheduledEvent.Name, scheduledEvent.Version),
                 kind: ActivityKind.Server,
                 parentContext: activityContext);
 
@@ -180,7 +180,7 @@ namespace DurableTask.Core.Tracing
             }
 
             Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: CreateSpanName(TraceActivityConstants.Activity, taskScheduledEvent.Name, taskScheduledEvent.Version),
+                CreateSpanName(TraceActivityConstants.Activity, taskScheduledEvent.Name, taskScheduledEvent.Version),
                 kind: ActivityKind.Client,
                 startTime: taskScheduledEvent.Timestamp,
                 parentContext: Activity.Current?.Context ?? default);
@@ -274,7 +274,7 @@ namespace DurableTask.Core.Tracing
             }
 
             Activity? activity = ActivityTraceSource.StartActivity(
-                name: CreateSpanName(TraceActivityConstants.Orchestration, createdEvent.Name, createdEvent.Version),
+                CreateSpanName(TraceActivityConstants.Orchestration, createdEvent.Name, createdEvent.Version),
                 kind: ActivityKind.Client,
                 startTime: createdEvent.Timestamp,
                 parentContext: Activity.Current?.Context ?? default);
@@ -358,7 +358,7 @@ namespace DurableTask.Core.Tracing
             string? targetInstanceId)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: CreateSpanName(TraceActivityConstants.OrchestrationEvent, eventRaisedEvent.Name, null),
+                CreateSpanName(TraceActivityConstants.OrchestrationEvent, eventRaisedEvent.Name, null),
                 kind: ActivityKind.Producer,
                 parentContext: Activity.Current?.Context ?? default);
 
@@ -391,7 +391,7 @@ namespace DurableTask.Core.Tracing
         internal static Activity? StartActivityForNewEventRaisedFromClient(EventRaisedEvent eventRaised, OrchestrationInstance instance)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: CreateSpanName(TraceActivityConstants.OrchestrationEvent, eventRaised.Name, null),
+                CreateSpanName(TraceActivityConstants.OrchestrationEvent, eventRaised.Name, null),
                 kind: ActivityKind.Producer,
                 parentContext: Activity.Current?.Context ?? default,
                 tags: new KeyValuePair<string, object?>[]
@@ -418,7 +418,7 @@ namespace DurableTask.Core.Tracing
             TimerFiredEvent timerFiredEvent)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: CreateTimerSpanName(orchestrationName),
+                CreateTimerSpanName(orchestrationName),
                 kind: ActivityKind.Internal,
                 startTime: startTime,
                 parentContext: Activity.Current?.Context ?? default);

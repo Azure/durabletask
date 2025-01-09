@@ -1,0 +1,116 @@
+jobs:
+    - job: Build
+
+      templateContext:
+          outputs:
+              - output: pipelineArtifact
+                path: $(build.artifactStagingDirectory)
+                artifact: drop
+                sbomBuildDropPath: $(build.artifactStagingDirectory)
+                sbomPackageName: 'DurableTask SBOM'
+
+      steps:
+      # Start by restoring all the dependencies. This needs to be its own task
+      # from what I can tell. We specifically only target DurableTask.AzureStorage
+      # and its direct dependencies.
+      
+      - task: DotNetCoreCLI@2
+        displayName: 'Restore nuget dependencies'
+        inputs:
+            command: restore
+            verbosityRestore: Minimal
+            projects: |
+                src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln
+                src/DurableTask.Emulator/DurableTask.Emulator.csproj
+                src/DurableTask.ServiceBus/DurableTask.ServiceBus.csproj
+                src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj
+                src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj
+
+
+      # Build the filtered solution in release mode, specifying the continuous integration flag.
+      - task: VSBuild@1
+        displayName: 'Build (AzureStorage)'
+        inputs:
+          solution: 'src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln'
+          vsVersion: '16.0'
+          logFileVerbosity: minimal
+          configuration: Release
+          msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+      - task: VSBuild@1
+        displayName: 'Build (ApplicationInsights)'
+        inputs:
+          solution: 'src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj'
+          vsVersion: '16.0'
+          logFileVerbosity: minimal
+          configuration: Release
+          msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+      - task: VSBuild@1
+        displayName: 'Build (Emulator)'
+        inputs:
+          solution: 'src/DurableTask.Emulator/DurableTask.Emulator.csproj'
+          vsVersion: '16.0'
+          logFileVerbosity: minimal
+          configuration: Release
+          msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+      # - task: VSBuild@1
+      #   displayName: 'Build (ServiceBus)'
+      #   inputs:
+      #     solution: 'src/DurableTask.ServiceBus/DurableTask.ServiceBus.csproj'
+      #     vsVersion: '16.0'
+      #     logFileVerbosity: minimal
+      #     configuration: Release
+      #     msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+      # - task: VSBuild@1
+      #   displayName: 'Build (AzureServiceFabric)'
+      #   inputs:
+      #     solution: 'src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj'
+      #     vsVersion: '16.0'
+      #     logFileVerbosity: minimal
+      #     configuration: Release
+      #     platform: x64
+      #     msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+      #- task: UseDotNet@2
+      #  displayName: 'Use the .NET Core 6 SDK (required for build signing)'
+      #  inputs:
+      #    packageType: 'sdk'
+      #    version: '6.x.x'
+      
+      - template: ci/sign-files.yml@eng
+        parameters:
+          displayName: Sign assemblies
+          folderPath: src
+          pattern: DurableTask.*.dll
+          signType: dll
+      
+      # need to add all the code-signing stuff + SBOM
+      - task: DotNetCoreCLI@2
+        displayName: Generate nuget packages
+        inputs:
+          command: pack
+          verbosityPack: Minimal
+          configuration: Release
+          nobuild: true
+          packDirectory: $(build.artifactStagingDirectory)
+          packagesToPack: 'src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln'
+
+      - task: DotNetCoreCLI@2
+        displayName: Generate nuget packages
+        inputs:
+          command: pack
+          verbosityPack: Minimal
+          configuration: Release
+          nobuild: true
+          packDirectory: $(build.artifactStagingDirectory)
+          packagesToPack: 'src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj'
+
+      - template: ci/sign-files.yml@eng
+        parameters:
+          displayName: Sign NugetPackages
+          folderPath: $(build.artifactStagingDirectory)
+          pattern: '*.nupkg'
+          signType: nuget

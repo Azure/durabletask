@@ -25,11 +25,12 @@ namespace DurableTask.Emulator
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.Core.Entities;
 
     /// <summary>
     /// Fully functional in-proc orchestration service for testing
     /// </summary>
-    public class LocalOrchestrationService : IOrchestrationService, IOrchestrationServiceClient, IDisposable
+    public class LocalOrchestrationService : IOrchestrationService, IOrchestrationServiceClient, IEntityOrchestrationService, IDisposable
     {
         // ReSharper disable once NotAccessedField.Local
         Dictionary<string, byte[]> sessionState;
@@ -174,7 +175,7 @@ namespace DurableTask.Emulator
         }
 
         /// <inheritdoc />
-        public Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
+        public virtual Task CreateTaskOrchestrationAsync(TaskMessage creationMessage, OrchestrationStatus[] dedupeStatuses)
         {
             var ee = creationMessage.Event as ExecutionStartedEvent;
 
@@ -668,6 +669,37 @@ namespace DurableTask.Emulator
                 this.cancellationTokenSource.Cancel();
                 this.cancellationTokenSource.Dispose();
             }
+        }
+
+        /// <inheritdoc />
+        /// Test only for core entities. The value is set as default.
+        EntityBackendProperties IEntityOrchestrationService.EntityBackendProperties => new EntityBackendProperties()
+        {
+            EntityMessageReorderWindow = TimeSpan.FromMinutes(30),
+            MaxEntityOperationBatchSize = null,
+            MaxConcurrentTaskEntityWorkItems = 100,
+            SupportsImplicitEntityDeletion = false, // not supported by this backend
+            MaximumSignalDelayTime = TimeSpan.FromDays(6),
+            UseSeparateQueueForEntityWorkItems = false,
+        };
+
+        /// <inheritdoc />
+        EntityBackendQueries IEntityOrchestrationService.EntityBackendQueries => null;
+
+        /// <inheritdoc />
+        Task<TaskOrchestrationWorkItem> IEntityOrchestrationService.LockNextEntityWorkItemAsync(
+            TimeSpan receiveTimeout,
+            CancellationToken cancellationToken)
+        {
+            return this.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        Task<TaskOrchestrationWorkItem> IEntityOrchestrationService.LockNextOrchestrationWorkItemAsync(
+          TimeSpan receiveTimeout,
+          CancellationToken cancellationToken)
+        {
+            return this.LockNextTaskOrchestrationWorkItemAsync(receiveTimeout, cancellationToken);
         }
     }
 }

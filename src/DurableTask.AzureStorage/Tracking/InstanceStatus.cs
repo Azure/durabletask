@@ -12,6 +12,7 @@
 //  ----------------------------------------------------------------------------------
 
 using System;
+using Azure;
 using DurableTask.Core;
 
 namespace DurableTask.AzureStorage.Tracking
@@ -22,14 +23,14 @@ namespace DurableTask.AzureStorage.Tracking
             : this(state, null)
         { }
 
-        public InstanceStatus(OrchestrationState state, string eTag)
+        public InstanceStatus(OrchestrationState state, ETag? eTag)
         {
             this.State = state ?? throw new ArgumentNullException(nameof(state));
-            this.ETag = eTag ?? "*";
+            this.ETag = eTag ?? ETag.All;
         }
 
         public OrchestrationState State { get; }
 
-        public string ETag { get; }
+        public ETag ETag { get; }
     }
 }

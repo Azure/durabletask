@@ -28,9 +28,6 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     using DurableTask.Core.Tracking;
     using DurableTask.ServiceBus.Settings;
     using Newtonsoft.Json;
-#if NETSTANDARD2_0
-    using Microsoft.Azure.ServiceBus.InteropExtensions;
-#endif
 
     internal static class ServiceBusUtils
     {
@@ -60,7 +57,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #if NETSTANDARD2_0
                 using (var ms = new MemoryStream())
                 {
-                    var serialiser = (XmlObjectSerializer)typeof(DataContractBinarySerializer<>)
+                    var serialiser = (XmlObjectSerializer)typeof(DataContractSerializer)
                         .MakeGenericType(serializableObject.GetType())
                         .GetField("Instance")
                         ?.GetValue(null);
@@ -216,8 +213,9 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             {
                 // no compression, legacy style
 #if NETSTANDARD2_0
+                var dataContractSerializer = new DataContractSerializer(typeof(T));
                 using (var ms = new MemoryStream(message.Body))
-                    deserializedObject = (T)DataContractBinarySerializer<T>.Instance.ReadObject(ms);
+                    deserializedObject = (T)dataContractSerializer.ReadObject(ms);
 #else
                 deserializedObject = message.GetBody<T>();
 #endif

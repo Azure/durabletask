@@ -15,6 +15,7 @@ namespace DurableTask.AzureStorage
 {
     using System;
     using System.Runtime.Serialization;
+    using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
     using Newtonsoft.Json;
@@ -96,7 +97,7 @@ namespace DurableTask.AzureStorage
         [DataMember]
         public string SerializableTraceContext { get; set; }
 
-        internal string Id => this.OriginalQueueMessage?.Id;
+        internal string Id => this.OriginalQueueMessage?.MessageId;
 
         internal string QueueName { get; set; }
 
@@ -105,6 +106,11 @@ namespace DurableTask.AzureStorage
         internal long TotalMessageSizeBytes { get; set; }
 
         internal MessageFormatFlags MessageFormat { get; set; }
+
+        internal void Update(UpdateReceipt receipt)
+        {
+            this.OriginalQueueMessage = this.OriginalQueueMessage.Update(receipt);
+        }
     }
 
     /// <summary>

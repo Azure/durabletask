@@ -102,7 +102,7 @@ namespace DurableTask.AzureStorage
             string ExecutionId,
             string MessageId,
             int Age,
-            int DequeueCount,
+            long DequeueCount,
             string NextVisibleTime,
             long SizeInBytes,
             string PartitionId,
@@ -256,7 +256,7 @@ namespace DurableTask.AzureStorage
             string InstanceId,
             string ExecutionId,
             string PartitionId,
-            int DequeueCount,
+            long DequeueCount,
             string PopReceipt,
             string AppName,
             string ExtensionVersion)
@@ -287,7 +287,7 @@ namespace DurableTask.AzureStorage
             string InstanceId,
             string ExecutionId,
             string PartitionId,
-            int DequeueCount,
+            long DequeueCount,
             string AppName,
             string ExtensionVersion)
         {

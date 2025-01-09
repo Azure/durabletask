@@ -71,7 +71,7 @@ namespace OpenTelemetrySample
             var settings = new AzureStorageOrchestrationServiceSettings
             {
                 TaskHubName = "OpenTelemetrySampleTaskHub",
-                StorageConnectionString = "UseDevelopmentStorage=true",
+                StorageAccountClientProvider = new StorageAccountClientProvider("UseDevelopmentStorage=true"),
             };
 
             IOrchestrationService service = new AzureStorageOrchestrationService(settings);
@@ -97,7 +97,7 @@ namespace OpenTelemetrySample
 
         class ExceptionOrchestration : TaskOrchestration<string, string>
         {
-            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            public override Task<string> RunTask(OrchestrationContext context, string input)
             {
                 throw new Exception(input);
             }

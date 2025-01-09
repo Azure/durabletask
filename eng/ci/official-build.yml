@@ -1,0 +1,45 @@
+trigger:
+    batch: true
+    branches:
+        include:
+            - main
+            - durabletask-core-v2
+
+# CI only, does not trigger on PRs.
+pr: none
+
+schedules:
+# Build nightly to catch any new CVEs and report SDL often.
+# We are also required to generated CodeQL reports weekly, so this
+# helps us meet that.
+- cron: "0 0 * * *"
+  displayName: Nightly Build
+  branches:
+    include:
+    - main
+  always: true
+
+resources:
+    repositories:
+        - repository: 1es
+          type: git
+          name: 1ESPipelineTemplates/1ESPipelineTemplates
+          ref: refs/tags/release
+        - repository: eng
+          type: git
+          name: engineering
+          ref: refs/tags/release
+
+extends:
+    template: v1/1ES.Official.PipelineTemplate.yml@1es
+    parameters:
+        pool:
+            name: 1es-pool-azfunc
+            image: 1es-windows-2022
+            os: windows
+
+        stages:
+            - stage: BuildAndSign
+              dependsOn: []
+              jobs:
+                  - template: /eng/templates/build.yml@self

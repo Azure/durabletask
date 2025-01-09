@@ -17,10 +17,10 @@ namespace DurableTask.AzureStorage.Partitioning
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Net;
     using System.Threading;
     using System.Threading.Tasks;
     using Azure;
-    using Azure.Data.Tables;
     using DurableTask.AzureStorage.Storage;
 
     /// <summary>
@@ -43,7 +43,7 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly CancellationTokenSource gracefulShutdownTokenSource;
         readonly CancellationTokenSource forcefulShutdownTokenSource;
         readonly string storageAccountName;
-        readonly TableClient partitionTable;
+        readonly Table partitionTable;
         readonly TableLeaseManager tableLeaseManager;
         readonly LeaseCollectionBalancerOptions options;
 
@@ -62,13 +62,6 @@ namespace DurableTask.AzureStorage.Partitioning
             this.service = service;
             this.settings = this.azureStorageClient.Settings;
             this.storageAccountName = this.azureStorageClient.TableAccountName;
-
-            string connectionString = this.settings.StorageConnectionString ?? this.settings.StorageAccountDetails.ConnectionString;
-            if (string.IsNullOrEmpty(connectionString))
-            {
-                throw new InvalidOperationException("A connection string is required to use the table partition manager. Managed identity is not yet supported when using the table partition manager. Please provide a connection string to your storage account in your app settings.");
-            }
-
             this.options = new LeaseCollectionBalancerOptions
             {
                 AcquireInterval = this.settings.LeaseAcquireInterval,
@@ -77,7 +70,7 @@ namespace DurableTask.AzureStorage.Partitioning
             };
             this.gracefulShutdownTokenSource = new CancellationTokenSource();
             this.forcefulShutdownTokenSource = new CancellationTokenSource();
-            this.partitionTable = new TableClient(connectionString, this.settings.PartitionTableName);
+            this.partitionTable = azureStorageClient.GetTableReference(this.settings.PartitionTableName);
             this.tableLeaseManager = new TableLeaseManager(this.partitionTable, this.service, this.settings, this.storageAccountName, this.options);
             this.partitionManagerTask = Task.CompletedTask;
         }
@@ -118,11 +111,11 @@ namespace DurableTask.AzureStorage.Partitioning
 
             int consecutiveFailureCount = 0;
             bool isShuttingDown = gracefulShutdownToken.IsCancellationRequested;
-            
+
             while (true)
             {
                 TimeSpan timeToSleep = this.options.AcquireInterval;
-                
+
                 try
                 {
                     ReadTableReponse response = await this.tableLeaseManager.ReadAndWriteTableAsync(isShuttingDown, forcefulShutdownToken);
@@ -138,7 +131,7 @@ namespace DurableTask.AzureStorage.Partitioning
                             "Successfully released all ownership leases for shutdown.");
                         break;
                     }
-                    
+
                     // Poll more frequently if we are draining a partition or waiting for a partition to be released
                     // by another worker. This is a temporary state and we want to try and be as responsive to updates
                     // as possible to minimize the time spent in this state, which is effectively downtime for orchestrations.
@@ -146,11 +139,11 @@ namespace DurableTask.AzureStorage.Partitioning
                     {
                         timeToSleep = TimeSpan.FromSeconds(1);
                     }
-                    
+
                     consecutiveFailureCount = 0;
                 }
                 // Exception Status 412 represents an out of date ETag. We already logged this.
-                catch (RequestFailedException ex) when (ex.Status == 412)
+                catch (DurableTaskStorageException ex) when (ex.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
                 {
                     consecutiveFailureCount++;
                 }
@@ -163,7 +156,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         this.settings.WorkerId,
                         partitionId: NotApplicable,
                         details: $"Unexpected error occurred while trying to manage table partition leases: {exception}");
-                    
+
                     consecutiveFailureCount++;
                 }
 
@@ -260,8 +253,8 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             try
             {
-                var newPartitionEntry = new TableLease { RowKey = partitionId };
-                await this.partitionTable.AddEntityAsync(newPartitionEntry);
+                var newPartitionEntry = new TablePartitionLease { RowKey = partitionId };
+                await this.partitionTable.InsertEntityAsync(newPartitionEntry);
 
                 this.settings.Logger.PartitionManagerInfo(
                     this.storageAccountName,
@@ -270,7 +263,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     partitionId,
                     "Successfully added the partition to the partition table.");
             }
-            catch (RequestFailedException e) when (e.Status == 409 /* The specified entity already exists. */)
+            catch (DurableTaskStorageException ex) when (ex.HttpStatusCode == (int)HttpStatusCode.Conflict /* The specified entity already exists. */)
             {
                 this.settings.Logger.PartitionManagerInfo(
                     this.storageAccountName,
@@ -281,7 +274,7 @@ namespace DurableTask.AzureStorage.Partitioning
             }
         }
         
-        Task<IEnumerable<BlobLease>> IPartitionManager.GetOwnershipBlobLeases()
+        IAsyncEnumerable<BlobPartitionLease> IPartitionManager.GetOwnershipBlobLeasesAsync(CancellationToken cancellationToken)
         {
             throw new NotImplementedException("This method is not implemented in the TablePartitionManager");
         }
@@ -289,9 +282,9 @@ namespace DurableTask.AzureStorage.Partitioning
         /// <summary>
         /// Used for internal testing.
         /// </summary>
-        internal IEnumerable<TableLease> GetTableLeases()
+        internal IAsyncEnumerable<TablePartitionLease> GetTableLeasesAsync(CancellationToken cancellationToken = default)
         {
-            return this.partitionTable.Query<TableLease>();
+            return this.partitionTable.ExecuteQueryAsync<TablePartitionLease>(cancellationToken: cancellationToken);
         }
 
         Task IPartitionManager.DeleteLeases()
@@ -304,13 +297,13 @@ namespace DurableTask.AzureStorage.Partitioning
             readonly string workerName;
             readonly AzureStorageOrchestrationService service;
             readonly AzureStorageOrchestrationServiceSettings settings;
-            readonly TableClient partitionTable;
+            readonly Table partitionTable;
             readonly string storageAccountName;
             readonly Dictionary<string, Task> backgroundDrainTasks;
             readonly LeaseCollectionBalancerOptions options;
 
             public TableLeaseManager(
-                TableClient table,
+                Table table,
                 AzureStorageOrchestrationService service,
                 AzureStorageOrchestrationServiceSettings settings,
                 string storageAccountName,
@@ -340,11 +333,14 @@ namespace DurableTask.AzureStorage.Partitioning
             {
                 var response = new ReadTableReponse();
 
-                IReadOnlyList<TableLease> partitions = this.partitionTable.Query<TableLease>(cancellationToken: forcefulShutdownToken).ToList();
-                var partitionDistribution = new Dictionary<string, List<TableLease>>(); 
+                List<TablePartitionLease> partitions = await this.partitionTable
+                    .ExecuteQueryAsync<TablePartitionLease>(cancellationToken: forcefulShutdownToken)
+                    .ToListAsync();
+
+                var partitionDistribution = new Dictionary<string, List<TablePartitionLease>>(); 
                 int ownershipLeaseCount = 0;
 
-                foreach (TableLease partition in partitions)
+                foreach (TablePartitionLease partition in partitions)
                 {
                     // In a worker becomes unhealthy, it may lose a lease without realizing it and continue listening
                     // for messages. We check for that case here and stop dequeuing messages if we discover that
@@ -398,9 +394,9 @@ namespace DurableTask.AzureStorage.Partitioning
                     {
                         try
                         {
-                            await this.partitionTable.UpdateEntityAsync(partition, etag, TableUpdateMode.Replace, forcefulShutdownToken);
+                            await this.partitionTable.ReplaceEntityAsync(partition, etag, forcefulShutdownToken);
                         }
-                        catch (RequestFailedException ex) when (ex.Status == 412)
+                        catch (DurableTaskStorageException ex) when (ex.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
                         {
                             this.settings.Logger.PartitionManagerInfo(
                                 this.storageAccountName,
@@ -411,7 +407,11 @@ namespace DurableTask.AzureStorage.Partitioning
                             throw;
                         }
 
-                        if (claimedLease)
+                        // Ensure worker is listening to the control queue iff either:
+                        // 1) worker just claimed the lease,
+                        // 2) worker was already the owner in the partitions table and is not actively draining the queue. Note that during draining, we renew the lease but do not want to listen to new messages. Otherwise, we'll never finish draining our in-memory messages.
+                        bool isRenewingToDrainQueue = renewedLease & response.IsDrainingPartition;
+                        if (claimedLease || !isRenewingToDrainQueue)
                         {
                             // Notify the orchestration session manager that we acquired a lease for one of the partitions.
                             // This will cause it to start reading control queue messages for that partition.
@@ -439,7 +439,7 @@ namespace DurableTask.AzureStorage.Partitioning
             /// Checks to see if a lease is available to be claimed by the current worker.
             /// </summary>
             /// <param name="partition">The partition to check.</param>
-            bool TryClaimLease(TableLease partition)
+            bool TryClaimLease(TablePartitionLease partition)
             {
                 //Check if the partition is empty, expired or stolen by the current worker and claim it.
                 bool isEmptyLease = partition.CurrentOwner == null && partition.NextOwner == null;
@@ -460,7 +460,7 @@ namespace DurableTask.AzureStorage.Partitioning
             // If the lease is not stolen by others, renew it.
             // If the lease is stolen by others, check if starts drainning or if finishes drainning.
             void RenewOrReleaseMyLease(
-                TableLease partition,
+                TablePartitionLease partition,
                 ReadTableReponse response,
                 ref int ownershipLeaseCount,
                 ref bool releasedLease,
@@ -495,8 +495,8 @@ namespace DurableTask.AzureStorage.Partitioning
             // If the lease is other worker's lease. Store it to the dictionary for future balance.
             // If the other worker is shutting down, steal the lease.
             void CheckOtherWorkersLeases(
-                TableLease partition,
-                Dictionary<string, List<TableLease>> partitionDistribution,
+                TablePartitionLease partition,
+                Dictionary<string, List<TablePartitionLease>> partitionDistribution,
                 ReadTableReponse response,
                 ref int ownershipLeaseCount,
                 ref string previousOwner,
@@ -546,7 +546,7 @@ namespace DurableTask.AzureStorage.Partitioning
             // Method for draining and releasing all ownership partitions.
             // This method will only be called when shutdown is requested.
             void TryDrainAndReleaseAllPartitions(
-                TableLease partition,
+                TablePartitionLease partition,
                 ReadTableReponse response,
                 ref int ownershipLeaseCount,
                 ref bool releasedLease,
@@ -584,8 +584,8 @@ namespace DurableTask.AzureStorage.Partitioning
             // An exception will be thrown if the table update fails due to an outdated ETag so that the worker can re-read the table again to get the latest information.
             // Any other exceptions will be captured through logs. 
             async Task BalanceLeasesAsync(
-                Dictionary<string, List<TableLease>> partitionDistribution,
-                IReadOnlyList<TableLease> partitions,
+                Dictionary<string, List<TablePartitionLease>> partitionDistribution,
+                IReadOnlyList<TablePartitionLease> partitions,
                 int ownershipLeaseCount,
                 ReadTableReponse response,
                 CancellationToken forceShutdownToken)
@@ -604,7 +604,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
 
                 // If this worker does not own enough partitions, search for leases to steal
-                foreach (IReadOnlyList<TableLease> ownedPartitions in partitionDistribution.Values)
+                foreach (IReadOnlyList<TablePartitionLease> ownedPartitions in partitionDistribution.Values)
                 {
                     int numLeasesToSteal = averageLeasesCount - ownershipLeaseCount;
                     if (numLeasesToSteal < 0)
@@ -633,17 +633,16 @@ namespace DurableTask.AzureStorage.Partitioning
                     for (int i = 0; i < numLeasesToSteal; i++)
                     {
                         ownershipLeaseCount++;
-                        TableLease partition = ownedPartitions[i];
+                        TablePartitionLease partition = ownedPartitions[i];
                         ETag etag = partition.ETag;
                         string previousOwner = partition.CurrentOwner!;
                         this.StealLease(partition);
 
                         try
                         {
-                            await this.partitionTable.UpdateEntityAsync(
+                            await this.partitionTable.ReplaceEntityAsync(
                                 partition,
                                 etag,
-                                TableUpdateMode.Replace,
                                 forceShutdownToken);
                             
                             this.settings.Logger.LeaseStealingSucceeded(
@@ -656,7 +655,7 @@ namespace DurableTask.AzureStorage.Partitioning
                             
                             response.IsWaitingForPartitionRelease = true;
                         }
-                        catch (RequestFailedException ex) when (ex.Status == 412 /* ETag conflict */)
+                        catch (DurableTaskStorageException ex) when (ex.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed /* ETag conflict */)
                         {
                             this.settings.Logger.PartitionManagerInfo(
                                 this.storageAccountName,
@@ -683,7 +682,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 }
             }
 
-            void ClaimLease(TableLease lease)
+            void ClaimLease(TablePartitionLease lease)
             {
                 lease.CurrentOwner = this.workerName;
                 lease.NextOwner = null;
@@ -693,7 +692,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 lease.IsDraining = false;
             }
 
-            void DrainPartition(TableLease lease, CloseReason reason)
+            void DrainPartition(TablePartitionLease lease, CloseReason reason)
             {
                 Task task = this.service.DrainTablePartitionAsync(lease, reason);
                 string partitionId = lease.RowKey!;
@@ -701,26 +700,26 @@ namespace DurableTask.AzureStorage.Partitioning
                 lease.IsDraining = true;
             }
 
-            void ReleaseLease(TableLease lease)
+            void ReleaseLease(TablePartitionLease lease)
             {
                 lease.IsDraining = false;
                 lease.CurrentOwner = null;
             }
 
-            void RenewLease(TableLease lease)
+            void RenewLease(TablePartitionLease lease)
             {
                 lease.LastRenewal = DateTime.UtcNow;
                 lease.ExpiresAt = DateTime.UtcNow.Add(this.options.LeaseInterval);
             }
 
-            void StealLease(TableLease lease)
+            void StealLease(TablePartitionLease lease)
             {
                 lease.NextOwner = this.workerName;
             }
            
             // Log operations on partition table.
             void LogHelper(
-                TableLease partition,
+                TablePartitionLease partition,
                 bool claimedLease,
                 bool stoleLease,
                 bool renewedLease,
@@ -781,22 +780,22 @@ namespace DurableTask.AzureStorage.Partitioning
             }
 
             // Track partition distribution in the partitionDistribution dictionary. We use this information when balancing partitions.
-            static void AddToDictionary(TableLease partition, Dictionary<string, List<TableLease>> partitionDistribution, string owner)
+            static void AddToDictionary(TablePartitionLease partition, Dictionary<string, List<TablePartitionLease>> partitionDistribution, string owner)
             {
-                if (partitionDistribution.TryGetValue(owner, out List<TableLease> ownedPartitions))
+                if (partitionDistribution.TryGetValue(owner, out List<TablePartitionLease> ownedPartitions))
                 {
                     ownedPartitions.Add(partition);
                 }
                 else
                 {
-                    partitionDistribution.Add(owner, new List<TableLease> { partition });
+                    partitionDistribution.Add(owner, new List<TablePartitionLease> { partition });
                 }
             }
 
             // Method for checking status of draining process. 
             // In case operations on dictionary and isDraining are out of sync, always check first if we have any drain tasks in the dictionary.
             void CheckDrainTask(
-                TableLease partition, 
+                TablePartitionLease partition, 
                 ref bool releasedLease,
                 ref bool renewedLease, 
                 ref bool drainedLease)

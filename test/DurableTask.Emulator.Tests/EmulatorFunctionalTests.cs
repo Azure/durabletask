@@ -314,11 +314,163 @@ namespace DurableTask.Emulator.Tests
             await worker.StopAsync(true);
         }
 
+        [TestMethod]
+        public async Task RegisterOrchestrationTasksFromInterface_InterfaceUsingInheritanceGenericsMethodOverloading_OrchestrationSuccess()
+        {
+            var orchestrationService = new LocalOrchestrationService();
+
+            var worker = new TaskHubWorker(orchestrationService);
+            await worker.AddTaskOrchestrations(typeof(TestInheritedTasksOrchestration))
+                .AddTaskActivitiesFromInterfaceV2<IInheritedTestOrchestrationTasksA>(new InheritedTestOrchestrationTasksA())
+                .AddTaskActivitiesFromInterfaceV2(typeof(IInheritedTestOrchestrationTasksB<int, string>), new InheritedTestOrchestrationTasksB())
+                .StartAsync();
+
+            var client = new TaskHubClient(orchestrationService);
+            OrchestrationInstance id = await client.CreateOrchestrationInstanceAsync(typeof(TestInheritedTasksOrchestration),
+                null);
+
+            var state = await client.WaitForOrchestrationAsync(id, TimeSpan.FromSeconds(30), CancellationToken.None);
+            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+
+            Assert.AreEqual(InheritedTestOrchestrationTasksA.BumbleResult, TestInheritedTasksOrchestration.BumbleResultA);
+            Assert.AreEqual(InheritedTestOrchestrationTasksA.WobbleResult, TestInheritedTasksOrchestration.WobbleResultA);
+            Assert.AreEqual(InheritedTestOrchestrationTasksA.DerivedTaskResult, TestInheritedTasksOrchestration.DerivedTaskResultA);
+            Assert.AreEqual(InheritedTestOrchestrationTasksA.JuggleResult, TestInheritedTasksOrchestration.JuggleResultA);
+
+            Assert.AreEqual(InheritedTestOrchestrationTasksB.BumbleResult, TestInheritedTasksOrchestration.BumbleResultB);
+            Assert.AreEqual(InheritedTestOrchestrationTasksB.WobbleResult, TestInheritedTasksOrchestration.WobbleResultB);
+            Assert.AreEqual(InheritedTestOrchestrationTasksB.OverloadedWobbleResult1, TestInheritedTasksOrchestration.OverloadedWobbleResult1B);
+            Assert.AreEqual(InheritedTestOrchestrationTasksB.OverloadedWobbleResult2, TestInheritedTasksOrchestration.OverloadedWobbleResult2B);
+            Assert.AreEqual(InheritedTestOrchestrationTasksB.JuggleResult, TestInheritedTasksOrchestration.JuggleResultB);
+        }
+
         private static void AssertTagsEqual(IDictionary<string, string> expectedTags, IDictionary<string, string> actualTags)
         {
             Assert.IsNotNull(actualTags);
             Assert.AreEqual(expectedTags.Count, actualTags.Count);
             Assert.IsTrue(expectedTags.All(tag => actualTags.TryGetValue(tag.Key, out var value) && value == tag.Value));
+        }
+
+        // base interface without generic type parameters
+        public interface IBaseTestOrchestrationTasks
+        {
+            Task<int> Juggle(int toss, bool withFlair);
+        }
+
+        // generic type base interface inheriting non-generic type with same name
+        public interface IBaseTestOrchestrationTasks<TIn, TOut> : IBaseTestOrchestrationTasks
+        {
+            Task<TOut> Bumble(TIn fumble, bool likeAKlutz);
+            Task<TOut> Wobble(TIn jiggle, bool withGusto);
+        }
+
+        // interface with derived task
+        public interface IInheritedTestOrchestrationTasksA : IBaseTestOrchestrationTasks<string, string>
+        {
+            Task<string> DerivedTask(int i);
+        }
+
+        // interface with overloaded method
+        public interface IInheritedTestOrchestrationTasksB<TIn, TOut> : IBaseTestOrchestrationTasks<TIn, TOut>
+        {
+            // this method overloads methods from both inherited interface and this interface
+            Task<TOut> Wobble(TIn name);
+            Task<string> Wobble(string id, TIn subId);
+        }
+
+        public class InheritedTestOrchestrationTasksA : IInheritedTestOrchestrationTasksA
+        {
+            public const string BumbleResult = nameof(Bumble) + "-A";
+            public const string WobbleResult = nameof(Wobble) + "-A";
+            public const string DerivedTaskResult = nameof(DerivedTask) + "-A";
+            public const int JuggleResult = 419;
+
+            public Task<string> Bumble(string fumble, bool likeAKlutz)
+            {
+                return Task.FromResult(BumbleResult);
+            }
+
+            public Task<string> Wobble(string jiggle, bool withGusto)
+            {
+                return Task.FromResult(WobbleResult);
+            }
+
+            public Task<string> DerivedTask(int i)
+            {
+                return Task.FromResult(DerivedTaskResult);
+            }
+
+            public Task<int> Juggle(int toss, bool withFlair)
+            {
+                return Task.FromResult(JuggleResult);
+            }
+        }
+
+        public class InheritedTestOrchestrationTasksB : IInheritedTestOrchestrationTasksB<int, string>
+        {
+            public const string BumbleResult = nameof(Bumble) + "-B";
+            public const string WobbleResult = nameof(Wobble) + "-B";
+            public const string OverloadedWobbleResult1 = nameof(Wobble) + "-B-overloaded-1";
+            public const string OverloadedWobbleResult2 = nameof(Wobble) + "-B-overloaded-2";
+            public const int JuggleResult = 420;
+
+            public Task<string> Bumble(int fumble, bool likeAKlutz)
+            {
+                return Task.FromResult(BumbleResult);
+            }
+
+            public Task<string> Wobble(int jiggle, bool withGusto)
+            {
+                return Task.FromResult(WobbleResult);
+            }
+
+            public Task<string> Wobble(string id, int subId)
+            {
+                return Task.FromResult(OverloadedWobbleResult1);
+            }
+
+            public Task<string> Wobble(int id)
+            {
+                return Task.FromResult(OverloadedWobbleResult2);
+            }
+
+            public Task<int> Juggle(int toss, bool withFlair)
+            {
+                return Task.FromResult(JuggleResult);
+            }
+        }
+
+        public class TestInheritedTasksOrchestration : TaskOrchestration<string, string>
+        {
+            // HACK: This is just a hack to communicate result of orchestration back to test
+            public static string BumbleResultA;
+            public static string WobbleResultA;
+            public static string DerivedTaskResultA;
+            public static int JuggleResultA;
+            public static string BumbleResultB;
+            public static string WobbleResultB;
+            public static string OverloadedWobbleResult1B;
+            public static string OverloadedWobbleResult2B;
+            public static int JuggleResultB;
+
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                var tasksA = context.CreateClientV2<IInheritedTestOrchestrationTasksA>();
+                var tasksB = context.CreateClientV2<IInheritedTestOrchestrationTasksB<int, string>>();
+
+                BumbleResultA = await tasksA.Bumble(string.Empty, false);
+                WobbleResultA = await tasksA.Wobble(string.Empty, false);
+                DerivedTaskResultA = await tasksA.DerivedTask(0);
+                JuggleResultA = await tasksA.Juggle(1, true);
+
+                BumbleResultB = await tasksB.Bumble(0, false);
+                WobbleResultB = await tasksB.Wobble(-1, false);
+                OverloadedWobbleResult1B = await tasksB.Wobble("a", 2);
+                OverloadedWobbleResult2B = await tasksB.Wobble(1);
+                JuggleResultB = await tasksB.Juggle(1, true);
+
+                return string.Empty;
+            }
         }
     }
 }

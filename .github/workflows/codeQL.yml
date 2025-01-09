@@ -1,0 +1,79 @@
+# This workflow generates weekly CodeQL reports for this repo, a security requirements.
+# The workflow is adapted from the following reference: https://github.com/Azure-Samples/azure-functions-python-stream-openai/pull/2/files
+# Generic comments on how to modify these file are left intactfor future maintenance.
+
+name: "CodeQL"
+
+on:
+  push:
+    branches: [ "main", "dajusto/code-ql", "*" ] # TODO: remove development branch after approval
+  pull_request:
+    branches: [ "main", "dajusto/code-ql", "*"] # TODO: remove development branch after approval
+  schedule:
+    - cron: '0 0 * * 1' # Weekly Monday run, needed for weekly reports
+  workflow_call: # allows to be invoked as part of a larger workflow
+  workflow_dispatch: # allows for the workflow to run manually see: https://docs.github.com/en/actions/using-workflows/manually-running-a-workflow
+
+env:
+  solution: DurableTask.sln
+  config: Release
+
+jobs:
+
+  analyze:
+    name: Analyze
+    runs-on: windows-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['csharp']
+        # CodeQL supports [ 'cpp', 'csharp', 'go', 'java', 'javascript', 'python', 'ruby' ]
+        # Learn more about CodeQL language support at https://aka.ms/codeql-docs/language-support
+
+    steps:
+    # Initializes the CodeQL tools for scanning.
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+        # If you wish to specify custom queries, you can do so here or in a config file.
+        # By default, queries listed here will override any specified in a config file.
+        # Prefix the list here with "+" to use these queries and those in the config file.
+
+        # Details on CodeQL's query packs refer to : https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
+        # queries: security-extended,security-and-quality
+
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+
+    - name: Set up .NET Core 2.1
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '2.1.x'
+
+    - name: Set up .NET Core 3.1
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '3.1.x'
+
+    - name: Restore dependencies
+      run: dotnet restore $solution
+
+    - name: Build
+      run: dotnet build $solution #--configuration $config #--no-restore -p:FileVersionRevision=$GITHUB_RUN_NUMBER -p:ContinuousIntegrationBuild=true
+
+    # Run CodeQL analysis
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"

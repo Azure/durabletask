@@ -207,6 +207,34 @@ namespace DurableTask.AzureStorage
         /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
         /// </summary>
         /// <typeparam name="T">The type to deserialize the JSON string into.</typeparam>
+        /// <param name="stream">A stream of UTF-8 JSON.</param>
+        /// <returns>The deserialized value.</returns>
+        public static T DeserializeFromJson<T>(Stream stream)
+        {
+            return DeserializeFromJson<T>(DefaultJsonSerializer, stream);
+        }
+
+        /// <summary>
+        /// Deserialize a JSON-string into an object of type T
+        /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
+        /// </summary>
+        /// <typeparam name="T">The type to deserialize the JSON string into.</typeparam>
+        /// <param name="serializer">The serializer whose config will guide the deserialization.</param>
+        /// <param name="stream">A stream of UTF-8 JSON.</param>
+        /// <returns>The deserialized value.</returns>
+        public static T DeserializeFromJson<T>(JsonSerializer serializer, Stream stream)
+        {
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            using var jsonReader = new JsonTextReader(reader);
+
+            return serializer.Deserialize<T>(jsonReader);
+        }
+
+        /// <summary>
+        /// Deserialize a JSON-string into an object of type T
+        /// This utility is resilient to end-user changes in the DefaultSettings of Newtonsoft.
+        /// </summary>
+        /// <typeparam name="T">The type to deserialize the JSON string into.</typeparam>
         /// <param name="jsonString">The JSON-string to deserialize.</param>
         /// <returns></returns>
         public static T DeserializeFromJson<T>(string jsonString)
@@ -243,6 +271,37 @@ namespace DurableTask.AzureStorage
                 obj = serializer.Deserialize(jsonReader, type);
             }
             return obj;
+        }
+
+        public static void ConvertDateTimeInHistoryEventsToUTC(HistoryEvent historyEvent)
+        {
+            switch (historyEvent.EventType)
+            {
+                case EventType.ExecutionStarted:
+                    var executionStartedEvent = (ExecutionStartedEvent)historyEvent;
+                    if (executionStartedEvent.ScheduledStartTime.HasValue &&
+                        executionStartedEvent.ScheduledStartTime.Value.Kind != DateTimeKind.Utc)
+                    {
+                        executionStartedEvent.ScheduledStartTime = executionStartedEvent.ScheduledStartTime.Value.ToUniversalTime();
+                    }
+                    break;
+
+                case EventType.TimerCreated:
+                    var timerCreatedEvent = (TimerCreatedEvent)historyEvent;
+                    if (timerCreatedEvent.FireAt.Kind != DateTimeKind.Utc)
+                    {
+                        timerCreatedEvent.FireAt = timerCreatedEvent.FireAt.ToUniversalTime();
+                    }
+                    break;
+
+                case EventType.TimerFired:
+                    var timerFiredEvent = (TimerFiredEvent)historyEvent;
+                    if (timerFiredEvent.FireAt.Kind != DateTimeKind.Utc)
+                    {
+                        timerFiredEvent.FireAt = timerFiredEvent.FireAt.ToUniversalTime();
+                    }
+                    break;
+            }
         }
     }
 }
