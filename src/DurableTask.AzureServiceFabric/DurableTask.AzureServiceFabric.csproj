@@ -30,7 +30,7 @@
     <!-- Restoring packages for netstandard2.0 causes warnings. As warnings are treated as errors, compilation will fail. -->
     <!-- Once the packages support netstandard2.0, this project will support netstandard2.0. -->
     <PackageReference Include="ImpromptuInterface" Version="7.0.1" />
-    <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
   </ItemGroup>
 
   <ItemGroup>
