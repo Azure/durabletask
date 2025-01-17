@@ -4,6 +4,7 @@ trigger:
         include:
             - main
             - durabletask-core-v2
+            - neetart/dtfx_sf_pipeline
 
 # CI only, does not trigger on PRs.
 pr: none
