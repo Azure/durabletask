@@ -7,6 +7,7 @@ trigger:
     include:
     - main
     - durabletask-core-v2
+    - neetart/dtfx_sf_pipeline
 
 # Run nightly to catch new CVEs and to report SDL often.
 schedules:
