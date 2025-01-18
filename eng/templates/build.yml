@@ -108,6 +108,17 @@ jobs:
           packDirectory: $(build.artifactStagingDirectory)
           packagesToPack: 'src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj'
 
+      - task: DotNetCoreCLI@2
+        displayName: Generate nuget packages
+        inputs:
+          command: pack
+          verbosityPack: Minimal
+          configuration: Release
+          nobuild: true
+          packDirectory: $(build.artifactStagingDirectory)
+          packagesToPack: 'src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj'
+          buildProperties: 'Platform=x64'
+
       - template: ci/sign-files.yml@eng
         parameters:
           displayName: Sign NugetPackages
