@@ -64,15 +64,15 @@ jobs:
       #     configuration: Release
       #     msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
-      # - task: VSBuild@1
-      #   displayName: 'Build (AzureServiceFabric)'
-      #   inputs:
-      #     solution: 'src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj'
-      #     vsVersion: '16.0'
-      #     logFileVerbosity: minimal
-      #     configuration: Release
-      #     platform: x64
-      #     msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+      - task: VSBuild@1
+        displayName: 'Build (AzureServiceFabric)'
+        inputs:
+          solution: 'src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj'
+          vsVersion: '16.0'
+          logFileVerbosity: minimal
+          configuration: Release
+          platform: x64
+          msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
       #- task: UseDotNet@2
       #  displayName: 'Use the .NET Core 6 SDK (required for build signing)'
@@ -107,6 +107,17 @@ jobs:
           nobuild: true
           packDirectory: $(build.artifactStagingDirectory)
           packagesToPack: 'src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj'
+
+      - task: DotNetCoreCLI@2
+        displayName: Generate nuget packages
+        inputs:
+          command: pack
+          verbosityPack: Minimal
+          configuration: Release
+          nobuild: true
+          packDirectory: $(build.artifactStagingDirectory)
+          packagesToPack: 'src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj'
+          buildProperties: 'Platform=x64'
 
       - template: ci/sign-files.yml@eng
         parameters:
