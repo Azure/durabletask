@@ -155,7 +155,7 @@ namespace DurableTask.Core
             {
                 // Keep track of orchestrator generation changes, maybe update target position
                 string executionId = message.OrchestrationInstance.ExecutionId;
-                if(previousExecutionId != executionId)
+                if (previousExecutionId != executionId)
                 {
                     // We want to re-position the ExecutionStarted event after the "right-most"
                     // event with a non-null executionID that came before it.
@@ -217,7 +217,7 @@ namespace DurableTask.Core
 
                 CorrelationTraceClient.Propagate(
                     () =>
-                    {                
+                    {
                         // Check if it is extended session.
                         // TODO: Remove this code - it looks incorrect and dangerous
                         isExtendedSession = this.concurrentSessionLock.Acquire();
@@ -305,7 +305,7 @@ namespace DurableTask.Core
             var isCompleted = false;
             var continuedAsNew = false;
             var isInterrupted = false;
-            
+
             // correlation
             CorrelationTraceClient.Propagate(() => CorrelationTraceContext.Current = workItem.TraceContext);
 
@@ -316,10 +316,9 @@ namespace DurableTask.Core
 
             workItem.OrchestrationRuntimeState.LogHelper = this.logHelper;
             OrchestrationRuntimeState runtimeState = workItem.OrchestrationRuntimeState;
+            OrchestrationRuntimeState originalOrchestrationRuntimeState = runtimeState.Clone();
 
             runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
-
-            OrchestrationRuntimeState originalOrchestrationRuntimeState = runtimeState;
 
             // Distributed tracing support: each orchestration execution is a trace activity
             // that derives from an established parent trace context. It is expected that some
@@ -362,7 +361,6 @@ namespace DurableTask.Core
                     {
                         continuedAsNew = false;
                         continuedAsNewMessage = null;
-
 
                         this.logHelper.OrchestrationExecuting(runtimeState.OrchestrationInstance!, runtimeState.Name);
                         TraceHelper.TraceInstance(
@@ -600,7 +598,9 @@ namespace DurableTask.Core
             if (workItem.RestoreOriginalRuntimeStateDuringCompletion)
             {
                 // some backends expect the original runtime state object
-                workItem.OrchestrationRuntimeState = originalOrchestrationRuntimeState;
+                // NOTE: In a previous version of the code, originalOrchestrationRuntimeState was pointing to the same object/memory as runtimeState
+                // We use here runtimeState to preserve the original behavior.
+                workItem.OrchestrationRuntimeState = runtimeState;
             }
 
             runtimeState.Status = runtimeState.Status ?? carryOverStatus;
@@ -610,15 +610,44 @@ namespace DurableTask.Core
                 instanceState.Status = runtimeState.Status;
             }
 
-            await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
-                workItem,
-                runtimeState,
-                continuedAsNew ? null : messagesToSend,
-                orchestratorMessages,
-                continuedAsNew ? null : timerMessages,
-                continuedAsNewMessage,
-                instanceState);
-            
+            try
+            {
+                await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
+                    workItem,
+                    runtimeState,
+                    continuedAsNew ? null : messagesToSend,
+                    orchestratorMessages,
+                    continuedAsNew ? null : timerMessages,
+                    continuedAsNewMessage,
+                    instanceState);
+            }
+            catch (WorkItemPoisonedException poisonedException)
+            {
+                // The orchestration is poisoned and should be marked as failed
+                OrchestrationInstance instance = workItem.OrchestrationRuntimeState?.OrchestrationInstance ?? new OrchestrationInstance { InstanceId = workItem.InstanceId };
+                this.logHelper.OrchestrationPoisoned(instance, poisonedException.Message);
+                TraceHelper.TraceInstance(TraceEventType.Warning, "TaskOrchestrationDispatcher-ExecutionPoisoned", instance, "{0}", poisonedException.Message);
+
+                OrchestrationRuntimeState failedRuntimeState = originalOrchestrationRuntimeState.Clone();
+                failedRuntimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                failedRuntimeState.AddEvent(new ExecutionCompletedEvent(
+                    -1, poisonedException.Message, OrchestrationStatus.Failed, new FailureDetails(poisonedException)));
+                failedRuntimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+                await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
+                    workItem,
+                    failedRuntimeState,
+                    outboundMessages: Array.Empty<TaskMessage>(),
+                    orchestratorMessages: Array.Empty<TaskMessage>(),
+                    timerMessages: Array.Empty<TaskMessage>(),
+                    continuedAsNewMessage: null,
+                    instanceState);
+
+                isCompleted = false;
+                continuedAsNew = false;
+                isInterrupted = true;
+            }
+
             if (workItem.RestoreOriginalRuntimeStateDuringCompletion)
             {
                 workItem.OrchestrationRuntimeState = runtimeState;
@@ -1143,11 +1172,11 @@ namespace DurableTask.Core
         {
             var historyEvent = new EventSentEvent(sendEventAction.Id)
             {
-                 InstanceId = sendEventAction.Instance?.InstanceId,
-                 Name = sendEventAction.EventName,
-                 Input = sendEventAction.EventData
+                InstanceId = sendEventAction.Instance?.InstanceId,
+                Name = sendEventAction.EventName,
+                Input = sendEventAction.EventData
             };
-            
+
             runtimeState.AddEvent(historyEvent);
 
             EventRaisedEvent eventRaisedEvent = new EventRaisedEvent(-1, sendEventAction.EventData)
@@ -1169,7 +1198,7 @@ namespace DurableTask.Core
                 Event = eventRaisedEvent
             };
         }
- 
+
         internal class NonBlockingCountdownLock
         {
             int available;
