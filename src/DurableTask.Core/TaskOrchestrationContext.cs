@@ -245,6 +245,13 @@ namespace DurableTask.Core
 
         public override async Task<T> CreateTimer<T>(DateTime fireAt, T state, CancellationToken cancelToken)
         {
+            if (state is CancellationToken)
+            {
+                throw new ArgumentException(
+                    "The state parameter cannot be a CancellationToken. Did you mean to use a different overload?",
+                    paramName: nameof(state));
+            }
+
             int id = this.idCounter++;
             var createTimerOrchestratorAction = new CreateTimerOrchestratorAction
             {
