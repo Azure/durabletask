@@ -89,7 +89,7 @@
     <PackageVersion Include="Microsoft.Owin.Hosting" Version="4.0.0" />
   </ItemGroup>
 
-  <!-- Sample dependencies -->
+  <!-- Samples dependencies -->
   <ItemGroup>
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="3.1.32" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="3.1.32" />
@@ -104,7 +104,7 @@
     <PackageVersion Include="Microsoft.Azure.DurableTask.AzureStorage" Version="1.17.3"/>
   </ItemGroup>
 
-  <!-- Sample dependencies with net462-->
+  <!-- Samples dependencies with net462-->
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
     <PackageVersion Include="ncrontab" version="1.0.0" />
   </ItemGroup>
