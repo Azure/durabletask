@@ -114,7 +114,7 @@ namespace DurableTask.AzureStorage.Messaging
             var messages = new List<TaskMessage>(this.CurrentMessageBatch.Count);
             foreach (MessageData msg in this.CurrentMessageBatch)
             {
-                this.TraceProcessingMessage(msg, isExtendedSession: true);
+                this.TraceProcessingMessage(msg, isExtendedSession: true, partitionId: this.ControlQueue.Name);
                 messages.Add(msg.TaskMessage);
             }
 
