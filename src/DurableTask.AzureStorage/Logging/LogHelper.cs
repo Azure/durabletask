@@ -823,6 +823,7 @@ namespace DurableTask.AzureStorage.Logging
             string executionId,
             string messageId,
             int age,
+            string partitionId,
             long sequenceNumber,
             int episode,
             bool isExtendedSession)
@@ -837,6 +838,7 @@ namespace DurableTask.AzureStorage.Logging
                 executionId,
                 messageId,
                 age,
+                partitionId,
                 sequenceNumber,
                 episode,
                 isExtendedSession);

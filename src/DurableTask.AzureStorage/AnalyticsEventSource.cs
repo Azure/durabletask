@@ -1019,7 +1019,7 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(EventIds.ProcessingMessage, Level = EventLevel.Informational, Task = Tasks.Processing, Opcode = EventOpcode.Receive, Version = 5)]
+        [Event(EventIds.ProcessingMessage, Level = EventLevel.Informational, Task = Tasks.Processing, Opcode = EventOpcode.Receive, Version = 6)]
         public void ProcessingMessage(
             Guid relatedActivityId,
             string Account,
@@ -1030,6 +1030,7 @@ namespace DurableTask.AzureStorage
             string ExecutionId,
             string MessageId,
             int Age,
+            string PartitionId,
             long SequenceNumber,
             int Episode,
             bool IsExtendedSession,
@@ -1047,6 +1048,7 @@ namespace DurableTask.AzureStorage
                 ExecutionId ?? string.Empty,
                 MessageId,
                 Age,
+                PartitionId,
                 SequenceNumber,
                 Episode,
                 IsExtendedSession,

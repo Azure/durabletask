@@ -45,7 +45,7 @@ namespace DurableTask.AzureStorage.Messaging
             AnalyticsEventSource.SetLogicalTraceActivityId(this.TraceActivityId);
         }
 
-        public void TraceProcessingMessage(MessageData data, bool isExtendedSession)
+        public void TraceProcessingMessage(MessageData data, bool isExtendedSession, string partitionId)
         {
             if (data == null)
             {
@@ -64,7 +64,8 @@ namespace DurableTask.AzureStorage.Messaging
                 taskMessage.OrchestrationInstance.InstanceId,
                 taskMessage.OrchestrationInstance.ExecutionId,
                 queueMessage.MessageId,
-                Math.Max(0, (int)DateTimeOffset.UtcNow.Subtract(queueMessage.InsertedOn.Value).TotalMilliseconds),
+                age: Math.Max(0, (int)DateTimeOffset.UtcNow.Subtract(queueMessage.InsertedOn.Value).TotalMilliseconds),
+                partitionId,
                 data.SequenceNumber,
                 data.Episode.GetValueOrDefault(-1),
                 isExtendedSession);
