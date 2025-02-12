@@ -23,27 +23,25 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
-    <PackageReference Include="Azure.Data.Tables" Version="12.8.3" />
-    <PackageReference Include="Azure.Storage.Blobs" Version="12.20.0" />
-    <PackageReference Include="ImpromptuInterface" version="6.2.2" />
-    <PackageReference Include="Microsoft.Azure.KeyVault.Core" version="1.0.0" />
-    <PackageReference Include="Microsoft.Data.Edm" version="5.8.5" />
-    <PackageReference Include="Microsoft.Data.OData" version="5.8.5" />
-    <PackageReference Include="Microsoft.Data.Services.Client" version="5.8.5" />
-    <PackageReference Include="Microsoft.WindowsAzure.ConfigurationManager" version="3.2.1" />
-    <PackageReference Include="System.Spatial" version="5.8.5" />
-    <PackageReference Include="WindowsAzure.ServiceBus" version="4.1.3" />
+    <PackageReference Include="ImpromptuInterface" />
+    <PackageReference Include="Microsoft.Azure.KeyVault.Core" />
+    <PackageReference Include="Microsoft.Data.Edm" />
+    <PackageReference Include="Microsoft.Data.OData" />
+    <PackageReference Include="Microsoft.Data.Services.Client" />
+    <PackageReference Include="Microsoft.WindowsAzure.ConfigurationManager" />
+    <PackageReference Include="System.Spatial" />
+    <PackageReference Include="WindowsAzure.ServiceBus" />
     <Reference Include="System.Transactions" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <PackageReference Include="Azure.Data.Tables" Version="12.8.3" />
-    <PackageReference Include="Azure.Storage.Blobs" Version="12.20.0" />
-    <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.17.0" />
+    <PackageReference Include="Azure.Messaging.ServiceBus" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
+    <PackageReference Include="Azure.Data.Tables"  />
+    <PackageReference Include="Azure.Storage.Blobs" />
+    <PackageReference Include="Microsoft.CSharp" />
   </ItemGroup>
 
   <ItemGroup>

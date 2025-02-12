@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project>
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
@@ -6,8 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
-    <PackageReference Include="Microsoft.WindowsAzure.ConfigurationManager" version="3.2.1" />
-    <PackageReference Include="WindowsAzure.Storage" version="8.7.0" />
+    <PackageReference Include="Microsoft.WindowsAzure.ConfigurationManager" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' != 'net462'">
@@ -16,25 +15,25 @@
 	  "System.Diagnostics.DiagnosticSource 7.0.0-rc.1.22426.10 doesn't support netcoreapp3.1 and has not been tested with it
 	  Consider upgrading your TargetFramework to net6.0 or later. You may also set <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings> 
 	  in the project file to ignore this warning and attempt to run in this unsupported configuration at your own risk."-->
-    <PackageReference Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.0.0-beta.4" />
-    <PackageReference Include="System.Configuration.ConfigurationManager" Version="4.5.0" />
-    <PackageReference Include="WindowsAzure.Storage" version="9.3.3" />
+    <PackageReference Include="Azure.Monitor.OpenTelemetry.Exporter" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" />
   </ItemGroup>
 
   <!-- Common package dependencies -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="6.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="6.0.0" />
-    <PackageReference Include="Microsoft.ApplicationInsights.DependencyCollector" Version="2.22.0" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
-    <PackageReference Include="MSTest.TestAdapter" Version="3.5.0" />
-    <PackageReference Include="MSTest.TestFramework" Version="3.5.0" />
-    <PackageReference Include="Moq" Version="4.10.0" />
+    <PackageReference Include="WindowsAzure.Storage" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+    <PackageReference Include="Microsoft.ApplicationInsights.DependencyCollector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="MSTest.TestAdapter" />
+    <PackageReference Include="MSTest.TestFramework" />
+    <PackageReference Include="Moq" />
 
     <!-- We don't really make use of these dependencies, but 1ES somehow detects them in our test project and flags them for update.
 	Since this is just a test project, and to prevent "warning fatigue" so real CVEs stand out, we choose to upgrade the dependency explicitly to remove the false alarm.-->
-    <PackageReference Include="System.Data.SqlClient" Version="4.8.6" /> <!-- Version 4.3.1 was detected by default-->
-    <PackageReference Include="Microsoft.Data.Services.Client" Version="5.8.4" /> <!-- Without this, we resolve Microsoft.Data.OData 5.8.2, which is flagged-->
+    <PackageReference Include="System.Data.SqlClient" /> <!-- Version 4.3.1 was detected by default-->
+    <PackageReference Include="Microsoft.Data.Services.Client" /> <!-- Without this, we resolve Microsoft.Data.OData 5.8.2, which is flagged-->
   </ItemGroup>
 
   <ItemGroup>
