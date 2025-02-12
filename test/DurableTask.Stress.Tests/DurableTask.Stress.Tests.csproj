@@ -22,15 +22,15 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' != 'net462'">
-    <PackageReference Include="CommandLineParser" Version="2.4.3" />
-    <PackageReference Include="Microsoft.Diagnostics.EventFlow.Core" Version="1.5.6" />
-    <PackageReference Include="System.Configuration.ConfigurationManager" Version="4.5.0" />
+    <PackageReference Include="CommandLineParser" />
+    <PackageReference Include="Microsoft.Diagnostics.EventFlow.Core" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
-    <PackageReference Include="CommandLineParser" version="1.9.71" />
-    <PackageReference Include="EnterpriseLibrary.SemanticLogging" version="2.0.1406.1" />
-    <PackageReference Include="EnterpriseLibrary.SemanticLogging.TextFile" version="2.0.1406.1" />
+    <PackageReference Include="CommandLineParser" />
+    <PackageReference Include="EnterpriseLibrary.SemanticLogging" />
+    <PackageReference Include="EnterpriseLibrary.SemanticLogging.TextFile" />
   </ItemGroup>
 
   <ItemGroup>
