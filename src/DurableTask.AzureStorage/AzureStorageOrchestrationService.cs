@@ -752,7 +752,10 @@ namespace DurableTask.AzureStorage
                         }
                         else
                         {
-                            session.TraceProcessingMessage(message, isExtendedSession: false);
+                            session.TraceProcessingMessage(
+                                message,
+                                isExtendedSession: false,
+                                partitionId: session.ControlQueue.Name);
                         }
                     }
 
@@ -1525,7 +1528,7 @@ namespace DurableTask.AzureStorage
                     });
 
                 TraceMessageReceived(this.settings, session.MessageData, this.azureStorageClient.QueueAccountName);
-                session.TraceProcessingMessage(message, isExtendedSession: false);
+                session.TraceProcessingMessage(message, isExtendedSession: false, this.workItemQueue.Name);
 
                 if (!this.activeActivitySessions.TryAdd(message.Id, session))
                 {

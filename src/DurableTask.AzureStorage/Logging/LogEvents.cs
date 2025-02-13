@@ -2500,6 +2500,7 @@ namespace DurableTask.AzureStorage.Logging
                 string executionId,
                 string messageId,
                 int age,
+                string partitionId,
                 long sequenceNumber,
                 int episode,
                 bool isExtendedSession)
@@ -2513,6 +2514,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId = executionId;
                 this.MessageId = messageId;
                 this.Age = age;
+                this.PartitionId = partitionId;
                 this.SequenceNumber = sequenceNumber;
                 this.Episode = episode;
                 this.IsExtendedSession = isExtendedSession;
@@ -2545,6 +2547,9 @@ namespace DurableTask.AzureStorage.Logging
             public int Age { get; }
 
             [StructuredLogField]
+            public string PartitionId { get; }
+
+            [StructuredLogField]
             public long SequenceNumber { get; }
 
             [StructuredLogField]
@@ -2572,6 +2577,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId,
                 this.MessageId,
                 this.Age,
+                this.PartitionId,
                 this.SequenceNumber,
                 this.Episode,
                 this.IsExtendedSession,
