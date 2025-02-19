@@ -280,5 +280,14 @@ namespace DurableTask.AzureStorage
         /// Consumers that require separate dispatch (such as the new out-of-proc v2 SDKs) must set this to true.
         /// </summary>
         public bool UseSeparateQueueForEntityWorkItems { get; set; } = false;
+
+        /// <summary>
+        /// Whether to allow instanceIDs to use special syntax to land on a specific partition.
+        /// If enabled, when an instanceID ends with suffix '!nnn', where 'nnn' is an unsigned number, the instance will land on the partition/queue for to that number.
+        /// </summary>
+        /// <remarks>
+        /// It is not generally safe to change to this flag for pre-existing TaskHubs, as it may change the expected target queue for an instanceID.
+        /// </remarks>
+        public bool EnableExplicitPartitionPlacement { get; set; } = false;
     }
 }
