@@ -19,17 +19,12 @@ namespace DurableTask.Core
     /// <summary>
     /// An active instance / work item of a task activity
     /// </summary>
-    public class TaskActivityWorkItem
+    public class TaskActivityWorkItem : WorkItemBase
     {
         /// <summary>
         /// The Id of the work work item, likely related to the task message
         /// </summary>
         public string Id;
-
-        /// <summary>
-        /// The datetime this work item is locked until
-        /// </summary>
-        public DateTime LockedUntilUtc;
 
         /// <summary>
         /// The task message associated with this work item
