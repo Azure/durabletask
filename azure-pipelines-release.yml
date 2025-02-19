@@ -216,3 +216,16 @@ steps:
 - publish: $(build.artifactStagingDirectory)
   displayName: 'Publish nuget packages to Artifacts'
   artifact: PackageOutput
+
+# Next, push the payload to the ADO feed
+- task: NuGetToolInstaller@1
+  displayName: 'Use NuGet '
+
+- task: NuGetCommand@2
+  displayName: 'Push to durabletask ADO feed'
+  inputs:
+    command: push
+    feedsToUse: config
+    packagesToPush: '$(build.artifactStagingDirectory)/*.nupkg'
+    publishVstsFeed: '734e7913-2fab-4624-a174-bc57fe96f95d/d55248c1-5b53-411f-bfe7-73efc9e540d1'
+    allowPackageConflicts: true
