@@ -357,6 +357,14 @@ namespace DurableTask.Core.Tracing
             OrchestrationInstance? instance,
             string? targetInstanceId)
         {
+
+            // If either the target or source of this event is an entity, we don't want to start a trace activity for it because entity tracing
+            // is handled separately in the WebJobs extension
+            if ((targetInstanceId != null && targetInstanceId.StartsWith("@")) || (instance != null && instance.InstanceId.StartsWith("@")))
+            {
+                return null;
+            }
+
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 CreateSpanName(TraceActivityConstants.OrchestrationEvent, eventRaisedEvent.Name, null),
                 kind: ActivityKind.Producer,
@@ -390,6 +398,13 @@ namespace DurableTask.Core.Tracing
         /// </returns>
         internal static Activity? StartActivityForNewEventRaisedFromClient(EventRaisedEvent eventRaised, OrchestrationInstance instance)
         {
+            // If either the target of this event is an entity, we don't want to start a trace activity for it because entity tracing
+            // is handled separately in the WebJobs extension
+            if (instance.InstanceId.StartsWith("@"))
+            {
+                return null;
+            }
+
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 CreateSpanName(TraceActivityConstants.OrchestrationEvent, eventRaised.Name, null),
                 kind: ActivityKind.Producer,

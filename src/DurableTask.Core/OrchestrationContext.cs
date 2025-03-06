@@ -15,6 +15,7 @@ namespace DurableTask.Core
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
     using Castle.DynamicProxy;
@@ -376,6 +377,23 @@ namespace DurableTask.Core
         /// <returns>Task that represents the execution of the specified sub-orchestration</returns>
         public abstract Task<T> CreateSubOrchestrationInstance<T>(string name, string version, string instanceId,
             object input, IDictionary<string, string> tags);
+
+        /// <summary>
+        ///     Create a sub-orchestration of the specified name and version with the specific instance id
+        /// </summary>
+        /// <typeparam name="T">Return Type of the TaskOrchestration.RunTask method</typeparam>
+        /// <param name="name">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="version">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="instanceId">InstanceId of the sub-orchestration to create</param>
+        /// <param name="input">Input for the TaskOrchestration.RunTask method</param>
+        /// <param name="tags">Dictionary of key/value tags associated with this instance</param>
+        /// <param name="parentTraceId">Trace ID of the parent instance creating this suborchestration</param>
+        /// <param name="parentSpanId">Span ID of the parent instance creating this suborchestration</param>
+        /// <param name="parentTraceFlags">Trace flags of the parent instance creating this suborchestration</param>
+        /// <param name="parentTraceState">Trace state of the parent instance creating this suborchestration</param>
+        /// <returns>Task that represents the execution of the specified sub-orchestration</returns>
+        public abstract Task<T> CreateSubOrchestrationInstance<T>(string name, string version, string instanceId,
+            object input, IDictionary<string, string> tags, string parentTraceId, string parentSpanId, ActivityTraceFlags parentTraceFlags, string parentTraceState);
 
 
         /// <summary>

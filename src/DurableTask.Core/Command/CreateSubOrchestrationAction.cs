@@ -14,6 +14,7 @@
 namespace DurableTask.Core.Command
 {
     using System.Collections.Generic;
+    using System.Diagnostics;
 
     /// <summary>
     /// Orchestrator action for creating sub-orchestrations.
@@ -50,5 +51,25 @@ namespace DurableTask.Core.Command
         /// Tags to be applied to the sub-orchestration.
         /// </summary>
         public IDictionary<string, string>? Tags { get; set; }
+
+        /// <summary>
+        /// Parent trace ID of the sub-orchestration.
+        /// </summary>
+        public string? ParentTraceId {  get; set; }
+
+        /// <summary>
+        /// Parent span ID of the sub-orchestration.
+        /// </summary>
+        public string? ParentSpanId { get; set; }
+
+        /// <summary>
+        /// Parent trace flags of the sub-orchestration.
+        /// </summary>
+        public ActivityTraceFlags ParentTraceFlags { get; set; }
+
+        /// <summary>
+        /// Parent trace state of the sub-orchestration.
+        /// </summary>
+        public string? ParentTraceState { get; set; }
     }
 }
