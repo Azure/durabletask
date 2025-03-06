@@ -1113,14 +1113,14 @@ namespace DurableTask.AzureStorage.Tracking
 
         async Task<bool> TryDecompressLargeEntityPropertiesAsync(
             TableEntity entity,
-            List<string> blobs,
+            List<string> listOfBlobs,
             string instanceId,
             string executionId,
             CancellationToken cancellationToken)
         {
             try
             {
-                await this.DecompressLargeEntityProperties(entity, blobs, cancellationToken);
+                await this.DecompressLargeEntityProperties(entity, listOfBlobs, cancellationToken);
                 return true;
             }
             catch (DurableTaskStorageException ex) when (IsMissingBlob(ex))
