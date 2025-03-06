@@ -184,6 +184,7 @@ namespace DurableTask.AzureStorage.Tracking
                         continue;
                     }
 
+                    // Some entity properties may be stored in blob storage.
                     bool success = await this.TryDecompressLargeEntityPropertiesAsync(
                         entity,
                         trackingStoreContext.Blobs,
