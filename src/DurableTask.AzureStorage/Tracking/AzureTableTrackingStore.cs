@@ -1133,9 +1133,9 @@ namespace DurableTask.AzureStorage.Tracking
                 if (sentinelExecutionId != executionId)
                 {
                     // The sentinel contains the execution ID of the most recent execution.
-                    // If it doesn't match the assumed execution ID, this indicates that we are trying
-                    // to load outdated history. This does not indicate a problem yet, so no reason to
-                    // raise an exception, but we should make the caller aware of this.
+                    // If it doesn't match the assumed execution ID, this means that we are trying
+                    // to load outdated history. This does not necessarily indicate a big problem,
+                    // so no reason to raise an exception, but we should make the caller aware of this.
                     return false;
                 }
 
