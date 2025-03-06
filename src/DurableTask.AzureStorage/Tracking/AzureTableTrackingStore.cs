@@ -1125,12 +1125,21 @@ namespace DurableTask.AzureStorage.Tracking
             }
             catch (DurableTaskStorageException ex) when (IsMissingBlob(ex))
             {
+                // A blob is expected to be missing if the entity belongs to a previous execution.
+                // For example, after ContinueAsNew, we remove blobs from the previous generation,
+                // but we don't immediately remove entities from the history table.
+                // Let's check if we are trying to load an entity from a previous execution.
                 var sentinelExecutionId = await this.GetSentinelExecutionIdAsync(instanceId, cancellationToken);
                 if (sentinelExecutionId != executionId)
                 {
+                    // The sentinel contains the execution ID of the most recent execution.
+                    // If it doesn't match the assumed execution ID, this indicates that we are trying
+                    // to load outdated history. This does not indicate a problem yet, so no reason to
+                    // raise an exception, but we should make the caller aware of this.
                     return false;
                 }
 
+                // Otherwise, the blob is missing for a different reason, possibly indicating data corruption.
                 throw;
             }
         }
