@@ -184,20 +184,15 @@ namespace DurableTask.AzureStorage.Tracking
                         continue;
                     }
 
-                    try
+                    bool success = await this.TryDecompressLargeEntityPropertiesAsync(
+                        entity,
+                        trackingStoreContext.Blobs,
+                        instanceId,
+                        executionId,
+                        cancellationToken);
+                    if (!success)
                     {
-                        // Some entity properties may be stored in blob storage.
-                        await this.DecompressLargeEntityProperties(entity, trackingStoreContext.Blobs, cancellationToken);
-                    }
-                    catch (DurableTaskStorageException ex) when (IsMissingBlob(ex))
-                    {
-                        var sentinelExecutionId = await this.GetSentinelExecutionIdAsync(instanceId, cancellationToken);
-                        if (sentinelExecutionId != executionId)
-                        {
-                            break;
-                        }
-
-                        throw;
+                        break;
                     }
 
                     events.Add((HistoryEvent)TableEntityConverter.Deserialize(entity, GetTypeForTableEntity(entity)));
@@ -1113,6 +1108,30 @@ namespace DurableTask.AzureStorage.Tracking
                     // if necessary, keep track of all the blobs associated with this execution
                     listOfBlobs?.Add(blobName);
                 }
+            }
+        }
+
+        async Task<bool> TryDecompressLargeEntityPropertiesAsync(
+            TableEntity entity,
+            List<string> blobs,
+            string instanceId,
+            string executionId,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                await this.DecompressLargeEntityProperties(entity, blobs, cancellationToken);
+                return true;
+            }
+            catch (DurableTaskStorageException ex) when (IsMissingBlob(ex))
+            {
+                var sentinelExecutionId = await this.GetSentinelExecutionIdAsync(instanceId, cancellationToken);
+                if (sentinelExecutionId != executionId)
+                {
+                    return false;
+                }
+
+                throw;
             }
         }
 
