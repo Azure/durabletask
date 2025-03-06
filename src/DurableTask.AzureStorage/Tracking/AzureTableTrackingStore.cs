@@ -193,6 +193,10 @@ namespace DurableTask.AzureStorage.Tracking
                         cancellationToken);
                     if (!success)
                     {
+                        // Some properties were not retrieved because we are apparently trying to load
+                        // outdated history. No reason to raise an exception here, as this does not
+                        // impact orchestration execution, but also no reason to continue loading this
+                        // execution history.
                         break;
                     }
 
