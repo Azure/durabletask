@@ -27,6 +27,7 @@ namespace DurableTask.AzureStorage.Tracking
     using System.Threading.Tasks;
     using Azure;
     using Azure.Data.Tables;
+    using Azure.Storage.Blobs.Models;
     using DurableTask.AzureStorage.Linq;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Storage;
@@ -183,8 +184,21 @@ namespace DurableTask.AzureStorage.Tracking
                         continue;
                     }
 
-                    // Some entity properties may be stored in blob storage.
-                    await this.DecompressLargeEntityProperties(entity, trackingStoreContext.Blobs, cancellationToken);
+                    try
+                    {
+                        // Some entity properties may be stored in blob storage.
+                        await this.DecompressLargeEntityProperties(entity, trackingStoreContext.Blobs, cancellationToken);
+                    }
+                    catch (DurableTaskStorageException ex) when (IsMissingBlob(ex))
+                    {
+                        var sentinelExecutionId = await this.GetSentinelExecutionIdAsync(instanceId, cancellationToken);
+                        if (sentinelExecutionId != executionId)
+                        {
+                            break;
+                        }
+
+                        throw;
+                    }
 
                     events.Add((HistoryEvent)TableEntityConverter.Deserialize(entity, GetTypeForTableEntity(entity)));
                 }
@@ -1252,6 +1266,29 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             return false;
+        }
+
+        static bool IsMissingBlob(DurableTaskStorageException ex)
+        {
+            if (ex.InnerException is RequestFailedException rfe)
+            {
+                return rfe.ErrorCode == BlobErrorCode.BlobNotFound;
+            }
+
+            return false;
+        }
+
+        async Task<string> GetSentinelExecutionIdAsync(string instanceId, CancellationToken cancellationToken)
+        {
+            string filter = $"{nameof(ITableEntity.PartitionKey)} eq '{KeySanitation.EscapePartitionKey(instanceId)}'"
+                          + $" and {nameof(ITableEntity.RowKey)} eq '{SentinelRowKey}'";
+
+            TableQueryResults<TableEntity> results = await this.HistoryTable
+                .ExecuteQueryAsync<TableEntity>(filter, select: new[] { nameof(OrchestrationInstance.ExecutionId) }, cancellationToken: cancellationToken)
+                .GetResultsAsync(cancellationToken: cancellationToken);
+
+            var executionId = results.Entities.FirstOrDefault()?.GetString(nameof(OrchestrationInstance.ExecutionId));
+            return executionId;
         }
 
         class TrackingStoreContext
