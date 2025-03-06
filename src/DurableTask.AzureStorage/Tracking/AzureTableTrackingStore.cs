@@ -1136,6 +1136,13 @@ namespace DurableTask.AzureStorage.Tracking
                     // If it doesn't match the assumed execution ID, this means that we are trying
                     // to load outdated history. This does not necessarily indicate a big problem,
                     // so no reason to raise an exception, but we should make the caller aware of this.
+                    this.settings.Logger.GeneralWarning(
+                        this.azureStorageClient.BlobAccountName,
+                        this.settings.TaskHubName,
+                        $"Missing blob when trying to load history: trying to load previous generation history? "
+                        + $"(entity RowKey: {entity.GetString("RowKey")}, entity ExecutionId: {executionId}, sentinel ExecutionId: {sentinelExecutionId}).",
+                        instanceId);
+
                     return false;
                 }
 
