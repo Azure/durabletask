@@ -129,7 +129,7 @@ namespace DurableTask.Core
             string instanceId,
             object input)
         {
-            return CreateSubOrchestrationInstanceCore<T>(name, version, instanceId, input, null, null, null, ActivityTraceFlags.None, null);
+            return CreateSubOrchestrationInstanceCore<T>(name, version, instanceId, input, null, null);
         }
 
         public override Task<T> CreateSubOrchestrationInstance<T>(
@@ -139,7 +139,7 @@ namespace DurableTask.Core
             object input,
             IDictionary<string, string> tags)
         {
-            return CreateSubOrchestrationInstanceCore<T>(name, version, instanceId, input, tags, null, null, ActivityTraceFlags.None, null);
+            return CreateSubOrchestrationInstanceCore<T>(name, version, instanceId, input, tags, null);
         }
 
         public override Task<T> CreateSubOrchestrationInstance<T>(
@@ -147,7 +147,7 @@ namespace DurableTask.Core
             string version,
             object input)
         {
-            return CreateSubOrchestrationInstanceCore<T>(name, version, null, input, null, null, null, ActivityTraceFlags.None, null);
+            return CreateSubOrchestrationInstanceCore<T>(name, version, null, input, null, null);
         }
 
         public override Task<T> CreateSubOrchestrationInstance<T>(
@@ -156,12 +156,9 @@ namespace DurableTask.Core
         string instanceId,
         object input,
         IDictionary<string, string> tags,
-        string parentTraceId,
-        string parentSpanId,
-        ActivityTraceFlags parentTraceFlags,
-        string parentTraceState)
+        DistributedTraceContext parentTraceContext)
         {
-            return CreateSubOrchestrationInstanceCore<T>(name, version, instanceId, input, tags, parentTraceId, parentSpanId, parentTraceFlags, parentTraceState);
+            return CreateSubOrchestrationInstanceCore<T>(name, version, instanceId, input, tags, parentTraceContext);
         }
 
         async Task<T> CreateSubOrchestrationInstanceCore<T>(
@@ -170,10 +167,7 @@ namespace DurableTask.Core
             string instanceId,
             object input,
             IDictionary<string, string> tags,
-            string parentTraceId,
-            string parentSpanId,
-            ActivityTraceFlags parentTraceFlags,
-            string parentTraceState)
+            DistributedTraceContext parentTraceContext)
         {
             int id = this.idCounter++;
             string serializedInput = this.MessageDataConverter.SerializeInternal(input);
@@ -192,10 +186,7 @@ namespace DurableTask.Core
                 Version = version,
                 Input = serializedInput,
                 Tags = tags,
-                ParentTraceId = parentTraceId,
-                ParentSpanId = parentSpanId,
-                ParentTraceFlags = parentTraceFlags,
-                ParentTraceState = parentTraceState
+                ParentTraceContext = parentTraceContext
             };
                   
             this.orchestratorActionsMap.Add(id, action);

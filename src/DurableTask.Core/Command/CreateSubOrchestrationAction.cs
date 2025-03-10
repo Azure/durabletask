@@ -13,6 +13,7 @@
 #nullable enable
 namespace DurableTask.Core.Command
 {
+    using DurableTask.Core.Tracing;
     using System.Collections.Generic;
     using System.Diagnostics;
 
@@ -53,23 +54,8 @@ namespace DurableTask.Core.Command
         public IDictionary<string, string>? Tags { get; set; }
 
         /// <summary>
-        /// Parent trace ID of the sub-orchestration.
+        /// Parent trace of the sub-orchestration.
         /// </summary>
-        public string? ParentTraceId {  get; set; }
-
-        /// <summary>
-        /// Parent span ID of the sub-orchestration.
-        /// </summary>
-        public string? ParentSpanId { get; set; }
-
-        /// <summary>
-        /// Parent trace flags of the sub-orchestration.
-        /// </summary>
-        public ActivityTraceFlags ParentTraceFlags { get; set; }
-
-        /// <summary>
-        /// Parent trace state of the sub-orchestration.
-        /// </summary>
-        public string? ParentTraceState { get; set; }
+        public DistributedTraceContext? ParentTraceContext {  get; set; }
     }
 }

@@ -21,6 +21,7 @@ namespace DurableTask.Core
     using Castle.DynamicProxy;
     using DurableTask.Core.Entities;
     using DurableTask.Core.Serializing;
+    using DurableTask.Core.Tracing;
 
     /// <summary>
     /// Context for an orchestration containing the instance, replay status, orchestration methods and proxy methods
@@ -387,13 +388,10 @@ namespace DurableTask.Core
         /// <param name="instanceId">InstanceId of the sub-orchestration to create</param>
         /// <param name="input">Input for the TaskOrchestration.RunTask method</param>
         /// <param name="tags">Dictionary of key/value tags associated with this instance</param>
-        /// <param name="parentTraceId">Trace ID of the parent instance creating this suborchestration</param>
-        /// <param name="parentSpanId">Span ID of the parent instance creating this suborchestration</param>
-        /// <param name="parentTraceFlags">Trace flags of the parent instance creating this suborchestration</param>
-        /// <param name="parentTraceState">Trace state of the parent instance creating this suborchestration</param>
+        /// <param name="parentTraceContext">Trace context of the parent instance creating this suborchestration</param>
         /// <returns>Task that represents the execution of the specified sub-orchestration</returns>
         public abstract Task<T> CreateSubOrchestrationInstance<T>(string name, string version, string instanceId,
-            object input, IDictionary<string, string> tags, string parentTraceId, string parentSpanId, ActivityTraceFlags parentTraceFlags, string parentTraceState);
+            object input, IDictionary<string, string> tags, DistributedTraceContext parentTraceContext);
 
 
         /// <summary>

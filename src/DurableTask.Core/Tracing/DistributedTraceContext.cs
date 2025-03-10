@@ -14,6 +14,7 @@
 namespace DurableTask.Core.Tracing
 {
     using System;
+    using System.Diagnostics;
     using System.Runtime.Serialization;
 
     /// <summary>
@@ -80,5 +81,16 @@ namespace DurableTask.Core.Tracing
         /// </summary>
         [DataMember]
         public DateTimeOffset? ActivityStartTime { get; set; }
+
+        /// <summary>
+        /// The span ID of the parent trace
+        /// </summary>
+        [DataMember]
+        public string? ParentSpanId { get; set; }
+
+        /// <summary>
+        /// The activity trace flags of the parent trace
+        /// </summary>
+        public ActivityTraceFlags? ParentTraceFlags { get; set; }
     }
 }
