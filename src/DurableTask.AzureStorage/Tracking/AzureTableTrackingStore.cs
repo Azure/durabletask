@@ -158,9 +158,12 @@ namespace DurableTask.AzureStorage.Tracking
 
             IList<HistoryEvent> historyEvents;
             string executionId;
-            TableEntity sentinel = null;
+
+            // The sentinel row should always be the last row
+            TableEntity sentinel = results.Entities.LastOrDefault(e => e.RowKey == SentinelRowKey);
+
             TrackingStoreContext trackingStoreContext = new TrackingStoreContext();
-            if (results.Entities.Count > 0)
+            if (results.Entities.Count > 0 && sentinel?.GetString("ExecutionId") == expectedExecutionId)
             {
                 // The most recent generation will always be in the first history event.
                 executionId = results.Entities[0].GetString("ExecutionId");
@@ -176,11 +179,9 @@ namespace DurableTask.AzureStorage.Tracking
                         break;
                     }
 
-                    // The sentinel row does not contain any history events, so save it for later
-                    // and continue
-                    if (entity.RowKey == SentinelRowKey)
+                    // The sentinel row does not contain any history events, so ignore and continue
+                    if (entity == sentinel)
                     {
-                        sentinel = entity;
                         continue;
                     }
 
@@ -215,7 +216,6 @@ namespace DurableTask.AzureStorage.Tracking
             // A sentinel won't exist only if no instance of this ID has ever existed or the instance history
             // was purged.The IsCheckpointCompleteProperty was newly added _after_ v1.6.4.
             DateTime checkpointCompletionTime = DateTime.MinValue;
-            sentinel = sentinel ?? results.Entities.LastOrDefault(e => e.RowKey == SentinelRowKey);
             ETag? eTagValue = sentinel?.ETag;
             if (sentinel != null &&
                 sentinel.TryGetValue(CheckpointCompletedTimestampProperty, out object timestampObj) &&
@@ -1316,19 +1316,6 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             return false;
-        }
-
-        async Task<string> GetSentinelExecutionIdAsync(string instanceId, CancellationToken cancellationToken)
-        {
-            string filter = $"{nameof(ITableEntity.PartitionKey)} eq '{KeySanitation.EscapePartitionKey(instanceId)}'"
-                          + $" and {nameof(ITableEntity.RowKey)} eq '{SentinelRowKey}'";
-
-            TableQueryResults<TableEntity> results = await this.HistoryTable
-                .ExecuteQueryAsync<TableEntity>(filter, select: new[] { nameof(OrchestrationInstance.ExecutionId) }, cancellationToken: cancellationToken)
-                .GetResultsAsync(cancellationToken: cancellationToken);
-
-            var executionId = results.Entities.FirstOrDefault()?.GetString(nameof(OrchestrationInstance.ExecutionId));
-            return executionId;
         }
 
         class TrackingStoreContext
