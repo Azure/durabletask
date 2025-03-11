@@ -1130,7 +1130,10 @@ namespace DurableTask.Core
 
             if (parentTraceContext != null)
             {
-                ActivityContext activityContext = new ActivityContext(ActivityTraceId.CreateFromString(parentTraceContext.TraceParent.AsSpan()), clientSpanId, (ActivityTraceFlags)parentTraceContext.ParentTraceFlags!, parentTraceContext.TraceState);
+                ActivityContext activityContext = new ActivityContext(
+                    ActivityTraceId.CreateFromString(parentTraceContext.TraceParent.AsSpan()),
+                    clientSpanId, (ActivityTraceFlags)parentTraceContext.ParentTraceFlags!,
+                    parentTraceContext.TraceState);
                 startedEvent.SetParentTraceContext(activityContext);
             }
 
