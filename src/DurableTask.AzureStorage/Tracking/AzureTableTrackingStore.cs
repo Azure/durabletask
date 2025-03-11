@@ -27,7 +27,6 @@ namespace DurableTask.AzureStorage.Tracking
     using System.Threading.Tasks;
     using Azure;
     using Azure.Data.Tables;
-    using Azure.Storage.Blobs.Models;
     using DurableTask.AzureStorage.Linq;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Storage;
@@ -186,20 +185,7 @@ namespace DurableTask.AzureStorage.Tracking
                     }
 
                     // Some entity properties may be stored in blob storage.
-                    bool success = await this.TryDecompressLargeEntityPropertiesAsync(
-                        entity,
-                        trackingStoreContext.Blobs,
-                        instanceId,
-                        executionId,
-                        cancellationToken);
-                    if (!success)
-                    {
-                        // Some properties were not retrieved because we are apparently trying to load
-                        // outdated history. No reason to raise an exception here, as this does not
-                        // impact orchestration execution, but also no reason to continue loading this
-                        // execution history.
-                        break;
-                    }
+                    await this.DecompressLargeEntityProperties(entity, trackingStoreContext.Blobs, cancellationToken);
 
                     events.Add((HistoryEvent)TableEntityConverter.Deserialize(entity, GetTypeForTableEntity(entity)));
                 }
@@ -1116,46 +1102,6 @@ namespace DurableTask.AzureStorage.Tracking
             }
         }
 
-        async Task<bool> TryDecompressLargeEntityPropertiesAsync(
-            TableEntity entity,
-            List<string> listOfBlobs,
-            string instanceId,
-            string executionId,
-            CancellationToken cancellationToken)
-        {
-            try
-            {
-                await this.DecompressLargeEntityProperties(entity, listOfBlobs, cancellationToken);
-                return true;
-            }
-            catch (DurableTaskStorageException ex) when (IsMissingBlob(ex))
-            {
-                // A blob is expected to be missing if the entity belongs to a previous execution.
-                // For example, after ContinueAsNew, we remove blobs from the previous generation,
-                // but we don't immediately remove entities from the history table.
-                // Let's check if we are trying to load an entity from a previous execution.
-                var sentinelExecutionId = await this.GetSentinelExecutionIdAsync(instanceId, cancellationToken);
-                if (sentinelExecutionId != executionId)
-                {
-                    // The sentinel contains the execution ID of the most recent execution.
-                    // If it doesn't match the assumed execution ID, this means that we are trying
-                    // to load outdated history. This does not necessarily indicate a big problem,
-                    // so no reason to raise an exception, but we should make the caller aware of this.
-                    this.settings.Logger.GeneralWarning(
-                        this.azureStorageClient.BlobAccountName,
-                        this.settings.TaskHubName,
-                        $"Missing blob when trying to load history: trying to load previous generation history? "
-                        + $"(entity RowKey: {entity.GetString("RowKey")}, entity ExecutionId: {executionId}, sentinel ExecutionId: {sentinelExecutionId}).",
-                        instanceId);
-
-                    return false;
-                }
-
-                // Otherwise, the blob is missing for a different reason, possibly indicating data corruption.
-                throw;
-            }
-        }
-
         async Task DecompressLargeEntityProperties(TableEntity entity, List<string> listOfBlobs, CancellationToken cancellationToken)
         {
             // Check for entity properties stored in blob storage
@@ -1303,16 +1249,6 @@ namespace DurableTask.AzureStorage.Tracking
             if (!string.IsNullOrEmpty(data) && Encoding.Unicode.GetByteCount(data) > MaxTablePropertySizeInBytes)
             {
                 return true;
-            }
-
-            return false;
-        }
-
-        static bool IsMissingBlob(DurableTaskStorageException ex)
-        {
-            if (ex.InnerException is RequestFailedException rfe)
-            {
-                return rfe.ErrorCode == BlobErrorCode.BlobNotFound;
             }
 
             return false;
