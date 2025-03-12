@@ -162,7 +162,8 @@ namespace DurableTask.AzureStorage.Tracking
             TableEntity sentinel = results.Entities.LastOrDefault(e => e.RowKey == SentinelRowKey);
 
             TrackingStoreContext trackingStoreContext = new TrackingStoreContext();
-            if (results.Entities.Count > 0 && sentinel?.GetString("ExecutionId") == expectedExecutionId)
+            if (results.Entities.Count > 0 && (expectedExecutionId == null ||
+                                               expectedExecutionId == sentinel?.GetString("ExecutionId")))
             {
                 // The most recent generation will always be in the first history event.
                 executionId = results.Entities[0].GetString("ExecutionId");
