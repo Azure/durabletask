@@ -169,7 +169,7 @@ namespace DurableTask.AzureStorage.Tracking
                                                expectedExecutionId == sentinel?.GetString("ExecutionId")))
             {
                 // The most recent generation will always be in the first history event.
-                executionId = results.Entities[0].GetString("ExecutionId");
+                executionId = sentinel?.GetString("ExecutionId") ?? results.Entities[0].GetString("ExecutionId");
 
                 // Convert the table entities into history events.
                 var events = new List<HistoryEvent>(results.Entities.Count);
