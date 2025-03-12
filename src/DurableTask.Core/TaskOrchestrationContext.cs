@@ -188,7 +188,7 @@ namespace DurableTask.Core
                 Tags = tags,
                 ParentTraceContext = parentTraceContext
             };
-                  
+
             this.orchestratorActionsMap.Add(id, action);
 
             if (OrchestrationTags.IsTaggedAsFireAndForget(tags))
