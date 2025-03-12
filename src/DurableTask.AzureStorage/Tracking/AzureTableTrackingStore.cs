@@ -155,12 +155,11 @@ namespace DurableTask.AzureStorage.Tracking
                 .GetHistoryEntitiesResponseInfoAsync(instanceId, expectedExecutionId, null, cancellationToken)
                 .GetResultsAsync(cancellationToken: cancellationToken);
 
-            IList<HistoryEvent> historyEvents;
-            string executionId;
-
             // The sentinel row should always be the last row
             TableEntity sentinel = results.Entities.LastOrDefault(e => e.RowKey == SentinelRowKey);
 
+            IList<HistoryEvent> historyEvents;
+            string executionId;
             TrackingStoreContext trackingStoreContext = new TrackingStoreContext();
             if (results.Entities.Count > 0 && (expectedExecutionId == null ||
                                                expectedExecutionId == sentinel?.GetString("ExecutionId")))
