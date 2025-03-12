@@ -161,6 +161,10 @@ namespace DurableTask.AzureStorage.Tracking
             IList<HistoryEvent> historyEvents;
             string executionId;
             TrackingStoreContext trackingStoreContext = new TrackingStoreContext();
+
+            // If expectedExecutionId is provided but it does not match the sentinel executionId,
+            // it may belong to a previous generation. In that case, treat it as an unknown executionId
+            // and skip loading history.
             if (results.Entities.Count > 0 && (expectedExecutionId == null ||
                                                expectedExecutionId == sentinel?.GetString("ExecutionId")))
             {
