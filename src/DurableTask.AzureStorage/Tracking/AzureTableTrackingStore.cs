@@ -202,9 +202,9 @@ namespace DurableTask.AzureStorage.Tracking
                 executionId = expectedExecutionId;
             }
 
-            // Read the checkpoint completion time from the sentinel row, which should always be the last row.
+            // Read the checkpoint completion time from the sentinel row.
             // A sentinel won't exist only if no instance of this ID has ever existed or the instance history
-            // was purged.The IsCheckpointCompleteProperty was newly added _after_ v1.6.4.
+            // was purged. The IsCheckpointCompleteProperty was newly added _after_ v1.6.4.
             DateTime checkpointCompletionTime = DateTime.MinValue;
             ETag? eTagValue = sentinel?.ETag;
             if (sentinel != null &&
