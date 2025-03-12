@@ -432,10 +432,10 @@ namespace DurableTask.Core
                                         traceContext.ParentTraceFlags = traceActivity.ActivityTraceFlags;
                                     }
                                     orchestratorMessages.Add(
-                                    this.ProcessCreateSubOrchestrationInstanceDecision(
-                                        createSubOrchestrationAction,
-                                        runtimeState,
-                                        this.IncludeParameters,
+                                        this.ProcessCreateSubOrchestrationInstanceDecision(
+                                            createSubOrchestrationAction,
+                                            runtimeState,
+                                            this.IncludeParameters,
                                         createSubOrchestrationAction.ParentTraceContext ?? traceContext));
                                     break;
                                 case OrchestratorActionType.SendEvent:

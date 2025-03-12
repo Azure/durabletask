@@ -358,8 +358,7 @@ namespace DurableTask.Core.Tracing
             string? targetInstanceId)
         {
 
-            // If either the target or source of this event is an entity, we don't want to start a trace activity for it because entity tracing
-            // is handled separately in the WebJobs extension
+            // We don't want to emit tracing for external events when they are related to entities
             if ((targetInstanceId != null && targetInstanceId.StartsWith("@")) || (instance != null && instance.InstanceId.StartsWith("@")))
             {
                 return null;
@@ -398,8 +397,7 @@ namespace DurableTask.Core.Tracing
         /// </returns>
         internal static Activity? StartActivityForNewEventRaisedFromClient(EventRaisedEvent eventRaised, OrchestrationInstance instance)
         {
-            // If either the target of this event is an entity, we don't want to start a trace activity for it because entity tracing
-            // is handled separately in the WebJobs extension
+            // We don't want to emit tracing for external events when they are related to entities
             if (instance.InstanceId.StartsWith("@"))
             {
                 return null;
