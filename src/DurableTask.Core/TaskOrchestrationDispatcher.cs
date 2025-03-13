@@ -428,8 +428,12 @@ namespace DurableTask.Core
                                     DistributedTraceContext? traceContext = null;
                                     if (traceActivity != null)
                                     {
-                                        traceContext = new DistributedTraceContext(traceActivity.TraceId.ToString(), traceActivity.TraceStateString);
-                                        traceContext.ParentTraceFlags = traceActivity.ActivityTraceFlags;
+                                        traceContext = new DistributedTraceContext(
+                                            traceActivity.TraceId.ToString(),
+                                            traceActivity.TraceStateString)
+                                        {
+                                            ParentTraceFlags = traceActivity.ActivityTraceFlags
+                                        };
                                     }
                                     orchestratorMessages.Add(
                                         this.ProcessCreateSubOrchestrationInstanceDecision(
