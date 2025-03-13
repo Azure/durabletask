@@ -13,7 +13,9 @@
 #nullable enable
 namespace DurableTask.Core.Command
 {
+    using DurableTask.Core.Tracing;
     using System.Collections.Generic;
+    using System.Diagnostics;
 
     /// <summary>
     /// Orchestrator action for creating sub-orchestrations.
@@ -50,5 +52,10 @@ namespace DurableTask.Core.Command
         /// Tags to be applied to the sub-orchestration.
         /// </summary>
         public IDictionary<string, string>? Tags { get; set; }
+
+        /// <summary>
+        /// Parent trace of the sub-orchestration.
+        /// </summary>
+        public DistributedTraceContext? ParentTraceContext {  get; set; }
     }
 }

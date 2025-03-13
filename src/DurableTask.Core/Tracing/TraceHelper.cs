@@ -357,6 +357,13 @@ namespace DurableTask.Core.Tracing
             OrchestrationInstance? instance,
             string? targetInstanceId)
         {
+
+            // We don't want to emit tracing for external events when they are related to entities
+            if ((targetInstanceId != null && targetInstanceId.StartsWith("@")) || (instance != null && instance.InstanceId.StartsWith("@")))
+            {
+                return null;
+            }
+
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 CreateSpanName(TraceActivityConstants.OrchestrationEvent, eventRaisedEvent.Name, null),
                 kind: ActivityKind.Producer,
@@ -390,6 +397,12 @@ namespace DurableTask.Core.Tracing
         /// </returns>
         internal static Activity? StartActivityForNewEventRaisedFromClient(EventRaisedEvent eventRaised, OrchestrationInstance instance)
         {
+            // We don't want to emit tracing for external events when they are related to entities
+            if (instance.InstanceId.StartsWith("@"))
+            {
+                return null;
+            }
+
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 CreateSpanName(TraceActivityConstants.OrchestrationEvent, eventRaised.Name, null),
                 kind: ActivityKind.Producer,

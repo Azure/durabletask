@@ -425,12 +425,22 @@ namespace DurableTask.Core
                                     break;
                                 case OrchestratorActionType.CreateSubOrchestration:
                                     var createSubOrchestrationAction = (CreateSubOrchestrationAction)decision;
+                                    DistributedTraceContext? traceContext = null;
+                                    if (traceActivity != null)
+                                    {
+                                        traceContext = new DistributedTraceContext(
+                                            traceActivity.TraceId.ToString(),
+                                            traceActivity.TraceStateString)
+                                        {
+                                            ParentTraceFlags = traceActivity.ActivityTraceFlags
+                                        };
+                                    }
                                     orchestratorMessages.Add(
                                         this.ProcessCreateSubOrchestrationInstanceDecision(
                                             createSubOrchestrationAction,
                                             runtimeState,
                                             this.IncludeParameters,
-                                            traceActivity));
+                                        createSubOrchestrationAction.ParentTraceContext ?? traceContext));
                                     break;
                                 case OrchestratorActionType.SendEvent:
                                     var sendEventAction = (SendEventOrchestratorAction)decision;
@@ -1083,7 +1093,7 @@ namespace DurableTask.Core
             CreateSubOrchestrationAction createSubOrchestrationAction,
             OrchestrationRuntimeState runtimeState,
             bool includeParameters,
-            Activity? parentTraceActivity)
+            DistributedTraceContext? parentTraceContext)
         {
             var historyEvent = new SubOrchestrationInstanceCreatedEvent(createSubOrchestrationAction.Id)
             {
@@ -1096,7 +1106,7 @@ namespace DurableTask.Core
                 historyEvent.Input = createSubOrchestrationAction.Input;
             }
 
-            ActivitySpanId clientSpanId = ActivitySpanId.CreateRandom();
+            ActivitySpanId clientSpanId = parentTraceContext?.ParentSpanId != null ? ActivitySpanId.CreateFromString(parentTraceContext.ParentSpanId.AsSpan()) : ActivitySpanId.CreateRandom();
             historyEvent.ClientSpanId = clientSpanId.ToString();
 
             runtimeState.AddEvent(historyEvent);
@@ -1122,9 +1132,13 @@ namespace DurableTask.Core
                 Version = createSubOrchestrationAction.Version
             };
 
-            if (parentTraceActivity != null)
+            if (parentTraceContext != null)
             {
-                ActivityContext activityContext = new ActivityContext(parentTraceActivity.TraceId, clientSpanId, parentTraceActivity.ActivityTraceFlags, parentTraceActivity.TraceStateString);
+                ActivityContext activityContext = new ActivityContext(
+                    ActivityTraceId.CreateFromString(parentTraceContext.TraceParent.AsSpan()),
+                    clientSpanId, 
+                    (ActivityTraceFlags)parentTraceContext.ParentTraceFlags!,
+                    parentTraceContext.TraceState);
                 startedEvent.SetParentTraceContext(activityContext);
             }
 
