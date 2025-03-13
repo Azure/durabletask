@@ -91,6 +91,7 @@ namespace DurableTask.Core.Tracing
         /// <summary>
         /// The activity trace flags of the parent trace
         /// </summary>
+        [DataMember]
         public ActivityTraceFlags? ParentTraceFlags { get; set; }
     }
 }
