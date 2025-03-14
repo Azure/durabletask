@@ -10,6 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
+
 #nullable enable
 namespace DurableTask.Core
 {
@@ -117,13 +118,12 @@ namespace DurableTask.Core
                 if (taskMessage.Event.EventType != EventType.TaskScheduled)
                 {
                     this.logHelper.TaskActivityDispatcherError(
-                        workItem, 
+                        workItem,
                         $"The activity worker received an event of type '{taskMessage.Event.EventType}' but only '{EventType.TaskScheduled}' is supported.");
                     throw TraceHelper.TraceException(
                         TraceEventType.Critical,
                         "TaskActivityDispatcher-UnsupportedEventType",
-                        new NotSupportedException("Activity worker does not support event of type: " +
-                                                  taskMessage.Event.EventType));
+                        new NotSupportedException("Activity worker does not support event of type: " + taskMessage.Event.EventType));
                 }
 
                 scheduledEvent = (TaskScheduledEvent)taskMessage.Event;
@@ -267,6 +267,22 @@ namespace DurableTask.Core
                 this.logHelper.TaskActivityAborted(orchestrationInstance, scheduledEvent!, e.Message);
                 TraceHelper.TraceInstance(TraceEventType.Warning, "TaskActivityDispatcher-ExecutionAborted", orchestrationInstance, "{0}: {1}", scheduledEvent?.Name ?? "", e.Message);
                 await this.orchestrationService.AbandonTaskActivityWorkItemAsync(workItem);
+            }
+            catch (WorkItemPoisonedException poisonedException) when (scheduledEvent is not null)
+            {
+                // The task activity is poisoned and should be marked as failed
+                this.logHelper.TaskActivityPoisoned(orchestrationInstance, scheduledEvent!, poisonedException.Message);
+                TraceHelper.TraceInstance(TraceEventType.Warning, "TaskActivityDispatcher-ExecutionPoisoned", orchestrationInstance, "{0}: {1}", scheduledEvent?.Name ?? "", poisonedException.Message);
+                await this.orchestrationService.CompleteTaskActivityWorkItemAsync(
+                    workItem, new TaskMessage()
+                    {
+                        Event = new TaskFailedEvent(
+                            -1,
+                            // Guaranteed to be not null because of the "when" clause in the catch block
+                            scheduledEvent!.EventId,
+                            poisonedException.Message, string.Empty),
+                        OrchestrationInstance = orchestrationInstance,
+                    });
             }
             finally
             {
