@@ -15,11 +15,13 @@ namespace DurableTask.Core
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
     using Castle.DynamicProxy;
     using DurableTask.Core.Entities;
     using DurableTask.Core.Serializing;
+    using DurableTask.Core.Tracing;
 
     /// <summary>
     /// Context for an orchestration containing the instance, replay status, orchestration methods and proxy methods
@@ -376,7 +378,6 @@ namespace DurableTask.Core
         /// <returns>Task that represents the execution of the specified sub-orchestration</returns>
         public abstract Task<T> CreateSubOrchestrationInstance<T>(string name, string version, string instanceId,
             object input, IDictionary<string, string> tags);
-
 
         /// <summary>
         ///     Raises an event for the specified orchestration instance, which eventually causes the OnEvent() method in the
