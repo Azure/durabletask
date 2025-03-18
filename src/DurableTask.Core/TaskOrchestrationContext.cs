@@ -129,7 +129,7 @@ namespace DurableTask.Core
             string instanceId,
             object input)
         {
-            return CreateSubOrchestrationInstanceCore<T>(name, version, instanceId, input, null, null);
+            return CreateSubOrchestrationInstanceCore<T>(name, version, instanceId, input, null);
         }
 
         public override Task<T> CreateSubOrchestrationInstance<T>(
@@ -139,7 +139,7 @@ namespace DurableTask.Core
             object input,
             IDictionary<string, string> tags)
         {
-            return CreateSubOrchestrationInstanceCore<T>(name, version, instanceId, input, tags, null);
+            return CreateSubOrchestrationInstanceCore<T>(name, version, instanceId, input, tags);
         }
 
         public override Task<T> CreateSubOrchestrationInstance<T>(
@@ -147,18 +147,7 @@ namespace DurableTask.Core
             string version,
             object input)
         {
-            return CreateSubOrchestrationInstanceCore<T>(name, version, null, input, null, null);
-        }
-
-        public override Task<T> CreateSubOrchestrationInstance<T>(
-        string name,
-        string version,
-        string instanceId,
-        object input,
-        IDictionary<string, string> tags,
-        DistributedTraceContext parentTraceContext)
-        {
-            return CreateSubOrchestrationInstanceCore<T>(name, version, instanceId, input, tags, parentTraceContext);
+            return CreateSubOrchestrationInstanceCore<T>(name, version, null, input, null);
         }
 
         async Task<T> CreateSubOrchestrationInstanceCore<T>(
@@ -166,8 +155,7 @@ namespace DurableTask.Core
             string version,
             string instanceId,
             object input,
-            IDictionary<string, string> tags,
-            DistributedTraceContext parentTraceContext)
+            IDictionary<string, string> tags)
         {
             int id = this.idCounter++;
             string serializedInput = this.MessageDataConverter.SerializeInternal(input);
@@ -185,8 +173,7 @@ namespace DurableTask.Core
                 Name = name,
                 Version = version,
                 Input = serializedInput,
-                Tags = tags,
-                ParentTraceContext = parentTraceContext
+                Tags = tags
             };
 
             this.orchestratorActionsMap.Add(id, action);

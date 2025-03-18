@@ -52,10 +52,5 @@ namespace DurableTask.Core.Command
         /// Tags to be applied to the sub-orchestration.
         /// </summary>
         public IDictionary<string, string>? Tags { get; set; }
-
-        /// <summary>
-        /// Parent trace of the sub-orchestration.
-        /// </summary>
-        public DistributedTraceContext? ParentTraceContext {  get; set; }
     }
 }
