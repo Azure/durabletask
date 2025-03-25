@@ -28,8 +28,24 @@ namespace DurableTask.Core
         }
 
         /// <summary>
+        /// Initializes a new instance of the <see cref="PurgeResult" /> class.
+        /// </summary>
+        /// <param name="deletedInstanceCount">The number of instances deleted.</param>
+        /// <param name="isComplete">A value indicating whether the purge operation is complete.</param>
+        public PurgeResult(int deletedInstanceCount, bool? isComplete)
+        {
+            this.DeletedInstanceCount = deletedInstanceCount;
+            this.IsComplete = isComplete;
+        }
+
+        /// <summary>
         /// Number of instances deleted during this execution of the purge operation.
         /// </summary>
         public int DeletedInstanceCount { get; }
+
+        /// <summary>
+        /// Gets a value indicating whether the purge operation is complete.
+        /// </summary>
+        public bool? IsComplete { get; }
     }
 }
