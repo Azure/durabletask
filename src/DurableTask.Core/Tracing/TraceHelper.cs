@@ -54,7 +54,7 @@ namespace DurableTask.Core.Tracing
                 {
                     newActivity.SetTag(Schema.Task.Version, startEvent.Version);
                 }
-                
+
                 startEvent.SetParentTraceContext(newActivity);
             }
 
@@ -357,10 +357,8 @@ namespace DurableTask.Core.Tracing
             OrchestrationInstance? instance,
             string? targetInstanceId)
         {
-
-            // We don't want to emit tracing for external events when they are related to entities
-            if ((targetInstanceId != null && targetInstanceId.StartsWith("@")) || (instance != null && instance.InstanceId.StartsWith("@")))
-            {
+            if (Entities.IsEntityInstance(targetInstanceId ?? string.Empty) || Entities.IsEntityInstance(instance?.InstanceId ?? string.Empty))
+            { 
                 return null;
             }
 
@@ -397,8 +395,7 @@ namespace DurableTask.Core.Tracing
         /// </returns>
         internal static Activity? StartActivityForNewEventRaisedFromClient(EventRaisedEvent eventRaised, OrchestrationInstance instance)
         {
-            // We don't want to emit tracing for external events when they are related to entities
-            if (instance.InstanceId.StartsWith("@"))
+            if (Entities.IsEntityInstance(instance.InstanceId))
             {
                 return null;
             }

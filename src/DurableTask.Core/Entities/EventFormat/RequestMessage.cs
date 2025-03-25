@@ -98,6 +98,12 @@ namespace DurableTask.Core.Entities.EventFormat
         [DataMember]
         public bool IsLockRequest => LockSet != null;
 
+        /// <summary>
+        /// Whether this message already has a trace created for it
+        /// </summary>
+        [DataMember(Name = "traceCreated")]
+        public bool TraceCreated { get; set; }
+
         /// <inheritdoc/>
         public override string GetShortDescription()
         {
