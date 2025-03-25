@@ -357,6 +357,7 @@ namespace DurableTask.Core.Tracing
             OrchestrationInstance? instance,
             string? targetInstanceId)
         {
+            // There is a possibility that we mislabel the event as an entity event if entities are not enabled
             if (Entities.IsEntityInstance(targetInstanceId ?? string.Empty) || Entities.IsEntityInstance(instance?.InstanceId ?? string.Empty))
             { 
                 return null;
@@ -395,6 +396,7 @@ namespace DurableTask.Core.Tracing
         /// </returns>
         internal static Activity? StartActivityForNewEventRaisedFromClient(EventRaisedEvent eventRaised, OrchestrationInstance instance)
         {
+            // There is a possibility that we mislabel the event as an entity event if entities are not enabled
             if (Entities.IsEntityInstance(instance.InstanceId))
             {
                 return null;
