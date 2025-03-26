@@ -54,7 +54,7 @@ namespace DurableTask.Core.Tracing
                 {
                     newActivity.SetTag(Schema.Task.Version, startEvent.Version);
                 }
-                
+
                 startEvent.SetParentTraceContext(newActivity);
             }
 
@@ -357,6 +357,12 @@ namespace DurableTask.Core.Tracing
             OrchestrationInstance? instance,
             string? targetInstanceId)
         {
+            // There is a possibility that we mislabel the event as an entity event if entities are not enabled
+            if (Entities.IsEntityInstance(targetInstanceId ?? string.Empty) || Entities.IsEntityInstance(instance?.InstanceId ?? string.Empty))
+            { 
+                return null;
+            }
+
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 CreateSpanName(TraceActivityConstants.OrchestrationEvent, eventRaisedEvent.Name, null),
                 kind: ActivityKind.Producer,
@@ -390,6 +396,12 @@ namespace DurableTask.Core.Tracing
         /// </returns>
         internal static Activity? StartActivityForNewEventRaisedFromClient(EventRaisedEvent eventRaised, OrchestrationInstance instance)
         {
+            // There is a possibility that we mislabel the event as an entity event if entities are not enabled
+            if (Entities.IsEntityInstance(instance.InstanceId))
+            {
+                return null;
+            }
+
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 CreateSpanName(TraceActivityConstants.OrchestrationEvent, eventRaised.Name, null),
                 kind: ActivityKind.Producer,
