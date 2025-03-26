@@ -20,7 +20,7 @@ namespace DurableTask.Core
     /// <summary>
     /// An active instance / work item of an orchestration
     /// </summary>
-    public class TaskOrchestrationWorkItem
+    public class TaskOrchestrationWorkItem : WorkItemBase
     {
         /// <summary>
         /// The instance id of this orchestration
@@ -33,11 +33,6 @@ namespace DurableTask.Core
         public OrchestrationRuntimeState OrchestrationRuntimeState;
 
         /// <summary>
-        /// The datetime this orchestration work item is locked until
-        /// </summary>
-        public DateTime LockedUntilUtc;
-
-        /// <summary>
         /// The list of new task messages associated with this work item instance
         /// </summary>
         public IList<TaskMessage> NewMessages;
@@ -47,11 +42,6 @@ namespace DurableTask.Core
         /// providers that intend to leverage extended sessions.
         /// </summary>
         public IOrchestrationSession Session;
-
-        /// <summary>
-        /// The trace context used for correlation.
-        /// </summary>
-        public TraceContextBase TraceContext;
 
         /// <summary>
         /// The flag of extendedSession.
