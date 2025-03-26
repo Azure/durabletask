@@ -59,8 +59,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Correlation.Samples", "samp
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{D02EF5EF-3D7E-4223-B256-439BAF0C8853}"
 	ProjectSection(SolutionItems) = preProject
-		azure-pipelines-build.yml = azure-pipelines-build.yml
-		azure-pipelines-release.yml = azure-pipelines-release.yml
 		Directory.Build.targets = Directory.Build.targets
 		Directory.Packages.props = Directory.Packages.props
 	EndProjectSection
@@ -78,6 +76,22 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ManagedIdentity.AzStorageV1", "samples\ManagedIdentitySample\DTFx.AzureStorage v1.x\ManagedIdentity.AzStorageV1.csproj", "{CFFC5AD7-5B82-48CF-879D-295D327B5CA6}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ManagedIdentity.AzStorageV2", "samples\ManagedIdentitySample\DTFx.AzureStorage v2.x\ManagedIdentity.AzStorageV2.csproj", "{87CA84DE-A0FE-443C-8B2B-AB89F5DF5C24}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "eng", "eng", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ci", "ci", "{8123FF5E-A7B6-4649-BF5C-C2C69F2D67D3}"
+	ProjectSection(SolutionItems) = preProject
+		eng\ci\code-mirror.yml = eng\ci\code-mirror.yml
+		eng\ci\official-build.yml = eng\ci\official-build.yml
+		eng\ci\public-build.yml = eng\ci\public-build.yml
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "templates", "templates", "{BF34A9C8-20CA-44B9-BC72-AB905AB27F69}"
+	ProjectSection(SolutionItems) = preProject
+		eng\templates\build-steps.yml = eng\templates\build-steps.yml
+		eng\templates\build.yml = eng\templates\build.yml
+		eng\templates\test.yml = eng\templates\test.yml
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -302,6 +316,8 @@ Global
 		{8B797A00-0F43-46F9-8F1A-C945FD4F304F} = {AF4E71A6-B16E-4488-B22D-2761101A601A}
 		{CFFC5AD7-5B82-48CF-879D-295D327B5CA6} = {8B797A00-0F43-46F9-8F1A-C945FD4F304F}
 		{87CA84DE-A0FE-443C-8B2B-AB89F5DF5C24} = {8B797A00-0F43-46F9-8F1A-C945FD4F304F}
+		{8123FF5E-A7B6-4649-BF5C-C2C69F2D67D3} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{BF34A9C8-20CA-44B9-BC72-AB905AB27F69} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		EnterpriseLibraryConfigurationToolBinariesPath = packages\TransientFaultHandling.Core.5.1.1209.1\lib\NET4
