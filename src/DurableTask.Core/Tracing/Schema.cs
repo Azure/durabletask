@@ -33,5 +33,16 @@ namespace DurableTask.Core.Tracing
             internal const string Code = "otel.status_code";
             internal const string Description = "otel.status_description";
         }
+
+        internal static class Entity
+        {
+            internal const string Type = Task.Type;
+            internal const string EntityId = "durabletask.entity.entity_id";
+            internal const string TargetInstanceId = "durabletask.entity.target_instance_id";
+            internal const string TargetEntityId = "durabletask.entity.target_entity_id";
+            internal const string EntityOperation = "durabletask.entity.entity_operation";
+            internal const string ErrorMessage = "durabletask.entity.error_message";
+            internal const string ScheduledTime = "durabletask.entity.scheduled_time";
+        }
     }
 }

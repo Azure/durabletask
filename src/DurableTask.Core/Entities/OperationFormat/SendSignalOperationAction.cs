@@ -13,6 +13,7 @@
 #nullable enable
 namespace DurableTask.Core.Entities.OperationFormat
 {
+    using DurableTask.Core.Tracing;
     using System;
 
     /// <summary>
@@ -45,5 +46,15 @@ namespace DurableTask.Core.Entities.OperationFormat
         /// Optionally, a scheduled delivery time for the signal.
         /// </summary>
         public DateTime? ScheduledTime { get; set; }
+
+        /// <summary>
+        /// The time the signal request was generated.
+        /// </summary>
+        public DateTime? RequestTime { get; set; }
+
+        /// <summary>
+        /// The parent trace context for the signal, if any.
+        /// </summary>
+        public DistributedTraceContext? ParentTraceContext { get; set; }
     }
 }
