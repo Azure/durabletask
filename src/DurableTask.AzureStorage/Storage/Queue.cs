@@ -83,6 +83,8 @@ namespace DurableTask.AzureStorage.Storage
                     queueMessage.PopReceipt,
                     cancellationToken)
                 .DecorateFailure();
+
+            this.stats.MessagesUpdated.Increment();
         }
 
         public async Task<QueueMessage?> GetMessageAsync(TimeSpan visibilityTimeout, CancellationToken cancellationToken = default)
