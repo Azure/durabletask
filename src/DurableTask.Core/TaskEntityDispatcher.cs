@@ -25,6 +25,7 @@ namespace DurableTask.Core
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
 
@@ -647,20 +648,32 @@ namespace DurableTask.Core
                 }
             }
 
-            public List<OperationRequest> GetOperationRequests()
+            public (List<OperationRequest>, List<Activity>) GetOperationRequestsAndTraceActivities(string instanceId)
             {
                 var operations = new List<OperationRequest>(this.operationBatch.Count);
+                var traceActivities = new List<Activity>(this.operationBatch.Count);
                 for (int i = 0; i < this.operationBatch.Count; i++)
                 {
                     var request = this.operationBatch[i];
+
+                    bool successfullyParsed = ActivityContext.TryParse(request.ParentTraceContext?.TraceParent, request.ParentTraceContext?.TraceState, out ActivityContext parentTraceContext);
+                    var traceActivity = TraceHelper.StartActivityForProcessingEntityInvocation(
+                        instanceId,
+                        EntityId.FromString(instanceId).Name,
+                        request.Operation,
+                        request.IsSignal,
+                        successfullyParsed ? parentTraceContext : Activity.Current?.Context);
+                    traceActivities.Add(traceActivity);
+
                     operations.Add(new OperationRequest()
                     {
                         Operation = request.Operation,
                         Id = request.Id,
                         Input = request.Input,
+                        TraceContext = traceActivity != null ? new DistributedTraceContext(traceActivity.Id, traceActivity.TraceStateString) : null,
                     });
                 }
-                return operations;
+                return (operations, traceActivities);
             }
 
             public Queue<RequestMessage> RemoveDeferredWork(int index)
@@ -727,6 +740,24 @@ namespace DurableTask.Core
             {
                 eventName = EntityMessageEventNames.RequestMessageEventName;
                 schedulerState.MessageSorter.LabelOutgoingMessage(message, action.InstanceId, DateTime.UtcNow, this.entityBackendProperties.EntityMessageReorderWindow);
+            }
+
+            bool successfullyParsed = ActivityContext.TryParse(
+                action.ParentTraceContext?.TraceParent,
+                action.ParentTraceContext?.TraceState,
+                out ActivityContext parentTraceContext);
+            using Activity traceActivity = TraceHelper.StartActivityForCallingOrSignalingEntity(
+                destination.InstanceId,
+                EntityId.FromString(destination.InstanceId).Name,
+                action.Name,
+                true,
+                successfullyParsed ? parentTraceContext : Activity.Current?.Context,
+                entityId: effects.InstanceId,
+                scheduledTime: action.ScheduledTime,
+                startTime: action.RequestTime);
+            if (traceActivity?.Id != null)
+            {
+                message.ParentTraceContext = new DistributedTraceContext(traceActivity.Id, traceActivity.TraceStateString);
             }
             this.ProcessSendEventMessage(effects, destination, eventName, message);
         }
@@ -816,6 +847,21 @@ namespace DurableTask.Core
                 Name = action.Name,
                 Version = action.Version,
             };
+
+            bool successfullyParsed = ActivityContext.TryParse(
+                    action.ParentTraceContext?.TraceParent,
+                    action.ParentTraceContext?.TraceState,
+                    out ActivityContext parentTraceContext);
+            using Activity traceActivity = TraceHelper.StartActivityForEntityStartingAnOrchestration(
+                runtimeState.OrchestrationInstance.InstanceId,
+                destination.InstanceId,
+                successfullyParsed ? parentTraceContext : Activity.Current?.Context,
+                scheduledTime: action.ScheduledStartTime,
+                startTime: action.RequestTime);
+            if (traceActivity?.Id != null)
+            {
+                executionStartedEvent.ParentTraceContext = new DistributedTraceContext(traceActivity.Id, traceActivity.TraceStateString);
+            }
             this.logHelper.SchedulingOrchestration(executionStartedEvent);
 
             effects.InstanceMessages.Add(new TaskMessage
@@ -829,12 +875,13 @@ namespace DurableTask.Core
 
         async Task<EntityBatchResult> ExecuteViaMiddlewareAsync(Work workToDoNow, OrchestrationInstance instance, string serializedEntityState)
         {
+            var (operations, traceActivities) = workToDoNow.GetOperationRequestsAndTraceActivities(instance.InstanceId);
             // the request object that will be passed to the worker
             var request = new EntityBatchRequest()
             {
                 InstanceId = instance.InstanceId,
                 EntityState = serializedEntityState,
-                Operations = workToDoNow.GetOperationRequests(),
+                Operations = operations,
             };
 
             this.logHelper.EntityBatchExecuting(request);
@@ -871,11 +918,12 @@ namespace DurableTask.Core
                 }
 
                 var result = await taskEntity.ExecuteOperationBatchAsync(request);
-                
+
                 dispatchContext.SetProperty(result);
             });
 
             var result = dispatchContext.GetProperty<EntityBatchResult>();
+            TraceHelper.EndActivitiesForProcessingEntityInvocation(traceActivities, result.Results, result.FailureDetails);
 
             this.logHelper.EntityBatchExecuted(request, result);
 
