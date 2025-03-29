@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.AzureStorage.Partitioning
 {
     using System;
@@ -55,7 +55,8 @@ namespace DurableTask.AzureStorage.Partitioning
             this.blobDirectoryName = leaseType;
             this.leaseInterval = this.settings.LeaseInterval;
 
-            this.Initialize();
+            this.taskHubContainer = this.azureStorageClient.GetBlobContainerReference(this.leaseContainerName);
+            this.taskHubInfoBlob = this.taskHubContainer.GetBlobReference(TaskHubInfoBlobName);
         }
 
         public Task<bool> LeaseStoreExistsAsync(CancellationToken cancellationToken = default)
@@ -129,7 +130,7 @@ namespace DurableTask.AzureStorage.Partitioning
             }
         }
 
-        public async Task<BlobPartitionLease> GetLeaseAsync(string partitionId, CancellationToken cancellationToken = default)
+        public async Task<BlobPartitionLease?> GetLeaseAsync(string partitionId, CancellationToken cancellationToken = default)
         {
             Blob leaseBlob = this.taskHubContainer.GetBlobReference(partitionId, this.blobDirectoryName);
             if (await leaseBlob.ExistsAsync(cancellationToken))
@@ -260,7 +261,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         internal async Task<TaskHubInfo> GetOrCreateTaskHubInfoAsync(TaskHubInfo newTaskHubInfo, bool checkIfStale, CancellationToken cancellationToken = default)
         {
-            TaskHubInfo currentTaskHubInfo = await this.GetTaskHubInfoAsync(cancellationToken);
+            TaskHubInfo? currentTaskHubInfo = await this.GetTaskHubInfoAsync(cancellationToken);
             if (currentTaskHubInfo != null)
             {
                 if (checkIfStale && IsStale(currentTaskHubInfo, newTaskHubInfo))
@@ -297,14 +298,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     || !currentTaskHubInfo.PartitionCount.Equals(newTaskHubInfo.PartitionCount);
         }
 
-        void Initialize()
-        {
-            this.taskHubContainer = this.azureStorageClient.GetBlobContainerReference(this.leaseContainerName);
-
-            this.taskHubInfoBlob = this.taskHubContainer.GetBlobReference(TaskHubInfoBlobName);
-        }
-
-        async Task<TaskHubInfo> GetTaskHubInfoAsync(CancellationToken cancellationToken)
+        async Task<TaskHubInfo?> GetTaskHubInfoAsync(CancellationToken cancellationToken)
         {
             if (await this.taskHubInfoBlob.ExistsAsync(cancellationToken))
             {
@@ -318,10 +312,17 @@ namespace DurableTask.AzureStorage.Partitioning
         async Task<BlobPartitionLease> DownloadLeaseBlob(Blob blob, CancellationToken cancellationToken)
         {
             using BlobDownloadStreamingResult result = await blob.DownloadStreamingAsync(cancellationToken);
-            BlobPartitionLease deserializedLease = Utils.DeserializeFromJson<BlobPartitionLease>(result.Content);
-            deserializedLease.Blob = blob;
+            BlobPartitionLease? deserializedLease = Utils.DeserializeFromJson<BlobPartitionLease>(result.Content);
 
-            return deserializedLease;
+            if (deserializedLease == null)
+            {
+                throw new Exception($"Failed to deserialize lease blob: {blob.Name}");
+            }
+            else
+            {
+                deserializedLease.Blob = blob;
+                return deserializedLease;
+            }
         }
 
         static Exception HandleStorageException(Lease lease, DurableTaskStorageException storageException, bool ignoreLeaseLost = false)
