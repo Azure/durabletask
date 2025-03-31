@@ -100,12 +100,6 @@ namespace DurableTask.Core.Entities.EventFormat
         public bool IsLockRequest => LockSet != null;
 
         /// <summary>
-        /// Whether this message already has a trace created for it
-        /// </summary>
-        [DataMember(Name = "traceCreated")]
-        public bool TraceCreated { get; set; }
-
-        /// <summary>
         /// Parent trace of this request message
         /// </summary>
         [DataMember(Name = "parentTrace", EmitDefaultValue = false)]
