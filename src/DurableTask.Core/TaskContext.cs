@@ -30,7 +30,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Creates a new TaskContext with the supplied OrchestrationInstance and taskId
         /// </summary>
-        internal TaskContext(OrchestrationInstance orchestrationInstance, string name, string? version, int taskId)
+        public TaskContext(OrchestrationInstance orchestrationInstance, string name, string? version, int taskId)
         {
             OrchestrationInstance = orchestrationInstance;
             Name = name;
