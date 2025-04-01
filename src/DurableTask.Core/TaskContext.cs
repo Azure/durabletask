@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.Core
 {
     /// <summary>
@@ -23,14 +23,40 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="orchestrationInstance"></param>
         public TaskContext(OrchestrationInstance orchestrationInstance)
+            : this(orchestrationInstance, string.Empty, null, -1)
+        {
+        }
+
+        /// <summary>
+        /// Creates a new TaskContext with the supplied OrchestrationInstance and taskId
+        /// </summary>
+        public TaskContext(OrchestrationInstance orchestrationInstance, string name, string? version, int taskId)
         {
             OrchestrationInstance = orchestrationInstance;
+            Name = name;
+            Version = version;
+            TaskId = taskId;
         }
 
         /// <summary>
         /// Gets the OrchestrationInstance for this task context
         /// </summary>
         public OrchestrationInstance OrchestrationInstance { get; private set; }
+
+        /// <summary>
+        /// Gets the name of the task
+        /// </summary>
+        public string Name { get; }
+
+        /// <summary>
+        /// Gets the version of the task, if any.
+        /// </summary>
+        public string? Version { get; }
+
+        /// <summary>
+        /// Gets the ID of the task, which is a sequential number unique to the orchestration instance.
+        /// </summary>
+        public int TaskId { get; }
 
         /// <summary>
         /// Gets or sets a value indicating how to propagate unhandled exception metadata.

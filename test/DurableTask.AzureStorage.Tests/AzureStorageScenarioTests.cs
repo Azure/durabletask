@@ -3148,7 +3148,7 @@ namespace DurableTask.AzureStorage.Tests
                     using (var cts = new CancellationTokenSource())
                     {
                         Task<bool> approvalTask = this.GetWaitForApprovalTask();
-                        Task timeoutTask = context.CreateTimer(deadline, cts.Token);
+                        Task timeoutTask = context.CreateTimer(deadline, true, cts.Token);
 
                         if (shouldFail)
                         {
