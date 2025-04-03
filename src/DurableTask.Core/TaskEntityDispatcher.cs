@@ -656,15 +656,26 @@ namespace DurableTask.Core
                 {
                     var request = this.operationBatch[i];
 
+                    Activity traceActivity = null;
                     bool successfullyParsed = ActivityContext.TryParse(request.ParentTraceContext?.TraceParent, request.ParentTraceContext?.TraceState, out ActivityContext parentTraceContext);
-                    var traceActivity = TraceHelper.StartActivityForProcessingEntityInvocation(
-                        instanceId,
-                        EntityId.FromString(instanceId).Name,
-                        request.Operation,
-                        request.IsSignal,
-                        successfullyParsed ? parentTraceContext : Activity.Current?.Context);
+                    
+                    // We only want to create a trace activity for processing the entity invocation in the case that we can successfully parse the trace context of the request that led to this entity invocation.
+                    // Otherwise, we will create an unlinked trace activity with no parent 
+                    if (successfullyParsed)
+                    {
+                        traceActivity = TraceHelper.StartActivityForProcessingEntityInvocation(
+                            instanceId,
+                            EntityId.FromString(instanceId).Name,
+                            request.Operation,
+                            request.IsSignal,
+                            parentTraceContext);
+                    }
+
+                    // We still want to add the trace activity to the list even if it was not successfully created and is null. This is because otherwise we have no easy way of mapping OperationResults to Activities otherwise if the lists
+                    // do not have the same length in TraceHelper.EndActivitiesForProcessingEntityInvocation. We will simply skip ending the Activity if it is null in this method
                     traceActivities.Add(traceActivity);
 
+                    // The trace context of the operation request will be the Activity just created - this can become the parent of future operations started by the entity once it processes the OperationRequest
                     operations.Add(new OperationRequest()
                     {
                         Operation = request.Operation,
@@ -746,15 +757,18 @@ namespace DurableTask.Core
                 action.ParentTraceContext?.TraceParent,
                 action.ParentTraceContext?.TraceState,
                 out ActivityContext parentTraceContext);
-            using Activity traceActivity = TraceHelper.StartActivityForCallingOrSignalingEntity(
+
+            // We only want to create a trace activity for signaling the entity in the case that we can successfully parse the parent trace context of the signal request.
+            // Otherwise, we will create an unlinked trace activity with no parent 
+            using Activity traceActivity = successfullyParsed ? TraceHelper.StartActivityForCallingOrSignalingEntity(
                 destination.InstanceId,
                 EntityId.FromString(destination.InstanceId).Name,
                 action.Name,
                 true,
-                successfullyParsed ? parentTraceContext : Activity.Current?.Context,
+                parentTraceContext,
                 entityId: effects.InstanceId,
                 scheduledTime: action.ScheduledTime,
-                startTime: action.RequestTime);
+                startTime: action.RequestTime) : null;
             if (traceActivity?.Id != null)
             {
                 message.ParentTraceContext = new DistributedTraceContext(traceActivity.Id, traceActivity.TraceStateString);
@@ -852,12 +866,15 @@ namespace DurableTask.Core
                     action.ParentTraceContext?.TraceParent,
                     action.ParentTraceContext?.TraceState,
                     out ActivityContext parentTraceContext);
-            using Activity traceActivity = TraceHelper.StartActivityForEntityStartingAnOrchestration(
+
+            // We only want to create a trace activity for an entity starting an orchestration in the case that we can successfully parse the parent trace context of the start orchestration request.
+            // Otherwise, we will create an unlinked trace activity with no parent 
+            using Activity traceActivity = successfullyParsed ? TraceHelper.StartActivityForEntityStartingAnOrchestration(
                 runtimeState.OrchestrationInstance.InstanceId,
                 destination.InstanceId,
-                successfullyParsed ? parentTraceContext : Activity.Current?.Context,
+                parentTraceContext,
                 scheduledTime: action.ScheduledStartTime,
-                startTime: action.RequestTime);
+                startTime: action.RequestTime) : null;
             if (traceActivity?.Id != null)
             {
                 executionStartedEvent.ParentTraceContext = new DistributedTraceContext(traceActivity.Id, traceActivity.TraceStateString);

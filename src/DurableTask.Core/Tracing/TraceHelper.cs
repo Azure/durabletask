@@ -365,6 +365,7 @@ namespace DurableTask.Core.Tracing
             // There is a possibility that we mislabel the event as an entity event if entities are not enabled
             if (Entities.IsEntityInstance(targetInstanceId ?? string.Empty) || Entities.IsEntityInstance(instance?.InstanceId ?? string.Empty))
             {
+                // In the case that this an event corresponding to an orchestrationg invoking an entity, we may want to create an entity-specific trace activity for the event
                 return TryParseEntityRequest(eventRaisedEvent, targetInstanceId);
             }
 
@@ -532,15 +533,18 @@ namespace DurableTask.Core.Tracing
             {
                 foreach (var (activity, result) in traceActivities.Zip(results, (activity, result) => (activity, result)))
                 {
-                    if (result.ErrorMessage != null || result.FailureDetails != null)
+                    if (activity != null)
                     {
-                        activity.SetTag(Schema.Entity.ErrorMessage, result.ErrorMessage ?? result.FailureDetails!.ErrorMessage);
+                        if (result.ErrorMessage != null || result.FailureDetails != null)
+                        {
+                            activity.SetTag(Schema.Entity.ErrorMessage, result.ErrorMessage ?? result.FailureDetails!.ErrorMessage);
+                        }
+                        if (result.EndTime is DateTime endTime)
+                        {
+                            activity.SetEndTime(endTime);
+                        }
+                        activity.Dispose();
                     }
-                    if (result.EndTime is DateTime endTime)
-                    {
-                        activity.SetEndTime(endTime);
-                    }
-                    activity.Dispose();
                 }
             }
             // This can happen if some of the operations failed and have no corresponding OperationResult
@@ -554,8 +558,11 @@ namespace DurableTask.Core.Tracing
                 }
                 foreach (var activity in traceActivities)
                 {
-                    activity.SetTag(Schema.Entity.ErrorMessage, errorMessage);
-                    activity.Dispose();
+                    if (activity != null)
+                    {
+                        activity.SetTag(Schema.Entity.ErrorMessage, errorMessage);
+                        activity.Dispose();
+                    }
                 }
             }
         }
@@ -843,17 +850,12 @@ namespace DurableTask.Core.Tracing
                     return null;
                 }
 
-                bool successfullyParsed = ActivityContext.TryParse(
-                    requestMessage.ParentTraceContext?.TraceParent,
-                    requestMessage.ParentTraceContext?.TraceState,
-                    out ActivityContext parentTraceContext);
-
                 Activity? newActivity = StartActivityForCallingOrSignalingEntity(
                     targetInstanceId!,
                     EntityId.FromString(targetInstanceId!).Name,
                     requestMessage.Operation!,
                     requestMessage.IsSignal,
-                    successfullyParsed ? parentTraceContext : Activity.Current?.Context,
+                    Activity.Current?.Context,
                     scheduledTime: requestMessage.ScheduledTime,
                     startTime: requestMessage.RequestTime);
 
