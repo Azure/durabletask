@@ -116,7 +116,8 @@ namespace DurableTask.AzureStorage
 
         public bool IsControlQueueProcessingMessages(string partitionId)
         {
-            return this.activeOrchestrationSessions.Values.Where(session => string.Equals(session.ControlQueue.Name, partitionId)).Any();
+            var sessionsSnapshot = this.activeOrchestrationSessions.Values.ToList();
+            return sessionsSnapshot.Any(session => string.Equals(session.ControlQueue.Name, partitionId));
         }
 
         async Task DequeueLoop(string partitionId, ControlQueue controlQueue, CancellationToken cancellationToken)
