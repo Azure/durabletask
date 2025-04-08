@@ -34,8 +34,9 @@ namespace DurableTask.Core.Entities
         /// <param name="input">The serialized input for the operation.</param>
         /// <param name="scheduledTimeUtc">The time to schedule this signal, or null if not a scheduled signal</param>
         /// <param name="parentTraceContext">The parent trace context for this operation.</param>
+        /// <param name="requestTime">The time at which the request was made.</param>
         /// <returns>The event to send.</returns>
-        public static EntityMessageEvent EmitOperationSignal(OrchestrationInstance targetInstance, Guid requestId, string operationName, string? input, (DateTime Original, DateTime Capped)? scheduledTimeUtc, DistributedTraceContext? parentTraceContext = null)
+        public static EntityMessageEvent EmitOperationSignal(OrchestrationInstance targetInstance, Guid requestId, string operationName, string? input, (DateTime Original, DateTime Capped)? scheduledTimeUtc, DistributedTraceContext? parentTraceContext = null, DateTime? requestTime = null)
         {
             var request = new RequestMessage()
             {
@@ -46,7 +47,8 @@ namespace DurableTask.Core.Entities
                 Operation = operationName,
                 ScheduledTime = scheduledTimeUtc?.Original,
                 Input = input,
-                ParentTraceContext = parentTraceContext
+                ParentTraceContext = parentTraceContext,
+                RequestTime = requestTime
             };
 
             var eventName = scheduledTimeUtc.HasValue

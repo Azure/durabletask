@@ -229,7 +229,7 @@ namespace DurableTask.Core.Entities
         /// <param name="scheduledTimeUtc">A time for which to schedule the delivery, or null if this is not a scheduled message</param>
         /// <param name="input">The operation input</param>
         /// <param name="createTrace">Whether or not to create an entity-specific trace for this event</param>
-        /// <param name="requestTime">The time the request was created</param>
+        /// <param name="requestTime">The time at which the request was made.</param>
         /// <returns>The event to send.</returns>
         public EntityMessageEvent EmitRequestMessage(
             OrchestrationInstance target,
