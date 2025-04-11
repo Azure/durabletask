@@ -20,6 +20,9 @@ namespace DurableTask.Core.Tracing
     using System.Runtime.ExceptionServices;
     using DurableTask.Core.Common;
     using DurableTask.Core.History;
+    using Newtonsoft.Json;
+    using DurableTask.Core.Entities.EventFormat;
+    using DurableTask.Core.Entities;
 
     /// <summary>
     ///     Helper class for logging/tracing
@@ -54,7 +57,8 @@ namespace DurableTask.Core.Tracing
                 {
                     newActivity.SetTag(Schema.Task.Version, startEvent.Version);
                 }
-                
+
+
                 startEvent.SetParentTraceContext(newActivity);
             }
 
@@ -357,6 +361,16 @@ namespace DurableTask.Core.Tracing
             OrchestrationInstance? instance,
             string? targetInstanceId)
         {
+            // There is a possibility that we mislabel the event as an entity event if entities are not enabled
+            if (Entities.IsEntityInstance(targetInstanceId ?? string.Empty))
+            {
+                return TryParseEntityRequest(eventRaisedEvent, targetInstanceId!);
+            }
+            else if (Entities.IsEntityInstance(instance?.InstanceId ?? string.Empty))
+            {
+                return TryParseEntityResponse(eventRaisedEvent, instance?.InstanceId!);
+            }
+
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 CreateSpanName(TraceActivityConstants.OrchestrationEvent, eventRaisedEvent.Name, null),
                 kind: ActivityKind.Producer,
@@ -390,6 +404,12 @@ namespace DurableTask.Core.Tracing
         /// </returns>
         internal static Activity? StartActivityForNewEventRaisedFromClient(EventRaisedEvent eventRaised, OrchestrationInstance instance)
         {
+            // There is a possibility that we mislabel the event as an entity event if entities are not enabled
+            if (Entities.IsEntityInstance(instance.InstanceId))
+            {
+                return TryParseEntityRequest(eventRaised, instance.InstanceId);
+            }
+
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 CreateSpanName(TraceActivityConstants.OrchestrationEvent, eventRaised.Name, null),
                 kind: ActivityKind.Producer,
@@ -435,6 +455,56 @@ namespace DurableTask.Core.Tracing
             }
         }
 
+        internal static Activity? StartActivityForCallingOrSignalingEntity(string targetEntityId, string entityName, string operationName, bool signalEntity, DateTime? scheduledTime, ActivityContext parentTraceContext, DateTimeOffset? startTime, string? entityId = null)
+        {
+            Activity? newActivity = ActivityTraceSource.StartActivity(
+                CreateEntitySpanName(entityName, operationName),
+                kind: signalEntity ? ActivityKind.Producer : ActivityKind.Client,
+                parentContext: parentTraceContext,
+                startTime: startTime ?? DateTimeOffset.UtcNow);
+
+            if (newActivity == null)
+            {
+                return null;
+            }
+
+            newActivity.SetTag(Schema.Entity.Type, TraceActivityConstants.Entity);
+            newActivity.SetTag(Schema.Entity.EntityOperation, signalEntity ? TraceActivityConstants.SignalEntity : TraceActivityConstants.CallEntity);
+            newActivity.SetTag(Schema.Entity.TargetEntityId, targetEntityId);
+
+            if (!string.IsNullOrEmpty(entityId))
+            {
+                newActivity.SetTag(Schema.Entity.EntityId, entityId);
+            }
+
+            if (scheduledTime != null)
+            {
+                newActivity.SetTag(Schema.Entity.ScheduledTime, scheduledTime.Value.ToString());
+            }
+
+            return newActivity;
+        }
+
+        internal static Activity? StartActivityForEntityStartingAnOrchestration(string entityId, string entityName, string targetInstanceId, ActivityContext parentTraceContext, DateTimeOffset startTime)
+        {
+            Activity? newActivity = ActivityTraceSource.StartActivity(
+                CreateSpanName(entityName, TraceActivityConstants.CreateOrchestration, null),
+                kind: ActivityKind.Producer,
+                parentContext: parentTraceContext,
+                startTime: startTime);
+
+            if (newActivity == null)
+            {
+                return null;
+            }
+
+            newActivity.SetTag(Schema.Entity.Type, TraceActivityConstants.Entity);
+            newActivity.SetTag(Schema.Entity.TargetInstanceId, targetInstanceId);
+            newActivity.SetTag(Schema.Entity.EntityId, entityId);
+
+            return newActivity;
+        }
+
         internal static void SetRuntimeStatusTag(string runtimeStatus)
         {
             DistributedTraceActivity.Current?.SetTag(Schema.Task.Status, runtimeStatus);
@@ -460,6 +530,11 @@ namespace DurableTask.Core.Tracing
         static string CreateTimerSpanName(string orchestrationName)
         {
             return $"{TraceActivityConstants.Orchestration}:{orchestrationName}:{TraceActivityConstants.Timer}";
+        }
+
+        static string CreateEntitySpanName(string entityName, string operationName)
+        {
+            return $"{TraceActivityConstants.Entity}:{entityName}:{operationName}";
         }
 
         /// <summary>
@@ -695,6 +770,96 @@ namespace DurableTask.Core.Tracing
                 catch (Exception anotherException) when (!Utils.IsFatal(anotherException))
                 {
                 }
+            }
+        }
+
+        private static Activity? TryParseEntityRequest(EventRaisedEvent raisedEvent, string targetInstanceId)
+        {
+            try
+            {
+                var requestMessage = JsonConvert.DeserializeObject<RequestMessage>(raisedEvent.Input, Serializer.InternalSerializerSettings);
+                if (requestMessage == null || !requestMessage.CreateTrace)
+                {
+                    return null;
+                }
+
+                var parentTraceContext = Activity.Current?.Context;
+                if (requestMessage.ParentTraceContext != null)
+                {
+                    if (ActivityContext.TryParse(requestMessage.ParentTraceContext.TraceParent, requestMessage.ParentTraceContext.TraceState, out ActivityContext activityContext))
+                    {
+                        parentTraceContext = activityContext;
+                    }
+                    // If a parent trace context was passed with the request message, this should be the parent of the current Activity, so if we cannot parse it we should not create the Activity
+                    // or else it will be incorrectly linked.
+                    else
+                    {
+                        parentTraceContext = null;
+                    }
+                }
+
+                // We only want to create a trace activity for calling/signaling an entity in the case that we can successfully get the parent trace context of the request.
+                // Otherwise, we will create an unlinked trace activity with no parent.
+                if (parentTraceContext == null)
+                {
+                    return null;
+                }
+
+                Activity? newActivity = StartActivityForCallingOrSignalingEntity(
+                    targetInstanceId!,
+                    EntityId.FromString(targetInstanceId!).Name,
+                    requestMessage.Operation!,
+                    requestMessage.IsSignal,
+                    requestMessage.ScheduledTime,
+                    parentTraceContext.Value,
+                    entityId: requestMessage.ParentInstanceId != null && Entities.IsEntityInstance(requestMessage.ParentInstanceId) ? requestMessage.ParentInstanceId : null,
+                    startTime: requestMessage.RequestTime);
+
+                if (!string.IsNullOrEmpty(newActivity?.Id))
+                {
+                    requestMessage.ParentTraceContext = new DistributedTraceContext(newActivity!.Id!, newActivity.TraceStateString);
+                    raisedEvent.Input = JsonConvert.SerializeObject(requestMessage, Serializer.InternalSerializerSettings);
+                }
+
+                return newActivity;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        private static Activity? TryParseEntityResponse(EventRaisedEvent raisedEvent, string instanceId)
+        {
+            try
+            {
+                var responseMessage = JsonConvert.DeserializeObject<ResponseMessage>(raisedEvent.Input, Serializer.InternalSerializerSettings);
+                if (responseMessage == null || responseMessage.RequestInfo == null)
+                {
+                    return null;
+                }
+
+                if (!ActivityContext.TryParse(responseMessage.RequestInfo.ParentTraceContext?.TraceParent, responseMessage.RequestInfo.ParentTraceContext?.TraceState, out ActivityContext parentTraceContext))
+                {
+                    return null;
+                }
+
+                Activity? newActivity = StartActivityForCallingOrSignalingEntity(
+                    instanceId,
+                    EntityId.FromString(instanceId).Name,
+                    responseMessage.RequestInfo.Operation!,
+                    signalEntity: false,
+                    responseMessage.RequestInfo.ScheduledTime,
+                    parentTraceContext,
+                    startTime: responseMessage.RequestInfo.RequestTime);
+
+                newActivity.SetSpanId(responseMessage.RequestInfo.ClientSpanId);
+
+                return newActivity;
+            }
+            catch (Exception)
+            {
+                return null;
             }
         }
     }

@@ -1122,7 +1122,32 @@ namespace DurableTask.Core
                 Version = createSubOrchestrationAction.Version
             };
 
-            if (parentTraceActivity != null)
+            // If a trace parent was provided, then we will attempt to parse the parent trace context provided in the orchestration tags and use that as the 
+            // parent trace context of the call to create a suborchestration rather than the current Activity's context.
+            if (createSubOrchestrationAction.Tags != null
+                && createSubOrchestrationAction.Tags.TryGetValue(OrchestrationTags.TraceParent, out string traceParent))
+            {
+                if (createSubOrchestrationAction.Tags.TryGetValue(OrchestrationTags.TraceState, out string traceState)
+                    && ActivityContext.TryParse(traceParent, traceState, out ActivityContext parentTraceContext))
+                {
+                    var requestTime = DateTimeOffset.UtcNow;
+                    if (createSubOrchestrationAction.Tags.TryGetValue(OrchestrationTags.RequestTime, out string requestTimeString))
+                    {
+                        DateTimeOffset.TryParse(requestTimeString, out requestTime);
+                    }
+                    using var createOrchestrationActivity = TraceHelper.StartActivityForEntityStartingAnOrchestration(
+                        runtimeState.OrchestrationInstance!.InstanceId,
+                        EntityId.FromString(runtimeState.OrchestrationInstance!.InstanceId).Name,
+                        createSubOrchestrationAction.InstanceId!,
+                        parentTraceContext,
+                        requestTime);
+                    if (createOrchestrationActivity != null)
+                    {
+                        startedEvent.SetParentTraceContext(createOrchestrationActivity);
+                    }
+                }
+            }
+            else if (parentTraceActivity != null)
             {
                 ActivityContext activityContext = new ActivityContext(parentTraceActivity.TraceId, clientSpanId, parentTraceActivity.ActivityTraceFlags, parentTraceActivity.TraceStateString);
                 startedEvent.SetParentTraceContext(activityContext);
