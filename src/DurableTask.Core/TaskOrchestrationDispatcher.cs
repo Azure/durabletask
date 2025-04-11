@@ -1137,6 +1137,7 @@ namespace DurableTask.Core
                     }
                     using var createOrchestrationActivity = TraceHelper.StartActivityForEntityStartingAnOrchestration(
                         runtimeState.OrchestrationInstance!.InstanceId,
+                        EntityId.FromString(runtimeState.OrchestrationInstance!.InstanceId).Name,
                         createSubOrchestrationAction.InstanceId!,
                         parentTraceContext,
                         requestTime);

@@ -485,10 +485,10 @@ namespace DurableTask.Core.Tracing
             return newActivity;
         }
 
-        internal static Activity? StartActivityForEntityStartingAnOrchestration(string entityId, string targetInstanceId, ActivityContext parentTraceContext, DateTimeOffset startTime)
+        internal static Activity? StartActivityForEntityStartingAnOrchestration(string entityId, string entityName, string targetInstanceId, ActivityContext parentTraceContext, DateTimeOffset startTime)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
-                CreateSpanName(TraceActivityConstants.Entity, TraceActivityConstants.CreateOrchestration, null),
+                CreateSpanName(entityName, TraceActivityConstants.CreateOrchestration, null),
                 kind: ActivityKind.Producer,
                 parentContext: parentTraceContext,
                 startTime: startTime);
