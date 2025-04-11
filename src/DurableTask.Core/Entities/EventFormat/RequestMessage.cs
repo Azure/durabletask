@@ -100,9 +100,9 @@ namespace DurableTask.Core.Entities.EventFormat
         public bool IsLockRequest => LockSet != null;
 
         /// <summary>
-        /// Parent trace of this request message
+        /// Parent trace context of this request message.
         /// </summary>
-        [DataMember(Name = "parentTrace", EmitDefaultValue = false)]
+        [DataMember(Name = "parentTraceContext", EmitDefaultValue = false)]
         public DistributedTraceContext? ParentTraceContext { get; set; }
 
         /// <summary>
@@ -115,7 +115,7 @@ namespace DurableTask.Core.Entities.EventFormat
         /// The time the request was generated.
         /// </summary>
         [DataMember(Name = "requestTime", EmitDefaultValue = false)]
-        public DateTime? RequestTime { get; set; }
+        public DateTimeOffset? RequestTime { get; set; }
 
         /// <inheritdoc/>
         public override string GetShortDescription()

@@ -764,11 +764,11 @@ namespace DurableTask.Core
                 destination.InstanceId,
                 EntityId.FromString(destination.InstanceId).Name,
                 action.Name,
-                true,
+                signalEntity: true,
+                action.ScheduledTime,
                 parentTraceContext,
-                entityId: effects.InstanceId,
-                scheduledTime: action.ScheduledTime,
-                startTime: action.RequestTime) : null;
+                action.RequestTime,
+                entityId: effects.InstanceId) : null;
             if (traceActivity?.Id != null)
             {
                 message.ParentTraceContext = new DistributedTraceContext(traceActivity.Id, traceActivity.TraceStateString);
@@ -871,10 +871,11 @@ namespace DurableTask.Core
             // Otherwise, we will create an unlinked trace activity with no parent 
             using Activity traceActivity = successfullyParsed ? TraceHelper.StartActivityForEntityStartingAnOrchestration(
                 runtimeState.OrchestrationInstance.InstanceId,
+                EntityId.FromString(runtimeState.OrchestrationInstance.InstanceId).Name,
                 destination.InstanceId,
                 parentTraceContext,
-                scheduledTime: action.ScheduledStartTime,
-                startTime: action.RequestTime) : null;
+                action.RequestTime,
+                scheduledTime: action.ScheduledStartTime) : null;
             if (traceActivity?.Id != null)
             {
                 executionStartedEvent.ParentTraceContext = new DistributedTraceContext(traceActivity.Id, traceActivity.TraceStateString);
