@@ -118,7 +118,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
                 try
                 {
-                    using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    using var timeoutCts = new CancellationTokenSource(this.settings.PartitionTableOperationTimeout);
                     using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(forcefulShutdownToken, timeoutCts.Token);
 
                     ReadTableReponse response = await this.tableLeaseManager.ReadAndWriteTableAsync(isShuttingDown, linkedCts.Token);
@@ -150,7 +150,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 {
                     consecutiveFailureCount++;
                 }
-                // ReadAndWriteTableAsync exceeded the 2-second timeout.
+                // ReadAndWriteTableAsync exceeded the set timeout.
                 // This may indicate a transient storage or network issue.
                 // The operation will be retried immediately unless it fails more than 10 consecutive times.
                 catch (OperationCanceledException) when (!forcefulShutdownToken.IsCancellationRequested)
