@@ -171,6 +171,14 @@ namespace DurableTask.AzureStorage
         public bool AllowReplayingTerminalInstances { get; set; } = false;
 
         /// <summary>
+        /// Specifies the timeout (in seconds) for read and write operations on the partition table in partition manager V3 (table partition manager).
+        /// This helps detect and recover from potential silent hangs caused by Azure Storage client's internal retries. 
+        /// If the operation exceeds the timeout, a PartitionManagerWarning is logged and the operation is retried.
+        /// The default time is 2 seconds.
+        /// </summary>
+        public TimeSpan PartitionTableOperationTimeout { get; set; } = TimeSpan.FromSeconds(2);
+
+        /// <summary>
         /// If UseAppLease is true, gets or sets the AppLeaseOptions used for acquiring the lease to start the application.
         /// </summary>
         public AppLeaseOptions AppLeaseOptions { get; set; } = AppLeaseOptions.DefaultOptions;

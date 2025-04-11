@@ -118,7 +118,10 @@ namespace DurableTask.AzureStorage.Partitioning
 
                 try
                 {
-                    ReadTableReponse response = await this.tableLeaseManager.ReadAndWriteTableAsync(isShuttingDown, forcefulShutdownToken);
+                    using var timeoutCts = new CancellationTokenSource(this.settings.PartitionTableOperationTimeout);
+                    using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(forcefulShutdownToken, timeoutCts.Token);
+
+                    ReadTableReponse response = await this.tableLeaseManager.ReadAndWriteTableAsync(isShuttingDown, linkedCts.Token);
 
                     // If shutdown is requested and already released all ownership leases, then break the loop. 
                     if (isShuttingDown && response.ReleasedAllLeases)
@@ -145,6 +148,20 @@ namespace DurableTask.AzureStorage.Partitioning
                 // Exception Status 412 represents an out of date ETag. We already logged this.
                 catch (DurableTaskStorageException ex) when (ex.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
                 {
+                    consecutiveFailureCount++;
+                }
+                // ReadAndWriteTableAsync exceeded the set timeout.
+                // This may indicate a transient storage or network issue.
+                // The operation will be retried immediately unless it fails more than 10 consecutive times.
+                catch (OperationCanceledException) when (!forcefulShutdownToken.IsCancellationRequested)
+                {
+                    this.settings.Logger.PartitionManagerWarning(
+                        this.storageAccountName,
+                        this.settings.TaskHubName,
+                        this.settings.WorkerId,
+                        partitionId: NotApplicable,
+                        details: "Operation to read and write the partition table exceeded the 2-second timeout.");
+
                     consecutiveFailureCount++;
                 }
                 // Eat any unexpected exceptions.
