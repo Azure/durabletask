@@ -13,6 +13,7 @@
 #nullable enable
 namespace DurableTask.Core.Entities.EventFormat
 {
+    using DurableTask.Core.Tracing;
     using System;
     using System.Runtime.Serialization;
 
@@ -97,6 +98,24 @@ namespace DurableTask.Core.Entities.EventFormat
         /// </summary>
         [DataMember]
         public bool IsLockRequest => LockSet != null;
+
+        /// <summary>
+        /// Parent trace context of this request message.
+        /// </summary>
+        [DataMember(Name = "parentTraceContext", EmitDefaultValue = false)]
+        public DistributedTraceContext? ParentTraceContext { get; set; }
+
+        /// <summary>
+        /// Whether or not to create an entity-specific trace for this request message
+        /// </summary>
+        [DataMember(Name = "createTrace")]
+        public bool CreateTrace { get; set; }
+
+        /// <summary>
+        /// The time the request was generated.
+        /// </summary>
+        [DataMember(Name = "requestTime", EmitDefaultValue = false)]
+        public DateTimeOffset? RequestTime { get; set; }
 
         /// <inheritdoc/>
         public override string GetShortDescription()

@@ -47,6 +47,11 @@ namespace DurableTask.Core
         public const string TraceState = "TraceState";
 
         /// <summary>
+        /// The time the request for a new orchestration was created.
+        /// </summary>
+        public const string RequestTime = "RequestTime";
+
+        /// <summary>
         /// Check whether the given tags contain the fire and forget tag
         /// </summary>
         /// <param name="tags"></param>
