@@ -599,6 +599,26 @@ namespace DurableTask.Core.Logging
             }
         }
 
+        [Event(EventIds.OrchestrationPoisoned, Level = EventLevel.Warning, Version = 1)]
+        internal void OrchestrationPoisoned(
+            string InstanceId,
+            string ExecutionId,
+            string Details,
+            string AppName,
+            string ExtensionVersion)
+        {
+            if (this.IsEnabled(EventLevel.Warning))
+            {
+                this.WriteEvent(
+                    EventIds.OrchestrationPoisoned,
+                    InstanceId,
+                    ExecutionId,
+                    Details,
+                    AppName,
+                    ExtensionVersion);
+            }
+        }
+
         [Event(EventIds.DiscardingMessage, Level = EventLevel.Warning, Version = 1)]
         internal void DiscardingMessage(
             string InstanceId,
@@ -712,7 +732,7 @@ namespace DurableTask.Core.Logging
                 // TODO: Use WriteEventCore for better performance
                 this.WriteEvent(
                     EventIds.EntityLockReleased,
-                    EntityId, 
+                    EntityId,
                     InstanceId,
                     Id,
                     AppName,
@@ -808,6 +828,32 @@ namespace DurableTask.Core.Logging
                 // TODO: Use WriteEventCore for better performance
                 this.WriteEvent(
                     EventIds.TaskActivityAborted,
+                    InstanceId,
+                    ExecutionId,
+                    Name,
+                    TaskEventId,
+                    Details,
+                    AppName,
+                    ExtensionVersion);
+            }
+        }
+
+        [Event(EventIds.TaskActivityPoisoned, Level = EventLevel.Warning, Version = 1)]
+        internal void TaskActivityPoisoned(
+            string InstanceId,
+            string ExecutionId,
+            string Name,
+            int TaskEventId,
+            string Details,
+            string AppName,
+            string ExtensionVersion
+        )
+        {
+            if (this.IsEnabled(EventLevel.Warning))
+            {
+                // TODO: Use WriteEventCore for better performance
+                this.WriteEvent(
+                    EventIds.TaskActivityPoisoned,
                     InstanceId,
                     ExecutionId,
                     Name,
