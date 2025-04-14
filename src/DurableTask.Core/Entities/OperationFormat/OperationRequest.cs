@@ -45,3 +45,4 @@ namespace DurableTask.Core.Entities.OperationFormat
         public DistributedTraceContext? TraceContext { get; set; }
     }
 }
+
