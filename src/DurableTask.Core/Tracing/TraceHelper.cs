@@ -94,8 +94,8 @@ namespace DurableTask.Core.Tracing
             if (startEvent.Tags != null && startEvent.Tags.ContainsKey(OrchestrationTags.CreateTraceForNewOrchestration))
             {
                 startEvent.Tags.Remove(OrchestrationTags.CreateTraceForNewOrchestration);
-                // This immediately disposes of and ends the activity for the new orchestration. Note that in this case since the start time of activity is set to the time the 
-                // the request for a new orchestration was made, but the Activity is only disposed of now, the duration of the Activity will be longer than if it was created and stopped immediately after the request creation.
+                // Note that if we create the trace activity for starting a new orchestration here, then its duration will be longer since its end time will be set to once we 
+                // start processing the orchestration rather than when the request for a new orchestration is committed to storage. 
                 using var activityForNewOrchestration = StartActivityForNewOrchestration(startEvent);
             }
 
@@ -862,8 +862,20 @@ namespace DurableTask.Core.Tracing
             try
             {
                 var requestMessage = JsonConvert.DeserializeObject<RequestMessage>(raisedEvent.Input, Serializer.InternalSerializerSettings);
-                if (requestMessage == null || !requestMessage.CreateTrace)
+                if (requestMessage == null)
                 {
+                    return null;
+                }
+
+                // This can be the case for an entity call request where we want to create the trace at the end after receiving the result of the call.
+                // We still want to attach the current activity context to the request so that it can be used when the trace is eventually created if there is not parent trace context attached already.
+                if (!requestMessage.CreateTrace)
+                {
+                    if (requestMessage.ParentTraceContext == null && Activity.Current?.Id != null)
+                    {
+                        requestMessage.ParentTraceContext = new DistributedTraceContext(Activity.Current.Id, Activity.Current.TraceStateString);
+                        raisedEvent.Input = JsonConvert.SerializeObject(requestMessage, Serializer.InternalSerializerSettings);
+                    }
                     return null;
                 }
 
@@ -901,6 +913,7 @@ namespace DurableTask.Core.Tracing
 
                 if (!string.IsNullOrEmpty(newActivity?.Id))
                 {
+                    requestMessage.CreateTrace = false;
                     requestMessage.ParentTraceContext = new DistributedTraceContext(newActivity!.Id!, newActivity.TraceStateString);
                     raisedEvent.Input = JsonConvert.SerializeObject(requestMessage, Serializer.InternalSerializerSettings);
                 }
@@ -937,7 +950,7 @@ namespace DurableTask.Core.Tracing
                     parentTraceContext,
                     startTime: responseMessage.RequestInfo.RequestTime);
 
-                newActivity.SetSpanId(responseMessage.RequestInfo.ClientSpanId);
+                newActivity?.SetSpanId(responseMessage.RequestInfo.ClientSpanId);
 
                 return newActivity;
             }

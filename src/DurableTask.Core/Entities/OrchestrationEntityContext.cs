@@ -239,7 +239,7 @@ namespace DurableTask.Core.Entities
             (DateTime Original, DateTime Capped)? scheduledTimeUtc,
             string? input,
             bool? createTrace,
-            DateTime? requestTime)
+            DateTimeOffset? requestTime)
         {
             this.CheckEntitySupport();
 
