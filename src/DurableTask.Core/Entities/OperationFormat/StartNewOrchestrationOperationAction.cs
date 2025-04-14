@@ -65,4 +65,3 @@ namespace DurableTask.Core.Entities.OperationFormat
 
     }
 }
-

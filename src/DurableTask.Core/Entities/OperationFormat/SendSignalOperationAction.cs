@@ -58,4 +58,3 @@ namespace DurableTask.Core.Entities.OperationFormat
         public DistributedTraceContext? ParentTraceContext { get; set; }
     }
 }
-
