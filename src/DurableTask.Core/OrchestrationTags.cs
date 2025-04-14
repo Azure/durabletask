@@ -52,6 +52,11 @@ namespace DurableTask.Core
         public const string RequestTime = "RequestTime";
 
         /// <summary>
+        /// Whether or not to create a trace for the <see cref="DurableTask.Core.History.ExecutionStartedEvent"/> of the orchestration
+        /// </summary>
+        public const string CreateTraceForNewOrchestration = "CreateTrace";
+
+        /// <summary>
         /// Check whether the given tags contain the fire and forget tag
         /// </summary>
         /// <param name="tags"></param>

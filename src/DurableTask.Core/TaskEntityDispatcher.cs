@@ -495,6 +495,38 @@ namespace DurableTask.Core
                                 throw new EntitySchedulerException("Failed to deserialize incoming request message - may be corrupted or wrong version.", exception);
                             }
 
+                            if (requestMessage.CreateTrace)
+                            {
+                                var parentTraceContext = Activity.Current?.Context;
+                                if (requestMessage.ParentTraceContext != null)
+                                {
+                                    if (ActivityContext.TryParse(requestMessage.ParentTraceContext.TraceParent, requestMessage.ParentTraceContext.TraceState, out ActivityContext activityContext))
+                                    {
+                                        parentTraceContext = activityContext;
+                                    }
+                                    // If a parent trace context was passed with the request message, this should be the parent of the current Activity, so if we cannot parse it we should not create the Activity
+                                    // or else it will be incorrectly linked.
+                                    else
+                                    {
+                                        parentTraceContext = null;
+                                    }
+                                }
+
+                                // We only want to create a trace activity for signaling an entity in the case that we can successfully get the parent trace context of the request.
+                                // Otherwise, we will create an unlinked trace activity with no parent.
+                                if (parentTraceContext != null)
+                                {
+                                    using var traceActivity = TraceHelper.StartActivityForCallingOrSignalingEntity(
+                                    instanceId,
+                                    EntityId.FromString(instanceId).Name,
+                                    requestMessage.Operation,
+                                    requestMessage.IsSignal,
+                                    requestMessage.ScheduledTime,
+                                    parentTraceContext.Value,
+                                    requestMessage.RequestTime);
+                                }
+                            }
+
                             IEnumerable<RequestMessage> deliverNow;
 
                             if (requestMessage.ScheduledTime.HasValue)
@@ -663,6 +695,15 @@ namespace DurableTask.Core
                     // Otherwise, we will create an unlinked trace activity with no parent 
                     if (successfullyParsed)
                     {
+                        if (!request.IsSignal)
+                        {
+                            var clientSpanId = ActivitySpanId.CreateRandom();
+
+                            // In that case that we are processing a call request as a server, we want to generate a new span ID that will also be used by the Activity we create at the end corresponding to the client call request
+                            // That way, this server Activity corresponding to processing the call request will be correctly linked as the child of the Activity for the client call request.
+                            parentTraceContext = new ActivityContext(parentTraceContext.TraceId, clientSpanId, parentTraceContext.TraceFlags, parentTraceContext.TraceState);
+                            request.ClientSpanId = clientSpanId.ToString();
+                        }
                         traceActivity = TraceHelper.StartActivityForProcessingEntityInvocation(
                             instanceId,
                             EntityId.FromString(instanceId).Name,
@@ -720,6 +761,14 @@ namespace DurableTask.Core
                 Result = result.Result,
                 ErrorMessage = result.ErrorMessage,
                 FailureDetails = result.FailureDetails,
+                RequestInfo = new ResponseMessage.RequestInformation()
+                {
+                    Operation = request.Operation,
+                    ScheduledTime = request.ScheduledTime,
+                    RequestTime = request.RequestTime,
+                    ClientSpanId = request.ClientSpanId,
+                    ParentTraceContext = request.ParentTraceContext,
+                }
             };
             this.ProcessSendEventMessage(effects, destination, EntityMessageEventNames.ResponseMessageEventName(request.Id), responseMessage);
         }

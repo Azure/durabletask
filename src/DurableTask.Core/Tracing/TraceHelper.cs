@@ -44,9 +44,19 @@ namespace DurableTask.Core.Tracing
         /// </returns>
         internal static Activity? StartActivityForNewOrchestration(ExecutionStartedEvent startEvent)
         {
+            startEvent.TryGetParentTraceContext(out ActivityContext activityContext);
+            DateTimeOffset? startTime = null;
+            if (startEvent.Tags != null && startEvent.Tags.ContainsKey(OrchestrationTags.RequestTime) &&
+                DateTimeOffset.TryParse(startEvent.Tags[OrchestrationTags.RequestTime], CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset requestTime))
+            {
+                startTime = requestTime;
+            }
+
             Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: CreateSpanName(TraceActivityConstants.CreateOrchestration, startEvent.Name, startEvent.Version),
-                kind: ActivityKind.Producer);
+                CreateSpanName(TraceActivityConstants.CreateOrchestration, startEvent.Name, startEvent.Version),
+                kind: ActivityKind.Producer,
+                parentContext: activityContext,
+                startTime: startTime ?? DateTimeOffset.UtcNow);
 
             if (newActivity != null)
             {
@@ -79,6 +89,14 @@ namespace DurableTask.Core.Tracing
             if (startEvent == null)
             {
                 return null;
+            }
+
+            if (startEvent.Tags != null && startEvent.Tags.ContainsKey(OrchestrationTags.CreateTraceForNewOrchestration))
+            {
+                startEvent.Tags.Remove(OrchestrationTags.CreateTraceForNewOrchestration);
+                // This immediately disposes of and ends the activity for the new orchestration. Note that in this case since the start time of activity is set to the time the 
+                // the request for a new orchestration was made, but the Activity is only disposed of now, the duration of the Activity will be longer than if it was created and stopped immediately after the request creation.
+                using var activityForNewOrchestration = StartActivityForNewOrchestration(startEvent);
             }
 
             if (!startEvent.TryGetParentTraceContext(out ActivityContext activityContext))
