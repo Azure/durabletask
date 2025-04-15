@@ -851,7 +851,7 @@ namespace DurableTask.Core.Tracing
                     parentTraceContext,
                     startTime: responseMessage.RequestInfo.RequestTime);
 
-                newActivity.SetSpanId(responseMessage.RequestInfo.ClientSpanId);
+                newActivity?.SetSpanId(responseMessage.RequestInfo.ClientSpanId);
 
                 return newActivity;
             }
