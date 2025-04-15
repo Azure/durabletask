@@ -975,7 +975,7 @@ namespace DurableTask.Core
                 }
 
                 var result = await taskEntity.ExecuteOperationBatchAsync(request);
-
+                
                 dispatchContext.SetProperty(result);
             });
 
