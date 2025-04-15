@@ -24,14 +24,16 @@ namespace DurableTask.AzureStorage.Tests
     {
         readonly TaskOrchestration instance;
         readonly Type prototype;
+        readonly string version;
 
         /// <summary>
         /// Creates a new AutoStartOrchestrationCreator of supplied type
         /// </summary>
         /// <param name="type">Type to use for the creator</param>
-        public AutoStartOrchestrationCreator(Type type)
+        public AutoStartOrchestrationCreator(Type type, string version = null)
         {
             this.prototype = type;
+            this.version = version;
             Initialize(type);
         }
 
@@ -39,9 +41,10 @@ namespace DurableTask.AzureStorage.Tests
         /// Creates a new AutoStartOrchestrationCreator using type of supplied object instance
         /// </summary>
         /// <param name="instance">Object instances to infer the type from</param>
-        public AutoStartOrchestrationCreator(TaskOrchestration instance)
+        public AutoStartOrchestrationCreator(TaskOrchestration instance, string version = null)
         {
             this.instance = instance;
+            this.version = version;
             Initialize(instance);
         }
 
@@ -59,7 +62,7 @@ namespace DurableTask.AzureStorage.Tests
         void Initialize(object obj)
         {
             Name = $"@{NameVersionHelper.GetDefaultName(obj)}";
-            Version = NameVersionHelper.GetDefaultVersion(obj);
+            Version = !string.IsNullOrEmpty(version) ? this.version : NameVersionHelper.GetDefaultVersion(obj);
         }
     }
 }
