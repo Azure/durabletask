@@ -14,6 +14,7 @@
 namespace DurableTask.Core.History
 {
     using DurableTask.Core.Tracing;
+    using System.Collections.Generic;
     using System.Diagnostics;
     using System.Runtime.Serialization;
 
@@ -52,9 +53,14 @@ namespace DurableTask.Core.History
         public string Input { get; set; }
 
         /// <summary>
-        /// The W3C trace context associated with this event.
+        /// Gets or sets the W3C trace context associated with this event.
         /// </summary>
         [DataMember]
         public DistributedTraceContext ParentTraceContext { get; set; }
+
+        /// <summary>
+        /// Gets or sets any tags associated with the event
+        /// </summary>
+        public IDictionary<string, string> Tags { get; set; }
     }
 }
