@@ -28,6 +28,7 @@ namespace DurableTask.Core.Tracing
             internal const string FireAt = "durabletask.fire_at";
             internal const string Operation = "durabletask.task.operation";
             internal const string ScheduledTime = "durabletask.task.scheduled_time";
+            internal const string ErrorMessage = "durabletask.entity.error_message";
         }
 
         internal static class Status

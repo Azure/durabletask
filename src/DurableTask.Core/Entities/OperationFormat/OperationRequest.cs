@@ -13,6 +13,7 @@
 #nullable enable
 namespace DurableTask.Core.Entities.OperationFormat
 {
+    using DurableTask.Core.Tracing;
     using System;
 
     /// <summary>
@@ -37,5 +38,10 @@ namespace DurableTask.Core.Entities.OperationFormat
         /// The input for the operation. Can be null if no input was given.
         /// </summary>
         public string? Input { get; set; }
+
+        /// <summary>
+        /// The trace context for the operation, if any.
+        /// </summary>
+        public DistributedTraceContext? TraceContext { get; set; }
     }
 }

@@ -18,6 +18,7 @@ namespace DurableTask.Core.Entities
     using Newtonsoft.Json.Linq;
     using Newtonsoft.Json;
     using System;
+    using DurableTask.Core.Tracing;
 
     /// <summary>
     /// Utility functions for clients that interact with entities, either by sending events or by accessing the entity state directly in storage
@@ -32,8 +33,11 @@ namespace DurableTask.Core.Entities
         /// <param name="operationName">The name of the operation.</param>
         /// <param name="input">The serialized input for the operation.</param>
         /// <param name="scheduledTimeUtc">The time to schedule this signal, or null if not a scheduled signal</param>
+        /// <param name="parentTraceContext">The parent trace context for this operation.</param>
+        /// <param name="requestTime">The time at which the request was made.</param>
+        /// <param name="createTrace">Whether to create a trace for this signal operation.</param>
         /// <returns>The event to send.</returns>
-        public static EntityMessageEvent EmitOperationSignal(OrchestrationInstance targetInstance, Guid requestId, string operationName, string? input, (DateTime Original, DateTime Capped)? scheduledTimeUtc)
+        public static EntityMessageEvent EmitOperationSignal(OrchestrationInstance targetInstance, Guid requestId, string operationName, string? input, (DateTime Original, DateTime Capped)? scheduledTimeUtc, DistributedTraceContext? parentTraceContext = null, DateTimeOffset? requestTime = null, bool createTrace = false)
         {
             var request = new RequestMessage()
             {
@@ -44,6 +48,9 @@ namespace DurableTask.Core.Entities
                 Operation = operationName,
                 ScheduledTime = scheduledTimeUtc?.Original,
                 Input = input,
+                ParentTraceContext = parentTraceContext,
+                RequestTime = requestTime,
+                CreateTrace = createTrace,
             };
 
             var eventName = scheduledTimeUtc.HasValue

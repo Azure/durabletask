@@ -117,6 +117,11 @@ namespace DurableTask.Core.Entities.EventFormat
         [DataMember(Name = "requestTime", EmitDefaultValue = false)]
         public DateTimeOffset? RequestTime { get; set; }
 
+        /// <summary>
+        /// The client span ID of this request.
+        /// </summary>
+        public string? ClientSpanId { get; set; }
+
         /// <inheritdoc/>
         public override string GetShortDescription()
         {
