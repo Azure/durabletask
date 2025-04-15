@@ -44,7 +44,11 @@ namespace DurableTask.Core.Tracing
         /// </returns>
         internal static Activity? StartActivityForNewOrchestration(ExecutionStartedEvent startEvent)
         {
-            startEvent.TryGetParentTraceContext(out ActivityContext activityContext);
+            if (!startEvent.TryGetParentTraceContext(out ActivityContext parentTraceContext) && startEvent.ParentTraceContext != null)
+            {
+                return null;
+            }
+
             DateTimeOffset? startTime = null;
             if (startEvent.Tags != null && startEvent.Tags.ContainsKey(OrchestrationTags.RequestTime) &&
                 DateTimeOffset.TryParse(startEvent.Tags[OrchestrationTags.RequestTime], CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset requestTime))
@@ -55,8 +59,8 @@ namespace DurableTask.Core.Tracing
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 CreateSpanName(TraceActivityConstants.CreateOrchestration, startEvent.Name, startEvent.Version),
                 kind: ActivityKind.Producer,
-                parentContext: activityContext,
-                startTime: startTime ?? DateTimeOffset.UtcNow);
+                parentContext: parentTraceContext,
+                startTime: startTime ?? default);
 
             if (newActivity != null)
             {
