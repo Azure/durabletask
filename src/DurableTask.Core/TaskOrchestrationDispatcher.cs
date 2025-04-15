@@ -1143,9 +1143,9 @@ namespace DurableTask.Core
         {
             var historyEvent = new EventSentEvent(sendEventAction.Id)
             {
-                InstanceId = sendEventAction.Instance?.InstanceId,
-                Name = sendEventAction.EventName,
-                Input = sendEventAction.EventData
+                 InstanceId = sendEventAction.Instance?.InstanceId,
+                 Name = sendEventAction.EventName,
+                 Input = sendEventAction.EventData
             };
             
             runtimeState.AddEvent(historyEvent);
