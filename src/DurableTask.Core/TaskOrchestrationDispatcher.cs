@@ -155,7 +155,7 @@ namespace DurableTask.Core
             {
                 // Keep track of orchestrator generation changes, maybe update target position
                 string executionId = message.OrchestrationInstance.ExecutionId;
-                if (previousExecutionId != executionId)
+                if(previousExecutionId != executionId)
                 {
                     // We want to re-position the ExecutionStarted event after the "right-most"
                     // event with a non-null executionID that came before it.
@@ -217,7 +217,7 @@ namespace DurableTask.Core
 
                 CorrelationTraceClient.Propagate(
                     () =>
-                    {
+                    {                
                         // Check if it is extended session.
                         // TODO: Remove this code - it looks incorrect and dangerous
                         isExtendedSession = this.concurrentSessionLock.Acquire();
@@ -305,7 +305,7 @@ namespace DurableTask.Core
             var isCompleted = false;
             var continuedAsNew = false;
             var isInterrupted = false;
-
+            
             // correlation
             CorrelationTraceClient.Propagate(() => CorrelationTraceContext.Current = workItem.TraceContext);
 
@@ -618,7 +618,7 @@ namespace DurableTask.Core
                 continuedAsNew ? null : timerMessages,
                 continuedAsNewMessage,
                 instanceState);
-
+            
             if (workItem.RestoreOriginalRuntimeStateDuringCompletion)
             {
                 workItem.OrchestrationRuntimeState = runtimeState;
@@ -1147,7 +1147,7 @@ namespace DurableTask.Core
                 Name = sendEventAction.EventName,
                 Input = sendEventAction.EventData
             };
-
+            
             runtimeState.AddEvent(historyEvent);
 
             EventRaisedEvent eventRaisedEvent = new EventRaisedEvent(-1, sendEventAction.EventData)
@@ -1202,7 +1202,7 @@ namespace DurableTask.Core
             }
             return false;
         }
-
+ 
         internal class NonBlockingCountdownLock
         {
             int available;
