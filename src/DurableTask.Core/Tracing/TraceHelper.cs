@@ -459,7 +459,7 @@ namespace DurableTask.Core.Tracing
                 CreateEntitySpanName(entityName, operationName),
                 kind: signalEntity ? ActivityKind.Producer : ActivityKind.Client,
                 parentContext: parentTraceContext,
-                startTime: startTime ?? DateTimeOffset.UtcNow);
+                startTime: startTime ?? default);
 
             if (newActivity == null)
             {
