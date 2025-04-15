@@ -381,12 +381,11 @@ namespace DurableTask.Core.Tracing
             OrchestrationInstance? instance,
             string? targetInstanceId)
         {
-            // There is a possibility that we mislabel the event as an entity event if entities are not enabled
-            if (Entities.IsEntityInstance(targetInstanceId ?? string.Empty))
+            if (eventRaisedEvent.Tags != null && eventRaisedEvent.Tags.ContainsKey(EventTags.CreateEntityRequestEventTrace))
             {
                 return TryParseEntityRequest(eventRaisedEvent, targetInstanceId!);
             }
-            else if (Entities.IsEntityInstance(instance?.InstanceId ?? string.Empty))
+            else if (eventRaisedEvent.Tags != null && eventRaisedEvent.Tags.ContainsKey(EventTags.CreateEntityResponseEventTrace))
             {
                 return TryParseEntityResponse(eventRaisedEvent, instance?.InstanceId!);
             }
@@ -424,8 +423,7 @@ namespace DurableTask.Core.Tracing
         /// </returns>
         internal static Activity? StartActivityForNewEventRaisedFromClient(EventRaisedEvent eventRaised, OrchestrationInstance instance)
         {
-            // There is a possibility that we mislabel the event as an entity event if entities are not enabled
-            if (Entities.IsEntityInstance(instance.InstanceId))
+            if (eventRaised.Tags != null && eventRaised.Tags.ContainsKey(EventTags.CreateEntityRequestEventTrace))
             {
                 return TryParseEntityRequest(eventRaised, instance.InstanceId);
             }
@@ -481,25 +479,25 @@ namespace DurableTask.Core.Tracing
                 CreateEntitySpanName(entityName, operationName),
                 kind: signalEntity ? ActivityKind.Producer : ActivityKind.Client,
                 parentContext: parentTraceContext,
-                startTime: startTime ?? DateTimeOffset.UtcNow);
+                startTime: startTime ?? default);
 
             if (newActivity == null)
             {
                 return null;
             }
 
-            newActivity.SetTag(Schema.Entity.Type, TraceActivityConstants.Entity);
-            newActivity.SetTag(Schema.Entity.EntityOperation, signalEntity ? TraceActivityConstants.SignalEntity : TraceActivityConstants.CallEntity);
-            newActivity.SetTag(Schema.Entity.TargetEntityId, targetEntityId);
+            newActivity.SetTag(Schema.Task.Type, TraceActivityConstants.Entity);
+            newActivity.SetTag(Schema.Task.Operation, signalEntity ? TraceActivityConstants.SignalEntity : TraceActivityConstants.CallEntity);
+            newActivity.SetTag(Schema.Task.EventTargetInstanceId, targetEntityId);
 
             if (!string.IsNullOrEmpty(entityId))
             {
-                newActivity.SetTag(Schema.Entity.EntityId, entityId);
+                newActivity.SetTag(Schema.Task.InstanceId, entityId);
             }
 
             if (scheduledTime != null)
             {
-                newActivity.SetTag(Schema.Entity.ScheduledTime, scheduledTime.Value.ToString());
+                newActivity.SetTag(Schema.Task.ScheduledTime, scheduledTime.Value.ToString());
             }
 
             return newActivity;
@@ -518,13 +516,13 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            newActivity.SetTag(Schema.Entity.Type, TraceActivityConstants.Entity);
-            newActivity.SetTag(Schema.Entity.TargetInstanceId, targetInstanceId);
-            newActivity.SetTag(Schema.Entity.EntityId, entityId);
+            newActivity.SetTag(Schema.Task.Type, TraceActivityConstants.Entity);
+            newActivity.SetTag(Schema.Task.EventTargetInstanceId, targetInstanceId);
+            newActivity.SetTag(Schema.Task.InstanceId, entityId);
 
             if (scheduledTime != null)
             {
-                newActivity.SetTag(Schema.Entity.ScheduledTime, scheduledTime.Value.ToString());
+                newActivity.SetTag(Schema.Task.ScheduledTime, scheduledTime.Value.ToString());
             }
 
             return newActivity;
@@ -542,9 +540,9 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            newActivity.SetTag(Schema.Entity.Type, TraceActivityConstants.Entity);
-            newActivity.SetTag(Schema.Entity.EntityOperation, signalEntity ? TraceActivityConstants.SignalEntity : TraceActivityConstants.CallEntity);
-            newActivity.SetTag(Schema.Entity.EntityId, entityId);
+            newActivity.SetTag(Schema.Task.Type, TraceActivityConstants.Entity);
+            newActivity.SetTag(Schema.Task.Operation, signalEntity ? TraceActivityConstants.SignalEntity : TraceActivityConstants.CallEntity);
+            newActivity.SetTag(Schema.Task.InstanceId, entityId);
 
             return newActivity;
         }
@@ -559,7 +557,7 @@ namespace DurableTask.Core.Tracing
                     {
                         if (result.ErrorMessage != null || result.FailureDetails != null)
                         {
-                            activity.SetTag(Schema.Entity.ErrorMessage, result.ErrorMessage ?? result.FailureDetails!.ErrorMessage);
+                            activity.SetTag(Schema.Task.ErrorMessage, result.ErrorMessage ?? result.FailureDetails!.ErrorMessage);
                         }
                         if (result.EndTime is DateTime endTime)
                         {
@@ -582,13 +580,12 @@ namespace DurableTask.Core.Tracing
                 {
                     if (activity != null)
                     {
-                        activity.SetTag(Schema.Entity.ErrorMessage, errorMessage);
+                        activity.SetTag(Schema.Task.ErrorMessage, errorMessage);
                         activity.Dispose();
                     }
                 }
             }
         }
-
         internal static void SetRuntimeStatusTag(string runtimeStatus)
         {
             DistributedTraceActivity.Current?.SetTag(Schema.Task.Status, runtimeStatus);
@@ -862,6 +859,7 @@ namespace DurableTask.Core.Tracing
             try
             {
                 var requestMessage = JsonConvert.DeserializeObject<RequestMessage>(raisedEvent.Input, Serializer.InternalSerializerSettings);
+
                 if (requestMessage == null)
                 {
                     return null;

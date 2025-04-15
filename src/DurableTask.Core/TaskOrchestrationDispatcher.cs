@@ -1096,9 +1096,6 @@ namespace DurableTask.Core
                 historyEvent.Input = createSubOrchestrationAction.Input;
             }
 
-            ActivitySpanId clientSpanId = ActivitySpanId.CreateRandom();
-            historyEvent.ClientSpanId = clientSpanId.ToString();
-
             runtimeState.AddEvent(historyEvent);
 
             var taskMessage = new TaskMessage();
@@ -1122,33 +1119,11 @@ namespace DurableTask.Core
                 Version = createSubOrchestrationAction.Version
             };
 
-            // If a trace parent was provided, then we will attempt to parse the parent trace context provided in the orchestration tags and use that as the 
-            // parent trace context of the call to create a suborchestration rather than the current Activity's context.
-            if (createSubOrchestrationAction.Tags != null
-                && createSubOrchestrationAction.Tags.TryGetValue(OrchestrationTags.TraceParent, out string traceParent))
+            // If this is an orchestration triggered by an entity, we will attempt to use the trace context provided in the CreateSubOrchestrationAction.Tags as the parent trace context rather than the current Activity.
+            if (!EntityTriggeredOrchestration(createSubOrchestrationAction, runtimeState, startedEvent) && parentTraceActivity != null)
             {
-                if (createSubOrchestrationAction.Tags.TryGetValue(OrchestrationTags.TraceState, out string traceState)
-                    && ActivityContext.TryParse(traceParent, traceState, out ActivityContext parentTraceContext))
-                {
-                    var requestTime = DateTimeOffset.UtcNow;
-                    if (createSubOrchestrationAction.Tags.TryGetValue(OrchestrationTags.RequestTime, out string requestTimeString))
-                    {
-                        DateTimeOffset.TryParse(requestTimeString, out requestTime);
-                    }
-                    using var createOrchestrationActivity = TraceHelper.StartActivityForEntityStartingAnOrchestration(
-                        runtimeState.OrchestrationInstance!.InstanceId,
-                        EntityId.FromString(runtimeState.OrchestrationInstance!.InstanceId).Name,
-                        createSubOrchestrationAction.InstanceId!,
-                        parentTraceContext,
-                        requestTime);
-                    if (createOrchestrationActivity != null)
-                    {
-                        startedEvent.SetParentTraceContext(createOrchestrationActivity);
-                    }
-                }
-            }
-            else if (parentTraceActivity != null)
-            {
+                ActivitySpanId clientSpanId = ActivitySpanId.CreateRandom();
+                historyEvent.ClientSpanId = clientSpanId.ToString();
                 ActivityContext activityContext = new ActivityContext(parentTraceActivity.TraceId, clientSpanId, parentTraceActivity.ActivityTraceFlags, parentTraceActivity.TraceStateString);
                 startedEvent.SetParentTraceContext(activityContext);
             }
@@ -1177,7 +1152,8 @@ namespace DurableTask.Core
 
             EventRaisedEvent eventRaisedEvent = new EventRaisedEvent(-1, sendEventAction.EventData)
             {
-                Name = sendEventAction.EventName
+                Name = sendEventAction.EventName,
+                Tags = sendEventAction.EventTags,
             };
 
             // Distributed Tracing: start a new trace activity derived from the orchestration
@@ -1193,6 +1169,38 @@ namespace DurableTask.Core
                 OrchestrationInstance = sendEventAction.Instance,
                 Event = eventRaisedEvent
             };
+        }
+
+        private static bool EntityTriggeredOrchestration(
+            CreateSubOrchestrationAction createSubOrchestrationAction,
+            OrchestrationRuntimeState runtimeState,
+            ExecutionStartedEvent startedEvent)
+        {
+            if (createSubOrchestrationAction.Tags != null
+                && createSubOrchestrationAction.Tags.TryGetValue(OrchestrationTags.TraceParent, out string traceParent))
+            {
+                if (createSubOrchestrationAction.Tags.TryGetValue(OrchestrationTags.TraceState, out string traceState)
+                    && ActivityContext.TryParse(traceParent, traceState, out ActivityContext parentTraceContext))
+                {
+                    var requestTime = DateTimeOffset.UtcNow;
+                    if (createSubOrchestrationAction.Tags.TryGetValue(OrchestrationTags.RequestTime, out string requestTimeString))
+                    {
+                        DateTimeOffset.TryParse(requestTimeString, out requestTime);
+                    }
+                    using var createOrchestrationActivity = TraceHelper.StartActivityForEntityStartingAnOrchestration(
+                        runtimeState.OrchestrationInstance!.InstanceId,
+                        EntityId.FromString(runtimeState.OrchestrationInstance!.InstanceId).Name,
+                        createSubOrchestrationAction.InstanceId!,
+                        parentTraceContext,
+                        requestTime);
+                    if (createOrchestrationActivity != null)
+                    {
+                        startedEvent.SetParentTraceContext(createOrchestrationActivity);
+                    }
+                }
+                return true;
+            }
+            return false;
         }
 
         internal class NonBlockingCountdownLock
