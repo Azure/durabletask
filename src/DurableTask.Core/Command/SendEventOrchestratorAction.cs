@@ -11,8 +11,6 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
-using System.Collections.Generic;
-
 namespace DurableTask.Core.Command
 {
     /// <summary>
