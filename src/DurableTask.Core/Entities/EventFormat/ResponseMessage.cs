@@ -13,8 +13,6 @@
 #nullable enable
 namespace DurableTask.Core.Entities.EventFormat
 {
-    using DurableTask.Core.Tracing;
-    using System;
     using System.Runtime.Serialization;
 
     [DataContract]
@@ -34,9 +32,6 @@ namespace DurableTask.Core.Entities.EventFormat
         [IgnoreDataMember]
         public bool IsErrorResult => this.ErrorMessage != null || this.FailureDetails != null;
 
-        [DataMember(Name = "requestInfo", EmitDefaultValue = false)]
-        public RequestInformation? RequestInfo { get; set; }
-
         public override string GetShortDescription()
         {
             if (this.IsErrorResult)
@@ -51,23 +46,6 @@ namespace DurableTask.Core.Entities.EventFormat
             {
                 return $"[OperationSuccessful ({Result?.Length ?? 0} chars)]";
             }
-        }
-        internal class RequestInformation
-        {
-            [DataMember]
-            public string? Operation { get; set; }
-
-            [DataMember]
-            public DateTime? ScheduledTime { get; set; }
-
-            [DataMember]
-            public DateTimeOffset? RequestTime { get; set; }
-
-            [DataMember]
-            public string? ClientSpanId { get; set; }
-
-            [DataMember]
-            public DistributedTraceContext? ParentTraceContext { get; set; }
         }
     }
 }

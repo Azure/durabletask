@@ -57,7 +57,7 @@ namespace DurableTask.Core
             this.errorPropagationMode = errorPropagationMode;
             this.entityOrchestrationService = (orchestrationService as IEntityOrchestrationService)!;
             this.entityBackendProperties = entityOrchestrationService.EntityBackendProperties;
-           
+
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskEntityDispatcher",
                 item => item == null ? string.Empty : item.InstanceId,
@@ -379,7 +379,7 @@ namespace DurableTask.Core
             }
 
             OrchestrationState instanceState = (runtimeState.ExecutionStartedEvent != null) ?
-                instanceState = Utils.BuildOrchestrationState(runtimeState) : null;      
+                instanceState = Utils.BuildOrchestrationState(runtimeState) : null;
 
             if (workItem.RestoreOriginalRuntimeStateDuringCompletion)
             {
@@ -742,7 +742,7 @@ namespace DurableTask.Core
             var message = new ResponseMessage()
             {
                 // content is ignored by receiver but helps with tracing
-                Result = ResponseMessage.LockAcquisitionCompletion, 
+                Result = ResponseMessage.LockAcquisitionCompletion,
             };
             this.ProcessSendEventMessage(effects, target, EntityMessageEventNames.ResponseMessageEventName(requestId), message);
         }
@@ -871,7 +871,7 @@ namespace DurableTask.Core
                 }
 
                 var result = await taskEntity.ExecuteOperationBatchAsync(request);
-                
+
                 dispatchContext.SetProperty(result);
             });
 
