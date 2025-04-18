@@ -500,11 +500,6 @@ namespace DurableTask.Core.Tracing
             return $"{TraceActivityConstants.Orchestration}:{orchestrationName}:{TraceActivityConstants.Timer}";
         }
 
-        static string CreateEntitySpanName(string entityName, string operationName)
-        {
-            return $"{TraceActivityConstants.Entity}:{entityName}:{operationName}";
-        }
-
         /// <summary>
         ///     Simple trace with no iid or eid
         /// </summary>
