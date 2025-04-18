@@ -26,6 +26,7 @@ namespace DurableTask.Core.Tracing
             internal const string TaskId = "durabletask.task.task_id";
             internal const string EventTargetInstanceId = "durabletask.event.target_instance_id";
             internal const string FireAt = "durabletask.fire_at";
+            internal const string ScheduledTime = "durabletask.task.scheduled_time";
         }
 
         internal static class Status

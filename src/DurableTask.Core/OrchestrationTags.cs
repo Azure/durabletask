@@ -37,6 +37,21 @@ namespace DurableTask.Core
         public const string FireAndForget = "FireAndForget";
 
         /// <summary>
+        /// The ID of the parent trace that created this orchestration instance (see https://www.w3.org/TR/trace-context/#traceparent-header)
+        /// </summary>
+        public const string TraceParent = "MS_Entities_TraceParent";
+
+        /// <summary>
+        /// The trace state of the parent trace that created this orchestration instance (see https://www.w3.org/TR/trace-context/#tracestate-header)
+        /// </summary>
+        public const string TraceState = "MS_Entities_TraceState";
+
+        /// <summary>
+        /// The time the request for a new orchestration was created.
+        /// </summary>
+        public const string RequestTime = "MS_Entities_RequestTime";
+
+        /// <summary>
         /// Check whether the given tags contain the fire and forget tag
         /// </summary>
         /// <param name="tags"></param>

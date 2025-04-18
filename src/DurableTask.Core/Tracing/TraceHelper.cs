@@ -357,6 +357,12 @@ namespace DurableTask.Core.Tracing
             OrchestrationInstance? instance,
             string? targetInstanceId)
         {
+            // There is a possibility that we mislabel the event as an entity event if entities are not enabled
+            if (Entities.IsEntityInstance(targetInstanceId ?? string.Empty) || Entities.IsEntityInstance(instance?.InstanceId ?? string.Empty))
+            {
+                return null;
+            }
+
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 CreateSpanName(TraceActivityConstants.OrchestrationEvent, eventRaisedEvent.Name, null),
                 kind: ActivityKind.Producer,
@@ -390,6 +396,12 @@ namespace DurableTask.Core.Tracing
         /// </returns>
         internal static Activity? StartActivityForNewEventRaisedFromClient(EventRaisedEvent eventRaised, OrchestrationInstance instance)
         {
+            // There is a possibility that we mislabel the event as an entity event if entities are not enabled
+            if (Entities.IsEntityInstance(instance.InstanceId))
+            {
+                return null;
+            }
+
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 CreateSpanName(TraceActivityConstants.OrchestrationEvent, eventRaised.Name, null),
                 kind: ActivityKind.Producer,
@@ -433,6 +445,31 @@ namespace DurableTask.Core.Tracing
 
                 newActivity.Dispose();
             }
+        }
+
+        internal static Activity? StartActivityForEntityStartingAnOrchestration(string entityId, string entityName, string targetInstanceId, ActivityContext parentTraceContext, DateTimeOffset? startTime, DateTime? scheduledTime = null)
+        {
+            Activity? newActivity = ActivityTraceSource.StartActivity(
+                CreateSpanName(entityName, TraceActivityConstants.CreateOrchestration, null),
+                kind: ActivityKind.Producer,
+                parentContext: parentTraceContext,
+                startTime: startTime ?? default);
+
+            if (newActivity == null)
+            {
+                return null;
+            }
+
+            newActivity.SetTag(Schema.Task.Type, TraceActivityConstants.Entity);
+            newActivity.SetTag(Schema.Task.EventTargetInstanceId, targetInstanceId);
+            newActivity.SetTag(Schema.Task.InstanceId, entityId);
+
+            if (scheduledTime != null)
+            {
+                newActivity.SetTag(Schema.Task.ScheduledTime, scheduledTime.Value.ToString());
+            }
+
+            return newActivity;
         }
 
         internal static void SetRuntimeStatusTag(string runtimeStatus)
