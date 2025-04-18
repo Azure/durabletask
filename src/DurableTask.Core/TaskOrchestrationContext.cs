@@ -194,7 +194,7 @@ namespace DurableTask.Core
             }
         }
 
-        public override void SendEvent(OrchestrationInstance orchestrationInstance, string eventName, object eventData, Dictionary<string, string> eventTags = null)
+        public override void SendEvent(OrchestrationInstance orchestrationInstance, string eventName, object eventData)
         {
             if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
             {
@@ -211,7 +211,6 @@ namespace DurableTask.Core
                 Instance = orchestrationInstance,
                 EventName = eventName,
                 EventData = serializedEventData,
-                EventTags = eventTags,
             };
 
             this.orchestratorActionsMap.Add(id, action);

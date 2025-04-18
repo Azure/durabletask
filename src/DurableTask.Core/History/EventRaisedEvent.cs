@@ -57,10 +57,5 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public DistributedTraceContext ParentTraceContext { get; set; }
-
-        /// <summary>
-        /// Gets or sets any tags associated with the event
-        /// </summary>
-        public IDictionary<string, string> Tags { get; set; }
     }
 }

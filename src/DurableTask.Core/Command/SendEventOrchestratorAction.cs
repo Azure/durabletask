@@ -40,10 +40,5 @@ namespace DurableTask.Core.Command
         /// The payload data of the external event.
         /// </summary>
         public string? EventData { get; set; }
-
-        /// <summary>
-        /// The tags for the external event.
-        /// </summary>
-        public Dictionary<string, string>? EventTags { get; set; }
     }
 }
