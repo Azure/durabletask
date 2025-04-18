@@ -1152,7 +1152,7 @@ namespace DurableTask.Core
 
             EventRaisedEvent eventRaisedEvent = new EventRaisedEvent(-1, sendEventAction.EventData)
             {
-                Name = sendEventAction.EventName,
+                Name = sendEventAction.EventName
             };
 
             // Distributed Tracing: start a new trace activity derived from the orchestration

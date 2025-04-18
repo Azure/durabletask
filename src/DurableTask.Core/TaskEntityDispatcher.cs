@@ -57,7 +57,7 @@ namespace DurableTask.Core
             this.errorPropagationMode = errorPropagationMode;
             this.entityOrchestrationService = (orchestrationService as IEntityOrchestrationService)!;
             this.entityBackendProperties = entityOrchestrationService.EntityBackendProperties;
-            
+           
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskEntityDispatcher",
                 item => item == null ? string.Empty : item.InstanceId,
