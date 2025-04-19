@@ -13,33 +13,36 @@
 
 namespace DurableTask.AzureStorage.Tests
 {
+    using DurableTask.Core;
+    using DurableTask.Core.Settings;
+    using Microsoft.Extensions.Logging;
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
-    using DurableTask.Core;
-    using Microsoft.Extensions.Logging;
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     internal sealed class TestOrchestrationHost : IDisposable
     {
         internal readonly AzureStorageOrchestrationService service;
 
         readonly AzureStorageOrchestrationServiceSettings settings;
-        readonly TaskHubWorker worker;
         readonly TaskHubClient client;
         readonly HashSet<Type> addedOrchestrationTypes;
         readonly HashSet<Type> addedActivityTypes;
 
-        public TestOrchestrationHost(AzureStorageOrchestrationServiceSettings settings)
+        // We allow updates to the worker for versioning tests.
+        TaskHubWorker worker;
+
+        public TestOrchestrationHost(AzureStorageOrchestrationServiceSettings settings, VersioningSettings versioningSettings = null)
         {
             this.service = new AzureStorageOrchestrationService(settings);
             this.service.CreateAsync().GetAwaiter().GetResult();
 
             this.settings = settings;
-            this.worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
+            this.worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory, versioningSettings: versioningSettings);
             this.client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
             this.addedOrchestrationTypes = new HashSet<Type>();
             this.addedActivityTypes = new HashSet<Type>();
@@ -62,6 +65,14 @@ namespace DurableTask.AzureStorage.Tests
             return this.worker.StopAsync(isForced: true);
         }
 
+        public async Task UpdateWorkerVersion(VersioningSettings versioningSettings)
+        {
+            // Stop the current worker and create a new one with the new versioning settings.
+            await this.worker.StopAsync();
+            this.worker = new TaskHubWorker(this.service, loggerFactory: this.settings.LoggerFactory, versioningSettings: versioningSettings);
+            await this.worker.StartAsync();
+        }
+
         public void AddAutoStartOrchestrator(Type type)
         {
             this.worker.AddTaskOrchestrations(new AutoStartOrchestrationCreator(type));
@@ -73,7 +84,8 @@ namespace DurableTask.AzureStorage.Tests
             object input,
             string instanceId = null,
             DateTime? startAt = null,
-            IDictionary<string, string> tags = null)
+            IDictionary<string, string> tags = null,
+            string version = null)
         {
             if (startAt != null && tags != null)
             {
@@ -82,7 +94,17 @@ namespace DurableTask.AzureStorage.Tests
 
             if (!this.addedOrchestrationTypes.Contains(orchestrationType))
             {
-                this.worker.AddTaskOrchestrations(orchestrationType);
+                if (version != null)
+                {
+                    this.worker.AddTaskOrchestrations(new NameValueObjectCreator<TaskOrchestration>(
+                        NameVersionHelper.GetDefaultName(orchestrationType),
+                        version,
+                        orchestrationType));
+                }
+                else
+                {
+                    this.worker.AddTaskOrchestrations(orchestrationType);
+                }
                 this.addedOrchestrationTypes.Add(orchestrationType);
             }
 
@@ -110,11 +132,12 @@ namespace DurableTask.AzureStorage.Tests
 
             DateTime creationTime = DateTime.UtcNow;
             OrchestrationInstance instance;
+            string orchestrationVersion = !string.IsNullOrEmpty(version) ? version : NameVersionHelper.GetDefaultVersion(orchestrationType);
             if (tags != null)
             {
                 instance = await this.client.CreateOrchestrationInstanceAsync(
                     NameVersionHelper.GetDefaultName(orchestrationType),
-                    NameVersionHelper.GetDefaultVersion(orchestrationType),
+                    orchestrationVersion,
                     instanceId,
                     input,
                     tags);
@@ -315,7 +338,7 @@ namespace DurableTask.AzureStorage.Tests
         {
             readonly T obj;
 
-            public TestObjectCreator(string name, T obj) 
+            public TestObjectCreator(string name, T obj)
                 : this(name, string.Empty, obj)
             {
             }

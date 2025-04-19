@@ -13,6 +13,12 @@
 
 namespace DurableTask.Core
 {
+    using DurableTask.Core.Entities;
+    using DurableTask.Core.Exceptions;
+    using DurableTask.Core.Logging;
+    using DurableTask.Core.Middleware;
+    using DurableTask.Core.Settings;
+    using Microsoft.Extensions.Logging;
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
@@ -21,11 +27,6 @@ namespace DurableTask.Core
     using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
-    using DurableTask.Core.Entities;
-    using DurableTask.Core.Exceptions;
-    using DurableTask.Core.Logging;
-    using DurableTask.Core.Middleware;
-    using Microsoft.Extensions.Logging;
 
     /// <summary>
     ///     Allows users to load the TaskOrchestration and TaskActivity classes and start
@@ -36,6 +37,7 @@ namespace DurableTask.Core
         readonly INameVersionObjectManager<TaskActivity> activityManager;
         readonly INameVersionObjectManager<TaskOrchestration> orchestrationManager;
         readonly INameVersionObjectManager<TaskEntity> entityManager;
+        readonly VersioningSettings versioningSettings;
 
         readonly DispatchMiddlewarePipeline orchestrationDispatchPipeline = new DispatchMiddlewarePipeline();
         readonly DispatchMiddlewarePipeline entityDispatchPipeline = new DispatchMiddlewarePipeline();
@@ -87,6 +89,23 @@ namespace DurableTask.Core
         }
 
         /// <summary>
+        ///     Create a new TaskHubWorker with given OrchestrationService
+        /// </summary>
+        /// <param name="orchestrationService">Reference the orchestration service implementation</param>
+        /// <param name="versioningSettings">The <see cref="VersioningSettings"/> that define how orchestration versions are handled</param>
+        /// <param name="loggerFactory">The <see cref="ILoggerFactory"/> to use for logging</param>
+        public TaskHubWorker(IOrchestrationService orchestrationService, VersioningSettings versioningSettings, ILoggerFactory loggerFactory = null)
+            : this(
+                  orchestrationService,
+                  new NameVersionObjectManager<TaskOrchestration>(),
+                  new NameVersionObjectManager<TaskActivity>(),
+                  new NameVersionObjectManager<TaskEntity>(),
+                  versioningSettings,
+                  loggerFactory)
+        {
+        }
+
+        /// <summary>
         ///     Create a new TaskHubWorker with given OrchestrationService and name version managers
         /// </summary>
         /// <param name="orchestrationService">Reference the orchestration service implementation</param>
@@ -101,7 +120,8 @@ namespace DurableTask.Core
                 orchestrationObjectManager,
                 activityObjectManager,
                 new NameVersionObjectManager<TaskEntity>(),
-                loggerFactory: null)
+                loggerFactory: null,
+                versioningSettings: null)
         {
         }
 
@@ -127,6 +147,30 @@ namespace DurableTask.Core
         }
 
         /// <summary>
+        ///     Create a new <see cref="TaskHubWorker"/> with given <see cref="IOrchestrationService"/> and name version managers
+        /// </summary>
+        /// <param name="orchestrationService">The orchestration service implementation</param>
+        /// <param name="orchestrationObjectManager">The <see cref="INameVersionObjectManager{TaskOrchestration}"/> for orchestrations</param>
+        /// <param name="activityObjectManager">The <see cref="INameVersionObjectManager{TaskActivity}"/> for activities</param>
+        /// <param name="versioningSettings">The <see cref="VersioningSettings"/> that define how orchestration versions are handled</param>
+        /// <param name="loggerFactory">The <see cref="ILoggerFactory"/> to use for logging</param>
+        public TaskHubWorker(
+            IOrchestrationService orchestrationService,
+            INameVersionObjectManager<TaskOrchestration> orchestrationObjectManager,
+            INameVersionObjectManager<TaskActivity> activityObjectManager,
+            VersioningSettings versioningSettings,
+            ILoggerFactory loggerFactory = null)
+             : this(
+                orchestrationService,
+                orchestrationObjectManager,
+                activityObjectManager,
+                new NameVersionObjectManager<TaskEntity>(),
+                versioningSettings,
+                loggerFactory)
+        {
+        }
+
+        /// <summary>
         ///     Create a new TaskHubWorker with given OrchestrationService and name version managers
         /// </summary>
         /// <param name="orchestrationService">Reference the orchestration service implementation</param>
@@ -140,6 +184,32 @@ namespace DurableTask.Core
             INameVersionObjectManager<TaskActivity> activityObjectManager,
             INameVersionObjectManager<TaskEntity> entityObjectManager,
             ILoggerFactory loggerFactory = null)
+            : this(
+                  orchestrationService,
+                  orchestrationObjectManager,
+                  activityObjectManager,
+                  entityObjectManager,
+                  null,
+                  loggerFactory)
+        {
+        }
+
+        /// <summary>
+        ///     Create a new TaskHubWorker with given OrchestrationService and name version managers
+        /// </summary>
+        /// <param name="orchestrationService">Reference the orchestration service implementation</param>
+        /// <param name="orchestrationObjectManager">NameVersionObjectManager for Orchestrations</param>
+        /// <param name="activityObjectManager">NameVersionObjectManager for Activities</param>
+        /// <param name="entityObjectManager">The NameVersionObjectManager for entities. The version is the entity key.</param>
+        /// <param name="versioningSettings">The <see cref="VersioningSettings"/> that define how orchestration versions are handled</param>
+        /// <param name="loggerFactory">The <see cref="ILoggerFactory"/> to use for logging</param>
+        public TaskHubWorker(
+            IOrchestrationService orchestrationService,
+            INameVersionObjectManager<TaskOrchestration> orchestrationObjectManager,
+            INameVersionObjectManager<TaskActivity> activityObjectManager,
+            INameVersionObjectManager<TaskEntity> entityObjectManager,
+            VersioningSettings versioningSettings,
+            ILoggerFactory loggerFactory = null)
         {
             this.orchestrationManager = orchestrationObjectManager ?? throw new ArgumentException("orchestrationObjectManager");
             this.activityManager = activityObjectManager ?? throw new ArgumentException("activityObjectManager");
@@ -147,6 +217,7 @@ namespace DurableTask.Core
             this.orchestrationService = orchestrationService ?? throw new ArgumentException("orchestrationService");
             this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
             this.dispatchEntitiesSeparately = (orchestrationService as IEntityOrchestrationService)?.EntityBackendProperties?.UseSeparateQueueForEntityWorkItems ?? false;
+            this.versioningSettings = versioningSettings;
         }
 
         /// <summary>
@@ -219,13 +290,13 @@ namespace DurableTask.Core
 
                 this.logHelper.TaskHubWorkerStarting();
                 var sw = Stopwatch.StartNew();
-
                 this.orchestrationDispatcher = new TaskOrchestrationDispatcher(
                     this.orchestrationService,
                     this.orchestrationManager,
                     this.orchestrationDispatchPipeline,
                     this.logHelper,
-                    this.ErrorPropagationMode);
+                    this.ErrorPropagationMode,
+                    this.versioningSettings);
                 this.activityDispatcher = new TaskActivityDispatcher(
                     this.orchestrationService,
                     this.activityManager,
@@ -357,7 +428,7 @@ namespace DurableTask.Core
                     type.Name,
                     string.Empty,
                     type);
-                
+
                 this.entityManager.Add(creator);
             }
 

@@ -13,13 +13,14 @@
 #nullable enable
 namespace DurableTask.AzureStorage.Tests
 {
+    using DurableTask.Core.Logging;
+    using DurableTask.Core.Settings;
+    using Microsoft.Extensions.Logging;
     using System;
     using System.Configuration;
     using System.Diagnostics;
     using System.Diagnostics.Tracing;
     using System.Threading.Tasks;
-    using DurableTask.Core.Logging;
-    using Microsoft.Extensions.Logging;
 
     static class TestHelpers
     {
@@ -28,6 +29,7 @@ namespace DurableTask.AzureStorage.Tests
             int extendedSessionTimeoutInSeconds = 30,
             bool fetchLargeMessages = true,
             bool allowReplayingTerminalInstances = false,
+            VersioningSettings? versioningSettings = null,
             Action<AzureStorageOrchestrationServiceSettings>? modifySettingsAction = null)
         {
             AzureStorageOrchestrationServiceSettings settings = GetTestAzureStorageOrchestrationServiceSettings(
@@ -38,7 +40,7 @@ namespace DurableTask.AzureStorage.Tests
             // Give the caller a chance to make test-specific changes to the settings
             modifySettingsAction?.Invoke(settings);
 
-            return new TestOrchestrationHost(settings);
+            return new TestOrchestrationHost(settings, versioningSettings);
         }
 
         public static AzureStorageOrchestrationServiceSettings GetTestAzureStorageOrchestrationServiceSettings(
