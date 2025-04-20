@@ -42,6 +42,12 @@ namespace DurableTask.Core
             ActivityObject = activityObject;
             MethodInfo = methodInfo;
             genericArguments = methodInfo.GetGenericArguments();
+
+            // Add validations for parameters, generic types and return types.
+            // For parameters.
+            // For return types.
+            // For generic arguments.
+            ValidatePotentialSerializationOfNativeType(methodInfo);
         }
 
         /// <summary>
@@ -93,6 +99,19 @@ namespace DurableTask.Core
             }
 
             Type[] genericTypeArguments = this.GetGenericTypeArguments(jArray);
+
+            // Validate generic parameters before deserializing.
+            if (genericTypeArguments != null)
+            {
+                foreach (Type genericTypeArgument in genericTypeArguments)
+                {
+                    if (genericTypeArgument.IsEqualOrContainsNativeType())
+                    {
+                        TypeExtension.HandleTypeValidationError($"methodName: {MethodInfo.Name}, genericType: {genericTypeArgument.FullName}");
+                    }
+                }
+            }
+
             object[] inputParameters = this.GetInputParameters(jArray, parameterCount, methodParameters, genericTypeArguments);
 
             string serializedReturn = string.Empty;
@@ -231,6 +250,36 @@ namespace DurableTask.Core
             }
 
             return inputParameters;
+        }
+
+        private void ValidatePotentialSerializationOfNativeType(MethodInfo methodInfo)
+        {
+            foreach (var parameterInfo in methodInfo.GetParameters())
+            {
+                if (parameterInfo.ParameterType.IsEqualOrContainsNativeType())
+                {
+                    TypeExtension.HandleTypeValidationError($"methodName: {methodInfo.Name}, parameterName: {parameterInfo.Name}, parameterType: {parameterInfo.ParameterType}");
+                }
+            }
+
+            // Only for return types, if it is of type Task, check for its generic type.
+            // Why? execution of task-activity doesn't serialize/deserialize Task await, but only the generic type.
+            if (methodInfo.ReturnType == typeof(Task) || methodInfo.ReturnType.BaseType == typeof(Task) || (methodInfo.ReturnType == typeof(Task<>)))
+            {
+                var genericTypes = methodInfo.ReturnType.GetGenericArguments();
+
+                foreach (var genericType in genericTypes)
+                {
+                    if (genericType.IsEqualOrContainsNativeType())
+                    {
+                        TypeExtension.HandleTypeValidationError($"methodName: {methodInfo.Name}, returnType: {genericType.FullName}");
+                    }
+                }
+            }
+            else if (methodInfo.ReturnType.IsEqualOrContainsNativeType())
+            {
+                TypeExtension.HandleTypeValidationError($"methodName: {methodInfo.Name}, returnType: {methodInfo.ReturnType.FullName}");
+            }
         }
     }
 }
