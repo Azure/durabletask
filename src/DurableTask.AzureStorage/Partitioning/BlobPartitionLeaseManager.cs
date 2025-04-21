@@ -77,7 +77,7 @@ namespace DurableTask.AzureStorage.Partitioning
             await foreach (Page<Blob> page in this.taskHubContainer.ListBlobsAsync(this.blobDirectoryName, cancellationToken: cancellationToken).AsPages())
             {
                 // Start each of the Tasks in parallel
-                Task<BlobPartitionLease>[] downloadTasks = page.Values.Select(b => this.DownloadLeaseBlob(b, cancellationToken)).ToArray();
+                Task<BlobPartitionLease>[] downloadTasks = page.Values.Select(b => DownloadLeaseBlob(b, cancellationToken)).ToArray();
 
                 foreach (Task<BlobPartitionLease> downloadTask in downloadTasks)
                 {
@@ -134,7 +134,7 @@ namespace DurableTask.AzureStorage.Partitioning
             Blob leaseBlob = this.taskHubContainer.GetBlobReference(partitionId, this.blobDirectoryName);
             if (await leaseBlob.ExistsAsync(cancellationToken))
             {
-                return await this.DownloadLeaseBlob(leaseBlob, cancellationToken);
+                return await DownloadLeaseBlob(leaseBlob, cancellationToken);
             }
 
             return null;
@@ -315,7 +315,7 @@ namespace DurableTask.AzureStorage.Partitioning
             return null;
         }
 
-        async Task<BlobPartitionLease> DownloadLeaseBlob(Blob blob, CancellationToken cancellationToken)
+        static async Task<BlobPartitionLease> DownloadLeaseBlob(Blob blob, CancellationToken cancellationToken)
         {
             using BlobDownloadStreamingResult result = await blob.DownloadStreamingAsync(cancellationToken);
             BlobPartitionLease deserializedLease = Utils.DeserializeFromJson<BlobPartitionLease>(result.Content);
