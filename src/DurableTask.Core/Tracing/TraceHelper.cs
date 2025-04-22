@@ -74,7 +74,6 @@ namespace DurableTask.Core.Tracing
                     newActivity.SetTag(Schema.Task.Version, startEvent.Version);
                 }
 
-
                 startEvent.SetParentTraceContext(newActivity);
             }
 
@@ -588,6 +587,7 @@ namespace DurableTask.Core.Tracing
                 }
             }
         }
+
         internal static void SetRuntimeStatusTag(string runtimeStatus)
         {
             DistributedTraceActivity.Current?.SetTag(Schema.Task.Status, runtimeStatus);
