@@ -447,31 +447,6 @@ namespace DurableTask.Core.Tracing
             }
         }
 
-        internal static Activity? StartActivityForEntityStartingAnOrchestration(string entityId, string entityName, string targetInstanceId, ActivityContext parentTraceContext, DateTimeOffset? startTime, DateTime? scheduledTime = null)
-        {
-            Activity? newActivity = ActivityTraceSource.StartActivity(
-                CreateSpanName(entityName, TraceActivityConstants.CreateOrchestration, null),
-                kind: ActivityKind.Producer,
-                parentContext: parentTraceContext,
-                startTime: startTime ?? default);
-
-            if (newActivity == null)
-            {
-                return null;
-            }
-
-            newActivity.SetTag(Schema.Task.Type, TraceActivityConstants.Entity);
-            newActivity.SetTag(Schema.Task.EventTargetInstanceId, targetInstanceId);
-            newActivity.SetTag(Schema.Task.InstanceId, entityId);
-
-            if (scheduledTime != null)
-            {
-                newActivity.SetTag(Schema.Task.ScheduledTime, scheduledTime.Value.ToString());
-            }
-
-            return newActivity;
-        }
-
         internal static void SetRuntimeStatusTag(string runtimeStatus)
         {
             DistributedTraceActivity.Current?.SetTag(Schema.Task.Status, runtimeStatus);

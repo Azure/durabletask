@@ -20,7 +20,6 @@ namespace DurableTask.Core.Tracing
         public const string Activity = "activity";
         public const string Event = "event";
         public const string Timer = "timer";
-        public const string Entity = "entity";
 
         public const string CreateOrchestration = "create_orchestration";
         public const string OrchestrationEvent = "orchestration_event";
