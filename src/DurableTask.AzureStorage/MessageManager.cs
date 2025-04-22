@@ -255,7 +255,7 @@ namespace DurableTask.AzureStorage
 
         public string GetBlobUrl(string blobName)
         {
-            return Uri.UnescapeDataString(this.blobContainer.GetBlobReference(blobName).Uri.AbsoluteUri);
+            return $"{this.blobContainer.GetBlobContainerUri()}/{Uri.EscapeDataString(blobName)}";
         }
 
         public MessageFormatFlags GetMessageFormatFlags(MessageData messageData)
