@@ -108,6 +108,11 @@ namespace DurableTask.AzureStorage.Storage
                 .DecorateFailure();
         }
 
+        public Uri GetBlobContainerUri()
+        {
+            return this.blobContainerClient.Uri;
+        }
+
         static bool IsHnsFolder(BlobItem item)
         {
             // Check the optional "hdi_isfolder" value in the metadata to determine whether

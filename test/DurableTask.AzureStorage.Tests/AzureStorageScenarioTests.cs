@@ -1600,6 +1600,35 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        /// <summary>
+        /// End-to-end test that validates large (>60KB) messages stored in blob storage can be retrieved successfully,
+        /// when the instance ID includes special characters like '|' that can affect blob URL encoding.
+        /// </summary>
+        [TestMethod]
+        public async Task LargeMessage_WithEscapedInstanceId_CanBeStoredAndFetchedSuccessfully()
+        {
+            // Genereates a random large message.
+            const int largeMessageSize = 60 * 1024;
+
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+
+                string message = this.GenerateMediumRandomStringPayload(largeMessageSize, utf8ByteSize: 1, utf16ByteSize: 2).ToString();
+
+                // Use an instanceId that contains special characters which must be escaped in URIs
+                string id = "test|123:with white spcae";
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), input:message, instanceId: id);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                // Verify that the output matches the original message (the blob was successfully downloaded and not returned as a URL) 
+                StringAssert.Contains(status.Output.ToString(), message);
+                await host.StopAsync();
+            }
+        }
+
         [TestMethod]
         public async Task TagsAreAvailableInOrchestrationState()
         {
