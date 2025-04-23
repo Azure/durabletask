@@ -255,7 +255,7 @@ namespace DurableTask.AzureStorage
 
         public string GetBlobUrl(string blobName)
         {
-            return $"{this.blobContainer.GetBlobContainerUri()}/{Uri.EscapeDataString(blobName)}";
+            return $"{this.blobContainer.GetBlobContainerUri()}/{EscapeBlobNamePreservingSlashes(blobName)}";
         }
 
         public MessageFormatFlags GetMessageFormatFlags(MessageData messageData)
@@ -303,6 +303,11 @@ namespace DurableTask.AzureStorage
             }
 
             return storageOperationCount;
+        }
+
+        static string EscapeBlobNamePreservingSlashes(string blobName)
+        {
+            return string.Join("/", blobName.Split('/').Select(Uri.EscapeDataString));
         }
     }
 
