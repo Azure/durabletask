@@ -15,6 +15,7 @@ namespace DurableTask.AzureStorage.Tests
 {
     using System;
     using System.Collections.Generic;
+    using System.Security.Policy;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core.History;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -73,7 +74,7 @@ namespace DurableTask.AzureStorage.Tests
         [DataRow("blob.bin")]
         [DataRow("@#$%!")]
         [DataRow("foo/bar/b@z.tar.gz")]
-        public void GetBlobUrlUnescaped(string blob)
+        public void GetBlobUrlEscaped(string blob)
         {
             var settings = new AzureStorageOrchestrationServiceSettings
             {
@@ -82,7 +83,9 @@ namespace DurableTask.AzureStorage.Tests
 
             const string container = "@entity12345";
             var manager = new MessageManager(settings, new AzureStorageClient(settings), container);
-            var expected = $"http://127.0.0.1:10000/devstoreaccount1/{container}/{blob}";
+
+            string blobUrl = Uri.EscapeDataString(blob);
+            var expected = $"http://127.0.0.1:10000/devstoreaccount1/{container}/{blobUrl}";
             Assert.AreEqual(expected, manager.GetBlobUrl(blob));
         }
 
