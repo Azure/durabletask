@@ -13,13 +13,12 @@
 #nullable enable
 namespace DurableTask.AzureStorage.Tests
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Security.Policy;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core.History;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Newtonsoft.Json;
+    using System;
+    using System.Collections.Generic;
 
     [TestClass]
     public class MessageManagerTests
