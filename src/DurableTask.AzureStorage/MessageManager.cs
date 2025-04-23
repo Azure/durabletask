@@ -305,6 +305,7 @@ namespace DurableTask.AzureStorage
             return storageOperationCount;
         }
 
+        /// Escapes a blob name for safe inclusion in a URI while preserving path structure.
         static string EscapeBlobNamePreservingSlashes(string blobName)
         {
             return string.Join("/", blobName.Split('/').Select(Uri.EscapeDataString));
