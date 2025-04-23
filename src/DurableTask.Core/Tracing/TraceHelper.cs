@@ -73,7 +73,7 @@ namespace DurableTask.Core.Tracing
                 {
                     newActivity.SetTag(Schema.Task.Version, startEvent.Version);
                 }
-
+                
                 startEvent.SetParentTraceContext(newActivity);
             }
 
