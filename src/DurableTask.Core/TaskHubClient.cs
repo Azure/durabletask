@@ -745,7 +745,8 @@ namespace DurableTask.Core
         /// <param name="orchestrationInstance">Instance in which to raise the event</param>
         /// <param name="eventName">Name of the event</param>
         /// <param name="eventData">Data for the event</param>
-        public async Task RaiseEventAsync(OrchestrationInstance orchestrationInstance, string eventName, object eventData)
+        /// <param name="entityEvent">Whether or not this event corresponds to an entity (false by default)</param>
+        public async Task RaiseEventAsync(OrchestrationInstance orchestrationInstance, string eventName, object eventData, bool entityEvent = false)
         {
 
             if (string.IsNullOrWhiteSpace(orchestrationInstance.InstanceId))
@@ -757,7 +758,7 @@ namespace DurableTask.Core
             
             // Distributed Tracing
             EventRaisedEvent eventRaisedEvent = new EventRaisedEvent(-1, serializedInput) { Name = eventName };
-            using Activity? traceActivity = TraceHelper.StartActivityForNewEventRaisedFromClient(eventRaisedEvent, orchestrationInstance);
+            using Activity? traceActivity = TraceHelper.StartActivityForNewEventRaisedFromClient(eventRaisedEvent, orchestrationInstance, entityEvent);
 
             var taskMessage = new TaskMessage
             {

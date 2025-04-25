@@ -113,6 +113,11 @@ namespace DurableTask.Core
         public bool IncludeParameters { get; set; }
 
         /// <summary>
+        /// Gets or sets the flag for whether or not entities are enabled
+        /// </summary>
+        public bool EntitiesEnabled { get; set; }
+
+        /// <summary>
         /// Method to get the next work item to process within supplied timeout
         /// </summary>
         /// <param name="receiveTimeout">The max timeout to wait</param>
@@ -1168,7 +1173,7 @@ namespace DurableTask.Core
 
             // Distributed Tracing: start a new trace activity derived from the orchestration
             // for an EventRaisedEvent (external event)
-            using Activity? traceActivity = TraceHelper.StartTraceActivityForEventRaisedFromWorker(eventRaisedEvent, runtimeState.OrchestrationInstance, sendEventAction.Instance?.InstanceId);
+            using Activity? traceActivity = TraceHelper.StartTraceActivityForEventRaisedFromWorker(eventRaisedEvent, runtimeState.OrchestrationInstance, this.EntitiesEnabled, sendEventAction.Instance?.InstanceId);
 
             this.logHelper.RaisingEvent(runtimeState.OrchestrationInstance!, historyEvent);
 

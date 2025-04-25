@@ -348,6 +348,7 @@ namespace DurableTask.Core.Tracing
         /// </summary>
         /// <param name="eventRaisedEvent">The associated <see cref="EventRaisedEvent"/>.</param>
         /// <param name="instance">The associated <see cref="OrchestrationInstance"/>.</param>
+        /// <param name="entitiesEnabled">Whether or not entities are enabled, meaning this event could possibly correspond to entity</param>
         /// <param name="targetInstanceId">The instance id of the orchestration that will receive the event.</param>
         /// <returns>
         /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
@@ -355,10 +356,10 @@ namespace DurableTask.Core.Tracing
         internal static Activity? StartTraceActivityForEventRaisedFromWorker(
             EventRaisedEvent eventRaisedEvent,
             OrchestrationInstance? instance,
+            bool entitiesEnabled,
             string? targetInstanceId)
         {
-            // There is a possibility that we mislabel the event as an entity event if entities are not enabled
-            if (Entities.IsEntityInstance(targetInstanceId ?? string.Empty) || Entities.IsEntityInstance(instance?.InstanceId ?? string.Empty))
+            if (entitiesEnabled && (Entities.IsEntityInstance(targetInstanceId ?? string.Empty) || Entities.IsEntityInstance(instance?.InstanceId ?? string.Empty)))
             {
                 return null;
             }
@@ -391,13 +392,13 @@ namespace DurableTask.Core.Tracing
         /// </summary>
         /// <param name="eventRaised">The associated <see cref="EventRaisedEvent"/>.</param>
         /// <param name="instance">The associated <see cref="OrchestrationInstance"/>.</param>
+        /// <param name="entityEvent">Whether or not this event corresponds to an entity</param>
         /// <returns>
         /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
         /// </returns>
-        internal static Activity? StartActivityForNewEventRaisedFromClient(EventRaisedEvent eventRaised, OrchestrationInstance instance)
+        internal static Activity? StartActivityForNewEventRaisedFromClient(EventRaisedEvent eventRaised, OrchestrationInstance instance, bool entityEvent)
         {
-            // There is a possibility that we mislabel the event as an entity event if entities are not enabled
-            if (Entities.IsEntityInstance(instance.InstanceId))
+            if (entityEvent)
             {
                 return null;
             }
