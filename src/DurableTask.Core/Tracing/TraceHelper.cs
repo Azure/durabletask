@@ -284,7 +284,11 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            activity.SetSpanId(createdEvent.ClientSpanId);
+            if (!string.IsNullOrEmpty(createdEvent.ClientSpanId))
+            {
+                activity.SetSpanId(createdEvent.ClientSpanId);
+
+            }
 
             activity.SetTag(Schema.Task.Type, TraceActivityConstants.Orchestration);
             activity.SetTag(Schema.Task.Name, createdEvent.Name);
