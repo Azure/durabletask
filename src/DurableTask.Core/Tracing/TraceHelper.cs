@@ -561,6 +561,10 @@ namespace DurableTask.Core.Tracing
                         {
                             activity.SetTag(Schema.Task.ErrorMessage, result.ErrorMessage ?? result.FailureDetails!.ErrorMessage);
                         }
+                        if (result.StartTime is DateTime startTime)
+                        {
+                            activity.SetStartTime(startTime);
+                        }
                         if (result.EndTime is DateTime endTime)
                         {
                             activity.SetEndTime(endTime);

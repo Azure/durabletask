@@ -50,6 +50,11 @@ namespace DurableTask.Core.Entities.OperationFormat
         public FailureDetails? FailureDetails { get; set; }
 
         /// <summary>
+        /// The start time of the operation.
+        /// </summary>
+        public DateTime? StartTime { get; set; }
+
+        /// <summary>
         /// The completion time of the operation.
         /// </summary>
         public DateTime? EndTime { get; set; }
