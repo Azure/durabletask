@@ -23,15 +23,12 @@ namespace DurableTask.AzureServiceFabric.Remote
     using System.Threading;
     using System.Threading.Tasks;
     using System.Web;
-
-    using DurableTask.Core;
-    using DurableTask.Core.Exceptions;
     using DurableTask.AzureServiceFabric.Exceptions;
     using DurableTask.AzureServiceFabric.Models;
-
+    using DurableTask.Core;
+    using DurableTask.Core.Exceptions;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
-    using System.Web.Http.Results;
 
     /// <summary>
     /// Allows to interact with a remote IOrchestrationServiceClient
@@ -154,7 +151,11 @@ namespace DurableTask.AzureServiceFabric.Remote
         {
             instanceId.EnsureValidInstanceId();
 
+#if NETFRAMEWORK
             var fragment = $"{this.GetOrchestrationFragment(instanceId)}?allExecutions={allExecutions}";
+#else
+            var fragment = $"{this.GetOrchestrationFragmentAll(instanceId)}?allExecutions={allExecutions}";
+
             var stateString = await this.GetStringResponseAsync(instanceId, fragment, CancellationToken.None);
             var states = JsonConvert.DeserializeObject<IList<OrchestrationState>>(stateString);
             return states;
@@ -277,6 +278,8 @@ namespace DurableTask.AzureServiceFabric.Remote
         private string GetOrchestrationFragment() => "orchestrations";
 
         private string GetOrchestrationFragment(string orchestrationId) => $"orchestrations/{orchestrationId}";
+
+        private string GetOrchestrationFragmentAll(string orchestrationId) => $"orchestrationsAll/{orchestrationId}";
 
         private string GetMessageFragment() => "messages";
 
