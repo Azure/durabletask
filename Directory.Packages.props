@@ -15,27 +15,16 @@
     <PackageVersion Include="Azure.Storage.Blobs" Version="12.22.1" />
     <PackageVersion Include="Azure.Storage.Queues" Version="12.20.0" />
     <PackageVersion Include="Castle.Core" Version="5.0.0" />
-    <PackageVersion Include="ImpromptuInterface" Version="6.2.2" Condition="'$(TargetFramework)' == 'net462' OR '$(TargetFramework)' == 'net472'" />
     <PackageVersion Include="ImpromptuInterface" Version="7.0.1" Condition="'$(TargetFramework)' == 'netstandard2.0' OR '$(TargetFramework)' == 'net8.0'" />
     <PackageVersion Include="Microsoft.ApplicationInsights" Version="2.21.0" />
-    <PackageVersion Include="Microsoft.AspNet.WebApi.OwinSelfHost" Version="5.2.6" Condition="'$(TargetFramework)' == 'net462' OR '$(TargetFramework)' == 'net472'" />
-	<PackageVersion Include="Microsoft.AspNet.WebApi.Client" Version="5.2.6"  />
-	<PackageVersion Include="Microsoft.AspNetCore.Mvc" Version="2.3.0" Condition="'$(TargetFramework)' == 'net8.0'"/>
-	<PackageVersion Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="8.0.15" Condition="'$(TargetFramework)' == 'net8.0'" />
+    <PackageVersion Include="Microsoft.AspNet.WebApi.Client" Version="5.2.6" />
     <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="6.0.0" />
     <PackageVersion Include="Microsoft.CSharp" Version="4.7.0" />
     <PackageVersion Include="Microsoft.Data.Services.Client" Version="5.8.5" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="2.1.1" Condition="'$(TargetFramework)' == 'net462' OR '$(TargetFramework)' == 'net472'"/>
-	<PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" Condition="'$(TargetFramework)' == 'net8.0'"/>
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.1" />
-    <PackageVersion Include="Microsoft.ServiceFabric" Version="6.4.617" Condition="'$(TargetFramework)' == 'net462' OR '$(TargetFramework)' == 'net472'"/>
-    <PackageVersion Include="Microsoft.ServiceFabric.Data" Version="3.3.617" Condition="'$(TargetFramework)' == 'net462' OR '$(TargetFramework)' == 'net472'"/>
-    <PackageVersion Include="Microsoft.ServiceFabric.Services" Version="3.3.617" Condition="'$(TargetFramework)' == 'net462' OR '$(TargetFramework)' == 'net472'"/>
-	<PackageVersion Include="Microsoft.ServiceFabric.AspNetCore.Kestrel" Version="3.3.617" Condition="'$(TargetFramework)' == 'net462' OR '$(TargetFramework)' == 'net472'"/>
-	<PackageVersion Include="Microsoft.ServiceFabric" Version="10.1.2175" Condition="'$(TargetFramework)' == 'net8.0'"/>
-	<PackageVersion Include="Microsoft.ServiceFabric.Data" Version="7.1.2175" Condition="'$(TargetFramework)' == 'net8.0'"/>
-	<PackageVersion Include="Microsoft.ServiceFabric.Services" Version="7.1.2175" Condition="'$(TargetFramework)' == 'net8.0'"/>
-	<PackageVersion Include="Microsoft.ServiceFabric.AspNetCore.Kestrel" Version="7.1.2175" Condition="'$(TargetFramework)' == 'net8.0'"/>
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="2.1.1" Condition="'$(TargetFramework)' != 'net8.0'" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.1" Condition="'$(TargetFramework)' != 'net8.0'" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="6.0.0" Condition="'$(TargetFramework)' != 'net8.0'" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="6.0.0" Condition="'$(TargetFramework)' != 'net8.0'" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="1.0.0" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageVersion Include="System.Collections.Immutable" Version="1.3.1" />
@@ -44,8 +33,8 @@
     <PackageVersion Include="System.Reactive.Compatibility" Version="4.4.1" />
     <PackageVersion Include="System.Reactive.Core" Version="4.4.1" />
   </ItemGroup>
-  
-  <!-- Product dependencies with net462 only-->
+
+  <!-- Product dependencies with net462 only -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
     <PackageVersion Include="Microsoft.Azure.KeyVault.Core" Version="1.0.0" />
     <PackageVersion Include="Microsoft.Data.Edm" Version="5.8.5" />
@@ -54,7 +43,31 @@
     <PackageVersion Include="System.Spatial" Version="5.8.5" />
     <PackageVersion Include="WindowsAzure.ServiceBus" Version="4.1.3" />
   </ItemGroup>
-  
+
+  <!-- Product dependencies with net462 or net472 only -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net462' OR '$(TargetFramework)' == 'net472'">
+    <PackageVersion Include="Microsoft.AspNet.WebApi.OwinSelfHost" Version="5.2.6" />
+    <PackageVersion Include="Microsoft.ServiceFabric" Version="6.4.617" />
+    <PackageVersion Include="Microsoft.ServiceFabric.Data" Version="3.3.617" />
+    <PackageVersion Include="Microsoft.ServiceFabric.Services" Version="3.3.617" />
+    <PackageVersion Include="Microsoft.ServiceFabric.AspNetCore.Kestrel" Version="3.3.617" />
+    <PackageVersion Include="ImpromptuInterface" Version="6.2.2" />
+  </ItemGroup>
+
+  <!-- Product dependencies with net8.0 -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+    <PackageVersion Include="Microsoft.ServiceFabric" Version="10.1.2175" />
+    <PackageVersion Include="Microsoft.ServiceFabric.Data" Version="7.1.2175" />
+    <PackageVersion Include="Microsoft.ServiceFabric.Services" Version="7.1.2175" />
+    <PackageVersion Include="Microsoft.ServiceFabric.AspNetCore.Kestrel" Version="7.1.2175" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc" Version="2.3.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="8.0.15" />
+  </ItemGroup>
+
   <!-- Test dependencies -->
   <ItemGroup>
     <PackageVersion Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.0.0-beta.4" />
@@ -63,8 +76,6 @@
     <PackageVersion Include="EnterpriseLibrary.SemanticLogging.EventSourceAnalyzer.NetCore" Version="2.0.1406.4" />
     <PackageVersion Include="Microsoft.AspNet.WebApi.Core" Version="5.2.6" />
     <PackageVersion Include="Microsoft.Diagnostics.EventFlow.Core" Version="1.5.6" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="6.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="6.0.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
     <PackageVersion Include="Moq" Version="4.10.0" />
     <PackageVersion Include="MSTest.TestAdapter" Version="3.5.0" />
@@ -77,24 +88,24 @@
     <PackageVersion Include="WindowsAzure.Storage" Version="8.7.0" Condition="'$(TargetFramework)' == 'net462'" />
   </ItemGroup>
 
-  <!-- Test dependencies with netcoreapp3.1-->
+  <!-- Test dependencies with netcoreapp3.1 -->
   <ItemGroup Condition="'$(TargetFramework)' == 'netcoreapp3.1'">
     <PackageVersion Include="EnterpriseLibrary.SemanticLogging.NetCore" Version="2.0.1406.4" />
     <PackageVersion Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
   </ItemGroup>
 
-  <!-- Test dependencies with net472-->
+  <!-- Test dependencies with net472 -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
     <PackageVersion Include="Microsoft.AspNet.WebApi.Owin" Version="5.2.6" />
     <PackageVersion Include="Microsoft.Owin.Hosting" Version="4.0.0" />
   </ItemGroup>
 
-  <!-- Test dependencies with net462-->
+  <!-- Test dependencies with net462 -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
-    <PackageVersion Include="EnterpriseLibrary.SemanticLogging" version="2.0.1406.1" />
-    <PackageVersion Include="EnterpriseLibrary.SemanticLogging.TextFile" version="2.0.1406.1" />
+    <PackageVersion Include="EnterpriseLibrary.SemanticLogging" Version="2.0.1406.1" />
+    <PackageVersion Include="EnterpriseLibrary.SemanticLogging.TextFile" Version="2.0.1406.1" />
     <PackageVersion Include="Microsoft.Owin.Hosting" Version="4.0.0" />
-    <PackageVersion Include="Microsoft.Tpl.Dataflow" version="4.5.24" />
+    <PackageVersion Include="Microsoft.Tpl.Dataflow" Version="4.5.24" />
   </ItemGroup>
 
   <!-- Samples dependencies -->
@@ -112,13 +123,12 @@
     <PackageVersion Include="Vio.DurableTask.Hosting" Version="2.2.1" />
   </ItemGroup>
 
-  <!-- Samples dependencies with net8.0-->
+  <!-- Samples dependencies with net8.0 -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
   </ItemGroup>
 
-  <!-- Samples dependencies with net462-->
+  <!-- Samples dependencies with net462 -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
-    <PackageVersion Include="ncrontab" version="1.0.0" />
+    <PackageVersion Include="ncrontab" Version="1.0.0" />
   </ItemGroup>
-
 </Project>
