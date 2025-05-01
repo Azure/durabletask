@@ -19,15 +19,11 @@ namespace DurableTask.AzureServiceFabric.Service
     using System.Linq;
     using System.Net;
     using System.Net.Sockets;
-    using System.Threading;
-    using System.Threading.Tasks;
 
     using DurableTask.Core;
     using DurableTask.AzureServiceFabric;
-    using DurableTask.AzureServiceFabric.Tracing;
 
     using Microsoft.ServiceFabric.Services.Communication.Runtime;
-    using Microsoft.ServiceFabric.Services.Runtime;
 
     /// <inheritdoc />
     public sealed class TaskHubProxyListener : TaskHubProxyListenerBase
