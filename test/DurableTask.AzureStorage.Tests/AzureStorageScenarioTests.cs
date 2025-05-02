@@ -2748,6 +2748,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(activity2.TraceId.ToString(), activity5.TraceId.ToString(), activity9.TraceId.ToString());
         }
 #endif
+
         static class Orchestrations
         {
             internal class SayHelloInline : TaskOrchestration<string, string>
