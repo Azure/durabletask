@@ -30,6 +30,7 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
+    using DurableTask.Core.Settings;
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging.Utility;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Moq;
@@ -522,7 +523,7 @@ namespace DurableTask.AzureStorage.Tests
                 List<HistoryStateEvent> thirdHistoryEventsAfterPurging = await client.GetOrchestrationHistoryAsync(thirdInstanceId);
                 Assert.AreEqual(0, thirdHistoryEventsAfterPurging.Count);
 
-                List<HistoryStateEvent>fourthHistoryEventsAfterPurging = await client.GetOrchestrationHistoryAsync(fourthInstanceId);
+                List<HistoryStateEvent> fourthHistoryEventsAfterPurging = await client.GetOrchestrationHistoryAsync(fourthInstanceId);
                 Assert.AreEqual(0, fourthHistoryEventsAfterPurging.Count);
 
                 firstOrchestrationStateList = await client.GetStateAsync(firstInstanceId);
@@ -928,7 +929,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 // Test case 3: external event now goes through
                 await client.ResumeAsync("wakeUp");
-                status  = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+                status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.AreEqual(changedStatus, JToken.Parse(status?.Status));
 
@@ -1599,6 +1600,35 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        /// <summary>
+        /// End-to-end test that validates large (>60KB) messages stored in blob storage can be retrieved successfully,
+        /// when the instance ID includes special characters like '|' that can affect blob URL encoding.
+        /// </summary>
+        [TestMethod]
+        public async Task LargeMessage_WithEscapedInstanceId_CanBeStoredAndFetchedSuccessfully()
+        {
+            // Genereates a random large message.
+            const int largeMessageSize = 60 * 1024;
+
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+
+                string message = this.GenerateMediumRandomStringPayload(largeMessageSize, utf8ByteSize: 1, utf16ByteSize: 2).ToString();
+
+                // Use an instanceId that contains special characters which must be escaped in URIs
+                string id = "test|123:with white spcae";
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), input:message, instanceId: id);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                // Verify that the output matches the original message (the blob was successfully downloaded and not returned as a URL) 
+                StringAssert.Contains(status.Output.ToString(), message);
+                await host.StopAsync();
+            }
+        }
+
         [TestMethod]
         public async Task TagsAreAvailableInOrchestrationState()
         {
@@ -1811,7 +1841,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        private StringBuilder GenerateMediumRandomStringPayload(int numChars = 128*1024, short utf8ByteSize = 1, short utf16ByteSize = 2)
+        private StringBuilder GenerateMediumRandomStringPayload(int numChars = 128 * 1024, short utf8ByteSize = 1, short utf16ByteSize = 2)
         {
             string Chars;
             if (utf16ByteSize != 2 && utf16ByteSize != 4)
@@ -2196,7 +2226,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-                /// <summary>
+        /// <summary>
         /// Validates scheduled starts, ensuring they are executed according to defined start date time
         /// </summary>
         /// <param name="enableExtendedSessions"></param>
@@ -2407,6 +2437,87 @@ namespace DurableTask.AzureStorage.Tests
                     status = state.First();
                     Assert.AreEqual(OrchestrationStatus.Running, status.OrchestrationStatus);
                 }
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        [DataRow(VersioningSettings.VersionMatchStrategy.Strict)]
+        [DataRow(VersioningSettings.VersionMatchStrategy.CurrentOrOlder)]
+        [DataRow(VersioningSettings.VersionMatchStrategy.None)]
+        public async Task OrchestrationFailsWithVersionMismatch(VersioningSettings.VersionMatchStrategy matchStrategy)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(false, versioningSettings: new VersioningSettings
+            {
+                Version = "1",
+                MatchStrategy = matchStrategy,
+                FailureStrategy = VersioningSettings.VersionFailureStrategy.Fail
+            }))
+            {
+                await host.StartAsync();
+
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "World", tags: new Dictionary<string, string>(), version: "2");
+                var status = await client.WaitForCompletionAsync(StandardTimeout);
+
+                if (matchStrategy == VersioningSettings.VersionMatchStrategy.None)
+                {
+                    Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                }
+                else
+                {
+                    Assert.AreEqual(OrchestrationStatus.Failed, status?.OrchestrationStatus);
+                }
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        [DataRow(VersioningSettings.VersionMatchStrategy.Strict, "1.0.0")]
+        [DataRow(VersioningSettings.VersionMatchStrategy.CurrentOrOlder, "1.0.0")]
+        [DataRow(VersioningSettings.VersionMatchStrategy.CurrentOrOlder, "0.9.0")]
+        [DataRow(VersioningSettings.VersionMatchStrategy.None, "1.0.0")]
+        public async Task OrchestrationSucceedsWithVersion(VersioningSettings.VersionMatchStrategy matchStrategy, string orchestrationVersion)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(false, versioningSettings: new VersioningSettings
+            {
+                Version = "1.0.0",
+                MatchStrategy = matchStrategy,
+                FailureStrategy = VersioningSettings.VersionFailureStrategy.Fail
+            }))
+            {
+                await host.StartAsync();
+
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "World", tags: new Dictionary<string, string>(), version: orchestrationVersion);
+                var status = await client.WaitForCompletionAsync(StandardTimeout);
+
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task OrchestrationRejectsWithVersionMismatch()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(false, versioningSettings: new VersioningSettings
+            {
+                Version = "1",
+                MatchStrategy = VersioningSettings.VersionMatchStrategy.Strict,
+                FailureStrategy = VersioningSettings.VersionFailureStrategy.Reject
+            }))
+            {
+                await host.StartAsync();
+
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "World", tags: new Dictionary<string, string>(), version: "2");
+                // We intend for this to timeout as the work should be getting rejected.
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+                Assert.IsNull(status);
+
+                // We should either be pending (recently rejected) or running (to be rejected).
+                status = await client.GetStatusAsync();
+                Assert.IsTrue(OrchestrationStatus.Running == status?.OrchestrationStatus || OrchestrationStatus.Pending == status?.OrchestrationStatus);
+
                 await host.StopAsync();
             }
         }
