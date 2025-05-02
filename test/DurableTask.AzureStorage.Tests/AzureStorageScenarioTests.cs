@@ -35,8 +35,10 @@ namespace DurableTask.AzureStorage.Tests
     using Moq;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
+#if !NET462
     using OpenTelemetry;
     using OpenTelemetry.Trace;
+#endif
 
     [TestClass]
     public class AzureStorageScenarioTests
@@ -2409,7 +2411,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-
+#if !NET462
         /// <summary>
         /// End-to-end test which validates a simple orchestrator function that calls an activity function
         /// and checks the OpenTelemetry trace information
@@ -2745,8 +2747,7 @@ namespace DurableTask.AzureStorage.Tests
             // Checking trace ID values
             Assert.AreEqual(activity2.TraceId.ToString(), activity5.TraceId.ToString(), activity9.TraceId.ToString());
         }
-
-
+#endif
         static class Orchestrations
         {
             internal class SayHelloInline : TaskOrchestration<string, string>
