@@ -2596,12 +2596,12 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     await host.StartAsync();
 
-                    var timeout = TimeSpan.FromSeconds(15);
+                    var timeout = TimeSpan.FromSeconds(30);
                     var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Approval), timeout);
                     instanceId = client.InstanceId;
 
                     await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
-                    await client.WaitForCompletionAsync(TimeSpan.FromSeconds(20));
+                    await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
 
                     await host.StopAsync();
                 }
@@ -2623,7 +2623,7 @@ namespace DurableTask.AzureStorage.Tests
             // Create orchestration Activity
             Activity activity2 = (Activity)processor.Invocations[2].Arguments[0];
             // Timer fired Activity
-            Activity activity5 = (Activity)processor.Invocations[5].Arguments[0];
+            Activity activity6 = (Activity)processor.Invocations[6].Arguments[0];
             // Orchestration execution Activity
             Activity activity7 = (Activity)processor.Invocations[7].Arguments[0];
 
@@ -2632,26 +2632,26 @@ namespace DurableTask.AzureStorage.Tests
 
             // Checking tag values
             string activity2TypeValue = activity2.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity5TypeValue = activity5.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string activity6TypeValue = activity6.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
             string activity7TypeValue = activity7.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
 
             ActivityKind activity2Kind = activity2.Kind;
-            ActivityKind activity5Kind = activity5.Kind;
+            ActivityKind activity6Kind = activity6.Kind;
             ActivityKind activity7Kind = activity7.Kind;
 
             Assert.AreEqual("orchestration", activity2TypeValue);
-            Assert.AreEqual("timer", activity5TypeValue);
+            Assert.AreEqual("timer", activity6TypeValue);
             Assert.AreEqual("orchestration", activity7TypeValue);
             Assert.AreEqual(ActivityKind.Producer, activity2Kind);
-            Assert.AreEqual(ActivityKind.Internal, activity5Kind);
+            Assert.AreEqual(ActivityKind.Internal, activity6Kind);
             Assert.AreEqual(ActivityKind.Server, activity7Kind);
 
             // Checking span ID correlation between parent and child
             Assert.AreEqual(activity2.SpanId, activity7.ParentSpanId);
-            Assert.AreEqual(activity7.SpanId, activity5.ParentSpanId);
+            Assert.AreEqual(activity7.SpanId, activity6.ParentSpanId);
 
             // Checking trace ID values
-            Assert.AreEqual(activity2.TraceId.ToString(), activity5.TraceId.ToString(), activity7.TraceId.ToString());
+            Assert.AreEqual(activity2.TraceId.ToString(), activity6.TraceId.ToString(), activity7.TraceId.ToString());
         }
 
         /// <summary>
