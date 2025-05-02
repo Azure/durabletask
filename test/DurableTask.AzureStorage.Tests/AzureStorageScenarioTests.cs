@@ -30,7 +30,6 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
-    using DurableTask.Core.Tracing;
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging.Utility;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Moq;
