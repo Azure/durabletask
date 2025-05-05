@@ -15,17 +15,10 @@ namespace DurableTask.AzureServiceFabric.Service
 {
     using System;
     using System.Fabric;
-    using System.Globalization;
-    using System.Linq;
-    using System.Net;
-    using System.Net.Sockets;
     using System.Threading;
     using System.Threading.Tasks;
-
-    using DurableTask.Core;
-    using DurableTask.AzureServiceFabric;
     using DurableTask.AzureServiceFabric.Tracing;
-
+    using DurableTask.Core;
     using Microsoft.ServiceFabric.Services.Communication.Runtime;
     using Microsoft.ServiceFabric.Services.Runtime;
 
@@ -53,41 +46,40 @@ namespace DurableTask.AzureServiceFabric.Service
     /// An instance of this class is created for each service replica by the Service Fabric runtime.
     /// Listening on HTTP port will expose security risk, use this listener at your own discretation.
     /// </summary>
-    public sealed class TaskHubProxyListener : IServiceListener
+    public abstract class TaskHubProxyListenerBase : IServiceListener
     {
         readonly RegisterOrchestrations registerOrchestrations;
         readonly RegisterOrchestrations2 registerOrchestrations2;
-        readonly FabricOrchestrationProviderSettings fabricOrchestrationProviderSettings;
         FabricOrchestrationProviderFactory fabricProviderFactory;
-        FabricOrchestrationProvider fabricOrchestrationProvider;
         TaskHubWorker worker;
         TaskHubClient localClient;
         ReplicaRole currentRole;
         StatefulService statefulService;
-        bool enableHttps = true;
 
         /// <summary>
-        /// Creates instance of <see cref="TaskHubProxyListener"/>
+        /// Indicates whether HTTPS is enabled for the listener.
         /// </summary>
-        /// <param name="context">stateful service context</param>
-        /// <param name="fabricOrchestrationProviderSettings">instance of <see cref="FabricOrchestrationProviderSettings"/></param>
-        /// <param name="registerOrchestrations">Delegate invoked before starting the worker.</param>
-        [Obsolete]
-        public TaskHubProxyListener(StatefulServiceContext context,
-                FabricOrchestrationProviderSettings fabricOrchestrationProviderSettings,
-                RegisterOrchestrations registerOrchestrations)
-        {
-            this.fabricOrchestrationProviderSettings = fabricOrchestrationProviderSettings ?? throw new ArgumentNullException(nameof(fabricOrchestrationProviderSettings));
-            this.registerOrchestrations = registerOrchestrations ?? throw new ArgumentNullException(nameof(registerOrchestrations));
-        }
+        protected readonly bool enableHttps = false;
+        /// <summary>
+        /// Gets or sets the Fabric Orchestration Provider.
+        /// </summary>
+        /// <remarks>
+        /// This provider is responsible for managing orchestration services and clients
+        /// within the Service Fabric environment.
+        /// </remarks>
+        protected FabricOrchestrationProvider fabricOrchestrationProvider;
+        /// <summary>
+        /// Gets the settings for the Fabric Orchestration Provider.
+        /// </summary>
+        protected readonly FabricOrchestrationProviderSettings fabricOrchestrationProviderSettings;
 
         /// <summary>
-        /// Creates instance of <see cref="TaskHubProxyListener"/>
+        /// Creates instance of <see cref="TaskHubProxyListenerBase"/>
         /// </summary>
         /// <param name="fabricOrchestrationProviderSettings">instance of <see cref="FabricOrchestrationProviderSettings"/></param>
         /// <param name="registerOrchestrations">Delegate invoked before starting the worker.</param>
         /// <param name="enableHttps">Whether to enable https or http</param>
-        public TaskHubProxyListener(FabricOrchestrationProviderSettings fabricOrchestrationProviderSettings,
+        public TaskHubProxyListenerBase(FabricOrchestrationProviderSettings fabricOrchestrationProviderSettings,
                 RegisterOrchestrations registerOrchestrations,
                 bool enableHttps = true)
         {
@@ -97,7 +89,7 @@ namespace DurableTask.AzureServiceFabric.Service
         }
 
         /// <summary>
-        /// Creates instance of <see cref="TaskHubProxyListener"/>
+        /// Creates instance of <see cref="TaskHubProxyListenerBase"/>
         /// </summary>
         /// <remarks>
         /// Use this constructor when there is a need to access <see cref="TaskHubClient"/>
@@ -106,7 +98,7 @@ namespace DurableTask.AzureServiceFabric.Service
         /// <param name="fabricOrchestrationProviderSettings">instance of <see cref="FabricOrchestrationProviderSettings"/></param>
         /// <param name="registerOrchestrations2">Delegate invoked before starting the worker.</param>
         /// <param name="enableHttps">Whether to enable https or http</param>
-        public TaskHubProxyListener(FabricOrchestrationProviderSettings fabricOrchestrationProviderSettings,
+        public TaskHubProxyListenerBase(FabricOrchestrationProviderSettings fabricOrchestrationProviderSettings,
                 RegisterOrchestrations2 registerOrchestrations2,
                 bool enableHttps = true)
         {
@@ -115,14 +107,13 @@ namespace DurableTask.AzureServiceFabric.Service
             this.enableHttps = enableHttps;
         }
 
-        /// <summary>
-        /// Handles node's role change.
-        /// </summary>
-        /// <param name="newRole">New <see cref="ReplicaRole" /> for this service replica.</param>
-        /// <param name="cancellationToken">Cancellation token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// A <see cref="Task" /> that represents outstanding operation.
-        /// </returns>
+        /// <inheritdoc />
+        public void Initialize(StatefulService statefulService)
+        {
+            this.statefulService = statefulService;
+        }
+
+        /// <inheritdoc />
         public async Task OnChangeRoleAsync(ReplicaRole newRole, CancellationToken cancellationToken)
         {
             ServiceFabricProviderEventSource.Tracing.LogFabricServiceInformation(this.statefulService, $"TaskHubProxyListener OnChangeRoleAsync, current role = {this.currentRole}, new role = {newRole}");
@@ -134,11 +125,7 @@ namespace DurableTask.AzureServiceFabric.Service
             ServiceFabricProviderEventSource.Tracing.LogFabricServiceInformation(this.statefulService, $"TaskHubProxyListener OnChangeRoleAsync, current role = {this.currentRole}");
         }
 
-        /// <summary>
-        /// Handles OnCloseAsync event, shuts down the service.
-        /// </summary>
-        /// <param name="cancellationToken">Cancellation token to monitor for cancellation requests.</param>
-        /// <returns> A <see cref="Task">Task</see> that represents outstanding operation. </returns>
+        /// <inheritdoc />
         public async Task OnCloseAsync(CancellationToken cancellationToken)
         {
             ServiceFabricProviderEventSource.Tracing.LogFabricServiceInformation(this.statefulService, "OnCloseAsync - will shutdown primary if not already done");
@@ -146,37 +133,13 @@ namespace DurableTask.AzureServiceFabric.Service
         }
 
         /// <inheritdoc />
-        public ServiceReplicaListener CreateServiceReplicaListener()
-        {
-            return new ServiceReplicaListener(context =>
-            {
-                var serviceEndpoint = context.CodePackageActivationContext.GetEndpoint(Constants.TaskHubProxyListenerEndpointName);
-                string ipAddress = context.NodeContext.IPAddressOrFQDN;
-#if DEBUG
-                IPHostEntry entry = Dns.GetHostEntry(ipAddress);
-                IPAddress ipv4Address = entry.AddressList.FirstOrDefault(
-                    address => (address.AddressFamily == AddressFamily.InterNetwork) && (!IPAddress.IsLoopback(address)));
-                ipAddress = ipv4Address.ToString();
-#endif
+        public abstract ServiceReplicaListener CreateServiceReplicaListener();
 
-                EnsureFabricOrchestrationProviderIsInitialized();
-                string protocol = this.enableHttps ? "https" : "http";
-                string listeningAddress = string.Format(CultureInfo.InvariantCulture, "{0}://{1}:{2}/{3}/dtfx/", protocol, ipAddress, serviceEndpoint.Port, context.PartitionId);
-
-                return new OwinCommunicationListener(new Startup(listeningAddress, this.fabricOrchestrationProvider));
-            }, Constants.TaskHubProxyServiceName);
-        }
 
         /// <inheritdoc />
         public async Task OnRunAsync(CancellationToken cancellationToken)
         {
             await StartAsync();
-        }
-
-        /// <inheritdoc />
-        public void Initialize(StatefulService statefulService)
-        {
-            this.statefulService = statefulService;
         }
 
         /// <inheritdoc />
@@ -207,6 +170,7 @@ namespace DurableTask.AzureServiceFabric.Service
                 await this.worker.StartAsync();
 
                 this.worker.TaskActivityDispatcher.IncludeDetails = true;
+                this.worker.TaskOrchestrationDispatcher.IncludeDetails = true;
             }
             catch (Exception exception)
             {
@@ -238,7 +202,14 @@ namespace DurableTask.AzureServiceFabric.Service
             }
         }
 
-        private void EnsureFabricOrchestrationProviderIsInitialized()
+        /// <summary>
+        /// Ensures that the Fabric Orchestration Provider is initialized.
+        /// </summary>
+        /// <remarks>
+        /// This method checks if the Fabric Orchestration Provider is null and initializes it
+        /// using the FabricOrchestrationProviderFactory if necessary.
+        /// </remarks>
+        protected void EnsureFabricOrchestrationProviderIsInitialized()
         {
             if (this.fabricOrchestrationProvider == null)
             {
