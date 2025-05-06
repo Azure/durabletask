@@ -184,7 +184,11 @@ namespace DurableTask.Core
                             throw new TypeMissingException($"TaskActivity {scheduledEvent.Name} version {scheduledEvent.Version} was not found");
                         }
 
-                        var context = new TaskContext(taskMessage.OrchestrationInstance);
+                        var context = new TaskContext(
+                            taskMessage.OrchestrationInstance,
+                            scheduledEvent.Name,
+                            scheduledEvent.Version,
+                            scheduledEvent.EventId);
                         context.ErrorPropagationMode = this.errorPropagationMode;
 
                         HistoryEvent? responseEvent;

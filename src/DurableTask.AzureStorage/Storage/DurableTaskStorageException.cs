@@ -16,6 +16,7 @@ namespace DurableTask.AzureStorage.Storage
     using System;
     using Azure;
     using Azure.Storage.Blobs.Models;
+    using Azure.Storage.Queues.Models;
 
     [Serializable]
     class DurableTaskStorageException : Exception
@@ -40,12 +41,18 @@ namespace DurableTask.AzureStorage.Storage
             if (requestFailedException != null)
             {
                 this.HttpStatusCode = requestFailedException.Status;
-                this.LeaseLost = requestFailedException.ErrorCode != null && requestFailedException.ErrorCode == BlobErrorCode.LeaseLost;
+                this.ErrorCode = requestFailedException.ErrorCode;
+                this.LeaseLost = requestFailedException?.ErrorCode == BlobErrorCode.LeaseLost;
+                this.IsPopReceiptMismatch = requestFailedException?.ErrorCode == QueueErrorCode.PopReceiptMismatch;
             }
         }
 
         public int HttpStatusCode { get; }
 
+        public string? ErrorCode { get; }
+
         public bool LeaseLost { get; }
+
+        public bool IsPopReceiptMismatch { get; }
     }
 }

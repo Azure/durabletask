@@ -234,16 +234,30 @@ namespace DurableTask.AzureStorage
 
         private async Task<string> DownloadAndDecompressAsBytesAsync(Blob blob, CancellationToken cancellationToken = default)
         {
-            using BlobDownloadStreamingResult result = await blob.DownloadStreamingAsync(cancellationToken);
-            using GZipStream decompressedBlobStream = new GZipStream(result.Content, CompressionMode.Decompress);
-            using StreamReader reader = new StreamReader(decompressedBlobStream, Encoding.UTF8);
+            try
+            {
+                using BlobDownloadStreamingResult result = await blob.DownloadStreamingAsync(cancellationToken);
+                using GZipStream decompressedBlobStream = new GZipStream(result.Content, CompressionMode.Decompress);
+                using StreamReader reader = new StreamReader(decompressedBlobStream, Encoding.UTF8);
 
-            return await reader.ReadToEndAsync();
+                return await reader.ReadToEndAsync();
+            }
+            catch (Exception)
+            {
+                this.settings.Logger.GeneralWarning(
+                    this.azureStorageClient.BlobAccountName,
+                    this.settings.TaskHubName,
+                    $"Failed to download or decompress blob {blob.Name}.");
+
+                throw;
+            }
         }
 
         public string GetBlobUrl(string blobName)
         {
-            return Uri.UnescapeDataString(this.blobContainer.GetBlobReference(blobName).Uri.AbsoluteUri);
+            string baseUri = this.blobContainer.GetBlobContainerUri().ToString();
+
+            return $"{baseUri}/{EscapeBlobNamePreservingSlashes(blobName)}";
         }
 
         public MessageFormatFlags GetMessageFormatFlags(MessageData messageData)
@@ -291,6 +305,12 @@ namespace DurableTask.AzureStorage
             }
 
             return storageOperationCount;
+        }
+
+        /// Escapes a blob name for safe inclusion in a URI while preserving path structure.
+        static string EscapeBlobNamePreservingSlashes(string blobName)
+        {
+            return string.Join("/", blobName.Split('/').Select(Uri.EscapeDataString));
         }
     }
 
