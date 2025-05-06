@@ -351,7 +351,7 @@ namespace DurableTask.Core.Tracing
         /// </summary>
         /// <param name="eventRaisedEvent">The associated <see cref="EventRaisedEvent"/>.</param>
         /// <param name="instance">The associated <see cref="OrchestrationInstance"/>.</param>
-        /// <param name="entitiesEnabled">Whether or not entities are enabled, meaning this event could possibly correspond to entity</param>
+        /// <param name="entitiesEnabled">Whether or not entities are enabled, meaning this event could possibly correspond to entity.</param>
         /// <param name="targetInstanceId">The instance id of the orchestration that will receive the event.</param>
         /// <returns>
         /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
@@ -362,6 +362,7 @@ namespace DurableTask.Core.Tracing
             bool entitiesEnabled,
             string? targetInstanceId)
         {
+            // We don't want to emit tracing for external events when they are related to entities
             if (entitiesEnabled && (Entities.IsEntityInstance(targetInstanceId ?? string.Empty) || Entities.IsEntityInstance(instance?.InstanceId ?? string.Empty)))
             {
                 return null;
@@ -395,12 +396,13 @@ namespace DurableTask.Core.Tracing
         /// </summary>
         /// <param name="eventRaised">The associated <see cref="EventRaisedEvent"/>.</param>
         /// <param name="instance">The associated <see cref="OrchestrationInstance"/>.</param>
-        /// <param name="entityEvent">Whether or not this event corresponds to an entity</param>
+        /// <param name="entityEvent">Whether or not this event corresponds to an entity.</param>
         /// <returns>
         /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
         /// </returns>
         internal static Activity? StartActivityForNewEventRaisedFromClient(EventRaisedEvent eventRaised, OrchestrationInstance instance, bool entityEvent)
         {
+            // We don't want to emit tracing for external events when they are related to entities
             if (entityEvent)
             {
                 return null;
