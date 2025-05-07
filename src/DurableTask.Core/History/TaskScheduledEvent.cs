@@ -84,5 +84,11 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public DistributedTraceContext? ParentTraceContext { get; set; }
+        
+        /// <summary>
+        /// Gets or sets a dictionary of tags of string, string
+        /// </summary>
+        [DataMember]
+        public IDictionary<string, string> Tags { get; set; } = new Dictionary<string, string>();
     }
 }
