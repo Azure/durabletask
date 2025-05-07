@@ -13,6 +13,7 @@
 #nullable enable
 namespace DurableTask.Core.History
 {
+    using System.Collections.Generic;
     using System.Runtime.Serialization;
     using DurableTask.Core.Tracing;
 
