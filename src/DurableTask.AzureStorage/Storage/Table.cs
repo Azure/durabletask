@@ -62,7 +62,7 @@ namespace DurableTask.AzureStorage.Storage
         {
             // TODO: Re-evaluate the use of an "Exists" method as it was intentional omitted from the client API
             List<TableItem> tables = await this.tableServiceClient
-                .QueryAsync(filter: $"TableName eq '{tableClient.Name}'", cancellationToken: cancellationToken)
+                .QueryAsync(filter: $"TableName eq '{this.tableClient.Name}'", cancellationToken: cancellationToken)
                 .DecorateFailure()
                 .ToListAsync(cancellationToken);
 
@@ -173,9 +173,15 @@ namespace DurableTask.AzureStorage.Storage
             return new TableTransactionResults(batchResults, stopwatch.Elapsed);
         }
 
-        public TableQueryResponse<T> ExecuteQueryAsync<T>(string? filter = null, int? maxPerPage = null, IEnumerable<string>? select = null, CancellationToken cancellationToken = default) where T : class, ITableEntity, new()
+        public TableQueryResponse<T> ExecuteQueryAsync<T>(
+            string? filter = null,
+            int? maxPerPage = null,
+            IEnumerable<string>? select = null,
+            CancellationToken cancellationToken = default) where T : class, ITableEntity, new()
         {
-            return new TableQueryResponse<T>(this.tableClient.QueryAsync<T>(filter, maxPerPage, select, cancellationToken).DecorateFailure());
+            return new TableQueryResponse<T>(
+                this.tableClient.QueryAsync<T>(filter, maxPerPage, select, cancellationToken).DecorateFailure(),
+                this.stats);
         }
     }
 }
