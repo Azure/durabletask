@@ -368,6 +368,7 @@ namespace DurableTask.Core
                     Name = taskScheduledEvent.Name,
                     Version = taskScheduledEvent.Version,
                     Input = "[..snipped..]",
+                    Tags = taskScheduledEvent.Tags,
                 };
             }
             else if (evt is TaskCompletedEvent taskCompletedEvent)

@@ -1050,12 +1050,13 @@ namespace DurableTask.Core
             }
 
             var taskMessage = new TaskMessage();
-
             var scheduledEvent = new TaskScheduledEvent(
                 eventId: scheduleTaskOrchestratorAction.Id,
                 name: scheduleTaskOrchestratorAction.Name,
                 version: scheduleTaskOrchestratorAction.Version,
-                input: scheduleTaskOrchestratorAction.Input);
+                input: scheduleTaskOrchestratorAction.Input) {
+                    Tags = scheduleTaskOrchestratorAction.Tags
+                };
 
             ActivitySpanId clientSpanId = ActivitySpanId.CreateRandom();
 
@@ -1074,7 +1075,9 @@ namespace DurableTask.Core
                 scheduledEvent = new TaskScheduledEvent(
                     eventId: scheduleTaskOrchestratorAction.Id,
                     name: scheduleTaskOrchestratorAction.Name,
-                    version: scheduleTaskOrchestratorAction.Version);
+                    version: scheduleTaskOrchestratorAction.Version) {
+                        Tags = scheduleTaskOrchestratorAction.Tags
+                    };
 
                 if (parentTraceActivity != null)
                 {

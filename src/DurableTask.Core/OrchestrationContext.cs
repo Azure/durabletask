@@ -206,6 +206,22 @@ namespace DurableTask.Core
             var retryInterceptor = new RetryInterceptor<T>(this, retryOptions, RetryCall);
             return retryInterceptor.Invoke();
         }
+    
+        /// <summary>
+        ///     Schedule a TaskActivity by type. Also retry on failure as per supplied policy.
+        /// </summary>
+        /// <typeparam name="T">Return Type of the TaskActivity.Execute method</typeparam>
+        /// <param name="name">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="version">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="retryOptions">Retry policy</param>
+        /// <param name="tags">Dictionary of key/value tags associated with this instance</param>
+        /// <param name="parameters">Parameters for the TaskActivity.Execute method</param>
+        /// <returns>Task that represents the execution of the specified TaskActivity</returns>
+        public virtual Task<T> ScheduleWithRetry<T>(string name, string version, RetryOptions retryOptions,
+            IDictionary<string, string> tags, params object[] parameters)
+        {
+            throw new NotImplementedException();
+        }
 
         /// <summary>
         ///     Create a sub-orchestration of the specified type. Also retry on failure as per supplied policy.
@@ -284,6 +300,19 @@ namespace DurableTask.Core
         {
             return ScheduleTask<TResult>(NameVersionHelper.GetDefaultName(activityType),
                 NameVersionHelper.GetDefaultVersion(activityType), parameters);
+        }
+
+        /// <summary>
+        ///     Schedule a TaskActivity by type, version, and tags.
+        /// </summary>
+        /// <typeparam name="TResult">Return Type of the TaskActivity.Execute method</typeparam>
+        /// <param name="name">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="version">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="parameters">Parameters for the TaskActivity.Execute method</param>
+        /// <param name="tags">Dictionary of key/value tags associated with this instance</param>
+        public virtual Task<TResult> ScheduleTask<TResult>(string name, string version, IDictionary<string, string> tags, params object[] parameters)
+        {
+            throw new NotImplementedException();
         }
 
         /// <summary>

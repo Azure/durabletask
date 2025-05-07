@@ -78,18 +78,32 @@ namespace DurableTask.Core
             continueAsNew = null;
         }
 
-        public override async Task<TResult> ScheduleTask<TResult>(string name, string version,
-            params object[] parameters)
+        public override async Task<TResult> ScheduleTask<TResult>(string name, string version, 
+            IDictionary<string, string> tags, params object[] parameters)
         {
-            TResult result = await ScheduleTaskToWorker<TResult>(name, version, null, parameters);
+            TResult result = await ScheduleTaskToWorker<TResult>(name, version, null, tags, parameters);
 
             return result;
         }
 
-        public async Task<TResult> ScheduleTaskToWorker<TResult>(string name, string version, string taskList,
+        public override async Task<TResult> ScheduleTask<TResult>(string name, string version,
             params object[] parameters)
         {
-            object result = await ScheduleTaskInternal(name, version, taskList, typeof(TResult), parameters);
+            return await ScheduleTask<TResult>(name, version, null, parameters);
+        }
+
+        public override async Task<T> ScheduleWithRetry<T>(string name, string version, 
+            RetryOptions retryOptions, IDictionary<string, string> tags, params object[] parameters)
+        {
+            Task<T> RetryCall() => ScheduleTask<T>(name, version, tags:tags, parameters:parameters);
+            var retryInterceptor = new RetryInterceptor<T>(this, retryOptions, RetryCall);
+            return await retryInterceptor.Invoke();
+        }
+
+        public async Task<TResult> ScheduleTaskToWorker<TResult>(string name, string version, string taskList, 
+            IDictionary<string, string> tags, params object[] parameters)
+        {
+            object result = await ScheduleTaskInternal(name, version, taskList, typeof(TResult), tags:tags, parameters:parameters);
 
             if (result == null)
             {
@@ -99,8 +113,7 @@ namespace DurableTask.Core
             return (TResult)result;
         }
 
-        public async Task<object> ScheduleTaskInternal(string name, string version, string taskList, Type resultType,
-            params object[] parameters)
+        public async Task<object> ScheduleTaskInternal(string name, string version, string taskList, Type resultType, IDictionary<string, string> tags, params object[] parameters)
         {
             int id = this.idCounter++;
             string serializedInput = this.MessageDataConverter.SerializeInternal(parameters);
@@ -111,8 +124,8 @@ namespace DurableTask.Core
                 Version = version,
                 Tasklist = taskList,
                 Input = serializedInput,
+                Tags = tags,
             };
-
             this.orchestratorActionsMap.Add(id, scheduleTaskTaskAction);
 
             var tcs = new TaskCompletionSource<string>();
