@@ -13,12 +13,6 @@
 #nullable enable
 namespace DurableTask.Core
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Diagnostics;
-    using System.Linq;
-    using System.Threading;
-    using System.Threading.Tasks;
     using DurableTask.Core.Command;
     using DurableTask.Core.Common;
     using DurableTask.Core.Entities;
@@ -27,7 +21,14 @@ namespace DurableTask.Core
     using DurableTask.Core.Logging;
     using DurableTask.Core.Middleware;
     using DurableTask.Core.Serializing;
+    using DurableTask.Core.Settings;
     using DurableTask.Core.Tracing;
+    using System;
+    using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.Linq;
+    using System.Threading;
+    using System.Threading.Tasks;
     using ActivityStatusCode = Tracing.ActivityStatusCode;
 
     /// <summary>
@@ -47,13 +48,15 @@ namespace DurableTask.Core
         readonly IEntityOrchestrationService? entityOrchestrationService;
         readonly EntityBackendProperties? entityBackendProperties;
         readonly TaskOrchestrationEntityParameters? entityParameters;
+        readonly VersioningSettings? versioningSettings;
 
         internal TaskOrchestrationDispatcher(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskOrchestration> objectManager,
             DispatchMiddlewarePipeline dispatchPipeline,
             LogHelper logHelper,
-            ErrorPropagationMode errorPropagationMode)
+            ErrorPropagationMode errorPropagationMode,
+            VersioningSettings versioningSettings)
         {
             this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
@@ -63,6 +66,7 @@ namespace DurableTask.Core
             this.entityOrchestrationService = orchestrationService as IEntityOrchestrationService;
             this.entityBackendProperties = this.entityOrchestrationService?.EntityBackendProperties;
             this.entityParameters = TaskOrchestrationEntityParameters.FromEntityBackendProperties(this.entityBackendProperties);
+            this.versioningSettings = versioningSettings;
 
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskOrchestrationDispatcher",
@@ -160,7 +164,7 @@ namespace DurableTask.Core
             {
                 // Keep track of orchestrator generation changes, maybe update target position
                 string executionId = message.OrchestrationInstance.ExecutionId;
-                if(previousExecutionId != executionId)
+                if (previousExecutionId != executionId)
                 {
                     // We want to re-position the ExecutionStarted event after the "right-most"
                     // event with a non-null executionID that came before it.
@@ -222,7 +226,7 @@ namespace DurableTask.Core
 
                 CorrelationTraceClient.Propagate(
                     () =>
-                    {                
+                    {
                         // Check if it is extended session.
                         // TODO: Remove this code - it looks incorrect and dangerous
                         isExtendedSession = this.concurrentSessionLock.Acquire();
@@ -310,7 +314,7 @@ namespace DurableTask.Core
             var isCompleted = false;
             var continuedAsNew = false;
             var isInterrupted = false;
-            
+
             // correlation
             CorrelationTraceClient.Propagate(() => CorrelationTraceContext.Current = workItem.TraceContext);
 
@@ -368,6 +372,44 @@ namespace DurableTask.Core
                         continuedAsNew = false;
                         continuedAsNewMessage = null;
 
+                        IReadOnlyList<OrchestratorAction> decisions = new List<OrchestratorAction>();
+                        bool versioningFailed = false;
+
+                        if (this.versioningSettings != null)
+                        {
+                            switch (this.versioningSettings.MatchStrategy)
+                            {
+                                case VersioningSettings.VersionMatchStrategy.None:
+                                    // No versioning, do nothing
+                                    break;
+                                case VersioningSettings.VersionMatchStrategy.Strict:
+                                    versioningFailed = this.versioningSettings.Version != runtimeState.Version;
+                                    break;
+                                case VersioningSettings.VersionMatchStrategy.CurrentOrOlder:
+                                    // Positive result indicates the orchestration version is higher than the versioning settings.
+                                    versioningFailed = VersioningSettings.CompareVersions(runtimeState.Version, this.versioningSettings.Version) > 0;
+                                    break;
+                            }
+
+                            if (versioningFailed)
+                            {
+                                if (this.versioningSettings.FailureStrategy == VersioningSettings.VersionFailureStrategy.Fail)
+                                {
+                                    var failureAction = new OrchestrationCompleteOrchestratorAction
+                                    {
+                                        Id = runtimeState.PastEvents.Count,
+                                        FailureDetails = new FailureDetails("VersionMismatch", "Orchestration version did not comply with Worker Versioning", null, null, true),
+                                        OrchestrationStatus = OrchestrationStatus.Failed,
+                                    };
+                                    decisions = new List<OrchestratorAction> { failureAction };
+                                }
+                                else // Abandon work item in all other cases (will be retried later).
+                                {
+                                    await this.orchestrationService.AbandonTaskOrchestrationWorkItemAsync(workItem);
+                                    break;
+                                }
+                            }
+                        }
 
                         this.logHelper.OrchestrationExecuting(runtimeState.OrchestrationInstance!, runtimeState.Name);
                         TraceHelper.TraceInstance(
@@ -377,16 +419,18 @@ namespace DurableTask.Core
                             "Executing user orchestration: {0}",
                             JsonDataConverter.Default.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true));
 
-                        if (workItem.Cursor == null)
+                        if (!versioningFailed)
                         {
-                            workItem.Cursor = await this.ExecuteOrchestrationAsync(runtimeState, workItem);
+                            if (workItem.Cursor == null)
+                            {
+                                workItem.Cursor = await this.ExecuteOrchestrationAsync(runtimeState, workItem);
+                            }
+                            else
+                            {
+                                await this.ResumeOrchestrationAsync(workItem);
+                            }
+                            decisions = workItem.Cursor.LatestDecisions.ToList();
                         }
-                        else
-                        {
-                            await this.ResumeOrchestrationAsync(workItem);
-                        }
-
-                        IReadOnlyList<OrchestratorAction> decisions = workItem.Cursor.LatestDecisions.ToList();
 
                         this.logHelper.OrchestrationExecuted(
                             runtimeState.OrchestrationInstance!,
@@ -623,7 +667,7 @@ namespace DurableTask.Core
                 continuedAsNew ? null : timerMessages,
                 continuedAsNewMessage,
                 instanceState);
-            
+
             if (workItem.RestoreOriginalRuntimeStateDuringCompletion)
             {
                 workItem.OrchestrationRuntimeState = runtimeState;
@@ -1159,11 +1203,11 @@ namespace DurableTask.Core
         {
             var historyEvent = new EventSentEvent(sendEventAction.Id)
             {
-                 InstanceId = sendEventAction.Instance?.InstanceId,
-                 Name = sendEventAction.EventName,
-                 Input = sendEventAction.EventData
+                InstanceId = sendEventAction.Instance?.InstanceId,
+                Name = sendEventAction.EventName,
+                Input = sendEventAction.EventData
             };
-            
+
             runtimeState.AddEvent(historyEvent);
 
             EventRaisedEvent eventRaisedEvent = new EventRaisedEvent(-1, sendEventAction.EventData)
@@ -1189,7 +1233,7 @@ namespace DurableTask.Core
                 Event = eventRaisedEvent
             };
         }
- 
+
         internal class NonBlockingCountdownLock
         {
             int available;

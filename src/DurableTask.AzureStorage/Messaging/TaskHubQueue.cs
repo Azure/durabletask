@@ -332,8 +332,14 @@ namespace DurableTask.AzureStorage.Messaging
             }
             catch (Exception e)
             {
+                string details = $"Caller: {nameof(RenewMessageAsync)}";
+                if (e is DurableTaskStorageException storageException && storageException.ErrorCode != null)
+                {
+                    details += $", ErrorCode: {storageException.ErrorCode}";
+                }
+
                 // Message may have been processed and deleted already.
-                this.HandleMessagingExceptions(e, message, $"Caller: {nameof(RenewMessageAsync)}");
+                this.HandleMessagingExceptions(e, message, details);
             }
         }
 
@@ -342,44 +348,62 @@ namespace DurableTask.AzureStorage.Messaging
             QueueMessage queueMessage = message.OriginalQueueMessage;
             TaskMessage taskMessage = message.TaskMessage;
 
-            this.settings.Logger.DeletingMessage(
-                this.storageAccountName,
-                this.settings.TaskHubName,
-                taskMessage.Event.EventType.ToString(),
-                Utils.GetTaskEventId(taskMessage.Event),
-                queueMessage.MessageId,
-                taskMessage.OrchestrationInstance.InstanceId,
-                taskMessage.OrchestrationInstance.ExecutionId,
-                this.storageQueue.Name,
-                message.SequenceNumber,
-                queueMessage.PopReceipt);
-
             bool haveRetried = false;
             while (true)
             {
+                this.settings.Logger.DeletingMessage(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    taskMessage.Event.EventType.ToString(),
+                    Utils.GetTaskEventId(taskMessage.Event),
+                    queueMessage.MessageId,
+                    taskMessage.OrchestrationInstance.InstanceId,
+                    taskMessage.OrchestrationInstance.ExecutionId,
+                    this.storageQueue.Name,
+                    message.SequenceNumber,
+                    queueMessage.PopReceipt);
+
                 try
                 {
                     await this.storageQueue.DeleteMessageAsync(queueMessage, session?.TraceActivityId);
                 }
                 catch (Exception e)
                 {
-                    if (!haveRetried && this.IsMessageGoneException(e))
+                    // Delete operations can transiently fail if a delete operation races with a
+                    // message update operation. In this case, we retry the delete operation.
+                    if (!haveRetried && (IsMessageGoneException(e) || IsPopReceiptMismatch(e)))
                     {
                         haveRetried = true;
                         continue;
                     }
 
-                    this.HandleMessagingExceptions(e, message, $"Caller: {nameof(DeleteMessageAsync)}");
+                    string details = $"Caller: {nameof(DeleteMessageAsync)}";
+                    if (e is DurableTaskStorageException storageException && storageException.ErrorCode != null)
+                    {
+                        details += $", ErrorCode: {storageException.ErrorCode}";
+                    }
+
+                    this.HandleMessagingExceptions(e, message, details);
                 }
 
                 break;
             }
         }
 
-        private bool IsMessageGoneException(Exception e)
+        static bool IsMessageGoneException(Exception e)
         {
             DurableTaskStorageException? storageException = e as DurableTaskStorageException;
             return storageException?.HttpStatusCode == 404;
+        }
+
+        static bool IsPopReceiptMismatch(Exception e)
+        {
+            if (e is DurableTaskStorageException storageException)
+            {
+                return storageException.IsPopReceiptMismatch;
+            }
+
+            return false;
         }
 
         void HandleMessagingExceptions(Exception e, MessageData message, string details)
@@ -403,7 +427,7 @@ namespace DurableTask.AzureStorage.Messaging
             string details,
             string popReceipt)
         {
-            if (this.IsMessageGoneException(e))
+            if (IsMessageGoneException(e))
             {
                 // Message may have been processed and deleted already.
                 this.settings.Logger.MessageGone(

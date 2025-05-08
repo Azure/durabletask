@@ -20,18 +20,28 @@ namespace DurableTask.AzureStorage.Storage
     using System.Threading;
     using System.Threading.Tasks;
     using Azure;
+    using DurableTask.AzureStorage.Monitoring;
 
     class TableQueryResponse<T> : AsyncPageable<T> where T : notnull
     {
         readonly AsyncPageable<T> query;
+        readonly AzureStorageOrchestrationServiceStats stats;
 
-        public TableQueryResponse(AsyncPageable<T> query) =>
+        public TableQueryResponse(AsyncPageable<T> query, AzureStorageOrchestrationServiceStats stats)
+        {
             this.query = query ?? throw new ArgumentNullException(nameof(query));
+            this.stats = stats ?? throw new ArgumentNullException(nameof(stats));
+        }
 
-        public override IAsyncEnumerable<Page<T>> AsPages(string? continuationToken = null, int? pageSizeHint = null) =>
-            this.query.AsPages(continuationToken, pageSizeHint);
+        public override IAsyncEnumerable<Page<T>> AsPages(string? continuationToken = null, int? pageSizeHint = null)
+        {
+            return this.query.AsPages(continuationToken, pageSizeHint);
+        }
 
-        public async Task<TableQueryResults<T>> GetResultsAsync(string? continuationToken = null, int? pageSizeHint = null, CancellationToken cancellationToken = default)
+        public async Task<TableQueryResults<T>> GetResultsAsync(
+            string? continuationToken = null,
+            int? pageSizeHint = null,
+            CancellationToken cancellationToken = default)
         {
             var sw = Stopwatch.StartNew();
 
@@ -39,6 +49,8 @@ namespace DurableTask.AzureStorage.Storage
             var entities = new List<T>();
             await foreach (Page<T> page in this.query.AsPages(continuationToken, pageSizeHint).WithCancellation(cancellationToken))
             {
+                this.stats.TableEntitiesRead.Increment(page.Values.Count);
+
                 pages++;
                 entities.AddRange(page.Values);
             }

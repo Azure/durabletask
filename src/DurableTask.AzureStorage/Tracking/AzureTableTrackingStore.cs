@@ -155,14 +155,21 @@ namespace DurableTask.AzureStorage.Tracking
                 .GetHistoryEntitiesResponseInfoAsync(instanceId, expectedExecutionId, null, cancellationToken)
                 .GetResultsAsync(cancellationToken: cancellationToken);
 
+            // The sentinel row should always be the last row
+            TableEntity sentinel = results.Entities.LastOrDefault(e => e.RowKey == SentinelRowKey);
+
             IList<HistoryEvent> historyEvents;
             string executionId;
-            TableEntity sentinel = null;
             TrackingStoreContext trackingStoreContext = new TrackingStoreContext();
-            if (results.Entities.Count > 0)
+
+            // If expectedExecutionId is provided but it does not match the sentinel executionId,
+            // it may belong to a previous generation. In that case, treat it as an unknown executionId
+            // and skip loading history.
+            if (results.Entities.Count > 0 && (expectedExecutionId == null ||
+                                               expectedExecutionId == sentinel?.GetString("ExecutionId")))
             {
                 // The most recent generation will always be in the first history event.
-                executionId = results.Entities[0].GetString("ExecutionId");
+                executionId = sentinel?.GetString("ExecutionId") ?? results.Entities[0].GetString("ExecutionId");
 
                 // Convert the table entities into history events.
                 var events = new List<HistoryEvent>(results.Entities.Count);
@@ -175,11 +182,9 @@ namespace DurableTask.AzureStorage.Tracking
                         break;
                     }
 
-                    // The sentinel row does not contain any history events, so save it for later
-                    // and continue
-                    if (entity.RowKey == SentinelRowKey)
+                    // The sentinel row does not contain any history events, so ignore and continue
+                    if (entity == sentinel)
                     {
-                        sentinel = entity;
                         continue;
                     }
 
@@ -197,11 +202,10 @@ namespace DurableTask.AzureStorage.Tracking
                 executionId = expectedExecutionId;
             }
 
-            // Read the checkpoint completion time from the sentinel row, which should always be the last row.
+            // Read the checkpoint completion time from the sentinel row.
             // A sentinel won't exist only if no instance of this ID has ever existed or the instance history
-            // was purged.The IsCheckpointCompleteProperty was newly added _after_ v1.6.4.
+            // was purged. The IsCheckpointCompleteProperty was newly added _after_ v1.6.4.
             DateTime checkpointCompletionTime = DateTime.MinValue;
-            sentinel = sentinel ?? results.Entities.LastOrDefault(e => e.RowKey == SentinelRowKey);
             ETag? eTagValue = sentinel?.ETag;
             if (sentinel != null &&
                 sentinel.TryGetValue(CheckpointCompletedTimestampProperty, out object timestampObj) &&
