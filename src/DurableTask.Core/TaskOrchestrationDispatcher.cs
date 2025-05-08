@@ -1168,7 +1168,7 @@ namespace DurableTask.Core
                 Version = createSubOrchestrationAction.Version
             };
 
-            // If this is an orchestration triggered by an entity, we will attempt to use the trace context provided in the CreateSubOrchestrationAction.Tags as the parent trace context rather than the current Activity.
+            // If a parent trace context was provided via the CreateSubOrchestrationAction.Tags, we will use this as the parent trace context of the suborchestration execution Activity rather than Activity.Current.Context.
             if (createSubOrchestrationAction.Tags != null
                 && createSubOrchestrationAction.Tags.TryGetValue(OrchestrationTags.TraceParent, out string traceParent))
             {

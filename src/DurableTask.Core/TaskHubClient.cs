@@ -747,7 +747,7 @@ namespace DurableTask.Core
         /// <param name="eventData">Data for the event</param>
         public async Task RaiseEventAsync(OrchestrationInstance orchestrationInstance, string eventName, object eventData)
         {
-            await this.RaiseEventAsync(orchestrationInstance, eventName, eventData, entityEvent: false);
+            await this.RaiseEventAsync(orchestrationInstance, eventName, eventData, emitTraceActivity: true);
         }
 
         /// <summary>
@@ -757,8 +757,8 @@ namespace DurableTask.Core
         /// <param name="orchestrationInstance">Instance in which to raise the event</param>
         /// <param name="eventName">Name of the event</param>
         /// <param name="eventData">Data for the event</param>
-        /// <param name="entityEvent">Whether or not this event corresponds to an entity (false by default)</param>
-        public async Task RaiseEventAsync(OrchestrationInstance orchestrationInstance, string eventName, object eventData, bool entityEvent = false)
+        /// <param name="emitTraceActivity">Whether or not to emit a trace activity for this event.</param>
+        public async Task RaiseEventAsync(OrchestrationInstance orchestrationInstance, string eventName, object eventData, bool emitTraceActivity = true)
         {
 
             if (string.IsNullOrWhiteSpace(orchestrationInstance.InstanceId))
@@ -770,7 +770,11 @@ namespace DurableTask.Core
             
             // Distributed Tracing
             EventRaisedEvent eventRaisedEvent = new EventRaisedEvent(-1, serializedInput) { Name = eventName };
-            using Activity? traceActivity = TraceHelper.StartActivityForNewEventRaisedFromClient(eventRaisedEvent, orchestrationInstance, entityEvent);
+            Activity? traceActivity = null;
+            if (emitTraceActivity)
+            {
+                traceActivity = TraceHelper.StartActivityForNewEventRaisedFromClient(eventRaisedEvent, orchestrationInstance);
+            }
 
             var taskMessage = new TaskMessage
             {
@@ -788,6 +792,10 @@ namespace DurableTask.Core
             {
                 TraceHelper.AddErrorDetailsToSpan(traceActivity, e);
                 throw;
+            }
+            finally
+            {
+                traceActivity?.Dispose();
             }
         }
 
