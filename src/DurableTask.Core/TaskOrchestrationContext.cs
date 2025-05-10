@@ -86,10 +86,29 @@ namespace DurableTask.Core
             return result;
         }
 
+        public override async Task<TResult> ScheduleTask<TResult>(string name, string version, IDictionary<string, string> tags, params object[] parameters)
+        {
+            TResult result = await ScheduleTaskToWorker<TResult>(name, version, null, tags, parameters);
+
+            return result;
+        }
+
+        public override async Task<T> ScheduleWithRetry<T>(string name, string version, RetryOptions retryOptions, IDictionary<string, string> tags, params object[] parameters)
+        {
+            Task<T> RetryCall() => ScheduleTask<T>(name, version, tags, parameters);
+            var retryInterceptor = new RetryInterceptor<T>(this, retryOptions, RetryCall);
+            return await retryInterceptor.Invoke();
+        }
+
         public async Task<TResult> ScheduleTaskToWorker<TResult>(string name, string version, string taskList,
             params object[] parameters)
         {
-            object result = await ScheduleTaskInternal(name, version, taskList, typeof(TResult), parameters);
+            return await ScheduleTaskToWorker<TResult>(name, version, taskList, null, parameters);
+        }
+
+        public async Task<TResult> ScheduleTaskToWorker<TResult>(string name, string version, string taskList, IDictionary<string, string> tags = null, params object[] parameters)
+        {
+            object result = await ScheduleTaskInternal(name, version, taskList, typeof(TResult), null,parameters);
 
             if (result == null)
             {
@@ -102,6 +121,11 @@ namespace DurableTask.Core
         public async Task<object> ScheduleTaskInternal(string name, string version, string taskList, Type resultType,
             params object[] parameters)
         {
+            return await ScheduleTaskInternal(name, version, taskList, resultType, null, parameters);
+        }
+
+        public async Task<object> ScheduleTaskInternal(string name, string version, string taskList, Type resultType, IDictionary<string, string> tags = null, params object[] parameters)
+        {
             int id = this.idCounter++;
             string serializedInput = this.MessageDataConverter.SerializeInternal(parameters);
             var scheduleTaskTaskAction = new ScheduleTaskOrchestratorAction
@@ -111,6 +135,7 @@ namespace DurableTask.Core
                 Version = version,
                 Tasklist = taskList,
                 Input = serializedInput,
+                Tags = tags,
             };
 
             this.orchestratorActionsMap.Add(id, scheduleTaskTaskAction);

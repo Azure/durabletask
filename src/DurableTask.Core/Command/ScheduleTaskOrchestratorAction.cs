@@ -11,6 +11,8 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
+using System.Collections.Generic;
+
 namespace DurableTask.Core.Command
 {
     /// <summary>
@@ -41,5 +43,10 @@ namespace DurableTask.Core.Command
 
         // TODO: This property is not used and should be removed or made obsolete
         internal string? Tasklist { get; set; }
+
+        /// <summary>
+        /// Gets or sets a dictionary of tags of string, string
+        /// </summary>
+        public IDictionary<string, string>? Tags { get; set; }
     }
 }
