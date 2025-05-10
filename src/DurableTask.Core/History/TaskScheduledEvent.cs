@@ -90,6 +90,6 @@ namespace DurableTask.Core.History
         /// Gets or sets a dictionary of tags of string, string
         /// </summary>
         [DataMember]
-        public IDictionary<string, string> Tags { get; set; } = new Dictionary<string, string>();
+        public IDictionary<string, string>? Tags { get; set; }
     }
 }
