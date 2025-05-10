@@ -20,6 +20,11 @@ namespace DurableTask.Core.Tracing
     using System.Runtime.ExceptionServices;
     using DurableTask.Core.Common;
     using DurableTask.Core.History;
+    using Newtonsoft.Json;
+    using DurableTask.Core.Entities.EventFormat;
+    using DurableTask.Core.Entities;
+    using DurableTask.Core.Entities.OperationFormat;
+    using System.Linq;
 
     /// <summary>
     ///     Helper class for logging/tracing
@@ -39,9 +44,23 @@ namespace DurableTask.Core.Tracing
         /// </returns>
         internal static Activity? StartActivityForNewOrchestration(ExecutionStartedEvent startEvent)
         {
+            if (!startEvent.TryGetParentTraceContext(out ActivityContext parentTraceContext) && startEvent.ParentTraceContext != null)
+            {
+                return null;
+            }
+
+            DateTimeOffset? startTime = null;
+            if (startEvent.Tags != null && startEvent.Tags.ContainsKey(OrchestrationTags.RequestTime) &&
+                DateTimeOffset.TryParse(startEvent.Tags[OrchestrationTags.RequestTime], CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset requestTime))
+            {
+                startTime = requestTime;
+            }
+
             Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: CreateSpanName(TraceActivityConstants.CreateOrchestration, startEvent.Name, startEvent.Version),
-                kind: ActivityKind.Producer);
+                CreateSpanName(TraceActivityConstants.CreateOrchestration, startEvent.Name, startEvent.Version),
+                kind: ActivityKind.Producer,
+                parentContext: parentTraceContext,
+                startTime: startTime ?? default);
 
             if (newActivity != null)
             {
@@ -73,6 +92,14 @@ namespace DurableTask.Core.Tracing
             if (startEvent == null)
             {
                 return null;
+            }
+
+            if (startEvent.Tags != null && startEvent.Tags.ContainsKey(OrchestrationTags.CreateTraceForNewOrchestration))
+            {
+                startEvent.Tags.Remove(OrchestrationTags.CreateTraceForNewOrchestration);
+                // Note that if we create the trace activity for starting a new orchestration here, then its duration will be longer since its end time will be set to once we 
+                // start processing the orchestration rather than when the request for a new orchestration is committed to storage. 
+                using var activityForNewOrchestration = StartActivityForNewOrchestration(startEvent);
             }
 
             if (!startEvent.TryGetParentTraceContext(out ActivityContext activityContext))
@@ -446,6 +473,124 @@ namespace DurableTask.Core.Tracing
             }
         }
 
+        internal static Activity? StartActivityForCallingOrSignalingEntity(string targetEntityId, string entityName, string operationName, bool signalEntity, DateTime? scheduledTime, ActivityContext parentTraceContext, DateTimeOffset? startTime, string? entityId = null)
+        {
+            Activity? newActivity = ActivityTraceSource.StartActivity(
+                CreateEntitySpanName(entityName, operationName),
+                kind: signalEntity ? ActivityKind.Producer : ActivityKind.Client,
+                parentContext: parentTraceContext,
+                startTime: startTime ?? default);
+
+            if (newActivity == null)
+            {
+                return null;
+            }
+
+            newActivity.SetTag(Schema.Task.Type, TraceActivityConstants.Entity);
+            newActivity.SetTag(Schema.Task.Operation, signalEntity ? TraceActivityConstants.SignalEntity : TraceActivityConstants.CallEntity);
+            newActivity.SetTag(Schema.Task.EventTargetInstanceId, targetEntityId);
+
+            if (!string.IsNullOrEmpty(entityId))
+            {
+                newActivity.SetTag(Schema.Task.InstanceId, entityId);
+            }
+
+            if (scheduledTime != null)
+            {
+                newActivity.SetTag(Schema.Task.ScheduledTime, scheduledTime.Value.ToString());
+            }
+
+            return newActivity;
+        }
+
+        internal static Activity? StartActivityForEntityStartingAnOrchestration(string entityId, string entityName, string targetInstanceId, ActivityContext parentTraceContext, DateTimeOffset? startTime, DateTime? scheduledTime = null)
+        {
+            Activity? newActivity = ActivityTraceSource.StartActivity(
+                CreateSpanName(entityName, TraceActivityConstants.CreateOrchestration, null),
+                kind: ActivityKind.Producer,
+                parentContext: parentTraceContext,
+                startTime: startTime ?? default);
+
+            if (newActivity == null)
+            {
+                return null;
+            }
+
+            newActivity.SetTag(Schema.Task.Type, TraceActivityConstants.Entity);
+            newActivity.SetTag(Schema.Task.EventTargetInstanceId, targetInstanceId);
+            newActivity.SetTag(Schema.Task.InstanceId, entityId);
+
+            if (scheduledTime != null)
+            {
+                newActivity.SetTag(Schema.Task.ScheduledTime, scheduledTime.Value.ToString());
+            }
+
+            return newActivity;
+        }
+
+        internal static Activity? StartActivityForProcessingEntityInvocation(string entityId, string entityName, string operationName, bool signalEntity, ActivityContext? parentTraceContext)
+        {
+            Activity? newActivity = ActivityTraceSource.StartActivity(
+                CreateEntitySpanName(entityName, operationName),
+                kind: signalEntity ? ActivityKind.Consumer : ActivityKind.Server,
+                parentContext: parentTraceContext ?? default);
+
+            if (newActivity == null)
+            {
+                return null;
+            }
+
+            newActivity.SetTag(Schema.Task.Type, TraceActivityConstants.Entity);
+            newActivity.SetTag(Schema.Task.Operation, signalEntity ? TraceActivityConstants.SignalEntity : TraceActivityConstants.CallEntity);
+            newActivity.SetTag(Schema.Task.InstanceId, entityId);
+
+            return newActivity;
+        }
+
+        internal static void EndActivitiesForProcessingEntityInvocation(List<Activity> traceActivities, List<OperationResult> results, FailureDetails? batchFailureDetails)
+        {
+            if (results.Count == traceActivities.Count)
+            {
+                foreach (var (activity, result) in traceActivities.Zip(results, (activity, result) => (activity, result)))
+                {
+                    if (activity != null)
+                    {
+                        if (result.ErrorMessage != null || result.FailureDetails != null)
+                        {
+                            activity.SetTag(Schema.Task.ErrorMessage, result.ErrorMessage ?? result.FailureDetails!.ErrorMessage);
+                        }
+                        if (result.StartTime is DateTime startTime)
+                        {
+                            activity.SetStartTime(startTime);
+                        }
+                        if (result.EndTime is DateTime endTime)
+                        {
+                            activity.SetEndTime(endTime);
+                        }
+                        activity.Dispose();
+                    }
+                }
+            }
+            // This can happen if some of the operations failed and have no corresponding OperationResult
+            // There is no way to map the successful operation results to the corresponding operation requests or trace activities, so we will just "fail" the trace activities in this case and dispose them
+            else
+            {
+                string errorMessage = "Unable to generate a trace activity for the entity invocation even though it may have succeeded.";
+                if (batchFailureDetails is FailureDetails failureDetails)
+                {
+                    errorMessage += $" If it failed, it may be due to {failureDetails.ErrorMessage}";
+                }
+                foreach (var activity in traceActivities)
+                {
+                    if (activity != null)
+                    {
+                        activity.SetTag(Schema.Task.ErrorMessage, errorMessage);
+                        activity.Dispose();
+                    }
+                }
+            }
+        }
+
         internal static void SetRuntimeStatusTag(string runtimeStatus)
         {
             DistributedTraceActivity.Current?.SetTag(Schema.Task.Status, runtimeStatus);
@@ -471,6 +616,11 @@ namespace DurableTask.Core.Tracing
         static string CreateTimerSpanName(string orchestrationName)
         {
             return $"{TraceActivityConstants.Orchestration}:{orchestrationName}:{TraceActivityConstants.Timer}";
+        }
+
+        static string CreateEntitySpanName(string entityName, string operationName)
+        {
+            return $"{TraceActivityConstants.Entity}:{entityName}:{operationName}";
         }
 
         /// <summary>
