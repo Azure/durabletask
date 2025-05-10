@@ -504,11 +504,11 @@ namespace DurableTask.Core
                                 {
                                     var successfullyParsed = false;
                                     ActivityContext parentTraceContext;
-                                    if (requestMessage.ParentTraceContext != null)
+                                    if (requestMessage.ParentTraceContext is { } parentContext)
                                     {
                                         // If a parent trace context was provided but we fail to successfully parse it, we should not create the Activity even if the EventRaisedEvent has a parent trace context attached. 
                                         // Otherwise we will incorrectly link the created Activity to a context that is not truly its parent.
-                                        if (ActivityContext.TryParse(requestMessage.ParentTraceContext?.TraceParent, requestMessage.ParentTraceContext?.TraceState, out parentTraceContext))
+                                        if (ActivityContext.TryParse(traceContext.TraceParent, traceContext.TraceState, out parentTraceContext))
                                         {
                                             successfullyParsed = true;
                                         }
