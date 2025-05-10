@@ -45,6 +45,16 @@ namespace DurableTask.Core
         }
 
         /// <summary>
+        /// Creates a new DefaultObjectCreator using delegate function
+        /// </summary>
+        /// <param name="func">Object instances to infer the type from</param>
+        public DefaultObjectCreator(Func<T> func)
+        {
+            this.instance = func();
+            Initialize(instance);
+        }
+        
+        /// <summary>
         /// Creates a new instance of the object creator's type
         /// </summary>
         /// <returns>An instance of the type T</returns>
