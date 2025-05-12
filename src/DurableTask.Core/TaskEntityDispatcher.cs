@@ -527,7 +527,7 @@ namespace DurableTask.Core
                                             requestMessage.ScheduledTime,
                                             parentTraceContext,
                                             requestMessage.RequestTime);
-                                        if (traceActivity?.Id != null)
+                                        if (traceActivity != null)
                                         {
                                             requestMessage.ParentTraceContext = new DistributedTraceContext(traceActivity.Id, traceActivity.TraceStateString);
                                         }
@@ -834,7 +834,7 @@ namespace DurableTask.Core
                     parentTraceContext,
                     action.RequestTime,
                     entityId: effects.InstanceId);
-                if (traceActivity?.Id != null)
+                if (traceActivity != null)
                 {
                     message.ParentTraceContext = new DistributedTraceContext(traceActivity.Id, traceActivity.TraceStateString);
                 }
@@ -939,7 +939,7 @@ namespace DurableTask.Core
                     parentTraceContext,
                     action.RequestTime,
                     scheduledTime: action.ScheduledStartTime);
-                if (traceActivity?.Id != null)
+                if (traceActivity != null)
                 {
                     executionStartedEvent.ParentTraceContext = new DistributedTraceContext(traceActivity.Id, traceActivity.TraceStateString);
                 }
