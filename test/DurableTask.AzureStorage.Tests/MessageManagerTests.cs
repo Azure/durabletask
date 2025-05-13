@@ -13,12 +13,12 @@
 #nullable enable
 namespace DurableTask.AzureStorage.Tests
 {
-    using System;
-    using System.Collections.Generic;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core.History;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Newtonsoft.Json;
+    using System;
+    using System.Collections.Generic;
 
     [TestClass]
     public class MessageManagerTests
@@ -70,10 +70,10 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [DataTestMethod]
-        [DataRow("blob.bin")]
-        [DataRow("@#$%!")]
-        [DataRow("foo/bar/b@z.tar.gz")]
-        public void GetBlobUrlUnescaped(string blob)
+        [DataRow("blob.bin", "blob.bin")]
+        [DataRow("@#$%!", "%40%23%24%25%21")]
+        [DataRow("foo/bar/b@z.tar.gz", "foo/bar/b%40z.tar.gz")]
+        public void GetBlobUrlEscaped(string blob, string blobUrl)
         {
             var settings = new AzureStorageOrchestrationServiceSettings
             {
@@ -82,7 +82,8 @@ namespace DurableTask.AzureStorage.Tests
 
             const string container = "@entity12345";
             var manager = new MessageManager(settings, new AzureStorageClient(settings), container);
-            var expected = $"http://127.0.0.1:10000/devstoreaccount1/{container}/{blob}";
+
+            var expected = $"http://127.0.0.1:10000/devstoreaccount1/{container}/{blobUrl}";
             Assert.AreEqual(expected, manager.GetBlobUrl(blob));
         }
 
