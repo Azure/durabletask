@@ -228,8 +228,8 @@ namespace DurableTask.Core.Entities
         /// <param name="operationId">A unique identifier for this request.</param>
         /// <param name="scheduledTimeUtc">A time for which to schedule the delivery, or null if this is not a scheduled message</param>
         /// <param name="input">The operation input</param>
-        /// <param name="createTrace">Whether or not to create an entity-specific trace for this event</param>
         /// <param name="requestTime">The time at which the request was made.</param>
+        /// <param name="createTrace">Whether or not to create an entity-specific trace for this event</param>
         /// <returns>The event to send.</returns>
         public EntityMessageEvent EmitRequestMessage(
             OrchestrationInstance target,
@@ -238,8 +238,8 @@ namespace DurableTask.Core.Entities
             Guid operationId,
             (DateTime Original, DateTime Capped)? scheduledTimeUtc,
             string? input,
-            bool? createTrace,
-            DateTimeOffset? requestTime)
+            DateTimeOffset? requestTime = null,
+            bool createTrace = false)
         {
             this.CheckEntitySupport();
 
@@ -252,8 +252,8 @@ namespace DurableTask.Core.Entities
                 Operation = operationName,
                 ScheduledTime = scheduledTimeUtc?.Original,
                 Input = input,
-                CreateTrace = createTrace ?? false,
                 RequestTime = requestTime,
+                CreateTrace = createTrace,
             };
 
             this.AdjustOutgoingMessage(target.InstanceId, request, scheduledTimeUtc?.Capped, out string eventName);

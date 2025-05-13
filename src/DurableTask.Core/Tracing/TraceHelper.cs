@@ -473,6 +473,20 @@ namespace DurableTask.Core.Tracing
             }
         }
 
+        /// <summary>
+        /// Starts a new trace activity for calling or signaling an entity.
+        /// </summary>
+        /// <param name="targetEntityId">The instance ID of the entity being called or signaled <see cref="EntityId.ToString()"/></param>
+        /// <param name="entityName">The entity name</param>
+        /// <param name="operationName">The operation name</param>
+        /// <param name="signalEntity">Whether or not this is a signal request (as opposed to a call request)</param>
+        /// <param name="scheduledTime">The scheduled time of the request <see cref="RequestMessage.ScheduledTime"/> </param>
+        /// <param name="parentTraceContext">The trace context of the parent that is calling or signaling the entity</param>
+        /// <param name="startTime">The start time of the Activity, which is the time the request to the entity was generated</param>
+        /// <param name="entityId">In the case that this is an entity signaling another entity, the instance ID of the signaling entity</param>
+        /// <returns>
+        /// Returns a newly started <see cref="Activity"/> with entity-specific metadata.
+        /// </returns>
         internal static Activity? StartActivityForCallingOrSignalingEntity(string targetEntityId, string entityName, string operationName, bool signalEntity, DateTime? scheduledTime, ActivityContext parentTraceContext, DateTimeOffset? startTime, string? entityId = null)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
@@ -503,6 +517,18 @@ namespace DurableTask.Core.Tracing
             return newActivity;
         }
 
+        /// <summary>
+        /// Starts a new trace Activity for an entity starting an orchestration.
+        /// </summary>
+        /// <param name="entityId">The instance ID of the entity starting the orchestration <see cref="EntityId.ToString()"/></param>
+        /// <param name="entityName">The entity name</param>
+        /// <param name="targetInstanceId">The instance ID of the orchestration being started</param>
+        /// <param name="parentTraceContext">The trace context of the parent entity invocation that led to this start orchestration request <see cref="StartActivityForProcessingEntityInvocation"/></param>
+        /// <param name="startTime">The start time of the Activity, which is the time the start orchestration request was generated</param>
+        /// <param name="scheduledTime">The scheduled time of the request <see cref="StartNewOrchestrationOperationAction.ScheduledStartTime"/></param>
+        /// <returns>
+        /// Returns a newly started <see cref="Activity"/> with entity and orchestration-specific metadata.
+        /// </returns>
         internal static Activity? StartActivityForEntityStartingAnOrchestration(string entityId, string entityName, string targetInstanceId, ActivityContext parentTraceContext, DateTimeOffset? startTime, DateTime? scheduledTime = null)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
@@ -528,6 +554,17 @@ namespace DurableTask.Core.Tracing
             return newActivity;
         }
 
+        /// <summary>
+        /// Starts a new trace Activity for an entity processing a signal/call request.
+        /// </summary>
+        /// <param name="entityId">The instance ID of the entity being callled or signaled <see cref="EntityId.ToString()"/></param>
+        /// <param name="entityName">The entity name</param>
+        /// <param name="operationName">The name of the operation the entity is processing</param>
+        /// <param name="signalEntity">Whether or not this is a signal request (as opposed to a call request)</param>
+        /// <param name="parentTraceContext">The trace context of the parent signal/call request which led to this invocation <see cref="StartActivityForCallingOrSignalingEntity"/></param>
+        /// <returns>
+        /// Returns a newly started <see cref="Activity"/> with entity-specific metadata.
+        /// </returns>
         internal static Activity? StartActivityForProcessingEntityInvocation(string entityId, string entityName, string operationName, bool signalEntity, ActivityContext? parentTraceContext)
         {
             Activity? newActivity = ActivityTraceSource.StartActivity(
@@ -547,6 +584,13 @@ namespace DurableTask.Core.Tracing
             return newActivity;
         }
 
+        /// <summary>
+        /// Ends the activities for an entity processing a batch of signal/call requests.
+        /// </summary>
+        /// <param name="traceActivities"> The batch of trace activities to end.</param>
+        /// <param name="results">The results returned by the entity for the batch of <see cref="OperationRequest"/> that it processed. </param>
+        /// <param name="batchFailureDetails">The <see cref="EntityBatchResult.FailureDetails"/>, if any were provided. This will be used to set the error message of all the Activities in the case that
+        /// the entity did not return results for all of the requests</param>
         internal static void EndActivitiesForProcessingEntityInvocation(List<Activity> traceActivities, List<OperationResult> results, FailureDetails? batchFailureDetails)
         {
             if (results.Count == traceActivities.Count)

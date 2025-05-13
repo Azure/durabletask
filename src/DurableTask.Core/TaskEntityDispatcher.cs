@@ -496,49 +496,8 @@ namespace DurableTask.Core
                             }
 
                             // Note that if we create the trace activity for signaling an entity here, then its duration will be longer since its end time will be set to once we 
-                            // start processing the signal request rather than when the signal request is committed to storage. 
-                            if (requestMessage.CreateTrace)
-                            {
-                                // In the case that we are calling an entity, we want to create the Activity once the result for the call is returned and so we do not create now
-                                if (requestMessage.IsSignal)
-                                {
-                                    var successfullyParsed = false;
-                                    ActivityContext parentTraceContext;
-                                    if (requestMessage.ParentTraceContext is { } parentContext)
-                                    {
-                                        // If a parent trace context was provided but we fail to successfully parse it, we should not create the Activity even if the EventRaisedEvent has a parent trace context attached. 
-                                        // Otherwise we will incorrectly link the created Activity to a context that is not truly its parent.
-                                        if (ActivityContext.TryParse(parentContext.TraceParent, parentContext.TraceState, out parentTraceContext))
-                                        {
-                                            successfullyParsed = true;
-                                        }
-                                    }
-                                    else if (eventRaisedEvent.TryGetParentTraceContext(out parentTraceContext))
-                                    {
-                                        successfullyParsed = true;
-                                    }
-                                    if (successfullyParsed)
-                                    {
-                                        using var traceActivity = TraceHelper.StartActivityForCallingOrSignalingEntity(
-                                            instanceId,
-                                            EntityId.FromString(instanceId).Name,
-                                            requestMessage.Operation,
-                                            requestMessage.IsSignal,
-                                            requestMessage.ScheduledTime,
-                                            parentTraceContext,
-                                            requestMessage.RequestTime);
-                                        if (traceActivity != null)
-                                        {
-                                            requestMessage.ParentTraceContext = new DistributedTraceContext(traceActivity.Id, traceActivity.TraceStateString);
-                                        }
-                                    }
-                                }
-                                // We still want to attach a parent trace context to the request in the case of a call to an entity so that when we create the Activity for the call this information is available.
-                                else if (requestMessage.ParentTraceContext == null && eventRaisedEvent.ParentTraceContext != null)
-                                {
-                                    requestMessage.ParentTraceContext = eventRaisedEvent.ParentTraceContext;
-                                }
-                            }
+                            // start actually processing the signal request.
+                            CreateTraceActivityForSignalingEntity(requestMessage, eventRaisedEvent, instanceId);
 
                             IEnumerable<RequestMessage> deliverNow;
 
@@ -1010,6 +969,52 @@ namespace DurableTask.Core
             this.logHelper.EntityBatchExecuted(request, result);
 
             return result;
+        }
+
+        private static void CreateTraceActivityForSignalingEntity(RequestMessage requestMessage, EventRaisedEvent eventRaisedEvent, string instanceId)
+        {
+            if (requestMessage.CreateTrace)
+            {
+                // In the case that we are calling an entity, we want to create the Activity once the result for the call is returned and so we do not create now
+                if (requestMessage.IsSignal)
+                {
+                    var successfullyParsed = false;
+                    ActivityContext parentTraceContext;
+                    if (requestMessage.ParentTraceContext is { } parentContext)
+                    {
+                        // If a parent trace context was provided but we fail to successfully parse it, we should not create the Activity even if the EventRaisedEvent has a parent trace context attached. 
+                        // Otherwise we will incorrectly link the created Activity to a context that is not truly its parent.
+                        if (ActivityContext.TryParse(parentContext.TraceParent, parentContext.TraceState, out parentTraceContext))
+                        {
+                            successfullyParsed = true;
+                        }
+                    }
+                    else if (eventRaisedEvent.TryGetParentTraceContext(out parentTraceContext))
+                    {
+                        successfullyParsed = true;
+                    }
+                    if (successfullyParsed)
+                    {
+                        using var traceActivity = TraceHelper.StartActivityForCallingOrSignalingEntity(
+                            instanceId,
+                            EntityId.FromString(instanceId).Name,
+                            requestMessage.Operation,
+                            requestMessage.IsSignal,
+                            requestMessage.ScheduledTime,
+                            parentTraceContext,
+                            requestMessage.RequestTime);
+                        if (traceActivity != null)
+                        {
+                            requestMessage.ParentTraceContext = new DistributedTraceContext(traceActivity.Id, traceActivity.TraceStateString);
+                        }
+                    }
+                }
+                // We still want to attach a parent trace context to the request in the case of a call to an entity so that when we create the Activity for the call this information is available.
+                else if (requestMessage.ParentTraceContext == null && eventRaisedEvent.ParentTraceContext != null)
+                {
+                    requestMessage.ParentTraceContext = eventRaisedEvent.ParentTraceContext;
+                }
+            }
         }
     }
 }
