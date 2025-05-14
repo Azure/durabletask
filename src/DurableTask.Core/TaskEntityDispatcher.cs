@@ -519,14 +519,14 @@ namespace DurableTask.Core
                                     // the message is scheduled to be delivered immediately.
                                     // There are no FIFO guarantees for scheduled messages, so we skip the message sorter.
                                     deliverNow = new RequestMessage[] { requestMessage };
-                                    CreateTraceActivityForSignalingEntity(requestMessage, eventRaisedEvent, instanceId);
+                                    StartTraceActivityForSignalingEntity(requestMessage, eventRaisedEvent, instanceId);
                                 }
                             }
                             else
                             {
                                 // run this through the message sorter to help with reordering and duplicate filtering
                                 deliverNow = schedulerState.MessageSorter.ReceiveInOrder(requestMessage, this.entityBackendProperties.EntityMessageReorderWindow);
-                                CreateTraceActivityForSignalingEntity(requestMessage, eventRaisedEvent, instanceId);
+                                StartTraceActivityForSignalingEntity(requestMessage, eventRaisedEvent, instanceId);
                             }
 
                             foreach (var message in deliverNow)
@@ -977,7 +977,7 @@ namespace DurableTask.Core
             return result;
         }
 
-        private static void CreateTraceActivityForSignalingEntity(RequestMessage requestMessage, EventRaisedEvent eventRaisedEvent, string instanceId)
+        private static void StartTraceActivityForSignalingEntity(RequestMessage requestMessage, EventRaisedEvent eventRaisedEvent, string instanceId)
         {
             if (requestMessage.CreateTrace)
             {
