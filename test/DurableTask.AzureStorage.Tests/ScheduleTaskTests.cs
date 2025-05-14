@@ -41,7 +41,7 @@ namespace DurableTask.AzureStorage.Tests
                 TestInstance<int> instance = await host.StartInlineOrchestration(
                     input: 123,
                     orchestrationName: "TestOrchestration",
-                    implementation: (ctx, input) => ctx.ScheduleTask<int>("Activity", "", new Dictionary<string, string>()),
+                    implementation: (ctx, input) => ctx.ScheduleTask<int>("Activity", "", input),
                     activities: ("Activity", activity));
 
                 // The expectedOutput value is the string that's passed into the InvalidOperationException
