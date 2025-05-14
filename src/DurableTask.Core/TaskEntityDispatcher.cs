@@ -495,10 +495,6 @@ namespace DurableTask.Core
                                 throw new EntitySchedulerException("Failed to deserialize incoming request message - may be corrupted or wrong version.", exception);
                             }
 
-                            // Note that if we create the trace activity for signaling an entity here, then its duration will be longer since its end time will be set to once we 
-                            // start actually processing the signal request.
-                            CreateTraceActivityForSignalingEntity(requestMessage, eventRaisedEvent, instanceId);
-
                             IEnumerable<RequestMessage> deliverNow;
 
                             if (requestMessage.ScheduledTime.HasValue)
@@ -509,18 +505,28 @@ namespace DurableTask.Core
                                     // We handle this by rescheduling the message instead of processing it.
                                     deliverNow = Array.Empty<RequestMessage>();
                                     batch.AddMessageToBeRescheduled(requestMessage);
+
+                                    // We do not want to create the Activity for the request yet since it will be redelivered again later. In the case that the parent trace context was attached
+                                    // to the EventRaisedEvent and not the RequestMessage, we want to attach it to the RequestMessage such that when it is redelivered the parent trace context can be used
+                                    // to create the Activity for the request then.
+                                    if (requestMessage.ParentTraceContext == null && eventRaisedEvent.ParentTraceContext != null)
+                                    {
+                                        requestMessage.ParentTraceContext = eventRaisedEvent.ParentTraceContext;
+                                    }
                                 }
                                 else
                                 {
                                     // the message is scheduled to be delivered immediately.
                                     // There are no FIFO guarantees for scheduled messages, so we skip the message sorter.
                                     deliverNow = new RequestMessage[] { requestMessage };
+                                    CreateTraceActivityForSignalingEntity(requestMessage, eventRaisedEvent, instanceId);
                                 }
                             }
                             else
                             {
                                 // run this through the message sorter to help with reordering and duplicate filtering
                                 deliverNow = schedulerState.MessageSorter.ReceiveInOrder(requestMessage, this.entityBackendProperties.EntityMessageReorderWindow);
+                                CreateTraceActivityForSignalingEntity(requestMessage, eventRaisedEvent, instanceId);
                             }
 
                             foreach (var message in deliverNow)
