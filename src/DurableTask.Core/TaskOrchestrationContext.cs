@@ -78,32 +78,33 @@ namespace DurableTask.Core
             continueAsNew = null;
         }
 
-        public override async Task<TResult> ScheduleTask<TResult>(string name, string version, 
-            IDictionary<string, string> tags, params object[] parameters)
+        public override async Task<TResult> ScheduleTask<TResult>(string name, string version,
+            params object[] parameters)
         {
-            TResult result = await ScheduleTaskToWorker<TResult>(name, version, null, tags, parameters);
+            TResult result = await ScheduleTaskToWorker<TResult>(name, version, null, parameters);
 
             return result;
         }
 
         public override async Task<TResult> ScheduleTask<TResult>(string name, string version,
-            params object[] parameters)
+            ScheduleTaskOptions options, params object[] parameters)
         {
-            return await ScheduleTask<TResult>(name, version, null, parameters);
+            if (options.RetryOptions != null)
+            {
+                Task<TResult> RetryCall() => ScheduleTask<TResult>(name, version, ScheduleTaskOptions.CreateBuilder().WithTags(options.Tags).Build(), parameters);
+                var retryInterceptor = new RetryInterceptor<TResult>(this, options.RetryOptions, RetryCall);
+                return await retryInterceptor.Invoke();
+            }
+ 
+            TResult result = await ScheduleTaskToWorker<TResult>(name, version, null, options, parameters);
+ 
+            return result;
         }
 
-        public override async Task<T> ScheduleWithRetry<T>(string name, string version, 
-            RetryOptions retryOptions, IDictionary<string, string> tags, params object[] parameters)
+        public async Task<TResult> ScheduleTaskToWorker<TResult>(string name, string version, string taskList,
+            ScheduleTaskOptions options, params object[] parameters)
         {
-            Task<T> RetryCall() => ScheduleTask<T>(name, version, tags:tags, parameters:parameters);
-            var retryInterceptor = new RetryInterceptor<T>(this, retryOptions, RetryCall);
-            return await retryInterceptor.Invoke();
-        }
-
-        public async Task<TResult> ScheduleTaskToWorker<TResult>(string name, string version, string taskList, 
-            IDictionary<string, string> tags, params object[] parameters)
-        {
-            object result = await ScheduleTaskInternal(name, version, taskList, typeof(TResult), tags:tags, parameters:parameters);
+            object result = await ScheduleTaskInternal(name, version, taskList, typeof(TResult), options, parameters);
 
             if (result == null)
             {
@@ -113,7 +114,14 @@ namespace DurableTask.Core
             return (TResult)result;
         }
 
-        public async Task<object> ScheduleTaskInternal(string name, string version, string taskList, Type resultType, IDictionary<string, string> tags, params object[] parameters)
+        public async Task<TResult> ScheduleTaskToWorker<TResult>(string name, string version, string taskList,
+            params object[] parameters)
+        {
+            return await ScheduleTaskToWorker<TResult>(name, version, taskList, ScheduleTaskOptions.CreateBuilder().Build(), parameters);
+        }
+
+        public async Task<object> ScheduleTaskInternal(string name, string version, string taskList, Type resultType,
+            ScheduleTaskOptions options, params object[] parameters)
         {
             int id = this.idCounter++;
             string serializedInput = this.MessageDataConverter.SerializeInternal(parameters);
@@ -124,8 +132,9 @@ namespace DurableTask.Core
                 Version = version,
                 Tasklist = taskList,
                 Input = serializedInput,
-                Tags = tags,
+                Tags = options.Tags,
             };
+
             this.orchestratorActionsMap.Add(id, scheduleTaskTaskAction);
 
             var tcs = new TaskCompletionSource<string>();
@@ -134,6 +143,13 @@ namespace DurableTask.Core
             string serializedResult = await tcs.Task;
 
             return this.MessageDataConverter.Deserialize(serializedResult, resultType);
+        }
+
+
+        public async Task<object> ScheduleTaskInternal(string name, string version, string taskList, Type resultType,
+            params object[] parameters)
+        {
+            return await ScheduleTaskInternal(name, version, taskList, resultType, ScheduleTaskOptions.CreateBuilder().Build(), parameters);
         }
 
         public override Task<T> CreateSubOrchestrationInstance<T>(
