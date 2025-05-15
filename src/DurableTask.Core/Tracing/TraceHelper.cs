@@ -50,6 +50,7 @@ namespace DurableTask.Core.Tracing
             }
 
             DateTimeOffset? startTime = null;
+            // In the case that a request time for the start orchestration request is provided via ExecutionStartedEvent.Tags, we will use this as the start time of the Activity rather than the current time
             if (startEvent.Tags != null && startEvent.Tags.ContainsKey(OrchestrationTags.RequestTime) &&
                 DateTimeOffset.TryParse(startEvent.Tags[OrchestrationTags.RequestTime], CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset requestTime))
             {
