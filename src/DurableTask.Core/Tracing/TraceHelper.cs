@@ -20,6 +20,11 @@ namespace DurableTask.Core.Tracing
     using System.Runtime.ExceptionServices;
     using DurableTask.Core.Common;
     using DurableTask.Core.History;
+    using Newtonsoft.Json;
+    using DurableTask.Core.Entities.EventFormat;
+    using DurableTask.Core.Entities;
+    using DurableTask.Core.Entities.OperationFormat;
+    using System.Linq;
 
     /// <summary>
     ///     Helper class for logging/tracing
@@ -39,9 +44,24 @@ namespace DurableTask.Core.Tracing
         /// </returns>
         internal static Activity? StartActivityForNewOrchestration(ExecutionStartedEvent startEvent)
         {
+            if (!startEvent.TryGetParentTraceContext(out ActivityContext parentTraceContext) && startEvent.ParentTraceContext != null)
+            {
+                return null;
+            }
+
+            DateTimeOffset? startTime = null;
+            // In the case that a request time for the start orchestration request is provided via ExecutionStartedEvent.Tags, we will use this as the start time of the Activity rather than the current time
+            if (startEvent.Tags != null && startEvent.Tags.ContainsKey(OrchestrationTags.RequestTime) &&
+                DateTimeOffset.TryParse(startEvent.Tags[OrchestrationTags.RequestTime], CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset requestTime))
+            {
+                startTime = requestTime;
+            }
+
             Activity? newActivity = ActivityTraceSource.StartActivity(
-                name: CreateSpanName(TraceActivityConstants.CreateOrchestration, startEvent.Name, startEvent.Version),
-                kind: ActivityKind.Producer);
+                CreateSpanName(TraceActivityConstants.CreateOrchestration, startEvent.Name, startEvent.Version),
+                kind: ActivityKind.Producer,
+                parentContext: parentTraceContext,
+                startTime: startTime ?? default);
 
             if (newActivity != null)
             {
@@ -73,6 +93,14 @@ namespace DurableTask.Core.Tracing
             if (startEvent == null)
             {
                 return null;
+            }
+
+            if (startEvent.Tags != null && startEvent.Tags.ContainsKey(OrchestrationTags.CreateTraceForNewOrchestration))
+            {
+                startEvent.Tags.Remove(OrchestrationTags.CreateTraceForNewOrchestration);
+                // Note that if we create the trace activity for starting a new orchestration here, then its duration will be longer since its end time will be set to once we 
+                // start processing the orchestration rather than when the request for a new orchestration is committed to storage. 
+                using var activityForNewOrchestration = StartActivityForNewOrchestration(startEvent);
             }
 
             if (!startEvent.TryGetParentTraceContext(out ActivityContext activityContext))
@@ -446,6 +474,168 @@ namespace DurableTask.Core.Tracing
             }
         }
 
+        /// <summary>
+        /// Starts a new trace activity for calling or signaling an entity.
+        /// </summary>
+        /// <param name="targetEntityId">The instance ID of the entity being called or signaled <see cref="EntityId.ToString()"/></param>
+        /// <param name="entityName">The entity name</param>
+        /// <param name="operationName">The operation name</param>
+        /// <param name="signalEntity">Whether or not this is a signal request (as opposed to a call request)</param>
+        /// <param name="scheduledTime">The scheduled time of the request <see cref="RequestMessage.ScheduledTime"/> </param>
+        /// <param name="parentTraceContext">The trace context of the parent that is calling or signaling the entity</param>
+        /// <param name="startTime">The start time of the Activity, which is the time the request to the entity was generated</param>
+        /// <param name="entityId">In the case that this is an entity signaling another entity, the instance ID of the signaling entity</param>
+        /// <returns>
+        /// Returns a newly started <see cref="Activity"/> with entity-specific metadata.
+        /// </returns>
+        internal static Activity? StartActivityForCallingOrSignalingEntity(string targetEntityId, string entityName, string operationName, bool signalEntity, DateTime? scheduledTime, ActivityContext parentTraceContext, DateTimeOffset? startTime, string? entityId = null)
+        {
+            Activity? newActivity = ActivityTraceSource.StartActivity(
+                CreateEntitySpanName(entityName, operationName),
+                kind: signalEntity ? ActivityKind.Producer : ActivityKind.Client,
+                parentContext: parentTraceContext,
+                startTime: startTime ?? default);
+
+            if (newActivity == null)
+            {
+                return null;
+            }
+
+            newActivity.SetTag(Schema.Task.Type, TraceActivityConstants.Entity);
+            newActivity.SetTag(Schema.Task.Operation, signalEntity ? TraceActivityConstants.SignalEntity : TraceActivityConstants.CallEntity);
+            newActivity.SetTag(Schema.Task.EventTargetInstanceId, targetEntityId);
+
+            if (!string.IsNullOrEmpty(entityId))
+            {
+                newActivity.SetTag(Schema.Task.InstanceId, entityId);
+            }
+
+            if (scheduledTime != null)
+            {
+                newActivity.SetTag(Schema.Task.ScheduledTime, scheduledTime.Value.ToString());
+            }
+
+            return newActivity;
+        }
+
+        /// <summary>
+        /// Starts a new trace Activity for an entity starting an orchestration.
+        /// </summary>
+        /// <param name="entityId">The instance ID of the entity starting the orchestration <see cref="EntityId.ToString()"/></param>
+        /// <param name="entityName">The entity name</param>
+        /// <param name="targetInstanceId">The instance ID of the orchestration being started</param>
+        /// <param name="parentTraceContext">The trace context of the parent entity invocation that led to this start orchestration request <see cref="StartActivityForProcessingEntityInvocation"/></param>
+        /// <param name="startTime">The start time of the Activity, which is the time the start orchestration request was generated</param>
+        /// <param name="scheduledTime">The scheduled time of the request <see cref="StartNewOrchestrationOperationAction.ScheduledStartTime"/></param>
+        /// <returns>
+        /// Returns a newly started <see cref="Activity"/> with entity and orchestration-specific metadata.
+        /// </returns>
+        internal static Activity? StartActivityForEntityStartingAnOrchestration(string entityId, string entityName, string targetInstanceId, ActivityContext parentTraceContext, DateTimeOffset? startTime, DateTime? scheduledTime = null)
+        {
+            Activity? newActivity = ActivityTraceSource.StartActivity(
+                CreateSpanName(entityName, TraceActivityConstants.CreateOrchestration, null),
+                kind: ActivityKind.Producer,
+                parentContext: parentTraceContext,
+                startTime: startTime ?? default);
+
+            if (newActivity == null)
+            {
+                return null;
+            }
+
+            newActivity.SetTag(Schema.Task.Type, TraceActivityConstants.Entity);
+            newActivity.SetTag(Schema.Task.EventTargetInstanceId, targetInstanceId);
+            newActivity.SetTag(Schema.Task.InstanceId, entityId);
+
+            if (scheduledTime != null)
+            {
+                newActivity.SetTag(Schema.Task.ScheduledTime, scheduledTime.Value.ToString());
+            }
+
+            return newActivity;
+        }
+
+        /// <summary>
+        /// Starts a new trace Activity for an entity processing a signal/call request.
+        /// </summary>
+        /// <param name="entityId">The instance ID of the entity being callled or signaled <see cref="EntityId.ToString()"/></param>
+        /// <param name="entityName">The entity name</param>
+        /// <param name="operationName">The name of the operation the entity is processing</param>
+        /// <param name="signalEntity">Whether or not this is a signal request (as opposed to a call request)</param>
+        /// <param name="parentTraceContext">The trace context of the parent signal/call request which led to this invocation <see cref="StartActivityForCallingOrSignalingEntity"/></param>
+        /// <returns>
+        /// Returns a newly started <see cref="Activity"/> with entity-specific metadata.
+        /// </returns>
+        internal static Activity? StartActivityForProcessingEntityInvocation(string entityId, string entityName, string operationName, bool signalEntity, ActivityContext? parentTraceContext)
+        {
+            Activity? newActivity = ActivityTraceSource.StartActivity(
+                CreateEntitySpanName(entityName, operationName),
+                kind: signalEntity ? ActivityKind.Consumer : ActivityKind.Server,
+                parentContext: parentTraceContext ?? default);
+
+            if (newActivity == null)
+            {
+                return null;
+            }
+
+            newActivity.SetTag(Schema.Task.Type, TraceActivityConstants.Entity);
+            newActivity.SetTag(Schema.Task.Operation, signalEntity ? TraceActivityConstants.SignalEntity : TraceActivityConstants.CallEntity);
+            newActivity.SetTag(Schema.Task.InstanceId, entityId);
+
+            return newActivity;
+        }
+
+        /// <summary>
+        /// Ends the activities for an entity processing a batch of signal/call requests.
+        /// </summary>
+        /// <param name="traceActivities"> The batch of trace activities to end.</param>
+        /// <param name="results">The results returned by the entity for the batch of <see cref="OperationRequest"/> that it processed. </param>
+        /// <param name="batchFailureDetails">The <see cref="EntityBatchResult.FailureDetails"/>, if any were provided. This will be used to set the error message of all the Activities in the case that
+        /// the entity did not return results for all of the requests</param>
+        internal static void EndActivitiesForProcessingEntityInvocation(List<Activity> traceActivities, List<OperationResult> results, FailureDetails? batchFailureDetails)
+        {
+            if (results.Count == traceActivities.Count)
+            {
+                foreach (var (activity, result) in traceActivities.Zip(results, (activity, result) => (activity, result)))
+                {
+                    if (activity != null)
+                    {
+                        if (result.ErrorMessage != null || result.FailureDetails != null)
+                        {
+                            activity.SetTag(Schema.Task.ErrorMessage, result.ErrorMessage ?? result.FailureDetails!.ErrorMessage);
+                        }
+                        if (result.StartTimeUtc is DateTime startTime)
+                        {
+                            activity.SetStartTime(startTime);
+                        }
+                        if (result.EndTimeUtc is DateTime endTime)
+                        {
+                            activity.SetEndTime(endTime);
+                        }
+                        activity.Dispose();
+                    }
+                }
+            }
+            // This can happen if some of the operations failed and have no corresponding OperationResult
+            // There is no way to map the successful operation results to the corresponding operation requests or trace activities, so we will just "fail" the trace activities in this case and dispose them
+            else
+            {
+                string errorMessage = "Unable to generate a trace activity for the entity invocation even though it may have succeeded.";
+                if (batchFailureDetails is FailureDetails failureDetails)
+                {
+                    errorMessage += $" If it failed, it may be due to {failureDetails.ErrorMessage}";
+                }
+                foreach (var activity in traceActivities)
+                {
+                    if (activity != null)
+                    {
+                        activity.SetTag(Schema.Task.ErrorMessage, errorMessage);
+                        activity.Dispose();
+                    }
+                }
+            }
+        }
+
         internal static void SetRuntimeStatusTag(string runtimeStatus)
         {
             DistributedTraceActivity.Current?.SetTag(Schema.Task.Status, runtimeStatus);
@@ -471,6 +661,11 @@ namespace DurableTask.Core.Tracing
         static string CreateTimerSpanName(string orchestrationName)
         {
             return $"{TraceActivityConstants.Orchestration}:{orchestrationName}:{TraceActivityConstants.Timer}";
+        }
+
+        static string CreateEntitySpanName(string entityName, string operationName)
+        {
+            return $"{TraceActivityConstants.Entity}:{entityName}:{operationName}";
         }
 
         /// <summary>
