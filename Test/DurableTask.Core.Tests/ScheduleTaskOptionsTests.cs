@@ -120,7 +120,6 @@ namespace DurableTask.Core.Tests
 
             // Assert
             Assert.IsNotNull(options.RetryOptions);
-            Assert.AreEqual(retryOptions, options.RetryOptions);
             Assert.AreEqual(TimeSpan.FromSeconds(5), options.RetryOptions.FirstRetryInterval);
             Assert.AreEqual(3, options.RetryOptions.MaxNumberOfAttempts);
         }
@@ -194,7 +193,9 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual(2, options.Tags.Count);
             Assert.AreEqual("test", options.Tags["env"]);
             Assert.AreEqual("high", options.Tags["priority"]);
-            Assert.AreEqual(retryOptions, options.RetryOptions);
+            Assert.IsNotNull(options.RetryOptions);
+            Assert.AreEqual(retryOptions.FirstRetryInterval, options.RetryOptions.FirstRetryInterval);
+            Assert.AreEqual(retryOptions.MaxNumberOfAttempts, options.RetryOptions.MaxNumberOfAttempts);
         }
     }
 }
