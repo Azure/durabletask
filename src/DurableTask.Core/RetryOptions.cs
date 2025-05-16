@@ -44,6 +44,26 @@ namespace DurableTask.Core
         }
 
         /// <summary>
+        /// Creates a new instance of RetryOptions by copying values from an existing instance
+        /// </summary>
+        /// <param name="source">The RetryOptions instance to copy from</param>
+        /// <exception cref="ArgumentNullException"></exception>
+        public RetryOptions(RetryOptions source)
+        {
+            if (source == null)
+            {
+                throw new ArgumentNullException(nameof(source));
+            }
+
+            FirstRetryInterval = source.FirstRetryInterval;
+            MaxNumberOfAttempts = source.MaxNumberOfAttempts;
+            MaxRetryInterval = source.MaxRetryInterval;
+            BackoffCoefficient = source.BackoffCoefficient;
+            RetryTimeout = source.RetryTimeout;
+            Handle = source.Handle;
+        }
+
+        /// <summary>
         /// Gets or sets the first retry interval
         /// </summary>
         public TimeSpan FirstRetryInterval { get; set; }

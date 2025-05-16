@@ -99,7 +99,7 @@ namespace DurableTask.Core
             /// <returns>The builder instance.</returns>
             public Builder WithRetryOptions(RetryOptions retryOptions)
             {
-                this.options.RetryOptions = retryOptions;
+                this.options.RetryOptions = retryOptions == null ? null : new RetryOptions(retryOptions);
                 return this;
             }
 
