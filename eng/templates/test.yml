@@ -23,8 +23,7 @@ steps:
       testAssemblyVer2: ${{ parameters.testAssembly }}
       testFiltercriteria: 'TestCategory!=DisabledInCI'
       vsTestVersion: 17.0
-      runInParallel: false
-      dontDistribute: true
+      distributionBatchType: basedOnExecutionTime
       platform: 'any cpu'
       configuration: 'Debug'
       diagnosticsEnabled: True
