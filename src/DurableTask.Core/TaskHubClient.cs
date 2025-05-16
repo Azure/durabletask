@@ -747,6 +747,19 @@ namespace DurableTask.Core
         /// <param name="eventData">Data for the event</param>
         public async Task RaiseEventAsync(OrchestrationInstance orchestrationInstance, string eventName, object eventData)
         {
+            await this.RaiseEventAsync(orchestrationInstance, eventName, eventData, emitTraceActivity: true);
+        }
+
+        /// <summary>
+        ///     Raises an event in the specified orchestration instance, which eventually causes the OnEvent() method in the
+        ///     orchestration to fire.
+        /// </summary>
+        /// <param name="orchestrationInstance">Instance in which to raise the event</param>
+        /// <param name="eventName">Name of the event</param>
+        /// <param name="eventData">Data for the event</param>
+        /// <param name="emitTraceActivity">Whether or not to emit a trace activity for this event.</param>
+        public async Task RaiseEventAsync(OrchestrationInstance orchestrationInstance, string eventName, object eventData, bool emitTraceActivity = true)
+        {
 
             if (string.IsNullOrWhiteSpace(orchestrationInstance.InstanceId))
             {
@@ -757,7 +770,11 @@ namespace DurableTask.Core
             
             // Distributed Tracing
             EventRaisedEvent eventRaisedEvent = new EventRaisedEvent(-1, serializedInput) { Name = eventName };
-            using Activity? traceActivity = TraceHelper.StartActivityForNewEventRaisedFromClient(eventRaisedEvent, orchestrationInstance);
+            Activity? traceActivity = null;
+            if (emitTraceActivity)
+            {
+                traceActivity = TraceHelper.StartActivityForNewEventRaisedFromClient(eventRaisedEvent, orchestrationInstance);
+            }
 
             var taskMessage = new TaskMessage
             {
@@ -775,6 +792,10 @@ namespace DurableTask.Core
             {
                 TraceHelper.AddErrorDetailsToSpan(traceActivity, e);
                 throw;
+            }
+            finally
+            {
+                traceActivity?.Dispose();
             }
         }
 
