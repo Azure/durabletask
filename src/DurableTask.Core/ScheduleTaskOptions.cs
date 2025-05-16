@@ -71,7 +71,7 @@ namespace DurableTask.Core
             /// <returns>The builder instance.</returns>
             public Builder WithTags(IDictionary<string, string> tags)
             {
-                this.options.Tags = tags;
+                this.options.Tags = new Dictionary<string, string>(tags);
                 return this;
             }
 
