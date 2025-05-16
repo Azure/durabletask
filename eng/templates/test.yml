@@ -15,32 +15,6 @@ steps:
       echo "azurite started"
       sleep 5
     displayName: 'Install and Run Azurite'
-    
-  # Debug test assembly path
-  - powershell: |
-      Write-Host "Testing for test assemblies matching pattern: ${{ parameters.testAssembly }}"
-      $assemblies = Get-ChildItem -Path . -Recurse -Include "${{ parameters.testAssembly }}" -ErrorAction SilentlyContinue
-      Write-Host "Found $($assemblies.Count) test assemblies:"
-      foreach ($assembly in $assemblies) {
-        Write-Host "Test assembly found: $($assembly.FullName)"
-        if (Test-Path $assembly.FullName) {
-          Write-Host "Assembly exists: YES"
-          $fileInfo = Get-Item $assembly.FullName
-          Write-Host "File size: $($fileInfo.Length) bytes"
-          Write-Host "Last modified: $($fileInfo.LastWriteTime)"
-        } else {
-          Write-Host "Assembly exists: NO"
-        }
-      }
-      # List tests in the assembly to verify test discovery
-      foreach ($assembly in $assemblies) {
-        Write-Host "Attempting to list tests in: $($assembly.FullName)"
-        # Try using VSTest directly to list tests
-        & "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\IDE\CommonExtensions\Microsoft\TestWindow\vstest.console.exe" "$($assembly.FullName)" /ListTests | Out-String
-        $exitCode = $LASTEXITCODE
-        Write-Host "VSTest list tests exit code: $exitCode"
-      }
-    displayName: 'Debug test assembly paths'
 
   # Run tests
   - task: VSTest@2
@@ -49,7 +23,8 @@ steps:
       testAssemblyVer2: ${{ parameters.testAssembly }}
       testFiltercriteria: 'TestCategory!=DisabledInCI'
       vsTestVersion: 17.0
-      distributionBatchType: basedOnExecutionTime
+      runInParallel: false
+      dontDistribute: true
       platform: 'any cpu'
       configuration: 'Debug'
       diagnosticsEnabled: True
