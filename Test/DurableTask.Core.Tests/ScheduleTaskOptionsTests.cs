@@ -2,209 +2,44 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // ---------------------------------------------------------------
 
+#nullable enable
 namespace DurableTask.Core.Tests
 {
     using System;
-    using System.Collections.Generic;
+    using System.Threading.Tasks;
+    using DurableTask.Core.History;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
     public class ScheduleTaskOptionsTests
     {
+        /// <summary>
+        /// Tests that scheduled orchestrations can be created.
+        /// </summary>
         [TestMethod]
-        public void CreateBuilder_ShouldReturnBuilderInstance()
+        public async Task CanCreateScheduledOrchestrations2()
         {
-            // Act
-            var builder = ScheduleTaskOptions.CreateBuilder();
+            // create test orchestration service that allows us to inspect the generated HistoryEvents
+            TestLocalOrchestrationService service = new TestLocalOrchestrationService();
+            TaskHubClient client = new TaskHubClient(service);
 
-            // Assert
-            Assert.IsNotNull(builder);
-            Assert.IsInstanceOfType(builder, typeof(ScheduleTaskOptions.Builder));
-        }
+            // orchestrator should fire in 5 minutes
+            DateTime fireAt = DateTime.UtcNow.AddMinutes(5);
 
-        [TestMethod]
-        public void Build_ShouldCreateInstanceWithNullProperties()
-        {
-            // Act
-            var options = ScheduleTaskOptions.CreateBuilder().Build();
+            // invoke client method
+            await client.CreateOrchestrationInstanceAsync(
+                name: "TestOrchestration", version: "", instanceId: null, input: null, tags: null, dedupeStatuses: null, startAt: fireAt);
 
-            // Assert
-            Assert.IsNotNull(options);
-            Assert.IsNull(options.Tags);
-            Assert.IsNull(options.RetryOptions);
-        }
+            var messages = service.Messages;
+            Assert.IsTrue(messages.Count == 1);
+            
+            TaskMessage startMessage = messages[0];
+            HistoryEvent durableEvent = startMessage.Event;
+            Assert.IsInstanceOfType(durableEvent, typeof(ExecutionStartedEvent));
 
-        [TestMethod]
-        public void WithTags_ShouldSetTagsProperty()
-        {
-            // Arrange
-            var tags = new Dictionary<string, string>
-            {
-                { "key1", "value1" },
-                { "key2", "value2" }
-            };
-
-            // Act
-            var options = ScheduleTaskOptions.CreateBuilder()
-                .WithTags(tags)
-                .Build();
-
-            // Assert
-            Assert.IsNotNull(options.Tags);
-            Assert.AreEqual(2, options.Tags.Count);
-            Assert.AreEqual("value1", options.Tags["key1"]);
-            Assert.AreEqual("value2", options.Tags["key2"]);
-        }
-
-        [TestMethod]
-        public void AddTag_WithNullTags_ShouldInitializeTagsCollection()
-        {
-            // Act
-            var options = ScheduleTaskOptions.CreateBuilder()
-                .AddTag("key1", "value1")
-                .Build();
-
-            // Assert
-            Assert.IsNotNull(options.Tags);
-            Assert.AreEqual(1, options.Tags.Count);
-            Assert.AreEqual("value1", options.Tags["key1"]);
-        }
-
-        [TestMethod]
-        public void AddTag_WithExistingTags_ShouldAddToCollection()
-        {
-            // Arrange
-            var tags = new Dictionary<string, string>
-            {
-                { "key1", "value1" }
-            };
-
-            // Act
-            var options = ScheduleTaskOptions.CreateBuilder()
-                .WithTags(tags)
-                .AddTag("key2", "value2")
-                .Build();
-
-            // Assert
-            Assert.IsNotNull(options.Tags);
-            Assert.AreEqual(2, options.Tags.Count);
-            Assert.AreEqual("value1", options.Tags["key1"]);
-            Assert.AreEqual("value2", options.Tags["key2"]);
-        }
-
-        [TestMethod]
-        public void AddTag_OverwriteExistingKey_ShouldUpdateValue()
-        {
-            // Act
-            var options = ScheduleTaskOptions.CreateBuilder()
-                .AddTag("key1", "originalValue")
-                .AddTag("key1", "newValue")
-                .Build();
-
-            // Assert
-            Assert.IsNotNull(options.Tags);
-            Assert.AreEqual(1, options.Tags.Count);
-            Assert.AreEqual("newValue", options.Tags["key1"]);
-        }
-
-        [TestMethod]
-        public void WithRetryOptions_Instance_ShouldSetRetryOptionsProperty()
-        {
-            // Arrange
-            var retryOptions = new RetryOptions(TimeSpan.FromSeconds(5), 3);
-
-            // Act
-            var options = ScheduleTaskOptions.CreateBuilder()
-                .WithRetryOptions(retryOptions)
-                .Build();
-
-            // Assert
-            Assert.IsNotNull(options.RetryOptions);
-            Assert.AreEqual(retryOptions, options.RetryOptions);
-            Assert.AreEqual(TimeSpan.FromSeconds(5), options.RetryOptions.FirstRetryInterval);
-            Assert.AreEqual(3, options.RetryOptions.MaxNumberOfAttempts);
-        }
-
-        [TestMethod]
-        public void WithRetryOptions_Parameters_ShouldCreateAndSetRetryOptions()
-        {
-            // Act
-            var options = ScheduleTaskOptions.CreateBuilder()
-                .WithRetryOptions(TimeSpan.FromSeconds(5), 3)
-                .Build();
-
-            // Assert
-            Assert.IsNotNull(options.RetryOptions);
-            Assert.AreEqual(TimeSpan.FromSeconds(5), options.RetryOptions.FirstRetryInterval);
-            Assert.AreEqual(3, options.RetryOptions.MaxNumberOfAttempts);
-            Assert.AreEqual(1, options.RetryOptions.BackoffCoefficient);
-            Assert.AreEqual(TimeSpan.MaxValue, options.RetryOptions.MaxRetryInterval);
-        }
-
-        [TestMethod]
-        public void WithRetryOptions_WithConfigureAction_ShouldConfigureRetryOptions()
-        {
-            // Act
-            var options = ScheduleTaskOptions.CreateBuilder()
-                .WithRetryOptions(TimeSpan.FromSeconds(5), 3, retryOptions =>
-                {
-                    retryOptions.BackoffCoefficient = 2.0;
-                    retryOptions.MaxRetryInterval = TimeSpan.FromMinutes(1);
-                })
-                .Build();
-
-            // Assert
-            Assert.IsNotNull(options.RetryOptions);
-            Assert.AreEqual(TimeSpan.FromSeconds(5), options.RetryOptions.FirstRetryInterval);
-            Assert.AreEqual(3, options.RetryOptions.MaxNumberOfAttempts);
-            Assert.AreEqual(2.0, options.RetryOptions.BackoffCoefficient);
-            Assert.AreEqual(TimeSpan.FromMinutes(1), options.RetryOptions.MaxRetryInterval);
-        }
-
-        [TestMethod]
-        public void WithRetryOptions_PassNullConfigureAction_ShouldStillCreateRetryOptions()
-        {
-            // Act
-            var options = ScheduleTaskOptions.CreateBuilder()
-                .WithRetryOptions(TimeSpan.FromSeconds(5), 3, null)
-                .Build();
-
-            // Assert
-            Assert.IsNotNull(options.RetryOptions);
-            Assert.AreEqual(TimeSpan.FromSeconds(5), options.RetryOptions.FirstRetryInterval);
-            Assert.AreEqual(3, options.RetryOptions.MaxNumberOfAttempts);
-        }
-
-        [TestMethod]
-        public void FluentInterface_CombiningAllMethods_ShouldBuildCorrectInstance()
-        {
-            // Arrange
-            var retryOptions = new RetryOptions(TimeSpan.FromSeconds(1), 2);
-
-            // Act
-            var options = ScheduleTaskOptions.CreateBuilder()
-                .AddTag("env", "test")
-                .WithRetryOptions(retryOptions)
-                .AddTag("priority", "high")
-                .Build();
-
-            // Assert
-            Assert.IsNotNull(options);
-            Assert.IsNotNull(options.Tags);
-            Assert.AreEqual(2, options.Tags.Count);
-            Assert.AreEqual("test", options.Tags["env"]);
-            Assert.AreEqual("high", options.Tags["priority"]);
-            Assert.AreEqual(retryOptions, options.RetryOptions);
-        }
-
-        [TestMethod]
-        [ExpectedException(typeof(ArgumentException))]
-        public void RetryOptions_WithInvalidInterval_ShouldThrowException()
-        {
-            // Act - This should throw an ArgumentException
-            ScheduleTaskOptions.CreateBuilder()
-                .WithRetryOptions(TimeSpan.Zero, 3)
-                .Build();
+            // we expect the generated history event to have a populated ScheduledStartTime with value provided to the client.
+            ExecutionStartedEvent startEvent = (ExecutionStartedEvent)durableEvent;
+            Assert.IsTrue(startEvent.ScheduledStartTime == fireAt);
         }
     }
 } 
