@@ -24,6 +24,7 @@ steps:
       testFiltercriteria: 'TestCategory!=DisabledInCI'
       vsTestVersion: 17.0
       distributionBatchType: basedOnExecutionTime
+      dontDistribute: true
       platform: 'any cpu'
       configuration: 'Debug'
       diagnosticsEnabled: True
