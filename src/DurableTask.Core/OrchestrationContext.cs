@@ -287,6 +287,19 @@ namespace DurableTask.Core
         }
 
         /// <summary>
+        ///     Schedule a TaskActivity by type, version, and tags.
+        /// </summary>
+        /// <typeparam name="TResult">Return Type of the TaskActivity.Execute method</typeparam>
+        /// <param name="name">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="version">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="parameters">Parameters for the TaskActivity.Execute method</param>
+        /// <param name="options">Options for scheduling a task</param>
+        public virtual Task<TResult> ScheduleTask<TResult>(string name, string version, ScheduleTaskOptions options, params object[] parameters)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
         ///     Schedule a TaskActivity by name and version.
         /// </summary>
         /// <typeparam name="TResult">Return Type of the TaskActivity.Execute method</typeparam>
