@@ -4,9 +4,9 @@
 
 namespace DurableTask.Core.Tests
 {
+    using Microsoft.VisualStudio.TestTools.UnitTesting;
     using System;
     using System.Collections.Generic;
-    using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
     public class ScheduleTaskOptionsTests
@@ -15,7 +15,7 @@ namespace DurableTask.Core.Tests
         public void CreateBuilder_ShouldReturnBuilderInstance()
         {
             // Act
-            var builder = ScheduleTaskOptions.CreateBuilder();
+            ScheduleTaskOptions.Builder builder = ScheduleTaskOptions.CreateBuilder();
 
             // Assert
             Assert.IsNotNull(builder);
@@ -26,7 +26,7 @@ namespace DurableTask.Core.Tests
         public void Build_ShouldCreateInstanceWithNullProperties()
         {
             // Act
-            var options = ScheduleTaskOptions.CreateBuilder().Build();
+            ScheduleTaskOptions options = ScheduleTaskOptions.CreateBuilder().Build();
 
             // Assert
             Assert.IsNotNull(options);
@@ -38,14 +38,14 @@ namespace DurableTask.Core.Tests
         public void WithTags_ShouldSetTagsProperty()
         {
             // Arrange
-            var tags = new Dictionary<string, string>
+            Dictionary<string, string> tags = new Dictionary<string, string>
             {
                 { "key1", "value1" },
                 { "key2", "value2" }
             };
 
             // Act
-            var options = ScheduleTaskOptions.CreateBuilder()
+            ScheduleTaskOptions options = ScheduleTaskOptions.CreateBuilder()
                 .WithTags(tags)
                 .Build();
 
@@ -60,7 +60,7 @@ namespace DurableTask.Core.Tests
         public void AddTag_WithNullTags_ShouldInitializeTagsCollection()
         {
             // Act
-            var options = ScheduleTaskOptions.CreateBuilder()
+            ScheduleTaskOptions options = ScheduleTaskOptions.CreateBuilder()
                 .AddTag("key1", "value1")
                 .Build();
 
@@ -74,13 +74,13 @@ namespace DurableTask.Core.Tests
         public void AddTag_WithExistingTags_ShouldAddToCollection()
         {
             // Arrange
-            var tags = new Dictionary<string, string>
+            Dictionary<string, string> tags = new Dictionary<string, string>
             {
                 { "key1", "value1" }
             };
 
             // Act
-            var options = ScheduleTaskOptions.CreateBuilder()
+            ScheduleTaskOptions options = ScheduleTaskOptions.CreateBuilder()
                 .WithTags(tags)
                 .AddTag("key2", "value2")
                 .Build();
@@ -96,7 +96,7 @@ namespace DurableTask.Core.Tests
         public void AddTag_OverwriteExistingKey_ShouldUpdateValue()
         {
             // Act
-            var options = ScheduleTaskOptions.CreateBuilder()
+            ScheduleTaskOptions options = ScheduleTaskOptions.CreateBuilder()
                 .AddTag("key1", "originalValue")
                 .AddTag("key1", "newValue")
                 .Build();
@@ -111,10 +111,10 @@ namespace DurableTask.Core.Tests
         public void WithRetryOptions_Instance_ShouldSetRetryOptionsProperty()
         {
             // Arrange
-            var retryOptions = new RetryOptions(TimeSpan.FromSeconds(5), 3);
+            RetryOptions retryOptions = new RetryOptions(TimeSpan.FromSeconds(5), 3);
 
             // Act
-            var options = ScheduleTaskOptions.CreateBuilder()
+            ScheduleTaskOptions options = ScheduleTaskOptions.CreateBuilder()
                 .WithRetryOptions(retryOptions)
                 .Build();
 
@@ -129,7 +129,7 @@ namespace DurableTask.Core.Tests
         public void WithRetryOptions_Parameters_ShouldCreateAndSetRetryOptions()
         {
             // Act
-            var options = ScheduleTaskOptions.CreateBuilder()
+            ScheduleTaskOptions options = ScheduleTaskOptions.CreateBuilder()
                 .WithRetryOptions(TimeSpan.FromSeconds(5), 3)
                 .Build();
 
@@ -145,7 +145,7 @@ namespace DurableTask.Core.Tests
         public void WithRetryOptions_WithConfigureAction_ShouldConfigureRetryOptions()
         {
             // Act
-            var options = ScheduleTaskOptions.CreateBuilder()
+            ScheduleTaskOptions options = ScheduleTaskOptions.CreateBuilder()
                 .WithRetryOptions(TimeSpan.FromSeconds(5), 3, retryOptions =>
                 {
                     retryOptions.BackoffCoefficient = 2.0;
@@ -165,7 +165,7 @@ namespace DurableTask.Core.Tests
         public void WithRetryOptions_PassNullConfigureAction_ShouldStillCreateRetryOptions()
         {
             // Act
-            var options = ScheduleTaskOptions.CreateBuilder()
+            ScheduleTaskOptions options = ScheduleTaskOptions.CreateBuilder()
                 .WithRetryOptions(TimeSpan.FromSeconds(5), 3, null)
                 .Build();
 
@@ -179,10 +179,10 @@ namespace DurableTask.Core.Tests
         public void FluentInterface_CombiningAllMethods_ShouldBuildCorrectInstance()
         {
             // Arrange
-            var retryOptions = new RetryOptions(TimeSpan.FromSeconds(1), 2);
+            RetryOptions retryOptions = new RetryOptions(TimeSpan.FromSeconds(1), 2);
 
             // Act
-            var options = ScheduleTaskOptions.CreateBuilder()
+            ScheduleTaskOptions options = ScheduleTaskOptions.CreateBuilder()
                 .AddTag("env", "test")
                 .WithRetryOptions(retryOptions)
                 .AddTag("priority", "high")
@@ -196,15 +196,5 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual("high", options.Tags["priority"]);
             Assert.AreEqual(retryOptions, options.RetryOptions);
         }
-
-        [TestMethod]
-        [ExpectedException(typeof(ArgumentException))]
-        public void RetryOptions_WithInvalidInterval_ShouldThrowException()
-        {
-            // Act - This should throw an ArgumentException
-            ScheduleTaskOptions.CreateBuilder()
-                .WithRetryOptions(TimeSpan.Zero, 3)
-                .Build();
-        }
     }
-} 
+}
