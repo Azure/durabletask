@@ -50,7 +50,7 @@ namespace DurableTask.Core.Entities.OperationFormat
         /// <summary>
         /// The time the signal request was generated.
         /// </summary>
-        public DateTime? RequestTime { get; set; }
+        public DateTimeOffset? RequestTime { get; set; }
 
         /// <summary>
         /// The parent trace context for the signal, if any.

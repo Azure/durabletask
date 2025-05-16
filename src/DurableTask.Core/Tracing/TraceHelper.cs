@@ -604,11 +604,11 @@ namespace DurableTask.Core.Tracing
                         {
                             activity.SetTag(Schema.Task.ErrorMessage, result.ErrorMessage ?? result.FailureDetails!.ErrorMessage);
                         }
-                        if (result.StartTime is DateTime startTime)
+                        if (result.StartTimeUtc is DateTime startTime)
                         {
                             activity.SetStartTime(startTime);
                         }
-                        if (result.EndTime is DateTime endTime)
+                        if (result.EndTimeUtc is DateTime endTime)
                         {
                             activity.SetEndTime(endTime);
                         }

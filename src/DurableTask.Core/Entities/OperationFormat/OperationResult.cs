@@ -52,11 +52,11 @@ namespace DurableTask.Core.Entities.OperationFormat
         /// <summary>
         /// The start time of the operation.
         /// </summary>
-        public DateTime? StartTime { get; set; }
+        public DateTime? StartTimeUtc { get; set; }
 
         /// <summary>
         /// The completion time of the operation.
         /// </summary>
-        public DateTime? EndTime { get; set; }
+        public DateTime? EndTimeUtc { get; set; }
     }
 }

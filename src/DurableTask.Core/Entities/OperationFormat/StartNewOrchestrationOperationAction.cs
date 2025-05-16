@@ -56,7 +56,7 @@ namespace DurableTask.Core.Entities.OperationFormat
         /// <summary>
         /// The time of the new orchestration request creation.
         /// </summary>
-        public DateTime? RequestTime { get; set; }
+        public DateTimeOffset? RequestTime { get; set; }
 
         /// <summary>
         /// The parent trace context for the operation, if any.
