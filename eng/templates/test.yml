@@ -5,13 +5,11 @@ parameters:
 
 
 steps:
-  - task: DownloadBuildArtifacts@0
-    displayName: 'Download Test Artifacts'
+  - task: 1ES.DownloadPipelineArtifact@1
+    displayName: 'Download Core Tests Artifact'
     inputs:
-      buildType: 'current'
-      downloadType: 'single'
       artifactName: 'CoreTests'
-      downloadPath: '$(System.DefaultWorkingDirectory)/tests'
+      targetPath: '$(System.DefaultWorkingDirectory)/tests'
 
   - bash: |
       echo "Listing downloaded test DLLs:"

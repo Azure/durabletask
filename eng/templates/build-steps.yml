@@ -88,13 +88,11 @@ steps:
       configuration: ${{ parameters.buildConfiguration }}
       msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
-  # Publish test binaries as artifact
-  - task: PublishBuildArtifacts@1
+  - task: 1ES.PublishPipelineArtifact@1
     displayName: 'Publish Core Tests Artifact'
     inputs:
-      pathToPublish: '$(Build.SourcesDirectory)/Test/DurableTask.Core.Tests/bin/${{ parameters.buildConfiguration }}'
-      artifactName: 'CoreTests'
-      publishLocation: 'Container'
+      path: $(Build.SourcesDirectory)/Test/DurableTask.Core.Tests/bin/${{ parameters.buildConfiguration }}
+      artifact: CoreTests
 
   - task: VSBuild@1
     displayName: 'Build (AzureStorage Tests)'
