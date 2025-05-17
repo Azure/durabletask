@@ -2,9 +2,22 @@ parameters:
 - name: testAssembly
   type: string
   default: ''
-
+- name: artifactName
+  type: string
+  default: ''
 
 steps:
+  - task: DownloadPipelineArtifact@2
+    displayName: 'Download Tests Artifact'
+    inputs:
+      artifactName: '${{ parameters.artifactName }}'
+      targetPath: '$(System.DefaultWorkingDirectory)/tests'
+
+  - bash: |
+      echo "Listing downloaded test DLLs:"
+      find "$(System.DefaultWorkingDirectory)/tests" -name '*Test*.dll'
+    displayName: 'List Test DLLs'
+
   # Install Azurite
   - bash: |
       echo "Installing azurite"
@@ -20,7 +33,8 @@ steps:
   - task: VSTest@2
     displayName: 'Run tests'
     inputs:
-      testAssemblyVer2: ${{ parameters.testAssembly }}
+      testAssemblyVer2: |
+        $(System.DefaultWorkingDirectory)/${{ parameters.testAssembly }}
       testFiltercriteria: 'TestCategory!=DisabledInCI'
       vsTestVersion: 17.0
       distributionBatchType: basedOnExecutionTime
@@ -31,3 +45,4 @@ steps:
       rerunFailedTests: true
       rerunFailedThreshold: 30
       rerunMaxAttempts: 3
+      runInParallel: true
