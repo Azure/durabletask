@@ -5,7 +5,7 @@ parameters:
 
 
 steps:
-  - task: 1ES.DownloadPipelineArtifact@1
+  - task: DownloadPipelineArtifact@2
     displayName: 'Download Core Tests Artifact'
     inputs:
       artifactName: 'CoreTests'
