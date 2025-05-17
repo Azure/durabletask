@@ -13,8 +13,8 @@ steps:
 
   - bash: |
       echo "Listing downloaded test DLLs:"
-      find $(System.DefaultWorkingDirectory)/tests -name '*Test*.dll'
-      displayName: 'List Test DLLs'
+      find "$(System.DefaultWorkingDirectory)/tests" -name '*Test*.dll'
+    displayName: 'List Test DLLs'
 
   # Install Azurite
   - bash: |
