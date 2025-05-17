@@ -70,7 +70,7 @@ extends:
         # Run tests
         - template: /eng/templates/test.yml@self
           parameters:
-            testAssembly: '**\bin\**\DurableTask.Core.Tests.dll'
+            testAssembly: '**/bin/**/DurableTask.Core.Tests.dll'
     - stage: DTFxASValidate
       dependsOn: []
       jobs:
@@ -89,7 +89,7 @@ extends:
         # Run tests
         - template: /eng/templates/test.yml@self
           parameters:
-            testAssembly: '**\bin\**\DurableTask.AzureStorage.Tests.dll'
+            testAssembly: '**/bin/**/DurableTask.AzureStorage.Tests.dll'
     - stage: DTFxEmulatorValidate
       dependsOn: []
       jobs:
@@ -108,4 +108,4 @@ extends:
         # Run tests
         - template: /eng/templates/test.yml@self
           parameters:
-            testAssembly: '**\bin\**\DurableTask.Emulator.Tests.dll'
+            testAssembly: '**/bin/**/DurableTask.Emulator.Tests.dll'
