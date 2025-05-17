@@ -102,6 +102,12 @@ steps:
       logFileVerbosity: minimal
       configuration: ${{ parameters.buildConfiguration }}
       msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+  
+  - task: 1ES.PublishPipelineArtifact@1
+    displayName: 'Publish AzureStorage Tests Artifact'
+    inputs:
+      path: $(Build.SourcesDirectory)/Test/DurableTask.AzureStorage.Tests/bin/${{ parameters.buildConfiguration }}
+      artifact: AzureStorageTests
 
   - task: VSBuild@1
     displayName: 'Build (Emulator Tests)'
@@ -111,3 +117,9 @@ steps:
       logFileVerbosity: minimal
       configuration: ${{ parameters.buildConfiguration }}
       msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
+
+  - task: 1ES.PublishPipelineArtifact@1
+    displayName: 'Publish Emulator Tests Artifact'
+    inputs:
+      path: $(Build.SourcesDirectory)/Test/DurableTask.Emulator.Tests/bin/${{ parameters.buildConfiguration }}
+      artifact: EmulatorTests

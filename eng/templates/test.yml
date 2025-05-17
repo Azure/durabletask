@@ -2,12 +2,15 @@ parameters:
 - name: testAssembly
   type: string
   default: ''
+- name: artifactName
+  type: string
+  default: ''
 
 steps:
   - task: DownloadPipelineArtifact@2
-    displayName: 'Download Core Tests Artifact'
+    displayName: 'Download Tests Artifact'
     inputs:
-      artifactName: 'CoreTests'
+      artifactName: '${{ parameters.artifactName }}'
       targetPath: '$(System.DefaultWorkingDirectory)/tests'
 
   - bash: |

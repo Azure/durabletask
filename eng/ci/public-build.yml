@@ -71,6 +71,7 @@ extends:
         - template: /eng/templates/test.yml@self
           parameters:
             testAssembly: 'tests/**/DurableTask.Core.Tests.dll'
+            artifactName: 'CoreTests'
     - stage: DTFxASValidate
       dependsOn: []
       jobs:
@@ -89,7 +90,8 @@ extends:
         # Run tests
         - template: /eng/templates/test.yml@self
           parameters:
-            testAssembly: '**\bin\**\DurableTask.AzureStorage.Tests.dll'
+            testAssembly: 'tests/**/DurableTask.AzureStorage.Tests.dll'
+            artifactName: 'AzureStorageTests'
     - stage: DTFxEmulatorValidate
       dependsOn: []
       jobs:
@@ -108,4 +110,5 @@ extends:
         # Run tests
         - template: /eng/templates/test.yml@self
           parameters:
-            testAssembly: '**\bin\**\DurableTask.Emulator.Tests.dll'
+            testAssembly: 'tests/**/DurableTask.Emulator.Tests.dll'
+            artifactName: 'EmulatorTests'
