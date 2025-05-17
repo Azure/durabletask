@@ -3,7 +3,6 @@ parameters:
   type: string
   default: ''
 
-
 steps:
   - task: DownloadPipelineArtifact@2
     displayName: 'Download Core Tests Artifact'
@@ -32,7 +31,7 @@ steps:
     displayName: 'Run tests'
     inputs:
       testAssemblyVer2: |
-        $(System.DefaultWorkingDirectory)/tests/${{ parameters.testAssembly }}
+        $(System.DefaultWorkingDirectory)/${{ parameters.testAssembly }}
       testFiltercriteria: 'TestCategory!=DisabledInCI'
       vsTestVersion: 17.0
       distributionBatchType: basedOnExecutionTime
