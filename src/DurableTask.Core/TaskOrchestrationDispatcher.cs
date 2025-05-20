@@ -117,6 +117,11 @@ namespace DurableTask.Core
         public bool IncludeParameters { get; set; }
 
         /// <summary>
+        /// Gets or sets the flag for whether or not entities are enabled
+        /// </summary>
+        public bool EntitiesEnabled { get; set; }
+
+        /// <summary>
         /// Method to get the next work item to process within supplied timeout
         /// </summary>
         /// <param name="receiveTimeout">The max timeout to wait</param>
@@ -1143,9 +1148,6 @@ namespace DurableTask.Core
                 historyEvent.Input = createSubOrchestrationAction.Input;
             }
 
-            ActivitySpanId clientSpanId = ActivitySpanId.CreateRandom();
-            historyEvent.ClientSpanId = clientSpanId.ToString();
-
             runtimeState.AddEvent(historyEvent);
 
             var taskMessage = new TaskMessage();
@@ -1169,8 +1171,22 @@ namespace DurableTask.Core
                 Version = createSubOrchestrationAction.Version
             };
 
-            if (parentTraceActivity != null)
+            // If a parent trace context was provided via the CreateSubOrchestrationAction.Tags, we will use this as the parent trace context of the suborchestration execution Activity rather than Activity.Current.Context.
+            if (createSubOrchestrationAction.Tags != null
+                && createSubOrchestrationAction.Tags.TryGetValue(OrchestrationTags.TraceParent, out string traceParent))
             {
+                // If a parent trace context was provided but we fail to parse it, we don't want to attach any parent trace context to the start event since that will incorrectly link the trace corresponding to the orchestration execution
+                // as a child of Activity.Current, which is not truly the parent of the request
+                if (createSubOrchestrationAction.Tags.TryGetValue(OrchestrationTags.TraceState, out string traceState)
+                    && ActivityContext.TryParse(traceParent, traceState, out ActivityContext parentTraceContext))
+                {
+                    startedEvent.SetParentTraceContext(parentTraceContext);
+                }
+            }
+            else if (parentTraceActivity != null)
+            {
+                ActivitySpanId clientSpanId = ActivitySpanId.CreateRandom();
+                historyEvent.ClientSpanId = clientSpanId.ToString();
                 ActivityContext activityContext = new ActivityContext(parentTraceActivity.TraceId, clientSpanId, parentTraceActivity.ActivityTraceFlags, parentTraceActivity.TraceStateString);
                 startedEvent.SetParentTraceContext(activityContext);
             }
@@ -1204,7 +1220,7 @@ namespace DurableTask.Core
 
             // Distributed Tracing: start a new trace activity derived from the orchestration
             // for an EventRaisedEvent (external event)
-            using Activity? traceActivity = TraceHelper.StartTraceActivityForEventRaisedFromWorker(eventRaisedEvent, runtimeState.OrchestrationInstance, sendEventAction.Instance?.InstanceId);
+            using Activity? traceActivity = TraceHelper.StartTraceActivityForEventRaisedFromWorker(eventRaisedEvent, runtimeState.OrchestrationInstance, this.EntitiesEnabled, sendEventAction.Instance?.InstanceId);
 
             this.logHelper.RaisingEvent(runtimeState.OrchestrationInstance!, historyEvent);
 

@@ -284,7 +284,10 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            activity.SetSpanId(createdEvent.ClientSpanId);
+            if (!string.IsNullOrEmpty(createdEvent.ClientSpanId))
+            {
+                activity.SetSpanId(createdEvent.ClientSpanId);
+            }
 
             activity.SetTag(Schema.Task.Type, TraceActivityConstants.Orchestration);
             activity.SetTag(Schema.Task.Name, createdEvent.Name);
@@ -348,6 +351,7 @@ namespace DurableTask.Core.Tracing
         /// </summary>
         /// <param name="eventRaisedEvent">The associated <see cref="EventRaisedEvent"/>.</param>
         /// <param name="instance">The associated <see cref="OrchestrationInstance"/>.</param>
+        /// <param name="entitiesEnabled">Whether or not entities are enabled, meaning this event could possibly correspond to entity.</param>
         /// <param name="targetInstanceId">The instance id of the orchestration that will receive the event.</param>
         /// <returns>
         /// Returns a newly started <see cref="Activity"/> with (task) activity and orchestration-specific metadata.
@@ -355,8 +359,15 @@ namespace DurableTask.Core.Tracing
         internal static Activity? StartTraceActivityForEventRaisedFromWorker(
             EventRaisedEvent eventRaisedEvent,
             OrchestrationInstance? instance,
+            bool entitiesEnabled,
             string? targetInstanceId)
         {
+            // We don't want to emit tracing for external events when they are related to entities
+            if (entitiesEnabled && (Entities.IsEntityInstance(targetInstanceId ?? string.Empty) || Entities.IsEntityInstance(instance?.InstanceId ?? string.Empty)))
+            {
+                return null;
+            }
+
             Activity? newActivity = ActivityTraceSource.StartActivity(
                 CreateSpanName(TraceActivityConstants.OrchestrationEvent, eventRaisedEvent.Name, null),
                 kind: ActivityKind.Producer,
