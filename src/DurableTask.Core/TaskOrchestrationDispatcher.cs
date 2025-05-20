@@ -1217,6 +1217,10 @@ namespace DurableTask.Core
             {
                 Name = sendEventAction.EventName
             };
+            if (Activity.Current != null)
+            {
+                eventRaisedEvent.SetParentTraceContext(Activity.Current.Context);
+            }
 
             // Distributed Tracing: start a new trace activity derived from the orchestration
             // for an EventRaisedEvent (external event)

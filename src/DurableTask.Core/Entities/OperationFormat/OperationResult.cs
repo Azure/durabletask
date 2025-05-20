@@ -11,6 +11,8 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 #nullable enable
+using System;
+
 namespace DurableTask.Core.Entities.OperationFormat
 {
     /// <summary>
@@ -46,5 +48,15 @@ namespace DurableTask.Core.Entities.OperationFormat
         /// this field exclusively when collecting error information.
         /// </summary>
         public FailureDetails? FailureDetails { get; set; }
+
+        /// <summary>
+        /// The start time of the operation.
+        /// </summary>
+        public DateTime? StartTimeUtc { get; set; }
+
+        /// <summary>
+        /// The completion time of the operation.
+        /// </summary>
+        public DateTime? EndTimeUtc { get; set; }
     }
 }

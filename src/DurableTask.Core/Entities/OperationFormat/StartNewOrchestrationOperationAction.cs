@@ -13,6 +13,7 @@
 #nullable enable
 namespace DurableTask.Core.Entities.OperationFormat
 {
+    using DurableTask.Core.Tracing;
     using System;
     using System.Collections.Generic;
 
@@ -51,6 +52,16 @@ namespace DurableTask.Core.Entities.OperationFormat
         /// Gets or sets when to start the orchestration, or null if the orchestration should be started immediately.
         /// </summary>
         public DateTime? ScheduledStartTime { get; set; }
+
+        /// <summary>
+        /// The time of the new orchestration request creation.
+        /// </summary>
+        public DateTimeOffset? RequestTime { get; set; }
+
+        /// <summary>
+        /// The parent trace context for the operation, if any.
+        /// </summary>
+        public DistributedTraceContext? ParentTraceContext { get; set; }
 
     }
 }

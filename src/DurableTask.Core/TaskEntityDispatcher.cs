@@ -504,18 +504,28 @@ namespace DurableTask.Core
                                     // We handle this by rescheduling the message instead of processing it.
                                     deliverNow = Array.Empty<RequestMessage>();
                                     batch.AddMessageToBeRescheduled(requestMessage);
+
+                                    // We do not want to create the Activity for the request yet since it will be redelivered again later. In the case that the parent trace context was attached
+                                    // to the EventRaisedEvent and not the RequestMessage, we want to attach it to the RequestMessage such that when it is redelivered the parent trace context can be used
+                                    // to create the Activity for the request then.
+                                    if (requestMessage.ParentTraceContext == null && eventRaisedEvent.ParentTraceContext != null)
+                                    {
+                                        requestMessage.ParentTraceContext = eventRaisedEvent.ParentTraceContext;
+                                    }
                                 }
                                 else
                                 {
                                     // the message is scheduled to be delivered immediately.
                                     // There are no FIFO guarantees for scheduled messages, so we skip the message sorter.
                                     deliverNow = new RequestMessage[] { requestMessage };
+                                    StartTraceActivityForSignalingEntity(requestMessage, eventRaisedEvent, instanceId);
                                 }
                             }
                             else
                             {
                                 // run this through the message sorter to help with reordering and duplicate filtering
                                 deliverNow = schedulerState.MessageSorter.ReceiveInOrder(requestMessage, this.entityBackendProperties.EntityMessageReorderWindow);
+                                StartTraceActivityForSignalingEntity(requestMessage, eventRaisedEvent, instanceId);
                             }
 
                             foreach (var message in deliverNow)
@@ -647,20 +657,50 @@ namespace DurableTask.Core
                 }
             }
 
-            public List<OperationRequest> GetOperationRequests()
+            public (List<OperationRequest>, List<Activity>) GetOperationRequestsAndTraceActivities(string instanceId)
             {
                 var operations = new List<OperationRequest>(this.operationBatch.Count);
+                var traceActivities = new List<Activity>(this.operationBatch.Count);
                 for (int i = 0; i < this.operationBatch.Count; i++)
                 {
                     var request = this.operationBatch[i];
+
+                    Activity traceActivity = null;
+                    // We only want to create a trace activity for processing the entity invocation in the case that we can successfully parse the trace context of the request that led to this entity invocation.
+                    // Otherwise, we will create an unlinked trace activity with no parent 
+                    if (ActivityContext.TryParse(request.ParentTraceContext?.TraceParent, request.ParentTraceContext?.TraceState, out ActivityContext parentTraceContext))
+                    {
+                        if (!request.IsSignal)
+                        {
+                            var clientSpanId = ActivitySpanId.CreateRandom();
+
+                            // In that case that we are processing a call request as a server, we want to generate a new span ID that will also be used by the Activity we create at the end corresponding to the client call request
+                            // That way, this server Activity corresponding to processing the call request will be correctly linked as the child of the Activity for the client call request.
+                            parentTraceContext = new ActivityContext(parentTraceContext.TraceId, clientSpanId, parentTraceContext.TraceFlags, parentTraceContext.TraceState);
+                            request.ClientSpanId = clientSpanId.ToString();
+                        }
+                        traceActivity = TraceHelper.StartActivityForProcessingEntityInvocation(
+                            instanceId,
+                            EntityId.FromString(instanceId).Name,
+                            request.Operation,
+                            request.IsSignal,
+                            parentTraceContext);
+                    }
+
+                    // We still want to add the trace activity to the list even if it was not successfully created and is null. This is because otherwise we have no easy way of mapping OperationResults to Activities otherwise if the lists
+                    // do not have the same length in TraceHelper.EndActivitiesForProcessingEntityInvocation. We will simply skip ending the Activity if it is null in this method
+                    traceActivities.Add(traceActivity);
+
+                    // The trace context of the operation request will be the Activity just created - this can become the parent of future operations started by the entity once it processes the OperationRequest
                     operations.Add(new OperationRequest()
                     {
                         Operation = request.Operation,
                         Id = request.Id,
                         Input = request.Input,
+                        TraceContext = traceActivity != null ? new DistributedTraceContext(traceActivity.Id, traceActivity.TraceStateString) : null,
                     });
                 }
-                return operations;
+                return (operations, traceActivities);
             }
 
             public Queue<RequestMessage> RemoveDeferredWork(int index)
@@ -686,6 +726,22 @@ namespace DurableTask.Core
 
         void SendResultMessage(WorkItemEffects effects, RequestMessage request, OperationResult result)
         {
+            // We only want to create a trace activity for calling an entity in the case that we can successfully get the parent trace context of the request.
+            // Otherwise, we will create an unlinked trace activity with no parent.
+            // Note that we create the Activity once the result has been sent to capture the full length of calling the entity and receiving its response.
+            if (ActivityContext.TryParse(request.ParentTraceContext?.TraceParent, request.ParentTraceContext?.TraceState, out ActivityContext parentTraceContext))
+            {
+                using var traceActivity = TraceHelper.StartActivityForCallingOrSignalingEntity(
+                    effects.InstanceId,
+                    EntityId.FromString(effects.InstanceId).Name,
+                    request.Operation,
+                    request.IsSignal,
+                    request.ScheduledTime,
+                    parentTraceContext,
+                    request.RequestTime);
+                traceActivity?.SetSpanId(request.ClientSpanId);
+            }
+
             var destination = new OrchestrationInstance()
             {
                 InstanceId = request.ParentInstanceId,
@@ -727,6 +783,25 @@ namespace DurableTask.Core
             {
                 eventName = EntityMessageEventNames.RequestMessageEventName;
                 schedulerState.MessageSorter.LabelOutgoingMessage(message, action.InstanceId, DateTime.UtcNow, this.entityBackendProperties.EntityMessageReorderWindow);
+            }
+
+            // We only want to create a trace activity for signaling the entity in the case that we can successfully parse the parent trace context of the signal request.
+            // Otherwise, we will create an unlinked trace activity with no parent 
+            if (ActivityContext.TryParse(action.ParentTraceContext?.TraceParent, action.ParentTraceContext?.TraceState, out ActivityContext parentTraceContext))
+            {
+                using var traceActivity = TraceHelper.StartActivityForCallingOrSignalingEntity(
+                    destination.InstanceId,
+                    EntityId.FromString(destination.InstanceId).Name,
+                    action.Name,
+                    signalEntity: true,
+                    action.ScheduledTime,
+                    parentTraceContext,
+                    action.RequestTime,
+                    entityId: effects.InstanceId);
+                if (traceActivity != null)
+                {
+                    message.ParentTraceContext = new DistributedTraceContext(traceActivity.Id, traceActivity.TraceStateString);
+                }
             }
             this.ProcessSendEventMessage(effects, destination, eventName, message);
         }
@@ -816,6 +891,23 @@ namespace DurableTask.Core
                 Name = action.Name,
                 Version = action.Version,
             };
+
+            // We only want to create a trace activity for an entity starting an orchestration in the case that we can successfully parse the parent trace context of the start orchestration request.
+            // Otherwise, we will create an unlinked trace activity with no parent
+            if (ActivityContext.TryParse(action.ParentTraceContext?.TraceParent, action.ParentTraceContext?.TraceState, out ActivityContext parentTraceContext))
+            {
+                using var traceActivity = TraceHelper.StartActivityForEntityStartingAnOrchestration(
+                    runtimeState.OrchestrationInstance.InstanceId,
+                    EntityId.FromString(runtimeState.OrchestrationInstance.InstanceId).Name,
+                    destination.InstanceId,
+                    parentTraceContext,
+                    action.RequestTime,
+                    scheduledTime: action.ScheduledStartTime);
+                if (traceActivity != null)
+                {
+                    executionStartedEvent.ParentTraceContext = new DistributedTraceContext(traceActivity.Id, traceActivity.TraceStateString);
+                }
+            }
             this.logHelper.SchedulingOrchestration(executionStartedEvent);
 
             effects.InstanceMessages.Add(new TaskMessage
@@ -829,12 +921,13 @@ namespace DurableTask.Core
 
         async Task<EntityBatchResult> ExecuteViaMiddlewareAsync(Work workToDoNow, OrchestrationInstance instance, string serializedEntityState)
         {
+            var (operations, traceActivities) = workToDoNow.GetOperationRequestsAndTraceActivities(instance.InstanceId);
             // the request object that will be passed to the worker
             var request = new EntityBatchRequest()
             {
                 InstanceId = instance.InstanceId,
                 EntityState = serializedEntityState,
-                Operations = workToDoNow.GetOperationRequests(),
+                Operations = operations,
             };
 
             this.logHelper.EntityBatchExecuting(request);
@@ -876,10 +969,57 @@ namespace DurableTask.Core
             });
 
             var result = dispatchContext.GetProperty<EntityBatchResult>();
+            TraceHelper.EndActivitiesForProcessingEntityInvocation(traceActivities, result.Results, result.FailureDetails);
 
             this.logHelper.EntityBatchExecuted(request, result);
 
             return result;
+        }
+
+        private static void StartTraceActivityForSignalingEntity(RequestMessage requestMessage, EventRaisedEvent eventRaisedEvent, string instanceId)
+        {
+            if (requestMessage.CreateTrace)
+            {
+                // In the case that we are calling an entity, we want to create the Activity once the result for the call is returned and so we do not create now
+                if (requestMessage.IsSignal)
+                {
+                    var successfullyParsed = false;
+                    ActivityContext parentTraceContext;
+                    if (requestMessage.ParentTraceContext is { } parentContext)
+                    {
+                        // If a parent trace context was provided but we fail to successfully parse it, we should not create the Activity even if the EventRaisedEvent has a parent trace context attached. 
+                        // Otherwise we will incorrectly link the created Activity to a context that is not truly its parent.
+                        if (ActivityContext.TryParse(parentContext.TraceParent, parentContext.TraceState, out parentTraceContext))
+                        {
+                            successfullyParsed = true;
+                        }
+                    }
+                    else if (eventRaisedEvent.TryGetParentTraceContext(out parentTraceContext))
+                    {
+                        successfullyParsed = true;
+                    }
+                    if (successfullyParsed)
+                    {
+                        using var traceActivity = TraceHelper.StartActivityForCallingOrSignalingEntity(
+                            instanceId,
+                            EntityId.FromString(instanceId).Name,
+                            requestMessage.Operation,
+                            requestMessage.IsSignal,
+                            requestMessage.ScheduledTime,
+                            parentTraceContext,
+                            requestMessage.RequestTime);
+                        if (traceActivity != null)
+                        {
+                            requestMessage.ParentTraceContext = new DistributedTraceContext(traceActivity.Id, traceActivity.TraceStateString);
+                        }
+                    }
+                }
+                // We still want to attach a parent trace context to the request in the case of a call to an entity so that when we create the Activity for the call this information is available.
+                else if (requestMessage.ParentTraceContext == null && eventRaisedEvent.ParentTraceContext != null)
+                {
+                    requestMessage.ParentTraceContext = eventRaisedEvent.ParentTraceContext;
+                }
+            }
         }
     }
 }
