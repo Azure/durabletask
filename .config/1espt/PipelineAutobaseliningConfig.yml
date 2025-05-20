@@ -13,6 +13,9 @@ pipelines:
       binary:
         binskim:
           lastModifiedDate: 2025-05-17
+        credscan:
+          lastModifiedDate: 2025-05-20
+    usedNonDefaultBranch: true
   515:
     retail:
       source:
