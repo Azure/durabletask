@@ -86,10 +86,25 @@ namespace DurableTask.Core
             return result;
         }
 
-        public async Task<TResult> ScheduleTaskToWorker<TResult>(string name, string version, string taskList,
-            params object[] parameters)
+        public override async Task<TResult> ScheduleTask<TResult>(string name, string version,
+            ScheduleTaskOptions options, params object[] parameters)
         {
-            object result = await ScheduleTaskInternal(name, version, taskList, typeof(TResult), parameters);
+            if (options.RetryOptions != null)
+            {
+                Task<TResult> RetryCall() => ScheduleTask<TResult>(name, version, ScheduleTaskOptions.CreateBuilder().WithTags(options.Tags).Build(), parameters);
+                var retryInterceptor = new RetryInterceptor<TResult>(this, options.RetryOptions, RetryCall);
+                return await retryInterceptor.Invoke();
+            }
+ 
+            TResult result = await ScheduleTaskToWorker<TResult>(name, version, null, options, parameters);
+ 
+            return result;
+        }
+
+        public async Task<TResult> ScheduleTaskToWorker<TResult>(string name, string version, string taskList,
+            ScheduleTaskOptions options, params object[] parameters)
+        {
+            object result = await ScheduleTaskInternal(name, version, taskList, typeof(TResult), options, parameters);
 
             if (result == null)
             {
@@ -99,8 +114,14 @@ namespace DurableTask.Core
             return (TResult)result;
         }
 
-        public async Task<object> ScheduleTaskInternal(string name, string version, string taskList, Type resultType,
+        public async Task<TResult> ScheduleTaskToWorker<TResult>(string name, string version, string taskList,
             params object[] parameters)
+        {
+            return await ScheduleTaskToWorker<TResult>(name, version, taskList, ScheduleTaskOptions.CreateBuilder().Build(), parameters);
+        }
+
+        public async Task<object> ScheduleTaskInternal(string name, string version, string taskList, Type resultType,
+            ScheduleTaskOptions options, params object[] parameters)
         {
             int id = this.idCounter++;
             string serializedInput = this.MessageDataConverter.SerializeInternal(parameters);
@@ -111,6 +132,7 @@ namespace DurableTask.Core
                 Version = version,
                 Tasklist = taskList,
                 Input = serializedInput,
+                Tags = options.Tags,
             };
 
             this.orchestratorActionsMap.Add(id, scheduleTaskTaskAction);
@@ -121,6 +143,13 @@ namespace DurableTask.Core
             string serializedResult = await tcs.Task;
 
             return this.MessageDataConverter.Deserialize(serializedResult, resultType);
+        }
+
+
+        public async Task<object> ScheduleTaskInternal(string name, string version, string taskList, Type resultType,
+            params object[] parameters)
+        {
+            return await ScheduleTaskInternal(name, version, taskList, resultType, ScheduleTaskOptions.CreateBuilder().Build(), parameters);
         }
 
         public override Task<T> CreateSubOrchestrationInstance<T>(
