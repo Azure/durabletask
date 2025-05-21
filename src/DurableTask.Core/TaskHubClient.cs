@@ -182,6 +182,7 @@ namespace DurableTask.Core
                 null,
                 null,
                 null,
+                null,
                 startAt);
         }
 
