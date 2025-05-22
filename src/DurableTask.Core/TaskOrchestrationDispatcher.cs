@@ -406,7 +406,7 @@ namespace DurableTask.Core
                                 else // Abandon work item in all other cases (will be retried later).
                                 {
                                     await this.orchestrationService.AbandonTaskOrchestrationWorkItemAsync(workItem);
-                                    break;
+                                    return false;
                                 }
                             }
                         }
