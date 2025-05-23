@@ -36,7 +36,7 @@ namespace DurableTask.Core.Entities
         /// <returns>The event to send.</returns>
         public static EntityMessageEvent EmitOperationSignal(OrchestrationInstance targetInstance, Guid requestId, string operationName, string? input, (DateTime Original, DateTime Capped)? scheduledTimeUtc)
         {
-            return EmitOperationSignal(targetInstance, requestId, operationName, input, scheduledTimeUtc, parentTraceContext: null, requestTime: null, createTrace: false);
+            return EmitOperationSignal(targetInstance, requestId, operationName, input, scheduledTimeUtc, parentTraceContext: null, requestTime: null);
         }
 
         /// <summary>
@@ -51,7 +51,7 @@ namespace DurableTask.Core.Entities
         /// <param name="requestTime">The time at which the request was made.</param>
         /// <param name="createTrace">Whether to create a trace for this signal operation.</param>
         /// <returns>The event to send.</returns>
-        public static EntityMessageEvent EmitOperationSignal(OrchestrationInstance targetInstance, Guid requestId, string operationName, string? input, (DateTime Original, DateTime Capped)? scheduledTimeUtc, DistributedTraceContext? parentTraceContext = null, DateTimeOffset? requestTime = null, bool createTrace = false)
+        public static EntityMessageEvent EmitOperationSignal(OrchestrationInstance targetInstance, Guid requestId, string operationName, string? input, (DateTime Original, DateTime Capped)? scheduledTimeUtc, DistributedTraceContext? parentTraceContext, DateTimeOffset? requestTime, bool createTrace = false)
         {
             var request = new RequestMessage()
             {
