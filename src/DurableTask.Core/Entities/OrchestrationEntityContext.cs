@@ -228,6 +228,27 @@ namespace DurableTask.Core.Entities
         /// <param name="operationId">A unique identifier for this request.</param>
         /// <param name="scheduledTimeUtc">A time for which to schedule the delivery, or null if this is not a scheduled message</param>
         /// <param name="input">The operation input</param>
+        /// <returns>The event to send.</returns>
+        public EntityMessageEvent EmitRequestMessage(
+            OrchestrationInstance target,
+            string operationName,
+            bool oneWay,
+            Guid operationId,
+            (DateTime Original, DateTime Capped)? scheduledTimeUtc,
+            string? input)
+        {
+            return EmitRequestMessage(target, operationName, oneWay, operationId, scheduledTimeUtc, input, requestTime: null, createTrace: false);
+        }
+
+        /// <summary>
+        /// Creates a request message to be sent to an entity.
+        /// </summary>
+        /// <param name="target">The target entity.</param>
+        /// <param name="operationName">The name of the operation.</param>
+        /// <param name="oneWay">If true, this is a signal, otherwise it is a call.</param>
+        /// <param name="operationId">A unique identifier for this request.</param>
+        /// <param name="scheduledTimeUtc">A time for which to schedule the delivery, or null if this is not a scheduled message</param>
+        /// <param name="input">The operation input</param>
         /// <param name="requestTime">The time at which the request was made.</param>
         /// <param name="createTrace">Whether or not to create an entity-specific trace for this event</param>
         /// <returns>The event to send.</returns>

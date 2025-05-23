@@ -33,6 +33,20 @@ namespace DurableTask.Core.Entities
         /// <param name="operationName">The name of the operation.</param>
         /// <param name="input">The serialized input for the operation.</param>
         /// <param name="scheduledTimeUtc">The time to schedule this signal, or null if not a scheduled signal</param>
+        /// <returns>The event to send.</returns>
+        public static EntityMessageEvent EmitOperationSignal(OrchestrationInstance targetInstance, Guid requestId, string operationName, string? input, (DateTime Original, DateTime Capped)? scheduledTimeUtc)
+        {
+            return EmitOperationSignal(targetInstance, requestId, operationName, input, scheduledTimeUtc, parentTraceContext: null, requestTime: null, createTrace: false);
+        }
+
+        /// <summary>
+        /// Create an event to represent an entity signal.
+        /// </summary>
+        /// <param name="targetInstance">The target instance.</param>
+        /// <param name="requestId">A unique identifier for the request.</param>
+        /// <param name="operationName">The name of the operation.</param>
+        /// <param name="input">The serialized input for the operation.</param>
+        /// <param name="scheduledTimeUtc">The time to schedule this signal, or null if not a scheduled signal</param>
         /// <param name="parentTraceContext">The parent trace context for this operation.</param>
         /// <param name="requestTime">The time at which the request was made.</param>
         /// <param name="createTrace">Whether to create a trace for this signal operation.</param>
