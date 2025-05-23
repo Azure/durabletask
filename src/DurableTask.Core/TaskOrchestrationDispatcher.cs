@@ -406,7 +406,7 @@ namespace DurableTask.Core
                                 else // Abandon work item in all other cases (will be retried later).
                                 {
                                     await this.orchestrationService.AbandonTaskOrchestrationWorkItemAsync(workItem);
-                                    return false;
+                                    return true;
                                 }
                             }
                         }
@@ -1059,9 +1059,10 @@ namespace DurableTask.Core
                 eventId: scheduleTaskOrchestratorAction.Id,
                 name: scheduleTaskOrchestratorAction.Name,
                 version: scheduleTaskOrchestratorAction.Version,
-                input: scheduleTaskOrchestratorAction.Input) {
-                    Tags = scheduleTaskOrchestratorAction.Tags
-                };
+                input: scheduleTaskOrchestratorAction.Input)
+            {
+                Tags = scheduleTaskOrchestratorAction.Tags
+            };
 
             ActivitySpanId clientSpanId = ActivitySpanId.CreateRandom();
 
@@ -1080,9 +1081,10 @@ namespace DurableTask.Core
                 scheduledEvent = new TaskScheduledEvent(
                     eventId: scheduleTaskOrchestratorAction.Id,
                     name: scheduleTaskOrchestratorAction.Name,
-                    version: scheduleTaskOrchestratorAction.Version) {
-                        Tags = scheduleTaskOrchestratorAction.Tags
-                    };
+                    version: scheduleTaskOrchestratorAction.Version)
+                {
+                    Tags = scheduleTaskOrchestratorAction.Tags
+                };
 
                 if (parentTraceActivity != null)
                 {
