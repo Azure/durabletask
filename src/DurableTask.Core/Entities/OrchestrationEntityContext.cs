@@ -237,7 +237,7 @@ namespace DurableTask.Core.Entities
             (DateTime Original, DateTime Capped)? scheduledTimeUtc,
             string? input)
         {
-            return EmitRequestMessage(target, operationName, oneWay, operationId, scheduledTimeUtc, input, requestTime: null);
+            return EmitRequestMessage(target, operationName, oneWay, operationId, scheduledTimeUtc, input, requestTime: null, createTrace: false);
         }
 
         /// <summary>
@@ -259,7 +259,7 @@ namespace DurableTask.Core.Entities
             Guid operationId,
             (DateTime Original, DateTime Capped)? scheduledTimeUtc,
             string? input,
-            DateTimeOffset? requestTime,
+            DateTimeOffset? requestTime = null,
             bool createTrace = false)
         {
             this.CheckEntitySupport();
