@@ -2518,6 +2518,9 @@ namespace DurableTask.AzureStorage.Tests
                 status = await client.GetStatusAsync();
                 Assert.IsTrue(OrchestrationStatus.Running == status?.OrchestrationStatus || OrchestrationStatus.Pending == status?.OrchestrationStatus);
 
+                var history = await client.GetOrchestrationHistoryAsync(client.InstanceId);
+                Assert.AreEqual(0, history.Count, "A rejected orchestration should have no history as it should never have been started.");
+
                 await host.StopAsync();
             }
         }
