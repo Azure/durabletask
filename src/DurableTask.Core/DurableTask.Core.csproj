@@ -19,8 +19,8 @@
     <MajorVersion>3</MajorVersion>
     <MinorVersion>2</MinorVersion>
     <PatchVersion>0</PatchVersion>
-    <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
-    <FileVersion>$(VersionPrefix).0</FileVersion>
+    <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)-test.1</VersionPrefix>
+    <FileVersion>$(VersionPrefix)</FileVersion>
     <!-- FileVersionRevision is expected to be set by the CI. This is useful for distinguishing between multiple builds of the same version. -->
     <FileVersion Condition="'$(FileVersionRevision)' != ''">$(VersionPrefix).$(FileVersionRevision)</FileVersion>
     <!-- The assembly version is only the major/minor pair, making it easier to do in-place upgrades -->
