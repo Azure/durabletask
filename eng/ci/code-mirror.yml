@@ -5,7 +5,7 @@ trigger:
     # Keep this set limited as appropriate (don't mirror individual user branches).
     - main
     - durabletask-core-v2
-    - neetart/dtfx_sf_pipeline
+    - vabachu/v320-release
 
 resources:
   repositories:
