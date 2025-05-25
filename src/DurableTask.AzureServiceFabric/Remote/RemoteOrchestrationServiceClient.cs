@@ -11,28 +11,25 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Formatting;
+using System.Net.Sockets;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Web;
+using DurableTask.AzureServiceFabric.Exceptions;
+using DurableTask.AzureServiceFabric.Models;
+using DurableTask.Core;
+using DurableTask.Core.Exceptions;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+
 namespace DurableTask.AzureServiceFabric.Remote
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Net;
-    using System.Net.Http;
-    using System.Net.Http.Formatting;
-    using System.Net.Sockets;
-    using System.Threading;
-    using System.Threading.Tasks;
-    using System.Web;
-
-    using DurableTask.Core;
-    using DurableTask.Core.Exceptions;
-    using DurableTask.AzureServiceFabric.Exceptions;
-    using DurableTask.AzureServiceFabric.Models;
-
-    using Newtonsoft.Json;
-    using Newtonsoft.Json.Linq;
-    using System.Web.Http.Results;
-
     /// <summary>
     /// Allows to interact with a remote IOrchestrationServiceClient
     /// </summary>
@@ -116,16 +113,14 @@ namespace DurableTask.AzureServiceFabric.Remote
             instanceId.EnsureValidInstanceId();
 
             var fragment = $"{this.GetOrchestrationFragment(instanceId)}?reason={HttpUtility.UrlEncode(reason)}";
-            using (var response = await this.ExecuteRequestWithRetriesAsync(
+            using var response = await this.ExecuteRequestWithRetriesAsync(
                 instanceId,
                 async (baseUri) => await this.HttpClient.DeleteAsync(new Uri(baseUri, fragment)),
-                CancellationToken.None))
+                CancellationToken.None);
+            if (!response.IsSuccessStatusCode)
             {
-                if (!response.IsSuccessStatusCode)
-                {
-                    var message = await response.Content.ReadAsStringAsync();
-                    throw new RemoteServiceException($"Unable to terminate task instance. Error: {response.StatusCode}:{message}", response.StatusCode);
-                }
+                var message = await response.Content.ReadAsStringAsync();
+                throw new RemoteServiceException($"Unable to terminate task instance. Error: {response.StatusCode}:{message}", response.StatusCode);
             }
         }
 
@@ -154,7 +149,12 @@ namespace DurableTask.AzureServiceFabric.Remote
         {
             instanceId.EnsureValidInstanceId();
 
+#if NETFRAMEWORK
             var fragment = $"{this.GetOrchestrationFragment(instanceId)}?allExecutions={allExecutions}";
+#else
+            var fragment = $"{this.GetOrchestrationFragmentAll(instanceId)}?allExecutions={allExecutions}";
+#endif
+
             var stateString = await this.GetStringResponseAsync(instanceId, fragment, CancellationToken.None);
             var states = JsonConvert.DeserializeObject<IList<OrchestrationState>>(stateString);
             return states;
@@ -278,6 +278,8 @@ namespace DurableTask.AzureServiceFabric.Remote
 
         private string GetOrchestrationFragment(string orchestrationId) => $"orchestrations/{orchestrationId}";
 
+        private string GetOrchestrationFragmentAll(string orchestrationId) => $"orchestrationsAll/{orchestrationId}";
+
         private string GetMessageFragment() => "messages";
 
         private string GetMessageFragment(long messageId) => $"messages/{messageId}";
@@ -286,19 +288,17 @@ namespace DurableTask.AzureServiceFabric.Remote
 
         private async Task<string> GetStringResponseAsync(string instanceId, string fragment, CancellationToken cancellationToken)
         {
-            using (var response = await this.ExecuteRequestWithRetriesAsync(
+            using var response = await this.ExecuteRequestWithRetriesAsync(
                 instanceId,
                 async (baseUri) => await this.HttpClient.GetAsync(new Uri(baseUri, fragment)),
-                cancellationToken))
+                cancellationToken);
+            string content = await response.Content.ReadAsStringAsync();
+            if (response.IsSuccessStatusCode)
             {
-                string content = await response.Content.ReadAsStringAsync();
-                if (response.IsSuccessStatusCode)
-                {
-                    return content;
-                }
-
-                throw new HttpRequestException($"Request failed with status code '{response.StatusCode}' and content '{content}'");
+                return content;
             }
+
+            throw new HttpRequestException($"Request failed with status code '{response.StatusCode}' and content '{content}'");
         }
 
         private async Task PutJsonAsync(string instanceId, string fragment, object @object, CancellationToken cancellationToken)
@@ -308,23 +308,21 @@ namespace DurableTask.AzureServiceFabric.Remote
                 SerializerSettings = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.All }
             };
 
-            using (var result = await this.ExecuteRequestWithRetriesAsync(
+            using var result = await this.ExecuteRequestWithRetriesAsync(
                 instanceId,
                 async (baseUri) => await this.HttpClient.PutAsync(new Uri(baseUri, fragment), @object, mediaFormatter),
-                cancellationToken))
+                cancellationToken);
+
+            // TODO: Improve exception handling
+            if (result.StatusCode == HttpStatusCode.Conflict)
             {
+                throw await (result.Content?.ReadAsAsync<OrchestrationAlreadyExistsException>() ?? Task.FromResult(new OrchestrationAlreadyExistsException()));
+            }
 
-                // TODO: Improve exception handling
-                if (result.StatusCode == HttpStatusCode.Conflict)
-                {
-                    throw await (result.Content?.ReadAsAsync<OrchestrationAlreadyExistsException>() ?? Task.FromResult(new OrchestrationAlreadyExistsException()));
-                }
-
-                if (!result.IsSuccessStatusCode)
-                {
-                    var content = await (result.Content?.ReadAsStringAsync() ?? Task.FromResult<string>(null));
-                    throw new RemoteServiceException($"CreateTaskOrchestrationAsync failed with status code {result.StatusCode}: {content}", result.StatusCode);
-                }
+            if (!result.IsSuccessStatusCode)
+            {
+                var content = await (result.Content?.ReadAsStringAsync() ?? Task.FromResult<string>(null));
+                throw new RemoteServiceException($"CreateTaskOrchestrationAsync failed with status code {result.StatusCode}: {content}", result.StatusCode);
             }
         }
 

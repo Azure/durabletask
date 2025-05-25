@@ -1,8 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
+
   <PropertyGroup>
-    <TargetFrameworks>net462;net472</TargetFrameworks>
+    <TargetFrameworks>net8.0;net462;net472</TargetFrameworks>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PackageId>Microsoft.Azure.DurableTask.AzureServiceFabric</PackageId>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
@@ -14,29 +15,42 @@
     <Authors>Microsoft</Authors>
     <Platforms>AnyCPU;x64</Platforms>
     <NoWarn>$(NoWarn);NU5104</NoWarn>
- </PropertyGroup>
-
+  </PropertyGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
     <Reference Include="System.Web" />
+    <PackageReference Include="Microsoft.AspNet.WebApi.OwinSelfHost" />
+    <Compile Remove="Service\netstd\**" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
     <Reference Include="System.Web" />
+    <PackageReference Include="Microsoft.AspNet.WebApi.OwinSelfHost" />
+    <Compile Remove="Service\netstd\**" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
     <!-- Restoring packages for netstandard2.0 causes warnings. As warnings are treated as errors, compilation will fail. -->
     <!-- Once the packages support netstandard2.0, this project will support netstandard2.0. -->
     <PackageReference Include="Newtonsoft.Json" />
+    <Compile Remove="Service\netfx\**" />
+    <Compile Remove="Service\netstd\**" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+    <PackageReference Include="Newtonsoft.Json" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" />
+    <Compile Remove="Service\netfx\**" />
+  </ItemGroup>
+  
   <ItemGroup>
     <PackageReference Include="ImpromptuInterface" />
-    <PackageReference Include="Microsoft.AspNet.WebApi.OwinSelfHost" />
+    <PackageReference Include="Microsoft.AspNet.WebApi.Client" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.ServiceFabric" />
     <PackageReference Include="Microsoft.ServiceFabric.Data" />
     <PackageReference Include="Microsoft.ServiceFabric.Services" />
-    <PackageReference Include="Microsoft.ServiceFabric" />
+    <PackageReference Include="Microsoft.ServiceFabric.AspNetCore.Kestrel" />
     <PackageReference Include="System.Collections.Immutable" />
   </ItemGroup>
 
@@ -50,4 +64,5 @@
       <PackagePath>content/SBOM</PackagePath>
     </Content>
   </ItemGroup>
+
 </Project>
