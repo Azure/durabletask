@@ -274,14 +274,14 @@ namespace DurableTask.ServiceBus.Tests
             return true;
         }
 
-        bool CompareHistoryEntity(AzureTableOrchestrationHistoryEventEntity expected, AzureTableOrchestrationHistoryEventEntity actual)
+        static bool CompareHistoryEntity(AzureTableOrchestrationHistoryEventEntity expected, AzureTableOrchestrationHistoryEventEntity actual)
         {
             // TODO : history comparison!
             return expected.InstanceId.Equals(actual.InstanceId) && expected.ExecutionId.Equals(actual.ExecutionId) &&
                    expected.SequenceNumber == actual.SequenceNumber;
         }
 
-        bool CompareStateEntity(AzureTableOrchestrationStateEntity expected, AzureTableOrchestrationStateEntity actual)
+        static bool CompareStateEntity(AzureTableOrchestrationStateEntity expected, AzureTableOrchestrationStateEntity actual)
         {
             return
                 expected.State.OrchestrationInstance.InstanceId.Equals(actual.State.OrchestrationInstance.InstanceId) &&
@@ -289,8 +289,7 @@ namespace DurableTask.ServiceBus.Tests
                 expected.State.Name.Equals(actual.State.Name) &&
                 expected.State.CreatedTime.Equals(actual.State.CreatedTime) &&
                 expected.State.LastUpdatedTime.Equals(actual.State.LastUpdatedTime) &&
-                // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-                (expected.State.CompletedTime == null && actual.State.CompletedTime == null ||
+                (expected.State.CompletedTime == default && actual.State.CompletedTime == default ||
                  expected.State.CompletedTime.Equals(actual.State.CompletedTime)) &&
                 expected.State.Status.Equals(actual.State.Status) &&
                 expected.State.Input.Equals(actual.State.Input) &&
@@ -298,7 +297,7 @@ namespace DurableTask.ServiceBus.Tests
                  expected.State.Output.Equals(actual.State.Output));
         }
 
-        IEnumerable<AzureTableOrchestrationHistoryEventEntity> CreateHistoryEntities(AzureTableClient azureTableClient, string instanceId,
+        static IEnumerable<AzureTableOrchestrationHistoryEventEntity> CreateHistoryEntities(AzureTableClient azureTableClient, string instanceId,
             string genId, int count)
         {
             var historyEntities = new List<AzureTableOrchestrationHistoryEventEntity>();
@@ -314,7 +313,7 @@ namespace DurableTask.ServiceBus.Tests
             return historyEntities;
         }
 
-        IEnumerable<AzureTableOrchestrationStateEntity> CreateStateEntities(AzureTableClient azureTableClient, string instanceId, string genId)
+        static IEnumerable<AzureTableOrchestrationStateEntity> CreateStateEntities(AzureTableClient azureTableClient, string instanceId, string genId)
         {
             var entities = new List<AzureTableOrchestrationStateEntity>();
             var runtimeState = new OrchestrationState
