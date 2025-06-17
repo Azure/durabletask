@@ -140,7 +140,9 @@ namespace DurableTask.ServiceBus.Common.Abstraction
         {
             if (sessionState == null)
             {
-                await this.sessionReceiver.SetSessionStateAsync(new BinaryData(new byte[] { }));
+                // Setting session state to null is equivalent to deleting session state.
+                // Setting session state to empty byte array is not equivalent to deleting session state.
+                await this.sessionReceiver.SetSessionStateAsync(null);
             }
             else
             {
