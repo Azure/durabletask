@@ -313,7 +313,7 @@ namespace Correlation.Samples
             if (initializeFromCurrent)
             {
                 opTelemetry.Id = activity.SpanId.ToHexString();
-                if (activity.ParentSpanId != null)
+                if (activity.ParentSpanId != default)
                 {
                     opTelemetry.Context.Operation.ParentId = activity.ParentSpanId.ToHexString();
                 }
