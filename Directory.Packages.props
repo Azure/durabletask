@@ -9,7 +9,7 @@
 
   <!-- Product dependencies -->
   <ItemGroup>
-    <PackageVersion Include="Azure.Core" Version="1.43.0" />
+    <PackageVersion Include="Azure.Core" Version="1.44.1" />
     <PackageVersion Include="Azure.Data.Tables" Version="12.11.0" />
     <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.19.0" />
     <PackageVersion Include="Azure.Storage.Blobs" Version="12.24.0" />
@@ -23,7 +23,6 @@
     <PackageVersion Include="Microsoft.CSharp" Version="4.7.0" />
     <PackageVersion Include="Microsoft.Data.Services.Client" Version="5.8.5" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="2.1.1" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.1" />
     <PackageVersion Include="Microsoft.ServiceFabric" Version="6.4.617" />
     <PackageVersion Include="Microsoft.ServiceFabric.Data" Version="3.3.617" />
     <PackageVersion Include="Microsoft.ServiceFabric.Services" Version="3.3.617" />
@@ -54,8 +53,6 @@
     <PackageVersion Include="EnterpriseLibrary.SemanticLogging.EventSourceAnalyzer.NetCore" Version="2.0.1406.4" />
     <PackageVersion Include="Microsoft.AspNet.WebApi.Core" Version="5.2.6" />
     <PackageVersion Include="Microsoft.Diagnostics.EventFlow.Core" Version="1.5.6" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="6.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="6.0.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
     <PackageVersion Include="Moq" Version="4.10.0" />
     <PackageVersion Include="MSTest.TestAdapter" Version="3.5.0" />
@@ -104,12 +101,18 @@
     <PackageVersion Include="Vio.DurableTask.Hosting" Version="2.2.1" />
   </ItemGroup>
 
-  <!-- Samples dependencies with net8.0-->
+  <!-- Dependencies specific to net8.0-->
   <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="8.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
   </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' != 'net8.0'">
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="6.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="6.0.0" />
+  </ItemGroup>
+  
 
   <!-- Samples dependencies with net462-->
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
