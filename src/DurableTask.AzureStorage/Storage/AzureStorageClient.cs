@@ -107,6 +107,10 @@ namespace DurableTask.AzureStorage.Storage
             where TClientOptions : ClientOptions
         {
             TClientOptions options = storageProvider.CreateOptions();
+
+            // Disable distributed tracing by default to reduce the noise in the traces.
+            options.Diagnostics.IsDistributedTracingEnabled = false;
+
             configurePolicies?.Invoke(options);
 
             return storageProvider.CreateClient(options);
