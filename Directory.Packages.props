@@ -51,7 +51,7 @@
     <PackageVersion Include="CommandLineParser" Version="2.4.3" Condition="'$(TargetFramework)' == 'net6.0'" />
     <PackageVersion Include="CommandLineParser" Version="1.9.71" Condition="'$(TargetFramework)' == 'net462'" />
     <PackageVersion Include="EnterpriseLibrary.SemanticLogging.EventSourceAnalyzer.NetCore" Version="2.0.1406.4" />
-    <PackageVersion Include="Microsoft.AspNet.WebApi.Core" Version="5.2.6" />
+    <PackageVersion Include="Microsoft.AspNet.WebApi.Core" Version="5.3.0" />
     <PackageVersion Include="Microsoft.Diagnostics.EventFlow.Core" Version="1.5.6" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
     <PackageVersion Include="Moq" Version="4.10.0" />
@@ -65,15 +65,15 @@
     <PackageVersion Include="WindowsAzure.Storage" Version="8.7.0" Condition="'$(TargetFramework)' == 'net462'" />
   </ItemGroup>
 
-  <!-- Test dependencies with netcoreapp3.1-->
-  <ItemGroup Condition="'$(TargetFramework)' == 'netcoreapp3.1'">
+  <!-- Test dependencies with net6.0-->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
     <PackageVersion Include="EnterpriseLibrary.SemanticLogging.NetCore" Version="2.0.1406.4" />
     <PackageVersion Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
   </ItemGroup>
 
   <!-- Test dependencies with net472-->
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
-    <PackageVersion Include="Microsoft.AspNet.WebApi.Client" Version="5.2.9" />
+    <PackageVersion Include="Microsoft.AspNet.WebApi.Client" Version="6.0.0" />
     <PackageVersion Include="Microsoft.AspNet.WebApi.Owin" Version="5.3.0" />
     <PackageVersion Include="Microsoft.Owin.Hosting" Version="4.2.2" />
   </ItemGroup>
