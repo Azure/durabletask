@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
+#nullable enable
 namespace DurableTask.AzureStorage.Partitioning
 {
     using System.Collections.Generic;
@@ -27,7 +27,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         Task CreateLeaseIfNotExistAsync(string partitionId, CancellationToken cancellationToken = default);
 
-        Task<T> GetLeaseAsync(string partitionId, CancellationToken cancellationToken = default);
+        Task<T?> GetLeaseAsync(string partitionId, CancellationToken cancellationToken = default);
 
         Task<bool> RenewAsync(T lease, CancellationToken cancellationToken = default);
 
