@@ -47,6 +47,32 @@ namespace DurableTask.AzureStorage.Messaging
 
         protected override TimeSpan MessageVisibilityTimeout => this.settings.ControlQueueVisibilityTimeout;
 
+        private async Task correctMessagesIfMisourted(MessageData messageData)
+        {
+            // validate that the message came from the expected queue
+            string instanceId = messageData.TaskMessage.OrchestrationInstance.InstanceId;
+            uint partitionIndex = Fnv1aHashHelper.ComputeHash(instanceId) % (uint)this.settings.PartitionCount;
+            string expectedQueueOfOrigin = AzureStorageOrchestrationService.GetControlQueueName(this.settings.TaskHubName, (int)partitionIndex);
+
+            // route to the right queue if the user opted in to the mitigation.
+            // This assumes that all workers already have correct partitionCount configuration
+            // RISK - if different workers have different partitionCount values,
+            // this could lead to infinite re-routing of orchestrator messages.
+            if (expectedQueueOfOrigin != this.Name)
+            {
+                // obtain reference to expected queue (should have been created already)
+                var expectedQueue = this.azureStorageClient.GetQueueReference(expectedQueueOfOrigin);
+                await expectedQueue.CreateIfNotExistsAsync();
+
+                // place on correct queue
+                var originalMessage = messageData.OriginalQueueMessage;
+                await expectedQueue.AddMessageAsync(originalMessage, TimeSpan.FromMinutes(1));
+
+                // delete message from current queue
+                await this.storageQueue.DeleteMessageAsync(originalMessage);
+            }
+        }
+
         public async Task<IReadOnlyList<MessageData>> GetMessagesAsync(CancellationToken cancellationToken)
         {
             using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(this.releaseCancellationToken, cancellationToken))
@@ -109,6 +135,12 @@ namespace DurableTask.AzureStorage.Messaging
                                 messageData = await this.messageManager.DeserializeQueueMessageAsync(
                                     queueMessage,
                                     this.storageQueue.Name);
+
+                                if (this.settings.CorrectMisourtedMessages)
+                                {
+                                    await correctMessagesIfMisourted(messageData);
+                                    return; // skip further processing of this message
+                                }
                             }
                             catch (Exception e)
                             {
