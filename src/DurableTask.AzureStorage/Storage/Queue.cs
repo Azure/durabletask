@@ -48,7 +48,6 @@ namespace DurableTask.AzureStorage.Storage
         public async Task AddMessageAsync(string message, TimeSpan? visibilityDelay, Guid? clientRequestId = null, CancellationToken cancellationToken = default)
         {
             using IDisposable scope = OperationContext.CreateClientRequestScope(clientRequestId);
-            
             await this.queueClient
                 .SendMessageAsync(
                     message,

@@ -55,7 +55,7 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     TaskHubName = testName,
                     StorageAccountClientProvider = new StorageAccountClientProvider(TestConnectionString),
-                    QueueClientEncodingStrategy = QueueClientEncodingStrategy.None,
+                    QueueClientEncodingStrategy = QueueClientEncodingStrategy.UTF8,
                 };
 
                 var utf8Service = new AzureStorageOrchestrationService(utf8Settings);
@@ -99,7 +99,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 TaskHubName = testName,
                 StorageAccountClientProvider = new StorageAccountClientProvider(TestConnectionString),
-                QueueClientEncodingStrategy = QueueClientEncodingStrategy.None,
+                QueueClientEncodingStrategy = QueueClientEncodingStrategy.UTF8,
             };
 
             var utf8Service = new AzureStorageOrchestrationService(utf8Settings);
@@ -206,7 +206,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 TaskHubName = testName,
                 StorageAccountClientProvider = new StorageAccountClientProvider(TestConnectionString),
-                QueueClientEncodingStrategy = QueueClientEncodingStrategy.None,
+                QueueClientEncodingStrategy = QueueClientEncodingStrategy.UTF8,
             };
 
             var utf8Service = new AzureStorageOrchestrationService(utf8Settings);
@@ -238,6 +238,53 @@ namespace DurableTask.AzureStorage.Tests
             finally
             {
                 await utf8Service.DeleteAsync();
+            }
+        }
+
+        [TestMethod]
+        // Verifies that Base64 encoding can handle non-UTF8 characters like 0xFFFE (Byte Order Mark)
+        public async Task Base64Encodig_HandlesNonUtf8Characters()
+        {
+            string testName = "Base64WithUtf8Chars";
+            // Create a string with non-UTF8 characters including 0xFFFE (Byte Order Mark)
+            string input = "Normal text " + (char)0xFFFE + " with BOM and " + (char)0xFFFF + " other invalid chars";
+
+            var base64Settings = new AzureStorageOrchestrationServiceSettings
+            {
+                TaskHubName = testName,
+                StorageAccountClientProvider = new StorageAccountClientProvider(TestConnectionString),
+                QueueClientEncodingStrategy = QueueClientEncodingStrategy.Base64,
+            };
+
+            var base64Service = new AzureStorageOrchestrationService(base64Settings);
+
+            try
+            {
+                var base64Client = new TaskHubClient(base64Service);
+                var worker = new TaskHubWorker(base64Service);
+                worker.AddTaskOrchestrations(typeof(HelloOrchestrator));
+                worker.AddTaskActivities(typeof(Hello));
+
+                await worker.StartAsync();
+
+                try
+                {
+                    var instance = await base64Client.CreateOrchestrationInstanceAsync(typeof(HelloOrchestrator), input);
+                    var state = await base64Client.WaitForOrchestrationAsync(instance, TimeSpan.FromSeconds(60));
+
+                    // Verify Base64 encoding successfully handled non-UTF8 characters
+                    Assert.IsNotNull(state);
+                    Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+                    Assert.AreEqual($"\"Hello, {input}!\"", state.Output);
+                }
+                finally
+                {
+                    await worker.StopAsync();
+                }
+            }
+            finally
+            {
+                await base64Service.DeleteAsync();
             }
         }
 

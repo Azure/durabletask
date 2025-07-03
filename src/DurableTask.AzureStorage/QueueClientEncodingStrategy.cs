@@ -24,7 +24,7 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Use UTF8 encoding for queue messages. Maps to <see cref="QueueMessageEncoding.None"/>.
         /// </summary>
-        None = 0,
+        UTF8 = 0,
 
         /// <summary>
         /// Use Base64 encoding for queue messages. Maps to <see cref="QueueMessageEncoding.Base64"/>.
@@ -33,4 +33,4 @@ namespace DurableTask.AzureStorage
         /// </summary>
         Base64 = 1,
     }
-} 
+}

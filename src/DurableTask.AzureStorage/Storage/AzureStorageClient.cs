@@ -71,7 +71,7 @@ namespace DurableTask.AzureStorage.Storage
                 // Configure message encoding based on settings
                 options.MessageEncoding = this.Settings.QueueClientEncodingStrategy switch
                 {
-                    QueueClientEncodingStrategy.None => QueueMessageEncoding.None,
+                    QueueClientEncodingStrategy.UTF8 => QueueMessageEncoding.None,
                     QueueClientEncodingStrategy.Base64 => QueueMessageEncoding.Base64,
                     _ => throw new ArgumentException($"Unsupported encoding strategy: {this.Settings.QueueClientEncodingStrategy}")
                 };

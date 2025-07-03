@@ -291,8 +291,8 @@ namespace DurableTask.AzureStorage
 
         /// <summary>
         /// Gets or sets the encoding strategy used for Azure Storage Queue messages.
-        /// The default is <see cref="QueueClientEncodingStrategy.None"/>.
+        /// The default is <see cref="QueueClientEncodingStrategy.UTF8"/>.
         /// </summary>
-        public QueueClientEncodingStrategy QueueClientEncodingStrategy { get; set; } = QueueClientEncodingStrategy.None;
+        public QueueClientEncodingStrategy QueueClientEncodingStrategy { get; set; } = QueueClientEncodingStrategy.UTF8;
     }
 }
