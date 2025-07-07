@@ -69,20 +69,29 @@ namespace DurableTask.AzureStorage.Storage
             void ConfigureQueueClientPolicies(QueueClientOptions options)
             {
                 // Configure message encoding based on settings
-                options.MessageEncoding = this.Settings.QueueClientEncodingStrategy switch
+                options.MessageEncoding = this.Settings.QueueClientMessageEncoding switch
                 {
-                    QueueClientEncodingStrategy.UTF8 => QueueMessageEncoding.None,
-                    QueueClientEncodingStrategy.Base64 => QueueMessageEncoding.Base64,
-                    _ => throw new ArgumentException($"Unsupported encoding strategy: {this.Settings.QueueClientEncodingStrategy}")
+                    QueueClientMessageEncoding.UTF8 => QueueMessageEncoding.None,
+                    QueueClientMessageEncoding.Base64 => QueueMessageEncoding.Base64,
+                    _ => throw new ArgumentException($"Unsupported encoding strategy: {this.Settings.QueueClientMessageEncoding}")
                 };
 
                 // Base64-encoded clients will fail to decode messages sent in UTF-8 format.
                 // This handler catches decoding failures and update the message with its the original content,
                 // so that the client can successfully process it on the next attempt.
-                if (this.Settings.QueueClientEncodingStrategy == QueueClientEncodingStrategy.Base64)
+                if (this.Settings.QueueClientMessageEncoding == QueueClientMessageEncoding.Base64)
                 {
                     options.MessageDecodingFailed += async (QueueMessageDecodingFailedEventArgs args) =>
                     {
+                        this.Settings.Logger.GeneralWarning(
+                            this.QueueAccountName,
+                            this.Settings.TaskHubName,
+                            $"Base64-encoded queue client failed to decode message with ID: {args.ReceivedMessage.MessageId}. " +
+                            "The message appears to have been originally sent using UTF-8 encoding. " +
+                            "Will attempt to re-encode the message content as Base64 and update the queue message in-place " +
+                            "so it can be successfully processed on the next attempt."
+                        );
+                        
                         if (args.ReceivedMessage != null)
                         {
                             var queueMessage = args.ReceivedMessage;
@@ -120,7 +129,7 @@ namespace DurableTask.AzureStorage.Storage
                     };
                 }
 
-                ConfigureClientPolicies(options);
+                    ConfigureClientPolicies(options);
             }
         }
 

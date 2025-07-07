@@ -21,7 +21,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Threading.Tasks;
 
     [TestClass]
-    public class QueueClientEncodingStrategyIntegrationTests
+    public class QueueClientMessageEncodingIntegrationTests
     {
         private const string TestConnectionString = "UseDevelopmentStorage=true";
 
@@ -37,7 +37,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 TaskHubName = testName,
                 StorageAccountClientProvider = new StorageAccountClientProvider(TestConnectionString),
-                QueueClientEncodingStrategy = QueueClientEncodingStrategy.Base64,
+                QueueClientMessageEncoding = QueueClientMessageEncoding.Base64,
             };
 
             var base64Service = new AzureStorageOrchestrationService(base64Settings);
@@ -55,7 +55,7 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     TaskHubName = testName,
                     StorageAccountClientProvider = new StorageAccountClientProvider(TestConnectionString),
-                    QueueClientEncodingStrategy = QueueClientEncodingStrategy.UTF8,
+                    QueueClientMessageEncoding = QueueClientMessageEncoding.UTF8,
                 };
 
                 var utf8Service = new AzureStorageOrchestrationService(utf8Settings);
@@ -99,7 +99,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 TaskHubName = testName,
                 StorageAccountClientProvider = new StorageAccountClientProvider(TestConnectionString),
-                QueueClientEncodingStrategy = QueueClientEncodingStrategy.UTF8,
+                QueueClientMessageEncoding = QueueClientMessageEncoding.UTF8,
             };
 
             var utf8Service = new AzureStorageOrchestrationService(utf8Settings);
@@ -117,7 +117,7 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     TaskHubName = testName,
                     StorageAccountClientProvider = new StorageAccountClientProvider(TestConnectionString),
-                    QueueClientEncodingStrategy = QueueClientEncodingStrategy.Base64,
+                    QueueClientMessageEncoding = QueueClientMessageEncoding.Base64,
                 };
 
                 var base64Service = new AzureStorageOrchestrationService(base64Settings);
@@ -160,7 +160,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 TaskHubName = testName,
                 StorageAccountClientProvider = new StorageAccountClientProvider(TestConnectionString),
-                QueueClientEncodingStrategy = QueueClientEncodingStrategy.Base64,
+                QueueClientMessageEncoding = QueueClientMessageEncoding.Base64,
             };
 
             var base64Service = new AzureStorageOrchestrationService(base64Settings);
@@ -206,7 +206,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 TaskHubName = testName,
                 StorageAccountClientProvider = new StorageAccountClientProvider(TestConnectionString),
-                QueueClientEncodingStrategy = QueueClientEncodingStrategy.UTF8,
+                QueueClientMessageEncoding = QueueClientMessageEncoding.UTF8,
             };
 
             var utf8Service = new AzureStorageOrchestrationService(utf8Settings);
@@ -253,7 +253,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 TaskHubName = testName,
                 StorageAccountClientProvider = new StorageAccountClientProvider(TestConnectionString),
-                QueueClientEncodingStrategy = QueueClientEncodingStrategy.Base64,
+                QueueClientMessageEncoding = QueueClientMessageEncoding.Base64,
             };
 
             var base64Service = new AzureStorageOrchestrationService(base64Settings);

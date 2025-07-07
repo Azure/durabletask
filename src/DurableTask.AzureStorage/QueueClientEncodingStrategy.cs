@@ -19,7 +19,7 @@ namespace DurableTask.AzureStorage
     /// Specifies the encoding strategy used for Azure Storage Queue messages.
     /// This enum maps to the Azure Storage SDK's <see cref="QueueMessageEncoding"/> values.
     /// </summary>
-    public enum QueueClientEncodingStrategy
+    public enum QueueClientMessageEncoding
     {
         /// <summary>
         /// Use UTF8 encoding for queue messages. Maps to <see cref="QueueMessageEncoding.None"/>.

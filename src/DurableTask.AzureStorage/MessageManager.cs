@@ -158,7 +158,7 @@ namespace DurableTask.AzureStorage
             byte[] body = queueMessage.Body.ToArray();
             MessageData envelope = null;
 
-            if (this.azureStorageClient.Settings.QueueClientEncodingStrategy == QueueClientEncodingStrategy.Base64)
+            if (this.azureStorageClient.Settings.QueueClientMessageEncoding == QueueClientMessageEncoding.Base64)
             {
                 try
                 {
@@ -192,17 +192,18 @@ namespace DurableTask.AzureStorage
                     // In this case, queueMessage.Body contains raw Base64 bytes
                     try
                     {
+                        this.azureStorageClient.Settings.Logger.GeneralWarning(
+                            this.azureStorageClient.QueueAccountName,
+                            this.azureStorageClient.Settings.TaskHubName,
+                            $"Failed to deserialize queue message using UTF-8 encoding. " +
+                            $"First few characters are: \"{Encoding.UTF8.GetString(body, 0, Math.Min(10, body.Length))}\". " +
+                            $"Assuming this is a Base64-encoded message created with a different message encoding configuration.");
+
                         // Convert raw bytes to Base64 string, then decode Base64 to get original message
                         string base64String = Encoding.UTF8.GetString(body);
                         byte[] decodedBytes = Convert.FromBase64String(base64String);
                         string decodedMessage = Encoding.UTF8.GetString(decodedBytes);
                         envelope = this.DeserializeMessageData(decodedMessage);
-                        
-                        // Log successful cross-encoding processing
-                        this.azureStorageClient.Settings.Logger.GeneralWarning(
-                            this.azureStorageClient.QueueAccountName,
-                            this.azureStorageClient.Settings.TaskHubName,
-                            $"Successfully processed Base64 message with UTF8 client. MessageId: {queueMessage.MessageId}");
                     }
                     catch (Exception fallbackException)
                     {
@@ -220,7 +221,7 @@ namespace DurableTask.AzureStorage
 
             if (envelope == null)
             {
-                throw new InvalidOperationException($"Failed to deserialize message {queueMessage.MessageId} with encoding strategy {this.azureStorageClient.Settings.QueueClientEncodingStrategy}");
+                throw new InvalidOperationException($"Failed to deserialize message {queueMessage.MessageId} with encoding strategy {this.azureStorageClient.Settings.QueueClientMessageEncoding}");
             }
 
             if (!string.IsNullOrEmpty(envelope.CompressedBlobName))
