@@ -154,74 +154,61 @@ namespace DurableTask.AzureStorage
 
         public async Task<MessageData> DeserializeQueueMessageAsync(QueueMessage queueMessage, string queueName, CancellationToken cancellationToken = default)
         {
-            // TODO: Deserialize with Stream?
-            byte[] body = queueMessage.Body.ToArray();
+            // No matter what the queue client encoding is (Base64 or UTF8),
+            // we should always successfully get the string here.
+            string bodyAsString = queueMessage.Body.ToString();
             MessageData envelope = null;
 
-            if (this.azureStorageClient.Settings.QueueClientMessageEncoding == QueueClientMessageEncoding.Base64)
+            try
             {
+                envelope = this.DeserializeMessageData(bodyAsString);
+            }
+            catch (JsonReaderException)
+            {
+                // This catch block is especially for the case where the queue client encoding is UTF8
+                // but it receives a message that was sent by a queue client using Base64 encoding.
+                // In this case, queueMessage.Body contains raw Base64 bytes
                 try
-                {
-                    // For a queue client using the Base64 encoding strategy, error handling is configured via the options.
-                    // Therefore, we should always receive messages encoded in Base64 here.
-                    string messageText = queueMessage.Body.ToString();
-                    envelope = this.DeserializeMessageData(messageText);
-                }
-                catch (Exception ex)
                 {
                     this.azureStorageClient.Settings.Logger.GeneralWarning(
                         this.azureStorageClient.QueueAccountName,
                         this.azureStorageClient.Settings.TaskHubName,
-                        $"Failed to process message with Base64 client fallback. MessageId: {queueMessage.MessageId}, Error: {ex.Message}");
-                        
-                        // Re-throw the original exception to maintain the original behavior
-                        throw;
+                        $"Failed to deserialize queue message using UTF-8 encoding. " +
+                        $"First few characters are: \"{bodyAsString.Substring(0, Math.Min(10, bodyAsString.Length))}\". " +
+                        $"Assuming this is a Base64-encoded message created with a different message encoding configuration.");
+
+                    // Convert raw bytes to Base64 string, then decode Base64 to get original message
+                    byte[] decodedBytes = Convert.FromBase64String(bodyAsString);
+                    string decodedMessage = Encoding.UTF8.GetString(decodedBytes);
+                    envelope = this.DeserializeMessageData(decodedMessage);
+                }
+                catch (Exception fallbackException)
+                {
+                    // Log the fallback failure
+                    this.azureStorageClient.Settings.Logger.GeneralWarning(
+                        this.azureStorageClient.QueueAccountName,
+                        this.azureStorageClient.Settings.TaskHubName,
+                        $"Failed to process message with UTF8 client fallback. MessageId: {queueMessage.MessageId}, Error: {fallbackException.Message}");
+                    
+                    // Re-throw the original exception to maintain the original behavior
+                    throw;
                 }
             }
-            else // queue client use Utf8-encoding.
+            catch (Exception ex)
             {
-                try
-                {
-                    // For UTF8 encoding strategy, try to decode as UTF8 first
-                    envelope = this.DeserializeMessageData(Encoding.UTF8.GetString(body));
-                }
-                catch (JsonReaderException)
-                {
-                    // If UTF8 decode fails, the message might be Base64 encoded
-                    // This can happen when MessageDecodingFailed event was triggered
-                    // In this case, queueMessage.Body contains raw Base64 bytes
-                    try
-                    {
-                        this.azureStorageClient.Settings.Logger.GeneralWarning(
-                            this.azureStorageClient.QueueAccountName,
-                            this.azureStorageClient.Settings.TaskHubName,
-                            $"Failed to deserialize queue message using UTF-8 encoding. " +
-                            $"First few characters are: \"{Encoding.UTF8.GetString(body, 0, Math.Min(10, body.Length))}\". " +
-                            $"Assuming this is a Base64-encoded message created with a different message encoding configuration.");
-
-                        // Convert raw bytes to Base64 string, then decode Base64 to get original message
-                        string base64String = Encoding.UTF8.GetString(body);
-                        byte[] decodedBytes = Convert.FromBase64String(base64String);
-                        string decodedMessage = Encoding.UTF8.GetString(decodedBytes);
-                        envelope = this.DeserializeMessageData(decodedMessage);
-                    }
-                    catch (Exception fallbackException)
-                    {
-                        // Log the fallback failure
-                        this.azureStorageClient.Settings.Logger.GeneralWarning(
-                            this.azureStorageClient.QueueAccountName,
-                            this.azureStorageClient.Settings.TaskHubName,
-                            $"Failed to process message with UTF8 client fallback. MessageId: {queueMessage.MessageId}, Error: {fallbackException.Message}");
-                        
-                        // Re-throw the original exception to maintain the original behavior
-                        throw;
-                    }
-                }
+                // Note: For a Base64 queue client, it is supposed to always receive a Base64-encoded queue message.
+                // Becasue error handling for the case where a Base64 queue client receives a UTF8 message is implemented in AzureStorageClient.cs.
+                // This exception catch block handles any other unexpected errors during deserialization.
+                this.azureStorageClient.Settings.Logger.GeneralWarning(
+                    this.azureStorageClient.QueueAccountName,
+                    this.azureStorageClient.Settings.TaskHubName,
+                    $"Failed to process message. MessageId: {queueMessage.MessageId}, Error: {ex.Message}");
+                throw;
             }
 
             if (envelope == null)
             {
-                throw new InvalidOperationException($"Failed to deserialize message {queueMessage.MessageId} with encoding strategy {this.azureStorageClient.Settings.QueueClientMessageEncoding}");
+                throw new InvalidOperationException($"Failed to deserialize message {queueMessage.MessageId}");
             }
 
             if (!string.IsNullOrEmpty(envelope.CompressedBlobName))
@@ -233,7 +220,7 @@ namespace DurableTask.AzureStorage
             }
             else
             {
-                envelope.TotalMessageSizeBytes = body.Length;
+                envelope.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(bodyAsString);
             }
 
             envelope.OriginalQueueMessage = queueMessage;
