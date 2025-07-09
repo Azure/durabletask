@@ -161,15 +161,19 @@ namespace DurableTask.AzureStorage
 
             try
             {
-                envelope = this.DeserializeMessageData(bodyAsString);
-            }
-            catch (JsonReaderException)
-            {
-                // This catch block is especially for the case where the queue client encoding is UTF8
-                // but it receives a message that was sent by a queue client using Base64 encoding.
-                // In this case, queueMessage.Body contains raw Base64 bytes
-                try
+                // Check if the message starts with '{' which indicates it's a JSON message
+                // If so, deserialize it directly. Otherwise, try Base64 decoding strategy.
+                if (bodyAsString.TrimStart().StartsWith("{"))
                 {
+                    envelope = this.DeserializeMessageData(bodyAsString);
+                }
+                else
+                {
+                    // The message we got is not a valid json message (doesn't start with '{').
+                    // This could happen in the case where our queue client is UTF8 encoding 
+                    // while receiving a message sent by a Base64 queue client.
+                    // So we try to re-decode it as Base64.
+
                     this.azureStorageClient.Settings.Logger.GeneralWarning(
                         this.azureStorageClient.QueueAccountName,
                         this.azureStorageClient.Settings.TaskHubName,
@@ -177,21 +181,9 @@ namespace DurableTask.AzureStorage
                         $"First few characters are: \"{bodyAsString.Substring(0, Math.Min(10, bodyAsString.Length))}\". " +
                         $"Assuming this is a Base64-encoded message created with a different message encoding configuration.");
 
-                    // Convert raw bytes to Base64 string, then decode Base64 to get original message
                     byte[] decodedBytes = Convert.FromBase64String(bodyAsString);
                     string decodedMessage = Encoding.UTF8.GetString(decodedBytes);
                     envelope = this.DeserializeMessageData(decodedMessage);
-                }
-                catch (Exception fallbackException)
-                {
-                    // Log the fallback failure
-                    this.azureStorageClient.Settings.Logger.GeneralWarning(
-                        this.azureStorageClient.QueueAccountName,
-                        this.azureStorageClient.Settings.TaskHubName,
-                        $"Failed to process message with UTF8 client fallback. MessageId: {queueMessage.MessageId}, Error: {fallbackException.Message}");
-                    
-                    // Re-throw the original exception to maintain the original behavior
-                    throw;
                 }
             }
             catch (Exception ex)
