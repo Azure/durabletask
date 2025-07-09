@@ -163,7 +163,7 @@ namespace DurableTask.AzureStorage
             {
                 // Check if the message starts with '{' which indicates it's a JSON message
                 // If so, deserialize it directly. Otherwise, try Base64 decoding strategy.
-                if (bodyAsString.TrimStart().StartsWith("{"))
+                if (bodyAsString.StartsWith("{"))
                 {
                     envelope = this.DeserializeMessageData(bodyAsString);
                 }
