@@ -173,14 +173,6 @@ namespace DurableTask.AzureStorage
                     // This could happen in the case where our queue client is UTF8 encoding 
                     // while receiving a message sent by a Base64 queue client.
                     // So we try to re-decode it as Base64.
-
-                    this.azureStorageClient.Settings.Logger.GeneralWarning(
-                        this.azureStorageClient.QueueAccountName,
-                        this.azureStorageClient.Settings.TaskHubName,
-                        $"Failed to deserialize queue message using UTF-8 encoding. " +
-                        $"First few characters are: \"{bodyAsString.Substring(0, Math.Min(10, bodyAsString.Length))}\". " +
-                        $"Assuming this is a Base64-encoded message created with a different message encoding configuration.");
-
                     byte[] decodedBytes = Convert.FromBase64String(bodyAsString);
                     string decodedMessage = Encoding.UTF8.GetString(decodedBytes);
                     envelope = this.DeserializeMessageData(decodedMessage);
