@@ -119,7 +119,7 @@ namespace DurableTask.Core
                 if (workItem.Session == null)
                 {
                     // Legacy behavior
-                    await this.OnProcessWorkItemAsync(workItem);
+                    await this.OnProcessWorkItemAsync(workItem, true);
                     return;
                 }
 
@@ -133,7 +133,8 @@ namespace DurableTask.Core
                         // While the work item contains messages that need to be processed, execute them.
                         if (workItem.NewMessages?.Count > 0)
                         {
-                            bool isCompletedOrInterrupted = await this.OnProcessWorkItemAsync(workItem);
+                            workItem.IsExtendedSession = true;
+                            bool isCompletedOrInterrupted = await this.OnProcessWorkItemAsync(workItem, processCount == 0);
                             if (isCompletedOrInterrupted)
                             {
                                 break;
@@ -196,7 +197,8 @@ namespace DurableTask.Core
         /// Method to process a new work item
         /// </summary>
         /// <param name="workItem">The work item to process</param>
-        protected async Task<bool> OnProcessWorkItemAsync(TaskOrchestrationWorkItem workItem)
+        /// <param name="firstExecution"></param>
+        protected async Task<bool> OnProcessWorkItemAsync(TaskOrchestrationWorkItem workItem, bool firstExecution)
         {
             OrchestrationRuntimeState originalOrchestrationRuntimeState = workItem.OrchestrationRuntimeState;
 
@@ -245,7 +247,7 @@ namespace DurableTask.Core
                     if (workToDoNow.OperationCount > 0)
                     {
                         // execute the user-defined operations on this entity, via the middleware
-                        var result = await this.ExecuteViaMiddlewareAsync(workToDoNow, runtimeState.OrchestrationInstance, schedulerState.EntityState);
+                        var result = await this.ExecuteViaMiddlewareAsync(workToDoNow, runtimeState.OrchestrationInstance, schedulerState.EntityState, workItem.IsExtendedSession, firstExecution);
                         var operationResults = result.Results!;
 
                         // if we encountered an error, record it as the result of the operations
@@ -919,7 +921,7 @@ namespace DurableTask.Core
 
         #endregion
 
-        async Task<EntityBatchResult> ExecuteViaMiddlewareAsync(Work workToDoNow, OrchestrationInstance instance, string serializedEntityState)
+        async Task<EntityBatchResult> ExecuteViaMiddlewareAsync(Work workToDoNow, OrchestrationInstance instance, string serializedEntityState, bool isExtendedSession, bool includeEntityState)
         {
             var (operations, traceActivities) = workToDoNow.GetOperationRequestsAndTraceActivities(instance.InstanceId);
             // the request object that will be passed to the worker
@@ -942,6 +944,8 @@ namespace DurableTask.Core
 
             var dispatchContext = new DispatchMiddlewareContext();
             dispatchContext.SetProperty(request);
+            dispatchContext.SetProperty("extendedSession", isExtendedSession);
+            dispatchContext.SetProperty("includeEntityState", includeEntityState);
 
             await this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
             {
