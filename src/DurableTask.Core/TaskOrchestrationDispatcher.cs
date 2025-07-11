@@ -224,6 +224,7 @@ namespace DurableTask.Core
 
                 var isExtendedSession = false;
 
+                /*
                 CorrelationTraceClient.Propagate(
                     () =>
                     {
@@ -233,6 +234,7 @@ namespace DurableTask.Core
                         this.concurrentSessionLock.Release();
                         workItem.IsExtendedSession = isExtendedSession;
                     });
+                */
 
                 var processCount = 0;
                 try
@@ -242,6 +244,8 @@ namespace DurableTask.Core
                         // If the provider provided work items, execute them.
                         if (workItem.NewMessages?.Count > 0)
                         {
+                            // As long as we are in this execution loop, the extended session is maintained.
+                            workItem.IsExtendedSession = true;
                             bool isCompletedOrInterrupted = await this.OnProcessWorkItemAsync(workItem);
                             if (isCompletedOrInterrupted)
                             {
@@ -252,7 +256,7 @@ namespace DurableTask.Core
                         }
 
                         // Fetches beyond the first require getting an extended session lock, used to prevent starvation.
-                        if (processCount > 0 && !isExtendedSession)
+                        if (processCount > 0)
                         {
                             isExtendedSession = this.concurrentSessionLock.Acquire();
                             if (!isExtendedSession)
@@ -735,6 +739,8 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(workItem);
             dispatchContext.SetProperty(GetOrchestrationExecutionContext(runtimeState));
             dispatchContext.SetProperty(this.entityParameters);
+            dispatchContext.SetProperty("extendedSession", workItem.IsExtendedSession);
+            dispatchContext.SetProperty("includePastEvents", true);
 
             TaskOrchestrationExecutor? executor = null;
 
@@ -786,12 +792,24 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(cursor.TaskOrchestration);
             dispatchContext.SetProperty(cursor.RuntimeState);
             dispatchContext.SetProperty(workItem);
+            dispatchContext.SetProperty("extendedSession", true);
+            dispatchContext.SetProperty("includePastEvents", false);
 
             cursor.LatestDecisions = Enumerable.Empty<OrchestratorAction>();
             await this.dispatchPipeline.RunAsync(dispatchContext, _ =>
             {
-                OrchestratorExecutionResult result = cursor.OrchestrationExecutor.ExecuteNewEvents();
-                dispatchContext.SetProperty(result);
+                // Check to see if the custom middleware intercepted and substituted the orchestration execution
+                // with its own execution behavior, providing us with the end results. If so, we can terminate
+                // the dispatch pipeline here.
+                // Need to make sure that this will be null for other OOProc scenarios (not isolated, like Java)
+                var resultFromMiddleware = dispatchContext.GetProperty<OrchestratorExecutionResult>();
+                if (resultFromMiddleware != null)
+                {
+                    return CompletedTask;
+                }
+
+                OrchestratorExecutionResult resultFromOrchestrator = cursor.OrchestrationExecutor.ExecuteNewEvents();
+                dispatchContext.SetProperty(resultFromOrchestrator);
                 return CompletedTask;
             });
 
