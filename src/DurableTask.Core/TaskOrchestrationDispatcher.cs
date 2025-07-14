@@ -799,7 +799,6 @@ namespace DurableTask.Core
                 // Check to see if the custom middleware intercepted and substituted the orchestration execution
                 // with its own execution behavior, providing us with the end results. If so, we can terminate
                 // the dispatch pipeline here.
-                // Need to make sure that this will be null for other OOProc scenarios (not isolated, like Java)
                 var resultFromMiddleware = dispatchContext.GetProperty<OrchestratorExecutionResult>();
                 if (resultFromMiddleware != null)
                 {
