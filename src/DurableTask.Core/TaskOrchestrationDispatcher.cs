@@ -36,6 +36,17 @@ namespace DurableTask.Core
     /// </summary>
     public class TaskOrchestrationDispatcher
     {
+        /// <summary>
+        /// Whether or not the execution of the work item is within an extended session. 
+        /// </summary>
+        public const string IsExtendedSession = "extendedSession";
+
+        /// <summary>
+        /// Whether or not to include past events in the orchestration history when executing the work item via middleware.
+        /// This assumes that the middleware is able to handle extended sessions and does not require history for replays.
+        /// </summary>
+        public const string IncludePastEvents = "includePastEvents";
+
         static readonly Task CompletedTask = Task.FromResult(0);
 
         readonly INameVersionObjectManager<TaskOrchestration> objectManager;
@@ -739,8 +750,8 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(workItem);
             dispatchContext.SetProperty(GetOrchestrationExecutionContext(runtimeState));
             dispatchContext.SetProperty(this.entityParameters);
-            dispatchContext.SetProperty("extendedSession", workItem.IsExtendedSession);
-            dispatchContext.SetProperty("includePastEvents", true);
+            dispatchContext.SetProperty(IsExtendedSession, workItem.IsExtendedSession);
+            dispatchContext.SetProperty(IncludePastEvents, true);
 
             TaskOrchestrationExecutor? executor = null;
 
@@ -792,8 +803,8 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(cursor.TaskOrchestration);
             dispatchContext.SetProperty(cursor.RuntimeState);
             dispatchContext.SetProperty(workItem);
-            dispatchContext.SetProperty("extendedSession", true);
-            dispatchContext.SetProperty("includePastEvents", false);
+            dispatchContext.SetProperty(IsExtendedSession, true);
+            dispatchContext.SetProperty(IncludePastEvents, false);
 
             cursor.LatestDecisions = Enumerable.Empty<OrchestratorAction>();
             await this.dispatchPipeline.RunAsync(dispatchContext, _ =>
