@@ -233,7 +233,7 @@ namespace DurableTask.Core
                     return;
                 }
 
-                var isExtendedSession = false;
+                var concurrencyLockAcquired = false;
                 var processCount = 0;
                 try
                 {
@@ -254,10 +254,10 @@ namespace DurableTask.Core
                         }
 
                         // Fetches beyond the first require getting an extended session lock, used to prevent starvation.
-                        if (processCount > 0)
+                        if (processCount > 0 && !concurrencyLockAcquired)
                         {
-                            isExtendedSession = this.concurrentSessionLock.Acquire();
-                            if (!isExtendedSession)
+                            concurrencyLockAcquired = this.concurrentSessionLock.Acquire();
+                            if (!concurrencyLockAcquired)
                             {
                                 TraceHelper.Trace(TraceEventType.Verbose, "OnProcessWorkItemSession-MaxOperations", "Failed to acquire concurrent session lock.");
                                 break;
@@ -284,7 +284,7 @@ namespace DurableTask.Core
                 }
                 finally
                 {
-                    if (isExtendedSession)
+                    if (concurrencyLockAcquired)
                     {
                         TraceHelper.Trace(
                             TraceEventType.Verbose,
