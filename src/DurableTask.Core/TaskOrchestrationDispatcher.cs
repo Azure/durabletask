@@ -36,6 +36,17 @@ namespace DurableTask.Core
     /// </summary>
     public class TaskOrchestrationDispatcher
     {
+        /// <summary>
+        /// Whether or not the execution of the work item is within an extended session. 
+        /// </summary>
+        public const string IsExtendedSession = "extendedSession";
+
+        /// <summary>
+        /// Whether or not to include past events in the orchestration history when executing the work item via middleware.
+        /// This assumes that the middleware is able to handle extended sessions and does not require history for replays.
+        /// </summary>
+        public const string IncludePastEvents = "includePastEvents";
+
         static readonly Task CompletedTask = Task.FromResult(0);
 
         readonly INameVersionObjectManager<TaskOrchestration> objectManager;
@@ -222,18 +233,7 @@ namespace DurableTask.Core
                     return;
                 }
 
-                var isExtendedSession = false;
-
-                CorrelationTraceClient.Propagate(
-                    () =>
-                    {
-                        // Check if it is extended session.
-                        // TODO: Remove this code - it looks incorrect and dangerous
-                        isExtendedSession = this.concurrentSessionLock.Acquire();
-                        this.concurrentSessionLock.Release();
-                        workItem.IsExtendedSession = isExtendedSession;
-                    });
-
+                var concurrencyLockAcquired = false;
                 var processCount = 0;
                 try
                 {
@@ -242,6 +242,8 @@ namespace DurableTask.Core
                         // If the provider provided work items, execute them.
                         if (workItem.NewMessages?.Count > 0)
                         {
+                            // As long as we are in this execution loop, the extended session is maintained.
+                            workItem.IsExtendedSession = true;
                             bool isCompletedOrInterrupted = await this.OnProcessWorkItemAsync(workItem);
                             if (isCompletedOrInterrupted)
                             {
@@ -252,10 +254,10 @@ namespace DurableTask.Core
                         }
 
                         // Fetches beyond the first require getting an extended session lock, used to prevent starvation.
-                        if (processCount > 0 && !isExtendedSession)
+                        if (processCount > 0 && !concurrencyLockAcquired)
                         {
-                            isExtendedSession = this.concurrentSessionLock.Acquire();
-                            if (!isExtendedSession)
+                            concurrencyLockAcquired = this.concurrentSessionLock.Acquire();
+                            if (!concurrencyLockAcquired)
                             {
                                 TraceHelper.Trace(TraceEventType.Verbose, "OnProcessWorkItemSession-MaxOperations", "Failed to acquire concurrent session lock.");
                                 break;
@@ -282,7 +284,7 @@ namespace DurableTask.Core
                 }
                 finally
                 {
-                    if (isExtendedSession)
+                    if (concurrencyLockAcquired)
                     {
                         TraceHelper.Trace(
                             TraceEventType.Verbose,
@@ -735,6 +737,8 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(workItem);
             dispatchContext.SetProperty(GetOrchestrationExecutionContext(runtimeState));
             dispatchContext.SetProperty(this.entityParameters);
+            dispatchContext.SetProperty(IsExtendedSession, workItem.IsExtendedSession);
+            dispatchContext.SetProperty(IncludePastEvents, true);
 
             TaskOrchestrationExecutor? executor = null;
 
@@ -786,12 +790,23 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(cursor.TaskOrchestration);
             dispatchContext.SetProperty(cursor.RuntimeState);
             dispatchContext.SetProperty(workItem);
+            dispatchContext.SetProperty(IsExtendedSession, true);
+            dispatchContext.SetProperty(IncludePastEvents, false);
 
             cursor.LatestDecisions = Enumerable.Empty<OrchestratorAction>();
             await this.dispatchPipeline.RunAsync(dispatchContext, _ =>
             {
-                OrchestratorExecutionResult result = cursor.OrchestrationExecutor.ExecuteNewEvents();
-                dispatchContext.SetProperty(result);
+                // Check to see if the custom middleware intercepted and substituted the orchestration execution
+                // with its own execution behavior, providing us with the end results. If so, we can terminate
+                // the dispatch pipeline here.
+                var resultFromMiddleware = dispatchContext.GetProperty<OrchestratorExecutionResult>();
+                if (resultFromMiddleware != null)
+                {
+                    return CompletedTask;
+                }
+
+                OrchestratorExecutionResult resultFromOrchestrator = cursor.OrchestrationExecutor.ExecuteNewEvents();
+                dispatchContext.SetProperty(resultFromOrchestrator);
                 return CompletedTask;
             });
 
