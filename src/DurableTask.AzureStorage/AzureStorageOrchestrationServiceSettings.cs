@@ -288,5 +288,11 @@ namespace DurableTask.AzureStorage
         /// Consumers that require separate dispatch (such as the new out-of-proc v2 SDKs) must set this to true.
         /// </summary>
         public bool UseSeparateQueueForEntityWorkItems { get; set; } = false;
+
+        /// <summary>
+        /// Gets or sets the encoding strategy used for Azure Storage Queue messages.
+        /// The default is <see cref="QueueClientMessageEncoding.UTF8"/>.
+        /// </summary>
+        public QueueClientMessageEncoding QueueClientMessageEncoding { get; set; } = QueueClientMessageEncoding.UTF8;
     }
 }
