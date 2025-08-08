@@ -242,8 +242,10 @@ namespace DurableTask.Core
                         // If the provider provided work items, execute them.
                         if (workItem.NewMessages?.Count > 0)
                         {
-                            // As long as we are in this execution loop, the extended session is maintained.
-                            workItem.IsExtendedSession = true;
+                            concurrencyLockAcquired = this.concurrentSessionLock.Acquire();
+                            workItem.IsExtendedSession = concurrencyLockAcquired;
+                            // Regardless of whether or not we acquired the concurrent session lock, we will make sure to execute this work item.
+                            // If we failed to acquire it, we will end the extended session after this execution.
                             bool isCompletedOrInterrupted = await this.OnProcessWorkItemAsync(workItem);
                             if (isCompletedOrInterrupted)
                             {
@@ -253,15 +255,11 @@ namespace DurableTask.Core
                             processCount++;
                         }
 
-                        // Fetches beyond the first require getting an extended session lock, used to prevent starvation.
+                        // If we failed to acquire the concurrent session lock, we will end the extended session after the execution of the first work item
                         if (processCount > 0 && !concurrencyLockAcquired)
                         {
-                            concurrencyLockAcquired = this.concurrentSessionLock.Acquire();
-                            if (!concurrencyLockAcquired)
-                            {
-                                TraceHelper.Trace(TraceEventType.Verbose, "OnProcessWorkItemSession-MaxOperations", "Failed to acquire concurrent session lock.");
-                                break;
-                            }
+                            TraceHelper.Trace(TraceEventType.Verbose, "OnProcessWorkItemSession-MaxOperations", "Failed to acquire concurrent session lock.");
+                            break;
                         }
 
                         TraceHelper.Trace(TraceEventType.Verbose, "OnProcessWorkItemSession-StartFetch", "Starting fetch of existing session.");
