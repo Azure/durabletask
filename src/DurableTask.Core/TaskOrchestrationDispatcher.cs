@@ -242,7 +242,11 @@ namespace DurableTask.Core
                         // If the provider provided work items, execute them.
                         if (workItem.NewMessages?.Count > 0)
                         {
-                            concurrencyLockAcquired = this.concurrentSessionLock.Acquire();
+                            // We only need to acquire the lock on the first execution within the extended session
+                            if (!concurrencyLockAcquired)
+                            {
+                                concurrencyLockAcquired = this.concurrentSessionLock.Acquire();
+                            }
                             workItem.IsExtendedSession = concurrencyLockAcquired;
                             // Regardless of whether or not we acquired the concurrent session lock, we will make sure to execute this work item.
                             // If we failed to acquire it, we will end the extended session after this execution.
