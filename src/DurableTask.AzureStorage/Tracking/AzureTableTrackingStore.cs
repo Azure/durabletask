@@ -1203,7 +1203,8 @@ namespace DurableTask.AzureStorage.Tracking
             }
             catch (DurableTaskStorageException ex)
             {
-                if (ex.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
+                // The status code is "Conflict" for a null eTagValue and TableTransactionActionType.Add, and "PreconditionFailed" for a non-null eTagValue and TableTransactionActionType.UpdateMerge
+                if (ex.HttpStatusCode == (int)HttpStatusCode.Conflict || ex.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
                 {
                     this.settings.Logger.SplitBrainDetected(
                         this.storageAccountName,
@@ -1214,7 +1215,7 @@ namespace DurableTask.AzureStorage.Tracking
                         numberOfTotalEvents,
                         historyEventNamesBuffer.ToString(0, historyEventNamesBuffer.Length - 1), // remove trailing comma
                         stopwatch.ElapsedMilliseconds,
-                        eTagValue?.ToString());
+                        eTagValue is null ? string.Empty : eTagValue.ToString());
                 }
 
                 throw;
