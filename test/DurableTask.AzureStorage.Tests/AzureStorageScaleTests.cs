@@ -615,7 +615,7 @@ namespace DurableTask.AzureStorage.Tests
             // Worker 1 completes the work item
             await service1.CompleteTaskOrchestrationWorkItemAsync(workItem1, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null);
             // Now worker 2 attempts to complete the same work item. Since this is not the first work item for the orchestration, now an etag exists for the OrchestrationSession, and the exception
-            // that is thrown will be a precondition failed (since the etag doesn't match after worker 1 already completed the work item and updated the orchestration history).
+            // that is thrown will be "precondition failed" as the Etag is stale after worker 1 completed the work item.
             exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
                 await service2.CompleteTaskOrchestrationWorkItemAsync(workItem2, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
             );
