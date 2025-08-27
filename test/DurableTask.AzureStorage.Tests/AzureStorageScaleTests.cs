@@ -572,7 +572,7 @@ namespace DurableTask.AzureStorage.Tests
             // Worker 2 completes the work item
             await service2.CompleteTaskOrchestrationWorkItemAsync(workItem2, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null);
             // Now worker 1 will attempt to complete the same work item. Since this is the first attempt to complete a work item and add a history for the orchestration (by worker 1),
-            // there is no etag stored for the OrchestrationSession, and so the exception that will be thrown is a conflict since worker 2 already created a history for the orchestration in its completion of the work item.
+            // there is no etag stored for the OrchestrationSession, and so the a "conflict" exception will be thrown as worker 2 already created a history for the orchestration.
             SessionAbortedException exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
                 await service1.CompleteTaskOrchestrationWorkItemAsync(workItem1, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
             );
