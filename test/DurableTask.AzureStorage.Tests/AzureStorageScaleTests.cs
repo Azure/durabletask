@@ -128,7 +128,7 @@ namespace DurableTask.AzureStorage.Tests
             // Control queues
             Assert.IsNotNull(service.AllControlQueues, "Control queue collection was not initialized.");
             ControlQueue[] controlQueues = service.AllControlQueues.ToArray();
-            Assert.AreEqual(partitionCount, controlQueues.Length, "Expected to see the default four control queues created.");
+            Assert.AreEqual(partitionCount, controlQueues.Length, $"Expected to see the default {partitionCount} control queues created.");
             foreach (ControlQueue queue in controlQueues)
             {
                 Assert.IsTrue(await queue.InnerQueue.ExistsAsync(), $"Queue {queue.Name} was not created.");
@@ -492,6 +492,16 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsTrue(queueMessages.All(msg => msg.DequeueCount == 1));
         }
 
+        /// <summary>
+        /// Confirm that if two workers try to complete the same work item, a SessionAbortedException is thrown which wraps the
+        /// inner DurableTaskStorageException, which has the correct status code.
+        /// We check two cases:
+        /// 1. If this is the first work item for the orchestration , the DurableTaskStorageException that is wrapped has status "Conflict" 
+        /// which is due to trying to insert an orchestration history when one already exists.
+        /// 2. If this is not the first work item, the DurableTaskStorageException that is wrapped has status "PreconditionFailed"
+        /// which is due to trying to update the existing orchestration history with a stale etag.
+        /// </summary>
+        /// <returns></returns>
         [TestMethod]
         public async Task MultipleWorkersAttemptingToCompleteSameWorkItem()
         {
