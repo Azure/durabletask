@@ -266,7 +266,7 @@ namespace DurableTask.Core.Tests
         [TestMethod]
         public async Task ExceptionPropertiesProvider_ExtractsCustomProperties()
         {
-            // Arrange - Set up a provider that extracts custom properties
+            // Set up a provider that extracts custom properties
             var originalProvider = ExceptionPropertiesProviderRegistry.Provider;
             try
             {
@@ -278,16 +278,15 @@ namespace DurableTask.Core.Tests
                     .AddTaskActivities(typeof(ThrowCustomBusinessExceptionActivity))
                     .StartAsync();
 
-                // Act - Start orchestration that will throw a custom exception
                 var instance = await this.client.CreateOrchestrationInstanceAsync(typeof(ThrowCustomExceptionOrchestration), "test-input");
                 var result = await this.client.WaitForOrchestrationAsync(instance, DefaultTimeout);
 
-                // Assert - Check that custom properties were extracted
+                // Check that custom properties were extracted
                 Assert.AreEqual(OrchestrationStatus.Failed, result.OrchestrationStatus);
                 Assert.IsNotNull(result.FailureDetails);
                 Assert.IsNotNull(result.FailureDetails.Properties);
                 
-                // Verify the custom properties from our test provider
+                // Check the properties match the exception.
                 Assert.AreEqual("CustomBusinessException", result.FailureDetails.Properties["ExceptionTypeName"]);
                 Assert.AreEqual("user123", result.FailureDetails.Properties["UserId"]);
                 Assert.AreEqual("OrderProcessing", result.FailureDetails.Properties["BusinessContext"]);
@@ -295,39 +294,33 @@ namespace DurableTask.Core.Tests
             }
             finally
             {
-                // Clean up - restore original provider
                 ExceptionPropertiesProviderRegistry.Provider = originalProvider;
                 await this.worker.StopAsync();
             }
         }
 
         [TestMethod]
+        // Test that when no provider is provided by default, property at FailureDetails should be null.
         public async Task ExceptionPropertiesProvider_NullProvider_NoProperties()
         {
-            // Arrange - Ensure no provider is set
-            var originalProvider = ExceptionPropertiesProviderRegistry.Provider;
             try
             {
-                ExceptionPropertiesProviderRegistry.Provider = null;
-                
                 this.worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
                 await this.worker
                     .AddTaskOrchestrations(typeof(ThrowInvalidOperationExceptionOrchestration))
                     .AddTaskActivities(typeof(ThrowInvalidOperationExceptionActivity))
                     .StartAsync();
 
-                // Act
                 var instance = await this.client.CreateOrchestrationInstanceAsync(typeof(ThrowInvalidOperationExceptionOrchestration), "test-input");
                 var result = await this.client.WaitForOrchestrationAsync(instance, DefaultTimeout);
 
-                // Assert - Properties should be null when no provider
+                // Properties should be null when no provider
                 Assert.AreEqual(OrchestrationStatus.Failed, result.OrchestrationStatus);
                 Assert.IsNotNull(result.FailureDetails);
                 Assert.IsNull(result.FailureDetails.Properties);
             }
             finally
             {
-                ExceptionPropertiesProviderRegistry.Provider = originalProvider;
                 await this.worker.StopAsync();
             }
         }
