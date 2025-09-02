@@ -14,6 +14,7 @@
 namespace DurableTask.Core.Tests
 {
     using System;
+    using System.Collections.Generic;
     using System.Diagnostics;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
@@ -259,6 +260,157 @@ namespace DurableTask.Core.Tests
             {
                 throw new InvalidOperationException("This is a test exception",
                     new CustomException("And this is its custom inner exception"));
+            }
+        }
+
+        [TestMethod]
+        public async Task ExceptionPropertiesProvider_ExtractsCustomProperties()
+        {
+            // Arrange - Set up a provider that extracts custom properties
+            var originalProvider = ExceptionPropertiesProviderRegistry.Provider;
+            try
+            {
+                ExceptionPropertiesProviderRegistry.Provider = new TestExceptionPropertiesProvider();
+                
+                this.worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
+                await this.worker
+                    .AddTaskOrchestrations(typeof(ThrowCustomExceptionOrchestration))
+                    .AddTaskActivities(typeof(ThrowCustomBusinessExceptionActivity))
+                    .StartAsync();
+
+                // Act - Start orchestration that will throw a custom exception
+                var instance = await this.client.CreateOrchestrationInstanceAsync(typeof(ThrowCustomExceptionOrchestration), "test-input");
+                var result = await this.client.WaitForOrchestrationAsync(instance, DefaultTimeout);
+
+                // Assert - Check that custom properties were extracted
+                Assert.AreEqual(OrchestrationStatus.Failed, result.OrchestrationStatus);
+                Assert.IsNotNull(result.FailureDetails);
+                Assert.IsNotNull(result.FailureDetails.Properties);
+                
+                // Verify the custom properties from our test provider
+                Assert.AreEqual("CustomBusinessException", result.FailureDetails.Properties["ExceptionTypeName"]);
+                Assert.AreEqual("user123", result.FailureDetails.Properties["UserId"]);
+                Assert.AreEqual("OrderProcessing", result.FailureDetails.Properties["BusinessContext"]);
+                Assert.IsTrue(result.FailureDetails.Properties.ContainsKey("Timestamp"));
+            }
+            finally
+            {
+                // Clean up - restore original provider
+                ExceptionPropertiesProviderRegistry.Provider = originalProvider;
+                await this.worker.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task ExceptionPropertiesProvider_NullProvider_NoProperties()
+        {
+            // Arrange - Ensure no provider is set
+            var originalProvider = ExceptionPropertiesProviderRegistry.Provider;
+            try
+            {
+                ExceptionPropertiesProviderRegistry.Provider = null;
+                
+                this.worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
+                await this.worker
+                    .AddTaskOrchestrations(typeof(ThrowInvalidOperationExceptionOrchestration))
+                    .AddTaskActivities(typeof(ThrowInvalidOperationExceptionActivity))
+                    .StartAsync();
+
+                // Act
+                var instance = await this.client.CreateOrchestrationInstanceAsync(typeof(ThrowInvalidOperationExceptionOrchestration), "test-input");
+                var result = await this.client.WaitForOrchestrationAsync(instance, DefaultTimeout);
+
+                // Assert - Properties should be null when no provider
+                Assert.AreEqual(OrchestrationStatus.Failed, result.OrchestrationStatus);
+                Assert.IsNotNull(result.FailureDetails);
+                Assert.IsNull(result.FailureDetails.Properties);
+            }
+            finally
+            {
+                ExceptionPropertiesProviderRegistry.Provider = originalProvider;
+                await this.worker.StopAsync();
+            }
+        }
+
+        class ThrowCustomExceptionOrchestration : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                await context.ScheduleTask<string>(typeof(ThrowCustomBusinessExceptionActivity), input);
+                return "This should never be reached";
+            }
+        }
+
+        class ThrowCustomBusinessExceptionActivity : TaskActivity<string, string>
+        {
+            protected override string Execute(TaskContext context, string input)
+            {
+                throw new CustomBusinessException("Payment processing failed", "user123", "OrderProcessing");
+            }
+        }
+
+        class ThrowInvalidOperationExceptionOrchestration : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                await context.ScheduleTask<string>(typeof(ThrowInvalidOperationExceptionActivity), input);
+                return "This should never be reached";
+            }
+        }
+
+        class ThrowInvalidOperationExceptionActivity : TaskActivity<string, string>
+        {
+            protected override string Execute(TaskContext context, string input)
+            {
+                throw new InvalidOperationException("This is a test exception");
+            }
+        }
+
+        // Test exception with custom properties
+        [Serializable]
+        class CustomBusinessException : Exception
+        {
+            public string UserId { get; }
+            public string BusinessContext { get; }
+
+            public CustomBusinessException(string message, string userId, string businessContext)
+                : base(message)
+            {
+                UserId = userId;
+                BusinessContext = businessContext;
+            }
+
+            protected CustomBusinessException(SerializationInfo info, StreamingContext context)
+                : base(info, context)
+            {
+                UserId = info.GetString(nameof(UserId)) ?? string.Empty;
+                BusinessContext = info.GetString(nameof(BusinessContext)) ?? string.Empty;
+            }
+
+            public override void GetObjectData(SerializationInfo info, StreamingContext context)
+            {
+                base.GetObjectData(info, context);
+                info.AddValue(nameof(UserId), UserId);
+                info.AddValue(nameof(BusinessContext), BusinessContext);
+            }
+        }
+
+        // Test provider similar to the one shown in the user's example
+        class TestExceptionPropertiesProvider : IExceptionPropertiesProvider
+        {
+            public IDictionary<string, object>? GetExceptionProperties(Exception exception)
+            {
+                return exception switch
+                {
+                    CustomBusinessException businessEx => new Dictionary<string, object>
+                    {
+                        ["ExceptionTypeName"] = nameof(CustomBusinessException),
+                        ["UserId"] = businessEx.UserId,
+                        ["BusinessContext"] = businessEx.BusinessContext,
+                        ["Timestamp"] = DateTime.UtcNow
+                    },
+                    _ => null // No custom properties for other exceptions
+                };
             }
         }
 

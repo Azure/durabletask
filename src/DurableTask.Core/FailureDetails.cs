@@ -38,14 +38,16 @@ namespace DurableTask.Core
         /// <param name="stackTrace">The exception stack trace.</param>
         /// <param name="innerFailure">The inner cause of the failure.</param>
         /// <param name="isNonRetriable">Whether the failure is non-retriable.</param>
+        /// <param name="properties">Additional properties associated with the failure.</param>
         [JsonConstructor]
-        public FailureDetails(string errorType, string errorMessage, string? stackTrace, FailureDetails? innerFailure, bool isNonRetriable)
+        public FailureDetails(string errorType, string errorMessage, string? stackTrace, FailureDetails? innerFailure, bool isNonRetriable, IDictionary<string, object>? properties = null)
         {
             this.ErrorType = errorType;
             this.ErrorMessage = errorMessage;
             this.StackTrace = stackTrace;
             this.InnerFailure = innerFailure;
             this.IsNonRetriable = isNonRetriable;
+            this.Properties = properties;
         }
 
         /// <summary>
@@ -54,7 +56,7 @@ namespace DurableTask.Core
         /// <param name="e">The exception used to generate the failure details.</param>
         /// <param name="innerFailure">The inner cause of the failure.</param>
         public FailureDetails(Exception e, FailureDetails innerFailure)
-            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, innerFailure, false)
+            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, innerFailure, false, GetExceptionProperties(e))
         {
         }
 
@@ -63,7 +65,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="e">The exception used to generate the failure details.</param>
         public FailureDetails(Exception e)
-            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, FromException(e.InnerException), false)
+            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, FromException(e.InnerException), false, GetExceptionProperties(e))
         {
         }
 
@@ -74,6 +76,7 @@ namespace DurableTask.Core
         {
             this.ErrorType = "None";
             this.ErrorMessage = string.Empty;
+            this.Properties = null;
         }
 
         /// <summary>
@@ -85,6 +88,16 @@ namespace DurableTask.Core
             this.ErrorMessage = info.GetString(nameof(this.ErrorMessage));
             this.StackTrace = info.GetString(nameof(this.StackTrace));
             this.InnerFailure = (FailureDetails)info.GetValue(nameof(this.InnerFailure), typeof(FailureDetails));
+            // Handle backward compatibility for Properties property - defaults to null
+            try
+            {
+                this.Properties = (IDictionary<string, object>?)info.GetValue(nameof(this.Properties), typeof(IDictionary<string, object>));
+            }
+            catch (SerializationException)
+            {
+                // Default to null for backward compatibility
+                this.Properties = null;
+            }
         }
 
         /// <summary>
@@ -111,6 +124,11 @@ namespace DurableTask.Core
         /// Gets a value indicating whether this failure is non-retriable, meaning it should not be retried.
         /// </summary>
         public bool IsNonRetriable { get; }
+
+        /// <summary>
+        /// Gets additional properties associated with the failure.
+        /// </summary>
+        public IDictionary<string, object>? Properties { get; }
 
         /// <summary>
         /// Gets a debug-friendly description of the failure information.
@@ -206,5 +224,24 @@ namespace DurableTask.Core
         {
             return e == null ? null : new FailureDetails(e);
         }
+
+        static IDictionary<string, object>? GetExceptionProperties(Exception exception)
+        {
+            // If this is a TaskFailedException that already has FailureDetails with properties,
+            // use those properties instead of asking the provider
+            if (exception is OrchestrationException orchestrationException && 
+                orchestrationException.FailureDetails?.Properties != null)
+            {
+                return orchestrationException.FailureDetails.Properties;
+            }
+
+            if (ExceptionPropertiesProviderRegistry.Provider == null)
+            {
+                return null;
+            }
+
+            return ExceptionPropertiesProviderRegistry.Provider.GetExceptionProperties(exception);
+        }
+
     }
 }
