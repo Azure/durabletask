@@ -513,6 +513,15 @@ namespace DurableTask.Core
 
                                     isCompleted = !continuedAsNew;
                                     break;
+                                case OrchestratorActionType.RewindOrchestration:
+                                    var rewindDecision = (RewindOrchestrationAction)decision;
+                                    this.ProcessRewindOrchestrationDecision(rewindDecision, runtimeState, out List<TaskMessage> subOrchestrationRewindMessages, out OrchestrationRuntimeState newRuntimeState);
+                                    foreach (var rewindMessage in subOrchestrationRewindMessages)
+                                    {
+                                        orchestratorMessages.Add(rewindMessage);
+                                    }
+                                    workItem.OrchestrationRuntimeState = newRuntimeState;
+                                    break;
                                 default:
                                     throw TraceHelper.TraceExceptionInstance(
                                         TraceEventType.Error,
@@ -600,6 +609,7 @@ namespace DurableTask.Core
                                 // Copy the distributed trace context, if any
                                 continueAsNewExecutionStarted!.SetParentTraceContext(runtimeState.ExecutionStartedEvent);
 
+                                //
                                 runtimeState = new OrchestrationRuntimeState();
                                 runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
                                 runtimeState.AddEvent(continueAsNewExecutionStarted!);
@@ -1237,6 +1247,76 @@ namespace DurableTask.Core
                 OrchestrationInstance = sendEventAction.Instance,
                 Event = eventRaisedEvent
             };
+        }
+
+        void ProcessRewindOrchestrationDecision(RewindOrchestrationAction rewindAction, OrchestrationRuntimeState runtimeState, out List<TaskMessage> subOrchestrationRewindMessages, out OrchestrationRuntimeState newRuntimeState)
+        {
+            HashSet<int> failedTaskIds = new();
+            subOrchestrationRewindMessages = new();
+            newRuntimeState = new()
+            {
+                Status = runtimeState.Status
+            };
+
+            // Determine the task IDs of the failed tasks and suborchestrations
+            foreach (var evt in runtimeState.Events)
+            {
+                if (evt is TaskFailedEvent taskFailedEvent)
+                {
+                    failedTaskIds.Add(taskFailedEvent.TaskScheduledId);
+                }
+                else if (evt is SubOrchestrationInstanceFailedEvent subOrchestrationInstanceFailedEvent)
+                {
+                    failedTaskIds.Add(subOrchestrationInstanceFailedEvent.TaskScheduledId);
+                }
+            }
+
+            newRuntimeState.AddEvent(new OrchestratorStartedEvent(-1));
+            newRuntimeState.AddEvent(runtimeState.Events.OfType<ExecutionRewoundEvent>().LastOrDefault());
+            newRuntimeState.AddEvent(new ExecutionStartedEvent(-1, runtimeState.Input)
+            {
+                OrchestrationInstance = new OrchestrationInstance
+                {
+                    InstanceId = runtimeState.OrchestrationInstance!.InstanceId,
+                    ExecutionId = rewindAction.NewExecutionId ?? Guid.NewGuid().ToString("N")
+                },
+                Tags = runtimeState.Tags,
+                ParentInstance = runtimeState.ParentInstance,
+                Name = runtimeState.Name,
+                Version = runtimeState.Version
+            });
+
+            foreach (var evt in runtimeState.Events)
+            {
+                // Do not add the TaskScheduledEvents for the failed tasks so that they get rescheduled, and do not add any of the failed task/suborchestration events to the new history
+                if (!(evt is TaskScheduledEvent taskScheduledEvent && failedTaskIds.Contains(taskScheduledEvent.EventId))
+                    && evt is not TaskFailedEvent && evt is not SubOrchestrationInstanceFailedEvent)
+                {
+                    newRuntimeState.AddEvent(evt);
+
+                    // For each of the failed suborchestrations, generate a rewind event
+                    if (evt is SubOrchestrationInstanceCreatedEvent subOrchestrationInstanceCreatedEvent && failedTaskIds.Contains(subOrchestrationInstanceCreatedEvent.EventId))
+                    {
+                        var executionId = Guid.NewGuid().ToString("N");
+                        rewindEventsForFailedSubOrchestrations.Add
+                            (
+                                new TaskMessage
+                                {
+                                    Event = new ExecutionRewoundEvent(-1, rewindAction.Reason)
+                                    {
+                                        NewExecutionId = executionId
+                                    },
+                                    OrchestrationInstance = new OrchestrationInstance
+                                    {
+                                        InstanceId = subOrchestrationInstanceCreatedEvent.InstanceId,
+                                        ExecutionId = executionId
+                                    },
+                                }
+                            );
+                    }
+                }
+            }
+            newRuntimeState.AddEvent(new OrchestratorCompletedEvent(-1));
         }
 
         internal class NonBlockingCountdownLock

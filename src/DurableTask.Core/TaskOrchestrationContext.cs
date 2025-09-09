@@ -725,6 +725,21 @@ namespace DurableTask.Core
             this.orchestratorActionsMap.Add(id, completedOrchestratorAction);
         }
 
+        public void HandleExecutionRewoundEvent(ExecutionRewoundEvent rewoundEvent)
+        {
+            if (!this.executionCompletedOrTerminated)
+            {
+                return;
+            }
+            int id = this.idCounter++;
+            var rewindOrchestrationAction = new RewindOrchestrationAction() { Id = id };
+            if (rewoundEvent.NewExecutionId != null)
+            {
+                rewindOrchestrationAction.NewExecutionId = rewoundEvent.NewExecutionId;
+            }
+            this.orchestratorActionsMap.Add(id, rewindOrchestrationAction);
+        }
+
         class OpenTaskInfo
         {
             public string Name { get; set; }

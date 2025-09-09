@@ -125,5 +125,10 @@ namespace DurableTask.Core.History
         /// Orchestration was resumed event
         /// </summary>
         ExecutionResumed,
+
+        /// <summary>
+        /// Orchestration was rewound event.
+        /// </summary>
+        ExecutionRewound,
     }
 }

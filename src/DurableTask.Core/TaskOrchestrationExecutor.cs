@@ -151,7 +151,7 @@ namespace DurableTask.Core
                     // TODO: Create a setting that allows orchestrations to complete when the orchestrator
                     //       function completes, even if there are open tasks.
                     if (!this.context.HasOpenTasks)
-                    {
+                    { fdf
                         if (this.result!.IsCompleted)
                         {
                             if (this.result.IsFaulted)
@@ -250,6 +250,9 @@ namespace DurableTask.Core
                         break;
                     case EventType.ExecutionResumed:
                         this.context.HandleExecutionResumedEvent((ExecutionResumedEvent)historyEvent, ProcessEvent);
+                        break;
+                    case EventType.ExecutionRewound:
+                        this.context.HandleExecutionRewoundEvent((ExecutionRewoundEvent)historyEvent);
                         break;
                 }
             }
