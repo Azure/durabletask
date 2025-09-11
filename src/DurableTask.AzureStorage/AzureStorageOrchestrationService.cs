@@ -1215,17 +1215,11 @@ namespace DurableTask.AzureStorage
                     this.orchestrationSessionManager.AddMessageToPendingOrchestration(session.ControlQueue, messages, session.TraceActivityId, CancellationToken.None);
                 }
             }
-            // If the tracking store is of type InstanceStoreBackedTrackingStore, then it will throw a RequestFailedException
             catch (RequestFailedException rfe) when (rfe.Status == (int)HttpStatusCode.PreconditionFailed)
             {
                 // Precondition failure is expected to be handled internally and logged as a warning.
                 // The orchestration dispatcher will handle this exception by abandoning the work item
                 throw new SessionAbortedException("Aborting execution due to failed precondition.", rfe);
-            }
-            // If the tracking store is of type AzureStorageTrackingStore, then it will throw a DurableTaskStorageException which decorates the RequestFailedException
-            catch (DurableTaskStorageException dtse) when (dtse.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
-            {
-                throw new SessionAbortedException("Aborting execution due to failed precondition.", dtse);
             }
             catch (Exception e)
             {
