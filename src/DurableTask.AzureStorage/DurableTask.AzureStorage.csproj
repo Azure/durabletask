@@ -21,10 +21,9 @@
   <!-- Version Info -->
   <PropertyGroup>
     <MajorVersion>2</MajorVersion>
-    <MinorVersion>6</MinorVersion>
+    <MinorVersion>4</MinorVersion>
     <PatchVersion>0</PatchVersion>
     <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
-	<VersionSuffix>private1</VersionSuffix>
     <FileVersion>$(VersionPrefix).0</FileVersion>
     <!-- FileVersionRevision is expected to be set by the CI. This is useful for distinguishing between multiple builds of the same version. -->
     <FileVersion Condition="'$(FileVersionRevision)' != ''">$(VersionPrefix).$(FileVersionRevision)</FileVersion>
@@ -53,7 +52,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include=".\..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include=".\..\..\README.md" Pack="true" PackagePath="\"/>
   </ItemGroup>
 
   <ItemGroup Condition="'$(Configuration)'=='Release'">
