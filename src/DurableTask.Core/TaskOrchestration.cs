@@ -11,6 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+#nullable enable
 namespace DurableTask.Core
 {
     using System;
@@ -48,6 +49,15 @@ namespace DurableTask.Core
         /// </summary>
         /// <returns>The status</returns>
         public abstract string GetStatus();
+
+        /// <summary>
+        /// Gets the current status of the orchestration
+        /// </summary>
+        /// <returns>The status</returns>
+        public virtual async Task<string?> GetStatusAsync()
+        {
+            return await Task.FromResult(GetStatus());
+        }
     }
 
     /// <summary>
@@ -97,8 +107,8 @@ namespace DurableTask.Core
             }
             catch (Exception e) when (!Utils.IsFatal(e) && !Utils.IsExecutionAborting(e))
             {
-                string details = null;
-                FailureDetails failureDetails = null;
+                string? details = null;
+                FailureDetails? failureDetails = null;
                 if (context.ErrorPropagationMode == ErrorPropagationMode.SerializeExceptions)
                 {
                     details = Utils.SerializeCause(e, DataConverter);
@@ -164,7 +174,7 @@ namespace DurableTask.Core
         /// <returns>The typed status</returns>
         public virtual TStatus OnGetStatus()
         {
-            return default(TStatus);
+            return default!;
         }
     }
 }
