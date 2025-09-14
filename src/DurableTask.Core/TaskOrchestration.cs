@@ -58,6 +58,19 @@ namespace DurableTask.Core
         {
             return await Task.FromResult(GetStatus());
         }
+
+        /// <summary>
+        /// Raises an event in the orchestration asynchronously
+        /// </summary>
+        /// <param name="context">The orchestration context</param>
+        /// <param name="name">Name for this event to be passed to the OnEvent handler</param>
+        /// <param name="input">The serialized input</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        public virtual Task RaiseEventAsync(OrchestrationContext context, string name, string input)
+        {
+            RaiseEvent(context, name, input);
+            return Task.CompletedTask;
+        }
     }
 
     /// <summary>
