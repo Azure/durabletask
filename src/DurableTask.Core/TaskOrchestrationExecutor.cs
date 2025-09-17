@@ -80,7 +80,10 @@ namespace DurableTask.Core
         {
         }
 
-        internal bool IsCompleted => this.result != null && (this.result.IsCompleted || this.result.IsFaulted);
+        /// <summary>
+        /// Whether or not the orchestration has completed.
+        /// </summary>
+        public bool IsCompleted => this.result != null && (this.result.IsCompleted || this.result.IsFaulted);
 
         /// <summary>
         /// Executes an orchestration from the beginning.
