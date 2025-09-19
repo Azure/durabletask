@@ -102,5 +102,33 @@ namespace DurableTask.ServiceBus.Tests
             containers = (await this.blobStorageClient.ListContainersAsync()).ToList();
             Assert.AreEqual(0, containers.Count);
         }
+
+        [TestMethod]
+        public async Task TestListContainersOnlyWithPrefix()
+        {
+            // Create a container that does NOT use the current client's prefix
+            string storageConnectionString = TestHelpers.GetTestSetting("StorageConnectionString");
+            var serviceClient = new BlobServiceClient(storageConnectionString);
+
+            string otherHub = "otherhubprefix" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            string otherPrefix = BlobStorageClientHelper.BuildContainerNamePrefix(otherHub);
+            string otherContainerName = BlobStorageClientHelper.BuildContainerName(otherPrefix, "message-20100101");
+
+            var otherContainer = serviceClient.GetBlobContainerClient(otherContainerName);
+            await otherContainer.CreateIfNotExistsAsync();
+
+            try
+            {
+                // Ensure the externally-created container is not returned by the client's listing
+                List<BlobContainerItem> containers = (await this.blobStorageClient.ListContainersAsync()).ToList();
+                Assert.IsFalse(containers.Any(c => string.Equals(c.Name, otherContainerName, StringComparison.OrdinalIgnoreCase)),
+                    "ListContainersAsync returned a container that does not match the client's prefix.");
+            }
+            finally
+            {
+                // Clean up the external container explicitly
+                await otherContainer.DeleteIfExistsAsync();
+            }
+        }
     }
 }

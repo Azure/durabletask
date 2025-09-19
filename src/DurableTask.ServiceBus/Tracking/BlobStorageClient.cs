@@ -136,10 +136,16 @@ namespace DurableTask.ServiceBus.Tracking
         public async Task<IEnumerable<BlobContainerItem>> ListContainersAsync()
         {
             List<BlobContainerItem> results = new List<BlobContainerItem>();
-            var response = this.blobServiceClient.GetBlobContainersAsync();
+            // Use the service client's prefix parameter to only enumerate containers that start with the
+            // configured containerNamePrefix. Also apply a defensive in-memory filter in case of any
+            // unexpected differences in casing or service behavior.
+            var response = this.blobServiceClient.GetBlobContainersAsync(prefix: this.containerNamePrefix);
             await foreach (var container in response)
             {
-                results.Add(container);
+                if (container.Name != null && container.Name.StartsWith(this.containerNamePrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    results.Add(container);
+                }
             }
             return results;
         }
