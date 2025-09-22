@@ -135,5 +135,5 @@ jobs:
           displayName: Sign NugetPackages
           folderPath: $(build.artifactStagingDirectory)
           pattern: '*.nupkg'
-
           signType: nuget
+
