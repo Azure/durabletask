@@ -311,6 +311,10 @@ namespace DurableTask.AzureStorage.Messaging
             TaskMessage taskMessage = message.TaskMessage;
             OrchestrationInstance instance = taskMessage.OrchestrationInstance;
 
+            // Use zero visibility timeout to prevent race conditions with DeleteMessageAsync.
+            // This allows the message to remain visible and be deleted immediately after renewal if needed.
+            TimeSpan zeroVisibilityTimeout = TimeSpan.Zero;
+
             this.settings.Logger.RenewingMessage(
                 this.storageAccountName,
                 this.settings.TaskHubName,
@@ -321,13 +325,13 @@ namespace DurableTask.AzureStorage.Messaging
                 Utils.GetTaskEventId(message.TaskMessage.Event),
                 queueMessage.MessageId,
                 queueMessage.PopReceipt,
-                (int)this.MessageVisibilityTimeout.TotalSeconds);
+                (int)zeroVisibilityTimeout.TotalSeconds);
 
             try
             {
                 await this.storageQueue.UpdateMessageAsync(
                     message,
-                    this.MessageVisibilityTimeout,
+                    zeroVisibilityTimeout,
                     session?.TraceActivityId);
             }
             catch (Exception e)
