@@ -1203,7 +1203,11 @@ namespace DurableTask.AzureStorage.Tracking
             }
             catch (DurableTaskStorageException ex)
             {
-                if (ex.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
+                // Handle the case where the the history has already been updated by another caller.
+                // Common case: the resulting code is 'PreconditionFailed', which means "eTagValue" no longer matches the one stored, and TableTransactionActionType is "Update".
+                // Edge case: the resulting code is 'Conflict'. This is the case when eTagValue is null, and the TableTransactionActionType is "Add",
+                // in which case the exception indicates that the table entity we are trying to "add" already exists.
+                if (ex.HttpStatusCode == (int)HttpStatusCode.Conflict || ex.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
                 {
                     this.settings.Logger.SplitBrainDetected(
                         this.storageAccountName,
@@ -1214,7 +1218,7 @@ namespace DurableTask.AzureStorage.Tracking
                         numberOfTotalEvents,
                         historyEventNamesBuffer.ToString(0, historyEventNamesBuffer.Length - 1), // remove trailing comma
                         stopwatch.ElapsedMilliseconds,
-                        eTagValue?.ToString());
+                        eTagValue is null ? string.Empty : eTagValue.ToString());
                 }
 
                 throw;
