@@ -264,12 +264,13 @@ namespace DurableTask.Core.Tests
         }
 
         [TestMethod]
+        // Test that when a provider is set, properties are extracted and stored in FailureDetails.Properties.
         public async Task ExceptionPropertiesProvider_ExtractsCustomProperties()
         {
             // Set up a provider that extracts custom properties using the new TaskHubWorker property
             this.worker.ExceptionPropertiesProvider = new TestExceptionPropertiesProvider();
             this.worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
-            
+
             try
             {
                 await this.worker
@@ -284,7 +285,7 @@ namespace DurableTask.Core.Tests
                 Assert.AreEqual(OrchestrationStatus.Failed, result.OrchestrationStatus);
                 Assert.IsNotNull(result.FailureDetails);
                 Assert.IsNotNull(result.FailureDetails.Properties);
-                
+
                 // Check the properties match the exception.
                 Assert.AreEqual("CustomBusinessException", result.FailureDetails.Properties["ExceptionTypeName"]);
                 Assert.AreEqual("user123", result.FailureDetails.Properties["UserId"]);
