@@ -387,7 +387,7 @@ namespace DurableTask.Core.Tests
             }
         }
 
-        // Test provider similar to the one shown in the user's example
+        // Set a custom exception provider.
         class TestExceptionPropertiesProvider : IExceptionPropertiesProvider
         {
             public IDictionary<string, object>? GetExceptionProperties(Exception exception)
