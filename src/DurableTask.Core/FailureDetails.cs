@@ -38,16 +38,14 @@ namespace DurableTask.Core
         /// <param name="stackTrace">The exception stack trace.</param>
         /// <param name="innerFailure">The inner cause of the failure.</param>
         /// <param name="isNonRetriable">Whether the failure is non-retriable.</param>
-        /// <param name="properties">Additional properties associated with the failure.</param>
         [JsonConstructor]
-        public FailureDetails(string errorType, string errorMessage, string? stackTrace, FailureDetails? innerFailure, bool isNonRetriable, IDictionary<string, object>? properties = null)
+        public FailureDetails(string errorType, string errorMessage, string? stackTrace, FailureDetails? innerFailure, bool isNonRetriable)
         {
             this.ErrorType = errorType;
             this.ErrorMessage = errorMessage;
             this.StackTrace = stackTrace;
             this.InnerFailure = innerFailure;
             this.IsNonRetriable = isNonRetriable;
-            this.Properties = properties;
         }
 
         /// <summary>
@@ -56,7 +54,7 @@ namespace DurableTask.Core
         /// <param name="e">The exception used to generate the failure details.</param>
         /// <param name="innerFailure">The inner cause of the failure.</param>
         public FailureDetails(Exception e, FailureDetails innerFailure)
-            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, innerFailure, false, GetExceptionProperties(e))
+            : this(e, innerFailure, null)
         {
         }
 
@@ -65,8 +63,31 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="e">The exception used to generate the failure details.</param>
         public FailureDetails(Exception e)
-            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, FromException(e.InnerException), false, GetExceptionProperties(e))
+            : this(e, (IExceptionPropertiesProvider?)null)
         {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="FailureDetails"/> class from an exception object.
+        /// </summary>
+        /// <param name="e">The exception used to generate the failure details.</param>
+        /// <param name="exceptionPropertiesProvider">The provider to extract custom properties from the exception.</param>
+        public FailureDetails(Exception e, IExceptionPropertiesProvider? exceptionPropertiesProvider)
+            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, FromException(e.InnerException, exceptionPropertiesProvider), false)
+        {
+            this.Properties = GetExceptionProperties(e, exceptionPropertiesProvider);
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="FailureDetails"/> class from an exception object.
+        /// </summary>
+        /// <param name="e">The exception used to generate the failure details.</param>
+        /// <param name="innerFailure">The inner cause of the failure.</param>
+        /// <param name="exceptionPropertiesProvider">The provider to extract custom properties from the exception.</param>
+        public FailureDetails(Exception e, FailureDetails innerFailure, IExceptionPropertiesProvider? exceptionPropertiesProvider)
+            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, innerFailure, false)
+        {
+            this.Properties = GetExceptionProperties(e, exceptionPropertiesProvider);
         }
 
         /// <summary>
@@ -222,10 +243,15 @@ namespace DurableTask.Core
 
         static FailureDetails? FromException(Exception? e)
         {
-            return e == null ? null : new FailureDetails(e);
+            return FromException(e, null);
         }
 
-        static IDictionary<string, object>? GetExceptionProperties(Exception exception)
+        static FailureDetails? FromException(Exception? e, IExceptionPropertiesProvider? provider)
+        {
+            return e == null ? null : new FailureDetails(e, provider);
+        }
+
+        static IDictionary<string, object>? GetExceptionProperties(Exception exception, IExceptionPropertiesProvider? provider)
         {
             // If this is a TaskFailedException that already has FailureDetails with properties,
             // use those properties instead of asking the provider
@@ -235,12 +261,13 @@ namespace DurableTask.Core
                 return orchestrationException.FailureDetails.Properties;
             }
 
-            if (ExceptionPropertiesProviderRegistry.Provider == null)
+            if (provider == null)
             {
                 return null;
             }
 
-            return ExceptionPropertiesProviderRegistry.Provider.GetExceptionProperties(exception);
+            // If there is a provider provided, then extract exception properties with the provider.
+            return provider.GetExceptionProperties(exception);
         }
 
     }

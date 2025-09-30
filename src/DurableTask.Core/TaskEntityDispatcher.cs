@@ -42,6 +42,7 @@ namespace DurableTask.Core
         readonly LogHelper logHelper;
         readonly ErrorPropagationMode errorPropagationMode;
         readonly TaskOrchestrationDispatcher.NonBlockingCountdownLock concurrentSessionLock;
+        readonly IExceptionPropertiesProvider exceptionPropertiesProvider;
 
         internal TaskEntityDispatcher(
             IOrchestrationService orchestrationService,
@@ -49,12 +50,33 @@ namespace DurableTask.Core
             DispatchMiddlewarePipeline entityDispatchPipeline,
             LogHelper logHelper,
             ErrorPropagationMode errorPropagationMode)
+            : this(orchestrationService, entityObjectManager, entityDispatchPipeline, logHelper, errorPropagationMode, null)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TaskEntityDispatcher"/> class with an exception properties provider.
+        /// </summary>
+        /// <param name="orchestrationService">The orchestration service implementation</param>
+        /// <param name="entityObjectManager">The object manager for entities</param>
+        /// <param name="entityDispatchPipeline">The dispatch middleware pipeline</param>
+        /// <param name="logHelper">The log helper</param>
+        /// <param name="errorPropagationMode">The error propagation mode</param>
+        /// <param name="exceptionPropertiesProvider">The exception properties provider for extracting custom properties from exceptions</param>
+        internal TaskEntityDispatcher(
+            IOrchestrationService orchestrationService,
+            INameVersionObjectManager<TaskEntity> entityObjectManager,
+            DispatchMiddlewarePipeline entityDispatchPipeline,
+            LogHelper logHelper,
+            ErrorPropagationMode errorPropagationMode,
+            IExceptionPropertiesProvider exceptionPropertiesProvider)
         {
             this.objectManager = entityObjectManager ?? throw new ArgumentNullException(nameof(entityObjectManager));
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
             this.dispatchPipeline = entityDispatchPipeline ?? throw new ArgumentNullException(nameof(entityDispatchPipeline));
             this.logHelper = logHelper ?? throw new ArgumentNullException(nameof(logHelper));
             this.errorPropagationMode = errorPropagationMode;
+            this.exceptionPropertiesProvider = exceptionPropertiesProvider;
             this.entityOrchestrationService = (orchestrationService as IEntityOrchestrationService)!;
             this.entityBackendProperties = entityOrchestrationService.EntityBackendProperties;
            

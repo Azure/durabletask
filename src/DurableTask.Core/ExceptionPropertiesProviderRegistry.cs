@@ -27,3 +27,4 @@ namespace DurableTask.Core
         public static IExceptionPropertiesProvider? Provider { get; set; }
     }
 }
+

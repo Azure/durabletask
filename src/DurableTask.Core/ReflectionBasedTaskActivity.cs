@@ -140,7 +140,7 @@ namespace DurableTask.Core
                 }
                 else
                 {
-                    failureDetails = new FailureDetails(exception);
+                    failureDetails = new FailureDetails(exception, context.ExceptionPropertiesProvider);
                 }
 
                 throw new TaskFailureException(exception.Message, exception, details)

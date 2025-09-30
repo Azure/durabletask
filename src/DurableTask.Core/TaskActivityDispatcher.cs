@@ -36,6 +36,7 @@ namespace DurableTask.Core
         readonly DispatchMiddlewarePipeline dispatchPipeline;
         readonly LogHelper logHelper;
         readonly ErrorPropagationMode errorPropagationMode;
+        readonly IExceptionPropertiesProvider? exceptionPropertiesProvider;
 
         internal TaskActivityDispatcher(
             IOrchestrationService orchestrationService,
@@ -43,12 +44,33 @@ namespace DurableTask.Core
             DispatchMiddlewarePipeline dispatchPipeline,
             LogHelper logHelper,
             ErrorPropagationMode errorPropagationMode)
+            : this(orchestrationService, objectManager, dispatchPipeline, logHelper, errorPropagationMode, null)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TaskActivityDispatcher"/> class with an exception properties provider.
+        /// </summary>
+        /// <param name="orchestrationService">The orchestration service implementation</param>
+        /// <param name="objectManager">The object manager for activities</param>
+        /// <param name="dispatchPipeline">The dispatch middleware pipeline</param>
+        /// <param name="logHelper">The log helper</param>
+        /// <param name="errorPropagationMode">The error propagation mode</param>
+        /// <param name="exceptionPropertiesProvider">The exception properties provider for extracting custom properties from exceptions</param>
+        internal TaskActivityDispatcher(
+            IOrchestrationService orchestrationService,
+            INameVersionObjectManager<TaskActivity> objectManager,
+            DispatchMiddlewarePipeline dispatchPipeline,
+            LogHelper logHelper,
+            ErrorPropagationMode errorPropagationMode,
+            IExceptionPropertiesProvider? exceptionPropertiesProvider)
         {
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
             this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             this.dispatchPipeline = dispatchPipeline ?? throw new ArgumentNullException(nameof(dispatchPipeline));
             this.logHelper = logHelper;
             this.errorPropagationMode = errorPropagationMode;
+            this.exceptionPropertiesProvider = exceptionPropertiesProvider;
 
             this.dispatcher = new WorkItemDispatcher<TaskActivityWorkItem>(
                 "TaskActivityDispatcher",
@@ -173,7 +195,7 @@ namespace DurableTask.Core
                 ActivityExecutionResult? result;
                 try
                 {
-                    await this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
+                        await this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
                     {
                         if (taskActivity == null)
                         {
@@ -190,6 +212,7 @@ namespace DurableTask.Core
                             scheduledEvent.Version,
                             scheduledEvent.EventId);
                         context.ErrorPropagationMode = this.errorPropagationMode;
+                        context.ExceptionPropertiesProvider = this.exceptionPropertiesProvider;
 
                         HistoryEvent? responseEvent;
 
@@ -207,7 +230,7 @@ namespace DurableTask.Core
                             string? details = this.IncludeDetails
                                 ? $"Unhandled exception while executing task: {e}"
                                 : null;
-                            responseEvent = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details, new FailureDetails(e));
+                            responseEvent = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details, new FailureDetails(e, this.exceptionPropertiesProvider));
 
                             traceActivity?.SetStatus(ActivityStatusCode.Error, e.Message);
 

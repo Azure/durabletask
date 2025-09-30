@@ -49,6 +49,7 @@ namespace DurableTask.Core
         readonly EntityBackendProperties? entityBackendProperties;
         readonly TaskOrchestrationEntityParameters? entityParameters;
         readonly VersioningSettings? versioningSettings;
+        readonly IExceptionPropertiesProvider? exceptionPropertiesProvider;
 
         internal TaskOrchestrationDispatcher(
             IOrchestrationService orchestrationService,
@@ -57,6 +58,28 @@ namespace DurableTask.Core
             LogHelper logHelper,
             ErrorPropagationMode errorPropagationMode,
             VersioningSettings versioningSettings)
+            : this(orchestrationService, objectManager, dispatchPipeline, logHelper, errorPropagationMode, versioningSettings, null)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TaskOrchestrationDispatcher"/> class with an exception properties provider.
+        /// </summary>
+        /// <param name="orchestrationService">The orchestration service implementation</param>
+        /// <param name="objectManager">The object manager for orchestrations</param>
+        /// <param name="dispatchPipeline">The dispatch middleware pipeline</param>
+        /// <param name="logHelper">The log helper</param>
+        /// <param name="errorPropagationMode">The error propagation mode</param>
+        /// <param name="versioningSettings">The versioning settings</param>
+        /// <param name="exceptionPropertiesProvider">The exception properties provider for extracting custom properties from exceptions</param>
+        internal TaskOrchestrationDispatcher(
+            IOrchestrationService orchestrationService,
+            INameVersionObjectManager<TaskOrchestration> objectManager,
+            DispatchMiddlewarePipeline dispatchPipeline,
+            LogHelper logHelper,
+            ErrorPropagationMode errorPropagationMode,
+            VersioningSettings versioningSettings,
+            IExceptionPropertiesProvider? exceptionPropertiesProvider)
         {
             this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
@@ -67,6 +90,7 @@ namespace DurableTask.Core
             this.entityBackendProperties = this.entityOrchestrationService?.EntityBackendProperties;
             this.entityParameters = TaskOrchestrationEntityParameters.FromEntityBackendProperties(this.entityBackendProperties);
             this.versioningSettings = versioningSettings;
+            this.exceptionPropertiesProvider = exceptionPropertiesProvider;
 
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskOrchestrationDispatcher",
@@ -763,7 +787,8 @@ namespace DurableTask.Core
                     taskOrchestration,
                     this.orchestrationService.EventBehaviourForContinueAsNew,
                     this.entityParameters,
-                    this.errorPropagationMode);
+                    this.errorPropagationMode,
+                    this.exceptionPropertiesProvider);
 
                 OrchestratorExecutionResult resultFromOrchestrator = executor.Execute();
                 dispatchContext.SetProperty(resultFromOrchestrator);

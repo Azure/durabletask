@@ -266,13 +266,12 @@ namespace DurableTask.Core.Tests
         [TestMethod]
         public async Task ExceptionPropertiesProvider_ExtractsCustomProperties()
         {
-            // Set up a provider that extracts custom properties
-            var originalProvider = ExceptionPropertiesProviderRegistry.Provider;
+            // Set up a provider that extracts custom properties using the new TaskHubWorker property
+            this.worker.ExceptionPropertiesProvider = new TestExceptionPropertiesProvider();
+            this.worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
+            
             try
             {
-                ExceptionPropertiesProviderRegistry.Provider = new TestExceptionPropertiesProvider();
-                
-                this.worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
                 await this.worker
                     .AddTaskOrchestrations(typeof(ThrowCustomExceptionOrchestration))
                     .AddTaskActivities(typeof(ThrowCustomBusinessExceptionActivity))
@@ -294,7 +293,6 @@ namespace DurableTask.Core.Tests
             }
             finally
             {
-                ExceptionPropertiesProviderRegistry.Provider = originalProvider;
                 await this.worker.StopAsync();
             }
         }

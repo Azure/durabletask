@@ -74,6 +74,11 @@ namespace DurableTask.Core
         internal ErrorPropagationMode ErrorPropagationMode { get; set; }
 
         /// <summary>
+        /// 
+        /// </summary>
+        internal IExceptionPropertiesProvider ExceptionPropertiesProvider { get;set; }
+
+        /// <summary>
         /// Information about backend entity support, or null if the configured backend does not support entities.
         /// </summary>
         internal TaskOrchestrationEntityParameters EntityParameters { get; set; }

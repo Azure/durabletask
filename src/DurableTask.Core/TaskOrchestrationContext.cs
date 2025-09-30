@@ -37,6 +37,7 @@ namespace DurableTask.Core
         private int idCounter;
         private readonly Queue<HistoryEvent> eventsWhileSuspended;
         private readonly IDictionary<int, OrchestratorAction> suspendedActionsMap;
+        private readonly IExceptionPropertiesProvider exceptionPropertiesProvider;
 
         public bool IsSuspended { get; private set; }
 
@@ -52,6 +53,16 @@ namespace DurableTask.Core
             TaskScheduler taskScheduler,
             TaskOrchestrationEntityParameters entityParameters = null,
             ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
+            : this(orchestrationInstance, taskScheduler, entityParameters, errorPropagationMode, null)
+        {
+        }
+
+        public TaskOrchestrationContext(
+            OrchestrationInstance orchestrationInstance,
+            TaskScheduler taskScheduler,
+            TaskOrchestrationEntityParameters entityParameters,
+            ErrorPropagationMode errorPropagationMode,
+            IExceptionPropertiesProvider exceptionPropertiesProvider)
         {
             Utils.UnusedParameter(taskScheduler);
 
@@ -66,6 +77,7 @@ namespace DurableTask.Core
             ErrorPropagationMode = errorPropagationMode;
             this.eventsWhileSuspended = new Queue<HistoryEvent>();
             this.suspendedActionsMap = new SortedDictionary<int, OrchestratorAction>();
+            this.exceptionPropertiesProvider = exceptionPropertiesProvider;
         }
 
         public IEnumerable<OrchestratorAction> OrchestratorActions => this.orchestratorActionsMap.Values;
@@ -684,7 +696,7 @@ namespace DurableTask.Core
             {
                 if (this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
                 {
-                    failureDetails = new FailureDetails(failure);
+                    failureDetails = new FailureDetails(failure, this.exceptionPropertiesProvider);
                 }
                 else
                 {
