@@ -251,11 +251,6 @@ namespace DurableTask.Core
         /// Gets or sets the exception properties provider that extracts custom properties from exceptions
         /// when creating FailureDetails objects.
         /// </summary>
-        /// <remarks>
-        /// <para>
-        /// This property must be set before the worker is started. Otherwise it will have no effect.
-        /// </para>
-        /// </remarks>
         public IExceptionPropertiesProvider ExceptionPropertiesProvider { get; set; }
 
         /// <summary>

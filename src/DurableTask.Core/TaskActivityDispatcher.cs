@@ -195,7 +195,7 @@ namespace DurableTask.Core
                 ActivityExecutionResult? result;
                 try
                 {
-                        await this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
+                    await this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
                     {
                         if (taskActivity == null)
                         {
