@@ -311,10 +311,6 @@ namespace DurableTask.AzureStorage.Messaging
             TaskMessage taskMessage = message.TaskMessage;
             OrchestrationInstance instance = taskMessage.OrchestrationInstance;
 
-            // Use zero visibility timeout to prevent race conditions with DeleteMessageAsync.
-            // This allows the message to remain visible and be deleted immediately after renewal if needed.
-            TimeSpan zeroVisibilityTimeout = TimeSpan.Zero;
-
             this.settings.Logger.RenewingMessage(
                 this.storageAccountName,
                 this.settings.TaskHubName,
@@ -325,13 +321,13 @@ namespace DurableTask.AzureStorage.Messaging
                 Utils.GetTaskEventId(message.TaskMessage.Event),
                 queueMessage.MessageId,
                 queueMessage.PopReceipt,
-                (int)zeroVisibilityTimeout.TotalSeconds);
+                (int)this.MessageVisibilityTimeout.TotalSeconds);
 
             try
             {
                 await this.storageQueue.UpdateMessageAsync(
                     message,
-                    zeroVisibilityTimeout,
+                    this.MessageVisibilityTimeout,
                     session?.TraceActivityId);
             }
             catch (Exception e)
@@ -349,7 +345,6 @@ namespace DurableTask.AzureStorage.Messaging
 
         public virtual async Task DeleteMessageAsync(MessageData message, SessionBase? session = null)
         {
-            QueueMessage queueMessage = message.OriginalQueueMessage;
             TaskMessage taskMessage = message.TaskMessage;
 
             bool haveRetried = false;
@@ -360,16 +355,16 @@ namespace DurableTask.AzureStorage.Messaging
                     this.settings.TaskHubName,
                     taskMessage.Event.EventType.ToString(),
                     Utils.GetTaskEventId(taskMessage.Event),
-                    queueMessage.MessageId,
+                    message.OriginalQueueMessage.MessageId,
                     taskMessage.OrchestrationInstance.InstanceId,
                     taskMessage.OrchestrationInstance.ExecutionId,
                     this.storageQueue.Name,
                     message.SequenceNumber,
-                    queueMessage.PopReceipt);
+                    message.OriginalQueueMessage.PopReceipt);
 
                 try
                 {
-                    await this.storageQueue.DeleteMessageAsync(queueMessage, session?.TraceActivityId);
+                    await this.storageQueue.DeleteMessageAsync(message.OriginalQueueMessage, session?.TraceActivityId);
                 }
                 catch (Exception e)
                 {
