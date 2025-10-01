@@ -38,16 +38,6 @@ namespace DurableTask.Core
         readonly ErrorPropagationMode errorPropagationMode;
         readonly IExceptionPropertiesProvider? exceptionPropertiesProvider;
 
-        internal TaskActivityDispatcher(
-            IOrchestrationService orchestrationService,
-            INameVersionObjectManager<TaskActivity> objectManager,
-            DispatchMiddlewarePipeline dispatchPipeline,
-            LogHelper logHelper,
-            ErrorPropagationMode errorPropagationMode)
-            : this(orchestrationService, objectManager, dispatchPipeline, logHelper, errorPropagationMode, null)
-        {
-        }
-
         /// <summary>
         /// Initializes a new instance of the <see cref="TaskActivityDispatcher"/> class with an exception properties provider.
         /// </summary>
@@ -230,7 +220,7 @@ namespace DurableTask.Core
                             string? details = this.IncludeDetails
                                 ? $"Unhandled exception while executing task: {e}"
                                 : null;
-                            responseEvent = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details, new FailureDetails(e, this.exceptionPropertiesProvider));
+                            responseEvent = new TaskFailedEvent(-1, scheduledEvent.EventId, e.Message, details, new FailureDetails(e));
 
                             traceActivity?.SetStatus(ActivityStatusCode.Error, e.Message);
 

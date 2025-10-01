@@ -13,12 +13,12 @@
 
 namespace DurableTask.Core
 {
-    using System;
-    using System.Threading.Tasks;
     using DurableTask.Core.Common;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.Serializing;
     using Newtonsoft.Json.Linq;
+    using System;
+    using System.Threading.Tasks;
 
     /// <summary>
     ///     Base class for TaskActivity.
@@ -144,7 +144,8 @@ namespace DurableTask.Core
                 {
                     if(context != null)
                     {
-                        failureDetails = new FailureDetails(e, context.ExceptionPropertiesProvider);
+                        var props = context.ExceptionPropertiesProvider.ExtractProperties(e);
+                        failureDetails = new FailureDetails(e, props);
                     }
                     else
                     {

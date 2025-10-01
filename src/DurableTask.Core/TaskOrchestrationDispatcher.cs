@@ -51,17 +51,6 @@ namespace DurableTask.Core
         readonly VersioningSettings? versioningSettings;
         readonly IExceptionPropertiesProvider? exceptionPropertiesProvider;
 
-        internal TaskOrchestrationDispatcher(
-            IOrchestrationService orchestrationService,
-            INameVersionObjectManager<TaskOrchestration> objectManager,
-            DispatchMiddlewarePipeline dispatchPipeline,
-            LogHelper logHelper,
-            ErrorPropagationMode errorPropagationMode,
-            VersioningSettings versioningSettings)
-            : this(orchestrationService, objectManager, dispatchPipeline, logHelper, errorPropagationMode, versioningSettings, null)
-        {
-        }
-
         /// <summary>
         /// Initializes a new instance of the <see cref="TaskOrchestrationDispatcher"/> class with an exception properties provider.
         /// </summary>

@@ -44,16 +44,6 @@ namespace DurableTask.Core
         readonly TaskOrchestrationDispatcher.NonBlockingCountdownLock concurrentSessionLock;
         readonly IExceptionPropertiesProvider exceptionPropertiesProvider;
 
-        internal TaskEntityDispatcher(
-            IOrchestrationService orchestrationService,
-            INameVersionObjectManager<TaskEntity> entityObjectManager,
-            DispatchMiddlewarePipeline entityDispatchPipeline,
-            LogHelper logHelper,
-            ErrorPropagationMode errorPropagationMode)
-            : this(orchestrationService, entityObjectManager, entityDispatchPipeline, logHelper, errorPropagationMode, null)
-        {
-        }
-
         /// <summary>
         /// Initializes a new instance of the <see cref="TaskEntityDispatcher"/> class with an exception properties provider.
         /// </summary>

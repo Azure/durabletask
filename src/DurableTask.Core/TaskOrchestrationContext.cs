@@ -52,17 +52,8 @@ namespace DurableTask.Core
             OrchestrationInstance orchestrationInstance,
             TaskScheduler taskScheduler,
             TaskOrchestrationEntityParameters entityParameters = null,
-            ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
-            : this(orchestrationInstance, taskScheduler, entityParameters, errorPropagationMode, null)
-        {
-        }
-
-        public TaskOrchestrationContext(
-            OrchestrationInstance orchestrationInstance,
-            TaskScheduler taskScheduler,
-            TaskOrchestrationEntityParameters entityParameters,
-            ErrorPropagationMode errorPropagationMode,
-            IExceptionPropertiesProvider exceptionPropertiesProvider)
+            ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions,
+            IExceptionPropertiesProvider exceptionPropertiesProvider = null)
         {
             Utils.UnusedParameter(taskScheduler);
 
@@ -696,7 +687,7 @@ namespace DurableTask.Core
             {
                 if (this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
                 {
-                    failureDetails = new FailureDetails(failure, this.exceptionPropertiesProvider);
+                    failureDetails = new FailureDetails(failure);
                 }
                 else
                 {
