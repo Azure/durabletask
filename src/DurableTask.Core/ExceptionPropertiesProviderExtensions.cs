@@ -25,7 +25,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Extracts properties of the exception specified at provider.
         /// </summary>
-        public static IDictionary<string, object>? ExtractProperties(this IExceptionPropertiesProvider? provider, Exception exception)
+        public static IDictionary<string, object?>? ExtractProperties(this IExceptionPropertiesProvider? provider, Exception exception)
         {
             if (exception is OrchestrationException orchestrationException &&
                 orchestrationException.FailureDetails?.Properties != null)

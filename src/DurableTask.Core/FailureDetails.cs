@@ -40,7 +40,7 @@ namespace DurableTask.Core
         /// <param name="isNonRetriable">Whether the failure is non-retriable.</param>
         /// <param name="properties">Additional properties associated with the failure.</param>
         [JsonConstructor]
-        public FailureDetails(string errorType, string errorMessage, string? stackTrace, FailureDetails? innerFailure, bool isNonRetriable, IDictionary<string, object>? properties = null)
+        public FailureDetails(string errorType, string errorMessage, string? stackTrace, FailureDetails? innerFailure, bool isNonRetriable, IDictionary<string, object?>? properties = null)
         {
             this.ErrorType = errorType;
             this.ErrorMessage = errorMessage;
@@ -87,7 +87,7 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="e">The exception used to generate the failure details.</param>
         /// <param name="properties">The exception properties to include in failure details.</param> 
-        public FailureDetails(Exception e, IDictionary<string, object>? properties)
+        public FailureDetails(Exception e, IDictionary<string, object?>? properties)
             : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, FromException(e.InnerException), false, properties)
         {
         }
@@ -98,7 +98,7 @@ namespace DurableTask.Core
         /// <param name="e">The exception used to generate the failure details.</param>
         /// <param name="innerFailure">The inner cause of the failure.</param>
         /// <param name="properties">The exception properties to include in failure details.</param> 
-        public FailureDetails(Exception e, FailureDetails innerFailure, IDictionary<string, object>? properties)
+        public FailureDetails(Exception e, FailureDetails innerFailure, IDictionary<string, object?>? properties)
             : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, innerFailure, false, properties)
         {
         }
@@ -125,7 +125,7 @@ namespace DurableTask.Core
             // Handle backward compatibility for Properties property - defaults to null
             try
             {
-                this.Properties = (IDictionary<string, object>?)info.GetValue(nameof(this.Properties), typeof(IDictionary<string, object>));
+                this.Properties = (IDictionary<string, object?>?)info.GetValue(nameof(this.Properties), typeof(IDictionary<string, object?>));
             }
             catch (SerializationException)
             {
@@ -162,7 +162,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Gets additional properties associated with the failure.
         /// </summary>
-        public IDictionary<string, object>? Properties { get; }
+        public IDictionary<string, object?>? Properties { get; }
 
         /// <summary>
         /// Gets a debug-friendly description of the failure information.
@@ -259,7 +259,7 @@ namespace DurableTask.Core
             return FromException(e, properties : null);
         }
 
-        static FailureDetails? FromException(Exception? e, IDictionary<string, object>? properties)
+        static FailureDetails? FromException(Exception? e, IDictionary<string, object?>? properties)
         {
             return e == null ? null : new FailureDetails(e, properties : properties);
         }

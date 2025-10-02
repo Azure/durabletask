@@ -291,6 +291,17 @@ namespace DurableTask.Core.Tests
                 Assert.AreEqual("user123", result.FailureDetails.Properties["UserId"]);
                 Assert.AreEqual("OrderProcessing", result.FailureDetails.Properties["BusinessContext"]);
                 Assert.IsTrue(result.FailureDetails.Properties.ContainsKey("Timestamp"));
+
+                // Check that null values are properly handled
+                Assert.IsTrue(result.FailureDetails.Properties.ContainsKey("TestNullObject"), "TestNullObject key should be present");
+                Assert.IsNull(result.FailureDetails.Properties["TestNullObject"], "TestNullObject should be null");
+                
+                Assert.IsTrue(result.FailureDetails.Properties.ContainsKey("DirectNullValue"), "DirectNullValue key should be present");
+                Assert.IsNull(result.FailureDetails.Properties["DirectNullValue"], "DirectNullValue should be null");
+
+                // Verify non-null values still work
+                Assert.IsTrue(result.FailureDetails.Properties.ContainsKey("EmptyString"), "EmptyString key should be present");
+                Assert.AreEqual(string.Empty, result.FailureDetails.Properties["EmptyString"], "EmptyString should be empty string, not null");
             }
             finally
             {
@@ -364,12 +375,14 @@ namespace DurableTask.Core.Tests
         {
             public string UserId { get; }
             public string BusinessContext { get; }
+            public string? TestNullObject { get; }
 
             public CustomBusinessException(string message, string userId, string businessContext)
                 : base(message)
             {
                 UserId = userId;
                 BusinessContext = businessContext;
+                TestNullObject = null; // Explicitly set to null for testing
             }
 
             protected CustomBusinessException(SerializationInfo info, StreamingContext context)
@@ -377,6 +390,7 @@ namespace DurableTask.Core.Tests
             {
                 UserId = info.GetString(nameof(UserId)) ?? string.Empty;
                 BusinessContext = info.GetString(nameof(BusinessContext)) ?? string.Empty;
+                TestNullObject = info.GetString(nameof(TestNullObject)); // This will be null
             }
 
             public override void GetObjectData(SerializationInfo info, StreamingContext context)
@@ -384,22 +398,26 @@ namespace DurableTask.Core.Tests
                 base.GetObjectData(info, context);
                 info.AddValue(nameof(UserId), UserId);
                 info.AddValue(nameof(BusinessContext), BusinessContext);
+                info.AddValue(nameof(TestNullObject), TestNullObject);
             }
         }
 
-        // Set a custom exception provider.
+        // Test provider that includes null values in different ways
         class TestExceptionPropertiesProvider : IExceptionPropertiesProvider
         {
-            public IDictionary<string, object>? GetExceptionProperties(Exception exception)
+            public IDictionary<string, object?>? GetExceptionProperties(Exception exception)
             {
                 return exception switch
                 {
-                    CustomBusinessException businessEx => new Dictionary<string, object>
+                    CustomBusinessException businessEx => new Dictionary<string, object?>
                     {
                         ["ExceptionTypeName"] = nameof(CustomBusinessException),
                         ["UserId"] = businessEx.UserId,
                         ["BusinessContext"] = businessEx.BusinessContext,
-                        ["Timestamp"] = DateTime.UtcNow
+                        ["Timestamp"] = DateTime.UtcNow,
+                        ["TestNullObject"] = businessEx.TestNullObject, // This comes from the exception property (null)
+                        ["DirectNullValue"] = null, // This is directly set to null
+                        ["EmptyString"] = string.Empty // Non-null value for comparison
                     },
                     _ => null // No custom properties for other exceptions
                 };
