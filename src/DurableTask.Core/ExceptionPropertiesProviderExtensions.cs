@@ -20,10 +20,10 @@ namespace DurableTask.Core
     /// <summary>
     /// Extension methods for <see cref="IExceptionPropertiesProvider"/>.
     /// </summary>
-    internal static class ExceptionPropertiesProviderExtensions
+    public static class ExceptionPropertiesProviderExtensions
     {
         /// <summary>
-        /// Extracts properties for the specified rules with the provider.
+        /// Extracts properties of the exception specified at provider.
         /// </summary>
         public static IDictionary<string, object>? ExtractProperties(this IExceptionPropertiesProvider? provider, Exception exception)
         {

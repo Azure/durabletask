@@ -37,7 +37,6 @@ namespace DurableTask.Core
         private int idCounter;
         private readonly Queue<HistoryEvent> eventsWhileSuspended;
         private readonly IDictionary<int, OrchestratorAction> suspendedActionsMap;
-        private readonly IExceptionPropertiesProvider exceptionPropertiesProvider;
 
         public bool IsSuspended { get; private set; }
 
@@ -68,7 +67,7 @@ namespace DurableTask.Core
             ErrorPropagationMode = errorPropagationMode;
             this.eventsWhileSuspended = new Queue<HistoryEvent>();
             this.suspendedActionsMap = new SortedDictionary<int, OrchestratorAction>();
-            this.exceptionPropertiesProvider = exceptionPropertiesProvider;
+            this.ExceptionPropertiesProvider = exceptionPropertiesProvider;
         }
 
         public IEnumerable<OrchestratorAction> OrchestratorActions => this.orchestratorActionsMap.Values;

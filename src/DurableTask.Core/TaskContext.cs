@@ -63,6 +63,9 @@ namespace DurableTask.Core
         /// </summary>
         internal ErrorPropagationMode ErrorPropagationMode { get; set; }
 
-        internal IExceptionPropertiesProvider? ExceptionPropertiesProvider { get; set; }
+        /// <summary>
+        /// Gets or sets the properties of exceptions with the provider.
+        /// </summary>
+        public IExceptionPropertiesProvider? ExceptionPropertiesProvider { get; set; }
     }
 }
