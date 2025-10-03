@@ -35,6 +35,7 @@ namespace DurableTask.Core
         readonly OrchestrationRuntimeState orchestrationRuntimeState;
         readonly TaskOrchestration taskOrchestration;
         readonly bool skipCarryOverEvents;
+        readonly IExceptionPropertiesProvider? exceptionPropertiesProvider;
         Task<string>? result;
 
         /// <summary>
@@ -51,16 +52,8 @@ namespace DurableTask.Core
             BehaviorOnContinueAsNew eventBehaviourForContinueAsNew,
             TaskOrchestrationEntityParameters? entityParameters,
             ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
+            : this(orchestrationRuntimeState, taskOrchestration, eventBehaviourForContinueAsNew, entityParameters, errorPropagationMode, null)
         {
-            this.decisionScheduler = new SynchronousTaskScheduler();
-            this.context = new TaskOrchestrationContext(
-                orchestrationRuntimeState.OrchestrationInstance,
-                this.decisionScheduler,
-                entityParameters,
-                errorPropagationMode);
-            this.orchestrationRuntimeState = orchestrationRuntimeState;
-            this.taskOrchestration = taskOrchestration;
-            this.skipCarryOverEvents = eventBehaviourForContinueAsNew == BehaviorOnContinueAsNew.Ignore;
         }
 
         /// <summary>
@@ -76,8 +69,38 @@ namespace DurableTask.Core
             TaskOrchestration taskOrchestration,
             BehaviorOnContinueAsNew eventBehaviourForContinueAsNew,
             ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
-            : this(orchestrationRuntimeState, taskOrchestration, eventBehaviourForContinueAsNew, entityParameters: null, errorPropagationMode)
+            : this(orchestrationRuntimeState, taskOrchestration, eventBehaviourForContinueAsNew, entityParameters: null, errorPropagationMode, null)
         {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TaskOrchestrationExecutor"/> class.
+        /// </summary>
+        /// <param name="orchestrationRuntimeState"></param>
+        /// <param name="taskOrchestration"></param>
+        /// <param name="eventBehaviourForContinueAsNew"></param>
+        /// <param name="entityParameters"></param>
+        /// <param name="errorPropagationMode"></param>
+        /// <param name="exceptionPropertiesProvider"></param>
+        public TaskOrchestrationExecutor(
+            OrchestrationRuntimeState orchestrationRuntimeState,
+            TaskOrchestration taskOrchestration,
+            BehaviorOnContinueAsNew eventBehaviourForContinueAsNew,
+            TaskOrchestrationEntityParameters? entityParameters,
+            ErrorPropagationMode errorPropagationMode,
+            IExceptionPropertiesProvider? exceptionPropertiesProvider)
+        {
+            this.decisionScheduler = new SynchronousTaskScheduler();
+            this.context = new TaskOrchestrationContext(
+                orchestrationRuntimeState.OrchestrationInstance,
+                this.decisionScheduler,
+                entityParameters,
+                errorPropagationMode,
+                exceptionPropertiesProvider);
+            this.orchestrationRuntimeState = orchestrationRuntimeState;
+            this.taskOrchestration = taskOrchestration;
+            this.skipCarryOverEvents = eventBehaviourForContinueAsNew == BehaviorOnContinueAsNew.Ignore;
+            this.exceptionPropertiesProvider = exceptionPropertiesProvider;
         }
 
         /// <summary>
