@@ -151,8 +151,8 @@ namespace DurableTask.Core
                     // TODO: Create a setting that allows orchestrations to complete when the orchestrator
                     //       function completes, even if there are open tasks.
                     if (!this.context.HasOpenTasks)
-                    { fdf
-                        if (this.result!.IsCompleted)
+                    {
+                        if (this.result!.IsCompleted && !this.context.IsRewinding)
                         {
                             if (this.result.IsFaulted)
                             {
@@ -173,7 +173,7 @@ namespace DurableTask.Core
                             }
                         }
 
-                        // TODO: It is an error if result is not completed when all OpenTasks are done.
+                        // TODO: It is an error if result is not completed when all OpenTasks are done and the orchestration is not rewinding.
                         // Throw an exception in that case.
                     }
                 }
