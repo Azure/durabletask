@@ -248,6 +248,12 @@ namespace DurableTask.Core
         public ErrorPropagationMode ErrorPropagationMode { get; set; }
 
         /// <summary>
+        /// Gets or sets the exception properties provider that extracts custom properties from exceptions
+        /// when creating FailureDetails objects.
+        /// </summary>
+        public IExceptionPropertiesProvider ExceptionPropertiesProvider { get; set; }
+
+        /// <summary>
         /// Adds a middleware delegate to the orchestration dispatch pipeline.
         /// </summary>
         /// <param name="middleware">Delegate to invoke whenever a message is dispatched to an orchestration.</param>
@@ -296,13 +302,15 @@ namespace DurableTask.Core
                     this.orchestrationDispatchPipeline,
                     this.logHelper,
                     this.ErrorPropagationMode,
-                    this.versioningSettings);
+                    this.versioningSettings,
+                    this.ExceptionPropertiesProvider);
                 this.activityDispatcher = new TaskActivityDispatcher(
                     this.orchestrationService,
                     this.activityManager,
                     this.activityDispatchPipeline,
                     this.logHelper,
-                    this.ErrorPropagationMode);
+                    this.ErrorPropagationMode,
+                    this.ExceptionPropertiesProvider);
 
                 if (this.dispatchEntitiesSeparately)
                 {
@@ -311,7 +319,8 @@ namespace DurableTask.Core
                         this.entityManager,
                         this.entityDispatchPipeline,
                         this.logHelper,
-                        this.ErrorPropagationMode);
+                        this.ErrorPropagationMode,
+                        this.ExceptionPropertiesProvider);
                 }
 
                 await this.orchestrationService.StartAsync();

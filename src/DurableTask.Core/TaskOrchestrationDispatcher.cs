@@ -49,14 +49,26 @@ namespace DurableTask.Core
         readonly EntityBackendProperties? entityBackendProperties;
         readonly TaskOrchestrationEntityParameters? entityParameters;
         readonly VersioningSettings? versioningSettings;
+        readonly IExceptionPropertiesProvider? exceptionPropertiesProvider;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TaskOrchestrationDispatcher"/> class with an exception properties provider.
+        /// </summary>
+        /// <param name="orchestrationService">The orchestration service implementation</param>
+        /// <param name="objectManager">The object manager for orchestrations</param>
+        /// <param name="dispatchPipeline">The dispatch middleware pipeline</param>
+        /// <param name="logHelper">The log helper</param>
+        /// <param name="errorPropagationMode">The error propagation mode</param>
+        /// <param name="versioningSettings">The versioning settings</param>
+        /// <param name="exceptionPropertiesProvider">The exception properties provider for extracting custom properties from exceptions</param>
         internal TaskOrchestrationDispatcher(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskOrchestration> objectManager,
             DispatchMiddlewarePipeline dispatchPipeline,
             LogHelper logHelper,
             ErrorPropagationMode errorPropagationMode,
-            VersioningSettings versioningSettings)
+            VersioningSettings versioningSettings,
+            IExceptionPropertiesProvider? exceptionPropertiesProvider)
         {
             this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
@@ -67,6 +79,7 @@ namespace DurableTask.Core
             this.entityBackendProperties = this.entityOrchestrationService?.EntityBackendProperties;
             this.entityParameters = TaskOrchestrationEntityParameters.FromEntityBackendProperties(this.entityBackendProperties);
             this.versioningSettings = versioningSettings;
+            this.exceptionPropertiesProvider = exceptionPropertiesProvider;
 
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskOrchestrationDispatcher",
@@ -222,18 +235,7 @@ namespace DurableTask.Core
                     return;
                 }
 
-                var isExtendedSession = false;
-
-                CorrelationTraceClient.Propagate(
-                    () =>
-                    {
-                        // Check if it is extended session.
-                        // TODO: Remove this code - it looks incorrect and dangerous
-                        isExtendedSession = this.concurrentSessionLock.Acquire();
-                        this.concurrentSessionLock.Release();
-                        workItem.IsExtendedSession = isExtendedSession;
-                    });
-
+                var concurrencyLockAcquired = false;
                 var processCount = 0;
                 try
                 {
@@ -242,6 +244,14 @@ namespace DurableTask.Core
                         // If the provider provided work items, execute them.
                         if (workItem.NewMessages?.Count > 0)
                         {
+                            // We only need to acquire the lock on the first execution within the extended session
+                            if (!concurrencyLockAcquired)
+                            {
+                                concurrencyLockAcquired = this.concurrentSessionLock.Acquire();
+                            }
+                            workItem.IsExtendedSession = concurrencyLockAcquired;
+                            // Regardless of whether or not we acquired the concurrent session lock, we will make sure to execute this work item.
+                            // If we failed to acquire it, we will end the extended session after this execution.
                             bool isCompletedOrInterrupted = await this.OnProcessWorkItemAsync(workItem);
                             if (isCompletedOrInterrupted)
                             {
@@ -251,15 +261,11 @@ namespace DurableTask.Core
                             processCount++;
                         }
 
-                        // Fetches beyond the first require getting an extended session lock, used to prevent starvation.
-                        if (processCount > 0 && !isExtendedSession)
+                        // If we failed to acquire the concurrent session lock, we will end the extended session after the execution of the first work item
+                        if (processCount > 0 && !concurrencyLockAcquired)
                         {
-                            isExtendedSession = this.concurrentSessionLock.Acquire();
-                            if (!isExtendedSession)
-                            {
-                                TraceHelper.Trace(TraceEventType.Verbose, "OnProcessWorkItemSession-MaxOperations", "Failed to acquire concurrent session lock.");
-                                break;
-                            }
+                            TraceHelper.Trace(TraceEventType.Verbose, "OnProcessWorkItemSession-MaxOperations", "Failed to acquire concurrent session lock.");
+                            break;
                         }
 
                         TraceHelper.Trace(TraceEventType.Verbose, "OnProcessWorkItemSession-StartFetch", "Starting fetch of existing session.");
@@ -282,7 +288,7 @@ namespace DurableTask.Core
                 }
                 finally
                 {
-                    if (isExtendedSession)
+                    if (concurrencyLockAcquired)
                     {
                         TraceHelper.Trace(
                             TraceEventType.Verbose,
@@ -750,6 +756,7 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(workItem);
             dispatchContext.SetProperty(GetOrchestrationExecutionContext(runtimeState));
             dispatchContext.SetProperty(this.entityParameters);
+            dispatchContext.SetProperty(new WorkItemMetadata { IsExtendedSession = workItem.IsExtendedSession, IncludePastEvents = true });
 
             TaskOrchestrationExecutor? executor = null;
 
@@ -778,7 +785,8 @@ namespace DurableTask.Core
                     taskOrchestration,
                     this.orchestrationService.EventBehaviourForContinueAsNew,
                     this.entityParameters,
-                    this.errorPropagationMode);
+                    this.errorPropagationMode,
+                    this.exceptionPropertiesProvider);
 
                 OrchestratorExecutionResult resultFromOrchestrator = executor.Execute();
                 dispatchContext.SetProperty(resultFromOrchestrator);
@@ -801,12 +809,22 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(cursor.TaskOrchestration);
             dispatchContext.SetProperty(cursor.RuntimeState);
             dispatchContext.SetProperty(workItem);
+            dispatchContext.SetProperty(new WorkItemMetadata { IsExtendedSession = true, IncludePastEvents = false });
 
             cursor.LatestDecisions = Enumerable.Empty<OrchestratorAction>();
             await this.dispatchPipeline.RunAsync(dispatchContext, _ =>
             {
-                OrchestratorExecutionResult result = cursor.OrchestrationExecutor.ExecuteNewEvents();
-                dispatchContext.SetProperty(result);
+                // Check to see if the custom middleware intercepted and substituted the orchestration execution
+                // with its own execution behavior, providing us with the end results. If so, we can terminate
+                // the dispatch pipeline here.
+                var resultFromMiddleware = dispatchContext.GetProperty<OrchestratorExecutionResult>();
+                if (resultFromMiddleware != null)
+                {
+                    return CompletedTask;
+                }
+
+                OrchestratorExecutionResult resultFromOrchestrator = cursor.OrchestrationExecutor.ExecuteNewEvents();
+                dispatchContext.SetProperty(resultFromOrchestrator);
                 return CompletedTask;
             });
 

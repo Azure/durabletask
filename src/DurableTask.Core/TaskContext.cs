@@ -62,5 +62,10 @@ namespace DurableTask.Core
         /// Gets or sets a value indicating how to propagate unhandled exception metadata.
         /// </summary>
         internal ErrorPropagationMode ErrorPropagationMode { get; set; }
+
+        /// <summary>
+        /// Gets or sets the properties of exceptions with the provider.
+        /// </summary>
+        public IExceptionPropertiesProvider? ExceptionPropertiesProvider { get; set; }
     }
 }

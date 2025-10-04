@@ -14,6 +14,7 @@
 namespace DurableTask.Core.Tests
 {
     using System;
+    using System.Collections.Generic;
     using System.Diagnostics;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
@@ -259,6 +260,167 @@ namespace DurableTask.Core.Tests
             {
                 throw new InvalidOperationException("This is a test exception",
                     new CustomException("And this is its custom inner exception"));
+            }
+        }
+
+        [TestMethod]
+        // Test that when a provider is set, properties are extracted and stored in FailureDetails.Properties.
+        public async Task ExceptionPropertiesProvider_ExtractsCustomProperties()
+        {
+            // Set up a provider that extracts custom properties using the new TaskHubWorker property
+            this.worker.ExceptionPropertiesProvider = new TestExceptionPropertiesProvider();
+            this.worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
+
+            try
+            {
+                await this.worker
+                    .AddTaskOrchestrations(typeof(ThrowCustomExceptionOrchestration))
+                    .AddTaskActivities(typeof(ThrowCustomBusinessExceptionActivity))
+                    .StartAsync();
+
+                var instance = await this.client.CreateOrchestrationInstanceAsync(typeof(ThrowCustomExceptionOrchestration), "test-input");
+                var result = await this.client.WaitForOrchestrationAsync(instance, DefaultTimeout);
+
+                // Check that custom properties were extracted
+                Assert.AreEqual(OrchestrationStatus.Failed, result.OrchestrationStatus);
+                Assert.IsNotNull(result.FailureDetails);
+                Assert.IsNotNull(result.FailureDetails.Properties);
+
+                // Check the properties match the exception.
+                Assert.AreEqual("CustomBusinessException", result.FailureDetails.Properties["ExceptionTypeName"]);
+                Assert.AreEqual("user123", result.FailureDetails.Properties["UserId"]);
+                Assert.AreEqual("OrderProcessing", result.FailureDetails.Properties["BusinessContext"]);
+                Assert.IsTrue(result.FailureDetails.Properties.ContainsKey("Timestamp"));
+
+                // Check that null values are properly handled
+                Assert.IsTrue(result.FailureDetails.Properties.ContainsKey("TestNullObject"), "TestNullObject key should be present");
+                Assert.IsNull(result.FailureDetails.Properties["TestNullObject"], "TestNullObject should be null");
+                
+                Assert.IsTrue(result.FailureDetails.Properties.ContainsKey("DirectNullValue"), "DirectNullValue key should be present");
+                Assert.IsNull(result.FailureDetails.Properties["DirectNullValue"], "DirectNullValue should be null");
+
+                // Verify non-null values still work
+                Assert.IsTrue(result.FailureDetails.Properties.ContainsKey("EmptyString"), "EmptyString key should be present");
+                Assert.AreEqual(string.Empty, result.FailureDetails.Properties["EmptyString"], "EmptyString should be empty string, not null");
+            }
+            finally
+            {
+                await this.worker.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        // Test that when no provider is provided by default, property at FailureDetails should be null.
+        public async Task ExceptionPropertiesProvider_NullProvider_NoProperties()
+        {
+            try
+            {
+                this.worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
+                await this.worker
+                    .AddTaskOrchestrations(typeof(ThrowInvalidOperationExceptionOrchestration))
+                    .AddTaskActivities(typeof(ThrowInvalidOperationExceptionActivity))
+                    .StartAsync();
+
+                var instance = await this.client.CreateOrchestrationInstanceAsync(typeof(ThrowInvalidOperationExceptionOrchestration), "test-input");
+                var result = await this.client.WaitForOrchestrationAsync(instance, DefaultTimeout);
+
+                // Properties should be null when no provider
+                Assert.AreEqual(OrchestrationStatus.Failed, result.OrchestrationStatus);
+                Assert.IsNotNull(result.FailureDetails);
+                Assert.IsNull(result.FailureDetails.Properties);
+            }
+            finally
+            {
+                await this.worker.StopAsync();
+            }
+        }
+
+        class ThrowCustomExceptionOrchestration : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                await context.ScheduleTask<string>(typeof(ThrowCustomBusinessExceptionActivity), input);
+                return "This should never be reached";
+            }
+        }
+
+        class ThrowCustomBusinessExceptionActivity : TaskActivity<string, string>
+        {
+            protected override string Execute(TaskContext context, string input)
+            {
+                throw new CustomBusinessException("Payment processing failed", "user123", "OrderProcessing");
+            }
+        }
+
+        class ThrowInvalidOperationExceptionOrchestration : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                await context.ScheduleTask<string>(typeof(ThrowInvalidOperationExceptionActivity), input);
+                return "This should never be reached";
+            }
+        }
+
+        class ThrowInvalidOperationExceptionActivity : TaskActivity<string, string>
+        {
+            protected override string Execute(TaskContext context, string input)
+            {
+                throw new InvalidOperationException("This is a test exception");
+            }
+        }
+
+        // Test exception with custom properties
+        [Serializable]
+        class CustomBusinessException : Exception
+        {
+            public string UserId { get; }
+            public string BusinessContext { get; }
+            public string? TestNullObject { get; }
+
+            public CustomBusinessException(string message, string userId, string businessContext)
+                : base(message)
+            {
+                UserId = userId;
+                BusinessContext = businessContext;
+                TestNullObject = null; // Explicitly set to null for testing
+            }
+
+            protected CustomBusinessException(SerializationInfo info, StreamingContext context)
+                : base(info, context)
+            {
+                UserId = info.GetString(nameof(UserId)) ?? string.Empty;
+                BusinessContext = info.GetString(nameof(BusinessContext)) ?? string.Empty;
+                TestNullObject = info.GetString(nameof(TestNullObject)); // This will be null
+            }
+
+            public override void GetObjectData(SerializationInfo info, StreamingContext context)
+            {
+                base.GetObjectData(info, context);
+                info.AddValue(nameof(UserId), UserId);
+                info.AddValue(nameof(BusinessContext), BusinessContext);
+                info.AddValue(nameof(TestNullObject), TestNullObject);
+            }
+        }
+
+        // Test provider that includes null values in different ways
+        class TestExceptionPropertiesProvider : IExceptionPropertiesProvider
+        {
+            public IDictionary<string, object?>? GetExceptionProperties(Exception exception)
+            {
+                return exception switch
+                {
+                    CustomBusinessException businessEx => new Dictionary<string, object?>
+                    {
+                        ["ExceptionTypeName"] = nameof(CustomBusinessException),
+                        ["UserId"] = businessEx.UserId,
+                        ["BusinessContext"] = businessEx.BusinessContext,
+                        ["Timestamp"] = DateTime.UtcNow,
+                        ["TestNullObject"] = businessEx.TestNullObject, // This comes from the exception property (null)
+                        ["DirectNullValue"] = null, // This is directly set to null
+                        ["EmptyString"] = string.Empty // Non-null value for comparison
+                    },
+                    _ => null // No custom properties for other exceptions
+                };
             }
         }
 

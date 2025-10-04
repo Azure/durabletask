@@ -52,7 +52,8 @@ namespace DurableTask.Core
             OrchestrationInstance orchestrationInstance,
             TaskScheduler taskScheduler,
             TaskOrchestrationEntityParameters entityParameters = null,
-            ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
+            ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions,
+            IExceptionPropertiesProvider exceptionPropertiesProvider = null)
         {
             Utils.UnusedParameter(taskScheduler);
 
@@ -67,6 +68,7 @@ namespace DurableTask.Core
             ErrorPropagationMode = errorPropagationMode;
             this.eventsWhileSuspended = new Queue<HistoryEvent>();
             this.suspendedActionsMap = new SortedDictionary<int, OrchestratorAction>();
+            this.ExceptionPropertiesProvider = exceptionPropertiesProvider;
         }
 
         public IEnumerable<OrchestratorAction> OrchestratorActions => this.orchestratorActionsMap.Values;

@@ -1215,11 +1215,16 @@ namespace DurableTask.AzureStorage
                     this.orchestrationSessionManager.AddMessageToPendingOrchestration(session.ControlQueue, messages, session.TraceActivityId, CancellationToken.None);
                 }
             }
-            catch (RequestFailedException rfe) when (rfe.Status == (int)HttpStatusCode.PreconditionFailed)
+            // Handle the case where the 'ETag' has changed, which implies another worker has taken over this work item while
+            // we were trying to process it. We detect this in 2 cases:
+            // Common case: the resulting code is 'PreconditionFailed', which means our ETag no longer matches the one stored.
+            // Edge case: the resulting code is 'Conflict'. This can occur if this was the first orchestration work item.
+            // The 'Conflict' represents that we attempted to insert a new orchestration history when one already exists.
+            catch (DurableTaskStorageException dtse) when (dtse.HttpStatusCode == (int)HttpStatusCode.Conflict || dtse.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
             {
                 // Precondition failure is expected to be handled internally and logged as a warning.
                 // The orchestration dispatcher will handle this exception by abandoning the work item
-                throw new SessionAbortedException("Aborting execution due to failed precondition.", rfe);
+                throw new SessionAbortedException("Aborting execution due to conflicting completion of the work item by another worker.", dtse);
             }
             catch (Exception e)
             {
