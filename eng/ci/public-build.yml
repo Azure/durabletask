@@ -11,7 +11,7 @@ trigger:
 
 # Run nightly to catch new CVEs and to report SDL often.
 schedules:
-  - cron: "0 0 * * *"
+  - cron: "0 5 * * *"
     displayName: Nightly Run
     branches:
       include:
@@ -41,6 +41,9 @@ extends:
       name: 1es-pool-azfunc-public
       image: 1es-windows-2022
       os: windows
+      ${{ if eq( variables['Build.Reason'], 'Schedule' ) }}:
+        demands:
+        - Priority -equals Low
 
     sdl:
       codeql:
