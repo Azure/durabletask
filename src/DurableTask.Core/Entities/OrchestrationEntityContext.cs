@@ -187,7 +187,7 @@ namespace DurableTask.Core.Entities
         /// <param name="targetInstanceId"></param>
         public void RecoverLockAfterCall(string targetInstanceId)
         {
-            if (this.IsInsideCriticalSection)
+            if (this.IsInsideCriticalSection && !this.lockAcquisitionPending)
             {
                 var lockToUse = EntityId.FromString(targetInstanceId);
                 this.availableLocks!.Add(lockToUse);
