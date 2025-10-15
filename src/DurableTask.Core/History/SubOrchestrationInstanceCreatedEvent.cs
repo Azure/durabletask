@@ -13,9 +13,6 @@
 
 namespace DurableTask.Core.History
 {
-    using System.Collections;
-    using System.Collections.Generic;
-    using System.Collections.Specialized;
     using System.Runtime.Serialization;
 
     /// <summary>
