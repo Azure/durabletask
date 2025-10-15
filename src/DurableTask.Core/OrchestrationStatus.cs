@@ -57,5 +57,10 @@ namespace DurableTask.Core
         /// Orchestration state of suspended
         /// </summary>
         Suspended,
+
+        /// <summary>
+        /// Orchestration status of rewinding
+        /// </summary>
+        Rewinding
     }
 }

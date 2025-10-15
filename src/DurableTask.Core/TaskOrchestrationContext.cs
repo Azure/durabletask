@@ -41,7 +41,6 @@ namespace DurableTask.Core
         public bool IsSuspended { get; private set; }
 
         public bool HasContinueAsNew => continueAsNew != null;
-        public bool IsRewinding { get; private set; }
 
         public void AddEventToNextIteration(HistoryEvent he)
         {
@@ -726,18 +725,6 @@ namespace DurableTask.Core
 
             completedOrchestratorAction.Id = id;
             this.orchestratorActionsMap.Add(id, completedOrchestratorAction);
-        }
-
-        public void HandleExecutionRewoundEvent(ExecutionRewoundEvent rewoundEvent)
-        {
-            if (!this.executionCompletedOrTerminated)
-            {
-                return;
-            }
-            this.IsRewinding = true;
-            int id = this.idCounter++;
-            var rewindOrchestrationAction = new RewindOrchestrationAction() { Id = id };
-            this.orchestratorActionsMap.Add(id, rewindOrchestrationAction);
         }
 
         class OpenTaskInfo

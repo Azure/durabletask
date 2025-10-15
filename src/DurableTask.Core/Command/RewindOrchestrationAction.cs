@@ -19,15 +19,7 @@ namespace DurableTask.Core.Command
     /// </summary>
     public class RewindOrchestrationAction : OrchestratorAction
     {
-        // NOTE: Actions must be serializable by a variety of different serializer types to support out-of-process execution.
-        //       To ensure maximum compatibility, all properties should be public and settable by default.
-
         /// <inheritdoc/>
         public override OrchestratorActionType OrchestratorActionType => OrchestratorActionType.RewindOrchestration;
-
-        /// <summary>
-        /// The reason for the rewind action.
-        /// </summary>
-        public string? Reason { get; set; }
     }
 }

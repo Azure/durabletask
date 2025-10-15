@@ -23,6 +23,12 @@ namespace DurableTask.Core.History
     public class ExecutionRewoundEvent : HistoryEvent
     {
         /// <summary>
+        /// Creates a new ExecutionRewoundEvent with the supplied event id and empty reason.
+        /// </summary>
+        /// <param name="eventId">The integer event id</param>
+        public ExecutionRewoundEvent(int eventId) : base(eventId) { }
+
+        /// <summary>
         /// Creates a new ExecutionRewoundEvent with the supplied event id and reason.
         /// </summary>
         /// <param name="eventId">The integer event id</param>
@@ -44,39 +50,14 @@ namespace DurableTask.Core.History
         [DataMember]
         public string Reason { get; set; }
 
-
         /// <summary>
-        /// Gets or sets the input of the orchestration being rewound
+        /// Gets or sets the parent execution id of the rewound suborchestration.
         /// </summary>
         [DataMember]
-        public string Input { get; set; }
+        public string ParentExecutionId { get; set; }
 
         /// <summary>
-        /// Gets or sets the dictionary of tags of the orchestration being rewound
-        /// </summary>
-        [DataMember]
-        public IDictionary<string, string> Tags { get; set; }
-
-        /// <summary>
-        /// Gets or sets the parent instance of the suborchestration being rewound
-        /// </summary>
-        [DataMember]
-        public ParentInstance ParentInstance { get; set; }
-
-        /// <summary>
-        /// Gets or sets the name of the orchestration being rewound
-        /// </summary>
-        [DataMember]
-        public string Name { get; set; }
-
-        /// <summary>
-        /// Gets or sets the version of the orchestration being rewound
-        /// </summary>
-        [DataMember]
-        public string Version { get; set; }
-
-        /// <summary>
-        /// Gets or sets the instance ID of the orchestration being rewound
+        /// Gets or sets the instance ID of the rewound orchestration.
         /// </summary>
         [DataMember]
         public string InstanceId { get; set; }

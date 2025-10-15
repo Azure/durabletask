@@ -428,15 +428,22 @@ namespace DurableTask.Core
 
                         if (!versioningFailed)
                         {
-                            if (workItem.Cursor == null)
+                            if (runtimeState.NewEvents.OfType<ExecutionRewoundEvent>().LastOrDefault() is not null)
                             {
-                                workItem.Cursor = await this.ExecuteOrchestrationAsync(runtimeState, workItem);
+                                decisions = new List<OrchestratorAction> { new RewindOrchestrationAction() };
                             }
                             else
                             {
-                                await this.ResumeOrchestrationAsync(workItem);
+                                if (workItem.Cursor == null)
+                                {
+                                    workItem.Cursor = await this.ExecuteOrchestrationAsync(runtimeState, workItem);
+                                }
+                                else
+                                {
+                                    await this.ResumeOrchestrationAsync(workItem);
+                                }
+                                decisions = workItem.Cursor.LatestDecisions.ToList();
                             }
-                            decisions = workItem.Cursor.LatestDecisions.ToList();
                         }
 
                         this.logHelper.OrchestrationExecuted(
@@ -521,14 +528,13 @@ namespace DurableTask.Core
                                     isCompleted = !continuedAsNew;
                                     break;
                                 case OrchestratorActionType.RewindOrchestration:
-                                    var rewindDecision = (RewindOrchestrationAction)decision;
                                     this.ProcessRewindOrchestrationDecision(
-                                        rewindDecision,
                                         runtimeState,
                                         out List<TaskMessage> subOrchestrationRewindMessages,
                                         out OrchestrationRuntimeState newRuntimeState);
                                     orchestratorMessages.AddRange(subOrchestrationRewindMessages);
                                     workItem.OrchestrationRuntimeState = newRuntimeState;
+                                    runtimeState = newRuntimeState;
                                     // Setting this to true here will end an extended session if it is in progress.
                                     // We don't want to save the state across executions, since we essentially manually modify
                                     // the orchestration history here and so that stored by the extended session is incorrect.
@@ -870,6 +876,19 @@ namespace DurableTask.Core
                     return false;
                 }
 
+                if (message.Event.EventType == EventType.ExecutionRewound
+                    && workItem.OrchestrationRuntimeState.OrchestrationStatus != OrchestrationStatus.Running
+                    && workItem.NewMessages.Count > 1)
+                {
+                    foreach (TaskMessage droppedMessage in workItem.NewMessages)
+                    {
+                        logHelper.DroppingOrchestrationMessage(workItem, droppedMessage, "Multiple messages sent to an instance " +
+                            "that is attempting to rewind from a terminal state. The only message that can be sent in " +
+                            "this case is the rewind request.");
+                    }
+                    return false;
+                }
+
                 logHelper.ProcessingOrchestrationMessage(workItem, message);
                 TraceHelper.TraceInstance(
                     TraceEventType.Information,
@@ -1182,15 +1201,6 @@ namespace DurableTask.Core
                 Name = createSubOrchestrationAction.Name,
                 Version = createSubOrchestrationAction.Version,
                 InstanceId = createSubOrchestrationAction.InstanceId,
-                ExecutionId = Guid.NewGuid().ToString("N"),
-                ParentInstance = new ParentInstance
-                {
-                    OrchestrationInstance = runtimeState.OrchestrationInstance,
-                    Name = runtimeState.Name,
-                    Version = runtimeState.Version,
-                    TaskScheduleId = createSubOrchestrationAction.Id
-                },
-                Tags = OrchestrationTags.MergeTags(createSubOrchestrationAction.Tags, runtimeState.Tags),
             };
             if (includeParameters)
             {
@@ -1203,13 +1213,19 @@ namespace DurableTask.Core
 
             var startedEvent = new ExecutionStartedEvent(-1, createSubOrchestrationAction.Input)
             {
-                Tags = historyEvent.Tags,
+                Tags = OrchestrationTags.MergeTags(createSubOrchestrationAction.Tags, runtimeState.Tags),
                 OrchestrationInstance = new OrchestrationInstance
                 {
                     InstanceId = createSubOrchestrationAction.InstanceId,
-                    ExecutionId = historyEvent.ExecutionId
+                    ExecutionId = Guid.NewGuid().ToString("N")
                 },
-                ParentInstance = historyEvent.ParentInstance,
+                ParentInstance = new ParentInstance
+                {
+                    OrchestrationInstance = runtimeState.OrchestrationInstance,
+                    Name = runtimeState.Name,
+                    Version = runtimeState.Version,
+                    TaskScheduleId = createSubOrchestrationAction.Id
+                },
                 Name = createSubOrchestrationAction.Name,
                 Version = createSubOrchestrationAction.Version
             };
@@ -1281,7 +1297,6 @@ namespace DurableTask.Core
         }
 
         void ProcessRewindOrchestrationDecision(
-            RewindOrchestrationAction rewindAction,
             OrchestrationRuntimeState runtimeState,
             out List<TaskMessage> subOrchestrationRewindMessages,
             out OrchestrationRuntimeState newRuntimeState)
@@ -1307,48 +1322,52 @@ namespace DurableTask.Core
                 }
             }
 
-            newRuntimeState.AddEvent(new OrchestratorStartedEvent(-1));
-            newRuntimeState.AddEvent(runtimeState.Events.OfType<ExecutionRewoundEvent>().LastOrDefault());
+            ExecutionRewoundEvent executionRewoundEvent = (runtimeState.NewEvents.Last(e => e is ExecutionRewoundEvent) as ExecutionRewoundEvent)!;
+            string newExecutionId = Guid.NewGuid().ToString("N");
 
-            // We start at 1 since we want to skip the first OrchestratorStartedEvent since we already this event manually above
-            for (int i = 1; i < runtimeState.Events.Count; i++)
+            // In so copying the history, we do minimal alterations which provides less room for error and less work for the backends.
+            // That being said, the new history will have the ExecutionRewoundEvent at near end, rather than the beginning (which might be more intuitive).
+            // And we can also end up with sections with an OrchestratorStartedEvent immediately followed by an OrchestratorCompletedEvent if all the events in between got deleted.
+            // Are we okay with this?
+            foreach (var evt in runtimeState.Events)
             {
-                var evt = runtimeState.Events[i];
-
                 // Do not add the TaskScheduledEvents for the failed tasks so that they get rescheduled, and do not add any of
-                // the failed task/suborchestration events to the new history
+                // the failed task/suborchestration/execution events to the new history.
                 if (!(evt is TaskScheduledEvent taskScheduledEvent && failedTaskIds.Contains(taskScheduledEvent.EventId))
-                    && evt is not TaskFailedEvent && evt is not SubOrchestrationInstanceFailedEvent)
+                    && evt is not TaskFailedEvent
+                    && evt is not SubOrchestrationInstanceFailedEvent
+                    && evt is not ExecutionCompletedEvent)
                 {
                     newRuntimeState.AddEvent(evt);
                     if (evt is ExecutionStartedEvent executionStartedEvent)
                     {
                         // Copy all information from the old ExecutionStartedEvent except for the ExecutionId, since we create a new one
-                        executionStartedEvent.OrchestrationInstance.ExecutionId = Guid.NewGuid().ToString("N");
+                        executionStartedEvent.OrchestrationInstance.ExecutionId = newExecutionId;
+                        // If this is a suborchestration, we also need to update the ParentInstance's ExecutionId to match the new ExecutionId of the rewinding parent orchestration
+                        if (!string.IsNullOrEmpty(executionRewoundEvent.ParentExecutionId))
+                        {
+                            executionStartedEvent.ParentInstance.OrchestrationInstance.ExecutionId = executionRewoundEvent.ParentExecutionId;
+                        }
                     }
 
                     // For each of the failed suborchestrations, generate a rewind event
-                    if (evt is SubOrchestrationInstanceCreatedEvent subOrchestrationInstanceCreatedEvent && failedTaskIds.Contains(subOrchestrationInstanceCreatedEvent.EventId))
+                    if (evt is SubOrchestrationInstanceCreatedEvent subOrchestrationInstanceCreatedEvent
+                        && failedTaskIds.Contains(subOrchestrationInstanceCreatedEvent.EventId))
                     {
+                        var childExecutionRewoundEvent = new ExecutionRewoundEvent(-1, executionRewoundEvent!.Reason)
+                        {
+                            ParentExecutionId = newExecutionId,
+                            InstanceId = subOrchestrationInstanceCreatedEvent.InstanceId
+                        };
+
                         subOrchestrationRewindMessages.Add
                             (
                                 new TaskMessage
                                 {
-                                    // We include all this information in the rewind event to handle the edge case scenario of a suborchestration's history being purged.
-                                    // The ExecutionRewoundEvent will then contain enough information to rerun the entire suborchestration from scratch.
-                                    Event = new ExecutionRewoundEvent(-1, rewindAction.Reason)
-                                    {
-                                        Tags = subOrchestrationInstanceCreatedEvent.Tags,
-                                        InstanceId = subOrchestrationInstanceCreatedEvent.InstanceId,
-                                        ParentInstance = subOrchestrationInstanceCreatedEvent.ParentInstance,
-                                        Name = subOrchestrationInstanceCreatedEvent.Name,
-                                        Version = subOrchestrationInstanceCreatedEvent.Version,
-                                        Input = subOrchestrationInstanceCreatedEvent.Input
-                                    },
+                                    Event = childExecutionRewoundEvent,
                                     OrchestrationInstance = new OrchestrationInstance
                                     {
-                                        InstanceId = subOrchestrationInstanceCreatedEvent.InstanceId,
-                                        ExecutionId = subOrchestrationInstanceCreatedEvent.ExecutionId
+                                        InstanceId = subOrchestrationInstanceCreatedEvent.InstanceId
                                     },
                                 }
                             );

@@ -67,23 +67,5 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public string ClientSpanId { get; set; }
-
-        /// <summary>
-        /// Gets or sets the execution Id
-        /// </summary>
-        [DataMember]
-        public string ExecutionId { get; set; }
-
-        /// <summary>
-        /// Gets or sets the dictionary of tags of the suborchestration
-        /// </summary>
-        [DataMember]
-        public IDictionary<string, string> Tags { get; set; }
-
-        /// <summary>
-        /// Gets or sets the parent instance of the suborchestration 
-        /// </summary>
-        [DataMember]
-        public ParentInstance ParentInstance { get; set; }
     }
 }
