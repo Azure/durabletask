@@ -343,6 +343,20 @@ namespace DurableTask.Core
             ExecutionStartedEvent startEvent =
                 runtimeState.ExecutionStartedEvent ??
                 workItem.NewMessages.Select(msg => msg.Event).OfType<ExecutionStartedEvent>().FirstOrDefault();
+            ExecutionRewoundEvent rewindEvent =
+                workItem.NewMessages.Select(msg => msg.Event).OfType<ExecutionRewoundEvent>().LastOrDefault();
+
+            if (rewindEvent is not null && runtimeState.OrchestrationStatus != OrchestrationStatus.Running)
+            {
+                isRewinding = true;
+                if (rewindEvent.ParentTraceContext != null)
+                {
+                    startEvent.ParentTraceContext = rewindEvent.ParentTraceContext;
+                }
+                startEvent.ParentTraceContext.SpanId = null;
+                startEvent.ParentTraceContext.Id = null;
+                startEvent.ParentTraceContext.ActivityStartTime = null;
+            }   
             Activity? traceActivity = TraceHelper.StartTraceActivityForOrchestrationExecution(startEvent);
 
             OrchestrationState? instanceState = null;
@@ -428,7 +442,7 @@ namespace DurableTask.Core
 
                         if (!versioningFailed)
                         {
-                            if (runtimeState.NewEvents.OfType<ExecutionRewoundEvent>().LastOrDefault() is not null)
+                            if (isRewinding)
                             {
                                 decisions = new List<OrchestratorAction> { new RewindOrchestrationAction() };
                             }
@@ -1353,12 +1367,24 @@ namespace DurableTask.Core
                     // For each of the failed suborchestrations, generate a rewind event
                     if (evt is SubOrchestrationInstanceCreatedEvent subOrchestrationInstanceCreatedEvent
                         && failedTaskIds.Contains(subOrchestrationInstanceCreatedEvent.EventId))
-                    {
+                    {   
                         var childExecutionRewoundEvent = new ExecutionRewoundEvent(-1, executionRewoundEvent!.Reason)
                         {
                             ParentExecutionId = newExecutionId,
                             InstanceId = subOrchestrationInstanceCreatedEvent.InstanceId
                         };
+
+                        if (runtimeState.ExecutionStartedEvent.TryGetParentTraceContext(out ActivityContext parentTraceContext))
+                        {
+                            var newClientSpanId = ActivitySpanId.CreateRandom();
+                            subOrchestrationInstanceCreatedEvent.ClientSpanId = newClientSpanId.ToString();
+                            ActivityContext childActivityContext = new(
+                                parentTraceContext.TraceId,
+                                newClientSpanId,
+                                parentTraceContext.TraceFlags,
+                                parentTraceContext.TraceState);
+                            childExecutionRewoundEvent.SetParentTraceContext(childActivityContext);
+                        }
 
                         subOrchestrationRewindMessages.Add
                             (

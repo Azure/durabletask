@@ -13,14 +13,14 @@
 
 namespace DurableTask.Core.History
 {
-    using System.Collections.Generic;
+    using DurableTask.Core.Tracing;
     using System.Runtime.Serialization;
 
     /// <summary>
     /// Generic History event
     /// </summary>
     [DataContract]
-    public class ExecutionRewoundEvent : HistoryEvent
+    public class ExecutionRewoundEvent : HistoryEvent, ISupportsDurableTraceContext
     {
         /// <summary>
         /// Creates a new ExecutionRewoundEvent with the supplied event id and empty reason.
@@ -61,5 +61,11 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public string InstanceId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the parent trace context of the rewound suborchestration.
+        /// </summary>
+        [DataMember]
+        public DistributedTraceContext ParentTraceContext { get; set; }
     }
 }
