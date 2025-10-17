@@ -353,6 +353,7 @@ namespace DurableTask.Core
                 {
                     startEvent.ParentTraceContext = rewindEvent.ParentTraceContext;
                 }
+                // We set these to null here so that a new Activity is created to represent the execution of the rewound orchestration.
                 startEvent.ParentTraceContext.SpanId = null;
                 startEvent.ParentTraceContext.Id = null;
                 startEvent.ParentTraceContext.ActivityStartTime = null;
@@ -1377,6 +1378,8 @@ namespace DurableTask.Core
                         if (runtimeState.ExecutionStartedEvent.TryGetParentTraceContext(out ActivityContext parentTraceContext))
                         {
                             var newClientSpanId = ActivitySpanId.CreateRandom();
+                            // We set a new client span ID here so that the execution of the rewound suborchestration is not tied to the 
+                            // old parent.
                             subOrchestrationInstanceCreatedEvent.ClientSpanId = newClientSpanId.ToString();
                             ActivityContext childActivityContext = new(
                                 parentTraceContext.TraceId,
