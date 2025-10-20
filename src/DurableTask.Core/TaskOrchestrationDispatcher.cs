@@ -1353,20 +1353,24 @@ namespace DurableTask.Core
                     && evt is not SubOrchestrationInstanceFailedEvent
                     && evt is not ExecutionCompletedEvent)
                 {
-                    newRuntimeState.AddEvent(evt);
+                    HistoryEvent eventToAdd = evt;
+
                     if (evt is ExecutionStartedEvent executionStartedEvent)
                     {
                         // Copy all information from the old ExecutionStartedEvent except for the ExecutionId, since we create a new one
-                        executionStartedEvent.OrchestrationInstance.ExecutionId = newExecutionId;
+                        var newExecutionStartedEvent = new ExecutionStartedEvent(executionStartedEvent);
+                        newExecutionStartedEvent.OrchestrationInstance.ExecutionId = newExecutionId;
+
                         // If this is a suborchestration, we also need to update the ParentInstance's ExecutionId to match the new ExecutionId of the rewinding parent orchestration
                         if (!string.IsNullOrEmpty(executionRewoundEvent.ParentExecutionId))
                         {
-                            executionStartedEvent.ParentInstance.OrchestrationInstance.ExecutionId = executionRewoundEvent.ParentExecutionId;
+                            newExecutionStartedEvent.ParentInstance.OrchestrationInstance.ExecutionId = executionRewoundEvent.ParentExecutionId;
                         }
+                        eventToAdd = newExecutionStartedEvent;
                     }
 
                     // For each of the failed suborchestrations, generate a rewind event
-                    if (evt is SubOrchestrationInstanceCreatedEvent subOrchestrationInstanceCreatedEvent
+                    else if (evt is SubOrchestrationInstanceCreatedEvent subOrchestrationInstanceCreatedEvent
                         && failedTaskIds.Contains(subOrchestrationInstanceCreatedEvent.EventId))
                     {   
                         var childExecutionRewoundEvent = new ExecutionRewoundEvent(-1, executionRewoundEvent!.Reason)
@@ -1377,10 +1381,15 @@ namespace DurableTask.Core
 
                         if (runtimeState.ExecutionStartedEvent.TryGetParentTraceContext(out ActivityContext parentTraceContext))
                         {
-                            var newClientSpanId = ActivitySpanId.CreateRandom();
                             // We set a new client span ID here so that the execution of the rewound suborchestration is not tied to the 
                             // old parent.
-                            subOrchestrationInstanceCreatedEvent.ClientSpanId = newClientSpanId.ToString();
+                            var newClientSpanId = ActivitySpanId.CreateRandom();
+                            var newSubOrchestrationInstanceCreatedEvent = new SubOrchestrationInstanceCreatedEvent(subOrchestrationInstanceCreatedEvent)
+                            {
+                                ClientSpanId = newClientSpanId.ToString()
+                            };
+                            eventToAdd = newSubOrchestrationInstanceCreatedEvent;
+
                             ActivityContext childActivityContext = new(
                                 parentTraceContext.TraceId,
                                 newClientSpanId,
@@ -1401,6 +1410,9 @@ namespace DurableTask.Core
                                 }
                             );
                     }
+
+                    // Finally, add the event to the new history
+                    newRuntimeState.AddEvent(eventToAdd);
                 }
             }
 
@@ -1414,7 +1426,7 @@ namespace DurableTask.Core
                     {
                         // This is a "dummy event" that will not be added to the history and is used just to trigger the rerun.
                         Event = new ExecutionRewoundEvent(-1, string.Empty),
-                        OrchestrationInstance = runtimeState.OrchestrationInstance,
+                        OrchestrationInstance = newRuntimeState.OrchestrationInstance,
                     }
                 );
             }

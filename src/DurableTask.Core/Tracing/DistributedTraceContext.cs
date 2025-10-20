@@ -80,5 +80,15 @@ namespace DurableTask.Core.Tracing
         /// </summary>
         [DataMember]
         public DateTimeOffset? ActivityStartTime { get; set; }
+
+        internal DistributedTraceContext Clone()
+        {
+            return new DistributedTraceContext(this.TraceParent, this.TraceState)
+            {
+                Id = Id,
+                SpanId = SpanId,
+                ActivityStartTime = ActivityStartTime
+            };
+        }
     }
 }
