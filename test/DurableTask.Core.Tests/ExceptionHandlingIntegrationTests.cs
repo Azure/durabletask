@@ -336,7 +336,8 @@ namespace DurableTask.Core.Tests
         }
 
         [TestMethod]
-        // Test that when a provider is set, exception thrown by orchestration properties will be included if type is matched.
+        // Test that when a provider is set, properties of exception thrown by orchestration directly will be included
+        // if excception type is matched.
         public async Task ExceptionPropertiesProvider_SimpleThrowExceptionOrchestration()
         {
             this.worker.ExceptionPropertiesProvider = new TestExceptionPropertiesProvider();
