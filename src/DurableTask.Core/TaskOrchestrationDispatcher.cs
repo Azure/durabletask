@@ -1341,8 +1341,7 @@ namespace DurableTask.Core
             string newExecutionId = Guid.NewGuid().ToString("N");
 
             // In so copying the history, we do minimal alterations which provides less room for error and less work for the backends.
-            // That being said, the new history will have the ExecutionRewoundEvent at near end, rather than the beginning (which might be more intuitive).
-            // And we can also end up with sections with an OrchestratorStartedEvent immediately followed by an OrchestratorCompletedEvent if all the events in between got deleted.
+            // That being said, we end up with sections with an OrchestratorStartedEvent immediately followed by an OrchestratorCompletedEvent if all the events in between got deleted.
             // Are we okay with this?
             foreach (var evt in runtimeState.Events)
             {
