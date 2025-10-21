@@ -1062,6 +1062,13 @@ namespace DurableTask.AzureStorage
                 }
                 else
                 {
+                    TaskMessage executionTerminatedEventMessage = newMessages.LastOrDefault(msg => msg.Event is ExecutionTerminatedEvent);
+                    if (executionTerminatedEventMessage is not null)
+                    {
+                        await this.trackingStore.UpdateStatusForTerminationAsync(instanceId, ((ExecutionTerminatedEvent)executionTerminatedEventMessage.Event).Input);
+                        return $"Instance is {OrchestrationStatus.Terminated}";
+                    }
+
                     // A non-zero event count usually happens when an instance's history is overwritten by a
                     // new instance or by a ContinueAsNew. When history is overwritten by new instances, we
                     // overwrite the old history with new history (with a new execution ID), but this is done
@@ -1071,17 +1078,6 @@ namespace DurableTask.AzureStorage
                     // been fully overwritten. We know it's invalid because it's missing the ExecutionStartedEvent.
                     return runtimeState.Events.Count == 0 ? "No such instance" : "Invalid history (may have been overwritten by a newer instance)";
                 }
-            }
-
-            InstanceStatus instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(
-                runtimeState.OrchestrationInstance.InstanceId,
-                CancellationToken.None);
-            // This to check for the special case of a pending orchestration being terminated, in which case we discard
-            // all other messages for that orchestration.
-            if (instanceStatus.State.OrchestrationStatus == OrchestrationStatus.Terminated
-                && runtimeState.Events.Count == 0)
-            {
-                return $"Instance is {OrchestrationStatus.Terminated}";
             }
 
             if (runtimeState.ExecutionStartedEvent != null &&
@@ -1919,11 +1915,6 @@ namespace DurableTask.AzureStorage
         /// <param name="reason">The user-friendly reason for terminating.</param>
         public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
         {
-            InstanceStatus instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(instanceId);
-            if (instanceStatus.State.OrchestrationStatus == OrchestrationStatus.Pending)
-            {
-                await this.trackingStore.UpdateStatusForTerminationAsync(instanceId, reason);
-            }
             var taskMessage = new TaskMessage
             {
                 OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
