@@ -197,11 +197,11 @@ namespace DurableTask.AzureStorage.Tracking
             // No blobs to delete for this tracking store implementation
             await instanceStore.WriteEntitiesAsync(new InstanceEntityBase[]
             {
-                    new OrchestrationStateInstanceEntity()
-                    {
-                        State = Core.Common.Utils.BuildOrchestrationState(runtimeState),
-                        SequenceNumber = runtimeState.Events.Count
-                    }
+                new OrchestrationStateInstanceEntity()
+                {
+                    State = Core.Common.Utils.BuildOrchestrationState(runtimeState),
+                    SequenceNumber = runtimeState.Events.Count
+                }
             });
         }
     }
