@@ -795,6 +795,30 @@ namespace DurableTask.AzureStorage.Tracking
                 stopwatch.ElapsedMilliseconds);
         }
 
+        /// <inheritdoc />
+        public override async Task UpdateStatusForTerminationAsync(string instanceId, string output, CancellationToken cancellationToken = default)
+        {
+            string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
+            TableEntity entity = new TableEntity(sanitizedInstanceId, "")
+            {
+                ["RuntimeStatus"] = OrchestrationStatus.Terminated.ToString("G"),
+                ["LastUpdatedTime"] = DateTime.UtcNow,
+                [OutputProperty] = output
+            };
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            await this.InstancesTable.MergeEntityAsync(entity, ETag.All, cancellationToken);
+
+            this.settings.Logger.InstanceStatusUpdate(
+                this.storageAccountName,
+                this.taskHubName,
+                instanceId,
+                string.Empty,
+                OrchestrationStatus.Terminated,
+                episode: 0,
+                stopwatch.ElapsedMilliseconds);
+        }
+
 
         /// <inheritdoc />
         public override Task StartAsync(CancellationToken cancellationToken = default)

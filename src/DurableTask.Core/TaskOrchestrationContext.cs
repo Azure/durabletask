@@ -686,7 +686,7 @@ namespace DurableTask.Core
             {
                 if (this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
                 {
-                    failureDetails = new FailureDetails(failure);
+                    failureDetails = new FailureDetails(failure, this.ExceptionPropertiesProvider.ExtractProperties(failure));
                 }
                 else
                 {
