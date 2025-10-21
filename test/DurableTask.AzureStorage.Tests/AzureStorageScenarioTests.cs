@@ -2441,6 +2441,79 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        /// <summary>
+        /// Confirm that if a worker fails after committing the new history but before updating the instance state in a call to
+        /// <see cref="AzureStorageOrchestrationService.CompleteTaskOrchestrationWorkItemAsync"/> for an orchestration that has 
+        /// reached a terminal state, then storage is brought to consistent state by the call to 
+        /// <see cref="AzureStorageOrchestrationService.LockNextTaskOrchestrationWorkItemAsync"/>.
+        /// Since we cannot simulate a worker failure at this precise point, instead what is done by this test is that we
+        /// let an orchestration run to completion, and then manually change the instance table state back to "Running".
+        /// We then send an event to the orchestration, which triggers a call to lock the next task work item, at which point
+        /// the inconsistent state in storage for the terminal instance is recognized, the instance state is updated, and the work item discarded.
+        /// Note that this test does not confirm that orphaned blobs are deleted by the call to lock the next orchestration work item 
+        /// in the case of a terminal orchestration with inconsistent state in storage. This is because there is no easy way to mock/inject
+        /// the tracking store context object that is part of the orchestration session state which keeps track of the blobs.
+        /// </summary>
+        /// <returns></returns>
+        [DataTestMethod]
+        [DataRow(true, true)]
+        [DataRow(false, true)]
+        [DataRow(true, false)]
+        [DataRow(false, false)]
+        public async Task TestWorkerFailingDuringCompleteWorkItemCall(bool enableExtendedSessions, bool terminate)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                // Run simple orchestrator to completion, this will help us obtain a valid terminal history for the orchestrator
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), "hello!");
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                // Simulate having an "out of date" Instance table, by setting it's runtime status to "Running".
+                // This simulates the scenario where the History table was updated, but not the Instance table.
+                var instanceId = client.InstanceId;
+                AzureStorageOrchestrationServiceSettings settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(
+                    enableExtendedSessions);
+                AzureStorageClient azureStorageClient = new AzureStorageClient(settings);
+
+                Table instanceTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName);
+                TableEntity entity = new TableEntity(instanceId, "")
+                {
+                    ["RuntimeStatus"] = OrchestrationStatus.Running.ToString("G")
+                };
+                await instanceTable.MergeEntityAsync(entity, Azure.ETag.All);
+
+                // Assert that the status in the Instance table reads "Running"
+                IList<OrchestrationState> state = await client.GetStateAsync(instanceId);
+                OrchestrationStatus forcedStatus = state.First().OrchestrationStatus;
+                Assert.AreEqual(OrchestrationStatus.Running, forcedStatus);
+
+                // The type of event sent should not matter - the event itself should be discarded, and the instance table updated
+                // to reflect the status in the history table.
+                if (terminate)
+                {
+                    await client.TerminateAsync("testing");
+                }
+                else
+                {
+                    await client.RaiseEventAsync("Foo", "Bar");
+                }
+                await Task.Delay(TimeSpan.FromSeconds(30));
+
+                // A replay should have occurred, forcing the instance table to be updated with a terminal status
+                state = await client.GetStateAsync(instanceId);
+                Assert.AreEqual(1, state.Count);
+
+                status = state.First();
+                OrchestrationStatus expectedStatus = OrchestrationStatus.Completed;
+                Assert.AreEqual(expectedStatus, status.OrchestrationStatus);
+
+                await host.StopAsync();
+            }
+        }
+
         [TestMethod]
         [DataRow(VersioningSettings.VersionMatchStrategy.Strict)]
         [DataRow(VersioningSettings.VersionMatchStrategy.CurrentOrOlder)]
