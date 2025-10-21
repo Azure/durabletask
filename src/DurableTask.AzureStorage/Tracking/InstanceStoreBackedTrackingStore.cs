@@ -177,7 +177,7 @@ namespace DurableTask.AzureStorage.Tracking
             return null;
         }
 
-        public override Task UpdateInstanceStatusAndDeleteOrphanedBlobsAsync(
+        public override async Task UpdateInstanceStatusAndDeleteOrphanedBlobsAsync(
             string instanceId,
             string executionId,
             OrchestrationRuntimeState runtimeState,
