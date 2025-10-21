@@ -842,6 +842,126 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        /// <summary>
+        /// Confirm that if a worker fails after committing the new history but before updating the instance state in a call to
+        /// <see cref="AzureStorageOrchestrationService.CompleteTaskOrchestrationWorkItemAsync"/> for an orchestration that has 
+        /// reached a terminal state, then storage is brought to consistent state by the call to 
+        /// <see cref="AzureStorageOrchestrationService.LockNextTaskOrchestrationWorkItemAsync"/>.
+        /// Since we cannot simulate a worker failure at this precise point, instead what is done by this test is that the 
+        /// history is updated by a call to <see cref="AzureTableTrackingStore.UpdateHistoryAsync"/>, but the instance state
+        /// is not. Then we confirm that after a call to lock the next task work item, the inconsistent state in storage for
+        /// the terminal instance is recognized, the instance state is updated, and the work item discarded.
+        /// The test also confirms that this is *not* done for an orchestration in a non-terminal state, since the call to
+        /// complete the work item after finishing it will naturally bring both the instance and history tables to a consistent state.
+        /// Note that this test does not confirm that orphaned blobs are deleted by the call to lock the next orchestration work item 
+        /// in the case of a terminal orchestration with inconsistent state in storage. This is because there is no easy way to mock/inject
+        /// the tracking store context object that is part of the orchestration session state which keeps track of the blobs.
+        /// </summary>
+        /// <returns></returns>
+        [TestMethod]
+        public async Task WorkerFailingDuringCompleteWorkItemCallAsync()
+        {
+            var orchestrationInstance = new OrchestrationInstance
+            {
+                InstanceId = "instance_id",
+                ExecutionId = "execution_id",
+            };
+
+            ExecutionStartedEvent startedEvent = new(-1, string.Empty)
+            {
+                Name = "orchestration",
+                Version = string.Empty,
+                OrchestrationInstance = orchestrationInstance,
+                ScheduledStartTime = DateTime.UtcNow,
+            };
+
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                ControlQueueBufferThreshold = 100,
+                LeaseRenewInterval = TimeSpan.FromMilliseconds(500),
+                PartitionCount = 1,
+                StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                TaskHubName = TestHelpers.GetTestTaskHubName(),
+            };
+            this.SetPartitionManagerType(settings, PartitionManagerType.V2Safe);
+
+            var service = new AzureStorageOrchestrationService(settings);
+            await service.CreateAsync();
+            await service.StartAsync();
+
+            // Create an orchestration, confirm that its status in the instance table is "pending"
+            await service.CreateTaskOrchestrationAsync(
+                new TaskMessage()
+                {
+                    OrchestrationInstance = orchestrationInstance,
+                    Event = startedEvent
+                });
+            var trackingStore = service.TrackingStore as AzureTableTrackingStore;
+            var instanceStatus = await trackingStore.FetchInstanceStatusAsync(orchestrationInstance.InstanceId);
+            Assert.AreEqual(instanceStatus.State.OrchestrationStatus, OrchestrationStatus.Pending);
+
+            // Now create a new terminal runtime state and update just the history to simulate the worker failing after updating the
+            // history table but before updating the instance table upon completing a work item
+            var runtimeState = new OrchestrationRuntimeState();
+            runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+            runtimeState.AddEvent(startedEvent);
+            runtimeState.AddEvent(new ExecutionTerminatedEvent(-1, "terminated"));
+            runtimeState.AddEvent(new ExecutionCompletedEvent(0, "terminated", OrchestrationStatus.Terminated));
+            runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+            await trackingStore.UpdateHistoryAsync(orchestrationInstance.InstanceId, orchestrationInstance.ExecutionId, runtimeState);
+
+            // Confirm that the call to lock the next work item recognizes and fixes the inconsistency while discarding the work item
+            var workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                TimeSpan.FromSeconds(30),
+                CancellationToken.None);
+            Assert.IsNull(workItem);
+            instanceStatus = await trackingStore.FetchInstanceStatusAsync(orchestrationInstance.InstanceId);
+            Assert.AreEqual(instanceStatus.State.OrchestrationStatus, OrchestrationStatus.Terminated);
+
+            // Now create a new orchestration and confirm its status is pending
+            orchestrationInstance = new OrchestrationInstance
+            {
+                InstanceId = "instance_id2",
+                ExecutionId = "execution_id2",
+            };
+            startedEvent.OrchestrationInstance = orchestrationInstance;
+            await service.CreateTaskOrchestrationAsync(
+                new TaskMessage()
+                {
+                    OrchestrationInstance = orchestrationInstance,
+                    Event = startedEvent
+                });
+            instanceStatus = await trackingStore.FetchInstanceStatusAsync(orchestrationInstance.InstanceId);
+            Assert.AreEqual(instanceStatus.State.OrchestrationStatus, OrchestrationStatus.Pending);
+
+            // Now create a new non-terminal runtime state and confirm and update just the history the history to simulate the worker failing after updating the
+            // history table but before updating the instance table upon completing a work item
+            runtimeState = new OrchestrationRuntimeState();
+            runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+            runtimeState.AddEvent(startedEvent);
+            runtimeState.AddEvent(new TaskScheduledEvent(0, "task"));
+            runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+            await trackingStore.UpdateHistoryAsync(orchestrationInstance.InstanceId, orchestrationInstance.ExecutionId, runtimeState);
+            
+            // Confirm that the call to lock the next work item does *not* update the instance table, since it will be updated by the call
+            // to complete the work item
+            workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                TimeSpan.FromSeconds(30),
+                CancellationToken.None);
+            Assert.IsNotNull(workItem);
+            instanceStatus = await trackingStore.FetchInstanceStatusAsync(orchestrationInstance.InstanceId);
+            Assert.AreEqual(instanceStatus.State.OrchestrationStatus, OrchestrationStatus.Pending);
+
+            // Confirm that the call to complete the work item does update the instance table to the correct state
+            runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+            runtimeState.AddEvent(new TaskCompletedEvent(-1, 0, string.Empty));
+            runtimeState.AddEvent(new ExecutionCompletedEvent(1, string.Empty, OrchestrationStatus.Completed));
+            runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+            await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, DurableTask.Core.Common.Utils.BuildOrchestrationState(runtimeState));
+            instanceStatus = await trackingStore.FetchInstanceStatusAsync(orchestrationInstance.InstanceId);
+            Assert.AreEqual(instanceStatus.State.OrchestrationStatus, OrchestrationStatus.Completed);
+        }
+
         #region Work Item Queue Scaling
         [TestMethod]
         public async Task ScaleDecision_WorkItemLatency_High()

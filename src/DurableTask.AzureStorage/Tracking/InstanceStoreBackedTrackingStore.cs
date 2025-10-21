@@ -176,5 +176,23 @@ namespace DurableTask.AzureStorage.Tracking
 
             return null;
         }
+
+        public override Task UpdateInstanceStatusAndDeleteOrphanedBlobsAsync(
+            string instanceId,
+            string executionId,
+            OrchestrationRuntimeState runtimeState,
+            object trackingStoreContext,
+            CancellationToken cancellationToken = default)
+        {
+            // No blobs to delete for this tracking store implementation
+            await instanceStore.WriteEntitiesAsync(new InstanceEntityBase[]
+{
+                    new OrchestrationStateInstanceEntity()
+                    {
+                        State = Core.Common.Utils.BuildOrchestrationState(runtimeState),
+                        SequenceNumber = runtimeState.Events.Count
+                    }
+            });
+        }
     }
 }
