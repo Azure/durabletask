@@ -153,6 +153,14 @@ namespace DurableTask.AzureStorage.Tracking
         Task UpdateStatusForRewindAsync(string instanceId, CancellationToken cancellationToken = default);
 
         /// <summary>
+        /// Used to update the instance status to "Terminated" whend a pending orchestration is terminated.
+        /// </summary>
+        /// <param name="instanceId">The instance being terminated</param>
+        /// <param name="output">The output of the orchestration</param>
+        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
+        Task UpdateStatusForTerminationAsync(string instanceId, string output, CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Purge The History and state  which is older than thresholdDateTimeUtc based on the timestamp type specified by timeRangeFilterType
         /// </summary>
         /// <param name="thresholdDateTimeUtc">Timestamp threshold, data older than this will be removed</param>

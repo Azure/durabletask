@@ -966,6 +966,40 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
+        /// Test that a pending orchestration can be terminated.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task TerminatePendingOrchestration(bool enableExtendedSessions)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+                // Schedule a start time to ensure that the orchestration is in a Pending state when we attempt to terminate.
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Counter), 0, startAt: DateTime.UtcNow.AddMinutes(1));
+                await client.WaitForStatusChange(TimeSpan.FromSeconds(5), OrchestrationStatus.Pending);
+
+                await client.TerminateAsync("terminate");
+
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+
+                // Confirm the pending orchestration was terminated.
+                Assert.AreEqual(OrchestrationStatus.Terminated, status?.OrchestrationStatus);
+                Assert.AreEqual("terminate", status?.Output);
+
+                // Now sleep for a minute and confirm that the orchestration does not start after its scheduled time.
+                Thread.Sleep(TimeSpan.FromMinutes(1));
+
+                status = await client.GetStatusAsync();
+                Assert.AreEqual(OrchestrationStatus.Terminated, status?.OrchestrationStatus);
+                Assert.AreEqual("terminate", status?.Output);
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
         /// End-to-end test which validates the Rewind functionality on more than one orchestration.
         /// </summary>
         [TestMethod]

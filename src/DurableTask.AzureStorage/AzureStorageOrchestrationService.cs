@@ -793,7 +793,8 @@ namespace DurableTask.AzureStorage
                         TraceContext = currentRequestTraceContext,
                     };
 
-                    if (!this.IsExecutableInstance(session.RuntimeState, orchestrationWorkItem.NewMessages, settings.AllowReplayingTerminalInstances, out string warningMessage))
+                    string warningMessage = await this.IsExecutableInstance(session.RuntimeState, orchestrationWorkItem.NewMessages, settings.AllowReplayingTerminalInstances);
+                    if (!string.IsNullOrEmpty(warningMessage))
                     {
                         // If all messages belong to the same execution ID, then all of them need to be discarded.
                         // However, it's also possible to have messages for *any* execution ID batched together with messages
@@ -1049,7 +1050,7 @@ namespace DurableTask.AzureStorage
                 data.Episode.GetValueOrDefault(-1));
         }
 
-        bool IsExecutableInstance(OrchestrationRuntimeState runtimeState, IList<TaskMessage> newMessages, bool allowReplayingTerminalInstances, out string message)
+        async Task<string> IsExecutableInstance(OrchestrationRuntimeState runtimeState, IList<TaskMessage> newMessages, bool allowReplayingTerminalInstances)
         {
             if (runtimeState.ExecutionStartedEvent == null && !newMessages.Any(msg => msg.Event is ExecutionStartedEvent))
             {
@@ -1057,8 +1058,7 @@ namespace DurableTask.AzureStorage
 
                 if (DurableTask.Core.Common.Entities.AutoStart(instanceId, newMessages))
                 {
-                    message = null;
-                    return true;
+                    return null;
                 }
                 else
                 {
@@ -1069,9 +1069,19 @@ namespace DurableTask.AzureStorage
                     // the old history and we receive a message from the old instance (this happens frequently
                     // with canceled durable timer messages) we'll end up loading just the history that hasn't
                     // been fully overwritten. We know it's invalid because it's missing the ExecutionStartedEvent.
-                    message = runtimeState.Events.Count == 0 ? "No such instance" : "Invalid history (may have been overwritten by a newer instance)";
-                    return false;
+                    return runtimeState.Events.Count == 0 ? "No such instance" : "Invalid history (may have been overwritten by a newer instance)";
                 }
+            }
+
+            InstanceStatus instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(
+                runtimeState.OrchestrationInstance.InstanceId,
+                CancellationToken.None);
+            // This to check for the special case of a pending orchestration being terminated, in which case we discard
+            // all other messages for that orchestration.
+            if (instanceStatus.State.OrchestrationStatus == OrchestrationStatus.Terminated
+                && runtimeState.Events.Count == 0)
+            {
+                return $"Instance is {OrchestrationStatus.Terminated}";
             }
 
             if (runtimeState.ExecutionStartedEvent != null &&
@@ -1080,12 +1090,10 @@ namespace DurableTask.AzureStorage
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Pending &&
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Suspended)
             {
-                message = $"Instance is {runtimeState.OrchestrationStatus}";
-                return false;
+                return $"Instance is {runtimeState.OrchestrationStatus}";
             }
 
-            message = null;
-            return true;
+            return null;
         }
 
         async Task AbandonAndReleaseSessionAsync(OrchestrationSession session)
@@ -1909,15 +1917,20 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration to terminate.</param>
         /// <param name="reason">The user-friendly reason for terminating.</param>
-        public Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
+        public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
         {
+            InstanceStatus instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(instanceId);
+            if (instanceStatus.State.OrchestrationStatus == OrchestrationStatus.Pending)
+            {
+                await this.trackingStore.UpdateStatusForTerminationAsync(instanceId, reason);
+            }
             var taskMessage = new TaskMessage
             {
                 OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
                 Event = new ExecutionTerminatedEvent(-1, reason)
             };
 
-            return SendTaskOrchestrationMessageAsync(taskMessage);
+            await SendTaskOrchestrationMessageAsync(taskMessage);
         }
 
         /// <summary>
