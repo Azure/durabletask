@@ -157,8 +157,9 @@ namespace DurableTask.AzureStorage.Tracking
         /// </summary>
         /// <param name="instanceId">The instance being terminated</param>
         /// <param name="output">The output of the orchestration</param>
+        /// <param name="lastUpdatedTime">The last updated time of the orchestration (the time the termination request was created)</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        Task UpdateStatusForTerminationAsync(string instanceId, string output, CancellationToken cancellationToken = default);
+        Task UpdateStatusForTerminationAsync(string instanceId, string output, DateTime lastUpdatedTime, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Purge The History and state  which is older than thresholdDateTimeUtc based on the timestamp type specified by timeRangeFilterType
