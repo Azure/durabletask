@@ -2401,6 +2401,7 @@ namespace DurableTask.AzureStorage.Tests
         [DataRow(false, true, false)]
         [DataRow(false, false, true)]
         [DataRow(false, false, false)]
+        [Ignore("Skipping since this functionality has since changed, see TestWorkerFailingDuringCompleteWorkItemCall")]
         public async Task TestAllowReplayingTerminalInstances(bool enableExtendedSessions, bool sendTerminateEvent, bool allowReplayingTerminalInstances)
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
