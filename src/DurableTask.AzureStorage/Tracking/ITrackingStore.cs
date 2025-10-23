@@ -104,17 +104,17 @@ namespace DurableTask.AzureStorage.Tracking
         Task<InstanceStatus> FetchInstanceStatusAsync(string instanceId, CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Updates the instance status of the specified orchestration instance to match that of <paramref name="runtimeState"/>.
+        /// Updates the instance status of the specified orchestration instance to match that of <paramref name="runtimeState"/> for a completed orchestration.
         /// Also deletes any orphaned blobs of <paramref name="trackingStoreContext"/>.
-        /// This method is meant to be called in the case that there is an inconsistency between the instance and history table due to a 
-        /// failure during a call to <see cref="UpdateStateAsync"/>.
+        /// This method is meant to be called in the case that there is an inconsistency between the instance and history table due to a failure during a call to 
+        /// <see cref="UpdateStateAsync"/> for a completing orchestration. If the orchestration is not in a terminal state, the method will immediately return and do nothing.
         /// </summary>
         /// <param name="instanceId">The ID of the orchestration.</param>
         /// <param name="executionId">The execution ID of the orchestration.</param>
         /// <param name="runtimeState">The runtime state of the orchestration.</param>
         /// <param name="trackingStoreContext">Additional context for the execution that is maintained by the tracking store.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        Task UpdateInstanceStatusAndDeleteOrphanedBlobsAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, object trackingStoreContext, CancellationToken cancellationToken = default);
+        Task UpdateInstanceStatusAndDeleteOrphanedBlobsForCompletedOrchestrationAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, object trackingStoreContext, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get The Orchestration State for querying all orchestration instances

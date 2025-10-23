@@ -1099,7 +1099,7 @@ namespace DurableTask.AzureStorage
                 if (instanceStatus.State.OrchestrationInstance.ExecutionId == runtimeState.OrchestrationInstance.ExecutionId
                     && instanceStatus.State.OrchestrationStatus != runtimeState.OrchestrationStatus)
                 {
-                    await this.trackingStore.UpdateInstanceStatusAndDeleteOrphanedBlobsAsync(
+                    await this.trackingStore.UpdateInstanceStatusAndDeleteOrphanedBlobsForCompletedOrchestrationAsync(
                         runtimeState.OrchestrationInstance.InstanceId,
                         runtimeState.OrchestrationInstance.ExecutionId,
                         runtimeState,

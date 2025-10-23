@@ -1043,13 +1043,32 @@ namespace DurableTask.AzureStorage.Tracking
             return eTagValue;
         }
 
-        public override async Task UpdateInstanceStatusAndDeleteOrphanedBlobsAsync(
+        public override async Task UpdateInstanceStatusAndDeleteOrphanedBlobsForCompletedOrchestrationAsync(
             string instanceId,
             string executionId,
             OrchestrationRuntimeState runtimeState,
             object trackingStoreContext,
             CancellationToken cancellationToken = default)
         {
+            if (runtimeState.OrchestrationStatus != OrchestrationStatus.Completed &&
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Canceled &&
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Failed &&
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Terminated)
+            {
+                return;
+            }
+
+            TrackingStoreContext context = (TrackingStoreContext)trackingStoreContext;
+            if (context.Blobs.Count > 0)
+            {
+                var tasks = new List<Task>(context.Blobs.Count);
+                foreach (string blobName in context.Blobs)
+                {
+                    tasks.Add(this.messageManager.DeleteBlobAsync(blobName));
+                }
+                await Task.WhenAll(tasks);
+            }
+
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
             var instanceEntity = new TableEntity(sanitizedInstanceId, string.Empty)
             {
@@ -1059,7 +1078,7 @@ namespace DurableTask.AzureStorage.Tracking
                 ["ExecutionId"] = executionId,
                 ["LastUpdatedTime"] = runtimeState.Events.Last().Timestamp,
                 ["RuntimeStatus"] = runtimeState.OrchestrationStatus.ToString(),
-                ["CompletedTime"] = runtimeState.Events.Last().Timestamp // do we want to do this as a rough proxy or DateTime.UtcNow?
+                ["CompletedTime"] = runtimeState.CompletedTime
             };
 
             Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
@@ -1073,17 +1092,6 @@ namespace DurableTask.AzureStorage.Tracking
                 runtimeState.OrchestrationStatus,
                 Utils.GetEpisodeNumber(runtimeState),
                 orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
-
-            TrackingStoreContext context = (TrackingStoreContext)trackingStoreContext;
-            if (context.Blobs.Count > 0)
-            {
-                var tasks = new List<Task>(context.Blobs.Count);
-                foreach (var blobName in context.Blobs)
-                {
-                    tasks.Add(this.messageManager.DeleteBlobAsync(blobName));
-                }
-                await Task.WhenAll(tasks);
-            }
         }
 
         static int GetEstimatedByteCount(TableEntity entity)
