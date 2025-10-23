@@ -796,13 +796,18 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task UpdateStatusForTerminationAsync(string instanceId, string output, CancellationToken cancellationToken = default)
+        public override async Task UpdateStatusForTerminationAsync(
+            string instanceId,
+            string output,
+            DateTime lastUpdatedTime,
+            CancellationToken cancellationToken = default)
         {
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
             TableEntity entity = new TableEntity(sanitizedInstanceId, "")
             {
                 ["RuntimeStatus"] = OrchestrationStatus.Terminated.ToString("G"),
-                ["LastUpdatedTime"] = DateTime.UtcNow,
+                ["LastUpdatedTime"] = lastUpdatedTime,
+                ["CompletedTime"] = DateTime.UtcNow,
                 [OutputProperty] = output
             };
 

@@ -1075,7 +1075,11 @@ namespace DurableTask.AzureStorage
                     TaskMessage executionTerminatedEventMessage = newMessages.LastOrDefault(msg => msg.Event is ExecutionTerminatedEvent);
                     if (executionTerminatedEventMessage is not null)
                     {
-                        await this.trackingStore.UpdateStatusForTerminationAsync(instanceId, ((ExecutionTerminatedEvent)executionTerminatedEventMessage.Event).Input);
+                        var executionTerminatedEvent = (ExecutionTerminatedEvent)executionTerminatedEventMessage.Event;
+                        await this.trackingStore.UpdateStatusForTerminationAsync(
+                            instanceId,
+                            executionTerminatedEvent.Input,
+                            executionTerminatedEvent.Timestamp);
                         return $"Instance is {OrchestrationStatus.Terminated}";
                     }
 
