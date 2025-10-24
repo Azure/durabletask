@@ -793,7 +793,12 @@ namespace DurableTask.AzureStorage
                         TraceContext = currentRequestTraceContext,
                     };
 
-                    string warningMessage = await this.IsExecutableInstance(session.RuntimeState, orchestrationWorkItem.NewMessages, settings.AllowReplayingTerminalInstances);
+                    string warningMessage = await this.IsExecutableInstanceAsync(
+                        session.RuntimeState,
+                        orchestrationWorkItem.NewMessages,
+                        settings.AllowReplayingTerminalInstances,
+                        session.TrackingStoreContext,
+                        cancellationToken);
                     if (!string.IsNullOrEmpty(warningMessage))
                     {
                         // If all messages belong to the same execution ID, then all of them need to be discarded.
@@ -1050,7 +1055,12 @@ namespace DurableTask.AzureStorage
                 data.Episode.GetValueOrDefault(-1));
         }
 
-        async Task<string> IsExecutableInstance(OrchestrationRuntimeState runtimeState, IList<TaskMessage> newMessages, bool allowReplayingTerminalInstances)
+        async Task<string> IsExecutableInstanceAsync(
+            OrchestrationRuntimeState runtimeState,
+            IList<TaskMessage> newMessages,
+            bool allowReplayingTerminalInstances,
+            object trackingStoreContext,
+            CancellationToken cancellationToken)
         {
             if (runtimeState.ExecutionStartedEvent == null && !newMessages.Any(msg => msg.Event is ExecutionStartedEvent))
             {
@@ -1085,12 +1095,25 @@ namespace DurableTask.AzureStorage
             }
 
             if (runtimeState.ExecutionStartedEvent != null &&
-                !allowReplayingTerminalInstances &&
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Running &&
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Pending &&
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Suspended)
             {
-                return $"Instance is {runtimeState.OrchestrationStatus}";
+                InstanceStatus instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(runtimeState.OrchestrationInstance.InstanceId);
+                if (instanceStatus.State.OrchestrationInstance.ExecutionId == runtimeState.OrchestrationInstance.ExecutionId
+                    && instanceStatus.State.OrchestrationStatus != runtimeState.OrchestrationStatus)
+                {
+                    await this.trackingStore.UpdateInstanceStatusAndDeleteOrphanedBlobsForCompletedOrchestrationAsync(
+                        runtimeState.OrchestrationInstance.InstanceId,
+                        runtimeState.OrchestrationInstance.ExecutionId,
+                        runtimeState,
+                        trackingStoreContext,
+                        cancellationToken);
+                }
+                if (!allowReplayingTerminalInstances)
+                {
+                    return $"Instance is {runtimeState.OrchestrationStatus}";
+                }
             }
 
             return null;
