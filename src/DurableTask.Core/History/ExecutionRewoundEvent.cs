@@ -10,7 +10,6 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-
 #nullable enable
 namespace DurableTask.Core.History
 {
@@ -49,24 +48,24 @@ namespace DurableTask.Core.History
         /// Gets or sets the reason for the rewind event.
         /// </summary>
         [DataMember]
-        public string Reason { get; set; }
+        public string? Reason { get; set; }
 
         /// <summary>
         /// Gets or sets the parent execution id of the rewound suborchestration.
         /// </summary>
         [DataMember]
-        public string ParentExecutionId { get; set; }
+        public string? ParentExecutionId { get; set; }
 
         /// <summary>
         /// Gets or sets the instance ID of the rewound orchestration.
         /// </summary>
         [DataMember]
-        public string InstanceId { get; set; }
+        public string? InstanceId { get; set; }
 
         /// <summary>
         /// Gets or sets the parent trace context of the rewound suborchestration.
         /// </summary>
         [DataMember]
-        public DistributedTraceContext ParentTraceContext { get; set; }
+        public DistributedTraceContext? ParentTraceContext { get; set; }
     }
 }
