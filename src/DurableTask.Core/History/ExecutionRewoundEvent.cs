@@ -33,7 +33,7 @@ namespace DurableTask.Core.History
         /// </summary>
         /// <param name="eventId">The integer event id</param>
         /// <param name="reason">The reason for the rewind event</param>
-        public ExecutionRewoundEvent(int eventId, string reason)
+        public ExecutionRewoundEvent(int eventId, string? reason)
             : base(eventId)
         {
             this.Reason = reason;
