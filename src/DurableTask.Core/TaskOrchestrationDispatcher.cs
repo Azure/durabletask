@@ -443,6 +443,9 @@ namespace DurableTask.Core
 
                         if (!versioningFailed)
                         {
+                            // In this case we skip the orchestration's execution since all tasks have been completed and it is in a terminal state.
+                            // Instead we "rewind" its execution by removing all failed tasks (see ProcessRewindOrchestrationDecision).
+                            // Upon receiving the next work item for the rewound orchestration, the failed tasks will be re-executed.
                             if (isRewinding)
                             {
                                 decisions = new List<OrchestratorAction> { new RewindOrchestrationAction() };
@@ -897,9 +900,12 @@ namespace DurableTask.Core
                 {
                     foreach (TaskMessage droppedMessage in workItem.NewMessages)
                     {
-                        logHelper.DroppingOrchestrationMessage(workItem, droppedMessage, "Multiple messages sent to an instance " +
-                            "that is attempting to rewind from a terminal state. The only message that can be sent in " +
-                            "this case is the rewind request.");
+                        if (droppedMessage.Event.EventType != EventType.ExecutionRewound)
+                        {
+                            logHelper.DroppingOrchestrationMessage(workItem, droppedMessage, "Multiple messages sent to an instance " +
+                                "that is attempting to rewind from a terminal state. The only message that can be sent in " +
+                                "this case is the rewind request.");
+                        }
                     }
                     return false;
                 }
