@@ -709,6 +709,15 @@ namespace DurableTask.Core
             }
             else
             {
+                if (this.continueAsNew != null && orchestrationStatus == OrchestrationStatus.Failed)
+                {
+                    TraceHelper.TraceSession(
+                        TraceEventType.Warning,
+                        "TaskOrchestrationContext-ContinueAsNewForFailedOrchestration",
+                        OrchestrationInstance.InstanceId,
+                        "Continue as new called for a failed orchestration, orchestration will completed");
+                }
+
                 if (this.executionCompletedOrTerminated)
                 {
                     return;
