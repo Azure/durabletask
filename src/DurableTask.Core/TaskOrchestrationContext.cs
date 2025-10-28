@@ -715,7 +715,7 @@ namespace DurableTask.Core
                         TraceEventType.Warning,
                         "TaskOrchestrationContext-ContinueAsNewForFailedOrchestration",
                         OrchestrationInstance.InstanceId,
-                        "Continue as new called for a failed orchestration, orchestration will completed");
+                        "Continue as new called for a failed orchestration, orchestration will complete");
                 }
 
                 if (this.executionCompletedOrTerminated)
