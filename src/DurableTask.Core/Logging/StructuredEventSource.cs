@@ -579,6 +579,29 @@ namespace DurableTask.Core.Logging
             }
         }
 
+        [Event(EventIds.OrchestrationCompletedWithWarning, Level = EventLevel.Warning, Version = 1)]
+        internal void OrchestrationCompletedWithWarning(
+            string InstanceId,
+            string ExecutionId,
+            string RuntimeStatus,
+            string Details,
+            string AppName,
+            string ExtensionVersion)
+        {
+            if (this.IsEnabled(EventLevel.Warning))
+            {
+                // TODO: Use WriteEventCore for better performance
+                this.WriteEvent(
+                    EventIds.OrchestrationCompletedWithWarning,
+                    InstanceId,
+                    ExecutionId,
+                    RuntimeStatus,
+                    Details,
+                    AppName,
+                    ExtensionVersion);
+            }
+        }
+
         [Event(EventIds.OrchestrationAborted, Level = EventLevel.Warning, Version = 1)]
         internal void OrchestrationAborted(
             string InstanceId,

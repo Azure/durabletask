@@ -485,6 +485,23 @@ namespace DurableTask.Core.Logging
         }
 
         /// <summary>
+        /// Logs a warning associated with an orchestration completing.
+        /// </summary>
+        /// <param name="instance">The orchestration instance of the orchestration.</param>
+        /// <param name="orchestrationStatus">The status of the completed orchestration.</param>
+        /// <param name="warningMessage">The warning message to log.</param>
+        internal void OrchestrationCompletedWithWarning(
+            OrchestrationInstance instance,
+            OrchestrationStatus orchestrationStatus,
+            string warningMessage)
+        {
+            if (this.IsStructuredLoggingEnabled)
+            {
+                this.WriteStructuredLog(new LogEvents.OrchestrationCompletedWithWarning(instance, orchestrationStatus.ToString(), warningMessage));
+            }
+        }
+
+        /// <summary>
         /// Logs that an orchestration execution was aborted.
         /// </summary>
         /// <param name="instance">The orchestration instance that aborted execution.</param>
