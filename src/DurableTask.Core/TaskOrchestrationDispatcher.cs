@@ -1346,9 +1346,7 @@ namespace DurableTask.Core
             ExecutionRewoundEvent executionRewoundEvent = (runtimeState.NewEvents.Last(e => e is ExecutionRewoundEvent) as ExecutionRewoundEvent)!;
             string newExecutionId = Guid.NewGuid().ToString("N");
 
-            // In so copying the history, we do minimal alterations which provides less room for error and less work for the backends.
-            // That being said, we end up with sections with an OrchestratorStartedEvent immediately followed by an OrchestratorCompletedEvent if all the events in between got deleted.
-            // Are we okay with this?
+            // Copy the existing history, removing the failed task/suborchestration events and generating rewind events for each of the failed suborchestrations.
             foreach (var evt in runtimeState.Events)
             {
                 // Do not add the TaskScheduledEvents for the failed tasks so that they get rescheduled, and do not add any of
