@@ -56,6 +56,6 @@ namespace DurableTask.Core
         /// <summary>
         /// Orchestration state of suspended
         /// </summary>
-        Suspended,
+        Suspended
     }
 }
