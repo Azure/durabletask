@@ -56,5 +56,10 @@ namespace DurableTask.Core.Command
         /// Gets a list of events that should be carried over when continuing an orchestration as new.
         /// </summary>
         public IList<HistoryEvent> CarryoverEvents { get; } = new List<HistoryEvent>();
+
+        /// <summary>
+        /// Gets a collection of tags associated with the completion action.
+        /// </summary>
+        public IDictionary<string, string> Tags { get; } = new Dictionary<string, string>();
     }
 }

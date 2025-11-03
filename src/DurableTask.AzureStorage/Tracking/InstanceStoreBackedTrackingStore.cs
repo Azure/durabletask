@@ -176,5 +176,46 @@ namespace DurableTask.AzureStorage.Tracking
 
             return null;
         }
+
+        public override async Task UpdateStatusForTerminationAsync(
+            string instanceId,
+            string output,
+            DateTime lastUpdatedTime,
+            CancellationToken cancellationToken = default)
+        {
+            // Get the most recent execution and update its status to terminated
+            IEnumerable<OrchestrationStateInstanceEntity> instanceEntity = await this.instanceStore.GetOrchestrationStateAsync(instanceId, allInstances: false);
+            instanceEntity.Single().State.OrchestrationStatus = OrchestrationStatus.Terminated;
+            instanceEntity.Single().State.LastUpdatedTime = lastUpdatedTime;
+            instanceEntity.Single().State.CompletedTime = DateTime.UtcNow;
+            instanceEntity.Single().State.Output = output;
+            await this.instanceStore.WriteEntitiesAsync(instanceEntity);
+        }
+
+        public override async Task UpdateInstanceStatusAndDeleteOrphanedBlobsForCompletedOrchestrationAsync(
+            string instanceId,
+            string executionId,
+            OrchestrationRuntimeState runtimeState,
+            object trackingStoreContext,
+            CancellationToken cancellationToken = default)
+        {
+            if (runtimeState.OrchestrationStatus != OrchestrationStatus.Completed &&
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Canceled &&
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Failed &&
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Terminated)
+            {
+                return;
+            }
+
+            // No blobs to delete for this tracking store implementation
+            await instanceStore.WriteEntitiesAsync(new InstanceEntityBase[]
+            {
+                new OrchestrationStateInstanceEntity()
+                {
+                    State = Core.Common.Utils.BuildOrchestrationState(runtimeState),
+                    SequenceNumber = runtimeState.Events.Count
+                }
+            });
+        }
     }
 }

@@ -335,6 +335,71 @@ namespace DurableTask.Core.Tests
             }
         }
 
+        [TestMethod]
+        // Test that when a provider is set, properties of exception thrown by orchestration directly will be included
+        // if excception type is matched.
+        public async Task ExceptionPropertiesProvider_SimpleThrowExceptionOrchestration()
+        {
+            this.worker.ExceptionPropertiesProvider = new TestExceptionPropertiesProvider();
+            this.worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
+
+            try
+            {
+                await this.worker
+                    .AddTaskOrchestrations(typeof(SimpleThrowExceptionOrchestration))
+                    .StartAsync();
+
+                var instance = await this.client.CreateOrchestrationInstanceAsync(typeof(SimpleThrowExceptionOrchestration), "test-input");
+                var result = await this.client.WaitForOrchestrationAsync(instance, DefaultTimeout);
+
+                // Check that custom properties were extracted
+                Assert.AreEqual(OrchestrationStatus.Failed, result.OrchestrationStatus);
+                Assert.IsNotNull(result.FailureDetails);
+                Assert.IsNotNull(result.FailureDetails.Properties);
+
+                // Check the properties match the ArgumentOutOfRangeException.
+                Assert.AreEqual("count", result.FailureDetails.Properties["Name"]);
+                Assert.AreEqual("100", result.FailureDetails.Properties["Value"]);
+            }
+            finally
+            {
+                await this.worker.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        // Test that when a provider is set, exception properties are included in failure details with propogation.
+        public async Task ExceptionPropertiesProvider_SubOrchestrationThrowExceptionOrchestration()
+        {
+            this.worker.ExceptionPropertiesProvider = new TestExceptionPropertiesProvider();
+            this.worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
+
+            try
+            {
+                await this.worker
+                    .AddTaskOrchestrations(typeof(SubOrchestrationThrowExceptionOrchestration))
+                    .AddTaskOrchestrations(typeof(ThrowArgumentOutofRangeExceptionASubOrchestration))
+                    .AddTaskActivities(typeof(ThrowArgumentOutofRangeExceptionActivity))
+                    .StartAsync();
+
+                var instance = await this.client.CreateOrchestrationInstanceAsync(typeof(SubOrchestrationThrowExceptionOrchestration), "test-input");
+                var result = await this.client.WaitForOrchestrationAsync(instance, DefaultTimeout);
+
+                // Check that custom properties were extracted
+                Assert.AreEqual(OrchestrationStatus.Failed, result.OrchestrationStatus);
+                Assert.IsNotNull(result.FailureDetails);
+                Assert.IsNotNull(result.FailureDetails.Properties);
+
+                // Check the properties match the ArgumentOutOfRangeException.
+                Assert.AreEqual("count", result.FailureDetails.Properties["Name"]);
+                Assert.AreEqual("100", result.FailureDetails.Properties["Value"]);
+            }
+            finally
+            {
+                await this.worker.StopAsync();
+            }
+        }
+
         class ThrowCustomExceptionOrchestration : TaskOrchestration<string, string>
         {
             public override async Task<string> RunTask(OrchestrationContext context, string input)
@@ -349,6 +414,40 @@ namespace DurableTask.Core.Tests
             protected override string Execute(TaskContext context, string input)
             {
                 throw new CustomBusinessException("Payment processing failed", "user123", "OrderProcessing");
+            }
+        }
+
+        class SimpleThrowExceptionOrchestration : TaskOrchestration<string, string>
+        {
+            public override Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                throw new ArgumentOutOfRangeException("count", 100, "Count is not valid.");
+            }
+        }
+
+        class SubOrchestrationThrowExceptionOrchestration : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                await context.CreateSubOrchestrationInstance<string>(typeof(ThrowArgumentOutofRangeExceptionASubOrchestration), input);
+                return "This should never be reached";
+            }
+        }
+
+        class ThrowArgumentOutofRangeExceptionASubOrchestration : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                await context.ScheduleTask<string>(typeof(ThrowArgumentOutofRangeExceptionActivity), input);
+                return "This should never be reached";
+            }
+        }
+
+        class ThrowArgumentOutofRangeExceptionActivity : TaskActivity<string, string>
+        {
+            protected override string Execute(TaskContext context, string input)
+            {
+                throw new ArgumentOutOfRangeException("count", 100, "Count is not valid.");
             }
         }
 
@@ -409,6 +508,11 @@ namespace DurableTask.Core.Tests
             {
                 return exception switch
                 {
+                    ArgumentOutOfRangeException e => new Dictionary<string, object?>
+                    {
+                        ["Name"] = e.ParamName ?? string.Empty,
+                        ["Value"] = e.ActualValue?.ToString() ?? string.Empty,
+                    },
                     CustomBusinessException businessEx => new Dictionary<string, object?>
                     {
                         ["ExceptionTypeName"] = nameof(CustomBusinessException),

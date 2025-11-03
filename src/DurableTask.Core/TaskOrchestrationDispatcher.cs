@@ -1024,6 +1024,10 @@ namespace DurableTask.Core
 
             runtimeState.AddEvent(executionCompletedEvent);
 
+            if (completeOrchestratorAction.Tags.TryGetValue(OrchestrationTags.CompleteOrchestrationLogWarning, out string warningMessage))
+            {
+                this.logHelper.OrchestrationCompletedWithWarning(runtimeState.OrchestrationInstance!, completeOrchestratorAction.OrchestrationStatus, warningMessage);
+            }
             this.logHelper.OrchestrationCompleted(runtimeState, completeOrchestratorAction);
             TraceHelper.TraceInstance(
                 runtimeState.OrchestrationStatus == OrchestrationStatus.Failed ? TraceEventType.Warning : TraceEventType.Information,
