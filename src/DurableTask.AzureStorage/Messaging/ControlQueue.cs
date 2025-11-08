@@ -91,7 +91,8 @@ namespace DurableTask.AzureStorage.Messaging
                                 this.settings.Logger.WaitingForMoreMessages(
                                     this.storageAccountName,
                                     this.settings.TaskHubName,
-                                    this.storageQueue.Name);
+                                    this.storageQueue.Name,
+                                    $"Backoff is {this.backoffHelper.GetCurrentDelay().TotalMilliseconds} ms");
                             }
 
                             await this.backoffHelper.WaitAsync(linkedCts.Token);
