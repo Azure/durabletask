@@ -1326,6 +1326,12 @@ namespace DurableTask.Core
             out List<TaskMessage> subOrchestrationRewindMessages,
             out OrchestrationRuntimeState newRuntimeState)
         {
+
+            /* WARNING!!!:
+             * If any changes are made to how this method modifies the orchestration's history, then corresponding changes *must* 
+             * be made in the backend implementations that rely on this method for executing a rewind.
+             */
+
             HashSet<int> failedTaskIds = new();
             subOrchestrationRewindMessages = new();
 
