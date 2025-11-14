@@ -154,18 +154,45 @@ namespace DurableTask.AzureStorage
 
         public async Task<MessageData> DeserializeQueueMessageAsync(QueueMessage queueMessage, string queueName, CancellationToken cancellationToken = default)
         {
-            // TODO: Deserialize with Stream?
-            byte[] body = queueMessage.Body.ToArray();
-            MessageData envelope;
+            // No matter what the queue client encoding is (Base64 or UTF8),
+            // we should always successfully get the string here.
+            string bodyAsString = queueMessage.Body.ToString();
+            MessageData envelope = null;
+
             try
             {
-                envelope = this.DeserializeMessageData(Encoding.UTF8.GetString(body));
+                // Check if the message starts with '{' which indicates it's a JSON message
+                // If so, deserialize it directly. Otherwise, try Base64 decoding strategy.
+                if (bodyAsString.StartsWith("{"))
+                {
+                    envelope = this.DeserializeMessageData(bodyAsString);
+                }
+                else
+                {
+                    // The message we got is not a valid json message (doesn't start with '{').
+                    // This could happen in the case where our queue client is UTF8 encoding 
+                    // while receiving a message sent by a Base64 queue client.
+                    // So we try to re-decode it as Base64.
+                    byte[] decodedBytes = Convert.FromBase64String(bodyAsString);
+                    string decodedMessage = Encoding.UTF8.GetString(decodedBytes);
+                    envelope = this.DeserializeMessageData(decodedMessage);
+                }
             }
-            catch(JsonReaderException)
+            catch (Exception ex)
             {
-                // This catch block is a hotfix and better implementation might be needed in future. 
-                // DTFx.AzureStorage 1.x and 2.x use different encoding methods. Adding this line to enable forward compatibility.
-                envelope = this.DeserializeMessageData(Encoding.UTF8.GetString(Convert.FromBase64String(Encoding.UTF8.GetString(body))));
+                // Note: For a Base64 queue client, it is supposed to always receive a Base64-encoded queue message.
+                // Becasue error handling for the case where a Base64 queue client receives a UTF8 message is implemented in AzureStorageClient.cs.
+                // This exception catch block handles any other unexpected errors during deserialization.
+                this.azureStorageClient.Settings.Logger.GeneralWarning(
+                    this.azureStorageClient.QueueAccountName,
+                    this.azureStorageClient.Settings.TaskHubName,
+                    $"Failed to process message. MessageId: {queueMessage.MessageId}, Error: {ex.Message}");
+                throw;
+            }
+
+            if (envelope == null)
+            {
+                throw new InvalidOperationException($"Failed to deserialize message {queueMessage.MessageId}");
             }
 
             if (!string.IsNullOrEmpty(envelope.CompressedBlobName))
@@ -177,7 +204,7 @@ namespace DurableTask.AzureStorage
             }
             else
             {
-                envelope.TotalMessageSizeBytes = body.Length;
+                envelope.TotalMessageSizeBytes = Encoding.UTF8.GetByteCount(bodyAsString);
             }
 
             envelope.OriginalQueueMessage = queueMessage;

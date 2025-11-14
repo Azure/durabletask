@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage.Storage
 {
     using System;
+    using System.Text;
     using Azure.Core;
     using Azure.Data.Tables;
     using Azure.Storage.Blobs;
@@ -46,7 +47,7 @@ namespace DurableTask.AzureStorage.Storage
             var timeoutPolicy = new LeaseTimeoutHttpPipelinePolicy(this.Settings.LeaseRenewInterval);
             var monitoringPolicy = new MonitoringHttpPipelinePolicy(this.Stats);
 
-            this.queueClient = CreateClient(settings.StorageAccountClientProvider.Queue, ConfigureClientPolicies);
+            this.queueClient = CreateClient(settings.StorageAccountClientProvider.Queue, ConfigureQueueClientPolicies);
             if (settings.HasTrackingStoreStorageAccount)
             {
                 this.blobClient = CreateClient(settings.TrackingServiceClientProvider!.Blob, ConfigureClientPolicies);
@@ -63,6 +64,72 @@ namespace DurableTask.AzureStorage.Storage
                 options.AddPolicy(throttlingPolicy!, HttpPipelinePosition.PerCall);
                 options.AddPolicy(timeoutPolicy!, HttpPipelinePosition.PerCall);
                 options.AddPolicy(monitoringPolicy!, HttpPipelinePosition.PerRetry);
+            }
+
+            void ConfigureQueueClientPolicies(QueueClientOptions options)
+            {
+                // Configure message encoding based on settings
+                options.MessageEncoding = this.Settings.QueueClientMessageEncoding switch
+                {
+                    QueueClientMessageEncoding.UTF8 => QueueMessageEncoding.None,
+                    QueueClientMessageEncoding.Base64 => QueueMessageEncoding.Base64,
+                    _ => throw new ArgumentException($"Unsupported encoding strategy: {this.Settings.QueueClientMessageEncoding}")
+                };
+
+                // Base64-encoded clients will fail to decode messages sent in UTF-8 format.
+                // This handler catches decoding failures and update the message with its the original content,
+                // so that the client can successfully process it on the next attempt.
+                if (this.Settings.QueueClientMessageEncoding == QueueClientMessageEncoding.Base64)
+                {
+                    options.MessageDecodingFailed += async (QueueMessageDecodingFailedEventArgs args) =>
+                    {
+                        this.Settings.Logger.GeneralWarning(
+                            this.QueueAccountName,
+                            this.Settings.TaskHubName,
+                            $"Base64-encoded queue client failed to decode message with ID: {args.ReceivedMessage.MessageId}. " +
+                            "The message appears to have been originally sent using UTF-8 encoding. " +
+                            "Will attempt to re-encode the message content as Base64 and update the queue message in-place " +
+                            "so it can be successfully processed on the next attempt."
+                        );
+                        
+                        if (args.ReceivedMessage != null)
+                        {
+                            var queueMessage = args.ReceivedMessage;
+
+                            try
+                            {
+                                // Get the raw message content and update the message.
+                                string originalJson = Encoding.UTF8.GetString(queueMessage.Body.ToArray());
+
+                                // Update the message in the queue with the Base64-encoded body
+                                if (args.IsRunningSynchronously)
+                                {
+                                    args.Queue.UpdateMessage(
+                                        queueMessage.MessageId,
+                                        queueMessage.PopReceipt,
+                                        originalJson,
+                                        TimeSpan.FromSeconds(0));
+                                }
+                                else
+                                {
+                                    await args.Queue.UpdateMessageAsync(
+                                        queueMessage.MessageId,
+                                        queueMessage.PopReceipt,
+                                        originalJson,
+                                        TimeSpan.FromSeconds(0));
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                // If re-encoding or update fails, rethrow the error to be handled upstream
+                                throw new InvalidOperationException(
+                                    $"Failed to re-encode and update UTF-8 message as Base64. MessageId: {queueMessage.MessageId}", ex);
+                            }
+                        }
+                    };
+                }
+
+                    ConfigureClientPolicies(options);
             }
         }
 

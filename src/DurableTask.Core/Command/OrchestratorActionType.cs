@@ -42,5 +42,10 @@ namespace DurableTask.Core.Command
         /// The orchestrator completed.
         /// </summary>
         OrchestrationComplete,
+
+        /// <summary>
+        /// The orchestration was rewound.
+        /// </summary>
+        RewindOrchestration,
     }
 }

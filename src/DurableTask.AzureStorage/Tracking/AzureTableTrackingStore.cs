@@ -795,6 +795,35 @@ namespace DurableTask.AzureStorage.Tracking
                 stopwatch.ElapsedMilliseconds);
         }
 
+        /// <inheritdoc />
+        public override async Task UpdateStatusForTerminationAsync(
+            string instanceId,
+            string output,
+            DateTime lastUpdatedTime,
+            CancellationToken cancellationToken = default)
+        {
+            string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
+            TableEntity entity = new TableEntity(sanitizedInstanceId, "")
+            {
+                ["RuntimeStatus"] = OrchestrationStatus.Terminated.ToString("G"),
+                ["LastUpdatedTime"] = lastUpdatedTime,
+                ["CompletedTime"] = DateTime.UtcNow,
+                [OutputProperty] = output
+            };
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            await this.InstancesTable.MergeEntityAsync(entity, ETag.All, cancellationToken);
+
+            this.settings.Logger.InstanceStatusUpdate(
+                this.storageAccountName,
+                this.taskHubName,
+                instanceId,
+                string.Empty,
+                OrchestrationStatus.Terminated,
+                episode: 0,
+                stopwatch.ElapsedMilliseconds);
+        }
+
 
         /// <inheritdoc />
         public override Task StartAsync(CancellationToken cancellationToken = default)
@@ -1019,6 +1048,57 @@ namespace DurableTask.AzureStorage.Tracking
             return eTagValue;
         }
 
+        public override async Task UpdateInstanceStatusAndDeleteOrphanedBlobsForCompletedOrchestrationAsync(
+            string instanceId,
+            string executionId,
+            OrchestrationRuntimeState runtimeState,
+            object trackingStoreContext,
+            CancellationToken cancellationToken = default)
+        {
+            if (runtimeState.OrchestrationStatus != OrchestrationStatus.Completed &&
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Canceled &&
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Failed &&
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Terminated)
+            {
+                return;
+            }
+
+            TrackingStoreContext context = (TrackingStoreContext)trackingStoreContext;
+            if (context.Blobs.Count > 0)
+            {
+                var tasks = new List<Task>(context.Blobs.Count);
+                foreach (string blobName in context.Blobs)
+                {
+                    tasks.Add(this.messageManager.DeleteBlobAsync(blobName));
+                }
+                await Task.WhenAll(tasks);
+            }
+
+            string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
+            var instanceEntity = new TableEntity(sanitizedInstanceId, string.Empty)
+            {
+                // TODO: Translating null to "null" is a temporary workaround. We should prioritize 
+                // https://github.com/Azure/durabletask/issues/477 so that this is no longer necessary.
+                ["CustomStatus"] = runtimeState.Status ?? "null",
+                ["ExecutionId"] = executionId,
+                ["LastUpdatedTime"] = runtimeState.Events.Last().Timestamp,
+                ["RuntimeStatus"] = runtimeState.OrchestrationStatus.ToString(),
+                ["CompletedTime"] = runtimeState.CompletedTime
+            };
+
+            Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
+            await this.InstancesTable.InsertOrMergeEntityAsync(instanceEntity);
+
+            this.settings.Logger.InstanceStatusUpdate(
+                this.storageAccountName,
+                this.taskHubName,
+                instanceId,
+                executionId,
+                runtimeState.OrchestrationStatus,
+                Utils.GetEpisodeNumber(runtimeState),
+                orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
+        }
+
         static int GetEstimatedByteCount(TableEntity entity)
         {
             // Assume at least 1 KB of data per entity to account for static-length properties
@@ -1203,7 +1283,11 @@ namespace DurableTask.AzureStorage.Tracking
             }
             catch (DurableTaskStorageException ex)
             {
-                if (ex.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
+                // Handle the case where the the history has already been updated by another caller.
+                // Common case: the resulting code is 'PreconditionFailed', which means "eTagValue" no longer matches the one stored, and TableTransactionActionType is "Update".
+                // Edge case: the resulting code is 'Conflict'. This is the case when eTagValue is null, and the TableTransactionActionType is "Add",
+                // in which case the exception indicates that the table entity we are trying to "add" already exists.
+                if (ex.HttpStatusCode == (int)HttpStatusCode.Conflict || ex.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
                 {
                     this.settings.Logger.SplitBrainDetected(
                         this.storageAccountName,
@@ -1214,7 +1298,7 @@ namespace DurableTask.AzureStorage.Tracking
                         numberOfTotalEvents,
                         historyEventNamesBuffer.ToString(0, historyEventNamesBuffer.Length - 1), // remove trailing comma
                         stopwatch.ElapsedMilliseconds,
-                        eTagValue?.ToString());
+                        eTagValue is null ? string.Empty : eTagValue.ToString());
                 }
 
                 throw;

@@ -793,7 +793,13 @@ namespace DurableTask.AzureStorage
                         TraceContext = currentRequestTraceContext,
                     };
 
-                    if (!this.IsExecutableInstance(session.RuntimeState, orchestrationWorkItem.NewMessages, settings.AllowReplayingTerminalInstances, out string warningMessage))
+                    string warningMessage = await this.IsExecutableInstanceAsync(
+                        session.RuntimeState,
+                        orchestrationWorkItem.NewMessages,
+                        settings.AllowReplayingTerminalInstances,
+                        session.TrackingStoreContext,
+                        cancellationToken);
+                    if (!string.IsNullOrEmpty(warningMessage))
                     {
                         // If all messages belong to the same execution ID, then all of them need to be discarded.
                         // However, it's also possible to have messages for *any* execution ID batched together with messages
@@ -1049,7 +1055,12 @@ namespace DurableTask.AzureStorage
                 data.Episode.GetValueOrDefault(-1));
         }
 
-        bool IsExecutableInstance(OrchestrationRuntimeState runtimeState, IList<TaskMessage> newMessages, bool allowReplayingTerminalInstances, out string message)
+        async Task<string> IsExecutableInstanceAsync(
+            OrchestrationRuntimeState runtimeState,
+            IList<TaskMessage> newMessages,
+            bool allowReplayingTerminalInstances,
+            object trackingStoreContext,
+            CancellationToken cancellationToken)
         {
             if (runtimeState.ExecutionStartedEvent == null && !newMessages.Any(msg => msg.Event is ExecutionStartedEvent))
             {
@@ -1057,11 +1068,21 @@ namespace DurableTask.AzureStorage
 
                 if (DurableTask.Core.Common.Entities.AutoStart(instanceId, newMessages))
                 {
-                    message = null;
-                    return true;
+                    return null;
                 }
                 else
                 {
+                    TaskMessage executionTerminatedEventMessage = newMessages.LastOrDefault(msg => msg.Event is ExecutionTerminatedEvent);
+                    if (executionTerminatedEventMessage is not null)
+                    {
+                        var executionTerminatedEvent = (ExecutionTerminatedEvent)executionTerminatedEventMessage.Event;
+                        await this.trackingStore.UpdateStatusForTerminationAsync(
+                            instanceId,
+                            executionTerminatedEvent.Input,
+                            executionTerminatedEvent.Timestamp);
+                        return $"Instance is {OrchestrationStatus.Terminated}";
+                    }
+
                     // A non-zero event count usually happens when an instance's history is overwritten by a
                     // new instance or by a ContinueAsNew. When history is overwritten by new instances, we
                     // overwrite the old history with new history (with a new execution ID), but this is done
@@ -1069,23 +1090,33 @@ namespace DurableTask.AzureStorage
                     // the old history and we receive a message from the old instance (this happens frequently
                     // with canceled durable timer messages) we'll end up loading just the history that hasn't
                     // been fully overwritten. We know it's invalid because it's missing the ExecutionStartedEvent.
-                    message = runtimeState.Events.Count == 0 ? "No such instance" : "Invalid history (may have been overwritten by a newer instance)";
-                    return false;
+                    return runtimeState.Events.Count == 0 ? "No such instance" : "Invalid history (may have been overwritten by a newer instance)";
                 }
             }
 
             if (runtimeState.ExecutionStartedEvent != null &&
-                !allowReplayingTerminalInstances &&
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Running &&
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Pending &&
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Suspended)
             {
-                message = $"Instance is {runtimeState.OrchestrationStatus}";
-                return false;
+                InstanceStatus instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(runtimeState.OrchestrationInstance.InstanceId);
+                if (instanceStatus.State.OrchestrationInstance.ExecutionId == runtimeState.OrchestrationInstance.ExecutionId
+                    && instanceStatus.State.OrchestrationStatus != runtimeState.OrchestrationStatus)
+                {
+                    await this.trackingStore.UpdateInstanceStatusAndDeleteOrphanedBlobsForCompletedOrchestrationAsync(
+                        runtimeState.OrchestrationInstance.InstanceId,
+                        runtimeState.OrchestrationInstance.ExecutionId,
+                        runtimeState,
+                        trackingStoreContext,
+                        cancellationToken);
+                }
+                if (!allowReplayingTerminalInstances)
+                {
+                    return $"Instance is {runtimeState.OrchestrationStatus}";
+                }
             }
 
-            message = null;
-            return true;
+            return null;
         }
 
         async Task AbandonAndReleaseSessionAsync(OrchestrationSession session)
@@ -1215,11 +1246,16 @@ namespace DurableTask.AzureStorage
                     this.orchestrationSessionManager.AddMessageToPendingOrchestration(session.ControlQueue, messages, session.TraceActivityId, CancellationToken.None);
                 }
             }
-            catch (RequestFailedException rfe) when (rfe.Status == (int)HttpStatusCode.PreconditionFailed)
+            // Handle the case where the 'ETag' has changed, which implies another worker has taken over this work item while
+            // we were trying to process it. We detect this in 2 cases:
+            // Common case: the resulting code is 'PreconditionFailed', which means our ETag no longer matches the one stored.
+            // Edge case: the resulting code is 'Conflict'. This can occur if this was the first orchestration work item.
+            // The 'Conflict' represents that we attempted to insert a new orchestration history when one already exists.
+            catch (DurableTaskStorageException dtse) when (dtse.HttpStatusCode == (int)HttpStatusCode.Conflict || dtse.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
             {
                 // Precondition failure is expected to be handled internally and logged as a warning.
                 // The orchestration dispatcher will handle this exception by abandoning the work item
-                throw new SessionAbortedException("Aborting execution due to failed precondition.", rfe);
+                throw new SessionAbortedException("Aborting execution due to conflicting completion of the work item by another worker.", dtse);
             }
             catch (Exception e)
             {
@@ -1904,7 +1940,7 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration to terminate.</param>
         /// <param name="reason">The user-friendly reason for terminating.</param>
-        public Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
+        public async Task ForceTerminateTaskOrchestrationAsync(string instanceId, string reason)
         {
             var taskMessage = new TaskMessage
             {
@@ -1912,7 +1948,7 @@ namespace DurableTask.AzureStorage
                 Event = new ExecutionTerminatedEvent(-1, reason)
             };
 
-            return SendTaskOrchestrationMessageAsync(taskMessage);
+            await SendTaskOrchestrationMessageAsync(taskMessage);
         }
 
         /// <summary>

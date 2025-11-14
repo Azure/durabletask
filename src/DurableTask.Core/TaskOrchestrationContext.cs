@@ -51,7 +51,8 @@ namespace DurableTask.Core
             OrchestrationInstance orchestrationInstance,
             TaskScheduler taskScheduler,
             TaskOrchestrationEntityParameters entityParameters = null,
-            ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions)
+            ErrorPropagationMode errorPropagationMode = ErrorPropagationMode.SerializeExceptions,
+            IExceptionPropertiesProvider exceptionPropertiesProvider = null)
         {
             Utils.UnusedParameter(taskScheduler);
 
@@ -66,6 +67,7 @@ namespace DurableTask.Core
             ErrorPropagationMode = errorPropagationMode;
             this.eventsWhileSuspended = new Queue<HistoryEvent>();
             this.suspendedActionsMap = new SortedDictionary<int, OrchestratorAction>();
+            this.ExceptionPropertiesProvider = exceptionPropertiesProvider;
         }
 
         public IEnumerable<OrchestratorAction> OrchestratorActions => this.orchestratorActionsMap.Values;
@@ -684,7 +686,7 @@ namespace DurableTask.Core
             {
                 if (this.ErrorPropagationMode == ErrorPropagationMode.UseFailureDetails)
                 {
-                    failureDetails = new FailureDetails(failure);
+                    failureDetails = new FailureDetails(failure, this.ExceptionPropertiesProvider.ExtractProperties(failure));
                 }
                 else
                 {
@@ -719,6 +721,12 @@ namespace DurableTask.Core
                 completedOrchestratorAction.Details = details;
                 completedOrchestratorAction.OrchestrationStatus = orchestrationStatus;
                 completedOrchestratorAction.FailureDetails = failureDetails;
+
+                if (this.continueAsNew != null && orchestrationStatus == OrchestrationStatus.Failed)
+                {
+                    completedOrchestratorAction.Tags[OrchestrationTags.CompleteOrchestrationLogWarning] = 
+                        "Continue as new called for a failed orchestration, orchestration will complete.";
+                }
             }
 
             completedOrchestratorAction.Id = id;

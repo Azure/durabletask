@@ -31,6 +31,25 @@ namespace DurableTask.Core.History
         }
 
         /// <summary>
+        /// Creates a new ExecutionStartedEvent with the same fields as <paramref name="other"/>.
+        /// </summary>
+        internal SubOrchestrationInstanceCreatedEvent(SubOrchestrationInstanceCreatedEvent other)
+        {
+            // Copy base class fields
+            EventId = other.EventId;
+            Timestamp = other.Timestamp;
+            ExtensionData = other.ExtensionData;
+            IsPlayed = other.IsPlayed;
+
+            // Copy all other fields
+            Name = other.Name;
+            Version = other.Version;
+            InstanceId = other.InstanceId;
+            Input = other.Input;
+            ClientSpanId = other.ClientSpanId;
+        }
+
+        /// <summary>
         /// Gets the event type
         /// </summary>
         public override EventType EventType => EventType.SubOrchestrationInstanceCreated;
