@@ -33,17 +33,6 @@ namespace DurableTask.Core
     /// </summary>
     public class TaskEntityDispatcher
     {
-        /// <summary>
-        /// Whether or not the execution of the work item is within an extended session. 
-        /// </summary>
-        public const string IsExtendedSession = "extendedSession";
-
-        /// <summary>
-        /// Whether or not to include the entity state when executing the work item via middleware.
-        /// This assumes that the middleware is able to handle extended sessions and does not require the entity state to execute the batch request.
-        /// </summary>
-        public const string IncludeEntityState = "includeEntityState";
-
         readonly INameVersionObjectManager<TaskEntity> objectManager;
         readonly IOrchestrationService orchestrationService;
         readonly IEntityOrchestrationService entityOrchestrationService;
@@ -146,8 +135,7 @@ namespace DurableTask.Core
                     return;
                 }
 
-                var isExtendedSession = false;
-
+                var concurrencyLockAcquired = false;
                 var processCount = 0;
                 try
                 {
@@ -156,7 +144,14 @@ namespace DurableTask.Core
                         // While the work item contains messages that need to be processed, execute them.
                         if (workItem.NewMessages?.Count > 0)
                         {
-                            workItem.IsExtendedSession = true;
+                            // We only need to acquire the lock on the first execution within the extended session
+                            if (!concurrencyLockAcquired)
+                            {
+                                concurrencyLockAcquired = this.concurrentSessionLock.Acquire();
+                            }
+                            workItem.IsExtendedSession = concurrencyLockAcquired;
+                            // Regardless of whether or not we acquired the concurrent session lock, we will make sure to execute this work item.
+                            // If we failed to acquire it, we will end the extended session after this execution.
                             bool isCompletedOrInterrupted = await this.OnProcessWorkItemAsync(workItem, processCount == 0);
                             if (isCompletedOrInterrupted)
                             {
@@ -166,14 +161,10 @@ namespace DurableTask.Core
                             processCount++;
                         }
 
-                        // Fetches beyond the first require getting an extended session lock, used to prevent starvation.
-                        if (processCount > 0 && !isExtendedSession)
+                        // If we failed to acquire the concurrent session lock, we will end the extended session after the execution of the first work item
+                        if (processCount > 0 && !concurrencyLockAcquired)
                         {
-                            isExtendedSession = this.concurrentSessionLock.Acquire();
-                            if (!isExtendedSession)
-                            {
-                                break;
-                            }
+                            break;
                         }
 
                         Stopwatch timer = Stopwatch.StartNew();
@@ -191,7 +182,7 @@ namespace DurableTask.Core
                 }
                 finally
                 {
-                    if (isExtendedSession)
+                    if (concurrencyLockAcquired)
                     {
                         this.concurrentSessionLock.Release();
                     }
@@ -967,8 +958,7 @@ namespace DurableTask.Core
 
             var dispatchContext = new DispatchMiddlewareContext();
             dispatchContext.SetProperty(request);
-            dispatchContext.SetProperty(IsExtendedSession, isExtendedSession);
-            dispatchContext.SetProperty(IncludeEntityState, includeEntityState);
+            dispatchContext.SetProperty(new WorkItemMetadata { IsExtendedSession = isExtendedSession, IncludeState = includeEntityState });
 
             await this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
             {
