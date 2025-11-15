@@ -131,12 +131,13 @@ namespace DurableTask.Core
                 if (workItem.Session == null)
                 {
                     // Legacy behavior
-                    await this.OnProcessWorkItemAsync(workItem, true);
+                    await this.OnProcessWorkItemAsync(workItem, null);
                     return;
                 }
 
                 var concurrencyLockAcquired = false;
                 var processCount = 0;
+                SchedulerState schedulerState = null;
                 try
                 {
                     while (true)
@@ -152,11 +153,17 @@ namespace DurableTask.Core
                             workItem.IsExtendedSession = concurrencyLockAcquired;
                             // Regardless of whether or not we acquired the concurrent session lock, we will make sure to execute this work item.
                             // If we failed to acquire it, we will end the extended session after this execution.
-                            bool isCompletedOrInterrupted = await this.OnProcessWorkItemAsync(workItem, processCount == 0);
-                            if (isCompletedOrInterrupted)
+                            schedulerState = await this.OnProcessWorkItemAsync(workItem, schedulerState);
+
+                            // The entity has been deleted, so we end the extended session.
+                            if (this.EntityIsDeleted(schedulerState))
                             {
                                 break;
                             }
+
+                            // We do this to avoid keeping the entity state in memory between executions within the extended session.
+                            // The middleware will keep the entity state cached, so it does not need it to fulfill requests within the extended session.
+                            schedulerState.EntityState = null;
 
                             processCount++;
                         }
@@ -211,8 +218,8 @@ namespace DurableTask.Core
         /// Method to process a new work item
         /// </summary>
         /// <param name="workItem">The work item to process</param>
-        /// <param name="firstExecution">Whether or not this is the first execution of an extended session (if this item is being processed within an extended session).</param>
-        protected async Task<bool> OnProcessWorkItemAsync(TaskOrchestrationWorkItem workItem, bool firstExecution)
+        /// <param name="schedulerState"></param>
+        private async Task<SchedulerState> OnProcessWorkItemAsync(TaskOrchestrationWorkItem workItem, SchedulerState schedulerState)
         {
             OrchestrationRuntimeState originalOrchestrationRuntimeState = workItem.OrchestrationRuntimeState;
 
@@ -249,13 +256,14 @@ namespace DurableTask.Core
                 }
                 else
                 {
+                    bool firstExecution = schedulerState == null;
 
                     // we start with processing all the requests and figuring out which ones to execute now
                     // results can depend on whether the entity is locked, what the maximum batch size is,
                     // and whether the messages arrived out of order
 
                     this.DetermineWork(workItem.OrchestrationRuntimeState,
-                         out SchedulerState schedulerState,
+                         schedulerState,
                          out Work workToDoNow);
 
                     if (workToDoNow.OperationCount > 0)
@@ -421,7 +429,7 @@ namespace DurableTask.Core
                 workItem.OrchestrationRuntimeState = runtimeState;
             }
 
-            return true;
+            return schedulerState;
         }
 
         void ProcessLockRequest(WorkItemEffects effects, SchedulerState schedulerState, RequestMessage request)
@@ -449,7 +457,7 @@ namespace DurableTask.Core
 
         string SerializeSchedulerStateForNextExecution(SchedulerState schedulerState)
         {
-            if (this.entityBackendProperties.SupportsImplicitEntityDeletion && schedulerState.IsEmpty && !schedulerState.Suspended)
+            if (this.EntityIsDeleted(schedulerState))
             {
                 // this entity scheduler is idle and the entity is deleted, so the instance and history can be removed from storage
                 // we convey this to the durability provider by issuing a continue-as-new with null input
@@ -464,10 +472,9 @@ namespace DurableTask.Core
 
         #region Preprocess to determine work
 
-        void DetermineWork(OrchestrationRuntimeState runtimeState, out SchedulerState schedulerState, out Work batch)
+        void DetermineWork(OrchestrationRuntimeState runtimeState, SchedulerState schedulerState, out Work batch)
         {
             string instanceId = runtimeState.OrchestrationInstance.InstanceId;
-            schedulerState = new SchedulerState();
             batch = new Work();
 
             Queue<RequestMessage> lockHolderMessages = null;
@@ -478,11 +485,13 @@ namespace DurableTask.Core
                 {
                     case EventType.ExecutionStarted:
 
-
-                        if (runtimeState.Input != null)
+                        // Only attempt to deserialize the scheduler state if we don't already have it in memory (which can be true 
+                        // for extended sessions)
+                        if (runtimeState.Input != null && schedulerState == null)
                         {
                             try
                             {
+                                schedulerState = new SchedulerState();
                                 // restore the scheduler state from the input
                                 JsonConvert.PopulateObject(runtimeState.Input, schedulerState, Serializer.InternalSerializerSettings);
                             }
@@ -626,6 +635,11 @@ namespace DurableTask.Core
                     }
                 }
             }
+        }
+
+        bool EntityIsDeleted(SchedulerState schedulerState)
+        {
+            return this.entityBackendProperties.SupportsImplicitEntityDeletion && schedulerState.IsEmpty && !schedulerState.Suspended;
         }
 
         class Work
