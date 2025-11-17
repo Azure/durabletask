@@ -475,6 +475,8 @@ namespace DurableTask.Core
         SchedulerState DetermineWork(OrchestrationRuntimeState runtimeState, SchedulerState schedulerState, out Work batch)
         {
             string instanceId = runtimeState.OrchestrationInstance.InstanceId;
+            bool deserializeState = schedulerState == null;
+            schedulerState ??= new();
             batch = new Work();
 
             Queue<RequestMessage> lockHolderMessages = null;
@@ -487,7 +489,7 @@ namespace DurableTask.Core
 
                         // Only attempt to deserialize the scheduler state if we don't already have it in memory (which can be true 
                         // for extended sessions)
-                        if (runtimeState.Input != null && schedulerState == null)
+                        if (runtimeState.Input != null && deserializeState)
                         {
                             try
                             {
