@@ -218,7 +218,8 @@ namespace DurableTask.Core
         /// Method to process a new work item
         /// </summary>
         /// <param name="workItem">The work item to process</param>
-        /// <param name="schedulerState"></param>
+        /// <param name="schedulerState">If extended sessions are enabled, the scheduler state that is being cached across executions.
+        /// If they are not enabled, or if this is the first execution from within an extended session, this parameter is null.</param>
         private async Task<SchedulerState> OnProcessWorkItemAsync(TaskOrchestrationWorkItem workItem, SchedulerState schedulerState)
         {
             OrchestrationRuntimeState originalOrchestrationRuntimeState = workItem.OrchestrationRuntimeState;
