@@ -2,7 +2,7 @@
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFrameworks>netstandard2.0;net10.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <IncludeSymbols>true</IncludeSymbols>
     <Description>Azure Storage provider extension for the Durable Task Framework.</Description>
@@ -16,6 +16,11 @@
     <PackageReadmeFile>.\README.md</PackageReadmeFile>
 	<!--NuGet licenseUrl and PackageIconUrl/iconUrl deprecation. -->
     <NoWarn>NU5125;NU5048;CS7035</NoWarn> <!-- TODO: addition of CS7035 (version format doesn't follow convention) is a temporary workaround during 1ES migration -->
+  </PropertyGroup>
+
+  <!-- Suppress warnings for obsolete APIs and nullable references for net10.0 that are not applicable to netstandard2.0 -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <NoWarn>$(NoWarn);SYSLIB0014;SYSLIB0050;SYSLIB0051;CS8600;CS8601;CS8602;CS8603;CS8604;CS8767;CS0618;CS0672</NoWarn>
   </PropertyGroup>
 
   <!-- Version Info -->
@@ -40,12 +45,17 @@
     <Version>$(VersionPrefix)-$(VersionSuffix)</Version>
   </PropertyGroup>
 
+  <!-- Packages for netstandard2.0 only - not needed in net10.0 which has built-in async LINQ -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" />
+    <PackageReference Include="System.Linq.Async" />
+  </ItemGroup>
+
+  <!-- Common packages for all target frameworks -->
   <ItemGroup>
     <PackageReference Include="Azure.Data.Tables" />
     <PackageReference Include="Azure.Storage.Blobs" />
     <PackageReference Include="Azure.Storage.Queues" />
-    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" />
-    <PackageReference Include="System.Linq.Async" />
   </ItemGroup>
 
   <ItemGroup>
