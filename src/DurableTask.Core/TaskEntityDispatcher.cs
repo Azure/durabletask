@@ -494,7 +494,6 @@ namespace DurableTask.Core
                         {
                             try
                             {
-                                schedulerState = new SchedulerState();
                                 // restore the scheduler state from the input
                                 JsonConvert.PopulateObject(runtimeState.Input, schedulerState, Serializer.InternalSerializerSettings);
                             }
