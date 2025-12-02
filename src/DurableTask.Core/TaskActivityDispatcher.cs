@@ -267,6 +267,12 @@ namespace DurableTask.Core
                     eventToRespond = new TaskCompletedEvent(-1, scheduledEvent.EventId, null);
                 }
 
+                if (traceActivity != null && eventToRespond is TaskCompletedEvent)
+                {
+                    // Ensure successful executions don't preserve a prior error status from custom instrumentation.
+                    traceActivity.SetStatus(ActivityStatusCode.OK, "Completed");
+                }
+
                 var responseTaskMessage = new TaskMessage
                 {
                     Event = eventToRespond,

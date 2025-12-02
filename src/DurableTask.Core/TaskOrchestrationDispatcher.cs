@@ -1043,6 +1043,8 @@ namespace DurableTask.Core
                 runtimeState.OrchestrationInstance!,
                 () => Utils.EscapeJson(JsonDataConverter.Default.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true)));
 
+            SetOrchestrationActivityStatus(completeOrchestratorAction);
+
             // Check to see if we need to start a new execution
             if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)
             {
@@ -1090,12 +1092,6 @@ namespace DurableTask.Core
                     subOrchestrationFailedEvent.FailureDetails = completeOrchestratorAction.FailureDetails;
 
                     taskMessage.Event = subOrchestrationFailedEvent;
-
-                    if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Failed)
-                    {
-                        DistributedTraceActivity.Current?.SetStatus(
-                            ActivityStatusCode.Error, completeOrchestratorAction.Result);
-                    }
                 }
 
                 ResetDistributedTraceActivity(runtimeState);
@@ -1105,12 +1101,6 @@ namespace DurableTask.Core
                     taskMessage.OrchestrationInstance = runtimeState.ParentInstance.OrchestrationInstance;
                     return taskMessage;
                 }
-            }
-
-            if (completeOrchestratorAction.OrchestrationStatus == OrchestrationStatus.Failed)
-            {
-                DistributedTraceActivity.Current?.SetStatus(
-                    ActivityStatusCode.Error, completeOrchestratorAction.Result);
             }
 
             ResetDistributedTraceActivity(runtimeState);
@@ -1123,6 +1113,34 @@ namespace DurableTask.Core
             TraceHelper.SetRuntimeStatusTag(runtimeState.OrchestrationStatus.ToString());
             DistributedTraceActivity.Current?.Stop();
             DistributedTraceActivity.Current = null;
+        }
+
+        private static void SetOrchestrationActivityStatus(OrchestrationCompleteOrchestratorAction completeOrchestratorAction)
+        {
+            if (DistributedTraceActivity.Current == null)
+            {
+                return;
+            }
+
+            string failureDescription = completeOrchestratorAction.FailureDetails?.ErrorMessage
+                ?? completeOrchestratorAction.Result
+                ?? completeOrchestratorAction.OrchestrationStatus.ToString();
+
+            switch (completeOrchestratorAction.OrchestrationStatus)
+            {
+                case OrchestrationStatus.Completed:
+                    DistributedTraceActivity.Current.SetStatus(ActivityStatusCode.OK, OrchestrationStatus.Completed.ToString());
+                    break;
+                case OrchestrationStatus.ContinuedAsNew:
+                    DistributedTraceActivity.Current.SetStatus(ActivityStatusCode.OK, OrchestrationStatus.ContinuedAsNew.ToString());
+                    break;
+                case OrchestrationStatus.Failed:
+                    DistributedTraceActivity.Current.SetStatus(ActivityStatusCode.Error, failureDescription);
+                    break;
+                case OrchestrationStatus.Terminated:
+                    DistributedTraceActivity.Current.SetStatus(ActivityStatusCode.Error, OrchestrationStatus.Terminated.ToString());
+                    break;
+            }
         }
 
         TaskMessage ProcessScheduleTaskDecision(
