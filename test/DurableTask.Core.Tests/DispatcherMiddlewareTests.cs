@@ -26,11 +26,14 @@ namespace DurableTask.Core.Tests
     using System.Xml;
     using DurableTask.Core.Command;
     using DurableTask.Core.History;
+    using DurableTask.Core.Tracing;
     using DurableTask.Emulator;
     using DurableTask.Test.Orchestrations;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Logging.Console;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using DiagnosticsActivityStatusCode = System.Diagnostics.ActivityStatusCode;
+    using TraceActivityStatusCode = DurableTask.Core.Tracing.ActivityStatusCode;
 
     [TestClass]
     public class DispatcherMiddlewareTests
@@ -53,8 +56,15 @@ namespace DurableTask.Core.Tests
             // We use `GetAwaiter().GetResult()` because otherwise this method will fail with:
             // "X has wrong signature. The method must be non-static, public, does not return a value and should not take any parameter."
             this.worker
-                .AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration), typeof(ParentWorkflow), typeof(ChildWorkflow))
-                .AddTaskActivities(typeof(SimplestGetUserTask), typeof(SimplestSendGreetingTask))
+                .AddTaskOrchestrations(
+                    typeof(SimplestGreetingsOrchestration),
+                    typeof(ParentWorkflow),
+                    typeof(ChildWorkflow),
+                    typeof(ActivityStatusResetOrchestration))
+                .AddTaskActivities(
+                    typeof(SimplestGetUserTask),
+                    typeof(SimplestSendGreetingTask),
+                    typeof(ActivityStatusResetActivity))
                 .StartAsync().GetAwaiter().GetResult();
 
             this.client = new TaskHubClient(service);
@@ -450,6 +460,82 @@ namespace DurableTask.Core.Tests
 
             Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
             Assert.AreEqual("FakeActivity,FakeActivityVersion,SomeInput", state.Output);
+        }
+
+        [TestMethod]
+        public async Task ActivityAndOrchestrationSpansResetStatuses()
+        {
+            using var activityCollector = new DurableActivityCollector();
+
+            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(
+                typeof(ActivityStatusResetOrchestration),
+                "payload");
+
+            TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 10);
+            OrchestrationState finalState = await this.client.WaitForOrchestrationAsync(instance, timeout);
+            Assert.AreEqual(OrchestrationStatus.Completed, finalState.OrchestrationStatus);
+
+            string orchestrationName = NameVersionHelper.GetDefaultName(typeof(ActivityStatusResetOrchestration));
+            Activity? orchestrationActivity = activityCollector.Find(TraceActivityConstants.Orchestration, orchestrationName, ActivityKind.Server);
+            Assert.IsNotNull(orchestrationActivity, "Expected orchestration server trace to be captured.");
+            Assert.AreEqual(DiagnosticsActivityStatusCode.Ok, orchestrationActivity!.Status);
+
+            string activityName = NameVersionHelper.GetDefaultName(typeof(ActivityStatusResetActivity));
+            Activity? activitySpan = activityCollector.Find(TraceActivityConstants.Activity, activityName, ActivityKind.Server);
+            Assert.IsNotNull(activitySpan, "Expected activity server trace to be captured.");
+            Assert.AreEqual(DiagnosticsActivityStatusCode.Ok, activitySpan!.Status);
+        }
+
+        private sealed class DurableActivityCollector : IDisposable
+        {
+            private readonly ActivityListener listener;
+            private readonly ConcurrentBag<Activity> activities = new ConcurrentBag<Activity>();
+
+            public DurableActivityCollector()
+            {
+                this.listener = new ActivityListener
+                {
+                    ShouldListenTo = source => source.Name == "DurableTask.Core",
+                    Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+                    SampleUsingParentId = (ref ActivityCreationOptions<string> _) => ActivitySamplingResult.AllData,
+                    ActivityStopped = activity => this.activities.Add(activity),
+                };
+
+                ActivitySource.AddActivityListener(this.listener);
+            }
+
+                public Activity? Find(string taskType, string taskName, ActivityKind kind)
+            {
+                return this.activities
+                    .Where(activity => activity.Kind == kind)
+                    .Where(activity => string.Equals(Convert.ToString(activity.GetTagItem(Schema.Task.Type)), taskType, StringComparison.Ordinal))
+                    .Where(activity => string.Equals(Convert.ToString(activity.GetTagItem(Schema.Task.Name)), taskName, StringComparison.Ordinal))
+                    .LastOrDefault();
+            }
+
+            public void Dispose()
+            {
+                this.listener.Dispose();
+            }
+        }
+
+        private sealed class ActivityStatusResetOrchestration : TaskOrchestration<string, string>
+        {
+            public override async Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                DistributedTraceActivity.Current?.SetStatus(TraceActivityStatusCode.Error, "orchestration instrumentation error");
+                string? activityOutput = await context.ScheduleTask<string>(typeof(ActivityStatusResetActivity), input ?? "ok");
+                return activityOutput ?? string.Empty;
+            }
+        }
+
+        private sealed class ActivityStatusResetActivity : TaskActivity<string, string>
+        {
+            protected override string Execute(TaskContext context, string input)
+            {
+                Activity.Current?.SetStatus(TraceActivityStatusCode.Error, "activity instrumentation error");
+                return input ?? "ok";
+            }
         }
     }
 }
