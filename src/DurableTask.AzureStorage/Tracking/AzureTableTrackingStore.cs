@@ -189,7 +189,13 @@ namespace DurableTask.AzureStorage.Tracking
                     }
 
                     // Some entity properties may be stored in blob storage.
-                    await this.DecompressLargeEntityProperties(entity, trackingStoreContext.Blobs, cancellationToken);
+                    // If the blob is not found (e.g., from a previous execution), skip this entity.
+                    bool decompressSuccess = await this.DecompressLargeEntityProperties(entity, trackingStoreContext.Blobs, cancellationToken);
+                    if (!decompressSuccess)
+                    {
+                        // Skip this history entry as its blob data is unavailable (likely from a stale execution)
+                        continue;
+                    }
 
                     events.Add((HistoryEvent)TableEntityConverter.Deserialize(entity, GetTypeForTableEntity(entity)));
                 }
@@ -1186,7 +1192,7 @@ namespace DurableTask.AzureStorage.Tracking
             }
         }
 
-        async Task DecompressLargeEntityProperties(TableEntity entity, List<string> listOfBlobs, CancellationToken cancellationToken)
+        async Task<bool> DecompressLargeEntityProperties(TableEntity entity, List<string> listOfBlobs, CancellationToken cancellationToken)
         {
             // Check for entity properties stored in blob storage
             foreach (string propertyName in VariableSizeEntityProperties)
@@ -1194,14 +1200,46 @@ namespace DurableTask.AzureStorage.Tracking
                 string blobPropertyName = GetBlobPropertyName(propertyName);
                 if (entity.TryGetValue(blobPropertyName, out object property) && property is string blobName)
                 {
-                    string decompressedMessage = await this.messageManager.DownloadAndDecompressAsBytesAsync(blobName, cancellationToken);
-                    entity[propertyName] = decompressedMessage;
-                    entity.Remove(blobPropertyName);
+                    try
+                    {
+                        string decompressedMessage = await this.messageManager.DownloadAndDecompressAsBytesAsync(blobName, cancellationToken);
+                        entity[propertyName] = decompressedMessage;
+                        entity.Remove(blobPropertyName);
+                    }
+                    catch (RequestFailedException e) when (e.Status == 404)
+                    {
+                        // The blob was not found, which can happen if:
+                        // 1. A late message from a previous execution arrived after ContinueAsNew deleted the blobs
+                        // 2. The blob was cleaned up due to retention policies
+                        // 3. A race condition between blob cleanup and history retrieval for entities
+                        // In these cases, we skip this entity as it belongs to a stale execution.
+                        // See: https://github.com/Azure/azure-functions-durable-extension/issues/3264
+                        this.settings.Logger.GeneralWarning(
+                            this.storageAccountName,
+                            this.taskHubName,
+                            $"Blob '{blobName}' for property '{propertyName}' was not found. " +
+                            $"This history entry may be from a previous execution and will be skipped. " +
+                            $"InstanceId: {entity.PartitionKey}, RowKey: {entity.RowKey}");
+                        return false;
+                    }
+                    catch (DurableTaskStorageException e) when (e.InnerException is RequestFailedException { Status: 404 })
+                    {
+                        // Same as above, but wrapped in DurableTaskStorageException
+                        this.settings.Logger.GeneralWarning(
+                            this.storageAccountName,
+                            this.taskHubName,
+                            $"Blob '{blobName}' for property '{propertyName}' was not found (wrapped exception). " +
+                            $"This history entry may be from a previous execution and will be skipped. " +
+                            $"InstanceId: {entity.PartitionKey}, RowKey: {entity.RowKey}");
+                        return false;
+                    }
 
                     // keep track of all the blobs associated with this execution
                     listOfBlobs.Add(blobName);
                 }
             }
+
+            return true;
         }
 
         static string GetBlobPropertyName(string originalPropertyName)
