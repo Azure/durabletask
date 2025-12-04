@@ -1,6 +1,6 @@
 version: 2
 updates:
-  - package-ecosystem: "dotnet-sdk"
+  - package-ecosystem: "nuget"
     directory: "/"
     schedule:
       interval: "weekly"
@@ -9,4 +9,3 @@ updates:
       - dependency-name: "*"
         update-types: 
           - "version-update:semver-major"
-          - "version-update:semver-minor"
