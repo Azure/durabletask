@@ -2,7 +2,7 @@
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
-    <TargetFrameworks>net462;net472</TargetFrameworks>
+    <TargetFrameworks>net48;net472</TargetFrameworks>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PackageId>Microsoft.Azure.DurableTask.AzureServiceFabric</PackageId>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
@@ -16,7 +16,7 @@
     <NoWarn>$(NoWarn);NU5104</NoWarn>
  </PropertyGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
     <Reference Include="System.Web" />
   </ItemGroup>
 
