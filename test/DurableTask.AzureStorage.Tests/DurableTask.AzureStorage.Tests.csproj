@@ -2,14 +2,14 @@
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
-    <TargetFrameworks>net6.0;net462</TargetFrameworks>
+    <TargetFrameworks>net6.0;net48</TargetFrameworks>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
     <PackageReference Include="Microsoft.WindowsAzure.ConfigurationManager" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' != 'net462'">
+  <ItemGroup Condition="'$(TargetFramework)' != 'net48'">
     <!-- Increasing Azure.Monitor.OpenTelemetry.Exporter to 1.0.0-beta.5 or beyond brings Systems.DiagnosticSource 7.x, which is uncompatible with netcoreapp3.1.
     The warning reads:
 	  "System.Diagnostics.DiagnosticSource 7.0.0-rc.1.22426.10 doesn't support netcoreapp3.1 and has not been tested with it
@@ -43,7 +43,7 @@
     <ProjectReference Include="..\DurableTask.Test.Orchestrations\DurableTask.Test.Orchestrations.csproj" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
     <Reference Include="System.Configuration" />
   </ItemGroup>
 

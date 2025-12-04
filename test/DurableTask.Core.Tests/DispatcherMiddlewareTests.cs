@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-#if !NET462 // for some reasons these tests are not discoverable on 1ES, leading to the test getting aborted. TODO: Needs investigation
+#if !net48 // for some reasons these tests are not discoverable on 1ES, leading to the test getting aborted. TODO: Needs investigation
 #nullable enable
 namespace DurableTask.Core.Tests
 {
@@ -263,7 +263,7 @@ namespace DurableTask.Core.Tests
         [TestMethod]
         public async Task EnsureSubOrchestrationDispatcherMiddlewareHasAccessToRuntimeState()
         {
-            ConcurrentBag<OrchestrationExecutionContext> capturedContexts = new ConcurrentBag<OrchestrationExecutionContext>(); 
+            ConcurrentBag<OrchestrationExecutionContext> capturedContexts = new ConcurrentBag<OrchestrationExecutionContext>();
 
             for (var i = 0; i < 10; i++)
             {
