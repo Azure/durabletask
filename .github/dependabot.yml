@@ -9,3 +9,14 @@ updates:
       - dependency-name: "*"
         update-types: 
           - "version-update:semver-major"
+
+  - package-ecosystem: "dotnet-sdk"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+    ignore:
+      - dependency-name: "*"
+        update-types: 
+          - "version-update:semver-major"
+  
