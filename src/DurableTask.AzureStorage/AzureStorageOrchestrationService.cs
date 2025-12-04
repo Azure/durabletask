@@ -1100,8 +1100,8 @@ namespace DurableTask.AzureStorage
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Suspended)
             {
                 InstanceStatus instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(runtimeState.OrchestrationInstance.InstanceId);
-                if (instanceStatus == null || instanceStatus.State.OrchestrationInstance.ExecutionId == runtimeState.OrchestrationInstance.ExecutionId
-                    && instanceStatus.State.OrchestrationStatus != runtimeState.OrchestrationStatus)
+                if (instanceStatus == null || (instanceStatus.State.OrchestrationInstance.ExecutionId == runtimeState.OrchestrationInstance.ExecutionId
+                    && instanceStatus.State.OrchestrationStatus != runtimeState.OrchestrationStatus))
                 {
                     await this.trackingStore.UpdateInstanceStatusAndDeleteOrphanedBlobsForCompletedOrchestrationAsync(
                         runtimeState.OrchestrationInstance.InstanceId,
