@@ -914,7 +914,6 @@ namespace DurableTask.AzureStorage.Tracking
                         instanceEntity["RuntimeStatus"] = OrchestrationStatus.Running.ToString();
                         instanceEntity["Tags"] = TagsSerializer.Serialize(executionStartedEvent.Tags);
                         instanceEntity["Generation"] = executionStartedEvent.Generation;
-                        
                         if (executionStartedEvent.ScheduledStartTime.HasValue)
                         {
                             instanceEntity["ScheduledStartTime"] = executionStartedEvent.ScheduledStartTime;
