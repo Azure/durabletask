@@ -179,16 +179,15 @@ namespace DurableTask.AzureStorage.Tracking
 
         public override async Task UpdateStatusForTerminationAsync(
             string instanceId,
-            string output,
-            DateTime lastUpdatedTime,
+            ExecutionTerminatedEvent executionTerminatedEvent,
             CancellationToken cancellationToken = default)
         {
             // Get the most recent execution and update its status to terminated
             IEnumerable<OrchestrationStateInstanceEntity> instanceEntity = await this.instanceStore.GetOrchestrationStateAsync(instanceId, allInstances: false);
             instanceEntity.Single().State.OrchestrationStatus = OrchestrationStatus.Terminated;
-            instanceEntity.Single().State.LastUpdatedTime = lastUpdatedTime;
+            instanceEntity.Single().State.LastUpdatedTime = executionTerminatedEvent.Timestamp;
             instanceEntity.Single().State.CompletedTime = DateTime.UtcNow;
-            instanceEntity.Single().State.Output = output;
+            instanceEntity.Single().State.Output = executionTerminatedEvent.Input;
             await this.instanceStore.WriteEntitiesAsync(instanceEntity);
         }
 

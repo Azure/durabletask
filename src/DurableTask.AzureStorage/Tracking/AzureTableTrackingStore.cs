@@ -798,21 +798,25 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task UpdateStatusForTerminationAsync(
             string instanceId,
-            string output,
-            DateTime lastUpdatedTime,
+            ExecutionTerminatedEvent executionTerminatedEvent,
             CancellationToken cancellationToken = default)
         {
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
-            TableEntity entity = new TableEntity(sanitizedInstanceId, "")
+            TableEntity instanceEntity = new TableEntity(sanitizedInstanceId, "")
             {
                 ["RuntimeStatus"] = OrchestrationStatus.Terminated.ToString("G"),
-                ["LastUpdatedTime"] = lastUpdatedTime,
+                ["LastUpdatedTime"] = executionTerminatedEvent.Timestamp,
                 ["CompletedTime"] = DateTime.UtcNow,
-                [OutputProperty] = output
             };
+            this.SetInstancesTablePropertyFromHistoryProperty(
+                TableEntityConverter.Serialize(executionTerminatedEvent),
+                instanceEntity,
+                historyPropertyName: nameof(executionTerminatedEvent.Input),
+                instancePropertyName: OutputProperty,
+                data: executionTerminatedEvent.Input);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
-            await this.InstancesTable.MergeEntityAsync(entity, ETag.All, cancellationToken);
+            await this.InstancesTable.MergeEntityAsync(instanceEntity, ETag.All, cancellationToken);
 
             this.settings.Logger.InstanceStatusUpdate(
                 this.storageAccountName,
@@ -864,6 +868,7 @@ namespace DurableTask.AzureStorage.Tracking
                 ["CustomStatus"] = newRuntimeState.Status ?? "null",
                 ["ExecutionId"] = executionId,
                 ["LastUpdatedTime"] = newEvents.Last().Timestamp,
+                ["TaskHubName"] = this.settings.TaskHubName,
             };
 
             // check if we are replacing a previous execution with blobs; those will be deleted from the store after the update. This could occur in a ContinueAsNew scenario
@@ -910,6 +915,9 @@ namespace DurableTask.AzureStorage.Tracking
                         instanceEntity["Version"] = executionStartedEvent.Version;
                         instanceEntity["CreatedTime"] = executionStartedEvent.Timestamp;
                         instanceEntity["RuntimeStatus"] = OrchestrationStatus.Running.ToString();
+                        instanceEntity["Tags"] = TagsSerializer.Serialize(executionStartedEvent.Tags);
+                        instanceEntity["Generation"] = executionStartedEvent.Generation;
+                        
                         if (executionStartedEvent.ScheduledStartTime.HasValue)
                         {
                             instanceEntity["ScheduledStartTime"] = executionStartedEvent.ScheduledStartTime;
