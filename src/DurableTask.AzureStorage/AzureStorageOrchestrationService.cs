@@ -797,7 +797,6 @@ namespace DurableTask.AzureStorage
                         session.RuntimeState,
                         orchestrationWorkItem.NewMessages,
                         settings.AllowReplayingTerminalInstances,
-                        session.TrackingStoreContext,
                         cancellationToken);
                     if (!string.IsNullOrEmpty(warningMessage))
                     {
@@ -1059,7 +1058,6 @@ namespace DurableTask.AzureStorage
             OrchestrationRuntimeState runtimeState,
             IList<TaskMessage> newMessages,
             bool allowReplayingTerminalInstances,
-            object trackingStoreContext,
             CancellationToken cancellationToken)
         {
             if (runtimeState.ExecutionStartedEvent == null && !newMessages.Any(msg => msg.Event is ExecutionStartedEvent))
@@ -1102,11 +1100,10 @@ namespace DurableTask.AzureStorage
                 if (instanceStatus == null || (instanceStatus.State.OrchestrationInstance.ExecutionId == runtimeState.OrchestrationInstance.ExecutionId
                     && instanceStatus.State.OrchestrationStatus != runtimeState.OrchestrationStatus))
                 {
-                    await this.trackingStore.UpdateInstanceStatusAndDeleteOrphanedBlobsForCompletedOrchestrationAsync(
+                    await this.trackingStore.UpdateInstanceStatusForCompletedOrchestrationAsync(
                         runtimeState.OrchestrationInstance.InstanceId,
                         runtimeState.OrchestrationInstance.ExecutionId,
                         runtimeState,
-                        trackingStoreContext,
                         cancellationToken);
                 }
                 if (!allowReplayingTerminalInstances)

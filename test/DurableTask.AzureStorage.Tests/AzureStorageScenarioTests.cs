@@ -884,7 +884,7 @@ namespace DurableTask.AzureStorage.Tests
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Counter), 0);
 
                 // Need to wait for the instance to start before we can terminate it.
-                // TODO: This requirement may not be ideal and should be revisited.
+                // TerminatePendingOrchestration tests terminating a pending orchestration.
                 await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
 
                 await client.TerminateAsync("sayōnara");
@@ -966,12 +966,15 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
-        /// Test that a pending orchestration can be terminated.
+        /// Test that a pending orchestration can be terminated (including tests with a large termination reason that will need to be
+        /// stored in blob storage).
         /// </summary>
         [DataTestMethod]
-        [DataRow(true)]
-        [DataRow(false)]
-        public async Task TerminatePendingOrchestration(bool enableExtendedSessions)
+        [DataRow(true, true)]
+        [DataRow(false, true)]
+        [DataRow(true, false)]
+        [DataRow(false, false)]
+        public async Task TerminatePendingOrchestration(bool enableExtendedSessions, bool largeTerminationReason)
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
@@ -980,20 +983,27 @@ namespace DurableTask.AzureStorage.Tests
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Counter), 0, startAt: DateTime.UtcNow.AddMinutes(1));
                 await client.WaitForStatusChange(TimeSpan.FromSeconds(5), OrchestrationStatus.Pending);
 
-                await client.TerminateAsync("terminate");
+                string message = largeTerminationReason ? this.GenerateMediumRandomStringPayload().ToString() : "terminate";
+                await client.TerminateAsync(message);
 
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
 
+                if (largeTerminationReason)
+                {
+                    int blobCount = await this.GetBlobCount("test-largemessages", client.InstanceId);
+                    Assert.IsTrue(blobCount > 0);
+                }
+
                 // Confirm the pending orchestration was terminated.
                 Assert.AreEqual(OrchestrationStatus.Terminated, status?.OrchestrationStatus);
-                Assert.AreEqual("terminate", status?.Output);
+                Assert.AreEqual(message, status?.Output);
 
                 // Now sleep for a minute and confirm that the orchestration does not start after its scheduled time.
                 Thread.Sleep(TimeSpan.FromMinutes(1));
 
                 status = await client.GetStatusAsync();
                 Assert.AreEqual(OrchestrationStatus.Terminated, status?.OrchestrationStatus);
-                Assert.AreEqual("terminate", status?.Output);
+                Assert.AreEqual(message, status?.Output);
 
                 await host.StopAsync();
             }
@@ -2495,14 +2505,15 @@ namespace DurableTask.AzureStorage.Tests
         [DataRow(false, true)]
         [DataRow(true, false)]
         [DataRow(false, false)]
-        public async Task TestWorkerFailingDuringCompleteWorkItemCall(bool enableExtendedSessions, bool terminate)
+        public async Task TestWorkerFailingDuringCompleteWorkItemCallCompletedOrchestration(bool enableExtendedSessions, bool terminate)
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
                 await host.StartAsync();
 
                 // Run simple orchestrator to completion, this will help us obtain a valid terminal history for the orchestrator
-                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), "hello!");
+                string input = "hello!";
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), input);
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
 
@@ -2516,7 +2527,11 @@ namespace DurableTask.AzureStorage.Tests
                 Table instanceTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName);
                 TableEntity entity = new TableEntity(instanceId, "")
                 {
-                    ["RuntimeStatus"] = OrchestrationStatus.Running.ToString("G")
+                    ["RuntimeStatus"] = OrchestrationStatus.Running.ToString("G"),
+                    ["Output"] = "null",
+                    // We set the input to "null" here to simulate the situation where this was not previously set (for example, for a 
+                    // suborchestration that completed in one execution and so had no previous call to UpdateStateAsync or SetNewExecutionAsync)
+                    ["Input"] = "null",
                 };
                 await instanceTable.MergeEntityAsync(entity, Azure.ETag.All);
 
@@ -2542,8 +2557,369 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(1, state.Count);
 
                 status = state.First();
-                OrchestrationStatus expectedStatus = OrchestrationStatus.Completed;
-                Assert.AreEqual(expectedStatus, status.OrchestrationStatus);
+                Assert.AreEqual(OrchestrationStatus.Completed, status.OrchestrationStatus);
+                Assert.AreEqual(input, JToken.Parse(status.Output).ToString());
+                Assert.AreEqual(input, JToken.Parse(status.Input).ToString());
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// Same as <see cref="TestWorkerFailingDuringCompleteWorkItemCallCompletedOrchestration"/> but for a failed orchestration.
+        /// </summary>
+        /// <returns></returns>
+        [DataTestMethod]
+        [DataRow(true, true)]
+        [DataRow(false, true)]
+        [DataRow(true, false)]
+        [DataRow(false, false)]
+        public async Task TestWorkerFailingDuringCompleteWorkItemCallFailedOrchestration(bool enableExtendedSessions, bool terminate)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                string failureReason = "Failure!";
+                var client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.ThrowException),
+                    input: failureReason);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+                Assert.AreEqual(OrchestrationStatus.Failed, status?.OrchestrationStatus);
+
+                // Simulate having an "out of date" Instance table, by setting it's runtime status to "Running".
+                // This simulates the scenario where the History table was updated, but not the Instance table.
+                var instanceId = client.InstanceId;
+                AzureStorageOrchestrationServiceSettings settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(
+                    enableExtendedSessions);
+                AzureStorageClient azureStorageClient = new AzureStorageClient(settings);
+
+                Table instanceTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName);
+                TableEntity entity = new TableEntity(instanceId, "")
+                {
+                    ["RuntimeStatus"] = OrchestrationStatus.Running.ToString("G"),
+                    ["Output"] = "null",
+                    // We set the input to "null" here to simulate the situation where this was not previously set (for example, for a 
+                    // suborchestration that completed in one execution and so had no previous call to UpdateStateAsync or SetNewExecutionAsync)
+                    ["Input"] = "null",
+                };
+                await instanceTable.MergeEntityAsync(entity, Azure.ETag.All);
+
+                // Assert that the status in the Instance table reads "Running"
+                IList<OrchestrationState> state = await client.GetStateAsync(instanceId);
+                OrchestrationStatus forcedStatus = state.First().OrchestrationStatus;
+                Assert.AreEqual(OrchestrationStatus.Running, forcedStatus);
+
+                // The type of event sent should not matter - the event itself should be discarded, and the instance table updated
+                // to reflect the status in the history table.
+                if (terminate)
+                {
+                    await client.TerminateAsync("testing");
+                }
+                else
+                {
+                    await client.RaiseEventAsync("Foo", "Bar");
+                }
+                await Task.Delay(TimeSpan.FromSeconds(30));
+
+                // A replay should have occurred, forcing the instance table to be updated with a terminal status
+                state = await client.GetStateAsync(instanceId);
+                Assert.AreEqual(1, state.Count);
+
+                status = state.First();
+                Assert.AreEqual(OrchestrationStatus.Failed, status.OrchestrationStatus);
+                Assert.AreEqual(failureReason, status.Output);
+                Assert.AreEqual(failureReason, JToken.Parse(status.Input).ToString());
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// Same as <see cref="TestWorkerFailingDuringCompleteWorkItemCallCompletedOrchestration"/> but for a terminated orchestration.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true, true)]
+        [DataRow(false, true)]
+        [DataRow(true, false)]
+        [DataRow(false, false)]
+        public async Task TestWorkerFailingDuringCompleteWorkItemCallTerminatedOrchestration(bool enableExtendedSessions, bool terminate)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                // Using the counter orchestration because it will wait indefinitely for input.
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Counter), 0);
+                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
+                // Terminate the orchestration
+                string reason = "terminate";
+                await client.TerminateAsync(reason);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+                Assert.AreEqual(OrchestrationStatus.Terminated, status?.OrchestrationStatus);
+
+                // Simulate having an "out of date" Instance table, by setting it's runtime status to "Running".
+                // This simulates the scenario where the History table was updated, but not the Instance table.
+                var instanceId = client.InstanceId;
+                AzureStorageOrchestrationServiceSettings settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(
+                    enableExtendedSessions);
+                AzureStorageClient azureStorageClient = new AzureStorageClient(settings);
+
+                Table instanceTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName);
+                TableEntity entity = new TableEntity(instanceId, "")
+                {
+                    ["RuntimeStatus"] = OrchestrationStatus.Running.ToString("G"),
+                    ["Output"] = "null",
+                    // We set the input to "null" here to simulate the situation where this was not previously set (for example, for a 
+                    // suborchestration that completed in one execution and so had no previous call to UpdateStateAsync or SetNewExecutionAsync)
+                    ["Input"] = "null",
+                };
+                await instanceTable.MergeEntityAsync(entity, Azure.ETag.All);
+
+                // Assert that the status in the Instance table reads "Running"
+                IList<OrchestrationState> state = await client.GetStateAsync(instanceId);
+                OrchestrationStatus forcedStatus = state.First().OrchestrationStatus;
+                Assert.AreEqual(OrchestrationStatus.Running, forcedStatus);
+
+                // The type of event sent should not matter - the event itself should be discarded, and the instance table updated
+                // to reflect the status in the history table.
+                if (terminate)
+                {
+                    await client.TerminateAsync("testing");
+                }
+                else
+                {
+                    await client.RaiseEventAsync("Foo", "Bar");
+                }
+                await Task.Delay(TimeSpan.FromSeconds(30));
+
+                // A replay should have occurred, forcing the instance table to be updated with a terminal status
+                state = await client.GetStateAsync(instanceId);
+                Assert.AreEqual(1, state.Count);
+
+                status = state.First();
+                Assert.AreEqual(OrchestrationStatus.Terminated, status.OrchestrationStatus);
+                Assert.AreEqual(reason, status.Output);
+                Assert.AreEqual(0, int.Parse(status.Input));
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// Same as <see cref="TestWorkerFailingDuringCompleteWorkItemCallCompletedOrchestration"/> but for an orchestration with large input
+        /// and output, which will need to be stored in blob storage.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true, true)]
+        [DataRow(false, true)]
+        [DataRow(true, false)]
+        [DataRow(false, false)]
+        public async Task TestWorkerFailingDuringCompleteWorkItemCallLargeInputOutput(bool enableExtendedSessions, bool terminate)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                string message = this.GenerateMediumRandomStringPayload().ToString();
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                var instanceId = client.InstanceId;
+                int blobCount = await this.GetBlobCount("test-largemessages", instanceId);
+                Assert.IsTrue(blobCount > 0);
+
+                // Simulate having an "out of date" Instance table, by setting it's runtime status to "Running".
+                // This simulates the scenario where the History table was updated, but not the Instance table.
+                AzureStorageOrchestrationServiceSettings settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(
+                    enableExtendedSessions);
+                AzureStorageClient azureStorageClient = new AzureStorageClient(settings);
+
+                Table instanceTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName);
+                TableEntity entity = new TableEntity(instanceId, "")
+                {
+                    ["RuntimeStatus"] = OrchestrationStatus.Running.ToString("G"),
+                    ["Output"] = "null",
+                    // We set the input to "null" here to simulate the situation where this was not previously set (for example, for a 
+                    // suborchestration that completed in one execution and so had no previous call to UpdateStateAsync or SetNewExecutionAsync)
+                    ["Input"] = "null",
+                };
+                await instanceTable.MergeEntityAsync(entity, Azure.ETag.All);
+
+                // Assert that the status in the Instance table reads "Running"
+                IList<OrchestrationState> state = await client.GetStateAsync(instanceId);
+                OrchestrationStatus forcedStatus = state.First().OrchestrationStatus;
+                Assert.AreEqual(OrchestrationStatus.Running, forcedStatus);
+
+                // The type of event sent should not matter - the event itself should be discarded, and the instance table updated
+                // to reflect the status in the history table.
+                if (terminate)
+                {
+                    await client.TerminateAsync("testing");
+                }
+                else
+                {
+                    await client.RaiseEventAsync("Foo", "Bar");
+                }
+                await Task.Delay(TimeSpan.FromSeconds(30));
+
+                // A replay should have occurred, forcing the instance table to be updated with a terminal status
+                state = await client.GetStateAsync(instanceId);
+                Assert.AreEqual(1, state.Count);
+
+                status = state.First();
+                Assert.AreEqual(OrchestrationStatus.Completed, status.OrchestrationStatus);
+                Assert.AreEqual(message, JToken.Parse(status.Output).ToString());
+                Assert.AreEqual(message, JToken.Parse(status.Input).ToString());
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// Same as <see cref="TestWorkerFailingDuringCompleteWorkItemCallTerminatedOrchestration"/> but for a large termination reason that
+        /// will need to be stored in blob storage.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true, true)]
+        [DataRow(false, true)]
+        [DataRow(true, false)]
+        [DataRow(false, false)]
+        public async Task TestWorkerFailingDuringCompleteWorkItemCallLargeTerminationReason(bool enableExtendedSessions, bool terminate)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                string message = this.GenerateMediumRandomStringPayload().ToString();
+                // Using the counter orchestration because it will wait indefinitely for input.
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Counter), 0);
+                await client.WaitForStartupAsync(TimeSpan.FromSeconds(10));
+                // Terminate the orchestration
+                await client.TerminateAsync(message);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+                Assert.AreEqual(OrchestrationStatus.Terminated, status?.OrchestrationStatus);
+
+                var instanceId = client.InstanceId;
+                int blobCount = await this.GetBlobCount("test-largemessages", instanceId);
+                Assert.IsTrue(blobCount > 0);
+
+                // Simulate having an "out of date" Instance table, by setting it's runtime status to "Running".
+                // This simulates the scenario where the History table was updated, but not the Instance table.
+                AzureStorageOrchestrationServiceSettings settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(
+                    enableExtendedSessions);
+                AzureStorageClient azureStorageClient = new AzureStorageClient(settings);
+
+                Table instanceTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName);
+                TableEntity entity = new TableEntity(instanceId, "")
+                {
+                    ["RuntimeStatus"] = OrchestrationStatus.Running.ToString("G"),
+                    ["Output"] = "null",
+                    // We set the input to "null" here to simulate the situation where this was not previously set (for example, for a 
+                    // suborchestration that completed in one execution and so had no previous call to UpdateStateAsync or SetNewExecutionAsync)
+                    ["Input"] = "null",
+                };
+                await instanceTable.MergeEntityAsync(entity, Azure.ETag.All);
+
+                // Assert that the status in the Instance table reads "Running"
+                IList<OrchestrationState> state = await client.GetStateAsync(instanceId);
+                OrchestrationStatus forcedStatus = state.First().OrchestrationStatus;
+                Assert.AreEqual(OrchestrationStatus.Running, forcedStatus);
+
+                // The type of event sent should not matter - the event itself should be discarded, and the instance table updated
+                // to reflect the status in the history table.
+                if (terminate)
+                {
+                    await client.TerminateAsync("testing");
+                }
+                else
+                {
+                    await client.RaiseEventAsync("Foo", "Bar");
+                }
+                await Task.Delay(TimeSpan.FromSeconds(30));
+
+                // A replay should have occurred, forcing the instance table to be updated with a terminal status
+                state = await client.GetStateAsync(instanceId);
+                Assert.AreEqual(1, state.Count);
+
+                status = state.First();
+                Assert.AreEqual(OrchestrationStatus.Terminated, status.OrchestrationStatus);
+                Assert.AreEqual(message, status.Output);
+                Assert.AreEqual(0, int.Parse(status.Input));
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// Same as <see cref="TestWorkerFailingDuringCompleteWorkItemCallFailedOrchestration"/> but for a large exception message that will need
+        /// to be stored in blob storage.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(true, true)]
+        [DataRow(false, true)]
+        [DataRow(true, false)]
+        [DataRow(false, false)]
+        public async Task TestWorkerFailingDuringCompleteWorkItemCallLargeFailureReason(bool enableExtendedSessions, bool terminate)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
+            {
+                await host.StartAsync();
+
+                string message = this.GenerateMediumRandomStringPayload().ToString();
+                var client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.ThrowException),
+                    input: message);
+                var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+                Assert.AreEqual(OrchestrationStatus.Failed, status?.OrchestrationStatus);
+
+                var instanceId = client.InstanceId;
+                int blobCount = await this.GetBlobCount("test-largemessages", instanceId);
+                Assert.IsTrue(blobCount > 0);
+
+                // Simulate having an "out of date" Instance table, by setting it's runtime status to "Running".
+                // This simulates the scenario where the History table was updated, but not the Instance table.
+                AzureStorageOrchestrationServiceSettings settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(
+                    enableExtendedSessions);
+                AzureStorageClient azureStorageClient = new AzureStorageClient(settings);
+
+                Table instanceTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName);
+                TableEntity entity = new TableEntity(instanceId, "")
+                {
+                    ["RuntimeStatus"] = OrchestrationStatus.Running.ToString("G"),
+                    ["Output"] = "null",
+                    // We set the input to "null" here to simulate the situation where this was not previously set (for example, for a 
+                    // suborchestration that completed in one execution and so had no previous call to UpdateStateAsync or SetNewExecutionAsync)
+                    ["Input"] = "null",
+                };
+                await instanceTable.MergeEntityAsync(entity, Azure.ETag.All);
+
+                // Assert that the status in the Instance table reads "Running"
+                IList<OrchestrationState> state = await client.GetStateAsync(instanceId);
+                OrchestrationStatus forcedStatus = state.First().OrchestrationStatus;
+                Assert.AreEqual(OrchestrationStatus.Running, forcedStatus);
+
+                // The type of event sent should not matter - the event itself should be discarded, and the instance table updated
+                // to reflect the status in the history table.
+                if (terminate)
+                {
+                    await client.TerminateAsync("testing");
+                }
+                else
+                {
+                    await client.RaiseEventAsync("Foo", "Bar");
+                }
+                await Task.Delay(TimeSpan.FromSeconds(30));
+
+                // A replay should have occurred, forcing the instance table to be updated with a terminal status
+                state = await client.GetStateAsync(instanceId);
+                Assert.AreEqual(1, state.Count);
+
+                status = state.First();
+                Assert.AreEqual(OrchestrationStatus.Failed, status.OrchestrationStatus);
+                Assert.AreEqual(message, status.Output);
+                Assert.AreEqual(message, JToken.Parse(status.Input).ToString());
 
                 await host.StopAsync();
             }

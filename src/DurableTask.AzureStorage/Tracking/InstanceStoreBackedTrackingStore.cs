@@ -191,11 +191,10 @@ namespace DurableTask.AzureStorage.Tracking
             await this.instanceStore.WriteEntitiesAsync(instanceEntity);
         }
 
-        public override async Task UpdateInstanceStatusAndDeleteOrphanedBlobsForCompletedOrchestrationAsync(
+        public override async Task UpdateInstanceStatusForCompletedOrchestrationAsync(
             string instanceId,
             string executionId,
             OrchestrationRuntimeState runtimeState,
-            object trackingStoreContext,
             CancellationToken cancellationToken = default)
         {
             if (runtimeState.OrchestrationStatus != OrchestrationStatus.Completed &&
@@ -206,7 +205,6 @@ namespace DurableTask.AzureStorage.Tracking
                 return;
             }
 
-            // No blobs to delete for this tracking store implementation
             await instanceStore.WriteEntitiesAsync(new InstanceEntityBase[]
             {
                 new OrchestrationStateInstanceEntity()

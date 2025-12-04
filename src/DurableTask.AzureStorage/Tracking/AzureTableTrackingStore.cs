@@ -807,13 +807,10 @@ namespace DurableTask.AzureStorage.Tracking
                 ["RuntimeStatus"] = OrchestrationStatus.Terminated.ToString("G"),
                 ["LastUpdatedTime"] = executionTerminatedEvent.Timestamp,
                 ["CompletedTime"] = DateTime.UtcNow,
+                [OutputProperty] = executionTerminatedEvent.Input,
             };
-            this.SetInstancesTablePropertyFromHistoryProperty(
-                TableEntityConverter.Serialize(executionTerminatedEvent),
-                instanceEntity,
-                historyPropertyName: nameof(executionTerminatedEvent.Input),
-                instancePropertyName: OutputProperty,
-                data: executionTerminatedEvent.Input);
+
+            await this.CompressLargeMessageAsync(instanceEntity, listOfBlobs: null, cancellationToken: cancellationToken);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
             await this.InstancesTable.MergeEntityAsync(instanceEntity, ETag.All, cancellationToken);
@@ -1056,11 +1053,10 @@ namespace DurableTask.AzureStorage.Tracking
             return eTagValue;
         }
 
-        public override async Task UpdateInstanceStatusAndDeleteOrphanedBlobsForCompletedOrchestrationAsync(
+        public override async Task UpdateInstanceStatusForCompletedOrchestrationAsync(
             string instanceId,
             string executionId,
             OrchestrationRuntimeState runtimeState,
-            object trackingStoreContext,
             CancellationToken cancellationToken = default)
         {
             if (runtimeState.OrchestrationStatus != OrchestrationStatus.Completed &&
@@ -1069,17 +1065,6 @@ namespace DurableTask.AzureStorage.Tracking
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Terminated)
             {
                 return;
-            }
-
-            TrackingStoreContext context = (TrackingStoreContext)trackingStoreContext;
-            if (context.Blobs.Count > 0)
-            {
-                var tasks = new List<Task>(context.Blobs.Count);
-                foreach (string blobName in context.Blobs)
-                {
-                    tasks.Add(this.messageManager.DeleteBlobAsync(blobName));
-                }
-                await Task.WhenAll(tasks);
             }
 
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
@@ -1109,14 +1094,20 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             // Set the input and output
+            // In the case that the input or output are too large and are stored in blob storage, we must extract the blob names from the history entities.
+            TableQueryResults<TableEntity> results = await this
+                .GetHistoryEntitiesResponseInfoAsync(instanceId, executionId, null, cancellationToken)
+                .GetResultsAsync(cancellationToken: cancellationToken);
+            TableEntity executionCompletedEntity = results.Entities.LastOrDefault(e => (string)e["EventType"] == EventType.ExecutionCompleted.ToString());
+            TableEntity executionStartedEntity = results.Entities.LastOrDefault(e => (string)e["EventType"] == EventType.ExecutionStarted.ToString());
             this.SetInstancesTablePropertyFromHistoryProperty(
-                TableEntityConverter.Serialize(executionStartedEvent),
+                executionStartedEntity,
                 instanceEntity,
                 historyPropertyName: nameof(executionStartedEvent.Input),
                 instancePropertyName: InputProperty,
                 data: executionStartedEvent.Input);
             this.SetInstancesTablePropertyFromHistoryProperty(
-                TableEntityConverter.Serialize(runtimeState.ExecutionCompletedEvent),
+                executionCompletedEntity,
                 instanceEntity,
                 historyPropertyName: nameof(runtimeState.ExecutionCompletedEvent.Result),
                 instancePropertyName: OutputProperty,
@@ -1261,6 +1252,12 @@ namespace DurableTask.AzureStorage.Tracking
                 // This message is just to start the orchestration, so it does not have a corresponding
                 // EventType. Use a hardcoded value to record the orchestration input.
                 eventType = "Input";
+            }
+            else if (property == "Output")
+            {
+                // This message is used to terminate an orchestration with no history, so it does not have a
+                // corresponding EventType. Use a hardcoded value to record the orchestration output.
+                eventType = "Output";
             }
             else if (property == "Tags")
             {
