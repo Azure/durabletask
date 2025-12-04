@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" />
     <ProjectReference Include="..\..\..\src\DurableTask.ApplicationInsights\DurableTask.ApplicationInsights.csproj" />
     <ProjectReference Include="..\..\..\src\DurableTask.AzureStorage\DurableTask.AzureStorage.csproj" />
     <ProjectReference Include="..\..\..\src\DurableTask.Core\DurableTask.Core.csproj" />
