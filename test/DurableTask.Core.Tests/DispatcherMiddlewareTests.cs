@@ -504,7 +504,7 @@ namespace DurableTask.Core.Tests
                 ActivitySource.AddActivityListener(this.listener);
             }
 
-                public Activity? Find(string taskType, string taskName, ActivityKind kind)
+            public Activity? Find(string taskType, string taskName, ActivityKind kind)
             {
                 return this.activities
                     .Where(activity => activity.Kind == kind)
