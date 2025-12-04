@@ -36,7 +36,7 @@ namespace DurableTask.AzureStorage.Tests
     using Moq;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
-#if !net48
+#if !NET48
     using OpenTelemetry;
     using OpenTelemetry.Trace;
 #endif
@@ -2633,7 +2633,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-#if !net48
+#if !NET48
         /// <summary>
         /// End-to-end test which validates a simple orchestrator function that calls an activity function
         /// and checks the OpenTelemetry trace information

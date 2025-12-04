@@ -10,7 +10,7 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
-#if !net48 // for some reasons these tests are not discoverable on 1ES, leading to the test getting aborted. TODO: Needs investigation
+#if !NET48 // for some reasons these tests are not discoverable on 1ES, leading to the test getting aborted. TODO: Needs investigation
 #nullable enable
 namespace DurableTask.Core.Tests
 {
