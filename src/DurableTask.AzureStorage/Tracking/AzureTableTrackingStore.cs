@@ -807,6 +807,7 @@ namespace DurableTask.AzureStorage.Tracking
                 ["RuntimeStatus"] = OrchestrationStatus.Terminated.ToString("G"),
                 ["LastUpdatedTime"] = executionTerminatedEvent.Timestamp,
                 ["CompletedTime"] = DateTime.UtcNow,
+                // In the case of terminating an orchestration, the termination reason becomes the orchestration's output.
                 [OutputProperty] = executionTerminatedEvent.Input,
             };
 
@@ -1056,6 +1057,7 @@ namespace DurableTask.AzureStorage.Tracking
             string instanceId,
             string executionId,
             OrchestrationRuntimeState runtimeState,
+            bool instanceEntityExists,
             CancellationToken cancellationToken = default)
         {
             if (runtimeState.OrchestrationStatus != OrchestrationStatus.Completed &&
@@ -1073,17 +1075,16 @@ namespace DurableTask.AzureStorage.Tracking
             // This can be the case for a suborchestration that completed in one execution, for example.
             var instanceEntity = new TableEntity(sanitizedInstanceId, string.Empty)
             {
-                // TODO: Translating null to "null" is a temporary workaround. We should prioritize 
-                // https://github.com/Azure/durabletask/issues/477 so that this is no longer necessary.
                 ["Name"] = runtimeState.Name,
                 ["Version"] = runtimeState.Version,
                 ["CreatedTime"] = executionStartedEvent.Timestamp,
+                // TODO: Translating null to "null" is a temporary workaround. We should prioritize 
+                // https://github.com/Azure/durabletask/issues/477 so that this is no longer necessary.
                 ["CustomStatus"] = runtimeState.Status ?? "null",
                 ["ExecutionId"] = executionId,
                 ["LastUpdatedTime"] = runtimeState.Events.Last().Timestamp,
                 ["RuntimeStatus"] = runtimeState.OrchestrationStatus.ToString(),
                 ["CompletedTime"] = runtimeState.CompletedTime,
-                ["Generation"] = executionStartedEvent.Generation,
                 ["Tags"] = TagsSerializer.Serialize(executionStartedEvent.Tags),
                 ["TaskHubName"] = this.settings.TaskHubName,
             };
@@ -1093,24 +1094,50 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             // Set the input and output
-            // In the case that the input or output are too large and are stored in blob storage, we must extract the blob names from the history entities.
-            TableQueryResults<TableEntity> results = await this
-                .GetHistoryEntitiesResponseInfoAsync(instanceId, executionId, null, cancellationToken)
-                .GetResultsAsync(cancellationToken: cancellationToken);
-            TableEntity executionCompletedEntity = results.Entities.LastOrDefault(e => (string)e["EventType"] == EventType.ExecutionCompleted.ToString());
-            TableEntity executionStartedEntity = results.Entities.LastOrDefault(e => (string)e["EventType"] == EventType.ExecutionStarted.ToString());
-            this.SetInstancesTablePropertyFromHistoryProperty(
-                executionStartedEntity,
-                instanceEntity,
-                historyPropertyName: nameof(executionStartedEvent.Input),
-                instancePropertyName: InputProperty,
-                data: executionStartedEvent.Input);
-            this.SetInstancesTablePropertyFromHistoryProperty(
-                executionCompletedEntity,
-                instanceEntity,
-                historyPropertyName: nameof(runtimeState.ExecutionCompletedEvent.Result),
-                instancePropertyName: OutputProperty,
-                data: runtimeState.Output);
+            // In the case that the output is too large and is stored in blob storage, or the input has not been set by a previous execution and is stored in
+            // blob storage, we must extract the blob names from the history entities.
+            bool outputTooLarge = this.ExceedsMaxTablePropertySize(runtimeState.Output);
+            bool inputTooLarge = this.ExceedsMaxTablePropertySize(runtimeState.Input);
+            TableQueryResults<TableEntity> results = null;
+            if (outputTooLarge || (!instanceEntityExists && inputTooLarge))
+            {
+                results = await this
+                    .GetHistoryEntitiesResponseInfoAsync(instanceId, executionId, null, cancellationToken)
+                    .GetResultsAsync(cancellationToken: cancellationToken);
+            }
+
+            if (outputTooLarge)
+            {
+                TableEntity executionCompletedEntity = results.Entities.LastOrDefault(e => (string)e["EventType"] == EventType.ExecutionCompleted.ToString());
+                this.SetInstancesTablePropertyFromHistoryProperty(
+                    executionCompletedEntity,
+                    instanceEntity,
+                    historyPropertyName: nameof(runtimeState.ExecutionCompletedEvent.Result),
+                    instancePropertyName: OutputProperty,
+                    data: runtimeState.Output);
+            }
+            else
+            {
+                instanceEntity[OutputProperty] = runtimeState.Output;
+            }
+
+            if (!instanceEntityExists)
+            {
+                if (inputTooLarge)
+                {
+                    TableEntity executionStartedEntity = results.Entities.FirstOrDefault(e => (string)e["EventType"] == EventType.ExecutionStarted.ToString());
+                    this.SetInstancesTablePropertyFromHistoryProperty(
+                        executionStartedEntity,
+                        instanceEntity,
+                        historyPropertyName: nameof(executionStartedEvent.Input),
+                        instancePropertyName: InputProperty,
+                        data: executionStartedEvent.Input);
+                }
+                else
+                {
+                    instanceEntity[InputProperty] = runtimeState.Input;
+                }
+            }
 
             Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
             await this.InstancesTable.InsertOrMergeEntityAsync(instanceEntity);

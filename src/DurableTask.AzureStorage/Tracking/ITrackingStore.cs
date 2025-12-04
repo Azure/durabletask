@@ -111,8 +111,9 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="instanceId">The ID of the orchestration.</param>
         /// <param name="executionId">The execution ID of the orchestration.</param>
         /// <param name="runtimeState">The runtime state of the orchestration.</param>
+        /// <param name="instanceEntityExists">Whether the instance entity already exists in the instance store.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        Task UpdateInstanceStatusForCompletedOrchestrationAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, CancellationToken cancellationToken = default);
+        Task UpdateInstanceStatusForCompletedOrchestrationAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, bool instanceEntityExists, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get The Orchestration State for querying all orchestration instances

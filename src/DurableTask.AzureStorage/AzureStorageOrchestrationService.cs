@@ -1104,6 +1104,7 @@ namespace DurableTask.AzureStorage
                         runtimeState.OrchestrationInstance.InstanceId,
                         runtimeState.OrchestrationInstance.ExecutionId,
                         runtimeState,
+                        instanceStatus is not null,
                         cancellationToken);
                 }
                 if (!allowReplayingTerminalInstances)
