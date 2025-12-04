@@ -1075,16 +1075,44 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
+            ExecutionStartedEvent executionStartedEvent = runtimeState.ExecutionStartedEvent;
+
+            // We need to set all of the fields of the instance entity in the case that it was never created for the orchestration.
+            // This can be the case for a suborchestration that completed in one execution, for example.
             var instanceEntity = new TableEntity(sanitizedInstanceId, string.Empty)
             {
                 // TODO: Translating null to "null" is a temporary workaround. We should prioritize 
                 // https://github.com/Azure/durabletask/issues/477 so that this is no longer necessary.
+                ["Name"] = runtimeState.Name,
+                ["Version"] = runtimeState.Version,
+                ["CreatedTime"] = executionStartedEvent.Timestamp,
                 ["CustomStatus"] = runtimeState.Status ?? "null",
                 ["ExecutionId"] = executionId,
                 ["LastUpdatedTime"] = runtimeState.Events.Last().Timestamp,
                 ["RuntimeStatus"] = runtimeState.OrchestrationStatus.ToString(),
-                ["CompletedTime"] = runtimeState.CompletedTime
+                ["CompletedTime"] = runtimeState.CompletedTime,
+                ["Generation"] = executionStartedEvent.Generation,
+                ["Tags"] = TagsSerializer.Serialize(executionStartedEvent.Tags),
+                ["TaskHubName"] = this.settings.TaskHubName,
             };
+            if (runtimeState.ExecutionStartedEvent.ScheduledStartTime.HasValue)
+            {
+                instanceEntity["ScheduledStartTime"] = executionStartedEvent.ScheduledStartTime;
+            }
+
+            // Set the input and output
+            this.SetInstancesTablePropertyFromHistoryProperty(
+                TableEntityConverter.Serialize(executionStartedEvent),
+                instanceEntity,
+                historyPropertyName: nameof(executionStartedEvent.Input),
+                instancePropertyName: InputProperty,
+                data: executionStartedEvent.Input);
+            this.SetInstancesTablePropertyFromHistoryProperty(
+                TableEntityConverter.Serialize(runtimeState.ExecutionCompletedEvent),
+                instanceEntity,
+                historyPropertyName: nameof(runtimeState.ExecutionCompletedEvent.Result),
+                instancePropertyName: OutputProperty,
+                data: runtimeState.Output);
 
             Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
             await this.InstancesTable.InsertOrMergeEntityAsync(instanceEntity);
