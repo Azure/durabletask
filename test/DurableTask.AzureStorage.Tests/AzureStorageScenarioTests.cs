@@ -36,7 +36,7 @@ namespace DurableTask.AzureStorage.Tests
     using Moq;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
-#if !NET462
+#if !NET48
     using OpenTelemetry;
     using OpenTelemetry.Trace;
 #endif
@@ -1652,7 +1652,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 // Use an instanceId that contains special characters which must be escaped in URIs
                 string id = "test|123:with white spcae";
-                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), input:message, instanceId: id);
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), input: message, instanceId: id);
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
@@ -2633,7 +2633,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-#if !NET462
+#if !NET48
         /// <summary>
         /// End-to-end test which validates a simple orchestrator function that calls an activity function
         /// and checks the OpenTelemetry trace information
@@ -2687,7 +2687,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(12, processor.Invocations.Count);
 
             // Checking tag values
-            string activity2TypeValue = activity2.Tags.First(k => (k.Key).Equals("durabletask.type" )).Value;
+            string activity2TypeValue = activity2.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
             string activity5TypeValue = activity5.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
             string activity8TypeValue = activity8.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
             string activity9TypeValue = activity9.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
