@@ -179,24 +179,23 @@ namespace DurableTask.AzureStorage.Tracking
 
         public override async Task UpdateStatusForTerminationAsync(
             string instanceId,
-            string output,
-            DateTime lastUpdatedTime,
+            ExecutionTerminatedEvent executionTerminatedEvent,
             CancellationToken cancellationToken = default)
         {
             // Get the most recent execution and update its status to terminated
             IEnumerable<OrchestrationStateInstanceEntity> instanceEntity = await this.instanceStore.GetOrchestrationStateAsync(instanceId, allInstances: false);
             instanceEntity.Single().State.OrchestrationStatus = OrchestrationStatus.Terminated;
-            instanceEntity.Single().State.LastUpdatedTime = lastUpdatedTime;
+            instanceEntity.Single().State.LastUpdatedTime = executionTerminatedEvent.Timestamp;
             instanceEntity.Single().State.CompletedTime = DateTime.UtcNow;
-            instanceEntity.Single().State.Output = output;
+            instanceEntity.Single().State.Output = executionTerminatedEvent.Input;
             await this.instanceStore.WriteEntitiesAsync(instanceEntity);
         }
 
-        public override async Task UpdateInstanceStatusAndDeleteOrphanedBlobsForCompletedOrchestrationAsync(
+        public override async Task UpdateInstanceStatusForCompletedOrchestrationAsync(
             string instanceId,
             string executionId,
             OrchestrationRuntimeState runtimeState,
-            object trackingStoreContext,
+            bool instanceEntityExists,
             CancellationToken cancellationToken = default)
         {
             if (runtimeState.OrchestrationStatus != OrchestrationStatus.Completed &&
@@ -207,7 +206,6 @@ namespace DurableTask.AzureStorage.Tracking
                 return;
             }
 
-            // No blobs to delete for this tracking store implementation
             await instanceStore.WriteEntitiesAsync(new InstanceEntityBase[]
             {
                 new OrchestrationStateInstanceEntity()

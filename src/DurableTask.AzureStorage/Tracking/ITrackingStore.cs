@@ -105,16 +105,15 @@ namespace DurableTask.AzureStorage.Tracking
 
         /// <summary>
         /// Updates the instance status of the specified orchestration instance to match that of <paramref name="runtimeState"/> for a completed orchestration.
-        /// Also deletes any orphaned blobs of <paramref name="trackingStoreContext"/>.
         /// This method is meant to be called in the case that there is an inconsistency between the instance and history table due to a failure during a call to 
         /// <see cref="UpdateStateAsync"/> for a completing orchestration. If the orchestration is not in a terminal state, the method will immediately return and do nothing.
         /// </summary>
         /// <param name="instanceId">The ID of the orchestration.</param>
         /// <param name="executionId">The execution ID of the orchestration.</param>
         /// <param name="runtimeState">The runtime state of the orchestration.</param>
-        /// <param name="trackingStoreContext">Additional context for the execution that is maintained by the tracking store.</param>
+        /// <param name="instanceEntityExists">Whether the instance entity already exists in the instance store.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        Task UpdateInstanceStatusAndDeleteOrphanedBlobsForCompletedOrchestrationAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, object trackingStoreContext, CancellationToken cancellationToken = default);
+        Task UpdateInstanceStatusForCompletedOrchestrationAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, bool instanceEntityExists, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get The Orchestration State for querying all orchestration instances
@@ -166,13 +165,12 @@ namespace DurableTask.AzureStorage.Tracking
         Task UpdateStatusForRewindAsync(string instanceId, CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Used to update the instance status to "Terminated" whend a pending orchestration is terminated.
+        /// Used to update the instance status to "Terminated" when a pending orchestration is terminated.
         /// </summary>
         /// <param name="instanceId">The instance being terminated</param>
-        /// <param name="output">The output of the orchestration</param>
-        /// <param name="lastUpdatedTime">The last updated time of the orchestration (the time the termination request was created)</param>
+        /// <param name="executionTerminatedEvent">The termination history event.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        Task UpdateStatusForTerminationAsync(string instanceId, string output, DateTime lastUpdatedTime, CancellationToken cancellationToken = default);
+        Task UpdateStatusForTerminationAsync(string instanceId, ExecutionTerminatedEvent executionTerminatedEvent, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Purge The History and state  which is older than thresholdDateTimeUtc based on the timestamp type specified by timeRangeFilterType
