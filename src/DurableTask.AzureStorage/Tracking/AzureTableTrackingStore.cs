@@ -811,7 +811,9 @@ namespace DurableTask.AzureStorage.Tracking
                 [OutputProperty] = executionTerminatedEvent.Input,
             };
 
-            await this.CompressLargeMessageAsync(instanceEntity, listOfBlobs: null, cancellationToken: cancellationToken);
+            // Setting addBlobPropertyName to false ensures that the blob URL is saved as the "Output" of the instance entity, which is the expected behavior
+            // for large orchestration outputs.
+            await this.CompressLargeMessageAsync(instanceEntity, listOfBlobs: null, cancellationToken: cancellationToken, addBlobPropertyName: false);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
             await this.InstancesTable.MergeEntityAsync(instanceEntity, ETag.All, cancellationToken);
@@ -1214,7 +1216,7 @@ namespace DurableTask.AzureStorage.Tracking
             }
         }
 
-        async Task CompressLargeMessageAsync(TableEntity entity, List<string> listOfBlobs, CancellationToken cancellationToken)
+        async Task CompressLargeMessageAsync(TableEntity entity, List<string> listOfBlobs, CancellationToken cancellationToken, bool addBlobPropertyName = true)
         {
             foreach (string propertyName in VariableSizeEntityProperties)
             {
@@ -1229,9 +1231,16 @@ namespace DurableTask.AzureStorage.Tracking
 
                     // Clear out the original property value and create a new "*BlobName"-suffixed property.
                     // The runtime will look for the new "*BlobName"-suffixed column to know if a property is stored in a blob.
-                    string blobPropertyName = GetBlobPropertyName(propertyName);
-                    entity.Add(blobPropertyName, blobName);
-                    entity[propertyName] = string.Empty;
+                    if (addBlobPropertyName)
+                    {
+                        string blobPropertyName = GetBlobPropertyName(propertyName);
+                        entity.Add(blobPropertyName, blobName);
+                        entity[propertyName] = string.Empty;
+                    }
+                    else
+                    {
+                        entity[propertyName] = this.messageManager.GetBlobUrl(blobName);
+                    }
 
                     // if necessary, keep track of all the blobs associated with this execution
                     listOfBlobs?.Add(blobName);

@@ -2513,9 +2513,10 @@ namespace DurableTask.AzureStorage.Tests
 
                 // Run simple orchestrator to completion, this will help us obtain a valid terminal history for the orchestrator
                 string input = "hello!";
-                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), input);
+                var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), input, tags: new Dictionary<string, string> { { "key", "value" } });
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                string executionId = status.OrchestrationInstance.ExecutionId;
 
                 // Simulate having an "out of date" Instance table, by setting it's runtime status to "Running".
                 // This simulates the scenario where the History table was updated, but not the Instance table.
@@ -2529,9 +2530,6 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     ["RuntimeStatus"] = OrchestrationStatus.Running.ToString("G"),
                     ["Output"] = "null",
-                    // We set the input to "null" here to simulate the situation where this was not previously set (for example, for a 
-                    // suborchestration that completed in one execution and so had no previous call to UpdateStateAsync or SetNewExecutionAsync)
-                    ["Input"] = "null",
                 };
                 await instanceTable.MergeEntityAsync(entity, Azure.ETag.All);
 
@@ -2561,6 +2559,31 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(input, JToken.Parse(status.Output).ToString());
                 Assert.AreEqual(input, JToken.Parse(status.Input).ToString());
 
+                // Now simulate there being no instance entity (which can be the case for suborchestrations that complete in one execution), and try again
+                await instanceTable.DeleteEntityAsync(entity, Azure.ETag.All);
+
+                if (terminate)
+                {
+                    await client.TerminateAsync("testing");
+                }
+                else
+                {
+                    await client.RaiseEventAsync("Foo", "Bar");
+                }
+                await Task.Delay(TimeSpan.FromSeconds(30));
+
+                // A replay should have occurred, forcing the instance table to be updated with a terminal status
+                state = await client.GetStateAsync(instanceId);
+                Assert.AreEqual(1, state.Count);
+
+                status = state.First();
+                Assert.AreEqual(OrchestrationStatus.Completed, status.OrchestrationStatus);
+                Assert.AreEqual(input, JToken.Parse(status.Output).ToString());
+                Assert.AreEqual(input, JToken.Parse(status.Input).ToString());
+                Assert.IsTrue(status.Name.Contains(nameof(Orchestrations.Echo)));
+                Assert.IsTrue(status.Tags.Contains(new KeyValuePair<string, string>("key", "value")));
+                Assert.AreEqual(executionId, status.OrchestrationInstance.ExecutionId);
+
                 await host.StopAsync();
             }
         }
@@ -2586,6 +2609,7 @@ namespace DurableTask.AzureStorage.Tests
                     input: failureReason);
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
                 Assert.AreEqual(OrchestrationStatus.Failed, status?.OrchestrationStatus);
+                string executionId = status.OrchestrationInstance.ExecutionId;
 
                 // Simulate having an "out of date" Instance table, by setting it's runtime status to "Running".
                 // This simulates the scenario where the History table was updated, but not the Instance table.
@@ -2595,13 +2619,11 @@ namespace DurableTask.AzureStorage.Tests
                 AzureStorageClient azureStorageClient = new AzureStorageClient(settings);
 
                 Table instanceTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName);
+
                 TableEntity entity = new TableEntity(instanceId, "")
                 {
                     ["RuntimeStatus"] = OrchestrationStatus.Running.ToString("G"),
                     ["Output"] = "null",
-                    // We set the input to "null" here to simulate the situation where this was not previously set (for example, for a 
-                    // suborchestration that completed in one execution and so had no previous call to UpdateStateAsync or SetNewExecutionAsync)
-                    ["Input"] = "null",
                 };
                 await instanceTable.MergeEntityAsync(entity, Azure.ETag.All);
 
@@ -2631,6 +2653,30 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(failureReason, status.Output);
                 Assert.AreEqual(failureReason, JToken.Parse(status.Input).ToString());
 
+                // Now simulate there being no instance entity (which can be the case for suborchestrations that complete in one execution), and try again
+                await instanceTable.DeleteEntityAsync(entity, Azure.ETag.All);
+
+                if (terminate)
+                {
+                    await client.TerminateAsync("testing");
+                }
+                else
+                {
+                    await client.RaiseEventAsync("Foo", "Bar");
+                }
+                await Task.Delay(TimeSpan.FromSeconds(30));
+
+                // A replay should have occurred, forcing the instance table to be updated with a terminal status
+                state = await client.GetStateAsync(instanceId);
+                Assert.AreEqual(1, state.Count);
+
+                status = state.First();
+                Assert.AreEqual(OrchestrationStatus.Failed, status.OrchestrationStatus);
+                Assert.AreEqual(failureReason, status.Output);
+                Assert.AreEqual(failureReason, JToken.Parse(status.Input).ToString());
+                Assert.IsTrue(status.Name.Contains(nameof(Orchestrations.ThrowException)));
+                Assert.AreEqual(executionId, status.OrchestrationInstance.ExecutionId);
+
                 await host.StopAsync();
             }
         }
@@ -2657,6 +2703,7 @@ namespace DurableTask.AzureStorage.Tests
                 await client.TerminateAsync(reason);
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
                 Assert.AreEqual(OrchestrationStatus.Terminated, status?.OrchestrationStatus);
+                string executionId = status.OrchestrationInstance.ExecutionId;
 
                 // Simulate having an "out of date" Instance table, by setting it's runtime status to "Running".
                 // This simulates the scenario where the History table was updated, but not the Instance table.
@@ -2670,9 +2717,6 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     ["RuntimeStatus"] = OrchestrationStatus.Running.ToString("G"),
                     ["Output"] = "null",
-                    // We set the input to "null" here to simulate the situation where this was not previously set (for example, for a 
-                    // suborchestration that completed in one execution and so had no previous call to UpdateStateAsync or SetNewExecutionAsync)
-                    ["Input"] = "null",
                 };
                 await instanceTable.MergeEntityAsync(entity, Azure.ETag.All);
 
@@ -2702,6 +2746,30 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(reason, status.Output);
                 Assert.AreEqual(0, int.Parse(status.Input));
 
+                // Now simulate there being no instance entity (which can be the case for suborchestrations that complete in one execution), and try again
+                await instanceTable.DeleteEntityAsync(entity, Azure.ETag.All);
+
+                if (terminate)
+                {
+                    await client.TerminateAsync("testing");
+                }
+                else
+                {
+                    await client.RaiseEventAsync("Foo", "Bar");
+                }
+                await Task.Delay(TimeSpan.FromSeconds(30));
+
+                // A replay should have occurred, forcing the instance table to be updated with a terminal status
+                state = await client.GetStateAsync(instanceId);
+                Assert.AreEqual(1, state.Count);
+
+                status = state.First();
+                Assert.AreEqual(OrchestrationStatus.Terminated, status.OrchestrationStatus);
+                Assert.AreEqual(reason, status.Output);
+                Assert.AreEqual(0, int.Parse(status.Input));
+                Assert.IsTrue(status.Name.Contains(nameof(Orchestrations.Counter)));
+                Assert.AreEqual(executionId, status.OrchestrationInstance.ExecutionId);
+
                 await host.StopAsync();
             }
         }
@@ -2725,6 +2793,7 @@ namespace DurableTask.AzureStorage.Tests
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                string executionId = status.OrchestrationInstance.ExecutionId;
 
                 var instanceId = client.InstanceId;
                 int blobCount = await this.GetBlobCount("test-largemessages", instanceId);
@@ -2741,9 +2810,6 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     ["RuntimeStatus"] = OrchestrationStatus.Running.ToString("G"),
                     ["Output"] = "null",
-                    // We set the input to "null" here to simulate the situation where this was not previously set (for example, for a 
-                    // suborchestration that completed in one execution and so had no previous call to UpdateStateAsync or SetNewExecutionAsync)
-                    ["Input"] = "null",
                 };
                 await instanceTable.MergeEntityAsync(entity, Azure.ETag.All);
 
@@ -2773,6 +2839,30 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(message, JToken.Parse(status.Output).ToString());
                 Assert.AreEqual(message, JToken.Parse(status.Input).ToString());
 
+                // Now simulate there being no instance entity (which can be the case for suborchestrations that complete in one execution), and try again
+                await instanceTable.DeleteEntityAsync(entity, Azure.ETag.All);
+
+                if (terminate)
+                {
+                    await client.TerminateAsync("testing");
+                }
+                else
+                {
+                    await client.RaiseEventAsync("Foo", "Bar");
+                }
+                await Task.Delay(TimeSpan.FromSeconds(30));
+
+                // A replay should have occurred, forcing the instance table to be updated with a terminal status
+                state = await client.GetStateAsync(instanceId);
+                Assert.AreEqual(1, state.Count);
+
+                status = state.First();
+                Assert.AreEqual(OrchestrationStatus.Completed, status.OrchestrationStatus);
+                Assert.AreEqual(message, JToken.Parse(status.Output).ToString());
+                Assert.AreEqual(message, JToken.Parse(status.Input).ToString());
+                Assert.IsTrue(status.Name.Contains(nameof(Orchestrations.Echo)));
+                Assert.AreEqual(executionId, status.OrchestrationInstance.ExecutionId);
+
                 await host.StopAsync();
             }
         }
@@ -2800,6 +2890,7 @@ namespace DurableTask.AzureStorage.Tests
                 await client.TerminateAsync(message);
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
                 Assert.AreEqual(OrchestrationStatus.Terminated, status?.OrchestrationStatus);
+                string executionId = status.OrchestrationInstance.ExecutionId;
 
                 var instanceId = client.InstanceId;
                 int blobCount = await this.GetBlobCount("test-largemessages", instanceId);
@@ -2816,9 +2907,6 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     ["RuntimeStatus"] = OrchestrationStatus.Running.ToString("G"),
                     ["Output"] = "null",
-                    // We set the input to "null" here to simulate the situation where this was not previously set (for example, for a 
-                    // suborchestration that completed in one execution and so had no previous call to UpdateStateAsync or SetNewExecutionAsync)
-                    ["Input"] = "null",
                 };
                 await instanceTable.MergeEntityAsync(entity, Azure.ETag.All);
 
@@ -2848,6 +2936,30 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(message, status.Output);
                 Assert.AreEqual(0, int.Parse(status.Input));
 
+                // Now simulate there being no instance entity (which can be the case for suborchestrations that complete in one execution), and try again
+                await instanceTable.DeleteEntityAsync(entity, Azure.ETag.All);
+
+                if (terminate)
+                {
+                    await client.TerminateAsync("testing");
+                }
+                else
+                {
+                    await client.RaiseEventAsync("Foo", "Bar");
+                }
+                await Task.Delay(TimeSpan.FromSeconds(30));
+
+                // A replay should have occurred, forcing the instance table to be updated with a terminal status
+                state = await client.GetStateAsync(instanceId);
+                Assert.AreEqual(1, state.Count);
+
+                status = state.First();
+                Assert.AreEqual(OrchestrationStatus.Terminated, status.OrchestrationStatus);
+                Assert.AreEqual(message, status.Output);
+                Assert.AreEqual(0, int.Parse(status.Input));
+                Assert.IsTrue(status.Name.Contains(nameof(Orchestrations.Counter)));
+                Assert.AreEqual(executionId, status.OrchestrationInstance.ExecutionId);
+
                 await host.StopAsync();
             }
         }
@@ -2873,6 +2985,7 @@ namespace DurableTask.AzureStorage.Tests
                     input: message);
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
                 Assert.AreEqual(OrchestrationStatus.Failed, status?.OrchestrationStatus);
+                string executionId = status.OrchestrationInstance.ExecutionId;
 
                 var instanceId = client.InstanceId;
                 int blobCount = await this.GetBlobCount("test-largemessages", instanceId);
@@ -2889,9 +3002,6 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     ["RuntimeStatus"] = OrchestrationStatus.Running.ToString("G"),
                     ["Output"] = "null",
-                    // We set the input to "null" here to simulate the situation where this was not previously set (for example, for a 
-                    // suborchestration that completed in one execution and so had no previous call to UpdateStateAsync or SetNewExecutionAsync)
-                    ["Input"] = "null",
                 };
                 await instanceTable.MergeEntityAsync(entity, Azure.ETag.All);
 
@@ -2920,6 +3030,30 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(OrchestrationStatus.Failed, status.OrchestrationStatus);
                 Assert.AreEqual(message, status.Output);
                 Assert.AreEqual(message, JToken.Parse(status.Input).ToString());
+
+                // Now simulate there being no instance entity (which can be the case for suborchestrations that complete in one execution), and try again
+                await instanceTable.DeleteEntityAsync(entity, Azure.ETag.All);
+
+                if (terminate)
+                {
+                    await client.TerminateAsync("testing");
+                }
+                else
+                {
+                    await client.RaiseEventAsync("Foo", "Bar");
+                }
+                await Task.Delay(TimeSpan.FromSeconds(30));
+
+                // A replay should have occurred, forcing the instance table to be updated with a terminal status
+                state = await client.GetStateAsync(instanceId);
+                Assert.AreEqual(1, state.Count);
+
+                status = state.First();
+                Assert.AreEqual(OrchestrationStatus.Failed, status.OrchestrationStatus);
+                Assert.AreEqual(message, status.Output);
+                Assert.AreEqual(message, JToken.Parse(status.Input).ToString());
+                Assert.IsTrue(status.Name.Contains(nameof(Orchestrations.ThrowException)));
+                Assert.AreEqual(executionId, status.OrchestrationInstance.ExecutionId);
 
                 await host.StopAsync();
             }
