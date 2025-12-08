@@ -1095,22 +1095,14 @@ namespace DurableTask.AzureStorage.Tracking
                 instanceEntity["ScheduledStartTime"] = executionStartedEvent.ScheduledStartTime;
             }
 
-            // Set the input and output
-            // In the case that the output is too large and is stored in blob storage, or the input has not been set by a previous execution and is stored in
-            // blob storage, we must extract the blob names from the history entities.
-            bool outputTooLarge = this.ExceedsMaxTablePropertySize(runtimeState.Output);
-            bool inputTooLarge = this.ExceedsMaxTablePropertySize(runtimeState.Input);
-            TableQueryResults<TableEntity> results = null;
-            if (outputTooLarge || (!instanceEntityExists && inputTooLarge))
+            // Set the output.
+            // In the case that the output is too large and is stored in blob storage, extract the blob name from the ExecutionCompleted history entity.
+            if (this.ExceedsMaxTablePropertySize(runtimeState.Output))
             {
-                results = await this
-                    .GetHistoryEntitiesResponseInfoAsync(instanceId, executionId, null, cancellationToken)
-                    .GetResultsAsync(cancellationToken: cancellationToken);
-            }
-
-            if (outputTooLarge)
-            {
-                TableEntity executionCompletedEntity = results.Entities.LastOrDefault(e => (string)e["EventType"] == EventType.ExecutionCompleted.ToString());
+                string filter = $"{nameof(ITableEntity.PartitionKey)} eq '{KeySanitation.EscapePartitionKey(instanceId)}'" +
+                    $" and {nameof(OrchestrationInstance.ExecutionId)} eq '{executionId}'" +
+                    $" and {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.ExecutionCompleted)}'";
+                TableEntity executionCompletedEntity = (await this.QueryHistoryAsync(filter, instanceId, cancellationToken)).Single();
                 this.SetInstancesTablePropertyFromHistoryProperty(
                     executionCompletedEntity,
                     instanceEntity,
@@ -1122,12 +1114,17 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 instanceEntity[OutputProperty] = runtimeState.Output;
             }
-
+            
+            // If the input has not been set by a previous execution, set the input.
             if (!instanceEntityExists)
             {
-                if (inputTooLarge)
+                // In the case that the input is too large and is stored in blob storage, extract the blob name from the ExecutionStarted history entity.
+                if (this.ExceedsMaxTablePropertySize(runtimeState.Input))
                 {
-                    TableEntity executionStartedEntity = results.Entities.FirstOrDefault(e => (string)e["EventType"] == EventType.ExecutionStarted.ToString());
+                    string filter = $"{nameof(ITableEntity.PartitionKey)} eq '{KeySanitation.EscapePartitionKey(instanceId)}'" +
+                        $" and {nameof(OrchestrationInstance.ExecutionId)} eq '{executionId}'" +
+                        $" and {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.ExecutionStarted)}'";
+                    TableEntity executionStartedEntity = (await this.QueryHistoryAsync(filter, instanceId, cancellationToken)).Single();
                     this.SetInstancesTablePropertyFromHistoryProperty(
                         executionStartedEntity,
                         instanceEntity,
