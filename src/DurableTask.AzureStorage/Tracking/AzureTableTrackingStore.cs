@@ -1095,6 +1095,23 @@ namespace DurableTask.AzureStorage.Tracking
                 instanceEntity["ScheduledStartTime"] = executionStartedEvent.ScheduledStartTime;
             }
 
+            static TableEntity GetSingleEntityFromHistoryTableResults(IReadOnlyList<TableEntity> entities, string dataType)
+            {
+                try
+                {
+                    TableEntity singleEntity = entities.SingleOrDefault();
+
+                    return singleEntity ?? throw new DurableTaskStorageException($"The history table query to determine the blob storage URL " +
+                        $"for the large orchestration {dataType} returned no rows. Unable to extract the URL from these results.");
+                }
+                catch (InvalidOperationException)
+                {
+                    throw new DurableTaskStorageException($"The history table query to determine the blob storage URL for the large orchestration " +
+                        $"{dataType} returned more than one row, when exactly one row is expected. " +
+                        $"Unable to extract the URL from these results.");
+                }
+            }
+
             // Set the output.
             // In the case that the output is too large and is stored in blob storage, extract the blob name from the ExecutionCompleted history entity.
             if (this.ExceedsMaxTablePropertySize(runtimeState.Output))
@@ -1102,7 +1119,7 @@ namespace DurableTask.AzureStorage.Tracking
                 string filter = $"{nameof(ITableEntity.PartitionKey)} eq '{KeySanitation.EscapePartitionKey(instanceId)}'" +
                     $" and {nameof(OrchestrationInstance.ExecutionId)} eq '{executionId}'" +
                     $" and {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.ExecutionCompleted)}'";
-                TableEntity executionCompletedEntity = (await this.QueryHistoryAsync(filter, instanceId, cancellationToken)).Single();
+                TableEntity executionCompletedEntity = GetSingleEntityFromHistoryTableResults(await this.QueryHistoryAsync(filter, instanceId, cancellationToken), "output");
                 this.SetInstancesTablePropertyFromHistoryProperty(
                     executionCompletedEntity,
                     instanceEntity,
@@ -1124,7 +1141,7 @@ namespace DurableTask.AzureStorage.Tracking
                     string filter = $"{nameof(ITableEntity.PartitionKey)} eq '{KeySanitation.EscapePartitionKey(instanceId)}'" +
                         $" and {nameof(OrchestrationInstance.ExecutionId)} eq '{executionId}'" +
                         $" and {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.ExecutionStarted)}'";
-                    TableEntity executionStartedEntity = (await this.QueryHistoryAsync(filter, instanceId, cancellationToken)).Single();
+                    TableEntity executionStartedEntity = GetSingleEntityFromHistoryTableResults(await this.QueryHistoryAsync(filter, instanceId, cancellationToken), "input");
                     this.SetInstancesTablePropertyFromHistoryProperty(
                         executionStartedEntity,
                         instanceEntity,
