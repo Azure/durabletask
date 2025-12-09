@@ -86,16 +86,18 @@ namespace DurableTask.AzureStorage.Storage
             this.stats.TableEntitiesWritten.Increment();
         }
 
-        public async Task InsertEntityAsync<T>(T tableEntity, CancellationToken cancellationToken = default) where T : ITableEntity
+        public async Task<Response> InsertEntityAsync<T>(T tableEntity, CancellationToken cancellationToken = default) where T : ITableEntity
         {
-            await this.tableClient.AddEntityAsync(tableEntity, cancellationToken).DecorateFailure();
+            Response result = await this.tableClient.AddEntityAsync(tableEntity, cancellationToken).DecorateFailure();
             this.stats.TableEntitiesWritten.Increment();
+            return result;
         }
 
-        public async Task MergeEntityAsync<T>(T tableEntity, ETag ifMatch, CancellationToken cancellationToken = default) where T : ITableEntity
+        public async Task<Response> MergeEntityAsync<T>(T tableEntity, ETag ifMatch, CancellationToken cancellationToken = default) where T : ITableEntity
         {
-            await this.tableClient.UpdateEntityAsync(tableEntity, ifMatch, TableUpdateMode.Merge, cancellationToken).DecorateFailure();
+            Response result = await this.tableClient.UpdateEntityAsync(tableEntity, ifMatch, TableUpdateMode.Merge, cancellationToken).DecorateFailure();
             this.stats.TableEntitiesWritten.Increment();
+            return result;
         }
 
         public async Task InsertOrMergeEntityAsync<T>(T tableEntity, CancellationToken cancellationToken = default) where T : ITableEntity

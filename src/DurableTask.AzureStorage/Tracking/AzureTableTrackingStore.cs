@@ -1028,7 +1028,7 @@ namespace DurableTask.AzureStorage.Tracking
                     cancellationToken: cancellationToken);
             }
 
-            await this.TryUpdateInstanceTableAsync(instanceEntity, eTags.InstanceETag, instanceId, executionId, runtimeStatus, episodeNumber);
+            eTags.InstanceETag = await this.TryUpdateInstanceTableAsync(instanceEntity, eTags.InstanceETag, instanceId, executionId, runtimeStatus, episodeNumber);
 
             // finally, delete orphaned blobs from the previous execution history.
             // We had to wait until the new history has committed to make sure the blobs are no longer necessary.
@@ -1412,19 +1412,20 @@ namespace DurableTask.AzureStorage.Tracking
             return false;
         }
 
-        async Task TryUpdateInstanceTableAsync(TableEntity instanceEntity, ETag? eTag, string instanceId, string executionId, OrchestrationStatus runtimeStatus, int episodeNumber)
+        async Task<ETag?> TryUpdateInstanceTableAsync(TableEntity instanceEntity, ETag? eTag, string instanceId, string executionId, OrchestrationStatus runtimeStatus, int episodeNumber)
         {
             Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
-
             try
             {
+                Response result;
+
                 if (eTag == null)
                 {
-                    await this.InstancesTable.InsertEntityAsync(instanceEntity);
+                    result = await this.InstancesTable.InsertEntityAsync(instanceEntity);
                 }
                 else
                 {
-                    await this.InstancesTable.MergeEntityAsync(instanceEntity, eTag.Value);
+                    result = await this.InstancesTable.MergeEntityAsync(instanceEntity, eTag.Value);
                 }
 
                 this.settings.Logger.InstanceStatusUpdate(
@@ -1435,6 +1436,8 @@ namespace DurableTask.AzureStorage.Tracking
                     runtimeStatus,
                     episodeNumber,
                     orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
+
+                return result.Headers.ETag;
             }
             catch (DurableTaskStorageException ex)
             {
