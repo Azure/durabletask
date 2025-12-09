@@ -505,139 +505,149 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task MultipleWorkersAttemptingToCompleteSameWorkItem()
         {
-            var orchestrationInstance = new OrchestrationInstance
+            AzureStorageOrchestrationService service1 = null;
+            AzureStorageOrchestrationService service2 = null;
+            try
             {
-                InstanceId = "instance_id",
-                ExecutionId = "execution_id",
-            };
-
-            ExecutionStartedEvent startedEvent = new(-1, string.Empty)
-            {
-                Name = "orchestration",
-                Version = string.Empty,
-                OrchestrationInstance = orchestrationInstance,
-                ScheduledStartTime = DateTime.UtcNow,
-            };
-
-            // Create worker 1, wait for it to acquire the lease.
-            // Make sure to set a small control queue visibility timeout so that worker 2 can reacquire the work item quickly once worker 1 loses the lease.
-            var service1 = await this.EnsureTaskHubAsync(
-                        nameof(MultipleWorkersAttemptingToCompleteSameWorkItem),
-                        testDeletion: false,
-                        deleteBeforeCreate: true,
-                        partitionCount: 1,
-                        workerId: "1",
-                        controlQueueVisibilityTimeout: TimeSpan.FromSeconds(1)
-                        );
-            await service1.StartAsync();
-            await TestHelpers.WaitFor(
-                condition: () => service1.OwnedControlQueues.Any(),
-                timeout: TimeSpan.FromSeconds(30));
-            ControlQueue controlQueue = service1.OwnedControlQueues.Single();
-
-            // Create the orchestration and get the first work item and start "working" on it
-            await service1.CreateTaskOrchestrationAsync(
-                new TaskMessage()
+                var orchestrationInstance = new OrchestrationInstance
                 {
+                    InstanceId = "instance_id",
+                    ExecutionId = "execution_id",
+                };
+
+                ExecutionStartedEvent startedEvent = new(-1, string.Empty)
+                {
+                    Name = "orchestration",
+                    Version = string.Empty,
                     OrchestrationInstance = orchestrationInstance,
-                    Event = startedEvent
-                });
-            var workItem1 = await service1.LockNextTaskOrchestrationWorkItemAsync(
-                TimeSpan.FromMinutes(5),
-                CancellationToken.None);
-            var runtimeState = workItem1.OrchestrationRuntimeState;
-            runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
-            runtimeState.AddEvent(startedEvent);
-            runtimeState.AddEvent(new TaskScheduledEvent(0, "task"));
-            runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+                    ScheduledStartTime = DateTime.UtcNow,
+                };
 
-            // Now lose the lease
-            BlobPartitionLease lease = await service1.ListBlobLeasesAsync().SingleAsync();
-            await service1.OnOwnershipLeaseReleasedAsync(lease, CloseReason.LeaseLost);
-            await TestHelpers.WaitFor(
-                condition: () => !service1.OwnedControlQueues.Any(),
-                timeout: TimeSpan.FromSeconds(30));
+                // Create worker 1, wait for it to acquire the lease.
+                // Make sure to set a small control queue visibility timeout so that worker 2 can reacquire the work item quickly once worker 1 loses the lease.
+                service1 = await this.EnsureTaskHubAsync(
+                            nameof(MultipleWorkersAttemptingToCompleteSameWorkItem),
+                            testDeletion: false,
+                            deleteBeforeCreate: true,
+                            partitionCount: 1,
+                            workerId: "1",
+                            controlQueueVisibilityTimeout: TimeSpan.FromSeconds(1)
+                            );
+                await service1.StartAsync();
+                await TestHelpers.WaitFor(
+                    condition: () => service1.OwnedControlQueues.Any(),
+                    timeout: TimeSpan.FromSeconds(30));
+                ControlQueue controlQueue = service1.OwnedControlQueues.Single();
 
-            // Create worker 2, wait for it to now acquire the lease
-            var service2 = await this.EnsureTaskHubAsync(
-                        nameof(MultipleWorkersAttemptingToCompleteSameWorkItem),
-                        testDeletion: false,
-                        deleteBeforeCreate: false,
-                        workerId: "2",
-                        partitionCount: 1,
-                        controlQueueVisibilityTimeout: TimeSpan.FromSeconds(1)
-                        );
-            await service2.StartAsync();
-            await service2.OnOwnershipLeaseAquiredAsync(lease);
-            await TestHelpers.WaitFor(
-                condition: () => service2.OwnedControlQueues.Any(),
-                timeout: TimeSpan.FromSeconds(60));
+                // Create the orchestration and get the first work item and start "working" on it
+                await service1.CreateTaskOrchestrationAsync(
+                    new TaskMessage()
+                    {
+                        OrchestrationInstance = orchestrationInstance,
+                        Event = startedEvent
+                    });
+                var workItem1 = await service1.LockNextTaskOrchestrationWorkItemAsync(
+                    TimeSpan.FromMinutes(5),
+                    CancellationToken.None);
+                var runtimeState = workItem1.OrchestrationRuntimeState;
+                runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                runtimeState.AddEvent(startedEvent);
+                runtimeState.AddEvent(new TaskScheduledEvent(0, "task"));
+                runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
 
-            // Have worker 2 dequeue the same work item and start "working" on it
-            var workItem2 = await service2.LockNextTaskOrchestrationWorkItemAsync(
-                TimeSpan.FromMinutes(5),
-                CancellationToken.None);
-            workItem2.OrchestrationRuntimeState = runtimeState;
+                // Now lose the lease
+                BlobPartitionLease lease = await service1.ListBlobLeasesAsync().SingleAsync();
+                await service1.OnOwnershipLeaseReleasedAsync(lease, CloseReason.LeaseLost);
+                await TestHelpers.WaitFor(
+                    condition: () => !service1.OwnedControlQueues.Any(),
+                    timeout: TimeSpan.FromSeconds(30));
 
-            // Worker 2 completes the work item
-            await service2.CompleteTaskOrchestrationWorkItemAsync(workItem2, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null);
-            // Now worker 1 will attempt to complete the same work item. Since this is the first attempt to complete a work item and add a history for the orchestration (by worker 1),
-            // there is no etag stored for the OrchestrationSession, and so the a "conflict" exception will be thrown as worker 2 already created a history for the orchestration.
-            SessionAbortedException exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
-                await service1.CompleteTaskOrchestrationWorkItemAsync(workItem1, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
-            );
-            Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));
-            DurableTaskStorageException dtse = (DurableTaskStorageException)exception.InnerException;
-            Assert.AreEqual((int)HttpStatusCode.Conflict, dtse.HttpStatusCode);
-            await service1.ReleaseTaskOrchestrationWorkItemAsync(workItem1);
-            await service2.ReleaseTaskOrchestrationWorkItemAsync(workItem2);
+                // Create worker 2, wait for it to now acquire the lease
+                service2 = await this.EnsureTaskHubAsync(
+                            nameof(MultipleWorkersAttemptingToCompleteSameWorkItem),
+                            testDeletion: false,
+                            deleteBeforeCreate: false,
+                            workerId: "2",
+                            partitionCount: 1,
+                            controlQueueVisibilityTimeout: TimeSpan.FromSeconds(1)
+                            );
+                await service2.StartAsync();
+                await service2.OnOwnershipLeaseAquiredAsync(lease);
+                await TestHelpers.WaitFor(
+                    condition: () => service2.OwnedControlQueues.Any(),
+                    timeout: TimeSpan.FromSeconds(60));
 
-            // Now simulate a task completing for the orchestration
-            var taskCompletedEvent = new TaskCompletedEvent(-1, 0, string.Empty);
-            await service2.SendTaskOrchestrationMessageAsync(new TaskMessage { Event = taskCompletedEvent, OrchestrationInstance = orchestrationInstance });
-            // Worker 2 gets the next work item related to this task completion and starts "working" on it
-            workItem2 = await service2.LockNextTaskOrchestrationWorkItemAsync(
-                TimeSpan.FromMinutes(5),
-                CancellationToken.None);
-            runtimeState = workItem2.OrchestrationRuntimeState;
-            runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
-            runtimeState.AddEvent(taskCompletedEvent);
-            runtimeState.AddEvent(new ExecutionCompletedEvent(1, string.Empty, OrchestrationStatus.Completed));
-            runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+                // Have worker 2 dequeue the same work item and start "working" on it
+                var workItem2 = await service2.LockNextTaskOrchestrationWorkItemAsync(
+                    TimeSpan.FromMinutes(5),
+                    CancellationToken.None);
+                workItem2.OrchestrationRuntimeState = runtimeState;
 
-            // Now force worker 2 to lose the lease and have worker 1 acquire it
-            lease = await service2.ListBlobLeasesAsync().SingleAsync();
-            await service2.OnOwnershipLeaseReleasedAsync(lease, CloseReason.LeaseLost);
-            await TestHelpers.WaitFor(
-                condition: () => !service2.OwnedControlQueues.Any(),
-                timeout: TimeSpan.FromSeconds(30));
-            await service1.OnOwnershipLeaseAquiredAsync(lease);
-            await TestHelpers.WaitFor(
-                condition: () => service1.OwnedControlQueues.Any(),
-                timeout: TimeSpan.FromSeconds(60));
+                // Worker 2 completes the work item
+                await service2.CompleteTaskOrchestrationWorkItemAsync(workItem2, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null);
+                // Now worker 1 will attempt to complete the same work item. Since this is the first attempt to complete a work item and add a history for the orchestration (by worker 1),
+                // there is no etag stored for the OrchestrationSession, and so the a "conflict" exception will be thrown as worker 2 already created a history for the orchestration.
+                SessionAbortedException exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
+                    await service1.CompleteTaskOrchestrationWorkItemAsync(workItem1, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
+                );
+                Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));
+                DurableTaskStorageException dtse = (DurableTaskStorageException)exception.InnerException;
+                Assert.AreEqual((int)HttpStatusCode.Conflict, dtse.HttpStatusCode);
+                await service1.ReleaseTaskOrchestrationWorkItemAsync(workItem1);
+                await service2.ReleaseTaskOrchestrationWorkItemAsync(workItem2);
 
-            // Worker 1 also acquires the work item and starts "working" on it
-            workItem1 = await service1.LockNextTaskOrchestrationWorkItemAsync(
-                TimeSpan.FromMinutes(5),
-                CancellationToken.None);
-            workItem1.OrchestrationRuntimeState = runtimeState;
+                // Now simulate a task completing for the orchestration
+                var taskCompletedEvent = new TaskCompletedEvent(-1, 0, string.Empty);
+                await service2.SendTaskOrchestrationMessageAsync(new TaskMessage { Event = taskCompletedEvent, OrchestrationInstance = orchestrationInstance });
+                // Worker 2 gets the next work item related to this task completion and starts "working" on it
+                workItem2 = await service2.LockNextTaskOrchestrationWorkItemAsync(
+                    TimeSpan.FromMinutes(5),
+                    CancellationToken.None);
+                runtimeState = workItem2.OrchestrationRuntimeState;
+                runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                runtimeState.AddEvent(taskCompletedEvent);
+                runtimeState.AddEvent(new ExecutionCompletedEvent(1, string.Empty, OrchestrationStatus.Completed));
+                runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
 
-            // Worker 1 completes the work item
-            await service1.CompleteTaskOrchestrationWorkItemAsync(workItem1, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null);
-            // Now worker 2 attempts to complete the same work item. Since this is not the first work item for the orchestration, now an etag exists for the OrchestrationSession, and the exception
-            // that is thrown will be "precondition failed" as the Etag is stale after worker 1 completed the work item.
-            exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
-                await service2.CompleteTaskOrchestrationWorkItemAsync(workItem2, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
-            );
-            Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));
-            dtse = (DurableTaskStorageException)exception.InnerException;
-            Assert.AreEqual((int)HttpStatusCode.PreconditionFailed, dtse.HttpStatusCode);
+                // Now force worker 2 to lose the lease and have worker 1 acquire it
+                lease = await service2.ListBlobLeasesAsync().SingleAsync();
+                await service2.OnOwnershipLeaseReleasedAsync(lease, CloseReason.LeaseLost);
+                await TestHelpers.WaitFor(
+                    condition: () => !service2.OwnedControlQueues.Any(),
+                    timeout: TimeSpan.FromSeconds(30));
+                await service1.OnOwnershipLeaseAquiredAsync(lease);
+                await TestHelpers.WaitFor(
+                    condition: () => service1.OwnedControlQueues.Any(),
+                    timeout: TimeSpan.FromSeconds(60));
+
+                // Worker 1 also acquires the work item and starts "working" on it
+                workItem1 = await service1.LockNextTaskOrchestrationWorkItemAsync(
+                    TimeSpan.FromMinutes(5),
+                    CancellationToken.None);
+                workItem1.OrchestrationRuntimeState = runtimeState;
+
+                // Worker 1 completes the work item
+                await service1.CompleteTaskOrchestrationWorkItemAsync(workItem1, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null);
+                // Now worker 2 attempts to complete the same work item. Since this is not the first work item for the orchestration, now an etag exists for the OrchestrationSession, and the exception
+                // that is thrown will be "precondition failed" as the Etag is stale after worker 1 completed the work item.
+                exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
+                    await service2.CompleteTaskOrchestrationWorkItemAsync(workItem2, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
+                );
+                Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));
+                dtse = (DurableTaskStorageException)exception.InnerException;
+                Assert.AreEqual((int)HttpStatusCode.PreconditionFailed, dtse.HttpStatusCode);
+            }
+            finally
+            {
+                await service1?.StopAsync(isForced: true);
+                await service2?.StopAsync(isForced: true);
+            }
         }
 
         /// <summary>
         /// Confirm that if a worker tries to complete a work item after stalling and another worker has since completed the work item,
         /// a SessionAbortedException is thrown which wraps the inner DurableTaskStorageException, which has the correct status code (precondition failed).
-        /// The specific scenario tested is if the the worker stalled after updating the history table but before updating the instance table.
+        /// The specific scenario tested is if the worker stalled after updating the history table but before updating the instance table.
         /// When it attempts to update the instance table with a stale etag, it will fail.
         /// </summary>
         /// <remarks>
@@ -649,72 +659,80 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task WorkerAttemptingToUpdateInstanceTableAfterStalling()
         {
-            var orchestrationInstance = new OrchestrationInstance
+            AzureStorageOrchestrationService service = null;
+            try
             {
-                InstanceId = "instance_id",
-                ExecutionId = "execution_id",
-            };
-
-            ExecutionStartedEvent startedEvent = new(-1, string.Empty)
-            {
-                Name = "orchestration",
-                Version = string.Empty,
-                OrchestrationInstance = orchestrationInstance,
-                ScheduledStartTime = DateTime.UtcNow,
-            };
-
-            var settings = new AzureStorageOrchestrationServiceSettings
-            {
-                PartitionCount = 1,
-                StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
-                TaskHubName = TestHelpers.GetTestTaskHubName(),
-                ExtendedSessionsEnabled = false
-            };
-            this.SetPartitionManagerType(settings, PartitionManagerType.V2Safe);
-
-            var service = new AzureStorageOrchestrationService(settings);
-            await service.CreateAsync();
-            await service.StartAsync();
-
-            // Create the orchestration and get the first work item and start "working" on it
-            await service.CreateTaskOrchestrationAsync(
-                new TaskMessage()
+                var orchestrationInstance = new OrchestrationInstance
                 {
+                    InstanceId = "instance_id",
+                    ExecutionId = "execution_id",
+                };
+
+                ExecutionStartedEvent startedEvent = new(-1, string.Empty)
+                {
+                    Name = "orchestration",
+                    Version = string.Empty,
                     OrchestrationInstance = orchestrationInstance,
-                    Event = startedEvent
-                });
-            var workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
-                TimeSpan.FromMinutes(5),
-                CancellationToken.None);
-            var runtimeState = workItem.OrchestrationRuntimeState;
-            runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
-            runtimeState.AddEvent(startedEvent);
-            runtimeState.AddEvent(new ExecutionCompletedEvent(0, string.Empty, OrchestrationStatus.Completed));
-            runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+                    ScheduledStartTime = DateTime.UtcNow,
+                };
 
-            AzureStorageClient azureStorageClient = new AzureStorageClient(settings);
+                var settings = new AzureStorageOrchestrationServiceSettings
+                {
+                    PartitionCount = 1,
+                    StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                    TaskHubName = TestHelpers.GetTestTaskHubName(),
+                    ExtendedSessionsEnabled = false
+                };
+                this.SetPartitionManagerType(settings, PartitionManagerType.V2Safe);
 
-            // Now manually update the instance to have status "Completed"
-            Table instanceTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName);
-            TableEntity entity = new (orchestrationInstance.InstanceId, "")
+                service = new AzureStorageOrchestrationService(settings);
+                await service.CreateAsync();
+                await service.StartAsync();
+
+                // Create the orchestration and get the first work item and start "working" on it
+                await service.CreateTaskOrchestrationAsync(
+                    new TaskMessage()
+                    {
+                        OrchestrationInstance = orchestrationInstance,
+                        Event = startedEvent
+                    });
+                var workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                    TimeSpan.FromMinutes(5),
+                    CancellationToken.None);
+                var runtimeState = workItem.OrchestrationRuntimeState;
+                runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                runtimeState.AddEvent(startedEvent);
+                runtimeState.AddEvent(new ExecutionCompletedEvent(0, string.Empty, OrchestrationStatus.Completed));
+                runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+                AzureStorageClient azureStorageClient = new AzureStorageClient(settings);
+
+                // Now manually update the instance to have status "Completed"
+                Table instanceTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName);
+                TableEntity entity = new(orchestrationInstance.InstanceId, "")
+                {
+                    ["RuntimeStatus"] = OrchestrationStatus.Completed.ToString("G"),
+                };
+                await instanceTable.MergeEntityAsync(entity, Azure.ETag.All);
+
+                // Confirm an exception is thrown due to the etag mismatch for the instance table when the worker attempts to complete the work item
+                SessionAbortedException exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
+                    await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
+                );
+                Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));
+                DurableTaskStorageException dtse = (DurableTaskStorageException)exception.InnerException;
+                Assert.AreEqual((int)HttpStatusCode.PreconditionFailed, dtse.HttpStatusCode);
+            }
+            finally
             {
-                ["RuntimeStatus"] = OrchestrationStatus.Completed.ToString("G"),
-            };
-            await instanceTable.MergeEntityAsync(entity, Azure.ETag.All);
-
-            // Confirm an exception is thrown due to the etag mismatch for the instance table when the worker attempts to complete the work item
-            SessionAbortedException exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
-                await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
-            );
-            Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));
-            DurableTaskStorageException dtse = (DurableTaskStorageException)exception.InnerException;
-            Assert.AreEqual((int)HttpStatusCode.PreconditionFailed, dtse.HttpStatusCode);
+                await service?.StopAsync(isForced: true);
+            }
         }
 
         /// <summary>
         /// Confirm that if a worker tries to complete a work item for a suborchestration after stalling and another worker has since completed the work item,
         /// a SessionAbortedException is thrown which wraps the inner DurableTaskStorageException, which has the correct status code (conflict).
-        /// The specific scenario tested is if the the worker stalled after updating the history table but before updating the instance table for the first work item
+        /// The specific scenario tested is if the worker stalled after updating the history table but before updating the instance table for the first work item
         /// for a suborchestration. When it attempts to insert a new entity into the instance table for the suborchestration (since for a suborchestration,
         /// the instance entity is only created upon completion of the first work item), it will fail.
         /// </summary>
@@ -727,109 +745,117 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task WorkerAttemptingToUpdateInstanceTableAfterStallingForSubOrchestration()
         {
-            var orchestrationInstance = new OrchestrationInstance
+            AzureStorageOrchestrationService service = null;
+            try
             {
-                InstanceId = "instance_id",
-                ExecutionId = "execution_id",
-            };
-
-            ExecutionStartedEvent startedEvent = new(-1, string.Empty)
-            {
-                Name = "orchestration",
-                Version = string.Empty,
-                OrchestrationInstance = orchestrationInstance,
-                ScheduledStartTime = DateTime.UtcNow,
-            };
-
-            var settings = new AzureStorageOrchestrationServiceSettings
-            {
-                PartitionCount = 1,
-                StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
-                TaskHubName = TestHelpers.GetTestTaskHubName(),
-                ExtendedSessionsEnabled = false
-            };
-            this.SetPartitionManagerType(settings, PartitionManagerType.V2Safe);
-
-            var service = new AzureStorageOrchestrationService(settings);
-            await service.CreateAsync();
-            await service.StartAsync();
-
-            // Create the orchestration and get the first work item and start "working" on it
-            await service.CreateTaskOrchestrationAsync(
-                new TaskMessage()
+                var orchestrationInstance = new OrchestrationInstance
                 {
+                    InstanceId = "instance_id",
+                    ExecutionId = "execution_id",
+                };
+
+                ExecutionStartedEvent startedEvent = new(-1, string.Empty)
+                {
+                    Name = "orchestration",
+                    Version = string.Empty,
                     OrchestrationInstance = orchestrationInstance,
-                    Event = startedEvent
-                });
-            var workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
-                TimeSpan.FromMinutes(5),
-                CancellationToken.None);
-            var runtimeState = workItem.OrchestrationRuntimeState;
-            runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
-            runtimeState.AddEvent(startedEvent);
-            runtimeState.AddEvent(new SubOrchestrationInstanceCreatedEvent(0)
-            {
-                Name = "suborchestration",
-                InstanceId = "sub_instance_id"
-            });
-            runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+                    ScheduledStartTime = DateTime.UtcNow,
+                };
 
-            // Create the task message to start the suborchestration
-            var subOrchestrationExecutionStartedEvent = new ExecutionStartedEvent(-1, string.Empty)
-            {
-                OrchestrationInstance = new OrchestrationInstance
+                var settings = new AzureStorageOrchestrationServiceSettings
                 {
-                    InstanceId = "sub_instance_id",
-                    ExecutionId = Guid.NewGuid().ToString("N")
-                },
-                ParentInstance = new ParentInstance
+                    PartitionCount = 1,
+                    StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                    TaskHubName = TestHelpers.GetTestTaskHubName(),
+                    ExtendedSessionsEnabled = false
+                };
+                this.SetPartitionManagerType(settings, PartitionManagerType.V2Safe);
+
+                service = new AzureStorageOrchestrationService(settings);
+                await service.CreateAsync();
+                await service.StartAsync();
+
+                // Create the orchestration and get the first work item and start "working" on it
+                await service.CreateTaskOrchestrationAsync(
+                    new TaskMessage()
+                    {
+                        OrchestrationInstance = orchestrationInstance,
+                        Event = startedEvent
+                    });
+                var workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                    TimeSpan.FromMinutes(5),
+                    CancellationToken.None);
+                var runtimeState = workItem.OrchestrationRuntimeState;
+                runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                runtimeState.AddEvent(startedEvent);
+                runtimeState.AddEvent(new SubOrchestrationInstanceCreatedEvent(0)
                 {
-                    OrchestrationInstance = runtimeState.OrchestrationInstance,
-                    Name = runtimeState.Name,
-                    Version = runtimeState.Version,
-                    TaskScheduleId = 0,
-                },
-                Name = "suborchestration"
-            };
-            List<TaskMessage> orchestratorMessages =
-            new() {
+                    Name = "suborchestration",
+                    InstanceId = "sub_instance_id"
+                });
+                runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+                // Create the task message to start the suborchestration
+                var subOrchestrationExecutionStartedEvent = new ExecutionStartedEvent(-1, string.Empty)
+                {
+                    OrchestrationInstance = new OrchestrationInstance
+                    {
+                        InstanceId = "sub_instance_id",
+                        ExecutionId = Guid.NewGuid().ToString("N")
+                    },
+                    ParentInstance = new ParentInstance
+                    {
+                        OrchestrationInstance = runtimeState.OrchestrationInstance,
+                        Name = runtimeState.Name,
+                        Version = runtimeState.Version,
+                        TaskScheduleId = 0,
+                    },
+                    Name = "suborchestration"
+                };
+                List<TaskMessage> orchestratorMessages =
+                new() {
                 new TaskMessage()
                 {
                     OrchestrationInstance = subOrchestrationExecutionStartedEvent.OrchestrationInstance,
                     Event = subOrchestrationExecutionStartedEvent,
                 }
-            };
+                };
 
-            // Complete the first work item, which will send the execution started message for the suborchestration
-            await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), orchestratorMessages, new List<TaskMessage>(), null, null);
-            
-            // Now get the work item for the suborchestration and "work" on it
-            workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
-                TimeSpan.FromMinutes(5),
-                CancellationToken.None);
-            runtimeState = workItem.OrchestrationRuntimeState;
-            runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
-            runtimeState.AddEvent(subOrchestrationExecutionStartedEvent);
-            runtimeState.AddEvent(new ExecutionCompletedEvent(0, string.Empty, OrchestrationStatus.Completed));
-            runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+                // Complete the first work item, which will send the execution started message for the suborchestration
+                await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), orchestratorMessages, new List<TaskMessage>(), null, null);
 
-            AzureStorageClient azureStorageClient = new (settings);
-            Table instanceTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName);
-            // Now manually update the suborchestration to have status "Completed"
-            TableEntity entity = new ("sub_instance_id", "")
+                // Now get the work item for the suborchestration and "work" on it
+                workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                    TimeSpan.FromMinutes(5),
+                    CancellationToken.None);
+                runtimeState = workItem.OrchestrationRuntimeState;
+                runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                runtimeState.AddEvent(subOrchestrationExecutionStartedEvent);
+                runtimeState.AddEvent(new ExecutionCompletedEvent(0, string.Empty, OrchestrationStatus.Completed));
+                runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+                AzureStorageClient azureStorageClient = new(settings);
+                Table instanceTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName);
+                // Now manually update the suborchestration to have status "Completed"
+                TableEntity entity = new("sub_instance_id", "")
+                {
+                    ["RuntimeStatus"] = OrchestrationStatus.Completed.ToString("G"),
+                };
+                await instanceTable.InsertEntityAsync(entity);
+
+                // Confirm an exception is thrown because the worker attempts to insert a new entity for the suborchestration into the instance table
+                // when one already exists
+                SessionAbortedException exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
+                    await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
+                );
+                Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));
+                DurableTaskStorageException dtse = (DurableTaskStorageException)exception.InnerException;
+                Assert.AreEqual((int)HttpStatusCode.Conflict, dtse.HttpStatusCode);
+            }
+            finally
             {
-                ["RuntimeStatus"] = OrchestrationStatus.Completed.ToString("G"),
-            };
-            await instanceTable.InsertEntityAsync(entity);
-
-            // Confirm an exception is thrown because the worker attempts to insert a new entity for the suborchestration into the instance table
-            // when one already exists
-            SessionAbortedException exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
-                await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
-            );
-            Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));
-            DurableTaskStorageException dtse = (DurableTaskStorageException)exception.InnerException;
-            Assert.AreEqual((int)HttpStatusCode.Conflict, dtse.HttpStatusCode);
+                await service?.StopAsync(isForced: true);
+            }
         }
 
         [TestMethod]

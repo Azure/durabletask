@@ -1353,7 +1353,7 @@ namespace DurableTask.AzureStorage.Tracking
             }
             catch (DurableTaskStorageException ex)
             {
-                // Handle the case where the the history has already been updated by another caller.
+                // Handle the case where the history has already been updated by another caller.
                 // Common case: the resulting code is 'PreconditionFailed', which means "eTagValue" no longer matches the one stored, and TableTransactionActionType is "Update".
                 // Edge case: the resulting code is 'Conflict'. This is the case when eTagValue is null, and the TableTransactionActionType is "Add",
                 // in which case the exception indicates that the table entity we are trying to "add" already exists.
@@ -1414,19 +1414,13 @@ namespace DurableTask.AzureStorage.Tracking
 
         async Task<ETag?> TryUpdateInstanceTableAsync(TableEntity instanceEntity, ETag? eTag, string instanceId, string executionId, OrchestrationStatus runtimeStatus, int episodeNumber)
         {
-            Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
+            var orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
+
             try
             {
-                Response result;
-
-                if (eTag == null)
-                {
-                    result = await this.InstancesTable.InsertEntityAsync(instanceEntity);
-                }
-                else
-                {
-                    result = await this.InstancesTable.MergeEntityAsync(instanceEntity, eTag.Value);
-                }
+                Response result = await (eTag == null
+                                     ? this.InstancesTable.InsertEntityAsync(instanceEntity)
+                                     : this.InstancesTable.MergeEntityAsync(instanceEntity, eTag.Value));
 
                 this.settings.Logger.InstanceStatusUpdate(
                     this.storageAccountName,
@@ -1441,7 +1435,7 @@ namespace DurableTask.AzureStorage.Tracking
             }
             catch (DurableTaskStorageException ex)
             {
-                // Handle the case where the the history has already been updated by another caller.
+                // Handle the case where the instance table has already been updated by another caller.
                 // Common case: the resulting code is 'PreconditionFailed', which means we are trying to update an existing instance entity and "eTag" no longer matches the one stored.
                 // Edge case: the resulting code is 'Conflict'. This is the case when eTag is null, and we are trying to insert a new instance entity, in which case the exception
                 // indicates that the table entity we are trying to "add" already exists.
