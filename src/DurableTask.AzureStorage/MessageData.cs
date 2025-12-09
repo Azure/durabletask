@@ -111,6 +111,8 @@ namespace DurableTask.AzureStorage
         {
             this.OriginalQueueMessage = this.OriginalQueueMessage.Update(receipt);
         }
+
+        internal object MessageMetadata { get; set; }
     }
 
     /// <summary>
