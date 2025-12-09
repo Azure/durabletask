@@ -14,7 +14,7 @@
     <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.19.0" />
     <PackageVersion Include="Azure.Storage.Blobs" Version="12.24.0" />
     <PackageVersion Include="Azure.Storage.Queues" Version="12.22.0" />
-    <PackageVersion Include="Castle.Core" Version="5.0.0" />
+    <PackageVersion Include="Castle.Core" Version="5.2.1" />
     <PackageVersion Include="ImpromptuInterface" Version="6.2.2" Condition="'$(TargetFramework)' == 'net48' OR '$(TargetFramework)' == 'net472'" />
     <PackageVersion Include="ImpromptuInterface" Version="7.0.1" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
     <PackageVersion Include="Microsoft.ApplicationInsights" Version="2.21.0" />
