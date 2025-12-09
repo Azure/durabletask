@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <UserSecretsId>d4d9b2e3-fb2a-4de6-9747-3d6d3b639d1a</UserSecretsId>
     <ApplicationInsightsResourceId>dummy-value</ApplicationInsightsResourceId>
+    <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings>
   </PropertyGroup>
 
   <ItemGroup>
