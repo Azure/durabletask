@@ -72,10 +72,10 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="oldRuntimeState">The RuntimeState for an olderExecution</param>
         /// <param name="instanceId">InstanceId for the Orchestration Update</param>
         /// <param name="executionId">ExecutionId for the Orchestration Update</param>
-        /// <param name="eTag">The ETag value to use for safe updates</param>
+        /// <param name="eTags">The ETag value for the instance and history tables to use for safe updates</param>
         /// <param name="trackingStoreContext">Additional context for the execution that is maintained by the tracking store.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        Task<ETag?> UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, ETag? eTag, object trackingStoreContext, CancellationToken cancellationToken = default);
+        Task UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, OrchestrationETags eTags, object trackingStoreContext, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get The Orchestration State for the Latest or All Executions
@@ -127,7 +127,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// </summary>
         /// <param name="instanceIds">The list of instances to query for.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        IAsyncEnumerable<OrchestrationState> GetStateAsync(IEnumerable<string> instanceIds, CancellationToken cancellationToken = default);
+        IAsyncEnumerable<InstanceStatus> FetchInstanceStatusAsync(IEnumerable<string> instanceIds, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get The Orchestration State for querying orchestration instances by the condition

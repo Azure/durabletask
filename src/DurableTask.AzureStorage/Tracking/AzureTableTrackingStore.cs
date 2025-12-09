@@ -510,19 +510,19 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async IAsyncEnumerable<OrchestrationState> GetStateAsync(IEnumerable<string> instanceIds, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        public override async IAsyncEnumerable<InstanceStatus> FetchInstanceStatusAsync(IEnumerable<string> instanceIds, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             if (instanceIds == null)
             {
                 yield break;
             }
 
-            IEnumerable<Task<OrchestrationState>> instanceQueries = instanceIds.Select(instance => this.GetStateAsync(instance, allExecutions: true, fetchInput: false, cancellationToken).SingleOrDefaultAsync().AsTask());
-            foreach (OrchestrationState state in await Task.WhenAll(instanceQueries))
+            IEnumerable<Task<InstanceStatus>> instanceQueries = instanceIds.Select(instance => this.FetchInstanceStatusAsync(instance, cancellationToken));
+            foreach (InstanceStatus status in await Task.WhenAll(instanceQueries))
             {
-                if (state != null)
+                if (status != null)
                 {
-                    yield return state;
+                    yield return status;
                 }
             }
         }
@@ -839,12 +839,12 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task<ETag?> UpdateStateAsync(
+        public override async Task UpdateStateAsync(
             OrchestrationRuntimeState newRuntimeState,
             OrchestrationRuntimeState oldRuntimeState,
             string instanceId,
             string executionId,
-            ETag? eTagValue,
+            OrchestrationETags eTags,
             object trackingStoreContext,
             CancellationToken cancellationToken = default)
         {
@@ -991,7 +991,7 @@ namespace DurableTask.AzureStorage.Tracking
                 // Table storage only supports inserts of up to 100 entities at a time or 4 MB at a time.
                 if (historyEventBatch.Count == 99 || estimatedBytes > 3 * 1024 * 1024 /* 3 MB */)
                 {
-                    eTagValue = await this.UploadHistoryBatch(
+                    eTags.HistoryETag = await this.UploadHistoryBatch(
                         instanceId,
                         sanitizedInstanceId,
                         executionId,
@@ -1000,7 +1000,7 @@ namespace DurableTask.AzureStorage.Tracking
                         allEvents.Count,
                         episodeNumber,
                         estimatedBytes,
-                        eTagValue,
+                        eTags.HistoryETag,
                         isFinalBatch: isFinalEvent,
                         cancellationToken: cancellationToken);
 
@@ -1014,7 +1014,7 @@ namespace DurableTask.AzureStorage.Tracking
             // First persistence step is to commit history to the history table. Messages must come after.
             if (historyEventBatch.Count > 0)
             {
-                eTagValue = await this.UploadHistoryBatch(
+                eTags.HistoryETag = await this.UploadHistoryBatch(
                     instanceId,
                     sanitizedInstanceId,
                     executionId,
@@ -1023,22 +1023,12 @@ namespace DurableTask.AzureStorage.Tracking
                     allEvents.Count,
                     episodeNumber,
                     estimatedBytes,
-                    eTagValue,
+                    eTags.HistoryETag,
                     isFinalBatch: true,
                     cancellationToken: cancellationToken);
             }
 
-            Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
-            await this.InstancesTable.InsertOrMergeEntityAsync(instanceEntity);
-
-            this.settings.Logger.InstanceStatusUpdate(
-                this.storageAccountName,
-                this.taskHubName,
-                instanceId,
-                executionId,
-                runtimeStatus,
-                episodeNumber,
-                orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
+            await this.TryUpdateInstanceTableAsync(instanceEntity, eTags.InstanceETag, instanceId, executionId, runtimeStatus, episodeNumber);
 
             // finally, delete orphaned blobs from the previous execution history.
             // We had to wait until the new history has committed to make sure the blobs are no longer necessary.
@@ -1051,8 +1041,6 @@ namespace DurableTask.AzureStorage.Tracking
                 }
                 await Task.WhenAll(tasks);
             }
-
-            return eTagValue;
         }
 
         public override async Task UpdateInstanceStatusForCompletedOrchestrationAsync(
@@ -1422,6 +1410,56 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             return false;
+        }
+
+        async Task TryUpdateInstanceTableAsync(TableEntity instanceEntity, ETag? eTag, string instanceId, string executionId, OrchestrationStatus runtimeStatus, int episodeNumber)
+        {
+            Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
+
+            try
+            {
+                if (eTag == null)
+                {
+                    await this.InstancesTable.InsertEntityAsync(instanceEntity);
+                }
+                else
+                {
+                    await this.InstancesTable.MergeEntityAsync(instanceEntity, eTag.Value);
+                }
+
+                this.settings.Logger.InstanceStatusUpdate(
+                    this.storageAccountName,
+                    this.taskHubName,
+                    instanceId,
+                    executionId,
+                    runtimeStatus,
+                    episodeNumber,
+                    orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
+            }
+            catch (DurableTaskStorageException ex)
+            {
+                // Handle the case where the the history has already been updated by another caller.
+                // Common case: the resulting code is 'PreconditionFailed', which means we are trying to update an existing instance entity and "eTag" no longer matches the one stored.
+                // Edge case: the resulting code is 'Conflict'. This is the case when eTag is null, and we are trying to insert a new instance entity, in which case the exception
+                // indicates that the table entity we are trying to "add" already exists.
+                if (ex.HttpStatusCode == (int)HttpStatusCode.Conflict || ex.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
+                {
+                    this.settings.Logger.SplitBrainDetected(
+                        this.storageAccountName,
+                        this.taskHubName,
+                        instanceId,
+                        executionId,
+                        newEventCount: 0,
+                        totalEventCount: 1, // these fields don't really make sense for the instance table case. do we want to introduce a new log? or are we okay with this since "InstanceEntity" 
+                        // in the new events field will allow this to be detectable? 
+                        "InstanceEntity",
+                        orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds,
+                        eTag is null ? string.Empty : eTag.ToString());
+                }
+
+                throw;
+            }
+
         }
 
         class TrackingStoreContext

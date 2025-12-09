@@ -13,13 +13,6 @@
 
 namespace DurableTask.AzureStorage.Tests
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Diagnostics;
-    using System.Linq;
-    using System.Net;
-    using System.Threading;
-    using System.Threading.Tasks;
     using Azure.Data.Tables;
     using Azure.Storage.Blobs;
     using Azure.Storage.Blobs.Models;
@@ -33,6 +26,13 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using System;
+    using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.Linq;
+    using System.Net;
+    using System.Threading;
+    using System.Threading.Tasks;
 
     /// <summary>
     /// Validates the following requirements:
@@ -632,6 +632,204 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));
             dtse = (DurableTaskStorageException)exception.InnerException;
             Assert.AreEqual((int)HttpStatusCode.PreconditionFailed, dtse.HttpStatusCode);
+        }
+
+        /// <summary>
+        /// Confirm that if a worker tries to complete a work item after stalling and another worker has since completed the work item,
+        /// a SessionAbortedException is thrown which wraps the inner DurableTaskStorageException, which has the correct status code (precondition failed).
+        /// The specific scenario tested is if the the worker stalled after updating the history table but before updating the instance table.
+        /// When it attempts to update the instance table with a stale etag, it will fail.
+        /// </summary>
+        /// <remarks>
+        /// Since it is impossible to force stalling, we simulate the above scenario by manually updating the instance table before the worker
+        /// attempts to complete the work item. The history table update will go through, but the instance table update will fail since "another worker
+        /// has since updated" the instance table.
+        /// </remarks>
+        /// <returns></returns>
+        [TestMethod]
+        public async Task WorkerAttemptingToUpdateInstanceTableAfterStalling()
+        {
+            var orchestrationInstance = new OrchestrationInstance
+            {
+                InstanceId = "instance_id",
+                ExecutionId = "execution_id",
+            };
+
+            ExecutionStartedEvent startedEvent = new(-1, string.Empty)
+            {
+                Name = "orchestration",
+                Version = string.Empty,
+                OrchestrationInstance = orchestrationInstance,
+                ScheduledStartTime = DateTime.UtcNow,
+            };
+
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                PartitionCount = 1,
+                StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                TaskHubName = TestHelpers.GetTestTaskHubName(),
+                ExtendedSessionsEnabled = false
+            };
+            this.SetPartitionManagerType(settings, PartitionManagerType.V2Safe);
+
+            var service = new AzureStorageOrchestrationService(settings);
+            await service.CreateAsync();
+            await service.StartAsync();
+
+            // Create the orchestration and get the first work item and start "working" on it
+            await service.CreateTaskOrchestrationAsync(
+                new TaskMessage()
+                {
+                    OrchestrationInstance = orchestrationInstance,
+                    Event = startedEvent
+                });
+            var workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                TimeSpan.FromMinutes(5),
+                CancellationToken.None);
+            var runtimeState = workItem.OrchestrationRuntimeState;
+            runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+            runtimeState.AddEvent(startedEvent);
+            runtimeState.AddEvent(new ExecutionCompletedEvent(0, string.Empty, OrchestrationStatus.Completed));
+            runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+            AzureStorageClient azureStorageClient = new AzureStorageClient(settings);
+
+            // Now manually update the instance to have status "Completed"
+            Table instanceTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName);
+            TableEntity entity = new (orchestrationInstance.InstanceId, "")
+            {
+                ["RuntimeStatus"] = OrchestrationStatus.Completed.ToString("G"),
+            };
+            await instanceTable.MergeEntityAsync(entity, Azure.ETag.All);
+
+            // Confirm an exception is thrown due to the etag mismatch for the instance table when the worker attempts to complete the work item
+            SessionAbortedException exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
+                await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
+            );
+            Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));
+            DurableTaskStorageException dtse = (DurableTaskStorageException)exception.InnerException;
+            Assert.AreEqual((int)HttpStatusCode.PreconditionFailed, dtse.HttpStatusCode);
+        }
+
+        /// <summary>
+        /// Confirm that if a worker tries to complete a work item for a suborchestration after stalling and another worker has since completed the work item,
+        /// a SessionAbortedException is thrown which wraps the inner DurableTaskStorageException, which has the correct status code (conflict).
+        /// The specific scenario tested is if the the worker stalled after updating the history table but before updating the instance table for the first work item
+        /// for a suborchestration. When it attempts to insert a new entity into the instance table for the suborchestration (since for a suborchestration,
+        /// the instance entity is only created upon completion of the first work item), it will fail.
+        /// </summary>
+        /// <remarks>
+        /// Since it is impossible to force stalling, we simulate the above scenario by manually inserting an entry into the instance table before the worker
+        /// attempts to complete the work item. The history table update will go through, but the instance table update will fail since "another worker
+        /// has since updated" the instance table.
+        /// </remarks>
+        /// <returns></returns>
+        [TestMethod]
+        public async Task WorkerAttemptingToUpdateInstanceTableAfterStallingForSubOrchestration()
+        {
+            var orchestrationInstance = new OrchestrationInstance
+            {
+                InstanceId = "instance_id",
+                ExecutionId = "execution_id",
+            };
+
+            ExecutionStartedEvent startedEvent = new(-1, string.Empty)
+            {
+                Name = "orchestration",
+                Version = string.Empty,
+                OrchestrationInstance = orchestrationInstance,
+                ScheduledStartTime = DateTime.UtcNow,
+            };
+
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                PartitionCount = 1,
+                StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                TaskHubName = TestHelpers.GetTestTaskHubName(),
+                ExtendedSessionsEnabled = false
+            };
+            this.SetPartitionManagerType(settings, PartitionManagerType.V2Safe);
+
+            var service = new AzureStorageOrchestrationService(settings);
+            await service.CreateAsync();
+            await service.StartAsync();
+
+            // Create the orchestration and get the first work item and start "working" on it
+            await service.CreateTaskOrchestrationAsync(
+                new TaskMessage()
+                {
+                    OrchestrationInstance = orchestrationInstance,
+                    Event = startedEvent
+                });
+            var workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                TimeSpan.FromMinutes(5),
+                CancellationToken.None);
+            var runtimeState = workItem.OrchestrationRuntimeState;
+            runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+            runtimeState.AddEvent(startedEvent);
+            runtimeState.AddEvent(new SubOrchestrationInstanceCreatedEvent(0)
+            {
+                Name = "suborchestration",
+                InstanceId = "sub_instance_id"
+            });
+            runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+            // Create the task message to start the suborchestration
+            var subOrchestrationExecutionStartedEvent = new ExecutionStartedEvent(-1, string.Empty)
+            {
+                OrchestrationInstance = new OrchestrationInstance
+                {
+                    InstanceId = "sub_instance_id",
+                    ExecutionId = Guid.NewGuid().ToString("N")
+                },
+                ParentInstance = new ParentInstance
+                {
+                    OrchestrationInstance = runtimeState.OrchestrationInstance,
+                    Name = runtimeState.Name,
+                    Version = runtimeState.Version,
+                    TaskScheduleId = 0,
+                },
+                Name = "suborchestration"
+            };
+            List<TaskMessage> orchestratorMessages =
+            new() {
+                new TaskMessage()
+                {
+                    OrchestrationInstance = subOrchestrationExecutionStartedEvent.OrchestrationInstance,
+                    Event = subOrchestrationExecutionStartedEvent,
+                }
+            };
+
+            // Complete the first work item, which will send the execution started message for the suborchestration
+            await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), orchestratorMessages, new List<TaskMessage>(), null, null);
+            
+            // Now get the work item for the suborchestration and "work" on it
+            workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                TimeSpan.FromMinutes(5),
+                CancellationToken.None);
+            runtimeState = workItem.OrchestrationRuntimeState;
+            runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+            runtimeState.AddEvent(subOrchestrationExecutionStartedEvent);
+            runtimeState.AddEvent(new ExecutionCompletedEvent(0, string.Empty, OrchestrationStatus.Completed));
+            runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+            AzureStorageClient azureStorageClient = new (settings);
+            Table instanceTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName);
+            // Now manually update the suborchestration to have status "Completed"
+            TableEntity entity = new ("sub_instance_id", "")
+            {
+                ["RuntimeStatus"] = OrchestrationStatus.Completed.ToString("G"),
+            };
+            await instanceTable.InsertEntityAsync(entity);
+
+            // Confirm an exception is thrown because the worker attempts to insert a new entity for the suborchestration into the instance table
+            // when one already exists
+            SessionAbortedException exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
+                await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
+            );
+            Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));
+            DurableTaskStorageException dtse = (DurableTaskStorageException)exception.InnerException;
+            Assert.AreEqual((int)HttpStatusCode.Conflict, dtse.HttpStatusCode);
         }
 
         [TestMethod]

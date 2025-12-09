@@ -161,5 +161,7 @@ namespace DurableTask.Core
         /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
         /// </summary>
         public ExtensionDataObject ExtensionData { get; set; }
+
+        internal string Etag { get; set; }
     }
 }
