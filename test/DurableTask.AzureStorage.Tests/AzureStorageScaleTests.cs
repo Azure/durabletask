@@ -537,7 +537,6 @@ namespace DurableTask.AzureStorage.Tests
                 await TestHelpers.WaitFor(
                     condition: () => service1.OwnedControlQueues.Any(),
                     timeout: TimeSpan.FromSeconds(30));
-                ControlQueue controlQueue = service1.OwnedControlQueues.Single();
 
                 // Create the orchestration and get the first work item and start "working" on it
                 await service1.CreateTaskOrchestrationAsync(
