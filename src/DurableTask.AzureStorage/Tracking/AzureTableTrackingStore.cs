@@ -798,21 +798,25 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task UpdateStatusForTerminationAsync(
             string instanceId,
-            string output,
-            DateTime lastUpdatedTime,
+            ExecutionTerminatedEvent executionTerminatedEvent,
             CancellationToken cancellationToken = default)
         {
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
-            TableEntity entity = new TableEntity(sanitizedInstanceId, "")
+            TableEntity instanceEntity = new TableEntity(sanitizedInstanceId, "")
             {
                 ["RuntimeStatus"] = OrchestrationStatus.Terminated.ToString("G"),
-                ["LastUpdatedTime"] = lastUpdatedTime,
+                ["LastUpdatedTime"] = executionTerminatedEvent.Timestamp,
                 ["CompletedTime"] = DateTime.UtcNow,
-                [OutputProperty] = output
+                // In the case of terminating an orchestration, the termination reason becomes the orchestration's output.
+                [OutputProperty] = executionTerminatedEvent.Input,
             };
 
+            // Setting addBlobPropertyName to false ensures that the blob URL is saved as the "Output" of the instance entity, which is the expected behavior
+            // for large orchestration outputs.
+            await this.CompressLargeMessageAsync(instanceEntity, listOfBlobs: null, cancellationToken: cancellationToken, addBlobPropertyName: false);
+
             Stopwatch stopwatch = Stopwatch.StartNew();
-            await this.InstancesTable.MergeEntityAsync(entity, ETag.All, cancellationToken);
+            await this.InstancesTable.MergeEntityAsync(instanceEntity, ETag.All, cancellationToken);
 
             this.settings.Logger.InstanceStatusUpdate(
                 this.storageAccountName,
@@ -864,6 +868,7 @@ namespace DurableTask.AzureStorage.Tracking
                 ["CustomStatus"] = newRuntimeState.Status ?? "null",
                 ["ExecutionId"] = executionId,
                 ["LastUpdatedTime"] = newEvents.Last().Timestamp,
+                ["TaskHubName"] = this.settings.TaskHubName,
             };
 
             // check if we are replacing a previous execution with blobs; those will be deleted from the store after the update. This could occur in a ContinueAsNew scenario
@@ -910,6 +915,8 @@ namespace DurableTask.AzureStorage.Tracking
                         instanceEntity["Version"] = executionStartedEvent.Version;
                         instanceEntity["CreatedTime"] = executionStartedEvent.Timestamp;
                         instanceEntity["RuntimeStatus"] = OrchestrationStatus.Running.ToString();
+                        instanceEntity["Tags"] = TagsSerializer.Serialize(executionStartedEvent.Tags);
+                        instanceEntity["Generation"] = executionStartedEvent.Generation;
                         if (executionStartedEvent.ScheduledStartTime.HasValue)
                         {
                             instanceEntity["ScheduledStartTime"] = executionStartedEvent.ScheduledStartTime;
@@ -1048,11 +1055,11 @@ namespace DurableTask.AzureStorage.Tracking
             return eTagValue;
         }
 
-        public override async Task UpdateInstanceStatusAndDeleteOrphanedBlobsForCompletedOrchestrationAsync(
+        public override async Task UpdateInstanceStatusForCompletedOrchestrationAsync(
             string instanceId,
             string executionId,
             OrchestrationRuntimeState runtimeState,
-            object trackingStoreContext,
+            bool instanceEntityExists,
             CancellationToken cancellationToken = default)
         {
             if (runtimeState.OrchestrationStatus != OrchestrationStatus.Completed &&
@@ -1063,28 +1070,90 @@ namespace DurableTask.AzureStorage.Tracking
                 return;
             }
 
-            TrackingStoreContext context = (TrackingStoreContext)trackingStoreContext;
-            if (context.Blobs.Count > 0)
-            {
-                var tasks = new List<Task>(context.Blobs.Count);
-                foreach (string blobName in context.Blobs)
-                {
-                    tasks.Add(this.messageManager.DeleteBlobAsync(blobName));
-                }
-                await Task.WhenAll(tasks);
-            }
-
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
+            ExecutionStartedEvent executionStartedEvent = runtimeState.ExecutionStartedEvent;
+
+            // We need to set all of the fields of the instance entity in the case that it was never created for the orchestration.
+            // This can be the case for a suborchestration that completed in one execution, for example.
             var instanceEntity = new TableEntity(sanitizedInstanceId, string.Empty)
             {
+                ["Name"] = runtimeState.Name,
+                ["Version"] = runtimeState.Version,
+                ["CreatedTime"] = executionStartedEvent.Timestamp,
                 // TODO: Translating null to "null" is a temporary workaround. We should prioritize 
                 // https://github.com/Azure/durabletask/issues/477 so that this is no longer necessary.
                 ["CustomStatus"] = runtimeState.Status ?? "null",
                 ["ExecutionId"] = executionId,
                 ["LastUpdatedTime"] = runtimeState.Events.Last().Timestamp,
                 ["RuntimeStatus"] = runtimeState.OrchestrationStatus.ToString(),
-                ["CompletedTime"] = runtimeState.CompletedTime
+                ["CompletedTime"] = runtimeState.CompletedTime,
+                ["Tags"] = TagsSerializer.Serialize(executionStartedEvent.Tags),
+                ["TaskHubName"] = this.settings.TaskHubName,
             };
+            if (runtimeState.ExecutionStartedEvent.ScheduledStartTime.HasValue)
+            {
+                instanceEntity["ScheduledStartTime"] = executionStartedEvent.ScheduledStartTime;
+            }
+
+            static TableEntity GetSingleEntityFromHistoryTableResults(IReadOnlyList<TableEntity> entities, string dataType)
+            {
+                try
+                {
+                    TableEntity singleEntity = entities.SingleOrDefault();
+
+                    return singleEntity ?? throw new DurableTaskStorageException($"The history table query to determine the blob storage URL " +
+                        $"for the large orchestration {dataType} returned no rows. Unable to extract the URL from these results.");
+                }
+                catch (InvalidOperationException)
+                {
+                    throw new DurableTaskStorageException($"The history table query to determine the blob storage URL for the large orchestration " +
+                        $"{dataType} returned more than one row, when exactly one row is expected. " +
+                        $"Unable to extract the URL from these results.");
+                }
+            }
+
+            // Set the output.
+            // In the case that the output is too large and is stored in blob storage, extract the blob name from the ExecutionCompleted history entity.
+            if (this.ExceedsMaxTablePropertySize(runtimeState.Output))
+            {
+                string filter = $"{nameof(ITableEntity.PartitionKey)} eq '{KeySanitation.EscapePartitionKey(instanceId)}'" +
+                    $" and {nameof(OrchestrationInstance.ExecutionId)} eq '{executionId}'" +
+                    $" and {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.ExecutionCompleted)}'";
+                TableEntity executionCompletedEntity = GetSingleEntityFromHistoryTableResults(await this.QueryHistoryAsync(filter, instanceId, cancellationToken), "output");
+                this.SetInstancesTablePropertyFromHistoryProperty(
+                    executionCompletedEntity,
+                    instanceEntity,
+                    historyPropertyName: nameof(runtimeState.ExecutionCompletedEvent.Result),
+                    instancePropertyName: OutputProperty,
+                    data: runtimeState.Output);
+            }
+            else
+            {
+                instanceEntity[OutputProperty] = runtimeState.Output;
+            }
+            
+            // If the input has not been set by a previous execution, set the input.
+            if (!instanceEntityExists)
+            {
+                // In the case that the input is too large and is stored in blob storage, extract the blob name from the ExecutionStarted history entity.
+                if (this.ExceedsMaxTablePropertySize(runtimeState.Input))
+                {
+                    string filter = $"{nameof(ITableEntity.PartitionKey)} eq '{KeySanitation.EscapePartitionKey(instanceId)}'" +
+                        $" and {nameof(OrchestrationInstance.ExecutionId)} eq '{executionId}'" +
+                        $" and {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.ExecutionStarted)}'";
+                    TableEntity executionStartedEntity = GetSingleEntityFromHistoryTableResults(await this.QueryHistoryAsync(filter, instanceId, cancellationToken), "input");
+                    this.SetInstancesTablePropertyFromHistoryProperty(
+                        executionStartedEntity,
+                        instanceEntity,
+                        historyPropertyName: nameof(executionStartedEvent.Input),
+                        instancePropertyName: InputProperty,
+                        data: executionStartedEvent.Input);
+                }
+                else
+                {
+                    instanceEntity[InputProperty] = runtimeState.Input;
+                }
+            }
 
             Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
             await this.InstancesTable.InsertOrMergeEntityAsync(instanceEntity);
@@ -1161,7 +1230,7 @@ namespace DurableTask.AzureStorage.Tracking
             }
         }
 
-        async Task CompressLargeMessageAsync(TableEntity entity, List<string> listOfBlobs, CancellationToken cancellationToken)
+        async Task CompressLargeMessageAsync(TableEntity entity, List<string> listOfBlobs, CancellationToken cancellationToken, bool addBlobPropertyName = true)
         {
             foreach (string propertyName in VariableSizeEntityProperties)
             {
@@ -1176,9 +1245,16 @@ namespace DurableTask.AzureStorage.Tracking
 
                     // Clear out the original property value and create a new "*BlobName"-suffixed property.
                     // The runtime will look for the new "*BlobName"-suffixed column to know if a property is stored in a blob.
-                    string blobPropertyName = GetBlobPropertyName(propertyName);
-                    entity.Add(blobPropertyName, blobName);
-                    entity[propertyName] = string.Empty;
+                    if (addBlobPropertyName)
+                    {
+                        string blobPropertyName = GetBlobPropertyName(propertyName);
+                        entity.Add(blobPropertyName, blobName);
+                        entity[propertyName] = string.Empty;
+                    }
+                    else
+                    {
+                        entity[propertyName] = this.messageManager.GetBlobUrl(blobName);
+                    }
 
                     // if necessary, keep track of all the blobs associated with this execution
                     listOfBlobs?.Add(blobName);
@@ -1225,6 +1301,12 @@ namespace DurableTask.AzureStorage.Tracking
                 // This message is just to start the orchestration, so it does not have a corresponding
                 // EventType. Use a hardcoded value to record the orchestration input.
                 eventType = "Input";
+            }
+            else if (property == "Output")
+            {
+                // This message is used to terminate an orchestration with no history, so it does not have a
+                // corresponding EventType. Use a hardcoded value to record the orchestration output.
+                eventType = "Output";
             }
             else if (property == "Tags")
             {
