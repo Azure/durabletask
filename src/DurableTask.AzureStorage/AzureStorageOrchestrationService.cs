@@ -1073,11 +1073,16 @@ namespace DurableTask.AzureStorage
                     TaskMessage executionTerminatedEventMessage = newMessages.LastOrDefault(msg => msg.Event is ExecutionTerminatedEvent);
                     if (executionTerminatedEventMessage is not null)
                     {
-                        var executionTerminatedEvent = (ExecutionTerminatedEvent)executionTerminatedEventMessage.Event;
-                        await this.trackingStore.UpdateStatusForTerminationAsync(
-                            instanceId,
-                            executionTerminatedEvent);
-                        return $"Instance is {OrchestrationStatus.Terminated}";
+                        InstanceStatus instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(executionTerminatedEventMessage.OrchestrationInstance.InstanceId);
+                        if (instanceStatus != null 
+                            && instanceStatus.State.OrchestrationInstance.ExecutionId == executionTerminatedEventMessage.OrchestrationInstance.ExecutionId)
+                        {
+                            var executionTerminatedEvent = (ExecutionTerminatedEvent)executionTerminatedEventMessage.Event;
+                            await this.trackingStore.UpdateStatusForTerminationAsync(
+                                instanceId,
+                                executionTerminatedEvent);
+                            return $"Instance is {OrchestrationStatus.Terminated}";
+                        }
                     }
 
                     // A non-zero event count usually happens when an instance's history is overwritten by a
