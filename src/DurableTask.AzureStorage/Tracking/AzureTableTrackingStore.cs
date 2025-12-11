@@ -816,7 +816,7 @@ namespace DurableTask.AzureStorage.Tracking
             await this.CompressLargeMessageAsync(instanceEntity, listOfBlobs: null, cancellationToken: cancellationToken, addBlobPropertyName: false);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
-            await this.InstancesTable.MergeEntityAsync(instanceEntity, ETag.All, cancellationToken);
+            await this.InstancesTable.InsertOrMergeEntityAsync(instanceEntity, cancellationToken);
 
             this.settings.Logger.InstanceStatusUpdate(
                 this.storageAccountName,
