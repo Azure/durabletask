@@ -12,8 +12,8 @@
 
         /// <summary>
         /// Gets or sets whether or not to include instance state when executing the work item via middleware.
-        /// This assumes that the middleware is able to handle extended sessions and does not require the instance
-        /// state to fulfill the request.
+        /// When false, this assumes that the middleware is able to handle extended sessions and has already cached
+        /// the instance state from a previous execution, so it does not need to be included again.
         /// </summary>
         public bool IncludeState { get; set; }
     }
