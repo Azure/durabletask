@@ -1416,46 +1416,56 @@ namespace DurableTask.AzureStorage.Tracking
         {
             var orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
 
-            try
+            ETag? newEtag = null;
+
+            if (!this.settings.UseInstanceTableEtag)
             {
-                Response result = await (eTag == null
-                                     ? this.InstancesTable.InsertEntityAsync(instanceEntity)
-                                     : this.InstancesTable.MergeEntityAsync(instanceEntity, eTag.Value));
-
-                this.settings.Logger.InstanceStatusUpdate(
-                    this.storageAccountName,
-                    this.taskHubName,
-                    instanceId,
-                    executionId,
-                    runtimeStatus,
-                    episodeNumber,
-                    orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
-
-                return result.Headers.ETag;
+                await this.InstancesTable.InsertOrMergeEntityAsync(instanceEntity);
             }
-            catch (DurableTaskStorageException ex)
+            else
             {
-                // Handle the case where the instance table has already been updated by another caller.
-                // Common case: the resulting code is 'PreconditionFailed', which means we are trying to update an existing instance entity and "eTag" no longer matches the one stored.
-                // Edge case: the resulting code is 'Conflict'. This is the case when eTag is null, and we are trying to insert a new instance entity, in which case the exception
-                // indicates that the table entity we are trying to "add" already exists.
-                if (ex.HttpStatusCode == (int)HttpStatusCode.Conflict || ex.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
+                try
                 {
-                    this.settings.Logger.SplitBrainDetected(
-                        this.storageAccountName,
-                        this.taskHubName,
-                        instanceId,
-                        executionId,
-                        newEventCount: 0,
-                        totalEventCount: 1, // these fields don't really make sense for the instance table case. do we want to introduce a new log? or are we okay with this since "InstanceEntity" 
-                        // in the new events field will allow this to be detectable? 
-                        "InstanceEntity",
-                        orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds,
-                        eTag is null ? string.Empty : eTag.ToString());
+                    Response result = await (eTag == null
+                        ? this.InstancesTable.InsertEntityAsync(instanceEntity)
+                        : this.InstancesTable.MergeEntityAsync(instanceEntity, eTag.Value));
+                    newEtag = result.Headers.ETag;
                 }
+                catch (DurableTaskStorageException ex)
+                {
+                    // Handle the case where the instance table has already been updated by another caller.
+                    // Common case: the resulting code is 'PreconditionFailed', which means we are trying to update an existing instance entity and "eTag" no longer matches the one stored.
+                    // Edge case: the resulting code is 'Conflict'. This is the case when eTag is null, and we are trying to insert a new instance entity, in which case the exception
+                    // indicates that the table entity we are trying to "add" already exists.
+                    if (ex.HttpStatusCode == (int)HttpStatusCode.Conflict || ex.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
+                    {
+                        this.settings.Logger.SplitBrainDetected(
+                            this.storageAccountName,
+                            this.taskHubName,
+                            instanceId,
+                            executionId,
+                            newEventCount: 0,
+                            totalEventCount: 1, // these fields don't really make sense for the instance table case. do we want to introduce a new log? or are we okay with this since "InstanceEntity" 
+                                                // in the new events field will allow this to be detectable? 
+                            "InstanceEntity",
+                            orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds,
+                            eTag is null ? string.Empty : eTag.ToString());
+                    }
 
-                throw;
+                    throw;
+                }
             }
+
+            this.settings.Logger.InstanceStatusUpdate(
+                this.storageAccountName,
+                this.taskHubName,
+                instanceId,
+                executionId,
+                runtimeStatus,
+                episodeNumber,
+                orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds);
+
+            return newEtag;
 
         }
 

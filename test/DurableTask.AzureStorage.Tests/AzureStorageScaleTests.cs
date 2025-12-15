@@ -644,19 +644,26 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
-        /// Confirm that if a worker tries to complete a work item after stalling and another worker has since completed the work item,
-        /// a SessionAbortedException is thrown which wraps the inner DurableTaskStorageException, which has the correct status code (precondition failed).
-        /// The specific scenario tested is if the worker stalled after updating the history table but before updating the instance table.
-        /// When it attempts to update the instance table with a stale etag, it will fail.
+        /// Confirm that:
+        /// 1. If <see cref="AzureStorageOrchestrationServiceSettings.UseInstanceTableEtag"/> is true, and a worker attempts to update the instance table with a stale
+        /// etag upon completing a work item, a SessionAbortedException is thrown which wraps the inner DurableTaskStorageException, which has the correct status code
+        /// (precondition failed).
+        /// The specific scenario tested is if the worker stalled after updating the history table but before updating the instance table. When it attempts to update
+        /// the instance table with a stale etag, it will fail.
+        /// 2. If <see cref="AzureStorageOrchestrationServiceSettings.UseInstanceTableEtag"/> is false for the above scenario, then the call to update the instance table
+        /// will go through, and the instance table will be updated with a "stale" status.
         /// </summary>
         /// <remarks>
         /// Since it is impossible to force stalling, we simulate the above scenario by manually updating the instance table before the worker
         /// attempts to complete the work item. The history table update will go through, but the instance table update will fail since "another worker
         /// has since updated" the instance table.
         /// </remarks>
+        /// <param name="useInstanceEtag">The value to use for <see cref="AzureStorageOrchestrationServiceSettings.UseInstanceTableEtag"/></param>
         /// <returns></returns>
-        [TestMethod]
-        public async Task WorkerAttemptingToUpdateInstanceTableAfterStalling()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task WorkerAttemptingToUpdateInstanceTableAfterStalling(bool useInstanceEtag)
         {
             AzureStorageOrchestrationService service = null;
             try
@@ -680,7 +687,8 @@ namespace DurableTask.AzureStorage.Tests
                     PartitionCount = 1,
                     StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
                     TaskHubName = TestHelpers.GetTestTaskHubName(),
-                    ExtendedSessionsEnabled = false
+                    ExtendedSessionsEnabled = false,
+                    UseInstanceTableEtag = useInstanceEtag
                 };
                 this.SetPartitionManagerType(settings, PartitionManagerType.V2Safe);
 
@@ -701,7 +709,7 @@ namespace DurableTask.AzureStorage.Tests
                 var runtimeState = workItem.OrchestrationRuntimeState;
                 runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
                 runtimeState.AddEvent(startedEvent);
-                runtimeState.AddEvent(new ExecutionCompletedEvent(0, string.Empty, OrchestrationStatus.Completed));
+                runtimeState.AddEvent(new TaskScheduledEvent(0));
                 runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
 
                 AzureStorageClient azureStorageClient = new AzureStorageClient(settings);
@@ -714,13 +722,35 @@ namespace DurableTask.AzureStorage.Tests
                 };
                 await instanceTable.MergeEntityAsync(entity, Azure.ETag.All);
 
-                // Confirm an exception is thrown due to the etag mismatch for the instance table when the worker attempts to complete the work item
-                SessionAbortedException exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
-                    await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
-                );
-                Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));
-                DurableTaskStorageException dtse = (DurableTaskStorageException)exception.InnerException;
-                Assert.AreEqual((int)HttpStatusCode.PreconditionFailed, dtse.HttpStatusCode);
+                if (useInstanceEtag)
+                {
+                    // Confirm an exception is thrown due to the etag mismatch for the instance table when the worker attempts to complete the work item
+                    SessionAbortedException exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
+                        await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
+                    );
+                    Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));
+                    DurableTaskStorageException dtse = (DurableTaskStorageException)exception.InnerException;
+                    Assert.AreEqual((int)HttpStatusCode.PreconditionFailed, dtse.HttpStatusCode);
+                }
+                else
+                {
+                    await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null);
+
+                    var queryCondition = new OrchestrationInstanceStatusQueryCondition
+                    {
+                        InstanceId = "instance_id",
+                        FetchInput = false,
+                    };
+
+                    ODataCondition odata = queryCondition.ToOData();
+                    OrchestrationInstanceStatus instanceTableEntity = await instanceTable
+                        .ExecuteQueryAsync<OrchestrationInstanceStatus>(odata.Filter, 1, odata.Select, CancellationToken.None)
+                        .FirstOrDefaultAsync();
+
+                    // Confirm the instance table was updated with a "stale" status
+                    Assert.IsNotNull(instanceTableEntity);
+                    Assert.AreEqual(OrchestrationStatus.Running.ToString(), instanceTableEntity.RuntimeStatus);
+                }
             }
             finally
             {
@@ -729,20 +759,27 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
-        /// Confirm that if a worker tries to complete a work item for a suborchestration after stalling and another worker has since completed the work item,
-        /// a SessionAbortedException is thrown which wraps the inner DurableTaskStorageException, which has the correct status code (conflict).
+        /// Confirm that:
+        /// 1. If <see cref="AzureStorageOrchestrationServiceSettings.UseInstanceTableEtag"/> is true, and a worker attempts to update the instance table with a stale
+        /// etag upon completing a work item for a suborchestration, a SessionAbortedException is thrown which wraps the inner DurableTaskStorageException, which has
+        /// the correct status code (conflict).
         /// The specific scenario tested is if the worker stalled after updating the history table but before updating the instance table for the first work item
         /// for a suborchestration. When it attempts to insert a new entity into the instance table for the suborchestration (since for a suborchestration,
         /// the instance entity is only created upon completion of the first work item), it will fail.
+        /// 2. If <see cref="AzureStorageOrchestrationServiceSettings.UseInstanceTableEtag"/> is false for the above scenario, then the call to update the instance table
+        /// will go through, and the instance table will be updated with a "stale" status.
         /// </summary>
         /// <remarks>
-        /// Since it is impossible to force stalling, we simulate the above scenario by manually inserting an entry into the instance table before the worker
+        /// Since it is impossible to force stalling, we simulate the above scenario by manually updating the instance table before the worker
         /// attempts to complete the work item. The history table update will go through, but the instance table update will fail since "another worker
         /// has since updated" the instance table.
         /// </remarks>
+        /// <param name="useInstanceEtag">The value to use for <see cref="AzureStorageOrchestrationServiceSettings.UseInstanceTableEtag"/></param>
         /// <returns></returns>
-        [TestMethod]
-        public async Task WorkerAttemptingToUpdateInstanceTableAfterStallingForSubOrchestration()
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task WorkerAttemptingToUpdateInstanceTableAfterStallingForSubOrchestration(bool useInstanceEtag)
         {
             AzureStorageOrchestrationService service = null;
             try
@@ -766,7 +803,8 @@ namespace DurableTask.AzureStorage.Tests
                     PartitionCount = 1,
                     StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
                     TaskHubName = TestHelpers.GetTestTaskHubName(),
-                    ExtendedSessionsEnabled = false
+                    ExtendedSessionsEnabled = false,
+                    UseInstanceTableEtag = useInstanceEtag
                 };
                 this.SetPartitionManagerType(settings, PartitionManagerType.V2Safe);
 
@@ -830,7 +868,7 @@ namespace DurableTask.AzureStorage.Tests
                 runtimeState = workItem.OrchestrationRuntimeState;
                 runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
                 runtimeState.AddEvent(subOrchestrationExecutionStartedEvent);
-                runtimeState.AddEvent(new ExecutionCompletedEvent(0, string.Empty, OrchestrationStatus.Completed));
+                runtimeState.AddEvent(new TaskScheduledEvent(0));
                 runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
 
                 AzureStorageClient azureStorageClient = new(settings);
@@ -842,14 +880,37 @@ namespace DurableTask.AzureStorage.Tests
                 };
                 await instanceTable.InsertEntityAsync(entity);
 
-                // Confirm an exception is thrown because the worker attempts to insert a new entity for the suborchestration into the instance table
-                // when one already exists
-                SessionAbortedException exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
-                    await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
-                );
-                Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));
-                DurableTaskStorageException dtse = (DurableTaskStorageException)exception.InnerException;
-                Assert.AreEqual((int)HttpStatusCode.Conflict, dtse.HttpStatusCode);
+                if (useInstanceEtag)
+                {
+                    // Confirm an exception is thrown because the worker attempts to insert a new entity for the suborchestration into the instance table
+                    // when one already exists
+                    SessionAbortedException exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
+                        await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
+                    );
+                    Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));
+                    DurableTaskStorageException dtse = (DurableTaskStorageException)exception.InnerException;
+                    Assert.AreEqual((int)HttpStatusCode.Conflict, dtse.HttpStatusCode);
+                }
+                else
+                {
+                    await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null);
+
+                    var queryCondition = new OrchestrationInstanceStatusQueryCondition
+                    {
+                        InstanceId = "sub_instance_id",
+                        FetchInput = false,
+                    };
+
+                    ODataCondition odata = queryCondition.ToOData();
+                    OrchestrationInstanceStatus instanceTableEntity = await instanceTable
+                        .ExecuteQueryAsync<OrchestrationInstanceStatus>(odata.Filter, 1, odata.Select, CancellationToken.None)
+                        .FirstOrDefaultAsync();
+
+                    // Confirm the instance table was updated with a "stale" status
+                    Assert.IsNotNull(instanceTableEntity);
+                    Assert.AreEqual(OrchestrationStatus.Running.ToString(), instanceTableEntity.RuntimeStatus);
+                }
+
             }
             finally
             {

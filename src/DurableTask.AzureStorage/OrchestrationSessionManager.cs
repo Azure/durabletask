@@ -284,7 +284,13 @@ namespace DurableTask.AzureStorage
                 {
                     // Happy path: The message matches the table status. Alternatively, if the table doesn't have an ExecutionId field (older clients, pre-v1.8.5),
                     // then we have no way of knowing if it's a duplicate. Either way, allow it to run.
-                    message.MessageMetadata = remoteInstance.ETag;
+
+                    // There's actually no extra cost from setting and using the instance etag in this case, I just don't for consistency since it will not be set and
+                    // used for future work items. Is this a good reason?
+                    if (this.settings.UseInstanceTableEtag)
+                    {
+                        message.MessageMetadata = remoteInstance.ETag;
+                    }
                 }
                 else if (expectedGeneration == remoteInstance?.State.Generation && this.IsScheduledAfterInstanceUpdate(message, remoteInstance?.State))
                 {
@@ -477,7 +483,7 @@ namespace DurableTask.AzureStorage
                     if (targetBatch == null)
                     {
                         targetBatch = new PendingMessageBatch(controlQueue, instanceId, executionId);
-                        if (data.MessageMetadata is ETag instanceEtag)
+                        if (this.settings.UseInstanceTableEtag && data.MessageMetadata is ETag instanceEtag)
                         {
                             targetBatch.ETags.InstanceETag = instanceEtag;
                         }
@@ -529,7 +535,7 @@ namespace DurableTask.AzureStorage
                     batch.TrackingStoreContext = history.TrackingStoreContext;
 
                     // Try to get the instance ETag from the tracking store if it wasn't already provided
-                    if (batch.ETags.InstanceETag == null)
+                    if (this.settings.UseInstanceTableEtag && batch.ETags.InstanceETag == null)
                     {
                         // Do we want to introduce a new method to just get the ETag without fetching the full instance status?
                         // I'm not sure this is necessary seeing as this method does not fetch the input, which is the only potentially
