@@ -797,7 +797,6 @@ namespace DurableTask.AzureStorage
                         session.RuntimeState,
                         orchestrationWorkItem.NewMessages,
                         settings.AllowReplayingTerminalInstances,
-                        session.TrackingStoreContext,
                         cancellationToken);
                     if (!string.IsNullOrEmpty(warningMessage))
                     {
@@ -1059,7 +1058,6 @@ namespace DurableTask.AzureStorage
             OrchestrationRuntimeState runtimeState,
             IList<TaskMessage> newMessages,
             bool allowReplayingTerminalInstances,
-            object trackingStoreContext,
             CancellationToken cancellationToken)
         {
             if (runtimeState.ExecutionStartedEvent == null && !newMessages.Any(msg => msg.Event is ExecutionStartedEvent))
@@ -1078,8 +1076,7 @@ namespace DurableTask.AzureStorage
                         var executionTerminatedEvent = (ExecutionTerminatedEvent)executionTerminatedEventMessage.Event;
                         await this.trackingStore.UpdateStatusForTerminationAsync(
                             instanceId,
-                            executionTerminatedEvent.Input,
-                            executionTerminatedEvent.Timestamp);
+                            executionTerminatedEvent);
                         return $"Instance is {OrchestrationStatus.Terminated}";
                     }
 
@@ -1100,14 +1097,14 @@ namespace DurableTask.AzureStorage
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Suspended)
             {
                 InstanceStatus instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(runtimeState.OrchestrationInstance.InstanceId);
-                if (instanceStatus.State.OrchestrationInstance.ExecutionId == runtimeState.OrchestrationInstance.ExecutionId
-                    && instanceStatus.State.OrchestrationStatus != runtimeState.OrchestrationStatus)
+                if (instanceStatus == null || (instanceStatus.State.OrchestrationInstance.ExecutionId == runtimeState.OrchestrationInstance.ExecutionId
+                    && instanceStatus.State.OrchestrationStatus != runtimeState.OrchestrationStatus))
                 {
-                    await this.trackingStore.UpdateInstanceStatusAndDeleteOrphanedBlobsForCompletedOrchestrationAsync(
+                    await this.trackingStore.UpdateInstanceStatusForCompletedOrchestrationAsync(
                         runtimeState.OrchestrationInstance.InstanceId,
                         runtimeState.OrchestrationInstance.ExecutionId,
                         runtimeState,
-                        trackingStoreContext,
+                        instanceStatus is not null,
                         cancellationToken);
                 }
                 if (!allowReplayingTerminalInstances)
