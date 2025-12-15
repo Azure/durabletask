@@ -642,7 +642,7 @@ namespace DurableTask.Core
 
         bool EntityIsDeleted(SchedulerState schedulerState)
         {
-            return this.entityBackendProperties.SupportsImplicitEntityDeletion && schedulerState.IsEmpty && !schedulerState.Suspended;
+            return schedulerState != null && this.entityBackendProperties.SupportsImplicitEntityDeletion && schedulerState.IsEmpty && !schedulerState.Suspended;
         }
 
         class Work
