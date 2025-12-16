@@ -271,21 +271,25 @@ namespace DurableTask.AzureStorage
             // Terminology:
             // "Local"  -> the instance ID info comes from the local copy of the message we're examining
             // "Remote" -> the instance ID info comes from the Instances table that we're querying
-            IAsyncEnumerable<OrchestrationState> instances = this.trackingStore.GetStateAsync(instanceIds, cancellationToken);
-            IDictionary<string, OrchestrationState> remoteOrchestrationsById = 
-                await instances.ToDictionaryAsync(o => o.OrchestrationInstance.InstanceId, cancellationToken);
+            IAsyncEnumerable<InstanceStatus> instances = this.trackingStore.FetchInstanceStatusAsync(instanceIds, cancellationToken);
+            IDictionary<string, InstanceStatus> remoteOrchestrationsById = 
+                await instances.ToDictionaryAsync(o => o.State.OrchestrationInstance.InstanceId, cancellationToken);
 
             foreach (MessageData message in executionStartedMessages)
             {
                 OrchestrationInstance localInstance = message.TaskMessage.OrchestrationInstance;
                 var expectedGeneration = ((ExecutionStartedEvent)message.TaskMessage.Event).Generation;
-                if (remoteOrchestrationsById.TryGetValue(localInstance.InstanceId, out OrchestrationState remoteInstance) &&
-                    (remoteInstance.OrchestrationInstance.ExecutionId == null || string.Equals(localInstance.ExecutionId, remoteInstance.OrchestrationInstance.ExecutionId, StringComparison.OrdinalIgnoreCase)))
+                if (remoteOrchestrationsById.TryGetValue(localInstance.InstanceId, out InstanceStatus remoteInstance) &&
+                    (remoteInstance.State.OrchestrationInstance.ExecutionId == null || string.Equals(localInstance.ExecutionId, remoteInstance.State.OrchestrationInstance.ExecutionId, StringComparison.OrdinalIgnoreCase)))
                 {
                     // Happy path: The message matches the table status. Alternatively, if the table doesn't have an ExecutionId field (older clients, pre-v1.8.5),
                     // then we have no way of knowing if it's a duplicate. Either way, allow it to run.
+                    if (this.settings.UseInstanceTableEtag)
+                    {
+                        message.MessageMetadata = remoteInstance.ETag;
+                    }
                 }
-                else if (expectedGeneration == remoteInstance?.Generation && this.IsScheduledAfterInstanceUpdate(message, remoteInstance))
+                else if (expectedGeneration == remoteInstance?.State.Generation && this.IsScheduledAfterInstanceUpdate(message, remoteInstance?.State))
                 {
                     // The message was scheduled after the Instances table was updated with the orchestration info.
                     // We know almost certainly that this is a redundant message and can be safely discarded because
@@ -476,6 +480,10 @@ namespace DurableTask.AzureStorage
                     if (targetBatch == null)
                     {
                         targetBatch = new PendingMessageBatch(controlQueue, instanceId, executionId);
+                        if (this.settings.UseInstanceTableEtag && data.MessageMetadata is ETag instanceEtag)
+                        {
+                            targetBatch.ETags.InstanceETag = instanceEtag;
+                        }
                         node = this.pendingOrchestrationMessageBatches.AddLast(targetBatch);
 
                         // Before the batch of messages can be processed, we need to download the latest execution state.
@@ -519,9 +527,20 @@ namespace DurableTask.AzureStorage
                        cancellationToken);
 
                     batch.OrchestrationState = new OrchestrationRuntimeState(history.Events);
-                    batch.ETag = history.ETag;
+                    batch.ETags.HistoryETag = history.ETag;
                     batch.LastCheckpointTime = history.LastCheckpointTime;
                     batch.TrackingStoreContext = history.TrackingStoreContext;
+
+                    // Try to get the instance ETag from the tracking store if it wasn't already provided
+                    if (this.settings.UseInstanceTableEtag && batch.ETags.InstanceETag == null)
+                    {
+                        InstanceStatus? instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(
+                            batch.OrchestrationInstanceId,
+                            cancellationToken);
+                        // The instance could not exist in the case that these messages are for the first execution of a suborchestration,
+                        // or an entity-started orchestration, for example
+                        batch.ETags.InstanceETag = instanceStatus?.ETag;
+                    }
                 }
 
                 if (this.settings.UseSeparateQueueForEntityWorkItems
@@ -590,7 +609,7 @@ namespace DurableTask.AzureStorage
                             nextBatch.ControlQueue,
                             nextBatch.Messages,
                             nextBatch.OrchestrationState,
-                            nextBatch.ETag,
+                            nextBatch.ETags,
                             nextBatch.LastCheckpointTime,
                             nextBatch.TrackingStoreContext,
                             this.settings.ExtendedSessionIdleTimeout,
@@ -737,8 +756,10 @@ namespace DurableTask.AzureStorage
                 }
             }
 
-            public ETag? ETag { get; set; }
+            public OrchestrationETags ETags { get; } = new OrchestrationETags();
+
             public DateTime LastCheckpointTime { get; set; }
+
             public object? TrackingStoreContext { get; set; }
         }
     }
