@@ -13,6 +13,13 @@
 
 namespace DurableTask.AzureStorage.Tests
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.Linq;
+    using System.Net;
+    using System.Threading;
+    using System.Threading.Tasks;
     using Azure.Data.Tables;
     using Azure.Storage.Blobs;
     using Azure.Storage.Blobs.Models;
@@ -26,13 +33,6 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using System;
-    using System.Collections.Generic;
-    using System.Diagnostics;
-    using System.Linq;
-    using System.Net;
-    using System.Threading;
-    using System.Threading.Tasks;
 
     /// <summary>
     /// Validates the following requirements:

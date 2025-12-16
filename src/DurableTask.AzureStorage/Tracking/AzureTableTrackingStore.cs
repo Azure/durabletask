@@ -1028,7 +1028,7 @@ namespace DurableTask.AzureStorage.Tracking
                     cancellationToken: cancellationToken);
             }
 
-            eTags.InstanceETag = await this.TryUpdateInstanceTableAsync(instanceEntity, eTags.InstanceETag, instanceId, executionId, runtimeStatus, episodeNumber);
+            eTags.InstanceETag = await this.UpdateInstanceTableAsync(instanceEntity, eTags.InstanceETag, instanceId, executionId, runtimeStatus, episodeNumber);
 
             // finally, delete orphaned blobs from the previous execution history.
             // We had to wait until the new history has committed to make sure the blobs are no longer necessary.
@@ -1412,7 +1412,7 @@ namespace DurableTask.AzureStorage.Tracking
             return false;
         }
 
-        async Task<ETag?> TryUpdateInstanceTableAsync(TableEntity instanceEntity, ETag? eTag, string instanceId, string executionId, OrchestrationStatus runtimeStatus, int episodeNumber)
+        async Task<ETag?> UpdateInstanceTableAsync(TableEntity instanceEntity, ETag? eTag, string instanceId, string executionId, OrchestrationStatus runtimeStatus, int episodeNumber)
         {
             var orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
 
@@ -1445,8 +1445,7 @@ namespace DurableTask.AzureStorage.Tracking
                             instanceId,
                             executionId,
                             newEventCount: 0,
-                            totalEventCount: 1, // these fields don't really make sense for the instance table case. do we want to introduce a new log? or are we okay with this since "InstanceEntity" 
-                                                // in the new events field will allow this to be detectable? 
+                            totalEventCount: 1,
                             "InstanceEntity",
                             orchestrationInstanceUpdateStopwatch.ElapsedMilliseconds,
                             eTag is null ? string.Empty : eTag.ToString());

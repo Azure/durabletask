@@ -537,9 +537,6 @@ namespace DurableTask.AzureStorage
                     // Try to get the instance ETag from the tracking store if it wasn't already provided
                     if (this.settings.UseInstanceTableEtag && batch.ETags.InstanceETag == null)
                     {
-                        // Do we want to introduce a new method to just get the ETag without fetching the full instance status?
-                        // I'm not sure this is necessary seeing as this method does not fetch the input, which is the only potentially
-                        // large field of the instance entity anyway
                         InstanceStatus? instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(
                             batch.OrchestrationInstanceId,
                             cancellationToken);
