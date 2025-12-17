@@ -257,7 +257,7 @@ namespace DurableTask.Core
                 }
                 else
                 {
-                    bool firstExecution = schedulerState == null;
+                    bool firstExecutionIfExtendedSession = schedulerState == null;
 
                     // we start with processing all the requests and figuring out which ones to execute now
                     // results can depend on whether the entity is locked, what the maximum batch size is,
