@@ -263,7 +263,7 @@ namespace DurableTask.Core
                     // results can depend on whether the entity is locked, what the maximum batch size is,
                     // and whether the messages arrived out of order
 
-                     this.DetermineWork(workItem.OrchestrationRuntimeState,
+                    this.DetermineWork(workItem.OrchestrationRuntimeState,
                          ref schedulerState,
                          out Work workToDoNow);
 
