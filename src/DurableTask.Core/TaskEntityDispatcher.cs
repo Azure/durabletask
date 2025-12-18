@@ -270,7 +270,7 @@ namespace DurableTask.Core
                     if (workToDoNow.OperationCount > 0)
                     {
                         // execute the user-defined operations on this entity, via the middleware
-                        var result = await this.ExecuteViaMiddlewareAsync(workToDoNow, runtimeState.OrchestrationInstance, schedulerState.EntityState, workItem.IsExtendedSession, firstExecution);
+                        var result = await this.ExecuteViaMiddlewareAsync(workToDoNow, runtimeState.OrchestrationInstance, schedulerState.EntityState, workItem.IsExtendedSession, firstExecutionIfExtendedSession);
                         var operationResults = result.Results!;
 
                         // if we encountered an error, record it as the result of the operations
