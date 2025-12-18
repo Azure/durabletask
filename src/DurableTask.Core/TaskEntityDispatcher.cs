@@ -488,8 +488,8 @@ namespace DurableTask.Core
                 {
                     case EventType.ExecutionStarted:
 
-                        // Only attempt to deserialize the scheduler state if we don't already have it in memory (which can be true 
-                        // for extended sessions)
+                        // Only attempt to deserialize the scheduler state if we don't already have it in memory.
+                        // This occurs on the first execution within an extended session, or when extended sessions are disabled.
                         if (runtimeState.Input != null && deserializeState)
                         {
                             try
