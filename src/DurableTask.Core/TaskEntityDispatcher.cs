@@ -263,8 +263,8 @@ namespace DurableTask.Core
                     // results can depend on whether the entity is locked, what the maximum batch size is,
                     // and whether the messages arrived out of order
 
-                    schedulerState = this.DetermineWork(workItem.OrchestrationRuntimeState,
-                         schedulerState,
+                     this.DetermineWork(workItem.OrchestrationRuntimeState,
+                         ref schedulerState,
                          out Work workToDoNow);
 
                     if (workToDoNow.OperationCount > 0)
@@ -473,7 +473,7 @@ namespace DurableTask.Core
 
         #region Preprocess to determine work
 
-        SchedulerState DetermineWork(OrchestrationRuntimeState runtimeState, SchedulerState schedulerState, out Work batch)
+        void DetermineWork(OrchestrationRuntimeState runtimeState, ref SchedulerState schedulerState, out Work batch)
         {
             string instanceId = runtimeState.OrchestrationInstance.InstanceId;
             bool deserializeState = schedulerState == null;
@@ -637,7 +637,6 @@ namespace DurableTask.Core
                     }
                 }
             }
-            return schedulerState;
         }
 
         bool EntityIsDeleted(SchedulerState schedulerState)
