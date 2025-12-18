@@ -161,8 +161,9 @@ namespace DurableTask.Core
                                 break;
                             }
 
-                            // We do this to avoid keeping the entity state in memory between executions within the extended session.
-                            // The middleware will keep the entity state cached, so the scheduler state does not need to retain the entity state to fulfill requests within the extended session.
+                            // When extended sessions are enabled, the handler caches the entity state after the first execution of the extended session, so there
+                            // is no need to retain a reference to it here.
+                            // We set the local reference to null so that the entity state can be garbage collected while we wait for more messages to arrive.
                             schedulerState.EntityState = null;
 
                             processCount++;
