@@ -89,7 +89,7 @@
   <!-- Samples dependencies -->
   <ItemGroup>
     <PackageVersion Include="Azure.Identity" Version="1.12.0" />
-    <PackageVersion Include="Microsoft.ApplicationInsights.DependencyCollector" Version="2.12.0" />
+    <PackageVersion Include="Microsoft.ApplicationInsights.DependencyCollector" Version="2.23.0" />
     <PackageVersion Include="Microsoft.ApplicationInsights.WorkerService" Version="2.21.0" />
     <PackageVersion Include="Microsoft.Azure.DurableTask.AzureStorage" Version="1.17.3" />
     <PackageVersion Include="Microsoft.Extensions.Azure" Version="1.7.4" />
