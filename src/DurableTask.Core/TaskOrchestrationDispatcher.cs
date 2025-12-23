@@ -1221,7 +1221,7 @@ namespace DurableTask.Core
             bool includeParameters,
             Activity? parentTraceActivity)
         {
-            IDictionary<string,string> mergedTags = OrchestrationTags.MergeTags(createSubOrchestrationAction.Tags, runtimeState.Tags);
+            IDictionary<string, string> mergedTags = OrchestrationTags.MergeTags(createSubOrchestrationAction.Tags, runtimeState.Tags);
 
             var historyEvent = new SubOrchestrationInstanceCreatedEvent(createSubOrchestrationAction.Id)
             {
