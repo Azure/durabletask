@@ -13,6 +13,7 @@
 
 namespace DurableTask.Core.History
 {
+    using System.Collections.Generic;
     using System.Runtime.Serialization;
 
     /// <summary>
@@ -47,6 +48,7 @@ namespace DurableTask.Core.History
             InstanceId = other.InstanceId;
             Input = other.Input;
             ClientSpanId = other.ClientSpanId;
+            Tags = other.Tags;
         }
 
         /// <summary>
@@ -83,5 +85,11 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public string ClientSpanId { get; set; }
+
+        /// <summary>
+        /// Gets or sets a dictionary of tags of string, string
+        /// </summary>
+        [DataMember]
+        public IDictionary<string, string> Tags { get; set; }
     }
 }

@@ -1221,11 +1221,14 @@ namespace DurableTask.Core
             bool includeParameters,
             Activity? parentTraceActivity)
         {
+            IDictionary<string, string> mergedTags = OrchestrationTags.MergeTags(createSubOrchestrationAction.Tags, runtimeState.Tags);
+
             var historyEvent = new SubOrchestrationInstanceCreatedEvent(createSubOrchestrationAction.Id)
             {
                 Name = createSubOrchestrationAction.Name,
                 Version = createSubOrchestrationAction.Version,
                 InstanceId = createSubOrchestrationAction.InstanceId,
+                Tags = mergedTags,
             };
             if (includeParameters)
             {
@@ -1238,7 +1241,6 @@ namespace DurableTask.Core
 
             var startedEvent = new ExecutionStartedEvent(-1, createSubOrchestrationAction.Input)
             {
-                Tags = OrchestrationTags.MergeTags(createSubOrchestrationAction.Tags, runtimeState.Tags),
                 OrchestrationInstance = new OrchestrationInstance
                 {
                     InstanceId = createSubOrchestrationAction.InstanceId,
@@ -1252,7 +1254,8 @@ namespace DurableTask.Core
                     TaskScheduleId = createSubOrchestrationAction.Id
                 },
                 Name = createSubOrchestrationAction.Name,
-                Version = createSubOrchestrationAction.Version
+                Version = createSubOrchestrationAction.Version,
+                Tags = mergedTags,
             };
 
             // If a parent trace context was provided via the CreateSubOrchestrationAction.Tags, we will use this as the parent trace context of the suborchestration execution Activity rather than Activity.Current.Context.

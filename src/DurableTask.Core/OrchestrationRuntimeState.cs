@@ -389,6 +389,7 @@ namespace DurableTask.Core
                     Version = subOrchestrationInstanceCreatedEvent.Version,
                     Input = "[..snipped..]",
                     ClientSpanId = subOrchestrationInstanceCreatedEvent.ClientSpanId,
+                    Tags = subOrchestrationInstanceCreatedEvent.Tags,
                 };
             }
             else if (evt is SubOrchestrationInstanceCompletedEvent subOrchestrationInstanceCompletedEvent)
