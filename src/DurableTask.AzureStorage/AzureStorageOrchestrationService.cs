@@ -484,12 +484,18 @@ namespace DurableTask.AzureStorage
 
         async Task ReportStatsLoop(CancellationToken cancellationToken)
         {
+            DisconnectedPerformanceMonitor monitor = new DisconnectedPerformanceMonitor(
+                this.settings.StorageConnectionString,
+                this.settings.TaskHubName);
+            PerformanceHeartbeat heartbeat;
+
             while (!cancellationToken.IsCancellationRequested)
             {
                 try
                 {
                     await Task.Delay(TimeSpan.FromMinutes(1), cancellationToken);
-                    this.ReportStats();
+                    heartbeat = await monitor.PulseAsync();
+                    this.ReportStats(heartbeat);
                 }
                 catch (TaskCanceledException)
                 {
@@ -506,10 +512,11 @@ namespace DurableTask.AzureStorage
             }
 
             // Final reporting of stats
-            this.ReportStats();
+            heartbeat = await monitor.PulseAsync();
+            this.ReportStats(heartbeat);
         }
 
-        void ReportStats()
+        void ReportStats(PerformanceHeartbeat heartbeat)
         {
             // The following stats are reported on a per-interval basis.
             long storageRequests = this.stats.StorageRequests.Reset();
@@ -538,6 +545,16 @@ namespace DurableTask.AzureStorage
                 pendingOrchestrationMessages,
                 activeOrchestrationSessions,
                 this.stats.ActiveActivityExecutions.Value);
+
+            this.settings.Logger.AzureStorageTaskHubMetrics(
+                this.azureStorageClient.QueueAccountName,
+                this.settings.TaskHubName,
+                heartbeat.PartitionCount,
+                heartbeat.WorkItemQueueLength,
+                heartbeat.WorkItemQueueLatency.ToString(),
+                heartbeat.WorkItemQueueLatencyTrend,
+                heartbeat.ControlQueueLengths.ToString(),
+                heartbeat.ControlQueueLatencies.ToString());
         }
 
         internal async Task OnIntentLeaseAquiredAsync(BlobPartitionLease lease)
