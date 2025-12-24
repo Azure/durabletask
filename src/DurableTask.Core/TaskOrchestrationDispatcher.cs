@@ -780,7 +780,7 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(workItem);
             dispatchContext.SetProperty(GetOrchestrationExecutionContext(runtimeState));
             dispatchContext.SetProperty(this.entityParameters);
-            dispatchContext.SetProperty(new WorkItemMetadata { IsExtendedSession = workItem.IsExtendedSession, IncludePastEvents = true });
+            dispatchContext.SetProperty(new WorkItemMetadata { IsExtendedSession = workItem.IsExtendedSession, IncludeState = true });
 
             TaskOrchestrationExecutor? executor = null;
 
@@ -833,7 +833,7 @@ namespace DurableTask.Core
             dispatchContext.SetProperty(cursor.TaskOrchestration);
             dispatchContext.SetProperty(cursor.RuntimeState);
             dispatchContext.SetProperty(workItem);
-            dispatchContext.SetProperty(new WorkItemMetadata { IsExtendedSession = true, IncludePastEvents = false });
+            dispatchContext.SetProperty(new WorkItemMetadata { IsExtendedSession = true, IncludeState = false });
 
             cursor.LatestDecisions = Enumerable.Empty<OrchestratorAction>();
             await this.dispatchPipeline.RunAsync(dispatchContext, _ =>

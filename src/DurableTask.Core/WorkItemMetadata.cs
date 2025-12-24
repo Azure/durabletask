@@ -11,9 +11,10 @@
         public bool IsExtendedSession { get; set; }
 
         /// <summary>
-        /// Gets or sets whether or not to include past events in the orchestration history when executing the work item via middleware.
-        /// This assumes that the middleware is able to handle extended sessions and does not require history for replays.
+        /// Gets or sets whether or not to include instance state when executing the work item via middleware.
+        /// When false, this assumes that the middleware is able to handle extended sessions and has already cached
+        /// the instance state from a previous execution, so it does not need to be included again.
         /// </summary>
-        public bool IncludePastEvents { get; set; }
+        public bool IncludeState { get; set; }
     }
 }
