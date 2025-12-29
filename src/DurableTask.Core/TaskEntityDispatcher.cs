@@ -975,7 +975,7 @@ namespace DurableTask.Core
 
             var dispatchContext = new DispatchMiddlewareContext();
             dispatchContext.SetProperty(request);
-            dispatchContext.SetProperty(new WorkItemMetadata { IsExtendedSession = isExtendedSession, IncludeState = includeEntityState });
+            dispatchContext.SetProperty(new WorkItemMetadata(isExtendedSession, includeEntityState));
 
             await this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
             {
