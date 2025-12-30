@@ -47,7 +47,7 @@
   
   <!-- Test dependencies -->
   <ItemGroup>
-    <PackageVersion Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.0.0-beta.4" />
+    <PackageVersion Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.5.0" />
     <PackageVersion Include="CommandLineParser" Version="2.9.1" Condition="'$(TargetFramework)' == 'net6.0'" />
     <PackageVersion Include="CommandLineParser" Version="1.9.71" Condition="'$(TargetFramework)' == 'net48'" />
     <PackageVersion Include="EnterpriseLibrary.SemanticLogging.EventSourceAnalyzer.NetCore" Version="2.0.1406.4" />
