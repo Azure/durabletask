@@ -131,13 +131,13 @@ namespace DurableTask.Core
                 if (workItem.Session == null)
                 {
                     // Legacy behavior
-                    await this.OnProcessWorkItemAsync(workItem);
+                    await this.OnProcessWorkItemAsync(workItem, null);
                     return;
                 }
 
-                var isExtendedSession = false;
-
+                var concurrencyLockAcquired = false;
                 var processCount = 0;
+                SchedulerState schedulerState = null;
                 try
                 {
                     while (true)
@@ -145,23 +145,34 @@ namespace DurableTask.Core
                         // While the work item contains messages that need to be processed, execute them.
                         if (workItem.NewMessages?.Count > 0)
                         {
-                            bool isCompletedOrInterrupted = await this.OnProcessWorkItemAsync(workItem);
-                            if (isCompletedOrInterrupted)
+                            // We only need to acquire the lock on the first execution within the extended session
+                            if (!concurrencyLockAcquired)
+                            {
+                                concurrencyLockAcquired = this.concurrentSessionLock.Acquire();
+                            }
+                            workItem.IsExtendedSession = concurrencyLockAcquired;
+                            // Regardless of whether or not we acquired the concurrent session lock, we will make sure to execute this work item.
+                            // If we failed to acquire it, we will end the extended session after this execution.
+                            schedulerState = await this.OnProcessWorkItemAsync(workItem, schedulerState);
+
+                            // The entity has been deleted, so we end the extended session.
+                            if (this.EntityIsDeleted(schedulerState))
                             {
                                 break;
                             }
+
+                            // When extended sessions are enabled, the handler caches the entity state after the first execution of the extended session, so there
+                            // is no need to retain a reference to it here.
+                            // We set the local reference to null so that the entity state can be garbage collected while we wait for more messages to arrive.
+                            schedulerState.EntityState = null;
 
                             processCount++;
                         }
 
-                        // Fetches beyond the first require getting an extended session lock, used to prevent starvation.
-                        if (processCount > 0 && !isExtendedSession)
+                        // If we failed to acquire the concurrent session lock, we will end the extended session after the execution of the first work item
+                        if (processCount > 0 && !concurrencyLockAcquired)
                         {
-                            isExtendedSession = this.concurrentSessionLock.Acquire();
-                            if (!isExtendedSession)
-                            {
-                                break;
-                            }
+                            break;
                         }
 
                         Stopwatch timer = Stopwatch.StartNew();
@@ -179,7 +190,7 @@ namespace DurableTask.Core
                 }
                 finally
                 {
-                    if (isExtendedSession)
+                    if (concurrencyLockAcquired)
                     {
                         this.concurrentSessionLock.Release();
                     }
@@ -208,7 +219,9 @@ namespace DurableTask.Core
         /// Method to process a new work item
         /// </summary>
         /// <param name="workItem">The work item to process</param>
-        protected async Task<bool> OnProcessWorkItemAsync(TaskOrchestrationWorkItem workItem)
+        /// <param name="schedulerState">If extended sessions are enabled, the scheduler state that is being cached across executions.
+        /// If they are not enabled, or if this is the first execution from within an extended session, this parameter is null.</param>
+        private async Task<SchedulerState> OnProcessWorkItemAsync(TaskOrchestrationWorkItem workItem, SchedulerState schedulerState)
         {
             OrchestrationRuntimeState originalOrchestrationRuntimeState = workItem.OrchestrationRuntimeState;
 
@@ -245,19 +258,20 @@ namespace DurableTask.Core
                 }
                 else
                 {
+                    bool firstExecutionIfExtendedSession = schedulerState == null;
 
                     // we start with processing all the requests and figuring out which ones to execute now
                     // results can depend on whether the entity is locked, what the maximum batch size is,
                     // and whether the messages arrived out of order
 
                     this.DetermineWork(workItem.OrchestrationRuntimeState,
-                         out SchedulerState schedulerState,
+                         ref schedulerState,
                          out Work workToDoNow);
 
                     if (workToDoNow.OperationCount > 0)
                     {
                         // execute the user-defined operations on this entity, via the middleware
-                        var result = await this.ExecuteViaMiddlewareAsync(workToDoNow, runtimeState.OrchestrationInstance, schedulerState.EntityState);
+                        var result = await this.ExecuteViaMiddlewareAsync(workToDoNow, runtimeState.OrchestrationInstance, schedulerState.EntityState, workItem.IsExtendedSession, firstExecutionIfExtendedSession);
                         var operationResults = result.Results!;
 
                         // if we encountered an error, record it as the result of the operations
@@ -417,7 +431,7 @@ namespace DurableTask.Core
                 workItem.OrchestrationRuntimeState = runtimeState;
             }
 
-            return true;
+            return schedulerState;
         }
 
         void ProcessLockRequest(WorkItemEffects effects, SchedulerState schedulerState, RequestMessage request)
@@ -445,7 +459,7 @@ namespace DurableTask.Core
 
         string SerializeSchedulerStateForNextExecution(SchedulerState schedulerState)
         {
-            if (this.entityBackendProperties.SupportsImplicitEntityDeletion && schedulerState.IsEmpty && !schedulerState.Suspended)
+            if (this.EntityIsDeleted(schedulerState))
             {
                 // this entity scheduler is idle and the entity is deleted, so the instance and history can be removed from storage
                 // we convey this to the durability provider by issuing a continue-as-new with null input
@@ -460,10 +474,11 @@ namespace DurableTask.Core
 
         #region Preprocess to determine work
 
-        void DetermineWork(OrchestrationRuntimeState runtimeState, out SchedulerState schedulerState, out Work batch)
+        void DetermineWork(OrchestrationRuntimeState runtimeState, ref SchedulerState schedulerState, out Work batch)
         {
             string instanceId = runtimeState.OrchestrationInstance.InstanceId;
-            schedulerState = new SchedulerState();
+            bool deserializeState = schedulerState == null;
+            schedulerState ??= new();
             batch = new Work();
 
             Queue<RequestMessage> lockHolderMessages = null;
@@ -474,8 +489,9 @@ namespace DurableTask.Core
                 {
                     case EventType.ExecutionStarted:
 
-
-                        if (runtimeState.Input != null)
+                        // Only attempt to deserialize the scheduler state if we don't already have it in memory.
+                        // This occurs on the first execution within an extended session, or when extended sessions are disabled.
+                        if (runtimeState.Input != null && deserializeState)
                         {
                             try
                             {
@@ -622,6 +638,11 @@ namespace DurableTask.Core
                     }
                 }
             }
+        }
+
+        bool EntityIsDeleted(SchedulerState schedulerState)
+        {
+            return schedulerState != null && this.entityBackendProperties.SupportsImplicitEntityDeletion && schedulerState.IsEmpty && !schedulerState.Suspended;
         }
 
         class Work
@@ -931,7 +952,7 @@ namespace DurableTask.Core
 
         #endregion
 
-        async Task<EntityBatchResult> ExecuteViaMiddlewareAsync(Work workToDoNow, OrchestrationInstance instance, string serializedEntityState)
+        async Task<EntityBatchResult> ExecuteViaMiddlewareAsync(Work workToDoNow, OrchestrationInstance instance, string serializedEntityState, bool isExtendedSession, bool includeEntityState)
         {
             var (operations, traceActivities) = workToDoNow.GetOperationRequestsAndTraceActivities(instance.InstanceId);
             // the request object that will be passed to the worker
@@ -954,6 +975,7 @@ namespace DurableTask.Core
 
             var dispatchContext = new DispatchMiddlewareContext();
             dispatchContext.SetProperty(request);
+            dispatchContext.SetProperty(new WorkItemMetadata(isExtendedSession, includeEntityState));
 
             await this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
             {
