@@ -279,6 +279,25 @@ namespace DurableTask.Core
         }
 
         /// <summary>
+        ///     Create a sub-orchestration of the specified name and version. Also retry on failure as per supplied policy.
+        /// </summary>
+        /// <typeparam name="T">Return Type of the TaskOrchestration.RunTask method</typeparam>
+        /// <param name="name">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="version">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="instanceId">Instance Id of the sub-orchestration</param>
+        /// <param name="retryOptions">Retry policy</param>
+        /// <param name="input">Input for the TaskOrchestration.RunTask method</param>
+        /// <param name="tags">Dictionary of key/value tags associated with this instance</param>
+        /// <returns>Task that represents the execution of the specified sub-orchestration</returns>
+        public virtual Task<T> CreateSubOrchestrationInstanceWithRetry<T>(string name, string version, string instanceId,
+            RetryOptions retryOptions, object input, IDictionary<string, string> tags)
+        {
+            Task<T> RetryCall() => CreateSubOrchestrationInstance<T>(name, version, instanceId, input, tags);
+            var retryInterceptor = new RetryInterceptor<T>(this, retryOptions, RetryCall);
+            return retryInterceptor.Invoke();
+        }
+
+        /// <summary>
         ///     Schedule a TaskActivity by type.
         /// </summary>
         /// <typeparam name="TResult">Return Type of the TaskActivity.Execute method</typeparam>
