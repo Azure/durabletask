@@ -602,7 +602,13 @@ namespace DurableTask.Core.Tracing
                     {
                         if (result.ErrorMessage != null || result.FailureDetails != null)
                         {
-                            activity.SetTag(Schema.Task.ErrorMessage, result.ErrorMessage ?? result.FailureDetails!.ErrorMessage);
+                            string errorDetails = result.ErrorMessage ?? result.FailureDetails!.ErrorMessage;
+                            activity.SetTag(Schema.Task.ErrorMessage, errorDetails);
+                            activity.SetStatus(ActivityStatusCode.Error, errorDetails);
+                        }
+                        else
+                        {
+                            activity.SetStatus(ActivityStatusCode.OK, "Completed");
                         }
                         if (result.StartTimeUtc is DateTime startTime)
                         {
@@ -630,6 +636,7 @@ namespace DurableTask.Core.Tracing
                     if (activity != null)
                     {
                         activity.SetTag(Schema.Task.ErrorMessage, errorMessage);
+                        activity.SetStatus(ActivityStatusCode.Error, errorMessage);
                         activity.Dispose();
                     }
                 }
