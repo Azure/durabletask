@@ -2151,6 +2151,15 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
+        /// Sets the value for settings.UseSeparateQueueForEntityWorkItems, allowing modification after initialization.
+        /// </summary>
+        /// <param name="newValue"></param>
+        public void SetUseSeparateQueueForEntityWorkItems(bool newValue)
+        {
+            this.settings.UseSeparateQueueForEntityWorkItems = newValue;
+        }
+         
+        /// <summary>
         /// Disposes of the current object.
         /// </summary>
         public void Dispose()
