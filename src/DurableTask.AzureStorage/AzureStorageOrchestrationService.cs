@@ -2151,14 +2151,15 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Sets the value for settings.UseSeparateQueueForEntityWorkItems, allowing modification after initialization.
+        /// Whether to use separate work item queues for entities and orchestrators.
+        /// Wraps the value of AzureStorageOrchestrationServiceSettings.UseSeparateQueueForEntityWorkItems.
         /// </summary>
-        /// <param name="newValue"></param>
-        public void SetUseSeparateQueueForEntityWorkItems(bool newValue)
+        public bool UseSeparateQueuesForEntityWorkItems
         {
-            this.settings.UseSeparateQueueForEntityWorkItems = newValue;
+            get => this.settings.UseSeparateQueueForEntityWorkItems;
+            set => this.settings.UseSeparateQueueForEntityWorkItems = value;
         }
-         
+
         /// <summary>
         /// Disposes of the current object.
         /// </summary>
