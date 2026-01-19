@@ -1,22 +1,42 @@
-# Distributed Tracing for Durable Task
+# Correlation Samples
 
-Distributed Tracing for Durable Task is a feature for enabling correlation propagation among orchestrations and activities. 
-The key features of Distributed Tracing for Durable Task are:
+This sample demonstrates legacy distributed tracing using the `CorrelationSettings` API with the Azure Storage provider.
 
-- **End to End Tracing with Application Insights**: Support Complex orchestration scenario. Multi-Layered Sub Orchestration, Fan-out Fan-in, retry, Timer,  and more. 
-- **Support Protocol**: [W3C TraceContext](https://w3c.github.io/trace-context/) and [Http Correlation Protocol](https://github.com/dotnet/corefx/blob/master/src/System.Diagnostics.DiagnosticSource/src/HttpCorrelationProtocol.md) 
-- **Suppress Distributed Tracing**: No breaking change for the current implementation
+> [!NOTE]
+> For comprehensive distributed tracing documentation, including the modern `ActivitySource`-based approach, see the [Distributed Tracing Guide](../../docs/telemetry/distributed-tracing.md).
 
-Currently, we support [DurableTask.AzureStorage](https://w3c.github.io/trace-context/). 
+## Overview
+
+This sample shows the legacy correlation approach using:
+
+- `CorrelationSettings.Current.EnableDistributedTracing` — Enable tracing
+- `CorrelationTraceClient.SetUp()` — Manual telemetry callbacks
+- Application Insights for trace visualization
 
 ![Overview](docs/images/overview.png)
 
-# Getting Started
+## Supported Scenarios
 
-If you want to try Distributed Tracing with DurableTask.AzureStorage, you can find a document with a Handful of examples. 
+The samples demonstrate tracing across various orchestration patterns:
 
- - [Intro](docs/getting-started.md)
+- Simple orchestrations (`HelloOrchestrator`)
+- Fan-out/fan-in (`FanOutFanInOrchestrator`)
+- Sub-orchestrations (`SubOrchestratorOrchestration`)
+- Retry scenarios (`RetryOrchestration`, `MultiLayeredOrchestrationWithRetry`)
+- Continue-as-new (`ContinueAsNewOrchestration`)
+- Terminated orchestrations (`TerminatedOrchestration`)
 
-# Developing Provider
+## Getting Started
 
-If you want to implement Distributed Tracing for other DurableTask providers, Read [Develop Distributed Tracing](docs/overview.md).
+See [docs/getting-started.md](docs/getting-started.md) for setup instructions.
+
+## Provider Implementation
+
+If you're implementing distributed tracing for a custom provider, see [docs/overview.md](docs/overview.md) for the architecture and extension points.
+
+## Modern Alternative
+
+For new projects, consider using the modern `ActivitySource`-based approach with OpenTelemetry:
+
+- [OpenTelemetry Sample](../DistributedTraceSample/OpenTelemetry)
+- [Application Insights Sample](../DistributedTraceSample/ApplicationInsights)

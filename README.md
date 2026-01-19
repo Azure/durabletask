@@ -2,6 +2,8 @@
 
 The Durable Task Framework (DTFx) is a library that allows users to write long running persistent workflows (referred to as _orchestrations_) in C# using simple async/await coding constructs. It is used heavily within various teams at Microsoft to reliably orchestrate long running provisioning, monitoring, and management operations. The orchestrations scale out linearly by simply adding more worker machines. This framework is also used to power the serverless [Durable Functions](https://docs.microsoft.com/azure/azure-functions/durable/durable-functions-overview) extension of [Azure Functions](https://azure.microsoft.com/services/functions/).
 
+> **📖 Documentation:** Comprehensive documentation is available in the [docs](./docs/README.md) folder. The [GitHub Wiki](https://github.com/Azure/durabletask/wiki) is no longer actively maintained — please refer to the docs folder for up-to-date content.
+
 By open sourcing this project we hope to give the community a very cost-effective alternative to heavy duty workflow systems. We also hope to build an ecosystem of providers and activities around this simple yet incredibly powerful framework.
 
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
