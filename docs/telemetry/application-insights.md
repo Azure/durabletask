@@ -349,7 +349,7 @@ await Task.Delay(TimeSpan.FromSeconds(5));  // Allow time for flush
 ## Samples
 
 See the complete working sample:
-- [Application Insights Sample](../../../samples/DistributedTraceSample/ApplicationInsights)
+- [Application Insights Sample](../../samples/DistributedTraceSample/ApplicationInsights)
 
 ## Next Steps
 
