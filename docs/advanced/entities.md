@@ -22,9 +22,10 @@ If you want to build applications that leverage the capabilities of Durable Enti
 
 ### Durable Task SDK with Durable Task Scheduler
 
-The [Durable Task SDK](https://github.com/microsoft/durabletask-dotnet) used together with the [Durable Task Scheduler](durable-task-scheduler.md) provides a modern programming model with entity support. This is the recommended approach for new .NET applications that need durable entity capabilities outside of Azure Functions.
+The [Durable Task SDK](https://github.com/microsoft/durabletask-dotnet) used together with the [Durable Task Scheduler](../providers/durable-task-scheduler.md) provides a modern programming model with entity support. This is the recommended approach for new .NET applications that need durable entity capabilities outside of Azure Functions.
 
 ## Next Steps
 
 - [Durable Task Scheduler](../providers/durable-task-scheduler.md) — Learn about the Durable Task Scheduler backend
 - [Choosing a Backend](../getting-started/choosing-a-backend.md) — Compare available backend providers
+
