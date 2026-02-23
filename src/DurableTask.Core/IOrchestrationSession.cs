@@ -11,6 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+#nullable enable
 namespace DurableTask.Core
 {
     using System.Collections.Generic;
@@ -30,5 +31,11 @@ namespace DurableTask.Core
         /// and the dispatcher will shut down the session.
         /// </remarks>
         Task<IList<TaskMessage>> FetchNewOrchestrationMessagesAsync(TaskOrchestrationWorkItem workItem);
+
+        /// <summary>
+        /// Ends the session.
+        /// </summary>
+        /// <returns>A task that completes when the session has been ended.</returns>
+        Task EndSessionAsync();
     }
 }

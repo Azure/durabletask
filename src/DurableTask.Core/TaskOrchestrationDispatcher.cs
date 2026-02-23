@@ -295,6 +295,7 @@ namespace DurableTask.Core
                             "OnProcessWorkItemSession-Release",
                             $"Releasing extended session after {processCount} batch(es).");
                         this.concurrentSessionLock.Release();
+                        await workItem.Session.EndSessionAsync();
                     }
                 }
             }
@@ -553,10 +554,6 @@ namespace DurableTask.Core
                                     orchestratorMessages.AddRange(subOrchestrationRewindMessages);
                                     workItem.OrchestrationRuntimeState = newRuntimeState;
                                     runtimeState = newRuntimeState;
-                                    // Setting this to true here will end an extended session if it is in progress.
-                                    // We don't want to save the state across executions, since we essentially manually modify
-                                    // the orchestration history here and so that stored by the extended session is incorrect.
-                                    isRewinding = true;
                                     break;
                                 default:
                                     throw TraceHelper.TraceExceptionInstance(
