@@ -1207,6 +1207,9 @@ namespace DurableTask.AzureStorage
                         continuedAsNewMessage,
                         orchestrationState)));
 
+            // update the runtime state and execution id stored in the session
+            session.UpdateRuntimeState(runtimeState);
+
             // First, add new messages into the queue. If a failure happens after this, duplicate messages will
             // be written after the retry, but the results of those messages are expected to be de-dup'd later.
             // This provider needs to ensure that response messages are not processed until the history a few
@@ -1231,8 +1234,6 @@ namespace DurableTask.AzureStorage
             try
             {
                 await this.trackingStore.UpdateStateAsync(runtimeState, workItem.OrchestrationRuntimeState, instanceId, executionId, session.ETags, session.TrackingStoreContext);
-                // update the runtime state and execution id stored in the session
-                session.UpdateRuntimeState(runtimeState);
 
                 // if we deferred some messages, and the execution id of this instance has changed, redeliver them
                 if (session.DeferredMessages.Count > 0
