@@ -318,7 +318,6 @@ namespace DurableTask.Core
             var timerMessages = new List<TaskMessage>();
             var orchestratorMessages = new List<TaskMessage>();
             var isCompleted = false;
-            var continuedAsNew = false;
             var isInterrupted = false;
             var isRewinding = false;
 
@@ -326,7 +325,6 @@ namespace DurableTask.Core
             CorrelationTraceClient.Propagate(() => CorrelationTraceContext.Current = workItem.TraceContext);
 
             ExecutionStartedEvent? continueAsNewExecutionStarted = null;
-            TaskMessage? continuedAsNewMessage = null;
             IList<HistoryEvent>? carryOverEvents = null;
             string? carryOverStatus = null;
 
@@ -389,10 +387,11 @@ namespace DurableTask.Core
                 }
                 else
                 {
+                    bool continuedAsNew;
                     do
                     {
                         continuedAsNew = false;
-                        continuedAsNewMessage = null;
+                        TaskMessage? continuedAsNewMessage = null;
 
                         IReadOnlyList<OrchestratorAction> decisions = new List<OrchestratorAction>();
                         bool versioningFailed = false;
@@ -707,10 +706,10 @@ namespace DurableTask.Core
             await this.orchestrationService.CompleteTaskOrchestrationWorkItemAsync(
                 workItem,
                 runtimeState,
-                continuedAsNew ? null : messagesToSend,
+                messagesToSend,
                 orchestratorMessages,
-                continuedAsNew ? null : timerMessages,
-                continuedAsNewMessage,
+                timerMessages,
+                continuedAsNewMessage: null,
                 instanceState);
 
             if (workItem.RestoreOriginalRuntimeStateDuringCompletion)
@@ -718,7 +717,7 @@ namespace DurableTask.Core
                 workItem.OrchestrationRuntimeState = runtimeState;
             }
 
-            return isCompleted || continuedAsNew || isInterrupted || isRewinding;
+            return isCompleted || isInterrupted || isRewinding;
         }
 
         static OrchestrationExecutionContext GetOrchestrationExecutionContext(OrchestrationRuntimeState runtimeState)
