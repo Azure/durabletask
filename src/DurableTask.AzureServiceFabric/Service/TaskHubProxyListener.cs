@@ -29,6 +29,12 @@ namespace DurableTask.AzureServiceFabric.Service
     using Microsoft.ServiceFabric.Services.Communication.Runtime;
     using Microsoft.ServiceFabric.Services.Runtime;
 
+#if !NETFRAMEWORK
+    using Microsoft.AspNetCore.Hosting;
+    using Microsoft.Extensions.DependencyInjection;
+    using Microsoft.ServiceFabric.Services.Communication.AspNetCore;
+#endif
+
     /// <summary>
     /// Delegate invoked before starting the worker to register orchestrations.
     /// </summary>
@@ -150,6 +156,9 @@ namespace DurableTask.AzureServiceFabric.Service
         {
             return new ServiceReplicaListener(context =>
             {
+                EnsureFabricOrchestrationProviderIsInitialized();
+
+#if NETFRAMEWORK
                 var serviceEndpoint = context.CodePackageActivationContext.GetEndpoint(Constants.TaskHubProxyListenerEndpointName);
                 string ipAddress = context.NodeContext.IPAddressOrFQDN;
 #if DEBUG
@@ -158,12 +167,28 @@ namespace DurableTask.AzureServiceFabric.Service
                     address => (address.AddressFamily == AddressFamily.InterNetwork) && (!IPAddress.IsLoopback(address)));
                 ipAddress = ipv4Address.ToString();
 #endif
-
-                EnsureFabricOrchestrationProviderIsInitialized();
                 string protocol = this.enableHttps ? "https" : "http";
                 string listeningAddress = string.Format(CultureInfo.InvariantCulture, "{0}://{1}:{2}/{3}/dtfx/", protocol, ipAddress, serviceEndpoint.Port, context.PartitionId);
 
                 return new OwinCommunicationListener(new Startup(listeningAddress, this.fabricOrchestrationProvider));
+#else
+                var provider = this.fabricOrchestrationProvider;
+                return new KestrelCommunicationListener(context, Constants.TaskHubProxyListenerEndpointName, (url, listener) =>
+                {
+#pragma warning disable ASPDEPR004, ASPDEPR008 // WebHostBuilder is the required pattern for SF KestrelCommunicationListener
+                    return new WebHostBuilder()
+                        .UseKestrel()
+                        .ConfigureServices(services =>
+                        {
+                            services.AddSingleton<FabricOrchestrationProvider>(provider);
+                        })
+                        .UseStartup<Startup>()
+                        .UseServiceFabricIntegration(listener, ServiceFabricIntegrationOptions.UseUniqueServiceUrl)
+                        .UseUrls(url)
+                        .Build();
+#pragma warning restore ASPDEPR004, ASPDEPR008
+                });
+#endif
             }, Constants.TaskHubProxyServiceName);
         }
 

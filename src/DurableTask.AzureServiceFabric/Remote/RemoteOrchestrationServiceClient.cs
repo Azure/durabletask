@@ -18,11 +18,10 @@ namespace DurableTask.AzureServiceFabric.Remote
     using System.Linq;
     using System.Net;
     using System.Net.Http;
-    using System.Net.Http.Formatting;
     using System.Net.Sockets;
+    using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
-    using System.Web;
 
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
@@ -31,7 +30,6 @@ namespace DurableTask.AzureServiceFabric.Remote
 
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
-    using System.Web.Http.Results;
 
     /// <summary>
     /// Allows to interact with a remote IOrchestrationServiceClient
@@ -115,7 +113,7 @@ namespace DurableTask.AzureServiceFabric.Remote
         {
             instanceId.EnsureValidInstanceId();
 
-            var fragment = $"{this.GetOrchestrationFragment(instanceId)}?reason={HttpUtility.UrlEncode(reason)}";
+            var fragment = $"{this.GetOrchestrationFragment(instanceId)}?reason={WebUtility.UrlEncode(reason)}";
             using (var response = await this.ExecuteRequestWithRetriesAsync(
                 instanceId,
                 async (baseUri) => await this.HttpClient.DeleteAsync(new Uri(baseUri, fragment)),
@@ -193,7 +191,11 @@ namespace DurableTask.AzureServiceFabric.Remote
             foreach (var endpoint in await this.GetAllEndpointsAsync(CancellationToken.None))
             {
                 var uri = $"{endpoint.ToString()}/{GetHistoryFragment()}";
-                var task = this.HttpClient.PostAsJsonAsync(uri, new PurgeOrchestrationHistoryParameters { ThresholdDateTimeUtc = thresholdDateTimeUtc, TimeRangeFilterType = timeRangeFilterType });
+                var task = this.HttpClient.PostAsync(uri,
+                    new StringContent(
+                        JsonConvert.SerializeObject(new PurgeOrchestrationHistoryParameters { ThresholdDateTimeUtc = thresholdDateTimeUtc, TimeRangeFilterType = timeRangeFilterType }),
+                        Encoding.UTF8,
+                        "application/json"));
                 allTasks.Add(task);
             }
 
@@ -303,21 +305,26 @@ namespace DurableTask.AzureServiceFabric.Remote
 
         private async Task PutJsonAsync(string instanceId, string fragment, object @object, CancellationToken cancellationToken)
         {
-            var mediaFormatter = new JsonMediaTypeFormatter()
-            {
-                SerializerSettings = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.All }
-            };
+            var jsonSettings = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.All };
+            var jsonContent = new StringContent(
+                JsonConvert.SerializeObject(@object, jsonSettings),
+                Encoding.UTF8,
+                "application/json");
 
             using (var result = await this.ExecuteRequestWithRetriesAsync(
                 instanceId,
-                async (baseUri) => await this.HttpClient.PutAsync(new Uri(baseUri, fragment), @object, mediaFormatter),
+                async (baseUri) => await this.HttpClient.PutAsync(new Uri(baseUri, fragment), jsonContent),
                 cancellationToken))
             {
 
                 // TODO: Improve exception handling
                 if (result.StatusCode == HttpStatusCode.Conflict)
                 {
-                    throw await (result.Content?.ReadAsAsync<OrchestrationAlreadyExistsException>() ?? Task.FromResult(new OrchestrationAlreadyExistsException()));
+                    var errorContent = await (result.Content?.ReadAsStringAsync() ?? Task.FromResult<string>(null));
+                    throw errorContent != null
+                        ? JsonConvert.DeserializeObject<OrchestrationAlreadyExistsException>(errorContent)
+                          ?? new OrchestrationAlreadyExistsException()
+                        : new OrchestrationAlreadyExistsException();
                 }
 
                 if (!result.IsSuccessStatusCode)

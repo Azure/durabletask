@@ -2,7 +2,7 @@
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
-    <TargetFrameworks>net48;net472</TargetFrameworks>
+    <TargetFrameworks>net48;net472;net8.0;net10.0</TargetFrameworks>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PackageId>Microsoft.Azure.DurableTask.AzureServiceFabric</PackageId>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
@@ -16,23 +16,26 @@
     <NoWarn>$(NoWarn);NU5104</NoWarn>
  </PropertyGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+  <!-- .NET Framework: System.Web reference -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48' OR '$(TargetFramework)' == 'net472'">
     <Reference Include="System.Web" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
-    <Reference Include="System.Web" />
+  <!-- .NET Framework: OWIN + Web API -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48' OR '$(TargetFramework)' == 'net472'">
+    <PackageReference Include="Microsoft.AspNet.WebApi.OwinSelfHost" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <!-- Restoring packages for netstandard2.0 causes warnings. As warnings are treated as errors, compilation will fail. -->
-    <!-- Once the packages support netstandard2.0, this project will support netstandard2.0. -->
+  <!-- Modern .NET: ASP.NET Core + Kestrel for Service Fabric -->
+  <ItemGroup Condition="'$(TargetFramework)' != 'net48' AND '$(TargetFramework)' != 'net472'">
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" />
+    <PackageReference Include="Microsoft.ServiceFabric.AspNetCore.Kestrel" />
     <PackageReference Include="Newtonsoft.Json" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="ImpromptuInterface" />
-    <PackageReference Include="Microsoft.AspNet.WebApi.OwinSelfHost" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Microsoft.ServiceFabric.Data" />
     <PackageReference Include="Microsoft.ServiceFabric.Services" />

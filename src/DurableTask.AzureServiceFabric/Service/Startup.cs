@@ -14,13 +14,13 @@
 namespace DurableTask.AzureServiceFabric.Service
 {
     using System;
+    using DurableTask.Core;
+    using Microsoft.Extensions.DependencyInjection;
+
+#if NETFRAMEWORK
     using System.Net;
     using System.Web.Http;
     using System.Web.Http.ExceptionHandling;
-
-    using DurableTask.Core;
-    using DurableTask.AzureServiceFabric;
-    using Microsoft.Extensions.DependencyInjection;
     using Owin;
 
     class Startup : IOwinAppBuilder
@@ -64,4 +64,33 @@ namespace DurableTask.AzureServiceFabric.Service
             appBuilder.UseWebApi(config);
         }
     }
+#else
+    using Microsoft.AspNetCore.Builder;
+    using Microsoft.AspNetCore.Hosting;
+    using Newtonsoft.Json;
+
+    class Startup
+    {
+        public void ConfigureServices(IServiceCollection services)
+        {
+            services.AddSingleton<IOrchestrationServiceClient>(sp =>
+                sp.GetRequiredService<FabricOrchestrationProvider>().OrchestrationServiceClient);
+            services.AddControllers()
+                .AddNewtonsoftJson(options =>
+                {
+                    options.SerializerSettings.TypeNameHandling = TypeNameHandling.All;
+                });
+        }
+
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        {
+            app.UseMiddleware<ActivityLoggingMiddleware>();
+            app.UseRouting();
+            app.UseEndpoints(endpoints =>
+            {
+                endpoints.MapControllers();
+            });
+        }
+    }
+#endif
 }

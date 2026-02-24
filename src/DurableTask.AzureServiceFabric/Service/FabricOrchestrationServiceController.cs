@@ -16,11 +16,13 @@ namespace DurableTask.AzureServiceFabric.Service
     using System;
     using System.Collections.Generic;
     using System.Threading.Tasks;
-    using System.Web.Http;
-    using System.Web.Http.Results;
     using DurableTask.AzureServiceFabric.Models;
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
+
+#if NETFRAMEWORK
+    using System.Web.Http;
+    using System.Web.Http.Results;
 
     /// <summary>
     /// A Web Api controller that provides TaskHubClient operations.
@@ -185,4 +187,135 @@ namespace DurableTask.AzureServiceFabric.Service
             return new OkResult(this);
         }
     }
+#else
+    using Microsoft.AspNetCore.Mvc;
+
+    /// <summary>
+    /// An ASP.NET Core controller that provides TaskHubClient operations.
+    /// </summary>
+    [ApiController]
+    public class FabricOrchestrationServiceController : ControllerBase
+    {
+        private readonly IOrchestrationServiceClient orchestrationServiceClient;
+
+        /// <summary>
+        /// Creates an instance of FabricOrchestrationServiceController for given OrchestrationServiceClient
+        /// </summary>
+        /// <param name="orchestrationServiceClient">IOrchestrationServiceClient instance</param>
+        public FabricOrchestrationServiceController(IOrchestrationServiceClient orchestrationServiceClient)
+        {
+            this.orchestrationServiceClient = orchestrationServiceClient;
+        }
+
+        /// <summary>
+        /// Creates a task orchestration.
+        /// </summary>
+        [HttpPut("orchestrations/{orchestrationId}")]
+        public async Task<IActionResult> CreateTaskOrchestration([FromRoute] string orchestrationId, [FromBody] CreateTaskOrchestrationParameters parameters)
+        {
+            parameters.TaskMessage.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
+            if (!orchestrationId.Equals(parameters.TaskMessage.OrchestrationInstance.InstanceId))
+            {
+                return BadRequest($"OrchestrationId from Uri {orchestrationId} doesn't match with the one from body {parameters.TaskMessage.OrchestrationInstance.InstanceId}");
+            }
+
+            try
+            {
+                if (parameters.DedupeStatuses == null)
+                {
+                    await this.orchestrationServiceClient.CreateTaskOrchestrationAsync(parameters.TaskMessage);
+                }
+                else
+                {
+                    await this.orchestrationServiceClient.CreateTaskOrchestrationAsync(parameters.TaskMessage, parameters.DedupeStatuses);
+                }
+
+                return Ok();
+            }
+            catch (OrchestrationAlreadyExistsException orchestrationAlreadyExistsException)
+            {
+                return Conflict(orchestrationAlreadyExistsException);
+            }
+            catch (NotSupportedException notSupportedException)
+            {
+                return BadRequest(notSupportedException.Message);
+            }
+        }
+
+        /// <summary>
+        /// Sends an orchestration message to TaskHubClient.
+        /// </summary>
+        [HttpPost("messages/{messageId}")]
+        public async Task<IActionResult> SendTaskOrchestrationMessage([FromRoute] long messageId, [FromBody] TaskMessage message)
+        {
+            if (messageId != message.SequenceNumber)
+            {
+                return Conflict();
+            }
+
+            message.OrchestrationInstance.InstanceId.EnsureValidInstanceId();
+            await this.orchestrationServiceClient.SendTaskOrchestrationMessageAsync(message);
+            return Ok();
+        }
+
+        /// <summary>
+        /// Sends an array of orchestration messages to TaskHubClient.
+        /// </summary>
+        [HttpPost("messages")]
+        public async Task<IActionResult> SendTaskOrchestrationMessageBatch([FromBody] TaskMessage[] messages)
+        {
+            await this.orchestrationServiceClient.SendTaskOrchestrationMessageBatchAsync(messages);
+            return Ok();
+        }
+
+        /// <summary>
+        /// Gets the state of orchestration.
+        /// </summary>
+        [HttpGet("orchestrations/{orchestrationId}")]
+        public async Task<IActionResult> GetOrchestrationState([FromRoute] string orchestrationId, [FromQuery] string executionId, [FromQuery] bool? allExecutions)
+        {
+            orchestrationId.EnsureValidInstanceId();
+            if (allExecutions.HasValue)
+            {
+                var states = await this.orchestrationServiceClient.GetOrchestrationStateAsync(orchestrationId, allExecutions.Value);
+                return Ok(states);
+            }
+
+            var state = await this.orchestrationServiceClient.GetOrchestrationStateAsync(orchestrationId, executionId);
+            return Ok(state);
+        }
+
+        /// <summary>
+        /// Terminates an orchestration.
+        /// </summary>
+        [HttpDelete("orchestrations/{orchestrationId}")]
+        public async Task<IActionResult> ForceTerminateTaskOrchestration([FromRoute] string orchestrationId, [FromQuery] string reason)
+        {
+            orchestrationId.EnsureValidInstanceId();
+            await this.orchestrationServiceClient.ForceTerminateTaskOrchestrationAsync(orchestrationId, reason);
+            return Ok();
+        }
+
+        /// <summary>
+        /// Gets the history of orchestration.
+        /// </summary>
+        [HttpGet("history/{orchestrationId}")]
+        public async Task<IActionResult> GetOrchestrationHistory([FromRoute] string orchestrationId, [FromQuery] string executionId)
+        {
+            orchestrationId.EnsureValidInstanceId();
+            var result = await this.orchestrationServiceClient.GetOrchestrationHistoryAsync(orchestrationId, executionId);
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Purges orchestration instance state and history for orchestrations older than the specified threshold time.
+        /// </summary>
+        [HttpPost("history")]
+        public async Task<IActionResult> PurgeOrchestrationHistory([FromBody] PurgeOrchestrationHistoryParameters purgeParameters)
+        {
+            await this.orchestrationServiceClient.PurgeOrchestrationHistoryAsync(purgeParameters.ThresholdDateTimeUtc, purgeParameters.TimeRangeFilterType);
+            return Ok();
+        }
+    }
+#endif
 }

@@ -54,7 +54,9 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests.DeploymentUtil
                     var replicas = (await client.QueryManager.GetDeployedReplicaListAsync(node.NodeName, application.ApplicationName)).OfType<DeployedStatefulServiceReplica>();
                     foreach (var replica in replicas)
                     {
+#pragma warning disable CS0618 // RemoveReplicaAsync overload is deprecated in newer SF SDK
                         await client.ServiceManager.RemoveReplicaAsync(node.NodeName, replica.Partitionid, replica.ReplicaId);
+#pragma warning restore CS0618
                     }
                 }
             }

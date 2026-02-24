@@ -11,6 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+#if NETFRAMEWORK
 namespace DurableTask.AzureServiceFabric.Service
 {
     using System;
@@ -34,3 +35,4 @@ namespace DurableTask.AzureServiceFabric.Service
         }
     }
 }
+#endif

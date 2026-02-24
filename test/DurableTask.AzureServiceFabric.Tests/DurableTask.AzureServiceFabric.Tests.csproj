@@ -2,15 +2,15 @@
 
     <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
     <PropertyGroup>
-        <TargetFramework>net48</TargetFramework>
+        <TargetFrameworks>net48;net10.0</TargetFrameworks>
         <Platforms>AnyCPU;x64</Platforms>
     </PropertyGroup>
 
     <ItemGroup>
-	<PackageReference Include="Microsoft.NET.Test.Sdk" VersionOverride="15.0.0" />
-	<PackageReference Include="MSTest.TestAdapter" VersionOverride="1.4.0" />
-	<PackageReference Include="MSTest.TestFramework" VersionOverride="1.4.0" />
-    <PackageReference Include="System.Collections.Immutable" />
+	<PackageReference Include="Microsoft.NET.Test.Sdk" />
+	<PackageReference Include="MSTest.TestAdapter" />
+	<PackageReference Include="MSTest.TestFramework" />
+    <PackageReference Include="System.Collections.Immutable" VersionOverride="1.5.0" />
     </ItemGroup>
 
     <ItemGroup>
