@@ -157,6 +157,14 @@ namespace DurableTask.AzureStorage.Messaging
             // PurgeHistory request or due to a ContinueAsNew call cleaning the old execution's history.
             bool nonExistentInstance = this.IsNonexistantInstance() && message.OriginalQueueMessage.DequeueCount <= 5;
 
+            // If the instance does not exist, even if the message has ben dequeued > 5 times, the next check for trying
+            // to find the corresponding task scheduled message will always fail so we will endlessly abandon the message.
+            // To avoid this we return early here.
+            if (this.IsNonexistantInstance() && message.OriginalQueueMessage.DequeueCount > 5)
+            {
+                return false;
+            }
+
             // LastCheckpointTime represents the time at which the most recent history checkpoint completed.
             // The checkpoint is written to the history table only *after* all queue messages are sent.
             // A message is out of order when its timestamp *preceeds* the most recent checkpoint timestamp.
