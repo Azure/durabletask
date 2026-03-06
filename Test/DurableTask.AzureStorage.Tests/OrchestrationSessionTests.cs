@@ -16,6 +16,7 @@ namespace DurableTask.AzureStorage.Tests
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Linq;
     using System.Reflection;
     using System.Threading;
     using System.Threading.Tasks;
@@ -134,11 +135,13 @@ namespace DurableTask.AzureStorage.Tests
             cts.Cancel();
 
             // All waiters should return false (cancelled = not signaled)
-            foreach (var waiter in waiters)
-            {
-                bool result = await waiter;
-                Assert.IsFalse(result, "Cancelled waiter should return false");
-            }
+            await Task.WhenAll(
+                waiters.Select(
+                    async waiter =>
+                    {
+                        bool result = await waiter;
+                        Assert.IsFalse(result, "Cancelled waiter should return false");
+                    }));
 
             stopwatch.Stop();
 
