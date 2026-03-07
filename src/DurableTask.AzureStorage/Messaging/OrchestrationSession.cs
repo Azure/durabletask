@@ -102,16 +102,9 @@ namespace DurableTask.AzureStorage.Messaging
         public async Task<IList<TaskMessage>> FetchNewOrchestrationMessagesAsync(
             TaskOrchestrationWorkItem workItem)
         {
-            try
+            if (!await this.messagesAvailableEvent.WaitAsync(this.idleTimeout, this.shutdownToken))
             {
-                if (!await this.messagesAvailableEvent.WaitAsync(this.idleTimeout, this.shutdownToken))
-                {
-                    return null; // timed-out
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                return null; // shutting down
+                return null; // timed-out or shutting down
             }
 
             this.StartNewLogicalTraceScope();
