@@ -1,10 +1,15 @@
 # Durable Task Framework
 
-The Durable Task Framework (DTFx) is a library that allows users to write long running persistent workflows (referred to as _orchestrations_) in C# using simple async/await coding constructs. It is used heavily within various teams at Microsoft to reliably orchestrate long running provisioning, monitoring, and management operations. The orchestrations scale out linearly by simply adding more worker machines. This framework is also used to power the serverless [Durable Functions](https://docs.microsoft.com/azure/azure-functions/durable/durable-functions-overview) extension of [Azure Functions](https://azure.microsoft.com/services/functions/).
+> The Durable Task Framework (DTFx) is a legacy library that is not officially supported by Microsoft. If you are starting a new project or looking to migrate, we recommend using one of the supported alternatives:
+>
+> - **[Durable Functions](https://learn.microsoft.com/azure/azure-functions/durable/durable-functions-overview)** — for serverless orchestration on [Azure Functions](https://azure.microsoft.com/services/functions/)
+> - **[Durable Task SDKs](https://learn.microsoft.com/azure/azure-functions/durable/durable-task-scheduler/durable-task-overview)** with the **[Durable Task Scheduler](https://learn.microsoft.com/azure/azure-functions/durable/durable-task-scheduler/durable-task-scheduler)** backend — for self-hosted orchestration on any compute platform (Azure Container Apps, AKS, VMs, etc.)
+>
+> For more details, see [Choosing an orchestration framework](https://learn.microsoft.com/azure/azure-functions/durable/choose-orchestration-framework#unsupported-durable-task-sdks).
+
+The Durable Task Framework (DTFx) is a library that allows users to write long running persistent workflows (referred to as _orchestrations_) in C# using simple async/await coding constructs. While it provides similar orchestration primitives to the modern Durable Task SDKs, it predates them and doesn't include the latest features or official Microsoft support. It also requires you to manage hosting, operational infrastructure, and long-term maintenance yourself.
 
 > **📖 Documentation:** Comprehensive documentation is available in the [docs](./docs/README.md) folder. The [GitHub Wiki](https://github.com/Azure/durabletask/wiki) is no longer actively maintained — please refer to the docs folder for up-to-date content.
-
-By open sourcing this project we hope to give the community a very cost-effective alternative to heavy duty workflow systems. We also hope to build an ecosystem of providers and activities around this simple yet incredibly powerful framework.
 
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
 
@@ -23,7 +28,7 @@ Starting in v2.x, the Durable Task Framework supports an extensible set of backe
 | DurableTask.SqlServer | [![NuGet](https://img.shields.io/nuget/v/Microsoft.DurableTask.SqlServer.svg?style=flat)](https://www.nuget.org/packages/Microsoft.DurableTask.SqlServer/) | All orchestration state is stored in a [Microsoft SQL Server](https://www.microsoft.com/sql-server/sql-server-2019) or [Azure SQL](https://azure.microsoft.com/products/azure-sql/database/) database with indexed tables and stored procedures for direct interaction. This backend is available for [Durable Functions](https://docs.microsoft.com/azure/azure-functions/durable/). [👉 GitHub Repo](https://github.com/microsoft/durabletask-mssql) | Production ready and actively maintained |
 | DurableTask.Emulator | [![NuGet](https://img.shields.io/nuget/v/Microsoft.Azure.DurableTask.Emulator.svg?style=flat)](https://www.nuget.org/packages/Microsoft.Azure.DurableTask.Emulator/) | This is an in-memory store intended for testing purposes only. It is not designed or recommended for any production workloads. | Not actively maintained |
 
-The core programming model for the Durable Task Framework is contained in the [DurableTask.Core](https://www.nuget.org/packages/Microsoft.Azure.DurableTask.Core/) package, which is also under active development.
+The core programming model for the Durable Task Framework is contained in the [DurableTask.Core](https://www.nuget.org/packages/Microsoft.Azure.DurableTask.Core/) package.
 
 ## Learning more
 
