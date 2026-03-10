@@ -17,6 +17,7 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Collections.Generic;
     using System.IO;
     using System.Linq;
+    using System.Threading;
     using System.Threading.Tasks;
     using Azure;
     using DurableTask.Core;
@@ -26,6 +27,7 @@ namespace DurableTask.AzureStorage.Messaging
     sealed class OrchestrationSession : SessionBase, IOrchestrationSession
     {
         readonly TimeSpan idleTimeout;
+        readonly CancellationToken shutdownToken;
 
         readonly AsyncAutoResetEvent messagesAvailableEvent;
         readonly MessageCollection nextMessageBatch;
@@ -41,10 +43,12 @@ namespace DurableTask.AzureStorage.Messaging
             DateTime lastCheckpointTime,
             object trackingStoreContext,
             TimeSpan idleTimeout,
+            CancellationToken shutdownToken,
             Guid traceActivityId)
             : base(settings, storageAccountName, orchestrationInstance, traceActivityId)
         {
             this.idleTimeout = idleTimeout;
+            this.shutdownToken = shutdownToken;
             this.ControlQueue = controlQueue ?? throw new ArgumentNullException(nameof(controlQueue));
             this.CurrentMessageBatch = initialMessageBatch ?? throw new ArgumentNullException(nameof(initialMessageBatch));
             this.RuntimeState = runtimeState ?? throw new ArgumentNullException(nameof(runtimeState));
@@ -98,9 +102,9 @@ namespace DurableTask.AzureStorage.Messaging
         public async Task<IList<TaskMessage>> FetchNewOrchestrationMessagesAsync(
             TaskOrchestrationWorkItem workItem)
         {
-            if (!await this.messagesAvailableEvent.WaitAsync(this.idleTimeout))
+            if (!await this.messagesAvailableEvent.WaitAsync(this.idleTimeout, this.shutdownToken))
             {
-                return null; // timed-out
+                return null; // timed-out or shutting down
             }
 
             this.StartNewLogicalTraceScope();

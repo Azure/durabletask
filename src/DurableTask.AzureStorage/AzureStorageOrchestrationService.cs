@@ -478,6 +478,15 @@ namespace DurableTask.AzureStorage
         {
             this.shutdownSource.Cancel();
             await this.statsLoop;
+
+            if (isForced)
+            {
+                // When forced, immediately remove all active sessions so that
+                // partition draining completes without waiting for sessions to
+                // finish their idle timeout or in-flight work.
+                this.orchestrationSessionManager.AbortAllSessions();
+            }
+
             await this.appLeaseManager.StopAsync();
             this.isStarted = false;
         }
