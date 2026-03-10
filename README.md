@@ -1,5 +1,6 @@
 # Durable Task Framework
 
+> [!IMPORTANT]
 > The Durable Task Framework (DTFx) is a legacy library that is not officially supported by Microsoft. If you are starting a new project or looking to migrate, we recommend using one of the supported alternatives:
 >
 > - **[Durable Functions](https://learn.microsoft.com/azure/azure-functions/durable/durable-functions-overview)** - for serverless orchestration on [Azure Functions](https://azure.microsoft.com/services/functions/)
@@ -28,7 +29,8 @@ Starting in v2.x, the Durable Task Framework supports an extensible set of backe
 | DurableTask.SqlServer | [![NuGet](https://img.shields.io/nuget/v/Microsoft.DurableTask.SqlServer.svg?style=flat)](https://www.nuget.org/packages/Microsoft.DurableTask.SqlServer/) | All orchestration state is stored in a [Microsoft SQL Server](https://www.microsoft.com/sql-server/sql-server-2019) or [Azure SQL](https://azure.microsoft.com/products/azure-sql/database/) database with indexed tables and stored procedures for direct interaction. This backend is available for [Durable Functions](https://docs.microsoft.com/azure/azure-functions/durable/). [👉 GitHub Repo](https://github.com/microsoft/durabletask-mssql) | Production ready and actively maintained |
 | DurableTask.Emulator | [![NuGet](https://img.shields.io/nuget/v/Microsoft.Azure.DurableTask.Emulator.svg?style=flat)](https://www.nuget.org/packages/Microsoft.Azure.DurableTask.Emulator/) | This is an in-memory store intended for testing purposes only. It is not designed or recommended for any production workloads. | Not actively maintained |
 
-> **Note:** The `DurableTask.Emulator` listed above is a legacy in-memory backend for DTFx and is **not** the same as the [Durable Task Scheduler emulator](https://learn.microsoft.com/azure/azure-functions/durable/durable-task-scheduler/develop-with-durable-task-scheduler?tabs=dedicated&pivots=az-cli#durable-task-scheduler-emulator), which is a supported local development emulator for the Durable Task Scheduler backend.
+> [!NOTE]
+> The `DurableTask.Emulator` listed above is a legacy in-memory backend for DTFx and is **not** the same as the [Durable Task Scheduler emulator](https://learn.microsoft.com/azure/azure-functions/durable/durable-task-scheduler/develop-with-durable-task-scheduler?tabs=dedicated&pivots=az-cli#durable-task-scheduler-emulator), which is a supported local development emulator for the Durable Task Scheduler backend.
 
 The core programming model for the Durable Task Framework is contained in the [DurableTask.Core](https://www.nuget.org/packages/Microsoft.Azure.DurableTask.Core/) package.
 
