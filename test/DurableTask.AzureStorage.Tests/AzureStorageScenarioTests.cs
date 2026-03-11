@@ -3481,8 +3481,8 @@ namespace DurableTask.AzureStorage.Tests
             {
                 var orchestrationInstance = new OrchestrationInstance
                 {
-                    InstanceId = "instance_id",
-                    ExecutionId = "execution_id",
+                    InstanceId = Guid.NewGuid().ToString(),
+                    ExecutionId = Guid.NewGuid().ToString(),
                 };
 
                 ExecutionStartedEvent startedEvent = new(-1, string.Empty)
@@ -3574,8 +3574,8 @@ namespace DurableTask.AzureStorage.Tests
             {
                 var orchestrationInstance = new OrchestrationInstance
                 {
-                    InstanceId = "instance_id",
-                    ExecutionId = "execution_id",
+                    InstanceId = Guid.NewGuid().ToString(),
+                    ExecutionId = Guid.NewGuid().ToString(),
                 };
 
                 ExecutionStartedEvent startedEvent = new(-1, string.Empty)
