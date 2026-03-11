@@ -24,6 +24,7 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.Core.Settings;
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging.Utility;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using Moq;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
     using System;
@@ -3458,6 +3459,8 @@ namespace DurableTask.AzureStorage.Tests
                     Assert.IsNull(workItem);
                 }
 
+                // On the last attempt, the message should have been deleted since we have exceeded the maximum abandonment count
+                // for a message to a nonexistent instance (5)
                 Assert.AreEqual(0, await service.OwnedControlQueues.Single().InnerQueue.GetApproximateMessagesCountAsync());
             }
             finally
