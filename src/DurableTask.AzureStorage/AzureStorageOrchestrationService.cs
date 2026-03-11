@@ -1821,7 +1821,7 @@ namespace DurableTask.AzureStorage
             await this.SendTaskOrchestrationMessageInternalAsync(EmptySourceInstance, controlQueue, message);
         }
 
-        Task<MessageData> SendTaskOrchestrationMessageInternalAsync(
+        internal Task<MessageData> SendTaskOrchestrationMessageInternalAsync(
             OrchestrationInstance sourceInstance,
             ControlQueue controlQueue,
             TaskMessage message)

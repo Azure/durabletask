@@ -164,18 +164,6 @@ namespace DurableTask.AzureStorage.Messaging
                 return false;
             }
 
-            if (this.LastCheckpointTime > message.TaskMessage.Event.Timestamp)
-            {
-                // LastCheckpointTime represents the time at which the most recent history checkpoint completed.
-                // The checkpoint is written to the history table only *after* all queue messages are sent.
-                // A message is out of order when its timestamp *preceeds* the most recent checkpoint timestamp.
-                // In this case, we see that the checkpoint came *after* the message, so there is no out-of-order
-                // concern. Note that this logic only applies for messages sent by orchestrations to themselves.
-                // The next check considers the other cases (activities, sub-orchestrations, etc.).
-                // Orchestration checkpoint time information was added only after v1.6.4.
-                return false;
-            }
-
             if (Utils.TryGetTaskScheduledId(message.TaskMessage.Event, out int taskScheduledId))
             {
                 // This message is a response to a task. Search the history to make sure that we've recorded the fact that
@@ -193,7 +181,7 @@ namespace DurableTask.AzureStorage.Messaging
                 var requestId = ((EventRaisedEvent)message.TaskMessage.Event).Name;
                 if (requestId != null)
                 {
-                    HistoryEvent mostRecentTaskEvent = this.RuntimeState.Events.FirstOrDefault(e => e.EventType == EventType.EventSent && FindRequestId(((EventSentEvent)e).Input)?.ToString() == requestId);
+                    HistoryEvent mostRecentTaskEvent = this.RuntimeState.Events.LastOrDefault(e => e.EventType == EventType.EventSent && FindRequestId(((EventSentEvent)e).Input)?.ToString() == requestId);
                     if (mostRecentTaskEvent != null)
                     {
                         return false;
