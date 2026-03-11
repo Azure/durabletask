@@ -43,6 +43,8 @@ namespace DurableTask.AzureStorage
         readonly ITrackingStore trackingStore;
         readonly DispatchQueue fetchRuntimeStateQueue;
 
+        CancellationToken shutdownToken;
+
         public OrchestrationSessionManager(
             string queueAccountName,
             AzureStorageOrchestrationServiceSettings settings,
@@ -61,6 +63,8 @@ namespace DurableTask.AzureStorage
 
         public void AddQueue(string partitionId, ControlQueue controlQueue, CancellationToken cancellationToken)
         {
+            this.shutdownToken = cancellationToken;
+
             if (this.ownedControlQueues.TryAdd(partitionId, controlQueue))
             {
                 _ = Task.Run(() => this.DequeueLoop(partitionId, controlQueue, cancellationToken));
@@ -613,6 +617,7 @@ namespace DurableTask.AzureStorage
                             nextBatch.LastCheckpointTime,
                             nextBatch.TrackingStoreContext,
                             this.settings.ExtendedSessionIdleTimeout,
+                            this.shutdownToken,
                             traceActivityId);
 
                         this.activeOrchestrationSessions.Add(instance.InstanceId, session);
@@ -654,6 +659,19 @@ namespace DurableTask.AzureStorage
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Immediately removes all active sessions, causing <see cref="IsControlQueueProcessingMessages"/>
+        /// to return <c>false</c> for all partitions. This unblocks <see cref="DrainAsync"/> so that
+        /// a forced shutdown can complete without waiting for sessions to drain naturally.
+        /// </summary>
+        public void AbortAllSessions()
+        {
+            lock (this.messageAndSessionLock)
+            {
+                this.activeOrchestrationSessions.Clear();
+            }
         }
 
         public bool TryGetExistingSession(string instanceId, out OrchestrationSession session)
