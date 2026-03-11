@@ -24,7 +24,6 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.Core.Settings;
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging.Utility;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
-    using Moq;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
     using System;
@@ -37,7 +36,6 @@ namespace DurableTask.AzureStorage.Tests
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
-    using static DurableTask.AzureStorage.Tests.AzureStorageScaleTests;
 #if !NET48
     using OpenTelemetry;
     using OpenTelemetry.Trace;
@@ -3438,12 +3436,6 @@ namespace DurableTask.AzureStorage.Tests
                 await service.CreateAsync();
                 await service.StartAsync();
 
-                var orchestrationInstance = new OrchestrationInstance
-                {
-                    InstanceId = "instance_id",
-                    ExecutionId = "execution_id",
-                };
-
                 await service.SendTaskOrchestrationMessageAsync(
                     new TaskMessage
                     {
@@ -3467,7 +3459,6 @@ namespace DurableTask.AzureStorage.Tests
                 }
 
                 Assert.AreEqual(0, await service.OwnedControlQueues.Single().InnerQueue.GetApproximateMessagesCountAsync());
-
             }
             finally
             {
@@ -3535,7 +3526,7 @@ namespace DurableTask.AzureStorage.Tests
                 // Necessary to force a new work item to be generated for the next message
                 await service.ReleaseTaskOrchestrationWorkItemAsync(workItem);
 
-                // Send a task completed for a different task scheduled ID, messages should be abandoned
+                // Send a task completed for a different task scheduled ID, message should be abandoned
                 await service.SendTaskOrchestrationMessageAsync(
                     new TaskMessage
                     {
@@ -3547,6 +3538,20 @@ namespace DurableTask.AzureStorage.Tests
                     CancellationToken.None);
                 Assert.IsNull(workItem);
 
+                if (addTaskScheduledEvent)
+                {
+                    // Send a task completed for the same task scheduled ID, this should work
+                    await service.SendTaskOrchestrationMessageAsync(
+                        new TaskMessage
+                        {
+                            OrchestrationInstance = orchestrationInstance,
+                            Event = new TaskCompletedEvent(-1, 0, string.Empty)
+                        });
+                    workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                       TimeSpan.FromMinutes(1),
+                       CancellationToken.None);
+                    Assert.IsNotNull(workItem);
+                }
             }
             finally
             {
@@ -3603,11 +3608,12 @@ namespace DurableTask.AzureStorage.Tests
                 var runtimeState = workItem.OrchestrationRuntimeState;
                 runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
                 runtimeState.AddEvent(startedEvent);
+                string requestId = Guid.NewGuid().ToString();
                 if (addEventSentEvent)
                 {
                     runtimeState.AddEvent(new EventSentEvent(-1)
                     {
-                        Input = $"{{ \"id\": \"{Guid.NewGuid()}\" }}"
+                        Input = $"{{ \"id\": \"{requestId}\" }}"
                     });
                 }
                 runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
@@ -3617,7 +3623,7 @@ namespace DurableTask.AzureStorage.Tests
                 // Necessary to force a new work item to be generated for the next message
                 await service.ReleaseTaskOrchestrationWorkItemAsync(workItem);
 
-                // Send a task completed for a different task scheduled ID, messages should be abandoned
+                // Send an event raised for a different request ID, message should be abandoned
                 await service.SendTaskOrchestrationMessageInternalAsync(
                     sourceInstance: new OrchestrationInstance()
                     {
@@ -3637,6 +3643,23 @@ namespace DurableTask.AzureStorage.Tests
                    CancellationToken.None);
                 Assert.IsNull(workItem);
 
+                if (addEventSentEvent)
+                {
+                    // Send an event raised for the same request ID, this should work
+                    await service.SendTaskOrchestrationMessageAsync(
+                        new TaskMessage
+                        {
+                            OrchestrationInstance = orchestrationInstance,
+                            Event = new EventRaisedEvent(-1, string.Empty)
+                            {
+                                Name = requestId
+                            }
+                        });
+                    workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                       TimeSpan.FromMinutes(1),
+                       CancellationToken.None);
+                    Assert.IsNotNull(workItem);
+                }
             }
             finally
             {
