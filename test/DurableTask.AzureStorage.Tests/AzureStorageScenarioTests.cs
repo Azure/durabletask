@@ -3461,7 +3461,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 // On the last attempt, the message should have been deleted since we have exceeded the maximum abandonment count
                 // for a message to a nonexistent instance (5)
-                Assert.AreEqual(0, await service.OwnedControlQueues.Single().InnerQueue.GetApproximateMessagesCountAsync());
+                Assert.IsNull(await service.OwnedControlQueues.Single().InnerQueue.PeekMessageAsync());
             }
             finally
             {
