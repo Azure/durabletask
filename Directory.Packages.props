@@ -17,7 +17,7 @@
     <PackageVersion Include="Castle.Core" Version="5.2.1" />
     <PackageVersion Include="ImpromptuInterface" Version="6.2.2" Condition="'$(TargetFramework)' == 'net48' OR '$(TargetFramework)' == 'net472'" />
     <PackageVersion Include="ImpromptuInterface" Version="7.0.1" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
-    <PackageVersion Include="Microsoft.ApplicationInsights" Version="2.21.0" />
+    <PackageVersion Include="Microsoft.ApplicationInsights" Version="2.23.0" />
     <PackageVersion Include="Microsoft.AspNet.WebApi.OwinSelfHost" Version="5.3.0" />
     <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="6.0.0" />
     <PackageVersion Include="Microsoft.CSharp" Version="4.7.0" />
