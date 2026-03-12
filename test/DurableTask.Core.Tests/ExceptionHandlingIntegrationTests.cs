@@ -16,6 +16,8 @@ namespace DurableTask.Core.Tests
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Reflection;
+    using System.Reflection.Emit;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
     using DurableTask.Core.Exceptions;
@@ -540,6 +542,38 @@ namespace DurableTask.Core.Tests
                 : base(info, context)
             {
             }
+        }
+
+        [TestMethod]
+        public void IsCausedBy_DoesNotThrow_WhenMultipleAssembliesDefineSameType()
+        {
+            // Create two dynamic assemblies, each containing an Exception-derived type with the
+            // same fully qualified name. This simulates the scenario where the same exception type
+            // is loaded from multiple assemblies (e.g. different NuGet package versions).
+            string typeName = "TestDynamic.DuplicateException";
+            CreateDynamicAssemblyWithExceptionType(typeName, "DynAssembly1");
+            CreateDynamicAssemblyWithExceptionType(typeName, "DynAssembly2");
+
+            // Create a FailureDetails whose ErrorType won't be resolved by Type.GetType(),
+            // typeof(T).Assembly, or the calling assembly, forcing the AppDomain fallback path.
+            var details = new FailureDetails(
+                typeName, "Test error", stackTrace: null, innerFailure: null, isNonRetriable: false);
+
+            // The old implementation would either throw AmbiguousMatchException or return false
+            // when multiple assemblies contained the same type. The fix uses Any() so this should
+            // succeed without throwing.
+            bool result = details.IsCausedBy<Exception>();
+
+            Assert.IsTrue(result);
+        }
+
+        static void CreateDynamicAssemblyWithExceptionType(string typeName, string assemblyName)
+        {
+            var asmName = new AssemblyName(assemblyName);
+            var asmBuilder = AssemblyBuilder.DefineDynamicAssembly(asmName, AssemblyBuilderAccess.Run);
+            var modBuilder = asmBuilder.DefineDynamicModule(assemblyName);
+            var typeBuilder = modBuilder.DefineType(typeName, TypeAttributes.Public, typeof(Exception));
+            typeBuilder.CreateType();
         }
     }
 }
