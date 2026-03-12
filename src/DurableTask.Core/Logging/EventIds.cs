@@ -69,5 +69,7 @@ namespace DurableTask.Core.Logging
         public const int RenewOrchestrationWorkItemFailed = 72;
 
         public const int OrchestrationDebugTrace = 73;
+
+        public const int OrchestrationCompletedWithWarning = 74;
     }
 }

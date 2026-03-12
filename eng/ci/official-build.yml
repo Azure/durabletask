@@ -13,7 +13,7 @@ schedules:
 # Build nightly to catch any new CVEs and report SDL often.
 # We are also required to generated CodeQL reports weekly, so this
 # helps us meet that.
-- cron: "0 0 * * *"
+- cron: "0 5 * * *"
   displayName: Nightly Build
   branches:
     include:
@@ -38,6 +38,9 @@ extends:
             name: 1es-pool-azfunc
             image: 1es-windows-2022
             os: windows
+            ${{ if eq( variables['Build.Reason'], 'Schedule' ) }}:
+              demands:
+              - Priority -equals Low
 
         stages:
             - stage: BuildAndSign

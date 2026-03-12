@@ -136,20 +136,20 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task<ETag?> UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, ETag? eTag, object executionData, CancellationToken cancellationToken = default)
+        public override async Task UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, OrchestrationETags eTags, object executionData, CancellationToken cancellationToken = default)
         {
             //In case there is a runtime state for an older execution/iteration as well that needs to be committed, commit it.
             //This may be the case if a ContinueAsNew was executed on the orchestration
             if (newRuntimeState != oldRuntimeState)
             {
-                eTag = await UpdateStateAsync(oldRuntimeState, instanceId, oldRuntimeState.OrchestrationInstance.ExecutionId, eTag, cancellationToken);
+                await UpdateStateAsync(oldRuntimeState, instanceId, oldRuntimeState.OrchestrationInstance.ExecutionId, eTags, cancellationToken);
             }
 
-            return await UpdateStateAsync(newRuntimeState, instanceId, executionId, eTag, cancellationToken);
+            await UpdateStateAsync(newRuntimeState, instanceId, executionId, eTags, cancellationToken);
         }
 
         /// <inheritdoc />
-        private async Task<ETag?> UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId, ETag? eTag, CancellationToken cancellationToken = default)
+        private async Task UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId, OrchestrationETags eTags, CancellationToken cancellationToken = default)
         {
             int oldEventsCount = (runtimeState.Events.Count - runtimeState.NewEvents.Count);
             await instanceStore.WriteEntitiesAsync(runtimeState.NewEvents.Select((x, i) =>
@@ -173,8 +173,45 @@ namespace DurableTask.AzureStorage.Tracking
                         SequenceNumber = runtimeState.Events.Count
                     }
             });
+        }
 
-            return null;
+        public override async Task UpdateStatusForTerminationAsync(
+            string instanceId,
+            ExecutionTerminatedEvent executionTerminatedEvent,
+            CancellationToken cancellationToken = default)
+        {
+            // Get the most recent execution and update its status to terminated
+            IEnumerable<OrchestrationStateInstanceEntity> instanceEntity = await this.instanceStore.GetOrchestrationStateAsync(instanceId, allInstances: false);
+            instanceEntity.Single().State.OrchestrationStatus = OrchestrationStatus.Terminated;
+            instanceEntity.Single().State.LastUpdatedTime = executionTerminatedEvent.Timestamp;
+            instanceEntity.Single().State.CompletedTime = DateTime.UtcNow;
+            instanceEntity.Single().State.Output = executionTerminatedEvent.Input;
+            await this.instanceStore.WriteEntitiesAsync(instanceEntity);
+        }
+
+        public override async Task UpdateInstanceStatusForCompletedOrchestrationAsync(
+            string instanceId,
+            string executionId,
+            OrchestrationRuntimeState runtimeState,
+            bool instanceEntityExists,
+            CancellationToken cancellationToken = default)
+        {
+            if (runtimeState.OrchestrationStatus != OrchestrationStatus.Completed &&
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Canceled &&
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Failed &&
+                runtimeState.OrchestrationStatus != OrchestrationStatus.Terminated)
+            {
+                return;
+            }
+
+            await instanceStore.WriteEntitiesAsync(new InstanceEntityBase[]
+            {
+                new OrchestrationStateInstanceEntity()
+                {
+                    State = Core.Common.Utils.BuildOrchestrationState(runtimeState),
+                    SequenceNumber = runtimeState.Events.Count
+                }
+            });
         }
     }
 }

@@ -30,7 +30,7 @@ namespace DurableTask.Core.Tests
             var logger = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
 
             TaskEntityDispatcher dispatcher = new TaskEntityDispatcher(
-                service, entityManager, entityMiddleware, logger, ErrorPropagationMode.UseFailureDetails);
+                service, entityManager, entityMiddleware, logger, ErrorPropagationMode.UseFailureDetails, null);
             return dispatcher;
         }
 

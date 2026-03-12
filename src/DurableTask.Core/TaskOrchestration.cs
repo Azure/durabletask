@@ -105,7 +105,8 @@ namespace DurableTask.Core
                 }
                 else
                 {
-                    failureDetails = new FailureDetails(e);
+                    var props = context.ExceptionPropertiesProvider.ExtractProperties(e);
+                    failureDetails = new FailureDetails(e, props);
                 }
 
                 throw new OrchestrationFailureException(e.Message, details)

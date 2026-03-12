@@ -57,6 +57,11 @@ namespace DurableTask.Core
         public const string CreateTraceForNewOrchestration = "MS_CreateTrace";
 
         /// <summary>
+        /// The warning logged when an orchestration completes, if any.
+        /// </summary>
+        public const string CompleteOrchestrationLogWarning = "MS_CompleteOrchestrationLogWarning";
+
+        /// <summary>
         /// Check whether the given tags contain the fire and forget tag
         /// </summary>
         /// <param name="tags"></param>

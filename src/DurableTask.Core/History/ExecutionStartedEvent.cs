@@ -49,6 +49,31 @@ namespace DurableTask.Core.History
         }
 
         /// <summary>
+        /// Creates a new ExecutionStartedEvent with the same fields as <paramref name="other"/>.
+        /// A deep copy is performed on all non-base class fields.
+        /// </summary>
+        internal ExecutionStartedEvent(ExecutionStartedEvent other)
+        {
+            // Copy base class fields
+            EventId = other.EventId;
+            Timestamp = other.Timestamp;
+            ExtensionData = other.ExtensionData;
+            IsPlayed = other.IsPlayed;
+
+            // Deep copy all other fields
+            OrchestrationInstance = other.OrchestrationInstance?.Clone();
+            ParentInstance = other.ParentInstance?.Clone();
+            ParentTraceContext = other.ParentTraceContext?.Clone();
+            Input = other.Input;
+            Name = other.Name;
+            Version = other.Version;
+            Tags = other.Tags != null ? new Dictionary<string, string>(other.Tags) : null;
+            Correlation = other.Correlation;
+            ScheduledStartTime = other.ScheduledStartTime;
+            Generation = other.Generation;
+        }
+
+        /// <summary>
         /// Gets the event type
         /// </summary>
         public override EventType EventType => EventType.ExecutionStarted;

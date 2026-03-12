@@ -1099,6 +1099,54 @@ namespace DurableTask.Core.Logging
 #nullable disable
 
         /// <summary>
+        /// Log event representing a warning associated with an orchestration completing.
+        /// </summary>
+        internal class OrchestrationCompletedWithWarning : StructuredLogEvent, IEventSourceEvent
+        {
+
+            public OrchestrationCompletedWithWarning(
+                OrchestrationInstance instance,
+                string orchestrationStatus,
+                string warningMessage)
+            {
+                this.InstanceId = instance.InstanceId;
+                this.ExecutionId = instance.ExecutionId;
+                this.RuntimeStatus = orchestrationStatus;
+                this.Details = warningMessage;
+            }
+
+            [StructuredLogField]
+            public string InstanceId { get; }
+
+            [StructuredLogField]
+            public string ExecutionId { get; }
+
+            [StructuredLogField]
+            public string RuntimeStatus { get; }
+
+            [StructuredLogField]
+            public string Details { get; }
+
+            public override EventId EventId => new EventId(
+                EventIds.OrchestrationCompletedWithWarning,
+                nameof(EventIds.OrchestrationCompletedWithWarning));
+
+            public override LogLevel Level => LogLevel.Warning;
+
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Orchestration completed with warning: {this.Details}";
+
+            void IEventSourceEvent.WriteEventSource() =>
+                StructuredEventSource.Log.OrchestrationCompletedWithWarning(
+                    this.InstanceId,
+                    this.ExecutionId,
+                    this.RuntimeStatus,
+                    this.Details,
+                    Utils.AppName,
+                    Utils.PackageVersion);
+        }
+
+        /// <summary>
         /// Log event representing an orchestration aborted event, which can happen if the host is shutting down.
         /// </summary>
         internal class OrchestrationAborted : StructuredLogEvent, IEventSourceEvent

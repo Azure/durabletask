@@ -13,6 +13,7 @@
 
 namespace DurableTask.Core.History
 {
+    using System.Collections.Generic;
     using System.Runtime.Serialization;
 
     /// <summary>
@@ -28,6 +29,26 @@ namespace DurableTask.Core.History
         public SubOrchestrationInstanceCreatedEvent(int eventId)
             : base(eventId)
         {
+        }
+
+        /// <summary>
+        /// Creates a new ExecutionStartedEvent with the same fields as <paramref name="other"/>.
+        /// </summary>
+        internal SubOrchestrationInstanceCreatedEvent(SubOrchestrationInstanceCreatedEvent other)
+        {
+            // Copy base class fields
+            EventId = other.EventId;
+            Timestamp = other.Timestamp;
+            ExtensionData = other.ExtensionData;
+            IsPlayed = other.IsPlayed;
+
+            // Copy all other fields
+            Name = other.Name;
+            Version = other.Version;
+            InstanceId = other.InstanceId;
+            Input = other.Input;
+            ClientSpanId = other.ClientSpanId;
+            Tags = other.Tags;
         }
 
         /// <summary>
@@ -64,5 +85,11 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public string ClientSpanId { get; set; }
+
+        /// <summary>
+        /// Gets or sets a dictionary of tags of string, string
+        /// </summary>
+        [DataMember]
+        public IDictionary<string, string> Tags { get; set; }
     }
 }

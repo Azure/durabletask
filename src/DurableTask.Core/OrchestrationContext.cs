@@ -74,6 +74,11 @@ namespace DurableTask.Core
         internal ErrorPropagationMode ErrorPropagationMode { get; set; }
 
         /// <summary>
+        /// Gets or sets the exception properties provider that extracts custom properties from exceptions 
+        /// </summary>
+        internal IExceptionPropertiesProvider ExceptionPropertiesProvider { get;set; }
+
+        /// <summary>
         /// Information about backend entity support, or null if the configured backend does not support entities.
         /// </summary>
         internal TaskOrchestrationEntityParameters EntityParameters { get; set; }
@@ -269,6 +274,25 @@ namespace DurableTask.Core
             RetryOptions retryOptions, object input)
         {
             Task<T> RetryCall() => CreateSubOrchestrationInstance<T>(name, version, instanceId, input);
+            var retryInterceptor = new RetryInterceptor<T>(this, retryOptions, RetryCall);
+            return retryInterceptor.Invoke();
+        }
+
+        /// <summary>
+        ///     Create a sub-orchestration of the specified name and version. Also retry on failure as per supplied policy.
+        /// </summary>
+        /// <typeparam name="T">Return Type of the TaskOrchestration.RunTask method</typeparam>
+        /// <param name="name">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="version">Name of the orchestration as specified by the ObjectCreator</param>
+        /// <param name="instanceId">Instance Id of the sub-orchestration</param>
+        /// <param name="retryOptions">Retry policy</param>
+        /// <param name="input">Input for the TaskOrchestration.RunTask method</param>
+        /// <param name="tags">Dictionary of key/value tags associated with this instance</param>
+        /// <returns>Task that represents the execution of the specified sub-orchestration</returns>
+        public virtual Task<T> CreateSubOrchestrationInstanceWithRetry<T>(string name, string version, string instanceId,
+            RetryOptions retryOptions, object input, IDictionary<string, string> tags)
+        {
+            Task<T> RetryCall() => CreateSubOrchestrationInstance<T>(name, version, instanceId, input, tags);
             var retryInterceptor = new RetryInterceptor<T>(this, retryOptions, RetryCall);
             return retryInterceptor.Invoke();
         }

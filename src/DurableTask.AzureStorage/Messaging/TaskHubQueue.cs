@@ -345,7 +345,6 @@ namespace DurableTask.AzureStorage.Messaging
 
         public virtual async Task DeleteMessageAsync(MessageData message, SessionBase? session = null)
         {
-            QueueMessage queueMessage = message.OriginalQueueMessage;
             TaskMessage taskMessage = message.TaskMessage;
 
             bool haveRetried = false;
@@ -356,16 +355,16 @@ namespace DurableTask.AzureStorage.Messaging
                     this.settings.TaskHubName,
                     taskMessage.Event.EventType.ToString(),
                     Utils.GetTaskEventId(taskMessage.Event),
-                    queueMessage.MessageId,
+                    message.OriginalQueueMessage.MessageId,
                     taskMessage.OrchestrationInstance.InstanceId,
                     taskMessage.OrchestrationInstance.ExecutionId,
                     this.storageQueue.Name,
                     message.SequenceNumber,
-                    queueMessage.PopReceipt);
+                    message.OriginalQueueMessage.PopReceipt);
 
                 try
                 {
-                    await this.storageQueue.DeleteMessageAsync(queueMessage, session?.TraceActivityId);
+                    await this.storageQueue.DeleteMessageAsync(message.OriginalQueueMessage, session?.TraceActivityId);
                 }
                 catch (Exception e)
                 {
