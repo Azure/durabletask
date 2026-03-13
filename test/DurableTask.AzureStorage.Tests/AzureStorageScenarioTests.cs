@@ -561,6 +561,92 @@ namespace DurableTask.AzureStorage.Tests
 
 
         [TestMethod]
+        public async Task PurgeMultipleInstancesHistoryByTimePeriod_ScalabilityValidation()
+        {
+            // This test validates scale improvements: parallel batch delete and pipelined page processing.
+            // Runs multiple concurrent orchestrations, then purges all of them by time period.
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+                DateTime startDateTime = DateTime.Now;
+
+                // Create multiple orchestration instances concurrently
+                const int instanceCount = 5;
+                var clients = new List<TestOrchestrationClient>();
+                var instanceIds = new List<string>();
+
+                for (int i = 0; i < instanceCount; i++)
+                {
+                    string instanceId = $"purge-scale-{Guid.NewGuid():N}";
+                    instanceIds.Add(instanceId);
+                    TestOrchestrationClient client = await host.StartOrchestrationAsync(
+                        typeof(Orchestrations.Factorial), 10, instanceId);
+                    clients.Add(client);
+                }
+
+                // Wait for all orchestrations to complete
+                foreach (var client in clients)
+                {
+                    var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+                    Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                }
+
+                // Verify all instances have history
+                foreach (string instanceId in instanceIds)
+                {
+                    List<HistoryStateEvent> historyEvents = await clients[0].GetOrchestrationHistoryAsync(instanceId);
+                    Assert.IsTrue(historyEvents.Count > 0, $"Instance {instanceId} should have history events");
+                }
+
+                // Purge all instances by time period
+                await clients[0].PurgeInstanceHistoryByTimePeriod(
+                    startDateTime,
+                    DateTime.UtcNow,
+                    new List<OrchestrationStatus> { OrchestrationStatus.Completed });
+
+                // Verify all history is purged
+                foreach (string instanceId in instanceIds)
+                {
+                    List<HistoryStateEvent> historyEvents = await clients[0].GetOrchestrationHistoryAsync(instanceId);
+                    Assert.AreEqual(0, historyEvents.Count, $"Instance {instanceId} should have no history after purge");
+
+                    IList<OrchestrationState> stateList = await clients[0].GetStateAsync(instanceId);
+                    Assert.AreEqual(1, stateList.Count);
+                    Assert.IsNull(stateList[0], $"Instance {instanceId} state should be null after purge");
+                }
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task PurgeSingleInstanceWithIdempotency()
+        {
+            // This test validates that purging the same instance twice doesn't cause errors
+            // (testing the idempotent batch delete fallback).
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                string instanceId = Guid.NewGuid().ToString();
+                await host.StartAsync();
+                TestOrchestrationClient client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.Factorial), 110, instanceId);
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                // First purge should succeed
+                await client.PurgeInstanceHistory();
+
+                List<HistoryStateEvent> historyEvents = await client.GetOrchestrationHistoryAsync(instanceId);
+                Assert.AreEqual(0, historyEvents.Count);
+
+                // Second purge of the same instance should not throw
+                // (the instance row is already gone, so PurgeInstanceHistoryAsync returns 0)
+                await client.PurgeInstanceHistory();
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
         public async Task PurgeInstanceHistoryForTimePeriodDeletePartially()
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))

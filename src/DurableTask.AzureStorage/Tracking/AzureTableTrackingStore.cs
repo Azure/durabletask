@@ -118,6 +118,25 @@ namespace DurableTask.AzureStorage.Tracking
             };
         }
 
+        // For testing purge functionality where HistoryTable and MessageManager are needed
+        internal AzureTableTrackingStore(
+            AzureStorageClient azureStorageClient,
+            Table historyTable,
+            Table instancesTable,
+            MessageManager messageManager)
+        {
+            this.azureStorageClient = azureStorageClient;
+            this.settings = azureStorageClient.Settings;
+            this.stats = azureStorageClient.Stats;
+            this.storageAccountName = azureStorageClient.TableAccountName;
+            this.taskHubName = this.settings.TaskHubName;
+            this.HistoryTable = historyTable;
+            this.InstancesTable = instancesTable;
+            this.messageManager = messageManager;
+
+            this.settings.FetchLargeMessageDataEnabled = false;
+        }
+
         internal Table HistoryTable { get; }
 
         internal Table InstancesTable { get; }
@@ -568,24 +587,41 @@ namespace DurableTask.AzureStorage.Tracking
 
             ODataCondition odata = condition.ToOData();
 
-            // Limit to batches of 100 to avoid excessive memory usage and table storage scanning
             int storageRequests = 0;
             int instancesDeleted = 0;
             int rowsDeleted = 0;
 
-            var options = new ParallelOptions { MaxDegreeOfParallelism = this.settings.MaxStorageOperationConcurrency };
+            // Limit concurrent instance purges to avoid overwhelming storage with too many parallel operations.
+            // Each instance purge internally spawns multiple parallel storage operations, so this should be
+            // kept moderate. Using 100 to match the original implicit concurrency from pageSizeHint.
+            const int MaxPurgeInstanceConcurrency = 100;
+            var throttle = new SemaphoreSlim(MaxPurgeInstanceConcurrency);
+            var pendingTasks = new List<Task>();
+
             AsyncPageable<OrchestrationInstanceStatus> entitiesPageable = this.InstancesTable.ExecuteQueryAsync<OrchestrationInstanceStatus>(odata.Filter, select: odata.Select, cancellationToken: cancellationToken);
-            await foreach (Page<OrchestrationInstanceStatus> page in entitiesPageable.AsPages(pageSizeHint: 100))
+            await foreach (Page<OrchestrationInstanceStatus> page in entitiesPageable.AsPages(pageSizeHint: MaxPurgeInstanceConcurrency))
             {
-                // The underlying client throttles
-                await Task.WhenAll(page.Values.Select(async instance =>
+                foreach (OrchestrationInstanceStatus instance in page.Values)
                 {
-                    PurgeHistoryResult statisticsFromDeletion = await this.DeleteAllDataForOrchestrationInstance(instance, cancellationToken);
-                    Interlocked.Add(ref instancesDeleted, statisticsFromDeletion.InstancesDeleted);
-                    Interlocked.Add(ref storageRequests, statisticsFromDeletion.RowsDeleted);
-                    Interlocked.Add(ref rowsDeleted, statisticsFromDeletion.RowsDeleted);
-                }));
+                    await throttle.WaitAsync(cancellationToken);
+                    pendingTasks.Add(Task.Run(async () =>
+                    {
+                        try
+                        {
+                            PurgeHistoryResult statisticsFromDeletion = await this.DeleteAllDataForOrchestrationInstance(instance, cancellationToken);
+                            Interlocked.Add(ref instancesDeleted, statisticsFromDeletion.InstancesDeleted);
+                            Interlocked.Add(ref storageRequests, statisticsFromDeletion.StorageRequests);
+                            Interlocked.Add(ref rowsDeleted, statisticsFromDeletion.RowsDeleted);
+                        }
+                        finally
+                        {
+                            throttle.Release();
+                        }
+                    }));
+                }
             }
+
+            await Task.WhenAll(pendingTasks);
 
             return new PurgeHistoryResult(storageRequests, instancesDeleted, rowsDeleted);
         }
@@ -601,13 +637,14 @@ namespace DurableTask.AzureStorage.Tracking
                 .GetHistoryEntitiesResponseInfoAsync(
                     instanceId: sanitizedInstanceId,
                     expectedExecutionId: null,
-                    projectionColumns: new[] { RowKeyProperty, PartitionKeyProperty, TimestampProperty },
+                    projectionColumns: new[] { RowKeyProperty, PartitionKeyProperty },
                     cancellationToken)
                 .GetResultsAsync(cancellationToken: cancellationToken);
 
             storageRequests += results.RequestCount;
 
             IReadOnlyList<TableEntity> historyEntities = results.Entities;
+            int maxParallelism = Math.Max(1, this.settings.MaxStorageOperationConcurrency);
 
             var tasks = new List<Task>
             {
@@ -618,7 +655,7 @@ namespace DurableTask.AzureStorage.Tracking
                 }),
                 Task.Run(async () =>
                 {
-                    var deletedEntitiesResponseInfo = await this.HistoryTable.DeleteBatchAsync(historyEntities, cancellationToken);
+                    var deletedEntitiesResponseInfo = await this.HistoryTable.DeleteBatchParallelAsync(historyEntities, maxParallelism, cancellationToken);
                     Interlocked.Add(ref rowsDeleted, deletedEntitiesResponseInfo.Responses.Count);
                     Interlocked.Add(ref storageRequests, deletedEntitiesResponseInfo.RequestCount);
                 }),

@@ -316,10 +316,11 @@ namespace DurableTask.AzureStorage
             return $"{instanceId}/message-{activityId}-{eventType}.json.gz";
         }
 
-        public async Task<int> DeleteLargeMessageBlobs(string sanitizedInstanceId, CancellationToken cancellationToken = default)
+        public virtual async Task<int> DeleteLargeMessageBlobs(string sanitizedInstanceId, CancellationToken cancellationToken = default)
         {
-            int storageOperationCount = 1;
-            if (await this.blobContainer.ExistsAsync(cancellationToken))
+            int storageOperationCount = 0;
+
+            try
             {
                 await foreach (Page<Blob> page in this.blobContainer.ListBlobsAsync(sanitizedInstanceId, cancellationToken).AsPages())
                 {
@@ -329,6 +330,22 @@ namespace DurableTask.AzureStorage
 
                     storageOperationCount += page.Values.Count;
                 }
+
+                // Count the list operation even if no blobs found (the initial list request still happened)
+                if (storageOperationCount == 0)
+                {
+                    storageOperationCount = 1;
+                }
+            }
+            catch (DurableTaskStorageException ex) when (ex.HttpStatusCode == 404)
+            {
+                // Container does not exist; nothing to delete.
+                storageOperationCount = 1;
+            }
+            catch (Azure.RequestFailedException ex) when (ex.Status == 404)
+            {
+                // Container does not exist; nothing to delete.
+                storageOperationCount = 1;
             }
 
             return storageOperationCount;
