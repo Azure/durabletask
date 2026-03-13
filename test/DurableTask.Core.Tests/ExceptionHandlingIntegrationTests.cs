@@ -49,7 +49,7 @@ namespace DurableTask.Core.Tests
             this.client = new TaskHubClient(service, loggerFactory: loggerFactory);
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(ErrorPropagationMode.SerializeExceptions)]
         [DataRow(ErrorPropagationMode.UseFailureDetails)]
         public async Task CatchInvalidOperationException(ErrorPropagationMode mode)
@@ -123,7 +123,7 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual(1, retryPolicyInvokedCount);
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(ErrorPropagationMode.SerializeExceptions)]
         [DataRow(ErrorPropagationMode.UseFailureDetails)]
         public async Task FailureDetailsOnUnhandled(ErrorPropagationMode mode)

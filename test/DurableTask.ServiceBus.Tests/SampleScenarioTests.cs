@@ -104,11 +104,11 @@ namespace DurableTask.ServiceBus.Tests
             Assert.AreEqual("Greeting send to Gabbar", SimplestGreetingsOrchestration.Result,
                 "Orchestration Result is wrong!!!");
 
-            await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(() => this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null));
+            await Assert.ThrowsExactlyAsync<OrchestrationAlreadyExistsException>(() => this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null));
 
-            await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(() => this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, null));
+            await Assert.ThrowsExactlyAsync<OrchestrationAlreadyExistsException>(() => this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, null));
 
-            await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(() => this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, new[] { OrchestrationStatus.Completed, OrchestrationStatus.Terminated }));
+            await Assert.ThrowsExactlyAsync<OrchestrationAlreadyExistsException>(() => this.client.CreateOrchestrationInstanceAsync(typeof(SimplestGreetingsOrchestration), id.InstanceId, null, new[] { OrchestrationStatus.Completed, OrchestrationStatus.Terminated }));
 
             SimplestGreetingsOrchestration.Result = string.Empty;
 

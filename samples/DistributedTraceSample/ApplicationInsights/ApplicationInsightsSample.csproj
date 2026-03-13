@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Diagnostics.DiagnosticSource" VersionOverride="7.0.2" />
+    <PackageReference Include="System.Diagnostics.DiagnosticSource" />
     <PackageReference Include="Vio.DurableTask.Hosting" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.ApplicationInsights.WorkerService" />

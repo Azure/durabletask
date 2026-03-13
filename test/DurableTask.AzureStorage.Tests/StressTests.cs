@@ -49,7 +49,7 @@ namespace DurableTask.AzureStorage.Tests
         /// both in the case where they all share the same instance ID and when they have unique
         /// instance IDs.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task ConcurrentOrchestrationStarts(bool useSameInstanceId)

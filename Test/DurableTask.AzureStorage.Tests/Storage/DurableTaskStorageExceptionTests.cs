@@ -30,7 +30,7 @@ namespace DurableTask.AzureStorage.Tests.Storage
             Assert.IsFalse(exception.LeaseLost);
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true, HttpStatusCode.Conflict, nameof(BlobErrorCode.LeaseLost))]
         [DataRow(false, HttpStatusCode.Conflict, nameof(BlobErrorCode.LeaseNotPresentWithBlobOperation))]
         [DataRow(false, HttpStatusCode.NotFound, nameof(BlobErrorCode.BlobNotFound))]

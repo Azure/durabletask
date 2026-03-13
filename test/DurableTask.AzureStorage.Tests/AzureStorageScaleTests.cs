@@ -195,7 +195,7 @@ namespace DurableTask.AzureStorage.Tests
 
         private async Task EnsureLeasesMatchControlQueue(string directoryReference, BlobContainerClient taskHubContainer, ControlQueue[] controlQueues)
         {
-            BlobItem[] leaseBlobs = await taskHubContainer.GetBlobsAsync(prefix: directoryReference).ToArrayAsync();
+            BlobItem[] leaseBlobs = await taskHubContainer.GetBlobsAsync(BlobTraits.None, BlobStates.None, directoryReference, default).ToArrayAsync();
             Assert.AreEqual(controlQueues.Length, leaseBlobs.Length, "Expected to see the same number of control queues and lease blobs.");
             foreach (BlobItem blobItem in leaseBlobs)
             {
@@ -210,7 +210,7 @@ namespace DurableTask.AzureStorage.Tests
         /// REQUIREMENT: Workers can be added or removed at any time and control-queue partitions are load-balanced automatically.
         /// REQUIREMENT: No two workers will ever process the same control queue.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(PartitionManagerType.V1Legacy, 30)]
         [DataRow(PartitionManagerType.V2Safe, 180)]
         public async Task MultiWorkerLeaseMovement(PartitionManagerType partitionManagerType, int timeoutInSeconds)
@@ -586,7 +586,7 @@ namespace DurableTask.AzureStorage.Tests
                 await service2.CompleteTaskOrchestrationWorkItemAsync(workItem2, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null);
                 // Now worker 1 will attempt to complete the same work item. Since this is the first attempt to complete a work item and add a history for the orchestration (by worker 1),
                 // there is no etag stored for the OrchestrationSession, and so the a "conflict" exception will be thrown as worker 2 already created a history for the orchestration.
-                SessionAbortedException exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
+                SessionAbortedException exception = await Assert.ThrowsExactlyAsync<SessionAbortedException>(async () =>
                     await service1.CompleteTaskOrchestrationWorkItemAsync(workItem1, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
                 );
                 Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));
@@ -629,7 +629,7 @@ namespace DurableTask.AzureStorage.Tests
                 await service1.CompleteTaskOrchestrationWorkItemAsync(workItem1, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null);
                 // Now worker 2 attempts to complete the same work item. Since this is not the first work item for the orchestration, now an etag exists for the OrchestrationSession, and the exception
                 // that is thrown will be "precondition failed" as the Etag is stale after worker 1 completed the work item.
-                exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
+                exception = await Assert.ThrowsExactlyAsync<SessionAbortedException>(async () =>
                     await service2.CompleteTaskOrchestrationWorkItemAsync(workItem2, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
                 );
                 Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));

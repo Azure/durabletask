@@ -121,7 +121,7 @@ namespace DurableTask.Core.Tests
         public void GetCurrentOrchestrationRequestTraceContextWithNoRequestTraceContextScenario()
         {
             TraceContextBase currentContext = new Foo();
-            Assert.ThrowsException<InvalidOperationException>(() => currentContext.GetCurrentOrchestrationRequestTraceContext());
+            Assert.ThrowsExactly<InvalidOperationException>(() => currentContext.GetCurrentOrchestrationRequestTraceContext());
         }
 
         private static Foo GetNewRequestContext(string comment)
