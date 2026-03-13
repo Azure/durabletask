@@ -648,6 +648,74 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
+        public async Task PurgeSingleInstance_WithLargeBlobs_CleansUpBlobs()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+
+                string instanceId = Guid.NewGuid().ToString();
+                // Generate a payload large enough to be stored as a blob (>60KB threshold)
+                string largeMessage = new string('x', 70 * 1024);
+
+                TestOrchestrationClient client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.Echo), largeMessage, instanceId);
+                OrchestrationState status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                // Verify blobs exist before purge
+                int blobCount = await this.GetBlobCount("test-largemessages", instanceId);
+                Assert.IsTrue(blobCount > 0, "Should have large message blobs before purge");
+
+                // Purge
+                await client.PurgeInstanceHistory();
+
+                // Verify blobs are cleaned up
+                blobCount = await this.GetBlobCount("test-largemessages", instanceId);
+                Assert.AreEqual(0, blobCount, "All large message blobs should be deleted after purge");
+
+                // Verify history is gone
+                List<HistoryStateEvent> historyEvents = await client.GetOrchestrationHistoryAsync(instanceId);
+                Assert.AreEqual(0, historyEvents.Count);
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task PurgeInstance_WithManyHistoryRows_DeletesAll()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+
+                string instanceId = Guid.NewGuid().ToString();
+                // FanOutFanIn with 50 parallel activities creates 100+ history rows
+                TestOrchestrationClient client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.FanOutFanIn), 50, instanceId);
+                OrchestrationState status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                // Verify lots of history exists
+                List<HistoryStateEvent> historyEvents = await client.GetOrchestrationHistoryAsync(instanceId);
+                Assert.IsTrue(historyEvents.Count > 50, $"Expected many history events, got {historyEvents.Count}");
+
+                // Purge
+                await client.PurgeInstanceHistory();
+
+                // Verify clean
+                historyEvents = await client.GetOrchestrationHistoryAsync(instanceId);
+                Assert.AreEqual(0, historyEvents.Count);
+
+                IList<OrchestrationState> stateList = await client.GetStateAsync(instanceId);
+                Assert.AreEqual(1, stateList.Count);
+                Assert.IsNull(stateList[0]);
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
         public async Task PurgeInstanceHistoryForTimePeriodDeletePartially()
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))

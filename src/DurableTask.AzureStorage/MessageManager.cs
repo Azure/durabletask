@@ -316,7 +316,7 @@ namespace DurableTask.AzureStorage
             return $"{instanceId}/message-{activityId}-{eventType}.json.gz";
         }
 
-        public virtual async Task<int> DeleteLargeMessageBlobs(string sanitizedInstanceId, CancellationToken cancellationToken = default)
+        public async Task<int> DeleteLargeMessageBlobs(string sanitizedInstanceId, CancellationToken cancellationToken = default)
         {
             int storageOperationCount = 0;
 

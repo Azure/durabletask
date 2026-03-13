@@ -118,25 +118,6 @@ namespace DurableTask.AzureStorage.Tracking
             };
         }
 
-        // For testing purge functionality where HistoryTable and MessageManager are needed
-        internal AzureTableTrackingStore(
-            AzureStorageClient azureStorageClient,
-            Table historyTable,
-            Table instancesTable,
-            MessageManager messageManager)
-        {
-            this.azureStorageClient = azureStorageClient;
-            this.settings = azureStorageClient.Settings;
-            this.stats = azureStorageClient.Stats;
-            this.storageAccountName = azureStorageClient.TableAccountName;
-            this.taskHubName = this.settings.TaskHubName;
-            this.HistoryTable = historyTable;
-            this.InstancesTable = instancesTable;
-            this.messageManager = messageManager;
-
-            this.settings.FetchLargeMessageDataEnabled = false;
-        }
-
         internal Table HistoryTable { get; }
 
         internal Table InstancesTable { get; }
