@@ -637,7 +637,7 @@ namespace DurableTask.AzureStorage.Tracking
                 .GetHistoryEntitiesResponseInfoAsync(
                     instanceId: sanitizedInstanceId,
                     expectedExecutionId: null,
-                    projectionColumns: new[] { RowKeyProperty, PartitionKeyProperty },
+                    projectionColumns: new[] { RowKeyProperty, PartitionKeyProperty, TimestampProperty },
                     cancellationToken)
                 .GetResultsAsync(cancellationToken: cancellationToken);
 

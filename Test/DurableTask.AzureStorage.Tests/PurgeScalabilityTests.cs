@@ -199,10 +199,10 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
-        /// Verifies that single-instance purge removes the TimestampProperty from the projection columns.
+        /// Verifies that single-instance purge projects PK, RK, and Timestamp for history query.
         /// </summary>
         [TestMethod]
-        public async Task PurgeInstanceHistory_ProjectsOnlyPKAndRK()
+        public async Task PurgeInstanceHistory_ProjectsPKRKAndTimestamp()
         {
             // Arrange
             var (trackingStore, instancesTableClient, historyTableClient) = CreateTrackingStoreWithMockedTables();
@@ -246,12 +246,12 @@ namespace DurableTask.AzureStorage.Tests
             // Act
             await trackingStore.PurgeInstanceHistoryAsync("testInstance");
 
-            // Assert: Projection should NOT include Timestamp
+            // Assert: Projection should include PK, RK, and Timestamp
             Assert.IsNotNull(capturedSelect, "Select projection was not provided");
             var selectList = capturedSelect!.ToList();
             Assert.IsTrue(selectList.Contains("PartitionKey"), "Should project PartitionKey");
             Assert.IsTrue(selectList.Contains("RowKey"), "Should project RowKey");
-            Assert.IsFalse(selectList.Contains("Timestamp"), "Should NOT project Timestamp");
+            Assert.IsTrue(selectList.Contains("Timestamp"), "Should project Timestamp");
         }
 
         /// <summary>
