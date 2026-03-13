@@ -277,7 +277,7 @@ namespace DurableTask.AzureStorage
             // "Remote" -> the instance ID info comes from the Instances table that we're querying
             IAsyncEnumerable<InstanceStatus> instances = this.trackingStore.FetchInstanceStatusAsync(instanceIds, cancellationToken);
             IDictionary<string, InstanceStatus> remoteOrchestrationsById = 
-                await instances.ToDictionaryAsync(o => o.State.OrchestrationInstance.InstanceId, comparer: null, cancellationToken);
+                await instances.ToDictionaryAsync(o => o.State.OrchestrationInstance.InstanceId, comparer: StringComparer.OrdinalIgnoreCase, cancellationToken);
 
             foreach (MessageData message in executionStartedMessages)
             {
