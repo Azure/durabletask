@@ -625,7 +625,6 @@ namespace DurableTask.AzureStorage.Tracking
             storageRequests += results.RequestCount;
 
             IReadOnlyList<TableEntity> historyEntities = results.Entities;
-            int maxParallelism = Math.Max(1, this.settings.MaxStorageOperationConcurrency);
 
             var tasks = new List<Task>
             {
@@ -636,7 +635,7 @@ namespace DurableTask.AzureStorage.Tracking
                 }),
                 Task.Run(async () =>
                 {
-                    var deletedEntitiesResponseInfo = await this.HistoryTable.DeleteBatchParallelAsync(historyEntities, maxParallelism, cancellationToken);
+                    var deletedEntitiesResponseInfo = await this.HistoryTable.DeleteBatchParallelAsync(historyEntities, cancellationToken);
                     Interlocked.Add(ref rowsDeleted, deletedEntitiesResponseInfo.Responses.Count);
                     Interlocked.Add(ref storageRequests, deletedEntitiesResponseInfo.RequestCount);
                 }),

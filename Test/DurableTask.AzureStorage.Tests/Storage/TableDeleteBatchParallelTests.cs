@@ -34,14 +34,11 @@ namespace DurableTask.AzureStorage.Tests.Storage
         [TestMethod]
         public async Task DeleteBatchParallelAsync_EmptyBatch_ReturnsEmptyResults()
         {
-            // Arrange
             Table table = CreateTableWithMockedClient(out _, out _);
             var entities = new List<TableEntity>();
 
-            // Act
-            TableTransactionResults results = await table.DeleteBatchParallelAsync(entities, maxParallelism: 4);
+            TableTransactionResults results = await table.DeleteBatchParallelAsync(entities);
 
-            // Assert
             Assert.AreEqual(0, results.Responses.Count);
             Assert.AreEqual(0, results.RequestCount);
         }
@@ -49,22 +46,17 @@ namespace DurableTask.AzureStorage.Tests.Storage
         [TestMethod]
         public async Task DeleteBatchParallelAsync_SingleBatch_SubmitsOneTransaction()
         {
-            // Arrange
             var entities = CreateTestEntities("pk", count: 50);
-
             Table table = CreateTableWithMockedClient(out _, out Mock<TableClient> tableClient);
 
-            var mockResponses = CreateMockBatchResponse(50);
             tableClient
                 .Setup(t => t.SubmitTransactionAsync(
                     It.Is<IEnumerable<TableTransactionAction>>(a => a.Count() == 50),
                     It.IsAny<CancellationToken>()))
-                .ReturnsAsync(mockResponses);
+                .ReturnsAsync(CreateMockBatchResponse(50));
 
-            // Act
-            TableTransactionResults results = await table.DeleteBatchParallelAsync(entities, maxParallelism: 4);
+            TableTransactionResults results = await table.DeleteBatchParallelAsync(entities);
 
-            // Assert
             Assert.AreEqual(50, results.Responses.Count);
             tableClient.Verify(
                 t => t.SubmitTransactionAsync(It.IsAny<IEnumerable<TableTransactionAction>>(), It.IsAny<CancellationToken>()),
@@ -74,9 +66,7 @@ namespace DurableTask.AzureStorage.Tests.Storage
         [TestMethod]
         public async Task DeleteBatchParallelAsync_MultipleBatches_SplitsIntoChunksOf100()
         {
-            // Arrange
             var entities = CreateTestEntities("pk", count: 250);
-
             Table table = CreateTableWithMockedClient(out _, out Mock<TableClient> tableClient);
 
             tableClient
@@ -86,10 +76,8 @@ namespace DurableTask.AzureStorage.Tests.Storage
                 .ReturnsAsync((IEnumerable<TableTransactionAction> batch, CancellationToken _) =>
                     CreateMockBatchResponse(batch.Count()));
 
-            // Act
-            TableTransactionResults results = await table.DeleteBatchParallelAsync(entities, maxParallelism: 10);
+            TableTransactionResults results = await table.DeleteBatchParallelAsync(entities);
 
-            // Assert: 250 entities = 3 batches (100 + 100 + 50)
             Assert.AreEqual(250, results.Responses.Count);
             tableClient.Verify(
                 t => t.SubmitTransactionAsync(It.IsAny<IEnumerable<TableTransactionAction>>(), It.IsAny<CancellationToken>()),
@@ -97,10 +85,8 @@ namespace DurableTask.AzureStorage.Tests.Storage
         }
 
         [TestMethod]
-        public async Task DeleteBatchParallelAsync_RespectsMaxParallelism()
+        public async Task DeleteBatchParallelAsync_SubmitsBatchesConcurrently()
         {
-            // Arrange
-            int maxParallelism = 2;
             var entities = CreateTestEntities("pk", count: 500); // 5 batches of 100
             int concurrentCount = 0;
             int maxConcurrent = 0;
@@ -121,37 +107,32 @@ namespace DurableTask.AzureStorage.Tests.Storage
                     }
                     while (current > snapshot && Interlocked.CompareExchange(ref maxConcurrent, current, snapshot) != snapshot);
 
-                    await Task.Delay(50); // Simulate some latency
+                    await Task.Delay(50);
                     Interlocked.Decrement(ref concurrentCount);
 
                     return CreateMockBatchResponse(batch.Count());
                 });
 
-            // Act
-            await table.DeleteBatchParallelAsync(entities, maxParallelism: maxParallelism);
+            await table.DeleteBatchParallelAsync(entities);
 
-            // Assert
+            // All 5 batches should run concurrently since there's no internal semaphore
             Assert.IsTrue(
-                maxConcurrent <= maxParallelism,
-                $"Max concurrent batches ({maxConcurrent}) exceeded maxParallelism ({maxParallelism})");
+                maxConcurrent > 1,
+                $"Expected concurrent execution, but max concurrent was {maxConcurrent}");
         }
 
         [TestMethod]
         public async Task DeleteBatchParallelAsync_BatchFails404_FallsBackToIndividualDeletes()
         {
-            // Arrange
             var entities = CreateTestEntities("pk", count: 3);
-
             Table table = CreateTableWithMockedClient(out _, out Mock<TableClient> tableClient);
 
-            // First batch call fails with 404 (e.g., one entity already deleted)
             tableClient
                 .Setup(t => t.SubmitTransactionAsync(
                     It.IsAny<IEnumerable<TableTransactionAction>>(),
                     It.IsAny<CancellationToken>()))
                 .ThrowsAsync(new RequestFailedException(404, "Entity not found"));
 
-            // Individual deletes succeed
             var mockResponse = new Mock<Response>();
             tableClient
                 .Setup(t => t.DeleteEntityAsync(
@@ -161,10 +142,8 @@ namespace DurableTask.AzureStorage.Tests.Storage
                     It.IsAny<CancellationToken>()))
                 .ReturnsAsync(mockResponse.Object);
 
-            // Act
-            TableTransactionResults results = await table.DeleteBatchParallelAsync(entities, maxParallelism: 4);
+            TableTransactionResults results = await table.DeleteBatchParallelAsync(entities);
 
-            // Assert: should fall back to individual deletes
             Assert.AreEqual(3, results.Responses.Count);
             tableClient.Verify(
                 t => t.DeleteEntityAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<ETag>(), It.IsAny<CancellationToken>()),
@@ -174,19 +153,15 @@ namespace DurableTask.AzureStorage.Tests.Storage
         [TestMethod]
         public async Task DeleteBatchParallelAsync_IndividualDeleteSkips404()
         {
-            // Arrange
             var entities = CreateTestEntities("pk", count: 3);
-
             Table table = CreateTableWithMockedClient(out _, out Mock<TableClient> tableClient);
 
-            // Batch fails with 404
             tableClient
                 .Setup(t => t.SubmitTransactionAsync(
                     It.IsAny<IEnumerable<TableTransactionAction>>(),
                     It.IsAny<CancellationToken>()))
                 .ThrowsAsync(new RequestFailedException(404, "Entity not found"));
 
-            // Individual delete: first succeeds, second returns 404, third succeeds
             int callCount = 0;
             var mockResponse = new Mock<Response>();
             tableClient
@@ -205,20 +180,16 @@ namespace DurableTask.AzureStorage.Tests.Storage
                     return Task.FromResult(mockResponse.Object);
                 });
 
-            // Act
-            TableTransactionResults results = await table.DeleteBatchParallelAsync(entities, maxParallelism: 4);
+            TableTransactionResults results = await table.DeleteBatchParallelAsync(entities);
 
-            // Assert: only 2 responses (the 404 was skipped)
             Assert.AreEqual(2, results.Responses.Count);
-            Assert.AreEqual(3, results.RequestCount); // Still counted 3 requests
+            Assert.AreEqual(3, results.RequestCount);
         }
 
         [TestMethod]
         public async Task DeleteBatchParallelAsync_ExactlyOneBatch_NoBoundaryIssues()
         {
-            // Arrange: exactly 100 entities = 1 batch
             var entities = CreateTestEntities("pk", count: 100);
-
             Table table = CreateTableWithMockedClient(out _, out Mock<TableClient> tableClient);
 
             tableClient
@@ -227,10 +198,8 @@ namespace DurableTask.AzureStorage.Tests.Storage
                     It.IsAny<CancellationToken>()))
                 .ReturnsAsync(CreateMockBatchResponse(100));
 
-            // Act
-            TableTransactionResults results = await table.DeleteBatchParallelAsync(entities, maxParallelism: 4);
+            TableTransactionResults results = await table.DeleteBatchParallelAsync(entities);
 
-            // Assert
             Assert.AreEqual(100, results.Responses.Count);
             tableClient.Verify(
                 t => t.SubmitTransactionAsync(It.IsAny<IEnumerable<TableTransactionAction>>(), It.IsAny<CancellationToken>()),
@@ -240,9 +209,7 @@ namespace DurableTask.AzureStorage.Tests.Storage
         [TestMethod]
         public async Task DeleteBatchParallelAsync_101Entities_CreatesTwoBatches()
         {
-            // Arrange: 101 entities = 2 batches (100 + 1)
             var entities = CreateTestEntities("pk", count: 101);
-
             Table table = CreateTableWithMockedClient(out _, out Mock<TableClient> tableClient);
 
             tableClient
@@ -252,10 +219,8 @@ namespace DurableTask.AzureStorage.Tests.Storage
                 .ReturnsAsync((IEnumerable<TableTransactionAction> batch, CancellationToken _) =>
                     CreateMockBatchResponse(batch.Count()));
 
-            // Act
-            TableTransactionResults results = await table.DeleteBatchParallelAsync(entities, maxParallelism: 4);
+            TableTransactionResults results = await table.DeleteBatchParallelAsync(entities);
 
-            // Assert
             Assert.AreEqual(101, results.Responses.Count);
             tableClient.Verify(
                 t => t.SubmitTransactionAsync(It.IsAny<IEnumerable<TableTransactionAction>>(), It.IsAny<CancellationToken>()),
@@ -265,10 +230,8 @@ namespace DurableTask.AzureStorage.Tests.Storage
         [TestMethod]
         public async Task DeleteBatchParallelAsync_CancellationToken_IsPropagated()
         {
-            // Arrange
             var entities = CreateTestEntities("pk", count: 200);
             using var cts = new CancellationTokenSource();
-
             Table table = CreateTableWithMockedClient(out _, out Mock<TableClient> tableClient);
 
             int batchesSubmitted = 0;
@@ -281,46 +244,14 @@ namespace DurableTask.AzureStorage.Tests.Storage
                     int count = Interlocked.Increment(ref batchesSubmitted);
                     if (count == 1)
                     {
-                        // Cancel after first batch starts
                         cts.Cancel();
                     }
                     ct.ThrowIfCancellationRequested();
                     return CreateMockBatchResponse(batch.Count());
                 });
 
-            // Act & Assert
             await Assert.ThrowsExceptionAsync<OperationCanceledException>(
-                () => table.DeleteBatchParallelAsync(entities, maxParallelism: 1, cts.Token));
-        }
-
-        [TestMethod]
-        public async Task DeleteBatchParallelAsync_MaxParallelismOne_ExecutesSequentially()
-        {
-            // Arrange
-            var entities = CreateTestEntities("pk", count: 300); // 3 batches
-            var batchOrder = new ConcurrentBag<int>();
-            int batchIndex = 0;
-
-            Table table = CreateTableWithMockedClient(out _, out Mock<TableClient> tableClient);
-
-            tableClient
-                .Setup(t => t.SubmitTransactionAsync(
-                    It.IsAny<IEnumerable<TableTransactionAction>>(),
-                    It.IsAny<CancellationToken>()))
-                .Returns(async (IEnumerable<TableTransactionAction> batch, CancellationToken _) =>
-                {
-                    int idx = Interlocked.Increment(ref batchIndex);
-                    batchOrder.Add(idx);
-                    await Task.Delay(10);
-                    return CreateMockBatchResponse(batch.Count());
-                });
-
-            // Act
-            TableTransactionResults results = await table.DeleteBatchParallelAsync(entities, maxParallelism: 1);
-
-            // Assert
-            Assert.AreEqual(300, results.Responses.Count);
-            Assert.AreEqual(3, batchOrder.Count);
+                () => table.DeleteBatchParallelAsync(entities, cts.Token));
         }
 
         #region Helper Methods

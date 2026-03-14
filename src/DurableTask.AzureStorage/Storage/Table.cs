@@ -120,12 +120,12 @@ namespace DurableTask.AzureStorage.Storage
         /// <summary>
         /// Deletes entities in parallel batches of up to 100. Each batch is an atomic transaction,
         /// but multiple batches are submitted concurrently for improved throughput.
+        /// Concurrency is controlled by the global <see cref="Http.ThrottlingHttpPipelinePolicy"/>.
         /// If a batch fails because an entity was already deleted (404/EntityNotFound),
         /// it falls back to individual deletes for that batch, skipping already-deleted entities.
         /// </summary>
         public async Task<TableTransactionResults> DeleteBatchParallelAsync<T>(
             IReadOnlyList<T> entityBatch,
-            int maxParallelism,
             CancellationToken cancellationToken = default) where T : ITableEntity
         {
             if (entityBatch.Count == 0)
@@ -154,22 +154,10 @@ namespace DurableTask.AzureStorage.Storage
             }
 
             var resultsBuilder = new TableTransactionResultsBuilder();
-            var semaphore = new SemaphoreSlim(Math.Max(1, maxParallelism));
 
-            var tasks = chunks.Select(async chunk =>
-            {
-                await semaphore.WaitAsync(cancellationToken);
-                try
-                {
-                    return await this.ExecuteBatchWithFallbackAsync(chunk, cancellationToken);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
+            TableTransactionResults[] allResults = await Task.WhenAll(
+                chunks.Select(chunk => this.ExecuteBatchWithFallbackAsync(chunk, cancellationToken)));
 
-            TableTransactionResults[] allResults = await Task.WhenAll(tasks);
             foreach (TableTransactionResults result in allResults)
             {
                 resultsBuilder.Add(result);
