@@ -1580,7 +1580,7 @@ namespace DurableTask.ServiceBus
                 "ServiceBusOrchestrationService-SentMessageLog",
                 session.SessionId,
             GetFormattedLog($@"{messages.Count.ToString()} messages queued for {messageType}: {
-                        string.Join(",", messages.Select(m => $"{m.Message.MessageId} <{m.Action?.Event.EventId.ToString()}>"))}"));
+                        string.Join(",", messages.Select(m => $"{m.Message.MessageId} <{m.Action?.Event.EventId.ToString()}>{(m.Message.ScheduledEnqueueTimeUtc > DateTime.MinValue ? $" ScheduledEnqueueTimeUtc:{m.Message.ScheduledEnqueueTimeUtc:O}" : "")}"))}"));
         }
 
         async Task<OrchestrationRuntimeState> GetSessionStateAsync(IMessageSession session, IOrchestrationServiceBlobStore orchestrationServiceBlobStore)
