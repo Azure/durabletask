@@ -573,15 +573,16 @@ namespace DurableTask.AzureStorage.Tracking
             int instancesDeleted = 0;
             int rowsDeleted = 0;
 
-            // Create a timeout token that cancels after the specified duration.
-            // If no timeout is specified, use CancellationToken.None so behavior is unchanged.
-            using CancellationTokenSource timeoutCts = timeout.HasValue
-                ? new CancellationTokenSource(timeout.Value)
-                : null;
-            using CancellationTokenSource linkedCts = timeout.HasValue
-                ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token)
-                : null;
-            CancellationToken effectiveToken = linkedCts?.Token ?? cancellationToken;
+            // Cap the timeout to a maximum of 30 seconds. If no timeout is specified
+            // or the specified timeout exceeds 30s, default to 30s to prevent long-running purges.
+            TimeSpan maxTimeout = TimeSpan.FromSeconds(30);
+            TimeSpan effectiveTimeout = timeout.HasValue && timeout.Value <= maxTimeout
+                ? timeout.Value
+                : maxTimeout;
+
+            using CancellationTokenSource timeoutCts = new CancellationTokenSource(effectiveTimeout);
+            using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+            CancellationToken effectiveToken = linkedCts.Token;
 
             // Limit concurrent instance purges to avoid overwhelming storage with too many parallel operations.
             // Each instance purge internally spawns multiple parallel storage operations, so this should be
@@ -606,7 +607,7 @@ namespace DurableTask.AzureStorage.Tracking
                         {
                             try
                             {
-                                PurgeHistoryResult statisticsFromDeletion = await this.DeleteAllDataForOrchestrationInstance(instance, cancellationToken);
+                                PurgeHistoryResult statisticsFromDeletion = await this.DeleteAllDataForOrchestrationInstance(instance, effectiveToken);
                                 Interlocked.Add(ref instancesDeleted, statisticsFromDeletion.InstancesDeleted);
                                 Interlocked.Add(ref storageRequests, statisticsFromDeletion.StorageRequests);
                                 Interlocked.Add(ref rowsDeleted, statisticsFromDeletion.RowsDeleted);
@@ -619,20 +620,27 @@ namespace DurableTask.AzureStorage.Tracking
                     }
                 }
             }
-            catch (OperationCanceledException) when (timeoutCts != null && timeoutCts.IsCancellationRequested)
+            catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
             {
-                // Timeout reached — stop accepting new instances but let already-dispatched ones finish.
+                // Timeout reached — stop accepting new instances.
                 timedOut = true;
             }
 
-            // Wait for all dispatched deletions to finish before returning.
-            await Task.WhenAll(pendingTasks);
+            // Wait for all dispatched deletions to finish or be cancelled by the timeout.
+            try
+            {
+                await Task.WhenAll(pendingTasks);
+            }
+            catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+            {
+                // In-flight deletes were cancelled by the timeout — expected.
+                timedOut = true;
+            }
 
             // Determine completion status:
-            // - If a timeout was specified and fired, more instances may remain (isComplete = false).
-            // - If a timeout was specified and didn't fire, all instances were purged (isComplete = true).
-            // - If no timeout was specified, we purge everything (isComplete = null for backward compat).
-            bool? isComplete = timeout.HasValue ? !timedOut : (bool?)null;
+            // - If the timeout fired, more instances may remain (isComplete = false).
+            // - If everything completed within the timeout, all instances were purged (isComplete = true).
+            bool? isComplete = !timedOut;
 
             return new PurgeHistoryResult(storageRequests, instancesDeleted, rowsDeleted, isComplete);
         }
