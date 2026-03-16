@@ -2030,6 +2030,21 @@ namespace DurableTask.AzureStorage
             return this.trackingStore.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus);
         }
 
+        /// <summary>
+        /// Purge history for orchestrations that match the specified parameters, with a timeout.
+        /// Use this overload to perform partial purges and avoid timeouts when there are many instances.
+        /// Check <see cref="PurgeHistoryResult.IsComplete"/> to determine if more purging is needed.
+        /// </summary>
+        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Purges history grater than this value.</param>
+        /// <param name="createdTimeTo">CreatedTime of orchestrations. Purges history less than this value.</param>
+        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several status.</param>
+        /// <param name="timeout">Maximum time to spend purging. Already-started deletions will complete before the method returns.</param>
+        /// <returns>Class containing number of storage requests sent, along with instances and rows deleted/purged</returns>
+        public Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, TimeSpan timeout)
+        {
+            return this.trackingStore.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus, timeout);
+        }
+
         /// <inheritdoc />
         async Task<PurgeResult> IOrchestrationServicePurgeClient.PurgeInstanceStateAsync(string instanceId)
         {
@@ -2040,10 +2055,16 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         async Task<PurgeResult> IOrchestrationServicePurgeClient.PurgeInstanceStateAsync(PurgeInstanceFilter purgeInstanceFilter)
         {
-            PurgeHistoryResult storagePurgeHistoryResult = await this.PurgeInstanceHistoryAsync(
-                purgeInstanceFilter.CreatedTimeFrom,
-                purgeInstanceFilter.CreatedTimeTo,
-                purgeInstanceFilter.RuntimeStatus);
+            PurgeHistoryResult storagePurgeHistoryResult = purgeInstanceFilter.Timeout.HasValue
+                ? await this.PurgeInstanceHistoryAsync(
+                    purgeInstanceFilter.CreatedTimeFrom,
+                    purgeInstanceFilter.CreatedTimeTo,
+                    purgeInstanceFilter.RuntimeStatus,
+                    purgeInstanceFilter.Timeout.Value)
+                : await this.PurgeInstanceHistoryAsync(
+                    purgeInstanceFilter.CreatedTimeFrom,
+                    purgeInstanceFilter.CreatedTimeTo,
+                    purgeInstanceFilter.RuntimeStatus);
             return storagePurgeHistoryResult.ToCorePurgeHistoryResult();
         }
 #nullable enable

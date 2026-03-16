@@ -200,6 +200,14 @@ namespace DurableTask.AzureStorage.Tests
             return service.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus);
         }
 
+        public Task<PurgeHistoryResult> PurgeInstanceHistoryByTimePeriodPartial(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, TimeSpan timeout)
+        {
+            Trace.TraceInformation($"Purging history (partial, timeout {timeout}) from {createdTimeFrom} to {createdTimeTo}");
+
+            AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.ServiceClient;
+            return service.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus, timeout);
+        }
+
         public async Task<List<HistoryStateEvent>> GetOrchestrationHistoryAsync(string instanceId)
         {
             Trace.TraceInformation($"Getting history for instance with id - {this.instanceId}");

@@ -557,6 +557,7 @@ namespace DurableTask.AzureStorage.Tracking
             DateTime createdTimeFrom,
             DateTime? createdTimeTo,
             IEnumerable<OrchestrationStatus> runtimeStatus,
+            TimeSpan? timeout,
             CancellationToken cancellationToken)
         {
             var condition = OrchestrationInstanceStatusQueryCondition.Parse(
@@ -572,6 +573,16 @@ namespace DurableTask.AzureStorage.Tracking
             int instancesDeleted = 0;
             int rowsDeleted = 0;
 
+            // Create a timeout token that cancels after the specified duration.
+            // If no timeout is specified, use CancellationToken.None so behavior is unchanged.
+            using CancellationTokenSource timeoutCts = timeout.HasValue
+                ? new CancellationTokenSource(timeout.Value)
+                : null;
+            using CancellationTokenSource linkedCts = timeout.HasValue
+                ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token)
+                : null;
+            CancellationToken effectiveToken = linkedCts?.Token ?? cancellationToken;
+
             // Limit concurrent instance purges to avoid overwhelming storage with too many parallel operations.
             // Each instance purge internally spawns multiple parallel storage operations, so this should be
             // kept moderate. Using 100 to match the original implicit concurrency from pageSizeHint.
@@ -579,32 +590,51 @@ namespace DurableTask.AzureStorage.Tracking
             var throttle = new SemaphoreSlim(MaxPurgeInstanceConcurrency);
             var pendingTasks = new List<Task>();
 
-            AsyncPageable<OrchestrationInstanceStatus> entitiesPageable = this.InstancesTable.ExecuteQueryAsync<OrchestrationInstanceStatus>(odata.Filter, select: odata.Select, cancellationToken: cancellationToken);
-            await foreach (Page<OrchestrationInstanceStatus> page in entitiesPageable.AsPages(pageSizeHint: MaxPurgeInstanceConcurrency))
+            bool timedOut = false;
+
+            try
             {
-                foreach (OrchestrationInstanceStatus instance in page.Values)
+                AsyncPageable<OrchestrationInstanceStatus> entitiesPageable = this.InstancesTable.ExecuteQueryAsync<OrchestrationInstanceStatus>(odata.Filter, select: odata.Select, cancellationToken: effectiveToken);
+                await foreach (Page<OrchestrationInstanceStatus> page in entitiesPageable.AsPages(pageSizeHint: MaxPurgeInstanceConcurrency))
                 {
-                    await throttle.WaitAsync(cancellationToken);
-                    pendingTasks.Add(Task.Run(async () =>
+                    foreach (OrchestrationInstanceStatus instance in page.Values)
                     {
-                        try
+                        effectiveToken.ThrowIfCancellationRequested();
+
+                        await throttle.WaitAsync(effectiveToken);
+                        pendingTasks.Add(Task.Run(async () =>
                         {
-                            PurgeHistoryResult statisticsFromDeletion = await this.DeleteAllDataForOrchestrationInstance(instance, cancellationToken);
-                            Interlocked.Add(ref instancesDeleted, statisticsFromDeletion.InstancesDeleted);
-                            Interlocked.Add(ref storageRequests, statisticsFromDeletion.StorageRequests);
-                            Interlocked.Add(ref rowsDeleted, statisticsFromDeletion.RowsDeleted);
-                        }
-                        finally
-                        {
-                            throttle.Release();
-                        }
-                    }));
+                            try
+                            {
+                                PurgeHistoryResult statisticsFromDeletion = await this.DeleteAllDataForOrchestrationInstance(instance, cancellationToken);
+                                Interlocked.Add(ref instancesDeleted, statisticsFromDeletion.InstancesDeleted);
+                                Interlocked.Add(ref storageRequests, statisticsFromDeletion.StorageRequests);
+                                Interlocked.Add(ref rowsDeleted, statisticsFromDeletion.RowsDeleted);
+                            }
+                            finally
+                            {
+                                throttle.Release();
+                            }
+                        }));
+                    }
                 }
             }
+            catch (OperationCanceledException) when (timeoutCts != null && timeoutCts.IsCancellationRequested)
+            {
+                // Timeout reached — stop accepting new instances but let already-dispatched ones finish.
+                timedOut = true;
+            }
 
+            // Wait for all dispatched deletions to finish before returning.
             await Task.WhenAll(pendingTasks);
 
-            return new PurgeHistoryResult(storageRequests, instancesDeleted, rowsDeleted);
+            // Determine completion status:
+            // - If a timeout was specified and fired, more instances may remain (isComplete = false).
+            // - If a timeout was specified and didn't fire, all instances were purged (isComplete = true).
+            // - If no timeout was specified, we purge everything (isComplete = null for backward compat).
+            bool? isComplete = timeout.HasValue ? !timedOut : (bool?)null;
+
+            return new PurgeHistoryResult(storageRequests, instancesDeleted, rowsDeleted, isComplete);
         }
 
         async Task<PurgeHistoryResult> DeleteAllDataForOrchestrationInstance(OrchestrationInstanceStatus orchestrationInstanceStatus, CancellationToken cancellationToken)
@@ -694,6 +724,7 @@ namespace DurableTask.AzureStorage.Tracking
             DateTime createdTimeFrom,
             DateTime? createdTimeTo,
             IEnumerable<OrchestrationStatus> runtimeStatus,
+            TimeSpan? timeout = null,
             CancellationToken cancellationToken = default)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
@@ -703,7 +734,7 @@ namespace DurableTask.AzureStorage.Tracking
                     status == OrchestrationStatus.Canceled ||
                     status == OrchestrationStatus.Failed).ToList();
 
-            PurgeHistoryResult result = await this.DeleteHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatusList, cancellationToken);
+            PurgeHistoryResult result = await this.DeleteHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatusList, timeout, cancellationToken);
 
             this.settings.Logger.PurgeInstanceHistory(
                 this.storageAccountName,

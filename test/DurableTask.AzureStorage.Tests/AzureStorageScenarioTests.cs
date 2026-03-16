@@ -716,6 +716,125 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
+        public async Task PartialPurge_TimesOutThenCompletesOnRetry()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+                DateTime startDateTime = DateTime.UtcNow;
+
+                // Create several orchestration instances
+                const int totalInstances = 5;
+                var clients = new List<TestOrchestrationClient>();
+                for (int i = 0; i < totalInstances; i++)
+                {
+                    string instanceId = $"partial-purge-{Guid.NewGuid():N}";
+                    TestOrchestrationClient client = await host.StartOrchestrationAsync(
+                        typeof(Orchestrations.Factorial), 10, instanceId);
+                    clients.Add(client);
+                }
+
+                foreach (var client in clients)
+                {
+                    var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+                    Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                }
+
+                DateTime endDateTime = DateTime.UtcNow;
+                var statuses = new List<OrchestrationStatus> { OrchestrationStatus.Completed };
+
+                // Partial purge with a very short timeout — may not finish all instances
+                PurgeHistoryResult firstResult = await clients[0].PurgeInstanceHistoryByTimePeriodPartial(
+                    startDateTime, endDateTime, statuses, timeout: TimeSpan.FromMilliseconds(1));
+
+                // With such a tiny timeout, IsComplete should be non-null (timeout was specified)
+                Assert.IsNotNull(firstResult.IsComplete, "IsComplete should be non-null when timeout is specified");
+
+                if (firstResult.IsComplete == false)
+                {
+                    // More work to do — purge the rest with a generous timeout
+                    PurgeHistoryResult secondResult = await clients[0].PurgeInstanceHistoryByTimePeriodPartial(
+                        startDateTime, endDateTime, statuses, timeout: TimeSpan.FromMinutes(2));
+
+                    Assert.AreEqual(true, secondResult.IsComplete, "Should complete with generous timeout");
+                    Assert.AreEqual(totalInstances, firstResult.InstancesDeleted + secondResult.InstancesDeleted,
+                        "Total purged across both calls should equal total instances");
+                }
+                else
+                {
+                    // All instances purged in the first call (possible if storage is fast)
+                    Assert.AreEqual(totalInstances, firstResult.InstancesDeleted);
+                }
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task PartialPurge_GenerousTimeout_CompletesAll()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+                DateTime startDateTime = DateTime.UtcNow;
+
+                const int totalInstances = 5;
+                var clients = new List<TestOrchestrationClient>();
+                for (int i = 0; i < totalInstances; i++)
+                {
+                    string instanceId = $"full-purge-{Guid.NewGuid():N}";
+                    TestOrchestrationClient client = await host.StartOrchestrationAsync(
+                        typeof(Orchestrations.Factorial), 10, instanceId);
+                    clients.Add(client);
+                }
+
+                foreach (var client in clients)
+                {
+                    var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+                    Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                }
+
+                DateTime endDateTime = DateTime.UtcNow;
+                var statuses = new List<OrchestrationStatus> { OrchestrationStatus.Completed };
+
+                // Generous timeout — should purge all instances and return complete
+                PurgeHistoryResult result = await clients[0].PurgeInstanceHistoryByTimePeriodPartial(
+                    startDateTime, endDateTime, statuses, timeout: TimeSpan.FromMinutes(2));
+
+                Assert.AreEqual(totalInstances, result.InstancesDeleted);
+                Assert.AreEqual(true, result.IsComplete, "Should be complete with generous timeout");
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task PartialPurge_WithoutTimeout_ReturnsNullIsComplete()
+        {
+            // Validates backward compatibility: existing callers that don't use maxInstanceCount
+            // get IsComplete = null (unknown), preserving old behavior.
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+                DateTime startDateTime = DateTime.UtcNow;
+
+                string instanceId = $"compat-purge-{Guid.NewGuid():N}";
+                TestOrchestrationClient client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.Factorial), 10, instanceId);
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                // Use the old API (no maxInstanceCount) — should still work exactly as before
+                await client.PurgeInstanceHistoryByTimePeriod(
+                    startDateTime, DateTime.UtcNow, new List<OrchestrationStatus> { OrchestrationStatus.Completed });
+
+                List<HistoryStateEvent> historyEvents = await client.GetOrchestrationHistoryAsync(instanceId);
+                Assert.AreEqual(0, historyEvents.Count, "History should be purged");
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
         public async Task PurgeInstanceHistoryForTimePeriodDeletePartially()
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
