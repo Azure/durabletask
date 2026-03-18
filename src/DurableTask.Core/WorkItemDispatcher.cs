@@ -232,6 +232,7 @@ namespace DurableTask.Core
             while (this.isStarted)
             {
                 var semaphoreAcquired = false;
+                var scheduledWorkItem = false;
                 try
                 {
                     if (!await this.concurrencyLock.WaitAsync(TimeSpan.FromSeconds(5)))
@@ -326,7 +327,6 @@ namespace DurableTask.Core
                         Interlocked.Decrement(ref this.activeFetchers);
                     }
 
-                    var scheduledWorkItem = false;
                     if (!IsNull(workItem))
                     {
                         if (!this.isStarted)
@@ -374,7 +374,7 @@ namespace DurableTask.Core
 
                     // Release the semaphore if we acquired it but never handed it off
                     // to ProcessWorkItemAsync, to avoid permanently reducing concurrency.
-                    if (semaphoreAcquired)
+                    if (semaphoreAcquired && !scheduledWorkItem)
                     {
                         try { this.concurrencyLock.Release(); } catch { /* best effort */ }
                     }
@@ -386,6 +386,11 @@ namespace DurableTask.Core
                     catch (OperationCanceledException)
                     {
                         // Shutdown requested during backoff; exit promptly.
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // CancellationTokenSource was disposed (e.g., Dispose called
+                        // shortly after StopAsync); treat as shutdown.
                     }
                 }
             }

@@ -31,7 +31,7 @@ namespace DurableTask.Core.Tests
         // this guards against hangs without wasting time on every run.
         static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(10);
         [TestMethod]
-        public async Task DispatchLoop_SurvivesOuterException_ViaFaultySafeReleaseWorkItem()
+        public async Task DispatchLoop_SurvivesOuterException_ViaFaultyDelayCallback()
         {
             // Arrange: GetDelayInSecondsAfterOnFetchException is called from inside the
             // inner catch block, but if it throws, the exception escapes the inner
