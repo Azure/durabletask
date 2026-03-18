@@ -142,7 +142,14 @@ namespace DurableTask.Core
 
                         // We just want this to Run we intentionally don't wait
                         #pragma warning disable 4014
-                        Task.Run(() => this.DispatchAsync(context));
+                        Task.Run(() => this.DispatchAsync(context)).ContinueWith(t =>
+                        {
+                            TraceHelper.TraceException(
+                                TraceEventType.Critical,
+                                "WorkItemDispatcherDispatch-FatalTermination",
+                                t.Exception,
+                                $"Dispatch loop for '{this.name}' terminated fatally!");
+                        }, TaskContinuationOptions.OnlyOnFaulted);
                         #pragma warning restore 4014
                     }
                 }
@@ -224,128 +231,146 @@ namespace DurableTask.Core
             bool logThrottle = true;
             while (this.isStarted)
             {
-                if (!await this.concurrencyLock.WaitAsync(TimeSpan.FromSeconds(5)))
-                {
-                    if (logThrottle)
-                    {
-                        // This can happen frequently under heavy load.
-                        // To avoid log spam, we log just once until we can proceed.
-                        this.LogHelper.FetchingThrottled(
-                            context,
-                            this.concurrentWorkItemCount,
-                            this.MaxConcurrentWorkItems);
-                        TraceHelper.Trace(
-                            TraceEventType.Warning,
-                            "WorkItemDispatcherDispatch-MaxOperations",
-                            this.GetFormattedLog(dispatcherId, $"Max concurrent operations ({this.concurrentWorkItemCount}) are already in progress. Still waiting for next accept."));
-                        
-                        logThrottle = false;
-                    }
-
-                    continue;
-                }
-
-                logThrottle = true;
-
-                var delaySecs = 0;
-                T workItem = default(T);
                 try
                 {
-                    Interlocked.Increment(ref this.activeFetchers);
-                    this.LogHelper.FetchWorkItemStarting(context, DefaultReceiveTimeout, this.concurrentWorkItemCount, this.MaxConcurrentWorkItems);
-                    TraceHelper.Trace(
-                        TraceEventType.Verbose, 
-                        "WorkItemDispatcherDispatch-StartFetch",
-                        this.GetFormattedLog(dispatcherId, $"Starting fetch with timeout of {DefaultReceiveTimeout} ({this.concurrentWorkItemCount}/{this.MaxConcurrentWorkItems} max)"));
-
-                    Stopwatch timer = Stopwatch.StartNew();
-                    workItem = await this.FetchWorkItem(DefaultReceiveTimeout, this.shutdownCancellationTokenSource.Token);
-
-                    if (!IsNull(workItem))
+                    if (!await this.concurrencyLock.WaitAsync(TimeSpan.FromSeconds(5)))
                     {
-                        string workItemId = this.workItemIdentifier(workItem);
-                        this.LogHelper.FetchWorkItemCompleted(
-                            context,
-                            workItemId,
-                            timer.Elapsed,
-                            this.concurrentWorkItemCount,
-                            this.MaxConcurrentWorkItems);
+                        if (logThrottle)
+                        {
+                            // This can happen frequently under heavy load.
+                            // To avoid log spam, we log just once until we can proceed.
+                            this.LogHelper.FetchingThrottled(
+                                context,
+                                this.concurrentWorkItemCount,
+                                this.MaxConcurrentWorkItems);
+                            TraceHelper.Trace(
+                                TraceEventType.Warning,
+                                "WorkItemDispatcherDispatch-MaxOperations",
+                                this.GetFormattedLog(dispatcherId, $"Max concurrent operations ({this.concurrentWorkItemCount}) are already in progress. Still waiting for next accept."));
+
+                            logThrottle = false;
+                        }
+
+                        continue;
                     }
 
-                    TraceHelper.Trace(
-                        TraceEventType.Verbose, 
-                        "WorkItemDispatcherDispatch-EndFetch",
-                        this.GetFormattedLog(dispatcherId, $"After fetch ({timer.ElapsedMilliseconds} ms) ({this.concurrentWorkItemCount}/{this.MaxConcurrentWorkItems} max)"));
-                }
-                catch (TimeoutException)
-                {
-                    delaySecs = 0;
-                }
-                catch (TaskCanceledException exception)
-                {
-                    TraceHelper.Trace(
-                        TraceEventType.Information,
-                        "WorkItemDispatcherDispatch-TaskCanceledException",
-                        this.GetFormattedLog(dispatcherId, $"TaskCanceledException while fetching workItem, should be harmless: {exception.Message}"));
-                    delaySecs = this.GetDelayInSecondsAfterOnFetchException(exception);
-                }
-                catch (Exception exception)
-                {
-                    if (!this.isStarted)
+                    logThrottle = true;
+
+                    var delaySecs = 0;
+                    T workItem = default(T);
+                    try
+                    {
+                        Interlocked.Increment(ref this.activeFetchers);
+                        this.LogHelper.FetchWorkItemStarting(context, DefaultReceiveTimeout, this.concurrentWorkItemCount, this.MaxConcurrentWorkItems);
+                        TraceHelper.Trace(
+                            TraceEventType.Verbose,
+                            "WorkItemDispatcherDispatch-StartFetch",
+                            this.GetFormattedLog(dispatcherId, $"Starting fetch with timeout of {DefaultReceiveTimeout} ({this.concurrentWorkItemCount}/{this.MaxConcurrentWorkItems} max)"));
+
+                        Stopwatch timer = Stopwatch.StartNew();
+                        workItem = await this.FetchWorkItem(DefaultReceiveTimeout, this.shutdownCancellationTokenSource.Token);
+
+                        if (!IsNull(workItem))
+                        {
+                            string workItemId = this.workItemIdentifier(workItem);
+                            this.LogHelper.FetchWorkItemCompleted(
+                                context,
+                                workItemId,
+                                timer.Elapsed,
+                                this.concurrentWorkItemCount,
+                                this.MaxConcurrentWorkItems);
+                        }
+
+                        TraceHelper.Trace(
+                            TraceEventType.Verbose,
+                            "WorkItemDispatcherDispatch-EndFetch",
+                            this.GetFormattedLog(dispatcherId, $"After fetch ({timer.ElapsedMilliseconds} ms) ({this.concurrentWorkItemCount}/{this.MaxConcurrentWorkItems} max)"));
+                    }
+                    catch (TimeoutException)
+                    {
+                        delaySecs = 0;
+                    }
+                    catch (TaskCanceledException exception)
                     {
                         TraceHelper.Trace(
-                            TraceEventType.Information, 
-                            "WorkItemDispatcherDispatch-HarmlessException",
-                            this.GetFormattedLog(dispatcherId, $"Harmless exception while fetching workItem after Stop(): {exception.Message}"));
-                    }
-                    else
-                    {
-                        this.LogHelper.FetchWorkItemFailure(context, exception);
-                        // TODO : dump full node context here
-                        TraceHelper.TraceException(
-                            TraceEventType.Warning, 
-                            "WorkItemDispatcherDispatch-Exception", 
-                            exception,
-                            this.GetFormattedLog(dispatcherId, $"Exception while fetching workItem: {exception.Message}"));
+                            TraceEventType.Information,
+                            "WorkItemDispatcherDispatch-TaskCanceledException",
+                            this.GetFormattedLog(dispatcherId, $"TaskCanceledException while fetching workItem, should be harmless: {exception.Message}"));
                         delaySecs = this.GetDelayInSecondsAfterOnFetchException(exception);
                     }
-                }
-                finally
-                {
-                    Interlocked.Decrement(ref this.activeFetchers);
-                }
-
-                var scheduledWorkItem = false;
-                if (!IsNull(workItem))
-                {
-                    if (!this.isStarted)
+                    catch (Exception exception)
                     {
-                        if (this.SafeReleaseWorkItem != null)
+                        if (!this.isStarted)
                         {
-                            await this.SafeReleaseWorkItem(workItem);
+                            TraceHelper.Trace(
+                                TraceEventType.Information,
+                                "WorkItemDispatcherDispatch-HarmlessException",
+                                this.GetFormattedLog(dispatcherId, $"Harmless exception while fetching workItem after Stop(): {exception.Message}"));
+                        }
+                        else
+                        {
+                            this.LogHelper.FetchWorkItemFailure(context, exception);
+                            // TODO : dump full node context here
+                            TraceHelper.TraceException(
+                                TraceEventType.Warning,
+                                "WorkItemDispatcherDispatch-Exception",
+                                exception,
+                                this.GetFormattedLog(dispatcherId, $"Exception while fetching workItem: {exception.Message}"));
+                            delaySecs = this.GetDelayInSecondsAfterOnFetchException(exception);
                         }
                     }
-                    else
+                    finally
                     {
-                        Interlocked.Increment(ref this.concurrentWorkItemCount);
-                        // We just want this to Run we intentionally don't wait
-                        #pragma warning disable 4014 
-                        Task.Run(() => this.ProcessWorkItemAsync(context, workItem));
-                        #pragma warning restore 4014
+                        Interlocked.Decrement(ref this.activeFetchers);
+                    }
 
-                        scheduledWorkItem = true;
+                    var scheduledWorkItem = false;
+                    if (!IsNull(workItem))
+                    {
+                        if (!this.isStarted)
+                        {
+                            if (this.SafeReleaseWorkItem != null)
+                            {
+                                await this.SafeReleaseWorkItem(workItem);
+                            }
+                        }
+                        else
+                        {
+                            Interlocked.Increment(ref this.concurrentWorkItemCount);
+                            // We just want this to Run we intentionally don't wait
+                            #pragma warning disable 4014
+                            Task.Run(() => this.ProcessWorkItemAsync(context, workItem));
+                            #pragma warning restore 4014
+
+                            scheduledWorkItem = true;
+                        }
+                    }
+
+                    delaySecs = Math.Max(this.delayOverrideSecs, delaySecs);
+                    if (delaySecs > 0)
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(delaySecs));
+                    }
+
+                    if (!scheduledWorkItem)
+                    {
+                        this.concurrencyLock.Release();
                     }
                 }
-
-                delaySecs = Math.Max(this.delayOverrideSecs, delaySecs);
-                if (delaySecs > 0)
+                catch (Exception exception) when (!Utils.IsFatal(exception))
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(delaySecs));
-                }
+                    // Catch-all for any unhandled exception in the dispatch loop body.
+                    // Without this, the dispatch loop would silently terminate because
+                    // DispatchAsync runs as a fire-and-forget Task.Run.
+                    this.LogHelper.DispatcherLoopFailed(context, exception);
+                    TraceHelper.TraceException(
+                        TraceEventType.Error,
+                        "WorkItemDispatcherDispatch-UnhandledException",
+                        exception,
+                        this.GetFormattedLog(dispatcherId,
+                            $"Unhandled exception in dispatch loop. Will retry after backoff."));
 
-                if (!scheduledWorkItem)
-                {
-                    this.concurrencyLock.Release();
+                    await Task.Delay(TimeSpan.FromSeconds(BackOffIntervalOnInvalidOperationSecs));
                 }
             }
 
