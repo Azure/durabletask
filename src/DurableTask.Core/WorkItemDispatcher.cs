@@ -231,6 +231,7 @@ namespace DurableTask.Core
             bool logThrottle = true;
             while (this.isStarted)
             {
+                var semaphoreAcquired = false;
                 try
                 {
                     if (!await this.concurrencyLock.WaitAsync(TimeSpan.FromSeconds(5)))
@@ -254,6 +255,7 @@ namespace DurableTask.Core
                         continue;
                     }
 
+                    semaphoreAcquired = true;
                     logThrottle = true;
 
                     var delaySecs = 0;
@@ -370,7 +372,21 @@ namespace DurableTask.Core
                         this.GetFormattedLog(dispatcherId,
                             $"Unhandled exception in dispatch loop. Will retry after backoff."));
 
-                    await Task.Delay(TimeSpan.FromSeconds(BackOffIntervalOnInvalidOperationSecs));
+                    // Release the semaphore if we acquired it but never handed it off
+                    // to ProcessWorkItemAsync, to avoid permanently reducing concurrency.
+                    if (semaphoreAcquired)
+                    {
+                        try { this.concurrencyLock.Release(); } catch { /* best effort */ }
+                    }
+
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(BackOffIntervalOnInvalidOperationSecs), this.shutdownCancellationTokenSource.Token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Shutdown requested during backoff; exit promptly.
+                    }
                 }
             }
 

@@ -31,53 +31,79 @@ namespace DurableTask.Core.Tests
         // this guards against hangs without wasting time on every run.
         static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(10);
         [TestMethod]
-        public async Task DispatchLoop_SurvivesUnhandledException_AndContinuesProcessing()
+        public async Task DispatchLoop_SurvivesOuterException_ViaFaultySafeReleaseWorkItem()
         {
-            // Arrange: The fetch callback throws an ObjectDisposedException on the first call,
-            // then returns null (no work item) on subsequent calls.
+            // Arrange: GetDelayInSecondsAfterOnFetchException is called from inside the
+            // inner catch block, but if it throws, the exception escapes the inner
+            // catch and is caught by the outer catch — exercising the new safety net.
+            // We verify that DispatcherLoopFailed is logged and the loop continues.
             int fetchCallCount = 0;
-            var fetchCalledAfterException = new TaskCompletionSource<bool>();
+            var secondFetchStarted = new TaskCompletionSource<bool>();
+
+            var logMessages = new ConcurrentBag<LogEntry>();
+            var loggerFactory = LoggerFactory.Create(builder =>
+            {
+                builder.AddProvider(new InMemoryLoggerProvider(logMessages));
+                builder.SetMinimumLevel(LogLevel.Trace);
+            });
 
             var dispatcher = new WorkItemDispatcher<string>(
                 "TestDispatcher",
-                workItemIdentifier: item => item,
+                workItemIdentifier: item => item ?? "null",
                 fetchWorkItem: (timeout, ct) =>
                 {
                     int count = Interlocked.Increment(ref fetchCallCount);
                     if (count == 1)
                     {
-                        // Simulate an exception that would escape the inner try/catch
-                        // by throwing from the fetch callback. This gets caught by the inner catch,
-                        // but let's test the outer catch by using a different approach below.
-                        throw new InvalidOperationException("Test fetch exception");
+                        // This exception will be caught by the inner catch, which then
+                        // calls GetDelayInSecondsAfterOnFetchException (which also throws).
+                        throw new InvalidOperationException("Trigger inner catch");
                     }
 
-                    if (count >= 3)
-                    {
-                        fetchCalledAfterException.TrySetResult(true);
-                    }
-
+                    // If we reach here, the outer catch handled the callback failure
+                    // and the loop continued.
+                    secondFetchStarted.TrySetResult(true);
                     return Task.FromResult<string>(null!);
                 },
                 processWorkItem: item => Task.CompletedTask);
 
             dispatcher.MaxConcurrentWorkItems = 1;
             dispatcher.DispatcherCount = 1;
+            dispatcher.LogHelper = new LogHelper(loggerFactory.CreateLogger("DurableTask.Core"));
+
+            // This callback is invoked from the inner catch. Throwing here causes
+            // the exception to escape to the outer catch.
+            int delayCallCount = 0;
+            dispatcher.GetDelayInSecondsAfterOnFetchException = (ex) =>
+            {
+                if (Interlocked.Increment(ref delayCallCount) == 1)
+                {
+                    throw new InvalidOperationException("Failure in delay callback");
+                }
+
+                return 0;
+            };
 
             // Act
             await dispatcher.StartAsync();
 
-            // Wait for the dispatcher to recover and fetch again after the exception
+            // Wait for the loop to recover from the outer catch and start a second fetch.
+            // The outer catch backoff is 10s, but may be cancelled on shutdown. We give it
+            // enough time for the backoff to elapse. If the loop died, this will time out.
             bool recovered = await Task.WhenAny(
-                fetchCalledAfterException.Task,
-                Task.Delay(TestTimeout)) == fetchCalledAfterException.Task;
+                secondFetchStarted.Task,
+                Task.Delay(TimeSpan.FromSeconds(15))) == secondFetchStarted.Task;
 
             await dispatcher.StopAsync(forced: true);
             dispatcher.Dispose();
 
-            // Assert: The dispatcher continued running after the exception
-            Assert.IsTrue(recovered, "Dispatch loop should have continued after the exception.");
-            Assert.IsTrue(fetchCallCount >= 3, $"Expected at least 3 fetch calls, got {fetchCallCount}.");
+            // Assert: The dispatch loop survived the outer exception and continued
+            Assert.IsTrue(recovered, "Dispatch loop should have recovered after outer catch exception.");
+
+            // The outer catch should have logged DispatcherLoopFailed
+            bool hasLoopFailed = logMessages.Any(m =>
+                m.EventId.Name == nameof(Logging.EventIds.DispatcherLoopFailed));
+            Assert.IsTrue(hasLoopFailed, "Expected DispatcherLoopFailed log event from the outer catch.");
         }
 
         [TestMethod]
@@ -129,9 +155,11 @@ namespace DurableTask.Core.Tests
         }
 
         [TestMethod]
-        public async Task DispatchLoop_LogsErrorAndRetries_WhenOuterExceptionOccurs()
+        public async Task DispatchLoop_LogsFetchWorkItemFailure_WhenFetchThrows()
         {
-            // Arrange: Use a logging ILogger to capture log events
+            // Arrange: Use a logging ILogger to capture log events.
+            // The fetch exception is handled by the inner catch, which logs
+            // FetchWorkItemFailure — verifying that path works correctly.
             var logMessages = new ConcurrentBag<LogEntry>();
             var loggerFactory = LoggerFactory.Create(builder =>
             {
@@ -150,7 +178,8 @@ namespace DurableTask.Core.Tests
                     int count = Interlocked.Increment(ref fetchCallCount);
                     if (count == 1)
                     {
-                        // This exception is caught by the inner catch block
+                        // This exception is caught by the inner catch block,
+                        // which logs FetchWorkItemFailure (not DispatcherLoopFailed).
                         throw new InvalidOperationException("Simulated fetch failure");
                     }
 
@@ -357,6 +386,12 @@ namespace DurableTask.Core.Tests
             public Exception? Exception { get; set; }
         }
 
+        class NoOpDisposable : IDisposable
+        {
+            public static readonly NoOpDisposable Instance = new NoOpDisposable();
+            public void Dispose() { }
+        }
+
         /// <summary>
         /// An ILogger that captures log entries to a concurrent bag for test assertions.
         /// </summary>
@@ -369,7 +404,7 @@ namespace DurableTask.Core.Tests
                 this.logs = logs;
             }
 
-            public IDisposable BeginScope<TState>(TState state) => null!;
+            public IDisposable BeginScope<TState>(TState state) => NoOpDisposable.Instance;
 
             public bool IsEnabled(LogLevel logLevel) => true;
 
