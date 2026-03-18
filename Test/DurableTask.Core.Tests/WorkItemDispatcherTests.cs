@@ -16,6 +16,7 @@ namespace DurableTask.Core.Tests
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
@@ -26,6 +27,9 @@ namespace DurableTask.Core.Tests
     [TestClass]
     public class WorkItemDispatcherTests
     {
+        // A generous-but-bounded timeout for CI. Tests normally complete in <1s;
+        // this guards against hangs without wasting time on every run.
+        static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(10);
         [TestMethod]
         public async Task DispatchLoop_SurvivesUnhandledException_AndContinuesProcessing()
         {
@@ -66,7 +70,7 @@ namespace DurableTask.Core.Tests
             // Wait for the dispatcher to recover and fetch again after the exception
             bool recovered = await Task.WhenAny(
                 fetchCalledAfterException.Task,
-                Task.Delay(TimeSpan.FromSeconds(30))) == fetchCalledAfterException.Task;
+                Task.Delay(TestTimeout)) == fetchCalledAfterException.Task;
 
             await dispatcher.StopAsync(forced: true);
             dispatcher.Dispose();
@@ -77,13 +81,12 @@ namespace DurableTask.Core.Tests
         }
 
         [TestMethod]
-        public async Task DispatchLoop_SurvivesSafeReleaseWorkItemException_AndContinuesProcessing()
+        public async Task DispatchLoop_SurvivesMultipleExceptionTypes_AndContinuesProcessing()
         {
-            // Arrange: SafeReleaseWorkItem throws, which is outside the inner try/catch.
-            // The dispatch loop should catch this via the outer try/catch and continue.
+            // Arrange: Throw a variety of exception types from fetch across consecutive calls.
+            // All are handled by the inner catch, but this verifies the loop keeps going.
             int fetchCallCount = 0;
-            var fetchCalledAfterException = new TaskCompletionSource<bool>();
-            bool safeReleaseThrew = false;
+            var recoverySignal = new TaskCompletionSource<bool>();
 
             var dispatcher = new WorkItemDispatcher<string>(
                 "TestDispatcher",
@@ -91,43 +94,38 @@ namespace DurableTask.Core.Tests
                 fetchWorkItem: (timeout, ct) =>
                 {
                     int count = Interlocked.Increment(ref fetchCallCount);
-                    if (count == 1)
+                    switch (count)
                     {
-                        // Return a work item that will trigger SafeReleaseWorkItem
-                        return Task.FromResult("work-item-1");
-                    }
+                        case 1: throw new InvalidOperationException("Test exception");
+                        case 2: throw new TimeoutException("Test timeout");
+                        case 3: throw new TaskCanceledException("Test cancel");
+                        default:
+                            if (count >= 5)
+                            {
+                                recoverySignal.TrySetResult(true);
+                            }
 
-                    if (count >= 3 && safeReleaseThrew)
-                    {
-                        fetchCalledAfterException.TrySetResult(true);
+                            return Task.FromResult<string>(null!);
                     }
-
-                    return Task.FromResult<string>(null!);
                 },
                 processWorkItem: item => Task.CompletedTask);
 
             dispatcher.MaxConcurrentWorkItems = 1;
             dispatcher.DispatcherCount = 1;
 
-            // Start, then immediately stop to make isStarted = false,
-            // so when the work item comes back, SafeReleaseWorkItem is called.
-            // Instead, let's simulate SafeReleaseWorkItem throwing by setting it up
-            // to throw on the first call. The SafeReleaseWorkItem is called when
-            // isStarted is false and a workItem was fetched.
-            // This is tricky to test in isolation. Let's test a simpler scenario instead.
-
-            // Act & Assert: just verify the dispatcher starts and stops cleanly
+            // Act
             await dispatcher.StartAsync();
 
-            bool completed = await Task.WhenAny(
-                fetchCalledAfterException.Task,
-                Task.Delay(TimeSpan.FromSeconds(15))) == fetchCalledAfterException.Task;
+            bool recovered = await Task.WhenAny(
+                recoverySignal.Task,
+                Task.Delay(TestTimeout)) == recoverySignal.Task;
 
             await dispatcher.StopAsync(forced: true);
             dispatcher.Dispose();
 
-            // The fetch was called multiple times, proving the loop is alive
-            Assert.IsTrue(fetchCallCount >= 2, $"Expected at least 2 fetch calls, got {fetchCallCount}.");
+            // Assert: The dispatcher survived all exception types and kept fetching
+            Assert.IsTrue(recovered, "Dispatch loop should have recovered after multiple exception types.");
+            Assert.IsTrue(fetchCallCount >= 5, $"Expected at least 5 fetch calls, got {fetchCallCount}.");
         }
 
         [TestMethod]
@@ -174,7 +172,7 @@ namespace DurableTask.Core.Tests
 
             bool recovered = await Task.WhenAny(
                 dispatcherRecovered.Task,
-                Task.Delay(TimeSpan.FromSeconds(30))) == dispatcherRecovered.Task;
+                Task.Delay(TestTimeout)) == dispatcherRecovered.Task;
 
             await dispatcher.StopAsync(forced: true);
             dispatcher.Dispose();
@@ -230,7 +228,7 @@ namespace DurableTask.Core.Tests
 
             bool completed = await Task.WhenAny(
                 allItemsProcessed.Task,
-                Task.Delay(TimeSpan.FromSeconds(30))) == allItemsProcessed.Task;
+                Task.Delay(TestTimeout)) == allItemsProcessed.Task;
 
             await dispatcher.StopAsync(forced: true);
             dispatcher.Dispose();
@@ -251,10 +249,18 @@ namespace DurableTask.Core.Tests
                 builder.SetMinimumLevel(LogLevel.Trace);
             });
 
+            // Use a signal so we know the dispatch loop is actively running
+            // before we ask it to stop, rather than relying on a fixed delay.
+            var fetchStarted = new TaskCompletionSource<bool>();
+
             var dispatcher = new WorkItemDispatcher<string>(
                 "TestDispatcher",
                 workItemIdentifier: item => item ?? "null",
-                fetchWorkItem: (timeout, ct) => Task.FromResult<string>(null!),
+                fetchWorkItem: (timeout, ct) =>
+                {
+                    fetchStarted.TrySetResult(true);
+                    return Task.FromResult<string>(null!);
+                },
                 processWorkItem: item => Task.CompletedTask);
 
             dispatcher.MaxConcurrentWorkItems = 1;
@@ -263,14 +269,26 @@ namespace DurableTask.Core.Tests
 
             // Act
             await dispatcher.StartAsync();
-            // Give it a moment to start dispatching
-            await Task.Delay(500);
+
+            // Wait until the dispatch loop has actually started fetching
+            await Task.WhenAny(fetchStarted.Task, Task.Delay(TestTimeout));
+            Assert.IsTrue(fetchStarted.Task.IsCompleted, "Dispatch loop should have started fetching.");
+
             await dispatcher.StopAsync(forced: false);
 
             // The DispatcherStopped event is logged asynchronously after the
-            // dispatch loop exits its while loop, which may happen slightly
-            // after StopAsync returns. Give it a moment to complete.
-            await Task.Delay(2000);
+            // dispatch loop exits. Poll for it instead of using a fixed delay.
+            var sw = Stopwatch.StartNew();
+            while (sw.Elapsed < TestTimeout)
+            {
+                if (logMessages.Any(m => m.EventId.Name == nameof(Logging.EventIds.DispatcherStopped)))
+                {
+                    break;
+                }
+
+                await Task.Delay(50);
+            }
+
             dispatcher.Dispose();
 
             // Assert: DispatcherStopped event should be logged, not DispatcherLoopFailed
