@@ -1945,5 +1945,54 @@ namespace DurableTask.Core.Logging
                     Utils.PackageVersion);
         }
 
+        /// <summary>
+        /// Log event representing the discarding of a "poison" message.
+        /// </summary>
+        internal class PoisonMessageDetected : StructuredLogEvent, IEventSourceEvent
+        {
+            public PoisonMessageDetected(OrchestrationInstance orchestrationInstance, string eventType, string taskEventId, string details)
+            {
+                this.InstanceId = orchestrationInstance?.InstanceId ?? string.Empty;
+                this.ExecutionId = orchestrationInstance?.ExecutionId ?? string.Empty;
+                this.EventType = eventType;
+                this.EventId = taskEventId;
+                this.Details = details;
+            }
+
+            [StructuredLogField]
+            public string InstanceId { get; }
+
+            [StructuredLogField]
+            public string ExecutionId { get; }
+
+            [StructuredLogField]
+            public string EventType { get; }
+
+            [StructuredLogField]
+            public string EventId { get; }
+
+            [StructuredLogField]
+            public string Details { get; }
+
+            public override EventId EventId => new EventId(
+                EventIds.PoisonMessageDetected,
+                nameof(EventIds.PoisonMessageDetected));
+
+            public override LogLevel Level => LogLevel.Error;
+
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Poison message detected for {GetEventDescription(this.EventType, this.TaskEventId)}: {this.Details}";
+
+            void IEventSourceEvent.WriteEventSource() =>
+                StructuredEventSource.Log.DiscardingMessage(
+                    this.InstanceId,
+                    this.ExecutionId,
+                    this.EventType,
+                    this.TaskEventId,
+                    this.Details,
+                    Utils.AppName,
+                    Utils.PackageVersion);
+        }
+
     }
 }

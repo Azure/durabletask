@@ -50,6 +50,7 @@ namespace DurableTask.Core
         readonly TaskOrchestrationEntityParameters? entityParameters;
         readonly VersioningSettings? versioningSettings;
         readonly IExceptionPropertiesProvider? exceptionPropertiesProvider;
+        readonly int maxDispatchCount;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TaskOrchestrationDispatcher"/> class with an exception properties provider.
@@ -80,6 +81,7 @@ namespace DurableTask.Core
             this.entityParameters = TaskOrchestrationEntityParameters.FromEntityBackendProperties(this.entityBackendProperties);
             this.versioningSettings = versioningSettings;
             this.exceptionPropertiesProvider = exceptionPropertiesProvider;
+            this.maxDispatchCount = orchestrationService.MaxDispatchCount;
 
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskOrchestrationDispatcher",
@@ -432,6 +434,34 @@ namespace DurableTask.Core
                             }
                         }
 
+                        var poisonEvents = runtimeState.NewEvents.Where(evt => evt.DispatchCount > this.maxDispatchCount);
+                        if (poisonEvents.Any())
+                        {
+                            foreach (var poisonEvent in poisonEvents)
+                            {
+                                this.logHelper.PoisonMessageDetected(
+                                    runtimeState.OrchestrationInstance!,
+                                    poisonEvent,
+                                    $"Orchestration has received an event with dispatch count {poisonEvent.DispatchCount} which exceeds the maximum dispatch" +
+                                    $"count of {this.maxDispatchCount} and will be failed.");
+                            }
+
+                            var failureAction = new OrchestrationCompleteOrchestratorAction
+                            {
+                                Id = runtimeState.PastEvents.Count,
+                                FailureDetails = new FailureDetails(
+                                    "PoisonMessages",
+                                    $"Orchestration has received messages of type {string.Join(",", poisonEvents.Select(e => e.EventType))} " +
+                                    $"with dispatch counts {string.Join(",", poisonEvents.Select(e => e.DispatchCount))} which exceed the " +
+                                    $"maximum dispatch count of {this.maxDispatchCount}.",
+                                    stackTrace: null,
+                                    innerFailure: null,
+                                    isNonRetriable: true),
+                                OrchestrationStatus = OrchestrationStatus.Failed,
+                            };
+                            decisions = new List<OrchestratorAction> { failureAction };
+                        }
+
                         this.logHelper.OrchestrationExecuting(runtimeState.OrchestrationInstance!, runtimeState.Name);
                         TraceHelper.TraceInstance(
                             TraceEventType.Verbose,
@@ -440,7 +470,7 @@ namespace DurableTask.Core
                             "Executing user orchestration: {0}",
                             JsonDataConverter.Default.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true));
 
-                        if (!versioningFailed)
+                        if (!versioningFailed && !poisonEvents.Any())
                         {
                             // In this case we skip the orchestration's execution since all tasks have been completed and it is in a terminal state.
                             // Instead we "rewind" its execution by removing all failed tasks (see ProcessRewindOrchestrationDecision).

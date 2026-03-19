@@ -13,13 +13,15 @@
 #nullable enable
 namespace DurableTask.Core.Logging
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Text;
     using DurableTask.Core.Command;
+    using DurableTask.Core.Common;
+    using DurableTask.Core.Entities.EventFormat;
     using DurableTask.Core.Entities.OperationFormat;
     using DurableTask.Core.History;
     using Microsoft.Extensions.Logging;
+    using System;
+    using System.Collections.Generic;
+    using System.Text;
 
     class LogHelper
     {
@@ -743,6 +745,42 @@ namespace DurableTask.Core.Logging
             if (this.IsStructuredLoggingEnabled)
             {
                 this.WriteStructuredLog(new LogEvents.RenewActivityMessageFailed(workItem, exception), exception);
+            }
+        }
+
+        /// <summary>
+        /// Logs that a "poison message" has been detected and is being dropped.
+        /// </summary>
+        /// <param name="orchestrationInstance">The orchestration instance this event was sent to.</param>
+        /// <param name="historyEvent">The "poisoned" event.</param>
+        /// <param name="details">Extra details related to the processing of this poison message.</param>
+        internal void PoisonMessageDetected(OrchestrationInstance? orchestrationInstance, HistoryEvent historyEvent, string details)
+        {
+            if (this.IsStructuredLoggingEnabled)
+            {
+                this.WriteStructuredLog(new LogEvents.PoisonMessageDetected(
+                    orchestrationInstance,
+                    historyEvent.EventType.ToString(),
+                    Utils.GetTaskEventId(historyEvent).ToString(),
+                    details));
+            }
+        }
+
+        /// <summary>
+        /// Logs that a "poison" entity request message has been detected and is being dropped.
+        /// </summary>
+        /// <param name="orchestrationInstance">The orchestration instance this event was sent to.</param>
+        /// <param name="requestMessage">The "poisoned" reuest message.</param>
+        /// <param name="details">Extra details related to the processing of this poison message.</param>
+        internal void PoisonMessageDetected(OrchestrationInstance orchestrationInstance, RequestMessage requestMessage, string details)
+        {
+            if (this.IsStructuredLoggingEnabled)
+            {
+                this.WriteStructuredLog(new LogEvents.PoisonMessageDetected(
+                    orchestrationInstance,
+                    requestMessage.IsLockRequest ? "LockRequest" : "OperationRequest",
+                    requestMessage.Id.ToString(),
+                    details));
             }
         }
         #endregion

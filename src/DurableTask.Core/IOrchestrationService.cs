@@ -103,6 +103,12 @@ namespace DurableTask.Core
         BehaviorOnContinueAsNew EventBehaviourForContinueAsNew { get; }
 
         /// <summary>
+        /// Gets the maximum amount of times the same event can be dispatched before it is considered "poisonous"
+        /// and the corresponding operation is failed.
+        /// </summary>
+        int MaxDispatchCount { get; }
+
+        /// <summary>
         ///     Wait for the next orchestration work item and return the orchestration work item
         /// </summary>
         Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(TimeSpan receiveTimeout, CancellationToken cancellationToken);
