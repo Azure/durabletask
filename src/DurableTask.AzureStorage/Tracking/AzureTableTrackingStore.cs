@@ -557,7 +557,6 @@ namespace DurableTask.AzureStorage.Tracking
             DateTime createdTimeFrom,
             DateTime? createdTimeTo,
             IEnumerable<OrchestrationStatus> runtimeStatus,
-            TimeSpan? timeout,
             CancellationToken cancellationToken)
         {
             var condition = OrchestrationInstanceStatusQueryCondition.Parse(
@@ -573,14 +572,12 @@ namespace DurableTask.AzureStorage.Tracking
             int instancesDeleted = 0;
             int rowsDeleted = 0;
 
-            // Cap the timeout to a maximum of 30 seconds. If no timeout is specified
-            // or the specified timeout exceeds 30s, default to 30s to prevent long-running purges.
-            TimeSpan maxTimeout = TimeSpan.FromSeconds(30);
-            TimeSpan effectiveTimeout = timeout.HasValue && timeout.Value <= maxTimeout
-                ? timeout.Value
-                : maxTimeout;
+            // Enforce a 30-second timeout to prevent long-running purge operations that can
+            // cause gRPC deadline timeouts in the isolated worker model. The caller should
+            // check IsComplete and loop if more instances remain.
+            TimeSpan purgeTimeout = TimeSpan.FromSeconds(30);
 
-            using CancellationTokenSource timeoutCts = new CancellationTokenSource(effectiveTimeout);
+            using CancellationTokenSource timeoutCts = new CancellationTokenSource(purgeTimeout);
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
             CancellationToken effectiveToken = linkedCts.Token;
 
@@ -732,7 +729,6 @@ namespace DurableTask.AzureStorage.Tracking
             DateTime createdTimeFrom,
             DateTime? createdTimeTo,
             IEnumerable<OrchestrationStatus> runtimeStatus,
-            TimeSpan? timeout = null,
             CancellationToken cancellationToken = default)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
@@ -742,7 +738,7 @@ namespace DurableTask.AzureStorage.Tracking
                     status == OrchestrationStatus.Canceled ||
                     status == OrchestrationStatus.Failed).ToList();
 
-            PurgeHistoryResult result = await this.DeleteHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatusList, timeout, cancellationToken);
+            PurgeHistoryResult result = await this.DeleteHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatusList, cancellationToken);
 
             this.settings.Logger.PurgeInstanceHistory(
                 this.storageAccountName,
