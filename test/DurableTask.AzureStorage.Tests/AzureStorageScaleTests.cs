@@ -145,7 +145,7 @@ namespace DurableTask.AzureStorage.Tests
 
             try
             {
-                Assert.IsTrue(trackingStore.ExistsAsync().Result, $"Tracking Store was not created.");
+                Assert.IsTrue(await trackingStore.ExistsAsync(), $"Tracking Store was not created.");
             }
             catch (NotSupportedException)
             { }
@@ -182,7 +182,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 try
                 {
-                    Assert.IsFalse(trackingStore.ExistsAsync().Result, $"Tracking Store was not deleted.");
+                    Assert.IsFalse(await trackingStore.ExistsAsync(), $"Tracking Store was not deleted.");
                 }
                 catch (NotSupportedException)
                 { }
@@ -322,9 +322,12 @@ namespace DurableTask.AzureStorage.Tests
                                     Assert.IsTrue(
                                         service.OwnedControlQueues.All(q => ownedLeases.Any(l => l.Name.Contains(q.Name))),
                                         "Mismatch between queue assignment and lease ownership.");
-                                    Assert.IsTrue(
-                                        service.OwnedControlQueues.All(q => q.InnerQueue.ExistsAsync().GetAwaiter().GetResult()),
-                                        $"One or more control queues owned by {service.WorkerId} do not exist");
+                                    foreach (var q in service.OwnedControlQueues)
+                                    {
+                                        Assert.IsTrue(
+                                            await q.InnerQueue.ExistsAsync(),
+                                            $"Control queue {q.Name} owned by {service.WorkerId} does not exist");
+                                    }
                                 }
 
                                 Assert.AreEqual(totalLeaseCount, allQueueNames.Count, "Unexpected number of queues!");
