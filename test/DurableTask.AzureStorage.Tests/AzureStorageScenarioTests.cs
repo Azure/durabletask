@@ -557,7 +557,7 @@ namespace DurableTask.AzureStorage.Tests
             var containerClient = client.GetBlobContainerClient(containerName);
             await containerClient.CreateIfNotExistsAsync();
 
-            return await containerClient.GetBlobsAsync(traits: BlobTraits.Metadata, prefix: directoryName).CountAsync();
+            return await containerClient.GetBlobsAsync(traits: BlobTraits.Metadata, states: BlobStates.None, prefix: directoryName, cancellationToken: default).CountAsync();
         }
 
 
@@ -2435,7 +2435,7 @@ namespace DurableTask.AzureStorage.Tests
             BlobContainerClient container = serviceClient.GetBlobContainerClient(containerName);
             Assert.IsTrue(await container.ExistsAsync(), $"Blob container {containerName} is expected to exist.");
             BlobItem blob = await container
-                .GetBlobsByHierarchyAsync(BlobTraits.Metadata, prefix: sanitizedInstanceId)
+                .GetBlobsByHierarchyAsync(traits: BlobTraits.Metadata, states: BlobStates.None, delimiter: null, prefix: sanitizedInstanceId, cancellationToken: default)
                 .Where(x => x.IsBlob && x.Blob.Name == sanitizedInstanceId + "/" + blobName)
                 .Select(x => x.Blob)
                 .SingleOrDefaultAsync();
@@ -3897,58 +3897,47 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
-            // (1) Explanation about indexes:
-            // The orchestration Activity's start at Invocation[1] and each action logs
-            // two activities - (Processor.OnStart(Activity) and Processor.OnEnd(Activity)
-            // The Activity for orchestration execution is "started" (with the same Id, SpanId, etc.)
-            // upon every replay of the orchestration so will have an OnStart invocation for each such replay, 
-            // but an OnEnd at the end of orchestration execution.
-            // The first OnEnd invocation is at index 2, so we start from there.
+            // Collect only the OnEnd activities from the processor invocations.
+            // Other invocations (SetParentProvider, OnStart, OnShutdown, OnForceFlush, Dispose)
+            // vary across OpenTelemetry SDK versions, so we filter by method name.
+            var endedActivities = processor.Invocations
+                .Where(i => i.Method.Name == "OnEnd")
+                .Select(i => (Activity)i.Arguments[0])
+                .ToList();
 
-            // (2) Additional invocations:
-            // processor.Invocations[0] - processor.SetParentProvider(TracerProviderSdk)
-            // processor.Invocations[10] - processor.OnShutdown()
-            // processor.Invocations[11] - processor.Dispose(true)
+            Assert.AreEqual(4, endedActivities.Count);
 
             // Create orchestration Activity
-            Activity activity2 = (Activity)processor.Invocations[2].Arguments[0];
+            Activity createOrchestration = endedActivities[0];
             // Task execution Activity
-            Activity activity5 = (Activity)processor.Invocations[5].Arguments[0];
+            Activity taskExecution = endedActivities[1];
             // Task completed Activity
-            Activity activity8 = (Activity)processor.Invocations[8].Arguments[0];
+            Activity taskCompleted = endedActivities[2];
             // Orchestration execution Activity
-            Activity activity9 = (Activity)processor.Invocations[9].Arguments[0];
-
-            // Checking total number activities
-            Assert.AreEqual(12, processor.Invocations.Count);
+            Activity orchestrationExecution = endedActivities[3];
 
             // Checking tag values
-            string activity2TypeValue = activity2.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity5TypeValue = activity5.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity8TypeValue = activity8.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity9TypeValue = activity9.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string createOrchestrationTypeValue = createOrchestration.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string taskExecutionTypeValue = taskExecution.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string taskCompletedTypeValue = taskCompleted.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string orchestrationExecutionTypeValue = orchestrationExecution.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
 
-            ActivityKind activity2Kind = activity2.Kind;
-            ActivityKind activity5Kind = activity5.Kind;
-            ActivityKind activity8Kind = activity8.Kind;
-            ActivityKind activity9Kind = activity9.Kind;
-
-            Assert.AreEqual("orchestration", activity2TypeValue);
-            Assert.AreEqual("activity", activity5TypeValue);
-            Assert.AreEqual("activity", activity8TypeValue);
-            Assert.AreEqual("orchestration", activity9TypeValue);
-            Assert.AreEqual(ActivityKind.Producer, activity2Kind);
-            Assert.AreEqual(ActivityKind.Server, activity5Kind);
-            Assert.AreEqual(ActivityKind.Client, activity8Kind);
-            Assert.AreEqual(ActivityKind.Server, activity9Kind);
+            Assert.AreEqual("orchestration", createOrchestrationTypeValue);
+            Assert.AreEqual("activity", taskExecutionTypeValue);
+            Assert.AreEqual("activity", taskCompletedTypeValue);
+            Assert.AreEqual("orchestration", orchestrationExecutionTypeValue);
+            Assert.AreEqual(ActivityKind.Producer, createOrchestration.Kind);
+            Assert.AreEqual(ActivityKind.Server, taskExecution.Kind);
+            Assert.AreEqual(ActivityKind.Client, taskCompleted.Kind);
+            Assert.AreEqual(ActivityKind.Server, orchestrationExecution.Kind);
 
             // Checking span ID correlation between parent and child
-            Assert.AreEqual(activity2.SpanId, activity9.ParentSpanId);
-            Assert.AreEqual(activity8.SpanId, activity5.ParentSpanId);
-            Assert.AreEqual(activity9.SpanId, activity8.ParentSpanId);
+            Assert.AreEqual(createOrchestration.SpanId, orchestrationExecution.ParentSpanId);
+            Assert.AreEqual(taskCompleted.SpanId, taskExecution.ParentSpanId);
+            Assert.AreEqual(orchestrationExecution.SpanId, taskCompleted.ParentSpanId);
 
             // Checking trace ID values
-            Assert.AreEqual(activity2.TraceId.ToString(), activity5.TraceId.ToString(), activity8.TraceId.ToString(), activity9.TraceId.ToString());
+            Assert.AreEqual(createOrchestration.TraceId.ToString(), taskExecution.TraceId.ToString(), taskCompleted.TraceId.ToString(), orchestrationExecution.TraceId.ToString());
         }
 
         /// <summary>
@@ -3986,52 +3975,40 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
-            // (1) Explanation about indexes:
-            // The orchestration Activity's start at Invocation[1] and each action logs
-            // two activities - (Processor.OnStart(Activity) and Processor.OnEnd(Activity)
-            // The Activity for orchestration execution is "started" (with the same Id, SpanId, etc.)
-            // upon every replay of the orchestration so will have an OnStart invocation for each such replay, 
-            // but an OnEnd at the end of orchestration execution.
-            // The first OnEnd invocation is at index 2, so we start from there.
+            // Collect only the OnEnd activities from the processor invocations.
+            var endedActivities = processor.Invocations
+                .Where(i => i.Method.Name == "OnEnd")
+                .Select(i => (Activity)i.Arguments[0])
+                .ToList();
 
-            // (2) Additional invocations:
-            // processor.Invocations[0] - processor.SetParentProvider(TracerProviderSdk)
-            // processor.Invocations[8] - processor.OnShutdown()
-            // processor.Invocations[9] - processor.Dispose(true)
+            Assert.AreEqual(3, endedActivities.Count);
 
             // Create orchestration Activity
-            Activity activity2 = (Activity)processor.Invocations[2].Arguments[0];
+            Activity createOrchestration = endedActivities[0];
             // External event Activity
-            Activity activity5 = (Activity)processor.Invocations[5].Arguments[0];
+            Activity externalEvent = endedActivities[1];
             // Orchestration execution Activity
-            Activity activity7 = (Activity)processor.Invocations[7].Arguments[0];
-
-            // Checking total number activities
-            Assert.AreEqual(10, processor.Invocations.Count);
+            Activity orchestrationExecution = endedActivities[2];
 
             // Checking tag values
-            string activity2TypeValue = activity2.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity5TypeValue = activity5.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity7TypeValue = activity7.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity5TargetInstanceIdValue = activity5.Tags.First(k => (k.Key).Equals("durabletask.event.target_instance_id")).Value;
+            string createOrchestrationTypeValue = createOrchestration.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string externalEventTypeValue = externalEvent.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string orchestrationExecutionTypeValue = orchestrationExecution.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string externalEventTargetInstanceIdValue = externalEvent.Tags.First(k => (k.Key).Equals("durabletask.event.target_instance_id")).Value;
 
-            ActivityKind activity2Kind = activity2.Kind;
-            ActivityKind activity5Kind = activity5.Kind;
-            ActivityKind activity7Kind = activity7.Kind;
-
-            Assert.AreEqual("orchestration", activity2TypeValue);
-            Assert.AreEqual("event", activity5TypeValue);
-            Assert.AreEqual("orchestration", activity7TypeValue);
-            Assert.AreEqual(instanceId, activity5TargetInstanceIdValue);
-            Assert.AreEqual(ActivityKind.Producer, activity2Kind);
-            Assert.AreEqual(ActivityKind.Producer, activity5Kind);
-            Assert.AreEqual(ActivityKind.Server, activity7Kind);
+            Assert.AreEqual("orchestration", createOrchestrationTypeValue);
+            Assert.AreEqual("event", externalEventTypeValue);
+            Assert.AreEqual("orchestration", orchestrationExecutionTypeValue);
+            Assert.AreEqual(instanceId, externalEventTargetInstanceIdValue);
+            Assert.AreEqual(ActivityKind.Producer, createOrchestration.Kind);
+            Assert.AreEqual(ActivityKind.Producer, externalEvent.Kind);
+            Assert.AreEqual(ActivityKind.Server, orchestrationExecution.Kind);
 
             // Checking span ID correlation between parent and child
-            Assert.AreEqual(activity2.SpanId, activity7.ParentSpanId);
+            Assert.AreEqual(createOrchestration.SpanId, orchestrationExecution.ParentSpanId);
 
             // Checking trace ID values (the external event from the client is its own trace)
-            Assert.AreEqual(activity2.TraceId.ToString(), activity7.TraceId.ToString());
+            Assert.AreEqual(createOrchestration.TraceId.ToString(), orchestrationExecution.TraceId.ToString());
         }
 
         /// <summary>
@@ -4065,51 +4042,39 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
-            // (1) Explanation about indexes:
-            // The orchestration Activity's start at Invocation[1] and each action logs
-            // two activities - (Processor.OnStart(Activity) and Processor.OnEnd(Activity)
-            // The Activity for orchestration execution is "started" (with the same Id, SpanId, etc.)
-            // upon every replay of the orchestration so will have an OnStart invocation for each such replay, 
-            // but an OnEnd at the end of orchestration execution.
-            // The first OnEnd invocation is at index 2, so we start from there.
+            // Collect only the OnEnd activities from the processor invocations.
+            var endedActivities = processor.Invocations
+                .Where(i => i.Method.Name == "OnEnd")
+                .Select(i => (Activity)i.Arguments[0])
+                .ToList();
 
-            // (2) Additional invocations:
-            // processor.Invocations[0] - processor.SetParentProvider(TracerProviderSdk)
-            // processor.Invocations[8] - processor.OnShutdown()
-            // processor.Invocations[9] - processor.Dispose(true)
+            Assert.AreEqual(3, endedActivities.Count);
 
             // Create orchestration Activity
-            Activity activity2 = (Activity)processor.Invocations[2].Arguments[0];
+            Activity createOrchestration = endedActivities[0];
             // Timer fired Activity
-            Activity activity6 = (Activity)processor.Invocations[6].Arguments[0];
+            Activity timerFired = endedActivities[1];
             // Orchestration execution Activity
-            Activity activity7 = (Activity)processor.Invocations[7].Arguments[0];
-
-            // Checking total number activities
-            Assert.AreEqual(10, processor.Invocations.Count);
+            Activity orchestrationExecution = endedActivities[2];
 
             // Checking tag values
-            string activity2TypeValue = activity2.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity6TypeValue = activity6.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity7TypeValue = activity7.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string createOrchestrationTypeValue = createOrchestration.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string timerFiredTypeValue = timerFired.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string orchestrationExecutionTypeValue = orchestrationExecution.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
 
-            ActivityKind activity2Kind = activity2.Kind;
-            ActivityKind activity6Kind = activity6.Kind;
-            ActivityKind activity7Kind = activity7.Kind;
-
-            Assert.AreEqual("orchestration", activity2TypeValue);
-            Assert.AreEqual("timer", activity6TypeValue);
-            Assert.AreEqual("orchestration", activity7TypeValue);
-            Assert.AreEqual(ActivityKind.Producer, activity2Kind);
-            Assert.AreEqual(ActivityKind.Internal, activity6Kind);
-            Assert.AreEqual(ActivityKind.Server, activity7Kind);
+            Assert.AreEqual("orchestration", createOrchestrationTypeValue);
+            Assert.AreEqual("timer", timerFiredTypeValue);
+            Assert.AreEqual("orchestration", orchestrationExecutionTypeValue);
+            Assert.AreEqual(ActivityKind.Producer, createOrchestration.Kind);
+            Assert.AreEqual(ActivityKind.Internal, timerFired.Kind);
+            Assert.AreEqual(ActivityKind.Server, orchestrationExecution.Kind);
 
             // Checking span ID correlation between parent and child
-            Assert.AreEqual(activity2.SpanId, activity7.ParentSpanId);
-            Assert.AreEqual(activity7.SpanId, activity6.ParentSpanId);
+            Assert.AreEqual(createOrchestration.SpanId, orchestrationExecution.ParentSpanId);
+            Assert.AreEqual(orchestrationExecution.SpanId, timerFired.ParentSpanId);
 
             // Checking trace ID values
-            Assert.AreEqual(activity2.TraceId.ToString(), activity6.TraceId.ToString(), activity7.TraceId.ToString());
+            Assert.AreEqual(createOrchestration.TraceId.ToString(), timerFired.TraceId.ToString(), orchestrationExecution.TraceId.ToString());
         }
 
         /// <summary>
@@ -4144,66 +4109,52 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
-            // (1) Explanation about indexes:
-            // The orchestration Activity's start at Invocation[1] and each action logs
-            // two activities - (Processor.OnStart(Activity) and Processor.OnEnd(Activity)
-            // The Activity for orchestration execution is "started" (with the same Id, SpanId, etc.)
-            // upon every replay of the orchestration so will have an OnStart invocation for each such replay, 
-            // but an OnEnd at the end of orchestration execution.
-            // The first OnEnd invocation is at index 2, so we start from there.
+            // Collect only the OnEnd activities from the processor invocations.
+            var endedActivities = processor.Invocations
+                .Where(i => i.Method.Name == "OnEnd")
+                .Select(i => (Activity)i.Arguments[0])
+                .ToList();
 
-            // (2) Additional invocations:
-            // processor.Invocations[0] - processor.SetParentProvider(TracerProviderSdk)
-            // processor.Invocations[10] - processor.OnShutdown()
-            // processor.Invocations[11] - processor.Dispose(true)
+            Assert.AreEqual(4, endedActivities.Count);
 
-            var invocations = processor.Invocations;
             // Create orchestration (AutoStartOrchestration) Activity
-            Activity activity2 = (Activity)processor.Invocations[2].Arguments[0];
+            Activity createOrchestration = endedActivities[0];
             // Send event to AutoStartOrchestration.Responder Activity
-            Activity activity5 = (Activity)processor.Invocations[5].Arguments[0];
+            Activity sendEvent = endedActivities[1];
             // Send event from AutoStartOrchestration.Responder back to AutoStartOrchestration Activity
-            Activity activity7 = (Activity)processor.Invocations[7].Arguments[0];
+            Activity sendEventBack = endedActivities[2];
             // Orchestration execution Activity
-            Activity activity9 = (Activity)processor.Invocations[9].Arguments[0];
-
-            // Checking total number activities
-            Assert.AreEqual(12, processor.Invocations.Count);
+            Activity orchestrationExecution = endedActivities[3];
 
             // Checking tag values
-            string activity2TypeValue = activity2.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity5TypeValue = activity5.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity7TypeValue = activity7.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity9TypeValue = activity9.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity5InstanceIdValue = activity5.Tags.First(k => (k.Key).Equals("durabletask.task.instance_id")).Value;
-            string activity5TargetInstanceIdValue = activity5.Tags.First(k => (k.Key).Equals("durabletask.event.target_instance_id")).Value;
-            string activity7InstanceIdValue = activity7.Tags.First(k => (k.Key).Equals("durabletask.task.instance_id")).Value;
-            string activity7TargetInstanceIdValue = activity7.Tags.First(k => (k.Key).Equals("durabletask.event.target_instance_id")).Value;
+            string createOrchestrationTypeValue = createOrchestration.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string sendEventTypeValue = sendEvent.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string sendEventBackTypeValue = sendEventBack.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string orchestrationExecutionTypeValue = orchestrationExecution.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string sendEventInstanceIdValue = sendEvent.Tags.First(k => (k.Key).Equals("durabletask.task.instance_id")).Value;
+            string sendEventTargetInstanceIdValue = sendEvent.Tags.First(k => (k.Key).Equals("durabletask.event.target_instance_id")).Value;
+            string sendEventBackInstanceIdValue = sendEventBack.Tags.First(k => (k.Key).Equals("durabletask.task.instance_id")).Value;
+            string sendEventBackTargetInstanceIdValue = sendEventBack.Tags.First(k => (k.Key).Equals("durabletask.event.target_instance_id")).Value;
 
-            ActivityKind activity2Kind = activity2.Kind;
-            ActivityKind activity5Kind = activity5.Kind;
-            ActivityKind activity7Kind = activity7.Kind;
-            ActivityKind activity9Kind = activity9.Kind;
-
-            Assert.AreEqual("orchestration", activity2TypeValue);
-            Assert.AreEqual("event", activity5TypeValue);
-            Assert.AreEqual("event", activity7TypeValue);
-            Assert.AreEqual("orchestration", activity9TypeValue);
-            Assert.AreEqual(instanceId, activity5InstanceIdValue);
-            Assert.AreEqual(responderId, activity5TargetInstanceIdValue);
-            Assert.AreEqual(responderId, activity7InstanceIdValue);
-            Assert.AreEqual(instanceId, activity7TargetInstanceIdValue);
-            Assert.AreEqual(ActivityKind.Producer, activity2Kind);
-            Assert.AreEqual(ActivityKind.Producer, activity5Kind);
-            Assert.AreEqual(ActivityKind.Producer, activity7Kind);
-            Assert.AreEqual(ActivityKind.Server, activity9Kind);
+            Assert.AreEqual("orchestration", createOrchestrationTypeValue);
+            Assert.AreEqual("event", sendEventTypeValue);
+            Assert.AreEqual("event", sendEventBackTypeValue);
+            Assert.AreEqual("orchestration", orchestrationExecutionTypeValue);
+            Assert.AreEqual(instanceId, sendEventInstanceIdValue);
+            Assert.AreEqual(responderId, sendEventTargetInstanceIdValue);
+            Assert.AreEqual(responderId, sendEventBackInstanceIdValue);
+            Assert.AreEqual(instanceId, sendEventBackTargetInstanceIdValue);
+            Assert.AreEqual(ActivityKind.Producer, createOrchestration.Kind);
+            Assert.AreEqual(ActivityKind.Producer, sendEvent.Kind);
+            Assert.AreEqual(ActivityKind.Producer, sendEventBack.Kind);
+            Assert.AreEqual(ActivityKind.Server, orchestrationExecution.Kind);
 
             // Checking span ID correlation between parent and child
-            Assert.AreEqual(activity2.SpanId, activity9.ParentSpanId);
-            Assert.AreEqual(activity9.SpanId, activity5.ParentSpanId);
+            Assert.AreEqual(createOrchestration.SpanId, orchestrationExecution.ParentSpanId);
+            Assert.AreEqual(orchestrationExecution.SpanId, sendEvent.ParentSpanId);
 
             // Checking trace ID values
-            Assert.AreEqual(activity2.TraceId.ToString(), activity5.TraceId.ToString(), activity9.TraceId.ToString());
+            Assert.AreEqual(createOrchestration.TraceId.ToString(), sendEvent.TraceId.ToString(), orchestrationExecution.TraceId.ToString());
         }
 #endif
 
