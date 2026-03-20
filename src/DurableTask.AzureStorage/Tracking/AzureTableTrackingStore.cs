@@ -602,11 +602,12 @@ namespace DurableTask.AzureStorage.Tracking
                         effectiveToken.ThrowIfCancellationRequested();
 
                         await throttle.WaitAsync(effectiveToken);
-                        pendingTasks.Add(Task.Run(async () =>
+
+                        async Task DeleteInstanceAsync(OrchestrationInstanceStatus inst)
                         {
                             try
                             {
-                                PurgeHistoryResult statisticsFromDeletion = await this.DeleteAllDataForOrchestrationInstance(instance, effectiveToken);
+                                PurgeHistoryResult statisticsFromDeletion = await this.DeleteAllDataForOrchestrationInstance(inst, effectiveToken);
                                 Interlocked.Add(ref instancesDeleted, statisticsFromDeletion.InstancesDeleted);
                                 Interlocked.Add(ref storageRequests, statisticsFromDeletion.StorageRequests);
                                 Interlocked.Add(ref rowsDeleted, statisticsFromDeletion.RowsDeleted);
@@ -615,7 +616,9 @@ namespace DurableTask.AzureStorage.Tracking
                             {
                                 throttle.Release();
                             }
-                        }));
+                        }
+
+                        pendingTasks.Add(DeleteInstanceAsync(instance));
                     }
                 }
             }
@@ -625,7 +628,7 @@ namespace DurableTask.AzureStorage.Tracking
                 timedOut = true;
             }
 
-            // Wait for all dispatched deletions to finish or be cancelled by the timeout.
+            // Wait for all remaining dispatched deletions to finish or be cancelled by the timeout.
             try
             {
                 await Task.WhenAll(pendingTasks);
