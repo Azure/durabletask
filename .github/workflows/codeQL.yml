@@ -66,6 +66,11 @@ jobs:
       with:
         dotnet-version: '3.1.x'
 
+    - name: Set up .NET 8
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '8.0.x'
+
     - name: Restore dependencies
       run: dotnet restore $solution
 
