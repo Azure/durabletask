@@ -486,7 +486,7 @@ namespace DurableTask.Core.Tests
                 TestNullObject = null; // Explicitly set to null for testing
             }
 
-#pragma warning disable SYSLIB0051, CS0672
+#pragma warning disable SYSLIB0051
             protected CustomBusinessException(SerializationInfo info, StreamingContext context)
                 : base(info, context)
             {
@@ -494,7 +494,9 @@ namespace DurableTask.Core.Tests
                 BusinessContext = info.GetString(nameof(BusinessContext)) ?? string.Empty;
                 TestNullObject = info.GetString(nameof(TestNullObject)); // This will be null
             }
+#pragma warning restore SYSLIB0051
 
+#pragma warning disable SYSLIB0051, CS0672
             public override void GetObjectData(SerializationInfo info, StreamingContext context)
             {
                 base.GetObjectData(info, context);
