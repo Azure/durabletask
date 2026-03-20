@@ -53,7 +53,7 @@ namespace DurableTask.AzureStorage.Tests
 
             var loggerFactory = LoggerFactory.Create(builder =>
             {
-                builder.AddConsole().SetMinimumLevel(LogLevel.Trace);
+                builder.AddConsole().SetMinimumLevel(LogLevel.Warning);
             });
 
             var settings = new AzureStorageOrchestrationServiceSettings
