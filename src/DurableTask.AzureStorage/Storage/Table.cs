@@ -155,15 +155,18 @@ namespace DurableTask.AzureStorage.Storage
 
             var resultsBuilder = new TableTransactionResultsBuilder();
 
+            var stopwatch = Stopwatch.StartNew();
             TableTransactionResults[] allResults = await Task.WhenAll(
                 chunks.Select(chunk => this.ExecuteBatchWithFallbackAsync(chunk, cancellationToken)));
+            stopwatch.Stop();
 
             foreach (TableTransactionResults result in allResults)
             {
                 resultsBuilder.Add(result);
             }
 
-            return resultsBuilder.ToResults();
+            TableTransactionResults aggregatedResults = resultsBuilder.ToResults();
+            return new TableTransactionResults(aggregatedResults.Responses, stopwatch.Elapsed, aggregatedResults.RequestCount);
         }
 
         /// <summary>
