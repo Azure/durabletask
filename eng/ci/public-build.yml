@@ -79,6 +79,7 @@ extends:
       dependsOn: []
       jobs:
       - job: Validate
+        timeoutInMinutes: 90
         strategy:
           parallel: 13
         steps:
