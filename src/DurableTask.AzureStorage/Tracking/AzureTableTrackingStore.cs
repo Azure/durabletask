@@ -1,4 +1,4 @@
-﻿//  ----------------------------------------------------------------------------------
+//  ----------------------------------------------------------------------------------
 //  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -587,7 +587,7 @@ namespace DurableTask.AzureStorage.Tracking
             // Each instance purge internally spawns multiple parallel storage operations, so this should be
             // kept moderate. Using 100 to match the original implicit concurrency from pageSizeHint.
             const int MaxPurgeInstanceConcurrency = 100;
-            var throttle = new SemaphoreSlim(MaxPurgeInstanceConcurrency);
+            using var throttle = new SemaphoreSlim(MaxPurgeInstanceConcurrency);
             var pendingTasks = new List<Task>();
 
             bool timedOut = false;

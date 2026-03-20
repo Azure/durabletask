@@ -1,4 +1,4 @@
-﻿//  ----------------------------------------------------------------------------------
+//  ----------------------------------------------------------------------------------
 //  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -1886,9 +1886,9 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Gets the state of all orchestration instances that match the specified parameters.
         /// </summary>
-        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Fetch status grater than this value.</param>
+        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Fetch status greater than this value.</param>
         /// <param name="createdTimeTo">CreatedTime of orchestrations. Fetch status less than this value.</param>
-        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several status.</param>
+        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several statuses.</param>
         /// <param name="cancellationToken">Cancellation Token</param>
         /// <returns>List of <see cref="OrchestrationState"/></returns>
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default(CancellationToken))
@@ -1900,9 +1900,9 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Gets the state of all orchestration instances that match the specified parameters.
         /// </summary>
-        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Fetch status grater than this value.</param>
+        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Fetch status greater than this value.</param>
         /// <param name="createdTimeTo">CreatedTime of orchestrations. Fetch status less than this value.</param>
-        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several status.</param>
+        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several statuses.</param>
         /// <param name="top">Top is number of records per one request.</param>
         /// <param name="continuationToken">ContinuationToken of the pager.</param>
         /// <param name="cancellationToken">Cancellation Token</param>
@@ -2021,9 +2021,9 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Purge history for orchestrations that match the specified parameters.
         /// </summary>
-        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Purges history grater than this value.</param>
+        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Purges history greater than this value.</param>
         /// <param name="createdTimeTo">CreatedTime of orchestrations. Purges history less than this value.</param>
-        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several status.</param>
+        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several statuses.</param>
         /// <returns>Class containing number of storage requests sent, along with instances and rows deleted/purged</returns>
         public Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
         {

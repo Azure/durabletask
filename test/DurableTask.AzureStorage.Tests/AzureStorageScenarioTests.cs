@@ -1,4 +1,4 @@
-﻿//  ----------------------------------------------------------------------------------
+//  ----------------------------------------------------------------------------------
 //  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -448,7 +448,7 @@ namespace DurableTask.AzureStorage.Tests
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
             {
                 await host.StartAsync();
-                DateTime startDateTime = DateTime.Now;
+                DateTime startDateTime = DateTime.UtcNow;
                 string firstInstanceId = "instance1";
                 TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(Orchestrations.FanOutFanIn), 50, firstInstanceId);
                 await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
@@ -569,7 +569,7 @@ namespace DurableTask.AzureStorage.Tests
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
             {
                 await host.StartAsync();
-                DateTime startDateTime = DateTime.Now;
+                DateTime startDateTime = DateTime.UtcNow;
 
                 // Create multiple orchestration instances concurrently
                 const int instanceCount = 5;
@@ -716,10 +716,10 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public async Task PurgeReturnsIsComplete()
+        public async Task PurgeAllInstances_HistoryIsCleared()
         {
-            // Validates that purge returns IsComplete = true when all instances are purged
-            // within the built-in 30-second timeout.
+            // Validates that purging multiple instances clears all history
+            // when purging by time period.
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
             {
                 await host.StartAsync();
@@ -767,11 +767,11 @@ namespace DurableTask.AzureStorage.Tests
             {
                 // Execute the orchestrator twice. Orchestrator will be replied. However instances might be two.
                 await host.StartAsync();
-                DateTime startDateTime = DateTime.Now;
+                DateTime startDateTime = DateTime.UtcNow;
                 string firstInstanceId = Guid.NewGuid().ToString();
                 TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(Orchestrations.FanOutFanIn), 50, firstInstanceId);
                 await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
-                DateTime endDateTime = DateTime.Now;
+                DateTime endDateTime = DateTime.UtcNow;
                 await Task.Delay(5000);
                 string secondInstanceId = Guid.NewGuid().ToString();
                 client = await host.StartOrchestrationAsync(typeof(Orchestrations.FanOutFanIn), 50, secondInstanceId);

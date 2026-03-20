@@ -1,4 +1,4 @@
-﻿//  ----------------------------------------------------------------------------------
+//  ----------------------------------------------------------------------------------
 //  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ namespace DurableTask.Core
         /// If <c>null</c> (default), all matching instances are purged with no time limit.
         /// When set, the purge stops accepting new instances after this duration elapses
         /// and returns with <see cref="PurgeResult.IsComplete"/> set to <c>false</c>.
-        /// Already-started instance deletions will complete before the method returns.
+        /// In-flight instance deletions will also be cancelled when the timeout elapses.
         /// </summary>
         public TimeSpan? Timeout { get; set; }
     }
