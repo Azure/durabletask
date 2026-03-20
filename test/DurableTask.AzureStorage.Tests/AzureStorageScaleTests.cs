@@ -195,7 +195,7 @@ namespace DurableTask.AzureStorage.Tests
 
         private async Task EnsureLeasesMatchControlQueue(string directoryReference, BlobContainerClient taskHubContainer, ControlQueue[] controlQueues)
         {
-            BlobItem[] leaseBlobs = await taskHubContainer.GetBlobsAsync(prefix: directoryReference).ToArrayAsync();
+            BlobItem[] leaseBlobs = await taskHubContainer.GetBlobsAsync(traits: BlobTraits.None, states: BlobStates.None, prefix: directoryReference, cancellationToken: default).ToArrayAsync();
             Assert.AreEqual(controlQueues.Length, leaseBlobs.Length, "Expected to see the same number of control queues and lease blobs.");
             foreach (BlobItem blobItem in leaseBlobs)
             {

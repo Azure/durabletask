@@ -557,7 +557,7 @@ namespace DurableTask.AzureStorage.Tests
             var containerClient = client.GetBlobContainerClient(containerName);
             await containerClient.CreateIfNotExistsAsync();
 
-            return await containerClient.GetBlobsAsync(traits: BlobTraits.Metadata, prefix: directoryName).CountAsync();
+            return await containerClient.GetBlobsAsync(traits: BlobTraits.Metadata, states: BlobStates.None, prefix: directoryName, cancellationToken: default).CountAsync();
         }
 
 
@@ -2236,7 +2236,7 @@ namespace DurableTask.AzureStorage.Tests
             BlobContainerClient container = serviceClient.GetBlobContainerClient(containerName);
             Assert.IsTrue(await container.ExistsAsync(), $"Blob container {containerName} is expected to exist.");
             BlobItem blob = await container
-                .GetBlobsByHierarchyAsync(BlobTraits.Metadata, prefix: sanitizedInstanceId)
+                .GetBlobsByHierarchyAsync(traits: BlobTraits.Metadata, states: BlobStates.None, delimiter: null, prefix: sanitizedInstanceId, cancellationToken: default)
                 .Where(x => x.IsBlob && x.Blob.Name == sanitizedInstanceId + "/" + blobName)
                 .Select(x => x.Blob)
                 .SingleOrDefaultAsync();

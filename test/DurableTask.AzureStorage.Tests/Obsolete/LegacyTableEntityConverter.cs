@@ -75,7 +75,9 @@ namespace DurableTask.AzureStorage.Tests.Obsolete
             }
 
             Type objectType = typeFactory(tableEntity);
+#pragma warning disable SYSLIB0050
             object createdObject = FormatterServices.GetUninitializedObject(objectType);
+#pragma warning restore SYSLIB0050
 
             IReadOnlyList<PropertyConverter> propertyConverters = this.converterCache.GetOrAdd(
                 objectType,

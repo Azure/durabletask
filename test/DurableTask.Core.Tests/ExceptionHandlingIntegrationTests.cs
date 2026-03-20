@@ -486,6 +486,7 @@ namespace DurableTask.Core.Tests
                 TestNullObject = null; // Explicitly set to null for testing
             }
 
+#pragma warning disable SYSLIB0051, CS0672
             protected CustomBusinessException(SerializationInfo info, StreamingContext context)
                 : base(info, context)
             {
@@ -501,6 +502,7 @@ namespace DurableTask.Core.Tests
                 info.AddValue(nameof(BusinessContext), BusinessContext);
                 info.AddValue(nameof(TestNullObject), TestNullObject);
             }
+#pragma warning restore SYSLIB0051, CS0672
         }
 
         // Test provider that includes null values in different ways
@@ -538,10 +540,12 @@ namespace DurableTask.Core.Tests
             {
             }
 
+#pragma warning disable SYSLIB0051
             protected CustomException(SerializationInfo info, StreamingContext context)
                 : base(info, context)
             {
             }
+#pragma warning restore SYSLIB0051
         }
 
         [TestMethod]

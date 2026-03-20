@@ -404,7 +404,9 @@ namespace DurableTask.Core.Tests
                 this.logs = logs;
             }
 
+#pragma warning disable CS8633, CS8766
             public IDisposable BeginScope<TState>(TState state) => NoOpDisposable.Instance;
+#pragma warning restore CS8633, CS8766
 
             public bool IsEnabled(LogLevel logLevel) => true;
 
