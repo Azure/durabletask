@@ -76,6 +76,8 @@ namespace DurableTask.AzureStorage.Tests.Obsolete
 
             Type objectType = typeFactory(tableEntity);
 #pragma warning disable SYSLIB0050
+            // Intentionally using FormatterServices.GetUninitializedObject here to preserve legacy table entity
+            // materialization behavior in tests; do not remove this suppression as it is required for test coverage.
             object createdObject = FormatterServices.GetUninitializedObject(objectType);
 #pragma warning restore SYSLIB0050
 
