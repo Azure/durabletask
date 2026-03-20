@@ -52,9 +52,8 @@ namespace DurableTask.Core
         /// <summary>
         /// The maximum amount of time to spend purging instances in a single call.
         /// If <c>null</c> (default), all matching instances are purged with no time limit.
-        /// When set, the purge stops accepting new instances after this duration elapses
-        /// and returns with <see cref="PurgeResult.IsComplete"/> set to <c>false</c>.
-        /// In-flight instance deletions will also be cancelled when the timeout elapses.
+        /// When set, the purge stops dispatching new instance deletions after this duration elapses
+        /// and cancels any in-flight deletions, then returns with <see cref="PurgeResult.IsComplete"/> set to <c>false</c>.
         /// </summary>
         public TimeSpan? Timeout { get; set; }
     }

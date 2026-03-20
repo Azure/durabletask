@@ -606,7 +606,7 @@ namespace DurableTask.AzureStorage.Tracking
                         {
                             try
                             {
-                                PurgeHistoryResult statisticsFromDeletion = await this.DeleteAllDataForOrchestrationInstance(instance, cancellationToken);
+                                PurgeHistoryResult statisticsFromDeletion = await this.DeleteAllDataForOrchestrationInstance(instance, effectiveToken);
                                 Interlocked.Add(ref instancesDeleted, statisticsFromDeletion.InstancesDeleted);
                                 Interlocked.Add(ref storageRequests, statisticsFromDeletion.StorageRequests);
                                 Interlocked.Add(ref rowsDeleted, statisticsFromDeletion.RowsDeleted);
