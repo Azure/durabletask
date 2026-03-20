@@ -404,7 +404,11 @@ namespace DurableTask.Core.Tests
                 this.logs = logs;
             }
 
+#if NET8_0_OR_GREATER
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => NoOpDisposable.Instance;
+#else
             public IDisposable BeginScope<TState>(TState state) => NoOpDisposable.Instance;
+#endif
 
             public bool IsEnabled(LogLevel logLevel) => true;
 
