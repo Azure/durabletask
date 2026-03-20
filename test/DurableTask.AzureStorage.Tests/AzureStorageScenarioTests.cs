@@ -835,6 +835,97 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        [TestMethod]
+        public async Task PurgeInstanceHistoryWithTimeoutCompletesAll()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+                DateTime startDateTime = DateTime.UtcNow;
+
+                // Start 2 simple orchestrations that complete quickly
+                TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "World", Guid.NewGuid().ToString());
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+                client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "World", Guid.NewGuid().ToString());
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                IList<OrchestrationState> results = await host.GetAllOrchestrationInstancesAsync();
+                Assert.AreEqual(2, results.Count);
+
+                // Purge with a generous timeout — should complete all
+                PurgeHistoryResult purgeResult = await client.PurgeInstanceHistoryByTimePeriodWithTimeout(
+                    startDateTime,
+                    DateTime.UtcNow,
+                    new List<OrchestrationStatus> { OrchestrationStatus.Completed },
+                    timeout: TimeSpan.FromMinutes(5));
+
+                Assert.AreEqual(2, purgeResult.InstancesDeleted);
+                Assert.IsTrue(purgeResult.IsComplete.HasValue, "IsComplete should have a value when timeout is specified");
+                Assert.IsTrue(purgeResult.IsComplete.Value, "IsComplete should be true when all instances were purged");
+
+                results = await host.GetAllOrchestrationInstancesAsync();
+                Assert.AreEqual(0, results.Count);
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task PurgeInstanceHistoryWithTimeoutExpiresReturnsIsCompleteFalse()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+                DateTime startDateTime = DateTime.UtcNow;
+
+                // Start several orchestrations so that purge cannot finish in 1 ms
+                const int instanceCount = 10;
+                TestOrchestrationClient client = null;
+                for (int i = 0; i < instanceCount; i++)
+                {
+                    client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "World", Guid.NewGuid().ToString());
+                    await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+                }
+
+                // Purge with a tiny timeout — should expire before all instances are deleted
+                PurgeHistoryResult purgeResult = await client.PurgeInstanceHistoryByTimePeriodWithTimeout(
+                    startDateTime,
+                    DateTime.UtcNow,
+                    new List<OrchestrationStatus> { OrchestrationStatus.Completed },
+                    timeout: TimeSpan.FromMilliseconds(1));
+
+                Assert.IsTrue(purgeResult.IsComplete.HasValue, "IsComplete should have a value when timeout is specified");
+                Assert.IsFalse(purgeResult.IsComplete.Value, "IsComplete should be false when the timeout expired before all instances were purged");
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task PurgeInstanceHistoryWithoutTimeoutReturnsNullIsComplete()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+                DateTime startDateTime = DateTime.UtcNow;
+
+                TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "World", Guid.NewGuid().ToString());
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                // Purge without timeout (backward compat)
+                PurgeHistoryResult purgeResult = await client.PurgeInstanceHistoryByTimePeriodWithTimeout(
+                    startDateTime,
+                    DateTime.UtcNow,
+                    new List<OrchestrationStatus> { OrchestrationStatus.Completed },
+                    timeout: null);
+
+                Assert.AreEqual(1, purgeResult.InstancesDeleted);
+                Assert.IsFalse(purgeResult.IsComplete.HasValue, "IsComplete should be null when no timeout is specified (backward compat)");
+
+                await host.StopAsync();
+            }
+        }
+
         /// <summary>
         /// End-to-end test which validates parallel function execution by enumerating all files in the current directory 
         /// in parallel and getting the sum total of all file sizes.

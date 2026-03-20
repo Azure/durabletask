@@ -575,11 +575,11 @@ namespace DurableTask.AzureStorage.Tracking
 
             // Create a timeout CTS if a timeout was specified. When no timeout is specified,
             // the purge runs unbounded (original behavior).
-            using CancellationTokenSource? timeoutCts = timeout.HasValue
+            using CancellationTokenSource timeoutCts = timeout.HasValue
                 ? new CancellationTokenSource(timeout.Value)
                 : null;
-            using CancellationTokenSource? linkedCts = timeout.HasValue
-                ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts!.Token)
+            using CancellationTokenSource linkedCts = timeout.HasValue
+                ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token)
                 : null;
             CancellationToken effectiveToken = linkedCts?.Token ?? cancellationToken;
 
