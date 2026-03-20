@@ -117,6 +117,117 @@ namespace DurableTask.AzureStorage.Storage
             return await this.ExecuteBatchAsync(entityBatch, item => new TableTransactionAction(TableTransactionActionType.Delete, item), cancellationToken: cancellationToken);
         }
 
+        /// <summary>
+        /// Deletes entities in parallel batches of up to 100. Each batch is an atomic transaction,
+        /// but multiple batches are submitted concurrently for improved throughput.
+        /// Concurrency is controlled by the global <see cref="Http.ThrottlingHttpPipelinePolicy"/>.
+        /// If a batch fails because an entity was already deleted (404/EntityNotFound),
+        /// it falls back to individual deletes for that batch, skipping already-deleted entities.
+        /// </summary>
+        public async Task<TableTransactionResults> DeleteBatchParallelAsync<T>(
+            IReadOnlyList<T> entityBatch,
+            CancellationToken cancellationToken = default) where T : ITableEntity
+        {
+            if (entityBatch.Count == 0)
+            {
+                return new TableTransactionResults(Array.Empty<Response>(), TimeSpan.Zero, 0);
+            }
+
+            const int batchSize = 100;
+            int chunkCount = (entityBatch.Count + batchSize - 1) / batchSize;
+            var chunks = new List<List<TableTransactionAction>>(chunkCount);
+
+            var currentChunk = new List<TableTransactionAction>(batchSize);
+            foreach (T entity in entityBatch)
+            {
+                currentChunk.Add(new TableTransactionAction(TableTransactionActionType.Delete, entity));
+                if (currentChunk.Count == batchSize)
+                {
+                    chunks.Add(currentChunk);
+                    currentChunk = new List<TableTransactionAction>(batchSize);
+                }
+            }
+
+            if (currentChunk.Count > 0)
+            {
+                chunks.Add(currentChunk);
+            }
+
+            var resultsBuilder = new TableTransactionResultsBuilder();
+
+            var stopwatch = Stopwatch.StartNew();
+            TableTransactionResults[] allResults = await Task.WhenAll(
+                chunks.Select(chunk => this.ExecuteBatchWithFallbackAsync(chunk, cancellationToken)));
+            stopwatch.Stop();
+
+            foreach (TableTransactionResults result in allResults)
+            {
+                resultsBuilder.Add(result);
+            }
+
+            TableTransactionResults aggregatedResults = resultsBuilder.ToResults();
+            return new TableTransactionResults(aggregatedResults.Responses, stopwatch.Elapsed, aggregatedResults.RequestCount);
+        }
+
+        /// <summary>
+        /// Executes a batch transaction. If it fails due to an entity not found (404),
+        /// falls back to individual delete operations, skipping entities that are already gone.
+        /// </summary>
+        async Task<TableTransactionResults> ExecuteBatchWithFallbackAsync(
+            List<TableTransactionAction> batch,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                return await this.ExecuteBatchAsync(batch, cancellationToken);
+            }
+            catch (DurableTaskStorageException ex) when (ex.HttpStatusCode == 404)
+            {
+                // One or more entities in the batch were already deleted.
+                // Fall back to individual deletes, skipping 404s.
+                return await this.DeleteEntitiesIndividuallyAsync(batch, cancellationToken);
+            }
+            catch (RequestFailedException ex) when (ex.Status == 404)
+            {
+                return await this.DeleteEntitiesIndividuallyAsync(batch, cancellationToken);
+            }
+        }
+
+        async Task<TableTransactionResults> DeleteEntitiesIndividuallyAsync(
+            List<TableTransactionAction> batch,
+            CancellationToken cancellationToken)
+        {
+            var responses = new List<Response>();
+            var stopwatch = Stopwatch.StartNew();
+            int requestCount = 0;
+
+            foreach (TableTransactionAction action in batch)
+            {
+                requestCount++;
+                try
+                {
+                    Response response = await this.tableClient.DeleteEntityAsync(
+                        action.Entity.PartitionKey,
+                        action.Entity.RowKey,
+                        ETag.All,
+                        cancellationToken).DecorateFailure();
+                    responses.Add(response);
+                    this.stats.TableEntitiesWritten.Increment();
+                }
+                catch (DurableTaskStorageException ex) when (ex.HttpStatusCode == 404)
+                {
+                    // Entity already deleted; skip.
+                }
+                catch (RequestFailedException ex) when (ex.Status == 404)
+                {
+                    // Entity already deleted; skip.
+                }
+            }
+
+            stopwatch.Stop();
+            return new TableTransactionResults(responses, stopwatch.Elapsed, requestCount);
+        }
+
         public async Task<TableTransactionResults> InsertOrMergeBatchAsync<T>(IEnumerable<T> entityBatch, CancellationToken cancellationToken = default) where T : ITableEntity
         {
             TableTransactionResults results = await this.ExecuteBatchAsync(entityBatch, item => new TableTransactionAction(TableTransactionActionType.UpsertMerge, item), cancellationToken: cancellationToken);
