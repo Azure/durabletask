@@ -578,8 +578,8 @@ namespace DurableTask.AzureStorage.Tracking
             using CancellationTokenSource? timeoutCts = timeout.HasValue
                 ? new CancellationTokenSource(timeout.Value)
                 : null;
-            using CancellationTokenSource? linkedCts = timeout.HasValue && timeoutCts != null
-                ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token)
+            using CancellationTokenSource? linkedCts = timeout.HasValue
+                ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts!.Token)
                 : null;
             CancellationToken effectiveToken = linkedCts?.Token ?? cancellationToken;
 
