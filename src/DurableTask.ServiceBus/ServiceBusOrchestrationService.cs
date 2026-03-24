@@ -921,6 +921,14 @@ namespace DurableTask.ServiceBus
         public int MaxConcurrentTaskActivityWorkItems => this.Settings.TaskActivityDispatcherSettings.MaxConcurrentActivities;
 
         /// <summary>
+        /// The maximum amount of times a message can be dispatched before it is considered "poisoned" and
+        /// moved to poison storage. 
+        /// Currently this storage provider does not have poison message handling so this value is set to the
+        /// maximum integer value.
+        /// </summary>
+        public int MaxDispatchCount => int.MaxValue;
+
+        /// <summary>
         ///    Wait for an lock the next task activity to be processed 
         /// </summary>
         /// <param name="receiveTimeout">The timespan to wait for new messages before timing out</param>

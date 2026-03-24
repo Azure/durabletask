@@ -2170,6 +2170,14 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
+        /// The maximum amount of times a message can be dispatched before it is considered "poisoned" and
+        /// moved to poison storage. 
+        /// Currently this storage provider does not have poison message handling so this value is set to the
+        /// maximum integer value.
+        /// </summary>
+        public int MaxDispatchCount => int.MaxValue;
+
+        /// <summary>
         /// Disposes of the current object.
         /// </summary>
         public void Dispose()

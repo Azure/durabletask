@@ -761,7 +761,7 @@ namespace DurableTask.Core.Logging
                 this.WriteStructuredLog(new LogEvents.PoisonMessageDetected(
                     orchestrationInstance,
                     historyEvent.EventType.ToString(),
-                    Utils.GetTaskEventId(historyEvent).ToString(),
+                    Utils.GetTaskEventId(historyEvent),
                     details));
             }
         }
@@ -779,7 +779,7 @@ namespace DurableTask.Core.Logging
                 this.WriteStructuredLog(new LogEvents.PoisonMessageDetected(
                     orchestrationInstance,
                     requestMessage.IsLockRequest ? "LockRequest" : "OperationRequest",
-                    requestMessage.Id.ToString(),
+                    taskEventId: -1,
                     details));
             }
         }

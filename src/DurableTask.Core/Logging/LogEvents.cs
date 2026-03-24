@@ -1950,12 +1950,12 @@ namespace DurableTask.Core.Logging
         /// </summary>
         internal class PoisonMessageDetected : StructuredLogEvent, IEventSourceEvent
         {
-            public PoisonMessageDetected(OrchestrationInstance orchestrationInstance, string eventType, string taskEventId, string details)
+            public PoisonMessageDetected(OrchestrationInstance orchestrationInstance, string eventType, int taskEventId, string details)
             {
                 this.InstanceId = orchestrationInstance?.InstanceId ?? string.Empty;
                 this.ExecutionId = orchestrationInstance?.ExecutionId ?? string.Empty;
                 this.EventType = eventType;
-                this.EventId = taskEventId;
+                this.TaskEventId = taskEventId;
                 this.Details = details;
             }
 
@@ -1969,7 +1969,7 @@ namespace DurableTask.Core.Logging
             public string EventType { get; }
 
             [StructuredLogField]
-            public string EventId { get; }
+            public int TaskEventId { get; }
 
             [StructuredLogField]
             public string Details { get; }

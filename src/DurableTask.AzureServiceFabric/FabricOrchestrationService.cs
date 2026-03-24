@@ -473,6 +473,8 @@ namespace DurableTask.AzureServiceFabric
 
         public BehaviorOnContinueAsNew EventBehaviourForContinueAsNew { get; } = BehaviorOnContinueAsNew.Ignore;
 
+        public int MaxDispatchCount => int.MaxValue;
+
         // Note: Do not rely on cancellationToken parameter to this method because the top layer does not yet implement any cancellation.
         public async Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(TimeSpan receiveTimeout, CancellationToken cancellationToken)
         {
