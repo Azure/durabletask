@@ -437,7 +437,7 @@ namespace DurableTask.Core
             return schedulerState;
         }
 
-        void ProcessLockRequest(WorkItemEffects effects, SchedulerState schedulerState, RequestMessage request, FailureDetails failureDetails = null)
+        void ProcessLockRequest(WorkItemEffects effects, SchedulerState schedulerState, RequestMessage request)
         {
             if (request.DispatchCount <= this.maxDispatchCount)
             {
@@ -546,7 +546,7 @@ namespace DurableTask.Core
                                         runtimeState.OrchestrationInstance,
                                         eventRaisedEvent,
                                         $"Dropping entity message after deserialization error since its dispatch count {eventRaisedEvent.DispatchCount} " +
-                                        $"exceeds the maximum dispatch count of {this.maxDispatchCount}. Stopping processing of remaining requests.");
+                                        $"exceeds the maximum dispatch count of {this.maxDispatchCount}.");
                                     break;
                                 }
                                 throw new EntitySchedulerException("Failed to deserialize incoming request message - may be corrupted or wrong version.", exception);

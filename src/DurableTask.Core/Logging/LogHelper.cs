@@ -770,7 +770,7 @@ namespace DurableTask.Core.Logging
         /// Logs that a "poison" entity request message has been detected and is being dropped.
         /// </summary>
         /// <param name="orchestrationInstance">The orchestration instance this event was sent to.</param>
-        /// <param name="requestMessage">The "poisoned" reuest message.</param>
+        /// <param name="requestMessage">The "poisoned" request message.</param>
         /// <param name="details">Extra details related to the processing of this poison message.</param>
         internal void PoisonMessageDetected(OrchestrationInstance orchestrationInstance, RequestMessage requestMessage, string details)
         {
