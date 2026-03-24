@@ -110,6 +110,21 @@ namespace DurableTask.Core.Logging
         }
 
         /// <summary>
+        /// Logs that a work item dispatch loop encountered an unhandled exception.
+        /// </summary>
+        /// <param name="context">The context of the dispatcher that failed.</param>
+        /// <param name="exception">The unhandled exception.</param>
+        internal void DispatcherLoopFailed(WorkItemDispatcherContext context, Exception exception)
+        {
+            if (this.IsStructuredLoggingEnabled)
+            {
+                this.WriteStructuredLog(
+                    new LogEvents.DispatcherLoopFailed(context, exception),
+                    exception);
+            }
+        }
+
+        /// <summary>
         /// Logs that the work item dispatcher is watching for individual dispatch loops to finish stopping.
         /// </summary>
         /// <param name="name">The name of the dispatcher - e.g. "TaskOrchestrationDispatcher"</param>

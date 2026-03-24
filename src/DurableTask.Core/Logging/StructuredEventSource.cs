@@ -102,6 +102,15 @@ namespace DurableTask.Core.Logging
             }
         }
 
+        [Event(EventIds.DispatcherLoopFailed, Level = EventLevel.Error, Version = 1)]
+        internal void DispatcherLoopFailed(string Dispatcher, string Details, string AppName, string ExtensionVersion)
+        {
+            if (this.IsEnabled(EventLevel.Error))
+            {
+                this.WriteEvent(EventIds.DispatcherLoopFailed, Dispatcher, Details, AppName, ExtensionVersion);
+            }
+        }
+
         [Event(EventIds.DispatchersStopping, Level = EventLevel.Verbose, Version = 1)]
         internal void DispatchersStopping(
             string Dispatcher,

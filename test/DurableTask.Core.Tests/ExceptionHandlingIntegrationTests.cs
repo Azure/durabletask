@@ -486,6 +486,8 @@ namespace DurableTask.Core.Tests
                 TestNullObject = null; // Explicitly set to null for testing
             }
 
+            // Intentional use of obsolete BinaryFormatter serialization APIs for test coverage of legacy serialization paths.
+#pragma warning disable SYSLIB0051
             protected CustomBusinessException(SerializationInfo info, StreamingContext context)
                 : base(info, context)
             {
@@ -493,7 +495,10 @@ namespace DurableTask.Core.Tests
                 BusinessContext = info.GetString(nameof(BusinessContext)) ?? string.Empty;
                 TestNullObject = info.GetString(nameof(TestNullObject)); // This will be null
             }
+#pragma warning restore SYSLIB0051
 
+            // Intentional use of obsolete BinaryFormatter serialization APIs for test coverage of legacy serialization paths.
+#pragma warning disable SYSLIB0051, CS0672
             public override void GetObjectData(SerializationInfo info, StreamingContext context)
             {
                 base.GetObjectData(info, context);
@@ -501,6 +506,7 @@ namespace DurableTask.Core.Tests
                 info.AddValue(nameof(BusinessContext), BusinessContext);
                 info.AddValue(nameof(TestNullObject), TestNullObject);
             }
+#pragma warning restore SYSLIB0051, CS0672
         }
 
         // Test provider that includes null values in different ways
@@ -538,10 +544,13 @@ namespace DurableTask.Core.Tests
             {
             }
 
+            // Intentional use of obsolete BinaryFormatter serialization APIs for test coverage of legacy serialization paths.
+#pragma warning disable SYSLIB0051
             protected CustomException(SerializationInfo info, StreamingContext context)
                 : base(info, context)
             {
             }
+#pragma warning restore SYSLIB0051
         }
 
         [TestMethod]
