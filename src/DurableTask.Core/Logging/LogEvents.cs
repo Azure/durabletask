@@ -2015,7 +2015,7 @@ namespace DurableTask.Core.Logging
                 $"{this.InstanceId}: Poison message detected for {GetEventDescription(this.EventType, this.TaskEventId)}: {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() =>
-                StructuredEventSource.Log.DiscardingMessage(
+                StructuredEventSource.Log.PoisonMessageDetected(
                     this.InstanceId,
                     this.ExecutionId,
                     this.EventType,
