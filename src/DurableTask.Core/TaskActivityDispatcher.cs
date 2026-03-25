@@ -37,7 +37,7 @@ namespace DurableTask.Core
         readonly LogHelper logHelper;
         readonly ErrorPropagationMode errorPropagationMode;
         readonly IExceptionPropertiesProvider? exceptionPropertiesProvider;
-        readonly int maxDispatchCount;
+        readonly int? maxDispatchCount;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TaskActivityDispatcher"/> class with an exception properties provider.
@@ -48,13 +48,16 @@ namespace DurableTask.Core
         /// <param name="logHelper">The log helper</param>
         /// <param name="errorPropagationMode">The error propagation mode</param>
         /// <param name="exceptionPropertiesProvider">The exception properties provider for extracting custom properties from exceptions</param>
+        /// <param name="maxDispatchCount">The maximum amount of times the same event can be dispatched before it is considered "poisoned"
+        /// and the corresponding operation is failed. If not set, there is no maximum enforced.</param>
         internal TaskActivityDispatcher(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskActivity> objectManager,
             DispatchMiddlewarePipeline dispatchPipeline,
             LogHelper logHelper,
             ErrorPropagationMode errorPropagationMode,
-            IExceptionPropertiesProvider? exceptionPropertiesProvider)
+            IExceptionPropertiesProvider? exceptionPropertiesProvider,
+            int? maxDispatchCount = null)
         {
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
             this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
@@ -62,7 +65,7 @@ namespace DurableTask.Core
             this.logHelper = logHelper;
             this.errorPropagationMode = errorPropagationMode;
             this.exceptionPropertiesProvider = exceptionPropertiesProvider;
-            this.maxDispatchCount = orchestrationService.MaxDispatchCount;
+            this.maxDispatchCount = maxDispatchCount;
 
             this.dispatcher = new WorkItemDispatcher<TaskActivityWorkItem>(
                 "TaskActivityDispatcher",
@@ -173,7 +176,7 @@ namespace DurableTask.Core
                 {
                     string message = $"The activity worker received a {nameof(EventType.TaskScheduled)} event that does not specify an activity name.";
                     this.logHelper.TaskActivityDispatcherError(workItem, message);
-                    if (taskMessage.Event.DispatchCount <= this.maxDispatchCount)
+                    if (this.maxDispatchCount == null || taskMessage.Event.DispatchCount <= this.maxDispatchCount)
                     {
                         throw TraceHelper.TraceException(
                             TraceEventType.Error,

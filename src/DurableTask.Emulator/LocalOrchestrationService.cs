@@ -686,14 +686,6 @@ namespace DurableTask.Emulator
         /// <inheritdoc />
         EntityBackendQueries IEntityOrchestrationService.EntityBackendQueries => null;
 
-        /// <summary>
-        /// The maximum amount of times a message can be dispatched before it is considered "poisoned" and
-        /// moved to poison storage. 
-        /// Currently this storage provider does not have poison message handling so this value is set to the
-        /// maximum integer value.
-        /// </summary>
-        public int MaxDispatchCount => int.MaxValue;
-
         /// <inheritdoc />
         Task<TaskOrchestrationWorkItem> IEntityOrchestrationService.LockNextEntityWorkItemAsync(
             TimeSpan receiveTimeout,

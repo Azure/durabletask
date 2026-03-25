@@ -50,7 +50,7 @@ namespace DurableTask.Core
         readonly TaskOrchestrationEntityParameters? entityParameters;
         readonly VersioningSettings? versioningSettings;
         readonly IExceptionPropertiesProvider? exceptionPropertiesProvider;
-        readonly int maxDispatchCount;
+        readonly int? maxDispatchCount;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TaskOrchestrationDispatcher"/> class with an exception properties provider.
@@ -62,6 +62,8 @@ namespace DurableTask.Core
         /// <param name="errorPropagationMode">The error propagation mode</param>
         /// <param name="versioningSettings">The versioning settings</param>
         /// <param name="exceptionPropertiesProvider">The exception properties provider for extracting custom properties from exceptions</param>
+        /// <param name="maxDispatchCount">The maximum amount of times the same event can be dispatched before it is considered "poisoned"
+        /// and the corresponding operation is failed. If not set, there is no maximum enforced.</param>
         internal TaskOrchestrationDispatcher(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskOrchestration> objectManager,
@@ -69,7 +71,8 @@ namespace DurableTask.Core
             LogHelper logHelper,
             ErrorPropagationMode errorPropagationMode,
             VersioningSettings versioningSettings,
-            IExceptionPropertiesProvider? exceptionPropertiesProvider)
+            IExceptionPropertiesProvider? exceptionPropertiesProvider,
+            int? maxDispatchCount = null)
         {
             this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
@@ -81,7 +84,7 @@ namespace DurableTask.Core
             this.entityParameters = TaskOrchestrationEntityParameters.FromEntityBackendProperties(this.entityBackendProperties);
             this.versioningSettings = versioningSettings;
             this.exceptionPropertiesProvider = exceptionPropertiesProvider;
-            this.maxDispatchCount = orchestrationService.MaxDispatchCount;
+            this.maxDispatchCount = maxDispatchCount;
 
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskOrchestrationDispatcher",

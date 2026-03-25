@@ -44,7 +44,7 @@ namespace DurableTask.Core
         readonly ErrorPropagationMode errorPropagationMode;
         readonly TaskOrchestrationDispatcher.NonBlockingCountdownLock concurrentSessionLock;
         readonly IExceptionPropertiesProvider exceptionPropertiesProvider;
-        readonly int maxDispatchCount;
+        readonly int? maxDispatchCount;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TaskEntityDispatcher"/> class with an exception properties provider.
@@ -55,13 +55,16 @@ namespace DurableTask.Core
         /// <param name="logHelper">The log helper</param>
         /// <param name="errorPropagationMode">The error propagation mode</param>
         /// <param name="exceptionPropertiesProvider">The exception properties provider for extracting custom properties from exceptions</param>
+        /// <param name="maxDispatchCount">The maximum amount of times the same event can be dispatched before it is considered "poisoned"
+        /// and the corresponding operation is failed. If not set, there is no maximum enforced.</param>
         internal TaskEntityDispatcher(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskEntity> entityObjectManager,
             DispatchMiddlewarePipeline entityDispatchPipeline,
             LogHelper logHelper,
             ErrorPropagationMode errorPropagationMode,
-            IExceptionPropertiesProvider exceptionPropertiesProvider)
+            IExceptionPropertiesProvider exceptionPropertiesProvider,
+            int? maxDispatchCount = null)
         {
             this.objectManager = entityObjectManager ?? throw new ArgumentNullException(nameof(entityObjectManager));
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
@@ -71,7 +74,7 @@ namespace DurableTask.Core
             this.exceptionPropertiesProvider = exceptionPropertiesProvider;
             this.entityOrchestrationService = (orchestrationService as IEntityOrchestrationService)!;
             this.entityBackendProperties = entityOrchestrationService.EntityBackendProperties;
-            this.maxDispatchCount = orchestrationService.MaxDispatchCount;
+            this.maxDispatchCount = maxDispatchCount;
 
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskEntityDispatcher",
@@ -439,7 +442,7 @@ namespace DurableTask.Core
 
         void ProcessLockRequest(WorkItemEffects effects, SchedulerState schedulerState, RequestMessage request)
         {
-            if (request.DispatchCount <= this.maxDispatchCount)
+            if (this.maxDispatchCount == null || request.DispatchCount <= this.maxDispatchCount)
             {
                 this.logHelper.EntityLockAcquired(effects.InstanceId, request);
 
@@ -449,7 +452,7 @@ namespace DurableTask.Core
                 request.Position++;
             }
 
-            if (request.Position < request.LockSet.Length && request.DispatchCount <= this.maxDispatchCount)
+            if (request.Position < request.LockSet.Length && (this.maxDispatchCount == null || request.DispatchCount <= this.maxDispatchCount))
             {
                 // send lock request to next entity in the lock set
                 var target = new OrchestrationInstance() { InstanceId = request.LockSet[request.Position].ToString() };
