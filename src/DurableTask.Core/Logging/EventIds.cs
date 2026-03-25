@@ -72,5 +72,6 @@ namespace DurableTask.Core.Logging
         public const int OrchestrationDebugTrace = 73;
 
         public const int OrchestrationCompletedWithWarning = 74;
+        public const int PoisonMessageDetected = 75;
     }
 }

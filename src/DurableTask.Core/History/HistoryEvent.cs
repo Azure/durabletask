@@ -90,6 +90,12 @@ namespace DurableTask.Core.History
         public virtual EventType EventType { get; private set; }
 
         /// <summary>
+        /// Gets or sets the number of times this event has been dispatched.
+        /// </summary>
+        [DataMember]
+        public int DispatchCount { get; set; }
+
+        /// <summary>
         /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
         /// </summary>
         public ExtensionDataObject? ExtensionData { get; set; }
