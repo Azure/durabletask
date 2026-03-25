@@ -26,6 +26,8 @@ namespace DurableTask.AzureStorage.Storage
 
     class Table
     {
+        const int MaxParallelBatchDeletes = 10;
+
         readonly AzureStorageClient azureStorageClient;
         readonly AzureStorageOrchestrationServiceStats stats;
         readonly TableServiceClient tableServiceClient;
@@ -120,7 +122,8 @@ namespace DurableTask.AzureStorage.Storage
         /// <summary>
         /// Deletes entities in parallel batches of up to 100. Each batch is an atomic transaction,
         /// but multiple batches are submitted concurrently for improved throughput.
-        /// Concurrency is controlled by the global <see cref="Http.ThrottlingHttpPipelinePolicy"/>.
+        /// Concurrency is limited to <see cref="MaxParallelBatchDeletes"/> concurrent batch transactions
+        /// to avoid overwhelming storage and starving other operations.
         /// If a batch fails because an entity was already deleted (404/EntityNotFound),
         /// it falls back to individual deletes for that batch, skipping already-deleted entities.
         /// </summary>
@@ -154,10 +157,22 @@ namespace DurableTask.AzureStorage.Storage
             }
 
             var resultsBuilder = new TableTransactionResultsBuilder();
+            using var semaphore = new SemaphoreSlim(MaxParallelBatchDeletes);
 
             var stopwatch = Stopwatch.StartNew();
             TableTransactionResults[] allResults = await Task.WhenAll(
-                chunks.Select(chunk => this.ExecuteBatchWithFallbackAsync(chunk, cancellationToken)));
+                chunks.Select(async chunk =>
+                {
+                    await semaphore.WaitAsync(cancellationToken);
+                    try
+                    {
+                        return await this.ExecuteBatchWithFallbackAsync(chunk, cancellationToken);
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                }));
             stopwatch.Stop();
 
             foreach (TableTransactionResults result in allResults)
