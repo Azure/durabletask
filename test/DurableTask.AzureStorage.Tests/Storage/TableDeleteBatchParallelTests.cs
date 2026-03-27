@@ -114,7 +114,7 @@ namespace DurableTask.AzureStorage.Tests.Storage
 
             await table.DeleteBatchParallelAsync(entities);
 
-            // All 5 batches should be able to run concurrently within the internal concurrency limit
+            // All 5 batches should be able to run concurrently within the internal concurrency limit (max 10 batches)
             Assert.IsTrue(
                 maxConcurrent > 1,
                 $"Expected concurrent execution with multiple batches, but max concurrent was {maxConcurrent}");

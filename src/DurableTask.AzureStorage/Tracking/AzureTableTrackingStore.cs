@@ -583,11 +583,15 @@ namespace DurableTask.AzureStorage.Tracking
                 : null;
             CancellationToken effectiveToken = linkedCts?.Token ?? cancellationToken;
 
-            // Limit concurrent instance purges to avoid overwhelming storage with too many parallel operations.
-            // Each instance purge internally spawns multiple parallel storage operations, so this should be
-            // kept moderate. Using 100 to match the original implicit concurrency from pageSizeHint.
-            const int MaxPurgeInstanceConcurrency = 100;
-            using var throttle = new SemaphoreSlim(MaxPurgeInstanceConcurrency);
+            // Limit concurrent instance purges to a fraction of the global storage concurrency budget.
+            // This ensures purge operations don't starve normal orchestration processing (dispatch,
+            // checkpoint, etc.) which shares the same global HTTP throttle. Each instance purge
+            // internally spawns multiple parallel storage operations (history query + parallel batch
+            // deletes + blob cleanup + instance row delete), so the effective storage pressure is
+            // a multiple of this value. Using 1/3 of MaxStorageOperationConcurrency as a reasonable
+            // upper bound that balances purge throughput against headroom for other operations.
+            int maxPurgeConcurrency = Math.Max(1, this.settings.MaxStorageOperationConcurrency / 3);
+            using var throttle = new SemaphoreSlim(maxPurgeConcurrency);
             var pendingTasks = new List<Task>();
 
             bool timedOut = false;
@@ -595,7 +599,7 @@ namespace DurableTask.AzureStorage.Tracking
             try
             {
                 AsyncPageable<OrchestrationInstanceStatus> entitiesPageable = this.InstancesTable.ExecuteQueryAsync<OrchestrationInstanceStatus>(odata.Filter, select: odata.Select, cancellationToken: effectiveToken);
-                await foreach (Page<OrchestrationInstanceStatus> page in entitiesPageable.AsPages(pageSizeHint: MaxPurgeInstanceConcurrency))
+                await foreach (Page<OrchestrationInstanceStatus> page in entitiesPageable.AsPages(pageSizeHint: maxPurgeConcurrency))
                 {
                     foreach (OrchestrationInstanceStatus instance in page.Values)
                     {

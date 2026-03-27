@@ -887,12 +887,13 @@ namespace DurableTask.AzureStorage.Tests
                     await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
                 }
 
-                // Purge with a tiny timeout — should expire before all instances are deleted
+                // Purge with a very short timeout — should expire before all instances are deleted.
+                // Using 100ms instead of 1ms to avoid flakiness from OS timer resolution (~15ms on Windows).
                 PurgeHistoryResult purgeResult = await client.PurgeInstanceHistoryByTimePeriodWithTimeout(
                     startDateTime,
                     DateTime.UtcNow,
                     new List<OrchestrationStatus> { OrchestrationStatus.Completed },
-                    timeout: TimeSpan.FromMilliseconds(1));
+                    timeout: TimeSpan.FromMilliseconds(100));
 
                 Assert.IsTrue(purgeResult.IsComplete.HasValue, "IsComplete should have a value when timeout is specified");
                 Assert.IsFalse(purgeResult.IsComplete.Value, "IsComplete should be false when the timeout expired before all instances were purged");
