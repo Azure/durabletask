@@ -193,9 +193,10 @@ namespace DurableTask.AzureStorage.Tracking
         /// </summary>
         /// <param name="createdTimeFrom">Start creation time for querying instances for purging</param>
         /// <param name="createdTimeTo">End creation time for querying instances for purging</param>
-        /// <param name="runtimeStatus">List of runtime status for querying instances for purging. Only Completed, Terminated, or Failed will be processed</param>
+        /// <param name="runtimeStatus">List of runtime status for querying instances for purging. Only Completed, Terminated, Canceled, or Failed will be processed</param>
+        /// <param name="timeout">Maximum time to spend purging. If <c>null</c>, all matching instances are purged with no time limit.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <returns>Class containing number of storage requests sent, along with instances and rows deleted/purged</returns>
-        Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default);
+        Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, TimeSpan? timeout = null, CancellationToken cancellationToken = default);
     }
 }

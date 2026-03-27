@@ -1,4 +1,4 @@
-﻿//  ----------------------------------------------------------------------------------
+//  ----------------------------------------------------------------------------------
 //  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -557,6 +557,7 @@ namespace DurableTask.AzureStorage.Tracking
             DateTime createdTimeFrom,
             DateTime? createdTimeTo,
             IEnumerable<OrchestrationStatus> runtimeStatus,
+            TimeSpan? timeout,
             CancellationToken cancellationToken)
         {
             var condition = OrchestrationInstanceStatusQueryCondition.Parse(
@@ -568,26 +569,87 @@ namespace DurableTask.AzureStorage.Tracking
 
             ODataCondition odata = condition.ToOData();
 
-            // Limit to batches of 100 to avoid excessive memory usage and table storage scanning
             int storageRequests = 0;
             int instancesDeleted = 0;
             int rowsDeleted = 0;
 
-            var options = new ParallelOptions { MaxDegreeOfParallelism = this.settings.MaxStorageOperationConcurrency };
-            AsyncPageable<OrchestrationInstanceStatus> entitiesPageable = this.InstancesTable.ExecuteQueryAsync<OrchestrationInstanceStatus>(odata.Filter, select: odata.Select, cancellationToken: cancellationToken);
-            await foreach (Page<OrchestrationInstanceStatus> page in entitiesPageable.AsPages(pageSizeHint: 100))
+            // Create a timeout CTS if a timeout was specified. When no timeout is specified,
+            // the purge runs unbounded (original behavior).
+            using CancellationTokenSource timeoutCts = timeout.HasValue
+                ? new CancellationTokenSource(timeout.Value)
+                : null;
+            using CancellationTokenSource linkedCts = timeout.HasValue
+                ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token)
+                : null;
+            CancellationToken effectiveToken = linkedCts?.Token ?? cancellationToken;
+
+            // Limit concurrent instance purges to a fraction of the global storage concurrency budget.
+            // This ensures purge operations don't starve normal orchestration processing (dispatch,
+            // checkpoint, etc.) which shares the same global HTTP throttle. Each instance purge
+            // internally spawns multiple parallel storage operations (history query + parallel batch
+            // deletes + blob cleanup + instance row delete), so the effective storage pressure is
+            // a multiple of this value. Using 1/3 of MaxStorageOperationConcurrency as a reasonable
+            // upper bound that balances purge throughput against headroom for other operations.
+            int maxPurgeConcurrency = Math.Max(1, this.settings.MaxStorageOperationConcurrency / 3);
+            using var throttle = new SemaphoreSlim(maxPurgeConcurrency);
+            var pendingTasks = new List<Task>();
+
+            bool timedOut = false;
+
+            try
             {
-                // The underlying client throttles
-                await Task.WhenAll(page.Values.Select(async instance =>
+                AsyncPageable<OrchestrationInstanceStatus> entitiesPageable = this.InstancesTable.ExecuteQueryAsync<OrchestrationInstanceStatus>(odata.Filter, select: odata.Select, cancellationToken: effectiveToken);
+                await foreach (Page<OrchestrationInstanceStatus> page in entitiesPageable.AsPages(pageSizeHint: maxPurgeConcurrency))
                 {
-                    PurgeHistoryResult statisticsFromDeletion = await this.DeleteAllDataForOrchestrationInstance(instance, cancellationToken);
-                    Interlocked.Add(ref instancesDeleted, statisticsFromDeletion.InstancesDeleted);
-                    Interlocked.Add(ref storageRequests, statisticsFromDeletion.RowsDeleted);
-                    Interlocked.Add(ref rowsDeleted, statisticsFromDeletion.RowsDeleted);
-                }));
+                    foreach (OrchestrationInstanceStatus instance in page.Values)
+                    {
+                        effectiveToken.ThrowIfCancellationRequested();
+
+                        await throttle.WaitAsync(effectiveToken);
+
+                        async Task DeleteInstanceAsync(OrchestrationInstanceStatus inst)
+                        {
+                            try
+                            {
+                                PurgeHistoryResult statisticsFromDeletion = await this.DeleteAllDataForOrchestrationInstance(inst, effectiveToken);
+                                Interlocked.Add(ref instancesDeleted, statisticsFromDeletion.InstancesDeleted);
+                                Interlocked.Add(ref storageRequests, statisticsFromDeletion.StorageRequests);
+                                Interlocked.Add(ref rowsDeleted, statisticsFromDeletion.RowsDeleted);
+                            }
+                            finally
+                            {
+                                throttle.Release();
+                            }
+                        }
+
+                        pendingTasks.Add(DeleteInstanceAsync(instance));
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (timeoutCts != null && timeoutCts.IsCancellationRequested)
+            {
+                // Timeout reached — stop accepting new instances.
+                timedOut = true;
             }
 
-            return new PurgeHistoryResult(storageRequests, instancesDeleted, rowsDeleted);
+            // Wait for all remaining dispatched deletions to finish or be cancelled by the timeout.
+            try
+            {
+                await Task.WhenAll(pendingTasks);
+            }
+            catch (OperationCanceledException) when (timeoutCts != null && timeoutCts.IsCancellationRequested)
+            {
+                // In-flight deletes were cancelled by the timeout — expected.
+                timedOut = true;
+            }
+
+            // Determine completion status:
+            // - If a timeout was specified and fired, more instances may remain (isComplete = false).
+            // - If a timeout was specified and didn't fire, all instances were purged (isComplete = true).
+            // - If no timeout was specified, we purge everything (isComplete = null for backward compat).
+            bool? isComplete = timeout.HasValue ? !timedOut : (bool?)null;
+
+            return new PurgeHistoryResult(storageRequests, instancesDeleted, rowsDeleted, isComplete);
         }
 
         async Task<PurgeHistoryResult> DeleteAllDataForOrchestrationInstance(OrchestrationInstanceStatus orchestrationInstanceStatus, CancellationToken cancellationToken)
@@ -618,7 +680,7 @@ namespace DurableTask.AzureStorage.Tracking
                 }),
                 Task.Run(async () =>
                 {
-                    var deletedEntitiesResponseInfo = await this.HistoryTable.DeleteBatchAsync(historyEntities, cancellationToken);
+                    var deletedEntitiesResponseInfo = await this.HistoryTable.DeleteBatchParallelAsync(historyEntities, cancellationToken);
                     Interlocked.Add(ref rowsDeleted, deletedEntitiesResponseInfo.Responses.Count);
                     Interlocked.Add(ref storageRequests, deletedEntitiesResponseInfo.RequestCount);
                 }),
@@ -677,6 +739,7 @@ namespace DurableTask.AzureStorage.Tracking
             DateTime createdTimeFrom,
             DateTime? createdTimeTo,
             IEnumerable<OrchestrationStatus> runtimeStatus,
+            TimeSpan? timeout = null,
             CancellationToken cancellationToken = default)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
@@ -686,7 +749,7 @@ namespace DurableTask.AzureStorage.Tracking
                     status == OrchestrationStatus.Canceled ||
                     status == OrchestrationStatus.Failed).ToList();
 
-            PurgeHistoryResult result = await this.DeleteHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatusList, cancellationToken);
+            PurgeHistoryResult result = await this.DeleteHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatusList, timeout, cancellationToken);
 
             this.settings.Logger.PurgeInstanceHistory(
                 this.storageAccountName,
