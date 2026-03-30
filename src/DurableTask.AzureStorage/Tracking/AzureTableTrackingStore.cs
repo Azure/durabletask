@@ -636,7 +636,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             // If cancellation was requested, some instances may remain (isComplete = false).
             // Otherwise all matching instances were purged (isComplete = true).
-            bool? isComplete = timedOut ? false : true;
+            bool? isComplete = !timedOut;
 
             return new PurgeHistoryResult(storageRequests, instancesDeleted, rowsDeleted, isComplete);
         }
