@@ -19,7 +19,6 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using Azure;
     using DurableTask.Core;
     using DurableTask.Core.History;
     using Newtonsoft.Json;
@@ -225,6 +224,12 @@ namespace DurableTask.AzureStorage.Messaging
         bool IsNonexistantInstance()
         {
             return this.RuntimeState.Events.Count == 0 || this.RuntimeState.ExecutionStartedEvent == null;
+        }
+
+        public Task EndSessionAsync()
+        {
+            // No-op
+            return Task.CompletedTask;
         }
     }
 }
