@@ -182,7 +182,8 @@ namespace DurableTask.AzureStorage.Tests.Storage
             TableTransactionResults results = await table.DeleteBatchParallelAsync(entities);
 
             Assert.AreEqual(2, results.Responses.Count);
-            Assert.AreEqual(3, results.RequestCount);
+            // 3 individual deletes + 1 failed batch attempt = 4 total storage requests
+            Assert.AreEqual(4, results.RequestCount);
         }
 
         [TestMethod]

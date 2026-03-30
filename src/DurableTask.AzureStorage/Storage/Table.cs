@@ -200,11 +200,20 @@ namespace DurableTask.AzureStorage.Storage
             {
                 // One or more entities in the batch were already deleted.
                 // Fall back to individual deletes, skipping 404s.
-                return await this.DeleteEntitiesIndividuallyAsync(batch, cancellationToken);
+                // Count the failed batch attempt as 1 storage request.
+                TableTransactionResults fallbackResults = await this.DeleteEntitiesIndividuallyAsync(batch, cancellationToken);
+                return new TableTransactionResults(
+                    fallbackResults.Responses,
+                    fallbackResults.Elapsed,
+                    fallbackResults.RequestCount + 1);
             }
             catch (RequestFailedException ex) when (ex.Status == 404)
             {
-                return await this.DeleteEntitiesIndividuallyAsync(batch, cancellationToken);
+                TableTransactionResults fallbackResults = await this.DeleteEntitiesIndividuallyAsync(batch, cancellationToken);
+                return new TableTransactionResults(
+                    fallbackResults.Responses,
+                    fallbackResults.Elapsed,
+                    fallbackResults.RequestCount + 1);
             }
         }
 

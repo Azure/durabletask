@@ -2040,18 +2040,28 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         async Task<PurgeResult> IOrchestrationServicePurgeClient.PurgeInstanceStateAsync(PurgeInstanceFilter purgeInstanceFilter)
         {
-            // Convert the optional timeout into a CancellationToken so that the tracking store
-            // only needs to observe a single cancellation mechanism.
-            using CancellationTokenSource timeoutCts = purgeInstanceFilter.Timeout.HasValue
-                ? new CancellationTokenSource(purgeInstanceFilter.Timeout.Value)
-                : null;
-            CancellationToken cancellationToken = timeoutCts?.Token ?? CancellationToken.None;
-
-            PurgeHistoryResult storagePurgeHistoryResult = await this.trackingStore.PurgeInstanceHistoryAsync(
+            PurgeHistoryResult storagePurgeHistoryResult;
+            if (purgeInstanceFilter.Timeout.HasValue)
+            {
+                // Convert the timeout into a CancellationToken so that the tracking store
+                // only needs to observe a single cancellation mechanism.
+                using var timeoutCts = new CancellationTokenSource(purgeInstanceFilter.Timeout.Value);
+                storagePurgeHistoryResult = await this.trackingStore.PurgeInstanceHistoryAsync(
                     purgeInstanceFilter.CreatedTimeFrom,
                     purgeInstanceFilter.CreatedTimeTo,
                     purgeInstanceFilter.RuntimeStatus,
-                    cancellationToken);
+                    timeoutCts.Token);
+            }
+            else
+            {
+                // No timeout: use the original code path (no CancellationToken) to preserve
+                // backward-compatible behavior where IsComplete is null.
+                storagePurgeHistoryResult = await this.trackingStore.PurgeInstanceHistoryAsync(
+                    purgeInstanceFilter.CreatedTimeFrom,
+                    purgeInstanceFilter.CreatedTimeTo,
+                    purgeInstanceFilter.RuntimeStatus);
+            }
+
             return storagePurgeHistoryResult.ToCorePurgeHistoryResult();
         }
 #nullable enable

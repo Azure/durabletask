@@ -879,8 +879,8 @@ namespace DurableTask.AzureStorage.Tests
                 DateTime startDateTime = DateTime.UtcNow;
 
                 // Start several orchestrations so that purge cannot finish in 1 ms
-                const int instanceCount = 10;
-                TestOrchestrationClient client = null;
+                const int instanceCount = 50;
+                TestOrchestrationClient client = null!;
                 for (int i = 0; i < instanceCount; i++)
                 {
                     client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "World", Guid.NewGuid().ToString());
