@@ -2031,16 +2031,16 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Purge history for orchestrations that match the specified parameters, with an optional timeout.
+        /// Purge history for orchestrations that match the specified parameters.
         /// </summary>
         /// <param name="createdTimeFrom">CreatedTime of orchestrations. Purges history greater than this value.</param>
         /// <param name="createdTimeTo">CreatedTime of orchestrations. Purges history less than this value.</param>
         /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several statuses.</param>
-        /// <param name="timeout">Optional timeout. When specified, the purge stops after this duration and returns partial results.</param>
+        /// <param name="cancellationToken">Cancellation token. When cancelled, the purge stops and returns partial results.</param>
         /// <returns>Class containing number of storage requests sent, along with instances and rows deleted/purged</returns>
-        internal Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, TimeSpan? timeout)
+        public Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken)
         {
-            return this.trackingStore.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus, timeout);
+            return this.trackingStore.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus, cancellationToken);
         }
 
         /// <inheritdoc />
@@ -2053,11 +2053,18 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         async Task<PurgeResult> IOrchestrationServicePurgeClient.PurgeInstanceStateAsync(PurgeInstanceFilter purgeInstanceFilter)
         {
+            // Convert the optional timeout into a CancellationToken so that the tracking store
+            // only needs to observe a single cancellation mechanism.
+            using CancellationTokenSource timeoutCts = purgeInstanceFilter.Timeout.HasValue
+                ? new CancellationTokenSource(purgeInstanceFilter.Timeout.Value)
+                : null;
+            CancellationToken cancellationToken = timeoutCts?.Token ?? CancellationToken.None;
+
             PurgeHistoryResult storagePurgeHistoryResult = await this.trackingStore.PurgeInstanceHistoryAsync(
                     purgeInstanceFilter.CreatedTimeFrom,
                     purgeInstanceFilter.CreatedTimeTo,
                     purgeInstanceFilter.RuntimeStatus,
-                    purgeInstanceFilter.Timeout);
+                    cancellationToken);
             return storagePurgeHistoryResult.ToCorePurgeHistoryResult();
         }
 #nullable enable

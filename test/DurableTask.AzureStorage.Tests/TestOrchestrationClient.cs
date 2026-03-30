@@ -200,13 +200,17 @@ namespace DurableTask.AzureStorage.Tests
             return service.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus);
         }
 
-        public Task<PurgeHistoryResult> PurgeInstanceHistoryByTimePeriodWithTimeout(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, TimeSpan? timeout)
+        public async Task<PurgeHistoryResult> PurgeInstanceHistoryByTimePeriodWithTimeout(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, TimeSpan? timeout)
         {
             Trace.TraceInformation($"Purging history from {createdTimeFrom} to {createdTimeTo} with timeout {timeout}");
 
-            // The Purge Instance History API only exists in the service object
+            // Convert timeout to CancellationToken — the tracking store only observes cancellation.
             AzureStorageOrchestrationService service = (AzureStorageOrchestrationService)this.client.ServiceClient;
-            return service.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus, timeout);
+            using CancellationTokenSource timeoutCts = timeout.HasValue
+                ? new CancellationTokenSource(timeout.Value)
+                : null;
+            CancellationToken cancellationToken = timeoutCts?.Token ?? CancellationToken.None;
+            return await service.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus, cancellationToken);
         }
 
         public async Task<List<HistoryStateEvent>> GetOrchestrationHistoryAsync(string instanceId)

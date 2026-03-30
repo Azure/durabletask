@@ -557,7 +557,6 @@ namespace DurableTask.AzureStorage.Tracking
             DateTime createdTimeFrom,
             DateTime? createdTimeTo,
             IEnumerable<OrchestrationStatus> runtimeStatus,
-            TimeSpan? timeout,
             CancellationToken cancellationToken)
         {
             var condition = OrchestrationInstanceStatusQueryCondition.Parse(
@@ -573,15 +572,7 @@ namespace DurableTask.AzureStorage.Tracking
             int instancesDeleted = 0;
             int rowsDeleted = 0;
 
-            // Create a timeout CTS if a timeout was specified. When no timeout is specified,
-            // the purge runs unbounded (original behavior).
-            using CancellationTokenSource timeoutCts = timeout.HasValue
-                ? new CancellationTokenSource(timeout.Value)
-                : null;
-            using CancellationTokenSource linkedCts = timeout.HasValue
-                ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token)
-                : null;
-            CancellationToken effectiveToken = linkedCts?.Token ?? cancellationToken;
+            CancellationToken effectiveToken = cancellationToken;
 
             // Limit concurrent instance purges to a fraction of the global storage concurrency budget.
             // This ensures purge operations don't starve normal orchestration processing (dispatch,
@@ -626,28 +617,26 @@ namespace DurableTask.AzureStorage.Tracking
                     }
                 }
             }
-            catch (OperationCanceledException) when (timeoutCts != null && timeoutCts.IsCancellationRequested)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                // Timeout reached — stop accepting new instances.
+                // Cancellation requested (timeout or caller cancellation) — stop accepting new instances.
                 timedOut = true;
             }
 
-            // Wait for all remaining dispatched deletions to finish or be cancelled by the timeout.
+            // Wait for all remaining dispatched deletions to finish or be cancelled.
             try
             {
                 await Task.WhenAll(pendingTasks);
             }
-            catch (OperationCanceledException) when (timeoutCts != null && timeoutCts.IsCancellationRequested)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                // In-flight deletes were cancelled by the timeout — expected.
+                // In-flight deletes were cancelled — expected.
                 timedOut = true;
             }
 
-            // Determine completion status:
-            // - If a timeout was specified and fired, more instances may remain (isComplete = false).
-            // - If a timeout was specified and didn't fire, all instances were purged (isComplete = true).
-            // - If no timeout was specified, we purge everything (isComplete = null for backward compat).
-            bool? isComplete = timeout.HasValue ? !timedOut : (bool?)null;
+            // If cancellation was requested, some instances may remain (isComplete = false).
+            // Otherwise all matching instances were purged (isComplete = true).
+            bool? isComplete = timedOut ? false : true;
 
             return new PurgeHistoryResult(storageRequests, instancesDeleted, rowsDeleted, isComplete);
         }
@@ -739,7 +728,6 @@ namespace DurableTask.AzureStorage.Tracking
             DateTime createdTimeFrom,
             DateTime? createdTimeTo,
             IEnumerable<OrchestrationStatus> runtimeStatus,
-            TimeSpan? timeout = null,
             CancellationToken cancellationToken = default)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
@@ -749,7 +737,7 @@ namespace DurableTask.AzureStorage.Tracking
                     status == OrchestrationStatus.Canceled ||
                     status == OrchestrationStatus.Failed).ToList();
 
-            PurgeHistoryResult result = await this.DeleteHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatusList, timeout, cancellationToken);
+            PurgeHistoryResult result = await this.DeleteHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatusList, cancellationToken);
 
             this.settings.Logger.PurgeInstanceHistory(
                 this.storageAccountName,
