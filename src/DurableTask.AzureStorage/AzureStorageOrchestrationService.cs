@@ -2030,19 +2030,6 @@ namespace DurableTask.AzureStorage
             return this.trackingStore.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus);
         }
 
-        /// <summary>
-        /// Purge history for orchestrations that match the specified parameters.
-        /// </summary>
-        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Purges history greater than this value.</param>
-        /// <param name="createdTimeTo">CreatedTime of orchestrations. Purges history less than this value.</param>
-        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several statuses.</param>
-        /// <param name="cancellationToken">Cancellation token. When cancelled, the purge stops and returns partial results.</param>
-        /// <returns>Class containing number of storage requests sent, along with instances and rows deleted/purged</returns>
-        public Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken)
-        {
-            return this.trackingStore.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus, cancellationToken);
-        }
-
         /// <inheritdoc />
         async Task<PurgeResult> IOrchestrationServicePurgeClient.PurgeInstanceStateAsync(string instanceId)
         {
