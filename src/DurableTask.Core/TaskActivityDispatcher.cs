@@ -125,14 +125,13 @@ namespace DurableTask.Core
                     this.logHelper.TaskActivityDispatcherError(
                         workItem,
                         $"The activity worker received a message that does not have any OrchestrationInstance information.");
-                    if (taskMessage.Event.DispatchCount > this.maxDispatchCount)
+                    if (this.maxDispatchCount != null)
                     {
                         this.logHelper.PoisonMessageDetected(
                             orchestrationInstance,
                             taskMessage.Event,
-                            $"Activity has received an event with no parent orchestration instance and dispatch count " +
-                            $"{taskMessage.Event.DispatchCount} which exceeds the maximum dispatch count of {this.maxDispatchCount}. " +
-                            $"The event will be discarded.");
+                            $"Activity has received an event with no parent orchestration instance ID.");
+                        taskMessage.Event.IsPoisoned = true;
                         // All orchestration services that implement poison message handling must have logic to handle a null response message in this case.
                         await this.orchestrationService.CompleteTaskActivityWorkItemAsync(workItem, responseMessage: null);
                         return;
@@ -145,17 +144,16 @@ namespace DurableTask.Core
 
                 if (taskMessage.Event.EventType != EventType.TaskScheduled)
                 {
-                    this.logHelper.TaskActivityDispatcherError(
-                        workItem, 
-                        $"The activity worker received an event of type '{taskMessage.Event.EventType}' but only '{EventType.TaskScheduled}' is supported.");
-                    if (taskMessage.Event.DispatchCount > this.maxDispatchCount)
+                    string message = $"The activity worker received an event of type '{taskMessage.Event.EventType}' but only " +
+                        $"'{EventType.TaskScheduled}' is supported.";
+                    this.logHelper.TaskActivityDispatcherError(workItem, message);
+                    if (this.maxDispatchCount != null)
                     {
                         this.logHelper.PoisonMessageDetected(
                             orchestrationInstance,
                             taskMessage.Event,
-                            $"Activity has received an event of invalid type '{taskMessage.Event.EventType}' but only '{EventType.TaskScheduled}' " +
-                            $"is supported. Since the dispatch count of the event {taskMessage.Event.DispatchCount} exceeds the maximum dispatch " +
-                            $"count of {this.maxDispatchCount}, the event will be discarded.");
+                            message);
+                        taskMessage.Event.IsPoisoned = true;
                         // All orchestration services that implement poison message handling must have logic to handle a null response message in this case.
                         await this.orchestrationService.CompleteTaskActivityWorkItemAsync(workItem, responseMessage: null);
                         return;
@@ -176,31 +174,33 @@ namespace DurableTask.Core
                 {
                     string message = $"The activity worker received a {nameof(EventType.TaskScheduled)} event that does not specify an activity name.";
                     this.logHelper.TaskActivityDispatcherError(workItem, message);
-                    if (this.maxDispatchCount == null || taskMessage.Event.DispatchCount <= this.maxDispatchCount)
+                    if (this.maxDispatchCount == null)
                     {
                         throw TraceHelper.TraceException(
                             TraceEventType.Error,
                             "TaskActivityDispatcher-MissingActivityName",
                             new InvalidOperationException(message));
                     }
+                    else
+                    {
+                        scheduledEvent.IsPoisoned = true;
+                    }
                 }
 
                 HistoryEvent? eventToRespond = null;
-                if (taskMessage.Event.DispatchCount > this.maxDispatchCount)
+                if (scheduledEvent.DispatchCount > this.maxDispatchCount || scheduledEvent.IsPoisoned)
                 {
-                    string messageSuffix = string.Empty;
-                    if (scheduledEvent.Name == null)
-                    {
-                        messageSuffix = " The event also does not specify an Activity name.";   
-                    }
+                    string message = scheduledEvent.IsPoisoned
+                        ? "Activity worker has recenved an event that does not specify an Activity name"
+                        : $"Activity worker has received an event with dispatch count {taskMessage.Event.DispatchCount} which exceeds " +
+                          $"the maximum dispatch count of {this.maxDispatchCount}";
+
+                    scheduledEvent.IsPoisoned = true;
 
                     this.logHelper.PoisonMessageDetected(
                         orchestrationInstance,
                         taskMessage.Event,
-                        $"Activity has received an event with dispatch count {taskMessage.Event.DispatchCount} which exceeds the maximum dispatch " +
-                        $"count of {this.maxDispatchCount}.{messageSuffix} The task will be failed.");
-                    string reason = $"Activity {EventType.TaskScheduled} event has dispatch count {taskMessage.Event.DispatchCount} " +
-                        $"which exceeds the maximum dispatch count of {this.maxDispatchCount}.{messageSuffix}";
+                        $"{message}. The task will be failed.");
 
                     eventToRespond = new TaskFailedEvent(
                         -1,
@@ -210,12 +210,12 @@ namespace DurableTask.Core
                         new
                         (
                             "PoisonMessage",
-                            reason,
+                            message,
                             stackTrace: null,
                             innerFailure: null,
                             isNonRetriable: true)
                         );
-                    traceActivity?.SetStatus(ActivityStatusCode.Error, reason);
+                    traceActivity?.SetStatus(ActivityStatusCode.Error, message);
                 }
                 else
                 {

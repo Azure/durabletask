@@ -378,10 +378,16 @@ namespace DurableTask.Core
             try
             {
                 // Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
-                if (!ReconcileMessagesWithState(workItem, nameof(TaskOrchestrationDispatcher), this.errorPropagationMode, logHelper))
+                if (!ReconcileMessagesWithState(
+                    workItem,
+                    nameof(TaskOrchestrationDispatcher),
+                    this.errorPropagationMode,
+                    logHelper,
+                    isPoisonMessageHandlingEnabled: this.maxDispatchCount != null,
+                    out string? reason))
                 {
                     // TODO : mark an orchestration as faulted if there is data corruption
-                    this.logHelper.DroppingOrchestrationWorkItem(workItem, "Received work-item for an invalid orchestration");
+                    this.logHelper.DroppingOrchestrationWorkItem(workItem, reason!);
                     TraceHelper.TraceSession(
                         TraceEventType.Error,
                         "TaskOrchestrationDispatcher-DeletedOrchestration",
@@ -442,6 +448,7 @@ namespace DurableTask.Core
                         {
                             foreach (var poisonEvent in poisonEvents)
                             {
+                                poisonEvent.IsPoisoned = true;
                                 this.logHelper.PoisonMessageDetected(
                                     runtimeState.OrchestrationInstance!,
                                     poisonEvent,
@@ -898,14 +905,38 @@ namespace DurableTask.Core
         /// <param name="dispatcher">The name of the dispatcher, used for tracing.</param>
         /// <param name="errorPropagationMode">The error propagation mode.</param>
         /// <param name="logHelper">The log helper.</param>
+        /// <param name="isPoisonMessageHandlingEnabled">Whether or not poison message handling is enabled, in which case the messages
+        /// part of an invalid work item will be marked as "poisoned", and no exceptions will be thrown.</param>
+        /// <param name="reason">In the case that work item should be dropped (this method return false), provides the reason why.</param>
         /// <returns>True if workItem should be processed further. False otherwise.</returns>
-        internal static bool ReconcileMessagesWithState(TaskOrchestrationWorkItem workItem, string dispatcher, ErrorPropagationMode errorPropagationMode, LogHelper logHelper)
+        internal static bool ReconcileMessagesWithState(
+            TaskOrchestrationWorkItem workItem,
+            string dispatcher,
+            ErrorPropagationMode errorPropagationMode,
+            LogHelper logHelper,
+            bool isPoisonMessageHandlingEnabled,
+            out string? reason)
         {
+            void MarkAllMessagesPoisoned()
+            {
+                foreach (var instanceMessage in workItem.NewMessages)
+                {
+                    instanceMessage.Event.IsPoisoned = true;
+                }
+            }
+
             foreach (TaskMessage message in workItem.NewMessages)
             {
                 OrchestrationInstance orchestrationInstance = message.OrchestrationInstance;
                 if (string.IsNullOrWhiteSpace(orchestrationInstance?.InstanceId))
                 {
+                    if (isPoisonMessageHandlingEnabled)
+                    {
+                        MarkAllMessagesPoisoned();
+                        reason = $"Work item includes a message with no orchestration instance ID with event type {message.Event.EventType}";
+                        return false;
+                    }
+                   
                     throw TraceHelper.TraceException(
                         TraceEventType.Error,
                         $"{dispatcher}-OrchestrationInstanceMissing",
@@ -915,6 +946,15 @@ namespace DurableTask.Core
                 if (!workItem.OrchestrationRuntimeState.IsValid)
                 {
                     // we get here if the orchestration history is somehow corrupted (partially deleted, etc.)
+                    if (isPoisonMessageHandlingEnabled)
+                    {
+                        MarkAllMessagesPoisoned();
+                    }
+                    string corruptionType = workItem.OrchestrationRuntimeState.Events.Count == 1 ?
+                        $"its history contains exactly one event which is neither an {EventType.ExecutionStarted} or " +
+                        $"{EventType.OrchestratorStarted} but rather has type {workItem.OrchestrationRuntimeState.Events[0].EventType}" :
+                        $"its history contains multiple events but no {EventType.ExecutionStarted} event";
+                    reason = $"Orchestration runtime state is invalid: {corruptionType}";
                     return false;
                 }
 
@@ -923,6 +963,11 @@ namespace DurableTask.Core
                     // we get here because of:
                     //      i) responses for scheduled tasks after the orchestrations have been completed
                     //      ii) responses for explicitly deleted orchestrations
+                    if (isPoisonMessageHandlingEnabled)
+                    {
+                        MarkAllMessagesPoisoned();
+                    }
+                    reason = $"Orchestration contains no {EventType.ExecutionStarted} event in its history and did not receive one as part of its new messages.";
                     return false;
                 }
 
@@ -930,15 +975,12 @@ namespace DurableTask.Core
                     && workItem.OrchestrationRuntimeState.OrchestrationStatus != OrchestrationStatus.Running
                     && workItem.NewMessages.Count > 1)
                 {
-                    foreach (TaskMessage droppedMessage in workItem.NewMessages)
+                    if (isPoisonMessageHandlingEnabled)
                     {
-                        if (droppedMessage.Event.EventType != EventType.ExecutionRewound)
-                        {
-                            logHelper.DroppingOrchestrationMessage(workItem, droppedMessage, "Multiple messages sent to an instance " +
-                                "that is attempting to rewind from a terminal state. The only message that can be sent in " +
-                                "this case is the rewind request.");
-                        }
+                        MarkAllMessagesPoisoned();
                     }
+                    reason = "Multiple messages sent to an instance that is attempting to rewind from a terminal state. " +
+                        "The only message that can be sent in this case is the rewind request.";
                     return false;
                 }
 
@@ -1030,6 +1072,7 @@ namespace DurableTask.Core
                 }
             }
 
+            reason = null;
             return true;
         }
 

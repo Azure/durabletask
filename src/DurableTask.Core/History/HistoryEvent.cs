@@ -96,6 +96,14 @@ namespace DurableTask.Core.History
         public int DispatchCount { get; set; }
 
         /// <summary>
+        /// Gets or sets whether or not this event has been marked as "poisoned".
+        /// This can occur if the event's dispatch count exceeds a certain threshold,
+        /// or if some other error occurs during dispatch.
+        /// </summary>
+        [DataMember]
+        public bool IsPoisoned { get; set; }
+
+        /// <summary>
         /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
         /// </summary>
         public ExtensionDataObject? ExtensionData { get; set; }
