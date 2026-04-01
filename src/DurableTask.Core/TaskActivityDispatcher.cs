@@ -48,8 +48,10 @@ namespace DurableTask.Core
         /// <param name="logHelper">The log helper</param>
         /// <param name="errorPropagationMode">The error propagation mode</param>
         /// <param name="exceptionPropertiesProvider">The exception properties provider for extracting custom properties from exceptions</param>
-        /// <param name="maxDispatchCount">The maximum amount of times the same event can be dispatched before it is considered "poisoned"
-        /// and the corresponding operation is failed. If not set, there is no maximum enforced.</param>
+        /// <param name="maxDispatchCount">
+        /// The maximum amount of times the same event can be dispatched before it is considered "poisoned"
+        /// and the corresponding operation is failed. If not set, there is no poison message handling enabled.
+        /// </param>
         internal TaskActivityDispatcher(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskActivity> objectManager,

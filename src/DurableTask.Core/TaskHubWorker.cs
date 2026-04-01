@@ -229,8 +229,10 @@ namespace DurableTask.Core
         /// <param name="activityObjectManager">NameVersionObjectManager for Activities</param>
         /// <param name="entityObjectManager">The NameVersionObjectManager for entities. The version is the entity key.</param>
         /// <param name="versioningSettings">The <see cref="VersioningSettings"/> that define how orchestration versions are handled</param>
-        /// <param name="maxDispatchCount">The maximum amount of times the same event can be dispatched before it is considered "poisoned"
-        /// and the corresponding operation is failed.</param>
+        /// <param name="maxDispatchCount">
+        /// The maximum amount of times the same event can be dispatched before it is considered "poisoned" and the corresponding operation
+        /// is failed. Providing this value effectively enables poison message handling in the dispatchers.
+        /// </param>
         /// <param name="loggerFactory">The <see cref="ILoggerFactory"/> to use for logging</param>
         public TaskHubWorker(
             IOrchestrationService orchestrationService,

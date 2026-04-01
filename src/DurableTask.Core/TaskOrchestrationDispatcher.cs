@@ -62,8 +62,10 @@ namespace DurableTask.Core
         /// <param name="errorPropagationMode">The error propagation mode</param>
         /// <param name="versioningSettings">The versioning settings</param>
         /// <param name="exceptionPropertiesProvider">The exception properties provider for extracting custom properties from exceptions</param>
-        /// <param name="maxDispatchCount">The maximum amount of times the same event can be dispatched before it is considered "poisoned"
-        /// and the corresponding operation is failed. If not set, there is no maximum enforced.</param>
+        /// <param name="maxDispatchCount">
+        /// The maximum amount of times the same event can be dispatched before it is considered "poisoned"
+        /// and the corresponding operation is failed. If not set, there is no poison message handling enabled.
+        /// </param>
         internal TaskOrchestrationDispatcher(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskOrchestration> objectManager,
@@ -907,7 +909,7 @@ namespace DurableTask.Core
         /// <param name="logHelper">The log helper.</param>
         /// <param name="isPoisonMessageHandlingEnabled">Whether or not poison message handling is enabled, in which case the messages
         /// part of an invalid work item will be marked as "poisoned", and no exceptions will be thrown.</param>
-        /// <param name="reason">In the case that work item should be dropped (this method return false), provides the reason why.</param>
+        /// <param name="reason">In the case that the work item should be dropped (this method return false), provides the reason why.</param>
         /// <returns>True if workItem should be processed further. False otherwise.</returns>
         internal static bool ReconcileMessagesWithState(
             TaskOrchestrationWorkItem workItem,
