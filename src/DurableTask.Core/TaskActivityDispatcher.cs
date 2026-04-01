@@ -67,6 +67,11 @@ namespace DurableTask.Core
             this.logHelper = logHelper;
             this.errorPropagationMode = errorPropagationMode;
             this.exceptionPropertiesProvider = exceptionPropertiesProvider;
+
+            if (maxDispatchCount <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maxDispatchCount), "The maximum dispatch count must be greater than 0");
+            }
             this.maxDispatchCount = maxDispatchCount;
 
             this.dispatcher = new WorkItemDispatcher<TaskActivityWorkItem>(
@@ -193,7 +198,7 @@ namespace DurableTask.Core
                 if (scheduledEvent.DispatchCount > this.maxDispatchCount || scheduledEvent.IsPoisoned)
                 {
                     string message = scheduledEvent.IsPoisoned
-                        ? "Activity worker has recenved an event that does not specify an Activity name"
+                        ? "Activity worker has received an event that does not specify an Activity name"
                         : $"Activity worker has received an event with dispatch count {taskMessage.Event.DispatchCount} which exceeds " +
                           $"the maximum dispatch count of {this.maxDispatchCount}";
 

@@ -250,6 +250,11 @@ namespace DurableTask.Core
             this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
             this.dispatchEntitiesSeparately = (orchestrationService as IEntityOrchestrationService)?.EntityBackendProperties?.UseSeparateQueueForEntityWorkItems ?? false;
             this.versioningSettings = versioningSettings;
+
+            if (maxDispatchCount <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maxDispatchCount), "The maximum dispatch count must be greater than 0");
+            }
             this.maxDispatchCount = maxDispatchCount;
         }
 

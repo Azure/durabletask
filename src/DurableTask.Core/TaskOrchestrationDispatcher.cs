@@ -86,7 +86,13 @@ namespace DurableTask.Core
             this.entityParameters = TaskOrchestrationEntityParameters.FromEntityBackendProperties(this.entityBackendProperties);
             this.versioningSettings = versioningSettings;
             this.exceptionPropertiesProvider = exceptionPropertiesProvider;
+
+            if (maxDispatchCount <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maxDispatchCount), "The maximum dispatch count must be greater than 0");
+            }
             this.maxDispatchCount = maxDispatchCount;
+
 
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskOrchestrationDispatcher",
