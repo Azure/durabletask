@@ -586,6 +586,7 @@ namespace DurableTask.AzureStorage.Tracking
             var pendingTasks = new List<Task>();
 
             bool timedOut = false;
+            int failedDeletes = 0;
 
             try
             {
@@ -606,6 +607,19 @@ namespace DurableTask.AzureStorage.Tracking
                                 Interlocked.Add(ref instancesDeleted, statisticsFromDeletion.InstancesDeleted);
                                 Interlocked.Add(ref storageRequests, statisticsFromDeletion.StorageRequests);
                                 Interlocked.Add(ref rowsDeleted, statisticsFromDeletion.RowsDeleted);
+                            }
+                            catch (Exception ex) when (ex is not OperationCanceledException)
+                            {
+                                // Log the failure but don't let a single instance failure crash the
+                                // entire purge. The instance will remain and can be retried on the
+                                // next purge call.
+                                string instanceId = KeySanitation.UnescapePartitionKey(inst.PartitionKey);
+                                this.settings.Logger.GeneralWarning(
+                                    this.storageAccountName,
+                                    this.taskHubName,
+                                    $"Failed to purge instance '{instanceId}': {ex.Message}",
+                                    instanceId);
+                                Interlocked.Increment(ref failedDeletes);
                             }
                             finally
                             {
@@ -634,9 +648,9 @@ namespace DurableTask.AzureStorage.Tracking
                 timedOut = true;
             }
 
-            // If cancellation was requested, some instances may remain (isComplete = false).
-            // Otherwise all matching instances were purged (isComplete = true).
-            bool? isComplete = !timedOut;
+            // isComplete = false when timed out or when any individual instance deletions failed
+            // (the failed instances remain and can be retried on the next purge call).
+            bool? isComplete = !timedOut && failedDeletes == 0;
 
             return new PurgeHistoryResult(storageRequests, instancesDeleted, rowsDeleted, isComplete);
         }
