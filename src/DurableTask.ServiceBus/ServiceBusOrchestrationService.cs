@@ -242,8 +242,8 @@ namespace DurableTask.ServiceBus
         public async Task StartAsync()
         {
             this.cancellationTokenSource = new CancellationTokenSource();
-            this.orchestrationSessions = new ConcurrentDictionary<string, ServiceBusOrchestrationSession>();
-            this.orchestrationMessages = new ConcurrentDictionary<string, Message>();
+            this.orchestrationSessions = new ConcurrentDictionary<string, ServiceBusOrchestrationSession>(StringComparer.OrdinalIgnoreCase);
+            this.orchestrationMessages = new ConcurrentDictionary<string, Message>(StringComparer.OrdinalIgnoreCase);
 
             this.orchestratorSender = new MessageSender(this.serviceBusConnection, this.orchestratorEntityName, this.workerEntityName);
             this.workerSender = new MessageSender(this.serviceBusConnection, this.workerEntityName, this.orchestratorEntityName);
