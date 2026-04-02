@@ -1634,14 +1634,27 @@ namespace DurableTask.ServiceBus
                 newOrchestrationRuntimeState.ExecutionStartedEvent == null ||
                 newOrchestrationRuntimeState.OrchestrationStatus != OrchestrationStatus.Running)
             {
-                string reason = newOrchestrationRuntimeState == null
-                    ? "newOrchestrationRuntimeState is null"
-                    : newOrchestrationRuntimeState.ExecutionStartedEvent == null
-                        ? "ExecutionStartedEvent is null (possible ghost session with empty state)"
-                        : $"OrchestrationStatus is {newOrchestrationRuntimeState.OrchestrationStatus}";
+                string reason;
+                TraceEventType traceLevel;
+
+                if (newOrchestrationRuntimeState == null)
+                {
+                    reason = "newOrchestrationRuntimeState is null";
+                    traceLevel = TraceEventType.Warning;
+                }
+                else if (newOrchestrationRuntimeState.ExecutionStartedEvent == null)
+                {
+                    reason = "ExecutionStartedEvent is null (possible ghost session with empty state)";
+                    traceLevel = TraceEventType.Warning;
+                }
+                else
+                {
+                    reason = $"OrchestrationStatus is {newOrchestrationRuntimeState.OrchestrationStatus}";
+                    traceLevel = TraceEventType.Information;
+                }
 
                 TraceHelper.TraceSession(
-                    TraceEventType.Warning,
+                    traceLevel,
                     "ServiceBusOrchestrationService-TrySetSessionState-DeletingState",
                     workItem.InstanceId,
                     $"Setting session state to null. Reason: {reason}. " +
