@@ -1599,11 +1599,10 @@ namespace DurableTask.ServiceBus
             if (state == null || state.Length == 0)
             {
                 TraceHelper.TraceSession(
-                    TraceEventType.Warning,
+                    TraceEventType.Information,
                     "ServiceBusOrchestrationService-GetSessionState-EmptyState",
                     session.SessionId,
-                    $"Session '{session.SessionId}' has null or empty state ({state?.Length ?? 0} bytes). " +
-                    "This may indicate a new session or a ghost session created by a session ID casing change.");
+                    $"Session '{session.SessionId}' has null or empty state ({state?.Length ?? 0} bytes).");
             }
 
             using (Stream rawSessionStream = state != null ? new MemoryStream(state) : null)

@@ -25,8 +25,6 @@ namespace DurableTask.ServiceBus.Tests
     /// Background: Service Bus can change the casing of session IDs during upgrades or failovers.
     /// The DurableTask framework must handle session IDs case-insensitively to prevent ghost sessions,
     /// orphaned orchestration state, and stuck eternal orchestrations.
-    /// 
-    /// See IcM 771856247 for the original incident.
     /// </summary>
     [TestClass]
     public class SessionIdCaseInsensitiveTests
@@ -85,8 +83,7 @@ namespace DurableTask.ServiceBus.Tests
                 "Lowercase message ID should be treated as duplicate");
         }
 
-        /// <summary>
-        /// Simulates the exact failure scenario from IcM 771856247:
+        /// <summary>        
         /// 1. Timer message sent with PascalCase session ID
         /// 2. Timer message received with lowercase session ID
         /// 3. With case-insensitive dictionary, the lookup should succeed
