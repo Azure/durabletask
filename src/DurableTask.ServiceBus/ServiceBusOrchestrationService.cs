@@ -1580,12 +1580,31 @@ namespace DurableTask.ServiceBus
                 "ServiceBusOrchestrationService-SentMessageLog",
                 session.SessionId,
             GetFormattedLog($@"{messages.Count.ToString()} messages queued for {messageType}: {
-                        string.Join(",", messages.Select(m => $"{m.Message.MessageId} <{m.Action?.Event.EventId.ToString()}>"))}"));
+                        string.Join(",", messages.Select(m =>
+                        {
+                            string scheduledTime = m.Message.ScheduledEnqueueTimeUtc > DateTime.MinValue
+                                ? $" scheduledAt:{m.Message.ScheduledEnqueueTimeUtc:o}"
+                                : "";
+                            string targetSession = !string.IsNullOrEmpty(m.Message.SessionId)
+                                ? $" targetSession:{m.Message.SessionId}"
+                                : "";
+                            return $"{m.Message.MessageId} <{m.Action?.Event.EventId.ToString()}>{scheduledTime}{targetSession}";
+                        }))}"));
         }
 
         async Task<OrchestrationRuntimeState> GetSessionStateAsync(IMessageSession session, IOrchestrationServiceBlobStore orchestrationServiceBlobStore)
         {
             byte[] state = await session.GetStateAsync();
+
+            if (state == null || state.Length == 0)
+            {
+                TraceHelper.TraceSession(
+                    TraceEventType.Warning,
+                    "ServiceBusOrchestrationService-GetSessionState-EmptyState",
+                    session.SessionId,
+                    $"Session '{session.SessionId}' has null or empty state ({state?.Length ?? 0} bytes). " +
+                    "This may indicate a new session or a ghost session created by a session ID casing change.");
+            }
 
             using (Stream rawSessionStream = state != null ? new MemoryStream(state) : null)
             {
@@ -1615,6 +1634,19 @@ namespace DurableTask.ServiceBus
                 newOrchestrationRuntimeState.ExecutionStartedEvent == null ||
                 newOrchestrationRuntimeState.OrchestrationStatus != OrchestrationStatus.Running)
             {
+                string reason = newOrchestrationRuntimeState == null
+                    ? "newOrchestrationRuntimeState is null"
+                    : newOrchestrationRuntimeState.ExecutionStartedEvent == null
+                        ? "ExecutionStartedEvent is null (possible ghost session with empty state)"
+                        : $"OrchestrationStatus is {newOrchestrationRuntimeState.OrchestrationStatus}";
+
+                TraceHelper.TraceSession(
+                    TraceEventType.Warning,
+                    "ServiceBusOrchestrationService-TrySetSessionState-DeletingState",
+                    workItem.InstanceId,
+                    $"Setting session state to null. Reason: {reason}. " +
+                    $"Session: '{session.SessionId}', InstanceId: '{workItem.InstanceId}'");
+
                 await session.SetStateAsync(null);
                 return true;
             }
