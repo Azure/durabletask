@@ -648,9 +648,13 @@ namespace DurableTask.AzureStorage.Tracking
                 timedOut = true;
             }
 
-            // isComplete = false when timed out or when any individual instance deletions failed
+            // When no cancellation/timeout semantics were requested (CancellationToken.None
+            // in the back-compat path), preserve the legacy behavior by leaving IsComplete unset.
+            // Otherwise, report false when timed out or when any individual instance deletions failed
             // (the failed instances remain and can be retried on the next purge call).
-            bool? isComplete = !timedOut && failedDeletes == 0;
+            bool? isComplete = cancellationToken.CanBeCanceled
+                ? !timedOut && failedDeletes == 0
+                : (bool?)null;
 
             return new PurgeHistoryResult(storageRequests, instancesDeleted, rowsDeleted, isComplete);
         }
