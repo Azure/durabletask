@@ -233,7 +233,7 @@ namespace DurableTask.AzureStorage.Storage
                     Response response = await this.tableClient.DeleteEntityAsync(
                         action.Entity.PartitionKey,
                         action.Entity.RowKey,
-                        ETag.All,
+                        action.Entity.ETag,
                         cancellationToken).DecorateFailure();
                     responses.Add(response);
                     this.stats.TableEntitiesWritten.Increment();
