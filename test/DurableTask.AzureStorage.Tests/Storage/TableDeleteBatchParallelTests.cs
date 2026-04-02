@@ -239,7 +239,7 @@ namespace DurableTask.AzureStorage.Tests.Storage
                 .Setup(t => t.SubmitTransactionAsync(
                     It.IsAny<IEnumerable<TableTransactionAction>>(),
                     It.IsAny<CancellationToken>()))
-                .Returns(async (IEnumerable<TableTransactionAction> batch, CancellationToken ct) =>
+                .Returns((IEnumerable<TableTransactionAction> batch, CancellationToken ct) =>
                 {
                     int count = Interlocked.Increment(ref batchesSubmitted);
                     if (count == 1)
@@ -247,7 +247,7 @@ namespace DurableTask.AzureStorage.Tests.Storage
                         cts.Cancel();
                     }
                     ct.ThrowIfCancellationRequested();
-                    return CreateMockBatchResponse(batch.Count());
+                    return Task.FromResult(CreateMockBatchResponse(batch.Count()));
                 });
 
             await Assert.ThrowsExceptionAsync<OperationCanceledException>(
