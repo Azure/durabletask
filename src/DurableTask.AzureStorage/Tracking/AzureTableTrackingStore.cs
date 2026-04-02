@@ -591,7 +591,7 @@ namespace DurableTask.AzureStorage.Tracking
             try
             {
                 AsyncPageable<OrchestrationInstanceStatus> entitiesPageable = this.InstancesTable.ExecuteQueryAsync<OrchestrationInstanceStatus>(odata.Filter, select: odata.Select, cancellationToken: effectiveToken);
-                await foreach (Page<OrchestrationInstanceStatus> page in entitiesPageable.AsPages(pageSizeHint: maxPurgeConcurrency))
+                await foreach (Page<OrchestrationInstanceStatus> page in entitiesPageable.AsPages(pageSizeHint: 100))
                 {
                     foreach (OrchestrationInstanceStatus instance in page.Values)
                     {
