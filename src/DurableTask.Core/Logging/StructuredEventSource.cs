@@ -656,6 +656,31 @@ namespace DurableTask.Core.Logging
             }
         }
 
+        [Event(EventIds.PoisonMessageDetected, Level = EventLevel.Error, Version = 1)]
+        internal void PoisonMessageDetected(
+            string InstanceId,
+            string ExecutionId,
+            string EventType,
+            int TaskEventId,
+            string Details,
+            string AppName,
+            string ExtensionVersion)
+        {
+            if (this.IsEnabled(EventLevel.Error))
+            {
+                // TODO: Use WriteEventCore for better performance
+                this.WriteEvent(
+                    EventIds.PoisonMessageDetected,
+                    InstanceId ?? string.Empty,
+                    ExecutionId ?? string.Empty,
+                    EventType,
+                    TaskEventId,
+                    Details,
+                    AppName,
+                    ExtensionVersion);
+            }
+        }
+
         [Event(EventIds.EntityBatchExecuting, Level = EventLevel.Informational, Version = 1)]
         internal void EntityBatchExecuting(
             string InstanceId,
