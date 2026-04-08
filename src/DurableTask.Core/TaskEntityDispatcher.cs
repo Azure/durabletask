@@ -193,6 +193,7 @@ namespace DurableTask.Core
                     if (concurrencyLockAcquired)
                     {
                         this.concurrentSessionLock.Release();
+                        await workItem.Session.EndSessionAsync();
                     }
                 }
             }
