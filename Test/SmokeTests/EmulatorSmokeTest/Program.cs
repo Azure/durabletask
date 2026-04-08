@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+using System.Reflection;
 using DurableTask.Core;
 using DurableTask.Emulator;
 using Microsoft.Extensions.Logging;
@@ -63,7 +64,7 @@ await worker.StopAsync(true);
 if (result.OrchestrationStatus != OrchestrationStatus.Completed)
 {
     Console.WriteLine("FAIL: Orchestration did not complete successfully.");
-    Environment.Exit(1);
+    return 1;
 }
 
 if (result.Output == null ||
@@ -72,12 +73,12 @@ if (result.Output == null ||
     !result.Output.Contains("Hello, Seattle!"))
 {
     Console.WriteLine("FAIL: Orchestration output did not contain expected greetings.");
-    Environment.Exit(1);
+    return 1;
 }
 
 Console.WriteLine();
 Console.WriteLine("PASS: HelloCities orchestration completed with expected output.");
-Environment.Exit(0);
+return 0;
 
 // ---- Orchestration ----
 

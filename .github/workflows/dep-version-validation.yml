@@ -51,26 +51,26 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      # ---- Parse DTFx Version ----
-      - name: Parse DTFx Core version
+      # ---- Parse DTFx Versions ----
+      - name: Parse DTFx package versions
         id: version
         run: |
           set -e
-          CSPROJ_FILE="src/DurableTask.Core/DurableTask.Core.csproj"
-          MAJOR=$(grep -oP '<MajorVersion>\K[^<]+' "$CSPROJ_FILE")
-          MINOR=$(grep -oP '<MinorVersion>\K[^<]+' "$CSPROJ_FILE")
-          PATCH=$(grep -oP '<PatchVersion>\K[^<]+' "$CSPROJ_FILE")
 
-          # Bump patch version to distinguish local build from published
-          LOCAL_PATCH=$((PATCH + 1))
-          LOCAL_VERSION="${MAJOR}.${MINOR}.${LOCAL_PATCH}"
+          # Parse Core version from its csproj
+          CORE_CSPROJ="src/DurableTask.Core/DurableTask.Core.csproj"
+          MAJOR=$(grep -oP '<MajorVersion>\K[^<]+' "$CORE_CSPROJ")
+          MINOR=$(grep -oP '<MinorVersion>\K[^<]+' "$CORE_CSPROJ")
+          PATCH=$(grep -oP '<PatchVersion>\K[^<]+' "$CORE_CSPROJ")
+          CORE_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "Core version: ${CORE_VERSION}"
+          echo "core_version=${CORE_VERSION}" >> "$GITHUB_OUTPUT"
 
-          # Update version in Core csproj
-          sed -i "s|<PatchVersion>${PATCH}</PatchVersion>|<PatchVersion>${LOCAL_PATCH}</PatchVersion>|" "$CSPROJ_FILE"
-
-          echo "Published version: ${MAJOR}.${MINOR}.${PATCH}"
-          echo "Local version: ${LOCAL_VERSION}"
-          echo "dtfx_version=${LOCAL_VERSION}" >> "$GITHUB_OUTPUT"
+          # Emulator inherits its version from tools/DurableTask.props
+          PROPS_FILE="tools/DurableTask.props"
+          EMULATOR_VERSION=$(grep -oP '<Version>\K[^<]+' "$PROPS_FILE")
+          echo "Emulator version: ${EMULATOR_VERSION}"
+          echo "emulator_version=${EMULATOR_VERSION}" >> "$GITHUB_OUTPUT"
 
       # ---- Pack DTFx Packages from Source ----
       - name: Pack DTFx packages from source
@@ -99,12 +99,13 @@ jobs:
       # ---- Verify Packed Packages ----
       - name: Verify packed packages
         env:
-          DTFX_VERSION: ${{ steps.version.outputs.dtfx_version }}
+          CORE_VERSION: ${{ steps.version.outputs.core_version }}
+          EMULATOR_VERSION: ${{ steps.version.outputs.emulator_version }}
         run: |
           set -e
           LOCAL_PACKAGES="Test/SmokeTests/EmulatorSmokeTest/local-packages"
 
-          CORE_PKG="Microsoft.Azure.DurableTask.Core.${DTFX_VERSION}.nupkg"
+          CORE_PKG="Microsoft.Azure.DurableTask.Core.${CORE_VERSION}.nupkg"
           if [ ! -f "$LOCAL_PACKAGES/$CORE_PKG" ]; then
             echo "FAIL: Missing Core package: $CORE_PKG"
             echo "Available packages:"
@@ -113,29 +114,28 @@ jobs:
           fi
           echo "  OK: $CORE_PKG"
 
-          # Emulator may use a different version scheme - check that at least one Emulator package exists
-          EMULATOR_FOUND=0
-          for f in "$LOCAL_PACKAGES"/Microsoft.Azure.DurableTask.Emulator.*.nupkg; do
-            if [ -f "$f" ]; then
-              echo "  OK: $(basename $f)"
-              EMULATOR_FOUND=1
-            fi
-          done
-          if [ $EMULATOR_FOUND -eq 0 ]; then
-            echo "FAIL: No Emulator package found"
+          EMULATOR_PKG="Microsoft.Azure.DurableTask.Emulator.${EMULATOR_VERSION}.nupkg"
+          if [ ! -f "$LOCAL_PACKAGES/$EMULATOR_PKG" ]; then
+            echo "FAIL: Missing Emulator package: $EMULATOR_PKG"
+            echo "Available packages:"
             ls -1 "$LOCAL_PACKAGES"
             exit 1
           fi
+          echo "  OK: $EMULATOR_PKG"
           echo "PASS: DTFx packages verified."
 
       # ---- Build Smoke Test App ----
       - name: Build smoke test app
         env:
-          DTFX_VERSION: ${{ steps.version.outputs.dtfx_version }}
+          CORE_VERSION: ${{ steps.version.outputs.core_version }}
+          EMULATOR_VERSION: ${{ steps.version.outputs.emulator_version }}
         run: |
           set -e
           cd Test/SmokeTests/EmulatorSmokeTest
-          dotnet build EmulatorSmokeTest.csproj -c Release -p:SmokeTestDtfxVersion=$DTFX_VERSION -v normal
+          dotnet build EmulatorSmokeTest.csproj -c Release \
+            -p:SmokeTestCoreVersion=$CORE_VERSION \
+            -p:SmokeTestEmulatorVersion=$EMULATOR_VERSION \
+            -v normal
 
       # ---- Verify DTFx packages resolved from local-packages ----
       - name: Verify DTFx packages from local source
@@ -156,13 +156,15 @@ jobs:
       # ---- Run Smoke Test ----
       - name: Run smoke test
         env:
-          DTFX_VERSION: ${{ steps.version.outputs.dtfx_version }}
+          CORE_VERSION: ${{ steps.version.outputs.core_version }}
+          EMULATOR_VERSION: ${{ steps.version.outputs.emulator_version }}
         run: |
           set -e
           echo "Running Emulator Smoke Test..."
           dotnet run --project Test/SmokeTests/EmulatorSmokeTest/EmulatorSmokeTest.csproj \
             -c Release \
             --no-build \
-            -p:SmokeTestDtfxVersion=$DTFX_VERSION
+            -p:SmokeTestCoreVersion=$CORE_VERSION \
+            -p:SmokeTestEmulatorVersion=$EMULATOR_VERSION
 
           echo "Smoke test completed successfully."

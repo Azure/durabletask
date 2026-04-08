@@ -13,10 +13,11 @@
   <ItemGroup>
     <!--
       DTFx packages under test (from local-packages feed).
-      Version is injected via -p:SmokeTestDtfxVersion=... at build time.
+      Core and Emulator use different version schemes, so they have separate properties.
+      Injected via -p:SmokeTestCoreVersion=... -p:SmokeTestEmulatorVersion=... at build time.
     -->
-    <PackageReference Include="Microsoft.Azure.DurableTask.Core" Version="$(SmokeTestDtfxVersion)" />
-    <PackageReference Include="Microsoft.Azure.DurableTask.Emulator" Version="$(SmokeTestDtfxVersion)" />
+    <PackageReference Include="Microsoft.Azure.DurableTask.Core" Version="$(SmokeTestCoreVersion)" />
+    <PackageReference Include="Microsoft.Azure.DurableTask.Emulator" Version="$(SmokeTestEmulatorVersion)" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.1" />
   </ItemGroup>
 
