@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      DTFx packages under test (from local-packages feed).
+      Version is injected via -p:SmokeTestDtfxVersion=... at build time.
+    -->
+    <PackageReference Include="Microsoft.Azure.DurableTask.Core" Version="$(SmokeTestDtfxVersion)" />
+    <PackageReference Include="Microsoft.Azure.DurableTask.Emulator" Version="$(SmokeTestDtfxVersion)" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.1" />
+  </ItemGroup>
+
+</Project>
