@@ -57,18 +57,30 @@ jobs:
         run: |
           set -e
 
-          # Parse Core version from its csproj
-          CORE_CSPROJ="src/DurableTask.Core/DurableTask.Core.csproj"
-          MAJOR=$(grep -oP '<MajorVersion>\K[^<]+' "$CORE_CSPROJ")
-          MINOR=$(grep -oP '<MinorVersion>\K[^<]+' "$CORE_CSPROJ")
-          PATCH=$(grep -oP '<PatchVersion>\K[^<]+' "$CORE_CSPROJ")
-          CORE_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          # Use MSBuild to resolve the evaluated PackageVersion/Version
+          # so imports, conditions, and prerelease labels are handled correctly.
+          get_msbuild_version() {
+            local project_file="$1"
+            local version
+
+            version=$(dotnet msbuild "$project_file" -nologo -getProperty:PackageVersion 2>/dev/null | tail -n 1 | tr -d '\r')
+            if [ -z "$version" ]; then
+              version=$(dotnet msbuild "$project_file" -nologo -getProperty:Version 2>/dev/null | tail -n 1 | tr -d '\r')
+            fi
+
+            if [ -z "$version" ]; then
+              echo "Failed to resolve version for $project_file" >&2
+              exit 1
+            fi
+
+            echo "$version"
+          }
+
+          CORE_VERSION=$(get_msbuild_version "src/DurableTask.Core/DurableTask.Core.csproj")
           echo "Core version: ${CORE_VERSION}"
           echo "core_version=${CORE_VERSION}" >> "$GITHUB_OUTPUT"
 
-          # Emulator inherits its version from tools/DurableTask.props
-          PROPS_FILE="tools/DurableTask.props"
-          EMULATOR_VERSION=$(grep -oP '<Version>\K[^<]+' "$PROPS_FILE")
+          EMULATOR_VERSION=$(get_msbuild_version "src/DurableTask.Emulator/DurableTask.Emulator.csproj")
           echo "Emulator version: ${EMULATOR_VERSION}"
           echo "emulator_version=${EMULATOR_VERSION}" >> "$GITHUB_OUTPUT"
 

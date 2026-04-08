@@ -15,25 +15,6 @@ using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
     builder.SetMinimumLevel(LogLevel.Warning);
 });
 
-// Print loaded DTFx assembly versions
-Console.WriteLine("Loaded DTFx assembly versions:");
-foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-{
-    string? name = asm.GetName().Name;
-    if (name != null && name.StartsWith("DurableTask.", StringComparison.OrdinalIgnoreCase))
-    {
-        string? infoVersion = asm
-            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()
-            ?.InformationalVersion;
-        if (infoVersion != null && infoVersion.Contains('+'))
-        {
-            infoVersion = infoVersion[..infoVersion.IndexOf('+')];
-        }
-        Console.WriteLine($"  {name} = {infoVersion ?? asm.GetName().Version?.ToString() ?? "unknown"}");
-    }
-}
-Console.WriteLine();
-
 // Create the in-memory orchestration service
 var orchestrationService = new LocalOrchestrationService();
 
@@ -59,6 +40,25 @@ Console.WriteLine($"Orchestration status: {result.OrchestrationStatus}");
 Console.WriteLine($"Orchestration output: {result.Output}");
 
 await worker.StopAsync(true);
+
+// Print loaded DTFx assembly versions (after usage to ensure all assemblies are loaded)
+Console.WriteLine();
+Console.WriteLine("Loaded DTFx assembly versions:");
+foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+{
+    string? name = asm.GetName().Name;
+    if (name != null && name.StartsWith("DurableTask.", StringComparison.OrdinalIgnoreCase))
+    {
+        string? infoVersion = asm
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion;
+        if (infoVersion != null && infoVersion.Contains('+'))
+        {
+            infoVersion = infoVersion[..infoVersion.IndexOf('+')];
+        }
+        Console.WriteLine($"  {name} = {infoVersion ?? asm.GetName().Version?.ToString() ?? "unknown"}");
+    }
+}
 
 // Validate result
 if (result.OrchestrationStatus != OrchestrationStatus.Completed)
