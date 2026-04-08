@@ -8,6 +8,10 @@
     <IsPackable>false</IsPackable>
     <IsTestProject>false</IsTestProject>
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <!-- Default versions for standalone restore (e.g. Dependency Submission workflow).
+         These are overridden by -p:SmokeTestCoreVersion / -p:SmokeTestEmulatorVersion in the CI pipeline. -->
+    <SmokeTestCoreVersion Condition="'$(SmokeTestCoreVersion)' == ''">3.7.1</SmokeTestCoreVersion>
+    <SmokeTestEmulatorVersion Condition="'$(SmokeTestEmulatorVersion)' == ''">2.6.0</SmokeTestEmulatorVersion>
   </PropertyGroup>
 
   <ItemGroup>
