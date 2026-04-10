@@ -1,26 +1,12 @@
-# ================================================================================================
-# Dependency Version Validation Pipeline
-# ================================================================================================
-# Validates that changes to dependency versions (Directory.Packages.props) do not break
-# the DurableTask Framework (DTFx) NuGet packages at build or runtime.
-#
-# The DTFx Core and Emulator packages are consumed downstream by:
-#   - azure-functions-durable-extension (WebJobs extension)
-#   - AAPT-DTMB (DTS data plane)
-#
-# This pipeline:
-#   1. Packs DurableTask.Core and DurableTask.Emulator from source into a local feed
-#   2. Builds a standalone console app that runs a HelloCities orchestration
-#      using the Emulator backend
-#   3. Validates orchestration output and loaded assembly versions
-# ================================================================================================
-
+# Validates that dependency version changes do not break the DTFx NuGet packages.
+# Packs DurableTask.Core and DurableTask.Emulator from source, builds a console
+# app using the local packages, runs a HelloCities orchestration with the
+# Emulator backend, and validates orchestration output.
 name: Dependency Version Validation
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
     paths:
       - 'Directory.Packages.props'
       - 'tools/DurableTask.props'
@@ -40,143 +26,92 @@ jobs:
     name: 'Emulator Orchestration Smoke Test (NuGet Packages)'
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
     steps:
-      # ---- Checkout & SDK Setup ----
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
 
-      - name: Setup .NET 8.0 SDK
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
-      # ---- Parse DTFx Versions ----
       - name: Parse DTFx package versions
         id: version
         run: |
           set -e
-
-          # Use MSBuild to resolve the evaluated PackageVersion/Version
-          # so imports, conditions, and prerelease labels are handled correctly.
-          get_msbuild_version() {
-            local project_file="$1"
-            local version
-
-            version=$(dotnet msbuild "$project_file" -nologo -getProperty:PackageVersion 2>/dev/null | tail -n 1 | tr -d '\r')
-            if [ -z "$version" ]; then
-              version=$(dotnet msbuild "$project_file" -nologo -getProperty:Version 2>/dev/null | tail -n 1 | tr -d '\r')
-            fi
-
-            if [ -z "$version" ]; then
-              echo "Failed to resolve version for $project_file" >&2
-              exit 1
-            fi
-
-            echo "$version"
+          get_version() {
+            local v
+            v=$(dotnet msbuild "$1" -nologo -getProperty:PackageVersion 2>/dev/null | tail -n 1 | tr -d '\r')
+            [ -z "$v" ] && v=$(dotnet msbuild "$1" -nologo -getProperty:Version 2>/dev/null | tail -n 1 | tr -d '\r')
+            [ -z "$v" ] && { echo "FAIL: Cannot resolve version for $1" >&2; exit 1; }
+            echo "$v"
           }
-
-          CORE_VERSION=$(get_msbuild_version "src/DurableTask.Core/DurableTask.Core.csproj")
-          echo "Core version: ${CORE_VERSION}"
+          CORE_VERSION=$(get_version "src/DurableTask.Core/DurableTask.Core.csproj")
+          EMULATOR_VERSION=$(get_version "src/DurableTask.Emulator/DurableTask.Emulator.csproj")
+          echo "Core: $CORE_VERSION, Emulator: $EMULATOR_VERSION"
           echo "core_version=${CORE_VERSION}" >> "$GITHUB_OUTPUT"
-
-          EMULATOR_VERSION=$(get_msbuild_version "src/DurableTask.Emulator/DurableTask.Emulator.csproj")
-          echo "Emulator version: ${EMULATOR_VERSION}"
           echo "emulator_version=${EMULATOR_VERSION}" >> "$GITHUB_OUTPUT"
 
-      # ---- Pack DTFx Packages from Source ----
-      - name: Pack DTFx packages from source
+      - name: Pack DTFx packages
         run: |
           set -e
-          LOCAL_PACKAGES="Test/SmokeTests/EmulatorSmokeTest/local-packages"
-          mkdir -p "$LOCAL_PACKAGES"
-
-          # Build Core first (Emulator depends on it)
-          echo "Building DurableTask.Core..."
+          PKG=Test/SmokeTests/EmulatorSmokeTest/local-packages; mkdir -p "$PKG"
           dotnet build src/DurableTask.Core/DurableTask.Core.csproj -c Release
-
-          echo "Building DurableTask.Emulator..."
           dotnet build src/DurableTask.Emulator/DurableTask.Emulator.csproj -c Release
+          dotnet pack src/DurableTask.Core/DurableTask.Core.csproj -c Release --no-build --output "$PKG"
+          dotnet pack src/DurableTask.Emulator/DurableTask.Emulator.csproj -c Release --no-build --output "$PKG"
+          ls -la "$PKG"
 
-          # Pack from build output
-          echo "Packing DurableTask.Core..."
-          dotnet pack src/DurableTask.Core/DurableTask.Core.csproj -c Release --no-build --output "$LOCAL_PACKAGES"
-
-          echo "Packing DurableTask.Emulator..."
-          dotnet pack src/DurableTask.Emulator/DurableTask.Emulator.csproj -c Release --no-build --output "$LOCAL_PACKAGES"
-
-          echo "Local packages:"
-          ls -la "$LOCAL_PACKAGES"
-
-      # ---- Verify Packed Packages ----
       - name: Verify packed packages
         env:
           CORE_VERSION: ${{ steps.version.outputs.core_version }}
           EMULATOR_VERSION: ${{ steps.version.outputs.emulator_version }}
         run: |
           set -e
-          LOCAL_PACKAGES="Test/SmokeTests/EmulatorSmokeTest/local-packages"
+          PKG=Test/SmokeTests/EmulatorSmokeTest/local-packages
+          [ -f "$PKG/Microsoft.Azure.DurableTask.Core.${CORE_VERSION}.nupkg" ] && echo "OK: Core ${CORE_VERSION}" || { echo "FAIL: Core missing"; ls -1 "$PKG"; exit 1; }
+          [ -f "$PKG/Microsoft.Azure.DurableTask.Emulator.${EMULATOR_VERSION}.nupkg" ] && echo "OK: Emulator ${EMULATOR_VERSION}" || { echo "FAIL: Emulator missing"; ls -1 "$PKG"; exit 1; }
 
-          CORE_PKG="Microsoft.Azure.DurableTask.Core.${CORE_VERSION}.nupkg"
-          if [ ! -f "$LOCAL_PACKAGES/$CORE_PKG" ]; then
-            echo "FAIL: Missing Core package: $CORE_PKG"
-            echo "Available packages:"
-            ls -1 "$LOCAL_PACKAGES"
-            exit 1
-          fi
-          echo "  OK: $CORE_PKG"
+      - name: Generate NuGet.config
+        run: |
+          cat > Test/SmokeTests/EmulatorSmokeTest/NuGet.config << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources><clear />
+              <add key="local-packages" value="./local-packages" />
+              <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+            </packageSources>
+            <packageSourceMapping>
+              <packageSource key="local-packages">
+                <package pattern="Microsoft.Azure.DurableTask.Core" />
+                <package pattern="Microsoft.Azure.DurableTask.Emulator" />
+              </packageSource>
+              <packageSource key="nuget.org"><package pattern="*" /></packageSource>
+            </packageSourceMapping>
+          </configuration>
+          EOF
 
-          EMULATOR_PKG="Microsoft.Azure.DurableTask.Emulator.${EMULATOR_VERSION}.nupkg"
-          if [ ! -f "$LOCAL_PACKAGES/$EMULATOR_PKG" ]; then
-            echo "FAIL: Missing Emulator package: $EMULATOR_PKG"
-            echo "Available packages:"
-            ls -1 "$LOCAL_PACKAGES"
-            exit 1
-          fi
-          echo "  OK: $EMULATOR_PKG"
-          echo "PASS: DTFx packages verified."
-
-      # ---- Build Smoke Test App ----
       - name: Build smoke test app
         env:
           CORE_VERSION: ${{ steps.version.outputs.core_version }}
           EMULATOR_VERSION: ${{ steps.version.outputs.emulator_version }}
         run: |
-          set -e
-          cd Test/SmokeTests/EmulatorSmokeTest
-          dotnet build EmulatorSmokeTest.csproj -c Release \
+          dotnet build Test/SmokeTests/EmulatorSmokeTest/EmulatorSmokeTest.csproj -c Release \
             -p:SmokeTestCoreVersion=$CORE_VERSION \
-            -p:SmokeTestEmulatorVersion=$EMULATOR_VERSION \
-            -v normal
+            -p:SmokeTestEmulatorVersion=$EMULATOR_VERSION
 
-      # ---- Verify DTFx packages resolved from local-packages ----
-      - name: Verify DTFx packages from local source
-        run: |
-          set -e
-          echo "Verifying DTFx packages were restored from local-packages..."
-          ASSETS_FILE="Test/SmokeTests/EmulatorSmokeTest/obj/project.assets.json"
-          for pkg in "Microsoft.Azure.DurableTask.Core" "Microsoft.Azure.DurableTask.Emulator"; do
-            if grep -qi "$pkg" "$ASSETS_FILE"; then
-              echo "  OK: $pkg found in project.assets.json"
-            else
-              echo "  FAIL: $pkg NOT found"
-              exit 1
-            fi
-          done
-          echo "PASS: DTFx packages verified in build output."
-
-      # ---- Run Smoke Test ----
-      - name: Run smoke test
+      - name: Verify package versions in assets
         env:
           CORE_VERSION: ${{ steps.version.outputs.core_version }}
           EMULATOR_VERSION: ${{ steps.version.outputs.emulator_version }}
         run: |
           set -e
-          echo "Running Emulator Smoke Test..."
+          ASSETS=Test/SmokeTests/EmulatorSmokeTest/obj/project.assets.json
+          grep -qi "Microsoft.Azure.DurableTask.Core/${CORE_VERSION}" "$ASSETS" && echo "OK: Core ${CORE_VERSION}" || { echo "FAIL: Core not found"; exit 1; }
+          grep -qi "Microsoft.Azure.DurableTask.Emulator/${EMULATOR_VERSION}" "$ASSETS" && echo "OK: Emulator ${EMULATOR_VERSION}" || { echo "FAIL: Emulator not found"; exit 1; }
+
+      - name: Run smoke test
+        env:
+          CORE_VERSION: ${{ steps.version.outputs.core_version }}
+          EMULATOR_VERSION: ${{ steps.version.outputs.emulator_version }}
+        run: |
           dotnet run --project Test/SmokeTests/EmulatorSmokeTest/EmulatorSmokeTest.csproj \
-            -c Release \
-            --no-build \
+            -c Release --no-build \
             -p:SmokeTestCoreVersion=$CORE_VERSION \
             -p:SmokeTestEmulatorVersion=$EMULATOR_VERSION
-
-          echo "Smoke test completed successfully."

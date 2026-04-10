@@ -1,1 +1,2 @@
-local-packages/*.nupkg
+local-packages/
+NuGet.config
