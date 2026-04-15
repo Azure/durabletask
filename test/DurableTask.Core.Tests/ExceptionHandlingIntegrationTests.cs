@@ -16,6 +16,8 @@ namespace DurableTask.Core.Tests
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Reflection;
+    using System.Reflection.Emit;
     using System.Runtime.Serialization;
     using System.Threading.Tasks;
     using DurableTask.Core.Exceptions;
@@ -484,6 +486,8 @@ namespace DurableTask.Core.Tests
                 TestNullObject = null; // Explicitly set to null for testing
             }
 
+            // Intentional use of obsolete BinaryFormatter serialization APIs for test coverage of legacy serialization paths.
+#pragma warning disable SYSLIB0051
             protected CustomBusinessException(SerializationInfo info, StreamingContext context)
                 : base(info, context)
             {
@@ -491,7 +495,10 @@ namespace DurableTask.Core.Tests
                 BusinessContext = info.GetString(nameof(BusinessContext)) ?? string.Empty;
                 TestNullObject = info.GetString(nameof(TestNullObject)); // This will be null
             }
+#pragma warning restore SYSLIB0051
 
+            // Intentional use of obsolete BinaryFormatter serialization APIs for test coverage of legacy serialization paths.
+#pragma warning disable SYSLIB0051, CS0672
             public override void GetObjectData(SerializationInfo info, StreamingContext context)
             {
                 base.GetObjectData(info, context);
@@ -499,6 +506,7 @@ namespace DurableTask.Core.Tests
                 info.AddValue(nameof(BusinessContext), BusinessContext);
                 info.AddValue(nameof(TestNullObject), TestNullObject);
             }
+#pragma warning restore SYSLIB0051, CS0672
         }
 
         // Test provider that includes null values in different ways
@@ -536,10 +544,45 @@ namespace DurableTask.Core.Tests
             {
             }
 
+            // Intentional use of obsolete BinaryFormatter serialization APIs for test coverage of legacy serialization paths.
+#pragma warning disable SYSLIB0051
             protected CustomException(SerializationInfo info, StreamingContext context)
                 : base(info, context)
             {
             }
+#pragma warning restore SYSLIB0051
+        }
+
+        [TestMethod]
+        public void IsCausedBy_DoesNotThrow_WhenMultipleAssembliesDefineSameType()
+        {
+            // Create two dynamic assemblies, each containing an Exception-derived type with the
+            // same fully qualified name. This simulates the scenario where the same exception type
+            // is loaded from multiple assemblies (e.g. different NuGet package versions).
+            string typeName = "TestDynamic.DuplicateException";
+            CreateDynamicAssemblyWithExceptionType(typeName, "DynAssembly1");
+            CreateDynamicAssemblyWithExceptionType(typeName, "DynAssembly2");
+
+            // Create a FailureDetails whose ErrorType won't be resolved by Type.GetType(),
+            // typeof(T).Assembly, or the calling assembly, forcing the AppDomain fallback path.
+            var details = new FailureDetails(
+                typeName, "Test error", stackTrace: null, innerFailure: null, isNonRetriable: false);
+
+            // The old implementation would either throw AmbiguousMatchException or return false
+            // when multiple assemblies contained the same type. The fix uses Any() so this should
+            // succeed without throwing.
+            bool result = details.IsCausedBy<Exception>();
+
+            Assert.IsTrue(result);
+        }
+
+        static void CreateDynamicAssemblyWithExceptionType(string typeName, string assemblyName)
+        {
+            var asmName = new AssemblyName(assemblyName);
+            var asmBuilder = AssemblyBuilder.DefineDynamicAssembly(asmName, AssemblyBuilderAccess.Run);
+            var modBuilder = asmBuilder.DefineDynamicModule(assemblyName);
+            var typeBuilder = modBuilder.DefineType(typeName, TypeAttributes.Public, typeof(Exception));
+            typeBuilder.CreateType();
         }
     }
 }

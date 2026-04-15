@@ -24,7 +24,7 @@ steps:
       npm install -g azurite
       mkdir azurite1
       echo "azurite installed"
-      azurite --silent --location azurite1 --debug azurite1\debug.txt --queuePort 10001 &
+      azurite --silent --location azurite1 --debug azurite1\debug.txt --queuePort 10001 --skipApiVersionCheck &
       echo "azurite started"
       sleep 5
     displayName: 'Install and Run Azurite'
@@ -36,7 +36,7 @@ steps:
       testAssemblyVer2: |
         $(System.DefaultWorkingDirectory)/${{ parameters.testAssembly }}
       testFiltercriteria: 'TestCategory!=DisabledInCI'
-      vsTestVersion: 17.0
+      vsTestVersion: '17.0'
       distributionBatchType: basedOnExecutionTime
       platform: 'any cpu'
       configuration: 'Debug'

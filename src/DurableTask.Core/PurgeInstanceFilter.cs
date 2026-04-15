@@ -1,4 +1,4 @@
-﻿//  ----------------------------------------------------------------------------------
+//  ----------------------------------------------------------------------------------
 //  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -48,5 +48,13 @@ namespace DurableTask.Core
         /// The runtime status of the orchestrations to purge.
         /// </summary>
         public IEnumerable<OrchestrationStatus>? RuntimeStatus { get; }
+
+        /// <summary>
+        /// The maximum amount of time to spend purging instances in a single call.
+        /// If <c>null</c> (default), all matching instances are purged with no time limit.
+        /// When set, the purge stops dispatching new instance deletions after this duration elapses
+        /// and cancels any in-flight deletions, then returns with <see cref="PurgeResult.IsComplete"/> set to <c>false</c>.
+        /// </summary>
+        public TimeSpan? Timeout { get; set; }
     }
 }

@@ -1,4 +1,4 @@
-﻿//  ----------------------------------------------------------------------------------
+//  ----------------------------------------------------------------------------------
 //  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -13,15 +13,6 @@
 
 namespace DurableTask.AzureStorage.Tests
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Diagnostics;
-    using System.IO;
-    using System.Linq;
-    using System.Runtime.Serialization;
-    using System.Text;
-    using System.Threading;
-    using System.Threading.Tasks;
     using Azure.Data.Tables;
     using Azure.Storage.Blobs;
     using Azure.Storage.Blobs.Models;
@@ -36,6 +27,16 @@ namespace DurableTask.AzureStorage.Tests
     using Moq;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
+    using System;
+    using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.IO;
+    using System.Linq;
+    using System.Net;
+    using System.Runtime.Serialization;
+    using System.Text;
+    using System.Threading;
+    using System.Threading.Tasks;
 #if !NET48
     using OpenTelemetry;
     using OpenTelemetry.Trace;
@@ -447,7 +448,7 @@ namespace DurableTask.AzureStorage.Tests
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
             {
                 await host.StartAsync();
-                DateTime startDateTime = DateTime.Now;
+                DateTime startDateTime = DateTime.UtcNow;
                 string firstInstanceId = "instance1";
                 TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(Orchestrations.FanOutFanIn), 50, firstInstanceId);
                 await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
@@ -556,9 +557,208 @@ namespace DurableTask.AzureStorage.Tests
             var containerClient = client.GetBlobContainerClient(containerName);
             await containerClient.CreateIfNotExistsAsync();
 
-            return await containerClient.GetBlobsAsync(traits: BlobTraits.Metadata, prefix: directoryName).CountAsync();
+            return await containerClient.GetBlobsAsync(traits: BlobTraits.Metadata, states: BlobStates.None, prefix: directoryName, cancellationToken: default).CountAsync();
         }
 
+
+        [TestMethod]
+        public async Task PurgeMultipleInstancesHistoryByTimePeriod_ScalabilityValidation()
+        {
+            // This test validates scale improvements: parallel batch delete and pipelined page processing.
+            // Runs multiple concurrent orchestrations, then purges all of them by time period.
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+                DateTime startDateTime = DateTime.UtcNow;
+
+                // Create multiple orchestration instances concurrently
+                const int instanceCount = 5;
+                var clients = new List<TestOrchestrationClient>();
+                var instanceIds = new List<string>();
+
+                for (int i = 0; i < instanceCount; i++)
+                {
+                    string instanceId = $"purge-scale-{Guid.NewGuid():N}";
+                    instanceIds.Add(instanceId);
+                    TestOrchestrationClient client = await host.StartOrchestrationAsync(
+                        typeof(Orchestrations.Factorial), 10, instanceId);
+                    clients.Add(client);
+                }
+
+                // Wait for all orchestrations to complete
+                foreach (var client in clients)
+                {
+                    var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+                    Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                }
+
+                // Verify all instances have history
+                foreach (string instanceId in instanceIds)
+                {
+                    List<HistoryStateEvent> historyEvents = await clients[0].GetOrchestrationHistoryAsync(instanceId);
+                    Assert.IsTrue(historyEvents.Count > 0, $"Instance {instanceId} should have history events");
+                }
+
+                // Purge all instances by time period
+                await clients[0].PurgeInstanceHistoryByTimePeriod(
+                    startDateTime,
+                    DateTime.UtcNow,
+                    new List<OrchestrationStatus> { OrchestrationStatus.Completed });
+
+                // Verify all history is purged
+                foreach (string instanceId in instanceIds)
+                {
+                    List<HistoryStateEvent> historyEvents = await clients[0].GetOrchestrationHistoryAsync(instanceId);
+                    Assert.AreEqual(0, historyEvents.Count, $"Instance {instanceId} should have no history after purge");
+
+                    IList<OrchestrationState> stateList = await clients[0].GetStateAsync(instanceId);
+                    Assert.AreEqual(1, stateList.Count);
+                    Assert.IsNull(stateList[0], $"Instance {instanceId} state should be null after purge");
+                }
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task PurgeSingleInstanceWithIdempotency()
+        {
+            // This test validates that purging the same instance twice doesn't cause errors
+            // (testing the idempotent batch delete fallback).
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                string instanceId = Guid.NewGuid().ToString();
+                await host.StartAsync();
+                TestOrchestrationClient client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.Factorial), 110, instanceId);
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                // First purge should succeed
+                await client.PurgeInstanceHistory();
+
+                List<HistoryStateEvent> historyEvents = await client.GetOrchestrationHistoryAsync(instanceId);
+                Assert.AreEqual(0, historyEvents.Count);
+
+                // Second purge of the same instance should not throw
+                // (the instance row is already gone, so PurgeInstanceHistoryAsync returns 0)
+                await client.PurgeInstanceHistory();
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task PurgeSingleInstance_WithLargeBlobs_CleansUpBlobs()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+
+                string instanceId = Guid.NewGuid().ToString();
+                // Generate a payload large enough to be stored as a blob (>60KB threshold)
+                string largeMessage = new string('x', 70 * 1024);
+
+                TestOrchestrationClient client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.Echo), largeMessage, instanceId);
+                OrchestrationState status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                // Verify blobs exist before purge
+                int blobCount = await this.GetBlobCount("test-largemessages", instanceId);
+                Assert.IsTrue(blobCount > 0, "Should have large message blobs before purge");
+
+                // Purge
+                await client.PurgeInstanceHistory();
+
+                // Verify blobs are cleaned up
+                blobCount = await this.GetBlobCount("test-largemessages", instanceId);
+                Assert.AreEqual(0, blobCount, "All large message blobs should be deleted after purge");
+
+                // Verify history is gone
+                List<HistoryStateEvent> historyEvents = await client.GetOrchestrationHistoryAsync(instanceId);
+                Assert.AreEqual(0, historyEvents.Count);
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task PurgeInstance_WithManyHistoryRows_DeletesAll()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+
+                string instanceId = Guid.NewGuid().ToString();
+                // FanOutFanIn with 50 parallel activities creates 100+ history rows
+                TestOrchestrationClient client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.FanOutFanIn), 50, instanceId);
+                OrchestrationState status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                // Verify lots of history exists
+                List<HistoryStateEvent> historyEvents = await client.GetOrchestrationHistoryAsync(instanceId);
+                Assert.IsTrue(historyEvents.Count > 50, $"Expected many history events, got {historyEvents.Count}");
+
+                // Purge
+                await client.PurgeInstanceHistory();
+
+                // Verify clean
+                historyEvents = await client.GetOrchestrationHistoryAsync(instanceId);
+                Assert.AreEqual(0, historyEvents.Count);
+
+                IList<OrchestrationState> stateList = await client.GetStateAsync(instanceId);
+                Assert.AreEqual(1, stateList.Count);
+                Assert.IsNull(stateList[0]);
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task PurgeAllInstances_HistoryIsCleared()
+        {
+            // Validates that purging multiple instances clears all history
+            // when purging by time period.
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+                DateTime startDateTime = DateTime.UtcNow;
+
+                const int totalInstances = 5;
+                var clients = new List<TestOrchestrationClient>();
+                for (int i = 0; i < totalInstances; i++)
+                {
+                    string instanceId = $"purge-complete-{Guid.NewGuid():N}";
+                    TestOrchestrationClient client = await host.StartOrchestrationAsync(
+                        typeof(Orchestrations.Factorial), 10, instanceId);
+                    clients.Add(client);
+                }
+
+                foreach (var client in clients)
+                {
+                    var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+                    Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+                }
+
+                DateTime endDateTime = DateTime.UtcNow;
+                var statuses = new List<OrchestrationStatus> { OrchestrationStatus.Completed };
+
+                // Purge should complete within the 30s built-in timeout for a small number of instances
+                await clients[0].PurgeInstanceHistoryByTimePeriod(
+                    startDateTime, endDateTime, statuses);
+
+                // Verify all history is purged
+                foreach (var client in clients)
+                {
+                    List<HistoryStateEvent> historyEvents = await client.GetOrchestrationHistoryAsync(
+                        client.InstanceId);
+                    Assert.AreEqual(0, historyEvents.Count, "History should be purged");
+                }
+
+                await host.StopAsync();
+            }
+        }
 
         [TestMethod]
         public async Task PurgeInstanceHistoryForTimePeriodDeletePartially()
@@ -567,11 +767,11 @@ namespace DurableTask.AzureStorage.Tests
             {
                 // Execute the orchestrator twice. Orchestrator will be replied. However instances might be two.
                 await host.StartAsync();
-                DateTime startDateTime = DateTime.Now;
+                DateTime startDateTime = DateTime.UtcNow;
                 string firstInstanceId = Guid.NewGuid().ToString();
                 TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(Orchestrations.FanOutFanIn), 50, firstInstanceId);
                 await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
-                DateTime endDateTime = DateTime.Now;
+                DateTime endDateTime = DateTime.UtcNow;
                 await Task.Delay(5000);
                 string secondInstanceId = Guid.NewGuid().ToString();
                 client = await host.StartOrchestrationAsync(typeof(Orchestrations.FanOutFanIn), 50, secondInstanceId);
@@ -630,6 +830,98 @@ namespace DurableTask.AzureStorage.Tests
                 thirdOrchestrationStateList = await client.GetStateAsync(thirdInstanceId);
                 Assert.AreEqual(1, thirdOrchestrationStateList.Count);
                 Assert.AreEqual(thirdInstanceId, thirdOrchestrationStateList.First().OrchestrationInstance.InstanceId);
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task PurgeInstanceHistoryWithTimeoutCompletesAll()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+                DateTime startDateTime = DateTime.UtcNow;
+
+                // Start 2 simple orchestrations that complete quickly
+                TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "World", Guid.NewGuid().ToString());
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+                client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "World", Guid.NewGuid().ToString());
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                IList<OrchestrationState> results = await host.GetAllOrchestrationInstancesAsync();
+                Assert.AreEqual(2, results.Count);
+
+                // Purge with a generous timeout — should complete all
+                PurgeHistoryResult purgeResult = await client.PurgeInstanceHistoryByTimePeriodWithTimeout(
+                    startDateTime,
+                    DateTime.UtcNow,
+                    new List<OrchestrationStatus> { OrchestrationStatus.Completed },
+                    timeout: TimeSpan.FromMinutes(5));
+
+                Assert.AreEqual(2, purgeResult.InstancesDeleted);
+                Assert.IsTrue(purgeResult.IsComplete.HasValue, "IsComplete should have a value when timeout is specified");
+                Assert.IsTrue(purgeResult.IsComplete.Value, "IsComplete should be true when all instances were purged");
+
+                results = await host.GetAllOrchestrationInstancesAsync();
+                Assert.AreEqual(0, results.Count);
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task PurgeInstanceHistoryWithTimeoutExpiresReturnsIsCompleteFalse()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+                DateTime startDateTime = DateTime.UtcNow;
+
+                // Start several orchestrations so that purge cannot finish in 1 ms
+                const int instanceCount = 50;
+                TestOrchestrationClient client = null!;
+                for (int i = 0; i < instanceCount; i++)
+                {
+                    client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "World", Guid.NewGuid().ToString());
+                    await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+                }
+
+                // Purge with a very short timeout — should expire before all instances are deleted.
+                // Using 100ms instead of 1ms to avoid flakiness from OS timer resolution (~15ms on Windows).
+                PurgeHistoryResult purgeResult = await client.PurgeInstanceHistoryByTimePeriodWithTimeout(
+                    startDateTime,
+                    DateTime.UtcNow,
+                    new List<OrchestrationStatus> { OrchestrationStatus.Completed },
+                    timeout: TimeSpan.FromMilliseconds(100));
+
+                Assert.IsTrue(purgeResult.IsComplete.HasValue, "IsComplete should have a value when timeout is specified");
+                Assert.IsFalse(purgeResult.IsComplete.Value, "IsComplete should be false when the timeout expired before all instances were purged");
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task PurgeInstanceHistoryWithoutTimeoutReturnsNullIsComplete()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+                DateTime startDateTime = DateTime.UtcNow;
+
+                TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloInline), "World", Guid.NewGuid().ToString());
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                // Purge without timeout (backward compat)
+                PurgeHistoryResult purgeResult = await client.PurgeInstanceHistoryByTimePeriodWithTimeout(
+                    startDateTime,
+                    DateTime.UtcNow,
+                    new List<OrchestrationStatus> { OrchestrationStatus.Completed },
+                    timeout: null);
+
+                Assert.AreEqual(1, purgeResult.InstancesDeleted);
+                Assert.IsFalse(purgeResult.IsComplete.HasValue, "IsComplete should be null when no timeout is specified (backward compat)");
 
                 await host.StopAsync();
             }
@@ -2235,7 +2527,7 @@ namespace DurableTask.AzureStorage.Tests
             BlobContainerClient container = serviceClient.GetBlobContainerClient(containerName);
             Assert.IsTrue(await container.ExistsAsync(), $"Blob container {containerName} is expected to exist.");
             BlobItem blob = await container
-                .GetBlobsByHierarchyAsync(BlobTraits.Metadata, prefix: sanitizedInstanceId)
+                .GetBlobsByHierarchyAsync(traits: BlobTraits.Metadata, states: BlobStates.None, delimiter: null, prefix: sanitizedInstanceId, cancellationToken: default)
                 .Where(x => x.IsBlob && x.Blob.Name == sanitizedInstanceId + "/" + blobName)
                 .Select(x => x.Blob)
                 .SingleOrDefaultAsync();
@@ -3143,6 +3435,532 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        /// <summary>
+        /// Confirm that:
+        /// 1. If <see cref="AzureStorageOrchestrationServiceSettings.UseInstanceTableEtag"/> is true, and a worker attempts to update the instance table with a stale
+        /// etag upon completing a work item, a SessionAbortedException is thrown which wraps the inner DurableTaskStorageException, which has the correct status code
+        /// (precondition failed).
+        /// The specific scenario tested is if the worker stalled after updating the history table but before updating the instance table. When it attempts to update
+        /// the instance table with a stale etag, it will fail.
+        /// 2. If <see cref="AzureStorageOrchestrationServiceSettings.UseInstanceTableEtag"/> is false for the above scenario, then the call to update the instance table
+        /// will go through, and the instance table will be updated with a "stale" status.
+        /// </summary>
+        /// <remarks>
+        /// Since it is impossible to force stalling, we simulate the above scenario by manually updating the instance table before the worker
+        /// attempts to complete the work item. The history table update will go through, but the instance table update will fail since "another worker
+        /// has since updated" the instance table.
+        /// </remarks>
+        /// <param name="useInstanceEtag">The value to use for <see cref="AzureStorageOrchestrationServiceSettings.UseInstanceTableEtag"/></param>
+        /// <returns></returns>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task WorkerAttemptingToUpdateInstanceTableAfterStalling(bool useInstanceEtag)
+        {
+            AzureStorageOrchestrationService service = null;
+            try
+            {
+                var orchestrationInstance = new OrchestrationInstance
+                {
+                    InstanceId = "instance_id",
+                    ExecutionId = "execution_id",
+                };
+
+                ExecutionStartedEvent startedEvent = new(-1, string.Empty)
+                {
+                    Name = "orchestration",
+                    Version = string.Empty,
+                    OrchestrationInstance = orchestrationInstance,
+                    ScheduledStartTime = DateTime.UtcNow,
+                };
+
+                var settings = new AzureStorageOrchestrationServiceSettings
+                {
+                    PartitionCount = 1,
+                    StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                    TaskHubName = TestHelpers.GetTestTaskHubName(),
+                    ExtendedSessionsEnabled = false,
+                    UseInstanceTableEtag = useInstanceEtag
+                };
+
+                service = new AzureStorageOrchestrationService(settings);
+                await service.CreateAsync();
+                await service.StartAsync();
+
+                // Create the orchestration and get the first work item and start "working" on it
+                await service.CreateTaskOrchestrationAsync(
+                    new TaskMessage()
+                    {
+                        OrchestrationInstance = orchestrationInstance,
+                        Event = startedEvent
+                    });
+                var workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                    TimeSpan.FromMinutes(5),
+                    CancellationToken.None);
+                var runtimeState = workItem.OrchestrationRuntimeState;
+                runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                runtimeState.AddEvent(startedEvent);
+                runtimeState.AddEvent(new TaskScheduledEvent(0));
+                runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+                AzureStorageClient azureStorageClient = new AzureStorageClient(settings);
+
+                // Now manually update the instance to have status "Completed"
+                Table instanceTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName);
+                TableEntity entity = new(orchestrationInstance.InstanceId, "")
+                {
+                    ["RuntimeStatus"] = OrchestrationStatus.Completed.ToString("G"),
+                };
+                await instanceTable.MergeEntityAsync(entity, Azure.ETag.All);
+
+                if (useInstanceEtag)
+                {
+                    // Confirm an exception is thrown due to the etag mismatch for the instance table when the worker attempts to complete the work item
+                    SessionAbortedException exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
+                        await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
+                    );
+                    Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));
+                    DurableTaskStorageException dtse = (DurableTaskStorageException)exception.InnerException;
+                    Assert.AreEqual((int)HttpStatusCode.PreconditionFailed, dtse.HttpStatusCode);
+                }
+                else
+                {
+                    await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null);
+
+                    var queryCondition = new OrchestrationInstanceStatusQueryCondition
+                    {
+                        InstanceId = "instance_id",
+                        FetchInput = false,
+                    };
+
+                    ODataCondition odata = queryCondition.ToOData();
+                    OrchestrationInstanceStatus instanceTableEntity = await instanceTable
+                        .ExecuteQueryAsync<OrchestrationInstanceStatus>(odata.Filter, 1, odata.Select, CancellationToken.None)
+                        .FirstOrDefaultAsync();
+
+                    // Confirm the instance table was updated with a "stale" status
+                    Assert.IsNotNull(instanceTableEntity);
+                    Assert.AreEqual(OrchestrationStatus.Running.ToString(), instanceTableEntity.RuntimeStatus);
+                }
+            }
+            finally
+            {
+                await service?.StopAsync(isForced: true);
+            }
+        }
+
+        /// <summary>
+        /// Confirm that:
+        /// 1. If <see cref="AzureStorageOrchestrationServiceSettings.UseInstanceTableEtag"/> is true, and a worker attempts to update the instance table with a stale
+        /// etag upon completing a work item for a suborchestration, a SessionAbortedException is thrown which wraps the inner DurableTaskStorageException, which has
+        /// the correct status code (conflict).
+        /// The specific scenario tested is if the worker stalled after updating the history table but before updating the instance table for the first work item
+        /// for a suborchestration. When it attempts to insert a new entity into the instance table for the suborchestration (since for a suborchestration,
+        /// the instance entity is only created upon completion of the first work item), it will fail.
+        /// 2. If <see cref="AzureStorageOrchestrationServiceSettings.UseInstanceTableEtag"/> is false for the above scenario, then the call to update the instance table
+        /// will go through, and the instance table will be updated with a "stale" status.
+        /// </summary>
+        /// <remarks>
+        /// Since it is impossible to force stalling, we simulate the above scenario by manually updating the instance table before the worker
+        /// attempts to complete the work item. The history table update will go through, but the instance table update will fail since "another worker
+        /// has since updated" the instance table.
+        /// </remarks>
+        /// <param name="useInstanceEtag">The value to use for <see cref="AzureStorageOrchestrationServiceSettings.UseInstanceTableEtag"/></param>
+        /// <returns></returns>
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task WorkerAttemptingToUpdateInstanceTableAfterStallingForSubOrchestration(bool useInstanceEtag)
+        {
+            AzureStorageOrchestrationService service = null;
+            try
+            {
+                var orchestrationInstance = new OrchestrationInstance
+                {
+                    InstanceId = "instance_id",
+                    ExecutionId = "execution_id",
+                };
+
+                ExecutionStartedEvent startedEvent = new(-1, string.Empty)
+                {
+                    Name = "orchestration",
+                    Version = string.Empty,
+                    OrchestrationInstance = orchestrationInstance,
+                    ScheduledStartTime = DateTime.UtcNow,
+                };
+
+                var settings = new AzureStorageOrchestrationServiceSettings
+                {
+                    PartitionCount = 1,
+                    StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                    TaskHubName = TestHelpers.GetTestTaskHubName(),
+                    ExtendedSessionsEnabled = false,
+                    UseInstanceTableEtag = useInstanceEtag
+                };
+
+                service = new AzureStorageOrchestrationService(settings);
+                await service.CreateAsync();
+                await service.StartAsync();
+
+                // Create the orchestration and get the first work item and start "working" on it
+                await service.CreateTaskOrchestrationAsync(
+                    new TaskMessage()
+                    {
+                        OrchestrationInstance = orchestrationInstance,
+                        Event = startedEvent
+                    });
+                var workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                    TimeSpan.FromMinutes(5),
+                    CancellationToken.None);
+                var runtimeState = workItem.OrchestrationRuntimeState;
+                runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                runtimeState.AddEvent(startedEvent);
+                runtimeState.AddEvent(new SubOrchestrationInstanceCreatedEvent(0)
+                {
+                    Name = "suborchestration",
+                    InstanceId = "sub_instance_id"
+                });
+                runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+                // Create the task message to start the suborchestration
+                var subOrchestrationExecutionStartedEvent = new ExecutionStartedEvent(-1, string.Empty)
+                {
+                    OrchestrationInstance = new OrchestrationInstance
+                    {
+                        InstanceId = "sub_instance_id",
+                        ExecutionId = Guid.NewGuid().ToString("N")
+                    },
+                    ParentInstance = new ParentInstance
+                    {
+                        OrchestrationInstance = runtimeState.OrchestrationInstance,
+                        Name = runtimeState.Name,
+                        Version = runtimeState.Version,
+                        TaskScheduleId = 0,
+                    },
+                    Name = "suborchestration"
+                };
+                List<TaskMessage> orchestratorMessages =
+                new() {
+                new TaskMessage()
+                {
+                    OrchestrationInstance = subOrchestrationExecutionStartedEvent.OrchestrationInstance,
+                    Event = subOrchestrationExecutionStartedEvent,
+                }
+                };
+
+                // Complete the first work item, which will send the execution started message for the suborchestration
+                await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), orchestratorMessages, new List<TaskMessage>(), null, null);
+
+                // Now get the work item for the suborchestration and "work" on it
+                workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                    TimeSpan.FromMinutes(5),
+                    CancellationToken.None);
+                runtimeState = workItem.OrchestrationRuntimeState;
+                runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                runtimeState.AddEvent(subOrchestrationExecutionStartedEvent);
+                runtimeState.AddEvent(new TaskScheduledEvent(0));
+                runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+                AzureStorageClient azureStorageClient = new(settings);
+                Table instanceTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName);
+                // Now manually update the suborchestration to have status "Completed"
+                TableEntity entity = new("sub_instance_id", "")
+                {
+                    ["RuntimeStatus"] = OrchestrationStatus.Completed.ToString("G"),
+                };
+                await instanceTable.InsertEntityAsync(entity);
+
+                if (useInstanceEtag)
+                {
+                    // Confirm an exception is thrown because the worker attempts to insert a new entity for the suborchestration into the instance table
+                    // when one already exists
+                    SessionAbortedException exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
+                        await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
+                    );
+                    Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));
+                    DurableTaskStorageException dtse = (DurableTaskStorageException)exception.InnerException;
+                    Assert.AreEqual((int)HttpStatusCode.Conflict, dtse.HttpStatusCode);
+                }
+                else
+                {
+                    await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null);
+
+                    var queryCondition = new OrchestrationInstanceStatusQueryCondition
+                    {
+                        InstanceId = "sub_instance_id",
+                        FetchInput = false,
+                    };
+
+                    ODataCondition odata = queryCondition.ToOData();
+                    OrchestrationInstanceStatus instanceTableEntity = await instanceTable
+                        .ExecuteQueryAsync<OrchestrationInstanceStatus>(odata.Filter, 1, odata.Select, CancellationToken.None)
+                        .FirstOrDefaultAsync();
+
+                    // Confirm the instance table was updated with a "stale" status
+                    Assert.IsNotNull(instanceTableEntity);
+                    Assert.AreEqual(OrchestrationStatus.Running.ToString(), instanceTableEntity.RuntimeStatus);
+                }
+
+            }
+            finally
+            {
+                await service?.StopAsync(isForced: true);
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task WorkerAttemptingToDequeueMessageForNonExistentInstance(bool extendedSessionsEnabled)
+        {
+            AzureStorageOrchestrationService service = null;
+            try
+            {
+                var settings = new AzureStorageOrchestrationServiceSettings
+                {
+                    PartitionCount = 1,
+                    StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                    TaskHubName = TestHelpers.GetTestTaskHubName(),
+                    ExtendedSessionsEnabled = extendedSessionsEnabled,
+                };
+
+                service = new AzureStorageOrchestrationService(settings);
+                await service.CreateAsync();
+                await service.StartAsync();
+
+                await service.SendTaskOrchestrationMessageAsync(
+                    new TaskMessage
+                    {
+                        OrchestrationInstance = new OrchestrationInstance
+                        {
+                            InstanceId = "instance_id",
+                            ExecutionId = "execution_id",
+                        },
+                        Event = new TaskCompletedEvent(-1, 0, string.Empty)
+                        {
+                            Timestamp = DateTime.UtcNow - TimeSpan.FromMinutes(1),
+                        }
+                    });
+
+                for (int i = 0; i < 6; i++)
+                {
+                    var workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                        TimeSpan.FromMinutes(1),
+                        CancellationToken.None);
+                    Assert.IsNull(workItem);
+                }
+
+                // On the last attempt, the message should have been deleted since we have exceeded the maximum abandonment count
+                // for a message to a nonexistent instance (5)
+                Assert.IsNull(await service.OwnedControlQueues.Single().InnerQueue.PeekMessageAsync());
+            }
+            finally
+            {
+                await service?.StopAsync(isForced: true);
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(true, true)]
+        [DataRow(false, true)]
+        [DataRow(true, false)]
+        [DataRow(false, false)]
+        public async Task WorkerAttemptingToDequeueMessageWithNoTaskScheduledInHistory(bool extendedSessionsEnabled, bool addTaskScheduledEvent)
+        {
+            AzureStorageOrchestrationService service = null;
+            try
+            {
+                var orchestrationInstance = new OrchestrationInstance
+                {
+                    InstanceId = Guid.NewGuid().ToString(),
+                    ExecutionId = Guid.NewGuid().ToString(),
+                };
+
+                ExecutionStartedEvent startedEvent = new(-1, string.Empty)
+                {
+                    Name = "orchestration",
+                    Version = string.Empty,
+                    OrchestrationInstance = orchestrationInstance,
+                    ScheduledStartTime = DateTime.UtcNow,
+                };
+
+                var settings = new AzureStorageOrchestrationServiceSettings
+                {
+                    PartitionCount = 1,
+                    StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                    TaskHubName = TestHelpers.GetTestTaskHubName(),
+                    ExtendedSessionsEnabled = extendedSessionsEnabled
+                };
+
+                service = new AzureStorageOrchestrationService(settings);
+                await service.CreateAsync();
+                await service.StartAsync();
+
+                // Create the orchestration and get the first work item and start "working" on it
+                await service.CreateTaskOrchestrationAsync(
+                    new TaskMessage()
+                    {
+                        OrchestrationInstance = orchestrationInstance,
+                        Event = startedEvent
+                    });
+                var workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                    TimeSpan.FromMinutes(5),
+                    CancellationToken.None);
+                var runtimeState = workItem.OrchestrationRuntimeState;
+                runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                runtimeState.AddEvent(startedEvent);
+                if (addTaskScheduledEvent)
+                {
+                    runtimeState.AddEvent(new TaskScheduledEvent(0));
+                }
+                runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+                await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null);
+                
+                // Necessary to force a new work item to be generated for the next message
+                await service.ReleaseTaskOrchestrationWorkItemAsync(workItem);
+
+                // Send a task completed for a different task scheduled ID, message should be abandoned
+                await service.SendTaskOrchestrationMessageAsync(
+                    new TaskMessage
+                    {
+                        OrchestrationInstance = orchestrationInstance,
+                        Event = new TaskCompletedEvent(-1, 1, string.Empty)
+                    });
+                 workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                    TimeSpan.FromMinutes(1),
+                    CancellationToken.None);
+                Assert.IsNull(workItem);
+
+                if (addTaskScheduledEvent)
+                {
+                    // Send a task completed for the same task scheduled ID, this should work
+                    await service.SendTaskOrchestrationMessageAsync(
+                        new TaskMessage
+                        {
+                            OrchestrationInstance = orchestrationInstance,
+                            Event = new TaskCompletedEvent(-1, 0, string.Empty)
+                        });
+                    workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                       TimeSpan.FromMinutes(1),
+                       CancellationToken.None);
+                    Assert.IsNotNull(workItem);
+                }
+            }
+            finally
+            {
+                await service?.StopAsync(isForced: true);
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(true, true)]
+        [DataRow(false, true)]
+        [DataRow(true, false)]
+        [DataRow(false, false)]
+        public async Task WorkerAttemptingToDequeueMessageWithNoEventSentInHistory(bool extendedSessionsEnabled, bool addEventSentEvent)
+        {
+            AzureStorageOrchestrationService service = null;
+            try
+            {
+                var orchestrationInstance = new OrchestrationInstance
+                {
+                    InstanceId = Guid.NewGuid().ToString(),
+                    ExecutionId = Guid.NewGuid().ToString(),
+                };
+
+                ExecutionStartedEvent startedEvent = new(-1, string.Empty)
+                {
+                    Name = "orchestration",
+                    Version = string.Empty,
+                    OrchestrationInstance = orchestrationInstance,
+                    ScheduledStartTime = DateTime.UtcNow,
+                };
+
+                var settings = new AzureStorageOrchestrationServiceSettings
+                {
+                    PartitionCount = 1,
+                    StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                    TaskHubName = TestHelpers.GetTestTaskHubName(),
+                    ExtendedSessionsEnabled = extendedSessionsEnabled
+                };
+
+                service = new AzureStorageOrchestrationService(settings);
+                await service.CreateAsync();
+                await service.StartAsync();
+
+                // Create the orchestration and get the first work item and start "working" on it
+                await service.CreateTaskOrchestrationAsync(
+                    new TaskMessage()
+                    {
+                        OrchestrationInstance = orchestrationInstance,
+                        Event = startedEvent
+                    });
+                var workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                    TimeSpan.FromMinutes(5),
+                    CancellationToken.None);
+                var runtimeState = workItem.OrchestrationRuntimeState;
+                runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                runtimeState.AddEvent(startedEvent);
+                string requestId = Guid.NewGuid().ToString();
+                if (addEventSentEvent)
+                {
+                    runtimeState.AddEvent(new EventSentEvent(-1)
+                    {
+                        Input = $"{{ \"id\": \"{requestId}\" }}"
+                    });
+                }
+                runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+                await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null);
+
+                // Necessary to force a new work item to be generated for the next message
+                await service.ReleaseTaskOrchestrationWorkItemAsync(workItem);
+
+                // Send an event raised for a different request ID, message should be abandoned
+                await service.SendTaskOrchestrationMessageInternalAsync(
+                    sourceInstance: new OrchestrationInstance()
+                    {
+                        InstanceId = "@test@myEntity"
+                    },
+                    controlQueue: service.OwnedControlQueues.Single(),
+                    new TaskMessage
+                    {
+                        OrchestrationInstance = orchestrationInstance,
+                        Event = new EventRaisedEvent(-1, string.Empty)
+                        {
+                            Name = Guid.NewGuid().ToString()
+                        }
+                    });
+                workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                   TimeSpan.FromMinutes(1),
+                   CancellationToken.None);
+                Assert.IsNull(workItem);
+
+                if (addEventSentEvent)
+                {
+                    // Send an event raised for the same request ID, this should work
+                    await service.SendTaskOrchestrationMessageAsync(
+                        new TaskMessage
+                        {
+                            OrchestrationInstance = orchestrationInstance,
+                            Event = new EventRaisedEvent(-1, string.Empty)
+                            {
+                                Name = requestId
+                            }
+                        });
+                    workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                       TimeSpan.FromMinutes(1),
+                       CancellationToken.None);
+                    Assert.IsNotNull(workItem);
+                }
+            }
+            finally
+            {
+                await service?.StopAsync(isForced: true);
+            }
+        }
+
 #if !NET48
         /// <summary>
         /// End-to-end test which validates a simple orchestrator function that calls an activity function
@@ -3171,58 +3989,47 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
-            // (1) Explanation about indexes:
-            // The orchestration Activity's start at Invocation[1] and each action logs
-            // two activities - (Processor.OnStart(Activity) and Processor.OnEnd(Activity)
-            // The Activity for orchestration execution is "started" (with the same Id, SpanId, etc.)
-            // upon every replay of the orchestration so will have an OnStart invocation for each such replay, 
-            // but an OnEnd at the end of orchestration execution.
-            // The first OnEnd invocation is at index 2, so we start from there.
+            // Collect only the OnEnd activities from the processor invocations.
+            // Other invocations (SetParentProvider, OnStart, OnShutdown, OnForceFlush, Dispose)
+            // vary across OpenTelemetry SDK versions, so we filter by method name.
+            var endedActivities = processor.Invocations
+                .Where(i => i.Method.Name == "OnEnd")
+                .Select(i => (Activity)i.Arguments[0])
+                .ToList();
 
-            // (2) Additional invocations:
-            // processor.Invocations[0] - processor.SetParentProvider(TracerProviderSdk)
-            // processor.Invocations[10] - processor.OnShutdown()
-            // processor.Invocations[11] - processor.Dispose(true)
+            Assert.AreEqual(4, endedActivities.Count);
 
             // Create orchestration Activity
-            Activity activity2 = (Activity)processor.Invocations[2].Arguments[0];
+            Activity createOrchestration = endedActivities[0];
             // Task execution Activity
-            Activity activity5 = (Activity)processor.Invocations[5].Arguments[0];
+            Activity taskExecution = endedActivities[1];
             // Task completed Activity
-            Activity activity8 = (Activity)processor.Invocations[8].Arguments[0];
+            Activity taskCompleted = endedActivities[2];
             // Orchestration execution Activity
-            Activity activity9 = (Activity)processor.Invocations[9].Arguments[0];
-
-            // Checking total number activities
-            Assert.AreEqual(12, processor.Invocations.Count);
+            Activity orchestrationExecution = endedActivities[3];
 
             // Checking tag values
-            string activity2TypeValue = activity2.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity5TypeValue = activity5.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity8TypeValue = activity8.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity9TypeValue = activity9.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string createOrchestrationTypeValue = createOrchestration.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string taskExecutionTypeValue = taskExecution.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string taskCompletedTypeValue = taskCompleted.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string orchestrationExecutionTypeValue = orchestrationExecution.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
 
-            ActivityKind activity2Kind = activity2.Kind;
-            ActivityKind activity5Kind = activity5.Kind;
-            ActivityKind activity8Kind = activity8.Kind;
-            ActivityKind activity9Kind = activity9.Kind;
-
-            Assert.AreEqual("orchestration", activity2TypeValue);
-            Assert.AreEqual("activity", activity5TypeValue);
-            Assert.AreEqual("activity", activity8TypeValue);
-            Assert.AreEqual("orchestration", activity9TypeValue);
-            Assert.AreEqual(ActivityKind.Producer, activity2Kind);
-            Assert.AreEqual(ActivityKind.Server, activity5Kind);
-            Assert.AreEqual(ActivityKind.Client, activity8Kind);
-            Assert.AreEqual(ActivityKind.Server, activity9Kind);
+            Assert.AreEqual("orchestration", createOrchestrationTypeValue);
+            Assert.AreEqual("activity", taskExecutionTypeValue);
+            Assert.AreEqual("activity", taskCompletedTypeValue);
+            Assert.AreEqual("orchestration", orchestrationExecutionTypeValue);
+            Assert.AreEqual(ActivityKind.Producer, createOrchestration.Kind);
+            Assert.AreEqual(ActivityKind.Server, taskExecution.Kind);
+            Assert.AreEqual(ActivityKind.Client, taskCompleted.Kind);
+            Assert.AreEqual(ActivityKind.Server, orchestrationExecution.Kind);
 
             // Checking span ID correlation between parent and child
-            Assert.AreEqual(activity2.SpanId, activity9.ParentSpanId);
-            Assert.AreEqual(activity8.SpanId, activity5.ParentSpanId);
-            Assert.AreEqual(activity9.SpanId, activity8.ParentSpanId);
+            Assert.AreEqual(createOrchestration.SpanId, orchestrationExecution.ParentSpanId);
+            Assert.AreEqual(taskCompleted.SpanId, taskExecution.ParentSpanId);
+            Assert.AreEqual(orchestrationExecution.SpanId, taskCompleted.ParentSpanId);
 
             // Checking trace ID values
-            Assert.AreEqual(activity2.TraceId.ToString(), activity5.TraceId.ToString(), activity8.TraceId.ToString(), activity9.TraceId.ToString());
+            Assert.AreEqual(createOrchestration.TraceId.ToString(), taskExecution.TraceId.ToString(), taskCompleted.TraceId.ToString(), orchestrationExecution.TraceId.ToString());
         }
 
         /// <summary>
@@ -3260,52 +4067,40 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
-            // (1) Explanation about indexes:
-            // The orchestration Activity's start at Invocation[1] and each action logs
-            // two activities - (Processor.OnStart(Activity) and Processor.OnEnd(Activity)
-            // The Activity for orchestration execution is "started" (with the same Id, SpanId, etc.)
-            // upon every replay of the orchestration so will have an OnStart invocation for each such replay, 
-            // but an OnEnd at the end of orchestration execution.
-            // The first OnEnd invocation is at index 2, so we start from there.
+            // Collect only the OnEnd activities from the processor invocations.
+            var endedActivities = processor.Invocations
+                .Where(i => i.Method.Name == "OnEnd")
+                .Select(i => (Activity)i.Arguments[0])
+                .ToList();
 
-            // (2) Additional invocations:
-            // processor.Invocations[0] - processor.SetParentProvider(TracerProviderSdk)
-            // processor.Invocations[8] - processor.OnShutdown()
-            // processor.Invocations[9] - processor.Dispose(true)
+            Assert.AreEqual(3, endedActivities.Count);
 
             // Create orchestration Activity
-            Activity activity2 = (Activity)processor.Invocations[2].Arguments[0];
+            Activity createOrchestration = endedActivities[0];
             // External event Activity
-            Activity activity5 = (Activity)processor.Invocations[5].Arguments[0];
+            Activity externalEvent = endedActivities[1];
             // Orchestration execution Activity
-            Activity activity7 = (Activity)processor.Invocations[7].Arguments[0];
-
-            // Checking total number activities
-            Assert.AreEqual(10, processor.Invocations.Count);
+            Activity orchestrationExecution = endedActivities[2];
 
             // Checking tag values
-            string activity2TypeValue = activity2.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity5TypeValue = activity5.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity7TypeValue = activity7.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity5TargetInstanceIdValue = activity5.Tags.First(k => (k.Key).Equals("durabletask.event.target_instance_id")).Value;
+            string createOrchestrationTypeValue = createOrchestration.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string externalEventTypeValue = externalEvent.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string orchestrationExecutionTypeValue = orchestrationExecution.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string externalEventTargetInstanceIdValue = externalEvent.Tags.First(k => (k.Key).Equals("durabletask.event.target_instance_id")).Value;
 
-            ActivityKind activity2Kind = activity2.Kind;
-            ActivityKind activity5Kind = activity5.Kind;
-            ActivityKind activity7Kind = activity7.Kind;
-
-            Assert.AreEqual("orchestration", activity2TypeValue);
-            Assert.AreEqual("event", activity5TypeValue);
-            Assert.AreEqual("orchestration", activity7TypeValue);
-            Assert.AreEqual(instanceId, activity5TargetInstanceIdValue);
-            Assert.AreEqual(ActivityKind.Producer, activity2Kind);
-            Assert.AreEqual(ActivityKind.Producer, activity5Kind);
-            Assert.AreEqual(ActivityKind.Server, activity7Kind);
+            Assert.AreEqual("orchestration", createOrchestrationTypeValue);
+            Assert.AreEqual("event", externalEventTypeValue);
+            Assert.AreEqual("orchestration", orchestrationExecutionTypeValue);
+            Assert.AreEqual(instanceId, externalEventTargetInstanceIdValue);
+            Assert.AreEqual(ActivityKind.Producer, createOrchestration.Kind);
+            Assert.AreEqual(ActivityKind.Producer, externalEvent.Kind);
+            Assert.AreEqual(ActivityKind.Server, orchestrationExecution.Kind);
 
             // Checking span ID correlation between parent and child
-            Assert.AreEqual(activity2.SpanId, activity7.ParentSpanId);
+            Assert.AreEqual(createOrchestration.SpanId, orchestrationExecution.ParentSpanId);
 
             // Checking trace ID values (the external event from the client is its own trace)
-            Assert.AreEqual(activity2.TraceId.ToString(), activity7.TraceId.ToString());
+            Assert.AreEqual(createOrchestration.TraceId.ToString(), orchestrationExecution.TraceId.ToString());
         }
 
         /// <summary>
@@ -3339,51 +4134,39 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
-            // (1) Explanation about indexes:
-            // The orchestration Activity's start at Invocation[1] and each action logs
-            // two activities - (Processor.OnStart(Activity) and Processor.OnEnd(Activity)
-            // The Activity for orchestration execution is "started" (with the same Id, SpanId, etc.)
-            // upon every replay of the orchestration so will have an OnStart invocation for each such replay, 
-            // but an OnEnd at the end of orchestration execution.
-            // The first OnEnd invocation is at index 2, so we start from there.
+            // Collect only the OnEnd activities from the processor invocations.
+            var endedActivities = processor.Invocations
+                .Where(i => i.Method.Name == "OnEnd")
+                .Select(i => (Activity)i.Arguments[0])
+                .ToList();
 
-            // (2) Additional invocations:
-            // processor.Invocations[0] - processor.SetParentProvider(TracerProviderSdk)
-            // processor.Invocations[8] - processor.OnShutdown()
-            // processor.Invocations[9] - processor.Dispose(true)
+            Assert.AreEqual(3, endedActivities.Count);
 
             // Create orchestration Activity
-            Activity activity2 = (Activity)processor.Invocations[2].Arguments[0];
+            Activity createOrchestration = endedActivities[0];
             // Timer fired Activity
-            Activity activity6 = (Activity)processor.Invocations[6].Arguments[0];
+            Activity timerFired = endedActivities[1];
             // Orchestration execution Activity
-            Activity activity7 = (Activity)processor.Invocations[7].Arguments[0];
-
-            // Checking total number activities
-            Assert.AreEqual(10, processor.Invocations.Count);
+            Activity orchestrationExecution = endedActivities[2];
 
             // Checking tag values
-            string activity2TypeValue = activity2.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity6TypeValue = activity6.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity7TypeValue = activity7.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string createOrchestrationTypeValue = createOrchestration.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string timerFiredTypeValue = timerFired.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string orchestrationExecutionTypeValue = orchestrationExecution.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
 
-            ActivityKind activity2Kind = activity2.Kind;
-            ActivityKind activity6Kind = activity6.Kind;
-            ActivityKind activity7Kind = activity7.Kind;
-
-            Assert.AreEqual("orchestration", activity2TypeValue);
-            Assert.AreEqual("timer", activity6TypeValue);
-            Assert.AreEqual("orchestration", activity7TypeValue);
-            Assert.AreEqual(ActivityKind.Producer, activity2Kind);
-            Assert.AreEqual(ActivityKind.Internal, activity6Kind);
-            Assert.AreEqual(ActivityKind.Server, activity7Kind);
+            Assert.AreEqual("orchestration", createOrchestrationTypeValue);
+            Assert.AreEqual("timer", timerFiredTypeValue);
+            Assert.AreEqual("orchestration", orchestrationExecutionTypeValue);
+            Assert.AreEqual(ActivityKind.Producer, createOrchestration.Kind);
+            Assert.AreEqual(ActivityKind.Internal, timerFired.Kind);
+            Assert.AreEqual(ActivityKind.Server, orchestrationExecution.Kind);
 
             // Checking span ID correlation between parent and child
-            Assert.AreEqual(activity2.SpanId, activity7.ParentSpanId);
-            Assert.AreEqual(activity7.SpanId, activity6.ParentSpanId);
+            Assert.AreEqual(createOrchestration.SpanId, orchestrationExecution.ParentSpanId);
+            Assert.AreEqual(orchestrationExecution.SpanId, timerFired.ParentSpanId);
 
             // Checking trace ID values
-            Assert.AreEqual(activity2.TraceId.ToString(), activity6.TraceId.ToString(), activity7.TraceId.ToString());
+            Assert.AreEqual(createOrchestration.TraceId.ToString(), timerFired.TraceId.ToString(), orchestrationExecution.TraceId.ToString());
         }
 
         /// <summary>
@@ -3418,66 +4201,52 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
-            // (1) Explanation about indexes:
-            // The orchestration Activity's start at Invocation[1] and each action logs
-            // two activities - (Processor.OnStart(Activity) and Processor.OnEnd(Activity)
-            // The Activity for orchestration execution is "started" (with the same Id, SpanId, etc.)
-            // upon every replay of the orchestration so will have an OnStart invocation for each such replay, 
-            // but an OnEnd at the end of orchestration execution.
-            // The first OnEnd invocation is at index 2, so we start from there.
+            // Collect only the OnEnd activities from the processor invocations.
+            var endedActivities = processor.Invocations
+                .Where(i => i.Method.Name == "OnEnd")
+                .Select(i => (Activity)i.Arguments[0])
+                .ToList();
 
-            // (2) Additional invocations:
-            // processor.Invocations[0] - processor.SetParentProvider(TracerProviderSdk)
-            // processor.Invocations[10] - processor.OnShutdown()
-            // processor.Invocations[11] - processor.Dispose(true)
+            Assert.AreEqual(4, endedActivities.Count);
 
-            var invocations = processor.Invocations;
             // Create orchestration (AutoStartOrchestration) Activity
-            Activity activity2 = (Activity)processor.Invocations[2].Arguments[0];
+            Activity createOrchestration = endedActivities[0];
             // Send event to AutoStartOrchestration.Responder Activity
-            Activity activity5 = (Activity)processor.Invocations[5].Arguments[0];
+            Activity sendEvent = endedActivities[1];
             // Send event from AutoStartOrchestration.Responder back to AutoStartOrchestration Activity
-            Activity activity7 = (Activity)processor.Invocations[7].Arguments[0];
+            Activity sendEventBack = endedActivities[2];
             // Orchestration execution Activity
-            Activity activity9 = (Activity)processor.Invocations[9].Arguments[0];
-
-            // Checking total number activities
-            Assert.AreEqual(12, processor.Invocations.Count);
+            Activity orchestrationExecution = endedActivities[3];
 
             // Checking tag values
-            string activity2TypeValue = activity2.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity5TypeValue = activity5.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity7TypeValue = activity7.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity9TypeValue = activity9.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
-            string activity5InstanceIdValue = activity5.Tags.First(k => (k.Key).Equals("durabletask.task.instance_id")).Value;
-            string activity5TargetInstanceIdValue = activity5.Tags.First(k => (k.Key).Equals("durabletask.event.target_instance_id")).Value;
-            string activity7InstanceIdValue = activity7.Tags.First(k => (k.Key).Equals("durabletask.task.instance_id")).Value;
-            string activity7TargetInstanceIdValue = activity7.Tags.First(k => (k.Key).Equals("durabletask.event.target_instance_id")).Value;
+            string createOrchestrationTypeValue = createOrchestration.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string sendEventTypeValue = sendEvent.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string sendEventBackTypeValue = sendEventBack.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string orchestrationExecutionTypeValue = orchestrationExecution.Tags.First(k => (k.Key).Equals("durabletask.type")).Value;
+            string sendEventInstanceIdValue = sendEvent.Tags.First(k => (k.Key).Equals("durabletask.task.instance_id")).Value;
+            string sendEventTargetInstanceIdValue = sendEvent.Tags.First(k => (k.Key).Equals("durabletask.event.target_instance_id")).Value;
+            string sendEventBackInstanceIdValue = sendEventBack.Tags.First(k => (k.Key).Equals("durabletask.task.instance_id")).Value;
+            string sendEventBackTargetInstanceIdValue = sendEventBack.Tags.First(k => (k.Key).Equals("durabletask.event.target_instance_id")).Value;
 
-            ActivityKind activity2Kind = activity2.Kind;
-            ActivityKind activity5Kind = activity5.Kind;
-            ActivityKind activity7Kind = activity7.Kind;
-            ActivityKind activity9Kind = activity9.Kind;
-
-            Assert.AreEqual("orchestration", activity2TypeValue);
-            Assert.AreEqual("event", activity5TypeValue);
-            Assert.AreEqual("event", activity7TypeValue);
-            Assert.AreEqual("orchestration", activity9TypeValue);
-            Assert.AreEqual(instanceId, activity5InstanceIdValue);
-            Assert.AreEqual(responderId, activity5TargetInstanceIdValue);
-            Assert.AreEqual(responderId, activity7InstanceIdValue);
-            Assert.AreEqual(instanceId, activity7TargetInstanceIdValue);
-            Assert.AreEqual(ActivityKind.Producer, activity2Kind);
-            Assert.AreEqual(ActivityKind.Producer, activity5Kind);
-            Assert.AreEqual(ActivityKind.Producer, activity7Kind);
-            Assert.AreEqual(ActivityKind.Server, activity9Kind);
+            Assert.AreEqual("orchestration", createOrchestrationTypeValue);
+            Assert.AreEqual("event", sendEventTypeValue);
+            Assert.AreEqual("event", sendEventBackTypeValue);
+            Assert.AreEqual("orchestration", orchestrationExecutionTypeValue);
+            Assert.AreEqual(instanceId, sendEventInstanceIdValue);
+            Assert.AreEqual(responderId, sendEventTargetInstanceIdValue);
+            Assert.AreEqual(responderId, sendEventBackInstanceIdValue);
+            Assert.AreEqual(instanceId, sendEventBackTargetInstanceIdValue);
+            Assert.AreEqual(ActivityKind.Producer, createOrchestration.Kind);
+            Assert.AreEqual(ActivityKind.Producer, sendEvent.Kind);
+            Assert.AreEqual(ActivityKind.Producer, sendEventBack.Kind);
+            Assert.AreEqual(ActivityKind.Server, orchestrationExecution.Kind);
 
             // Checking span ID correlation between parent and child
-            Assert.AreEqual(activity2.SpanId, activity9.ParentSpanId);
-            Assert.AreEqual(activity9.SpanId, activity5.ParentSpanId);
+            Assert.AreEqual(createOrchestration.SpanId, orchestrationExecution.ParentSpanId);
+            Assert.AreEqual(orchestrationExecution.SpanId, sendEvent.ParentSpanId);
 
             // Checking trace ID values
-            Assert.AreEqual(activity2.TraceId.ToString(), activity5.TraceId.ToString(), activity9.TraceId.ToString());
+            Assert.AreEqual(createOrchestration.TraceId.ToString(), sendEvent.TraceId.ToString(), orchestrationExecution.TraceId.ToString());
         }
 #endif
 

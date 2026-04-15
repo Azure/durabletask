@@ -197,18 +197,13 @@ namespace DurableTask.Core
             {
                 // This last check works for exception types defined in any loaded assembly (e.g. NuGet packages, etc.).
                 // This is a fallback that should rarely be needed except in obscure cases.
-                List<Type> matchingExceptionTypes = AppDomain.CurrentDomain.GetAssemblies()
+                var matchingExceptionTypes = AppDomain.CurrentDomain.GetAssemblies()
                     .Select(a => a.GetType(this.ErrorType, throwOnError: false))
-                    .Where(t => t is not null)
-                    .ToList();
-                if (matchingExceptionTypes.Count == 1)
-                {
-                    exceptionType = matchingExceptionTypes[0];
-                }
-                else if (matchingExceptionTypes.Count > 1)
-                {
-                    throw new AmbiguousMatchException($"Multiple exception types with the name '{this.ErrorType}' were found.");
-                }
+                    .Where(t => t is not null);
+
+                // Previously, this logic would only return true if matchingExceptionTypes found only one assembly with a type matching ErrorType.
+                // Now, it will return true if any matching assembly has a type that is assignable to T.
+                return matchingExceptionTypes.Any(matchType => typeof(T).IsAssignableFrom(matchType));
             }
 
             return exceptionType != null && typeof(T).IsAssignableFrom(exceptionType);

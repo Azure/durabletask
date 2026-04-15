@@ -242,8 +242,8 @@ namespace DurableTask.ServiceBus
         public async Task StartAsync()
         {
             this.cancellationTokenSource = new CancellationTokenSource();
-            this.orchestrationSessions = new ConcurrentDictionary<string, ServiceBusOrchestrationSession>();
-            this.orchestrationMessages = new ConcurrentDictionary<string, Message>();
+            this.orchestrationSessions = new ConcurrentDictionary<string, ServiceBusOrchestrationSession>(StringComparer.OrdinalIgnoreCase);
+            this.orchestrationMessages = new ConcurrentDictionary<string, Message>(StringComparer.OrdinalIgnoreCase);
 
             this.orchestratorSender = new MessageSender(this.serviceBusConnection, this.orchestratorEntityName, this.workerEntityName);
             this.workerSender = new MessageSender(this.serviceBusConnection, this.workerEntityName, this.orchestratorEntityName);
@@ -1580,12 +1580,30 @@ namespace DurableTask.ServiceBus
                 "ServiceBusOrchestrationService-SentMessageLog",
                 session.SessionId,
             GetFormattedLog($@"{messages.Count.ToString()} messages queued for {messageType}: {
-                        string.Join(",", messages.Select(m => $"{m.Message.MessageId} <{m.Action?.Event.EventId.ToString()}>"))}"));
+                        string.Join(",", messages.Select(m =>
+                        {
+                            string scheduledTime = m.Message.ScheduledEnqueueTimeUtc > DateTime.MinValue
+                                ? $" scheduledAt:{m.Message.ScheduledEnqueueTimeUtc:o}"
+                                : "";
+                            string targetSession = !string.IsNullOrEmpty(m.Message.SessionId)
+                                ? $" targetSession:{m.Message.SessionId}"
+                                : "";
+                            return $"{m.Message.MessageId} <{m.Action?.Event.EventId.ToString()}>{scheduledTime}{targetSession}";
+                        }))}"));
         }
 
         async Task<OrchestrationRuntimeState> GetSessionStateAsync(IMessageSession session, IOrchestrationServiceBlobStore orchestrationServiceBlobStore)
         {
             byte[] state = await session.GetStateAsync();
+
+            if (state == null || state.Length == 0)
+            {
+                TraceHelper.TraceSession(
+                    TraceEventType.Information,
+                    "ServiceBusOrchestrationService-GetSessionState-EmptyState",
+                    session.SessionId,
+                    $"Session '{session.SessionId}' has null or empty state ({state?.Length ?? 0} bytes).");
+            }
 
             using (Stream rawSessionStream = state != null ? new MemoryStream(state) : null)
             {
@@ -1615,6 +1633,32 @@ namespace DurableTask.ServiceBus
                 newOrchestrationRuntimeState.ExecutionStartedEvent == null ||
                 newOrchestrationRuntimeState.OrchestrationStatus != OrchestrationStatus.Running)
             {
+                string reason;
+                TraceEventType traceLevel;
+
+                if (newOrchestrationRuntimeState == null)
+                {
+                    reason = "newOrchestrationRuntimeState is null";
+                    traceLevel = TraceEventType.Warning;
+                }
+                else if (newOrchestrationRuntimeState.ExecutionStartedEvent == null)
+                {
+                    reason = "ExecutionStartedEvent is null (possible ghost session with empty state)";
+                    traceLevel = TraceEventType.Warning;
+                }
+                else
+                {
+                    reason = $"OrchestrationStatus is {newOrchestrationRuntimeState.OrchestrationStatus}";
+                    traceLevel = TraceEventType.Information;
+                }
+
+                TraceHelper.TraceSession(
+                    traceLevel,
+                    "ServiceBusOrchestrationService-TrySetSessionState-DeletingState",
+                    workItem.InstanceId,
+                    $"Setting session state to null. Reason: {reason}. " +
+                    $"Session: '{session.SessionId}', InstanceId: '{workItem.InstanceId}'");
+
                 await session.SetStateAsync(null);
                 return true;
             }

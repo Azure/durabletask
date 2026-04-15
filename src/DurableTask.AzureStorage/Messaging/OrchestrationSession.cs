@@ -17,6 +17,7 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Collections.Generic;
     using System.IO;
     using System.Linq;
+    using System.Threading;
     using System.Threading.Tasks;
     using Azure;
     using DurableTask.Core;
@@ -26,6 +27,7 @@ namespace DurableTask.AzureStorage.Messaging
     sealed class OrchestrationSession : SessionBase, IOrchestrationSession
     {
         readonly TimeSpan idleTimeout;
+        readonly CancellationToken shutdownToken;
 
         readonly AsyncAutoResetEvent messagesAvailableEvent;
         readonly MessageCollection nextMessageBatch;
@@ -41,10 +43,12 @@ namespace DurableTask.AzureStorage.Messaging
             DateTime lastCheckpointTime,
             object trackingStoreContext,
             TimeSpan idleTimeout,
+            CancellationToken shutdownToken,
             Guid traceActivityId)
             : base(settings, storageAccountName, orchestrationInstance, traceActivityId)
         {
             this.idleTimeout = idleTimeout;
+            this.shutdownToken = shutdownToken;
             this.ControlQueue = controlQueue ?? throw new ArgumentNullException(nameof(controlQueue));
             this.CurrentMessageBatch = initialMessageBatch ?? throw new ArgumentNullException(nameof(initialMessageBatch));
             this.RuntimeState = runtimeState ?? throw new ArgumentNullException(nameof(runtimeState));
@@ -98,9 +102,9 @@ namespace DurableTask.AzureStorage.Messaging
         public async Task<IList<TaskMessage>> FetchNewOrchestrationMessagesAsync(
             TaskOrchestrationWorkItem workItem)
         {
-            if (!await this.messagesAvailableEvent.WaitAsync(this.idleTimeout))
+            if (!await this.messagesAvailableEvent.WaitAsync(this.idleTimeout, this.shutdownToken))
             {
-                return null; // timed-out
+                return null; // timed-out or shutting down
             }
 
             this.StartNewLogicalTraceScope();
@@ -160,18 +164,6 @@ namespace DurableTask.AzureStorage.Messaging
                 return false;
             }
 
-            if (this.LastCheckpointTime > message.TaskMessage.Event.Timestamp)
-            {
-                // LastCheckpointTime represents the time at which the most recent history checkpoint completed.
-                // The checkpoint is written to the history table only *after* all queue messages are sent.
-                // A message is out of order when its timestamp *preceeds* the most recent checkpoint timestamp.
-                // In this case, we see that the checkpoint came *after* the message, so there is no out-of-order
-                // concern. Note that this logic only applies for messages sent by orchestrations to themselves.
-                // The next check considers the other cases (activities, sub-orchestrations, etc.).
-                // Orchestration checkpoint time information was added only after v1.6.4.
-                return false;
-            }
-
             if (Utils.TryGetTaskScheduledId(message.TaskMessage.Event, out int taskScheduledId))
             {
                 // This message is a response to a task. Search the history to make sure that we've recorded the fact that
@@ -189,7 +181,7 @@ namespace DurableTask.AzureStorage.Messaging
                 var requestId = ((EventRaisedEvent)message.TaskMessage.Event).Name;
                 if (requestId != null)
                 {
-                    HistoryEvent mostRecentTaskEvent = this.RuntimeState.Events.FirstOrDefault(e => e.EventType == EventType.EventSent && FindRequestId(((EventSentEvent)e).Input)?.ToString() == requestId);
+                    HistoryEvent mostRecentTaskEvent = this.RuntimeState.Events.LastOrDefault(e => e.EventType == EventType.EventSent && FindRequestId(((EventSentEvent)e).Input)?.ToString() == requestId);
                     if (mostRecentTaskEvent != null)
                     {
                         return false;

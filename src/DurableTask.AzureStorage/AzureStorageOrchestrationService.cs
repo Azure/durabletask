@@ -1,4 +1,4 @@
-﻿//  ----------------------------------------------------------------------------------
+//  ----------------------------------------------------------------------------------
 //  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -478,6 +478,15 @@ namespace DurableTask.AzureStorage
         {
             this.shutdownSource.Cancel();
             await this.statsLoop;
+
+            if (isForced)
+            {
+                // When forced, immediately remove all active sessions so that
+                // partition draining completes without waiting for sessions to
+                // finish their idle timeout or in-flight work.
+                this.orchestrationSessionManager.AbortAllSessions();
+            }
+
             await this.appLeaseManager.StopAsync();
             this.isStarted = false;
         }
@@ -1812,7 +1821,7 @@ namespace DurableTask.AzureStorage
             await this.SendTaskOrchestrationMessageInternalAsync(EmptySourceInstance, controlQueue, message);
         }
 
-        Task<MessageData> SendTaskOrchestrationMessageInternalAsync(
+        internal Task<MessageData> SendTaskOrchestrationMessageInternalAsync(
             OrchestrationInstance sourceInstance,
             ControlQueue controlQueue,
             TaskMessage message)
@@ -1877,9 +1886,9 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Gets the state of all orchestration instances that match the specified parameters.
         /// </summary>
-        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Fetch status grater than this value.</param>
+        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Fetch status greater than this value.</param>
         /// <param name="createdTimeTo">CreatedTime of orchestrations. Fetch status less than this value.</param>
-        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several status.</param>
+        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several statuses.</param>
         /// <param name="cancellationToken">Cancellation Token</param>
         /// <returns>List of <see cref="OrchestrationState"/></returns>
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default(CancellationToken))
@@ -1891,9 +1900,9 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Gets the state of all orchestration instances that match the specified parameters.
         /// </summary>
-        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Fetch status grater than this value.</param>
+        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Fetch status greater than this value.</param>
         /// <param name="createdTimeTo">CreatedTime of orchestrations. Fetch status less than this value.</param>
-        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several status.</param>
+        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several statuses.</param>
         /// <param name="top">Top is number of records per one request.</param>
         /// <param name="continuationToken">ContinuationToken of the pager.</param>
         /// <param name="cancellationToken">Cancellation Token</param>
@@ -2012,9 +2021,9 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Purge history for orchestrations that match the specified parameters.
         /// </summary>
-        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Purges history grater than this value.</param>
+        /// <param name="createdTimeFrom">CreatedTime of orchestrations. Purges history greater than this value.</param>
         /// <param name="createdTimeTo">CreatedTime of orchestrations. Purges history less than this value.</param>
-        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several status.</param>
+        /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several statuses.</param>
         /// <returns>Class containing number of storage requests sent, along with instances and rows deleted/purged</returns>
         public Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
         {
@@ -2031,10 +2040,28 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         async Task<PurgeResult> IOrchestrationServicePurgeClient.PurgeInstanceStateAsync(PurgeInstanceFilter purgeInstanceFilter)
         {
-            PurgeHistoryResult storagePurgeHistoryResult = await this.PurgeInstanceHistoryAsync(
-                purgeInstanceFilter.CreatedTimeFrom,
-                purgeInstanceFilter.CreatedTimeTo,
-                purgeInstanceFilter.RuntimeStatus);
+            PurgeHistoryResult storagePurgeHistoryResult;
+            if (purgeInstanceFilter.Timeout.HasValue)
+            {
+                // Convert the timeout into a CancellationToken so that the tracking store
+                // only needs to observe a single cancellation mechanism.
+                using var timeoutCts = new CancellationTokenSource(purgeInstanceFilter.Timeout.Value);
+                storagePurgeHistoryResult = await this.trackingStore.PurgeInstanceHistoryAsync(
+                    purgeInstanceFilter.CreatedTimeFrom,
+                    purgeInstanceFilter.CreatedTimeTo,
+                    purgeInstanceFilter.RuntimeStatus,
+                    timeoutCts.Token);
+            }
+            else
+            {
+                // No timeout: use the original code path (no CancellationToken) to preserve
+                // backward-compatible behavior where IsComplete is null.
+                storagePurgeHistoryResult = await this.trackingStore.PurgeInstanceHistoryAsync(
+                    purgeInstanceFilter.CreatedTimeFrom,
+                    purgeInstanceFilter.CreatedTimeTo,
+                    purgeInstanceFilter.RuntimeStatus);
+            }
+
             return storagePurgeHistoryResult.ToCorePurgeHistoryResult();
         }
 #nullable enable
