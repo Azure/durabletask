@@ -95,9 +95,12 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            if (startEvent.Tags != null && startEvent.Tags.ContainsKey(OrchestrationTags.CreateTraceForNewOrchestration))
+            // When GenerateNewTrace is set, create a fresh root trace for this orchestration.
+            // The flag is consumed once and reset so that subsequent replays use the
+            // persisted trace identity rather than creating yet another new trace.
+            if (startEvent.GenerateNewTrace)
             {
-                startEvent.Tags.Remove(OrchestrationTags.CreateTraceForNewOrchestration);
+                startEvent.GenerateNewTrace = false;
                 // Note that if we create the trace activity for starting a new orchestration here, then its duration will be longer since its end time will be set to once we 
                 // start processing the orchestration rather than when the request for a new orchestration is committed to storage. 
                 using var activityForNewOrchestration = StartActivityForNewOrchestration(startEvent);

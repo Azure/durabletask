@@ -249,15 +249,25 @@ namespace DurableTask.Core
 
         public override void ContinueAsNew(object input)
         {
-            ContinueAsNew(null, input);
+            ContinueAsNewCore(null, input, new ContinueAsNewOptions());
         }
 
         public override void ContinueAsNew(string newVersion, object input)
         {
-            ContinueAsNewCore(newVersion, input);
+            ContinueAsNewCore(newVersion, input, new ContinueAsNewOptions());
         }
 
-        void ContinueAsNewCore(string newVersion, object input)
+        public override void ContinueAsNew(string newVersion, object input, ContinueAsNewOptions options)
+        {
+            if (options == null)
+            {
+                throw new ArgumentNullException(nameof(options));
+            }
+
+            ContinueAsNewCore(newVersion, input, options);
+        }
+
+        void ContinueAsNewCore(string newVersion, object input, ContinueAsNewOptions options)
         {
             string serializedInput = this.MessageDataConverter.SerializeInternal(input);
 
@@ -265,7 +275,8 @@ namespace DurableTask.Core
             {
                 Result = serializedInput,
                 OrchestrationStatus = OrchestrationStatus.ContinuedAsNew,
-                NewVersion = newVersion
+                NewVersion = newVersion,
+                ContinueAsNewTraceBehavior = options.TraceBehavior,
             };
         }
 
