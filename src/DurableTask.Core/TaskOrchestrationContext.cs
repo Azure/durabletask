@@ -249,12 +249,12 @@ namespace DurableTask.Core
 
         public override void ContinueAsNew(object input)
         {
-            ContinueAsNewCore(null, input, new ContinueAsNewOptions());
+            this.ContinueAsNew(null, input, new ContinueAsNewOptions());
         }
 
         public override void ContinueAsNew(string newVersion, object input)
         {
-            ContinueAsNewCore(newVersion, input, new ContinueAsNewOptions());
+            this.ContinueAsNew(newVersion, input, new ContinueAsNewOptions());
         }
 
         public override void ContinueAsNew(string newVersion, object input, ContinueAsNewOptions options)
