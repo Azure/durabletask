@@ -108,11 +108,15 @@ namespace DurableTask.Core.Tracing
 
             if (shouldGenerateNewTrace)
             {
-                startEvent.GenerateNewTrace = false;
-                startEvent.Tags?.Remove(OrchestrationTags.CreateTraceForNewOrchestration);
                 // Note that if we create the trace activity for starting a new orchestration here, then its duration will be longer since its end time will be set to once we 
                 // start processing the orchestration rather than when the request for a new orchestration is committed to storage. 
                 using var activityForNewOrchestration = StartActivityForNewOrchestration(startEvent);
+
+                // Consume the signals only after the fresh trace is successfully created,
+                // so that if StartActivityForNewOrchestration throws, the signals remain
+                // intact for retry.
+                startEvent.GenerateNewTrace = false;
+                startEvent.Tags?.Remove(OrchestrationTags.CreateTraceForNewOrchestration);
             }
 
             if (!startEvent.TryGetParentTraceContext(out ActivityContext activityContext))

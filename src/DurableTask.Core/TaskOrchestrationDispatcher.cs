@@ -650,8 +650,8 @@ namespace DurableTask.Core
                                 }
                                 else
                                 {
-                                    // Stamp the request time so the producer span created by TraceHelper
-                                    // uses an accurate start time instead of the dequeue time.
+                                    // Stamp the dispatcher processing time for this continuation request
+                                    // so the producer span created by TraceHelper uses this timestamp.
                                     continueAsNewExecutionStarted.Tags ??= new Dictionary<string, string>();
                                     continueAsNewExecutionStarted.Tags[OrchestrationTags.RequestTime] =
                                         DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture);
@@ -1068,8 +1068,13 @@ namespace DurableTask.Core
                         InstanceId = runtimeState.OrchestrationInstance!.InstanceId,
                         ExecutionId = Guid.NewGuid().ToString("N")
                     },
-                    // Clone tags to avoid mutating the current generation's tag dictionary
-                    Tags = runtimeState.Tags != null ? new Dictionary<string, string>(runtimeState.Tags) : null,
+                    // Clone tags to avoid mutating the current generation's tag dictionary.
+                    // Preserve the comparer if the underlying type is Dictionary<string, string>.
+                    Tags = runtimeState.Tags == null
+                        ? null
+                        : runtimeState.Tags is Dictionary<string, string> dictionaryTags
+                            ? new Dictionary<string, string>(dictionaryTags, dictionaryTags.Comparer)
+                            : new Dictionary<string, string>(runtimeState.Tags),
                     ParentInstance = runtimeState.ParentInstance,
                     Name = runtimeState.Name,
                     Version = completeOrchestratorAction.NewVersion ?? runtimeState.Version,
