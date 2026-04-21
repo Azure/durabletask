@@ -33,6 +33,7 @@ namespace DurableTask.Core
         private readonly IDictionary<int, OpenTaskInfo> openTasks;
         private readonly IDictionary<int, OrchestratorAction> orchestratorActionsMap;
         private OrchestrationCompleteOrchestratorAction continueAsNew;
+        static readonly ContinueAsNewOptions DefaultContinueAsNewOptions = new ContinueAsNewOptions();
         private bool executionCompletedOrTerminated;
         private int idCounter;
         private readonly Queue<HistoryEvent> eventsWhileSuspended;
@@ -249,12 +250,12 @@ namespace DurableTask.Core
 
         public override void ContinueAsNew(object input)
         {
-            this.ContinueAsNew(null, input, new ContinueAsNewOptions());
+            this.ContinueAsNew(null, input, DefaultContinueAsNewOptions);
         }
 
         public override void ContinueAsNew(string newVersion, object input)
         {
-            this.ContinueAsNew(newVersion, input, new ContinueAsNewOptions());
+            this.ContinueAsNew(newVersion, input, DefaultContinueAsNewOptions);
         }
 
         public override void ContinueAsNew(string newVersion, object input, ContinueAsNewOptions options)
