@@ -314,6 +314,89 @@ namespace DurableTask.Core.Tests
             DistributedTraceActivity.Current = null;
         }
 
+        [TestMethod]
+        public void TraceHelper_LegacyTag_CreatesNewRootTrace()
+        {
+            // Backward compatibility: when the legacy CreateTraceForNewOrchestration tag is set
+            // (as done by durabletask-dotnet's ShimDurableTaskClient), TraceHelper should create
+            // a fresh root trace — same behavior as GenerateNewTrace=true.
+            var startEvent = new ExecutionStartedEvent(-1, "input")
+            {
+                GenerateNewTrace = false,
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = "test-legacy", ExecutionId = "exec1" },
+                Name = "TestOrch",
+                Tags = new Dictionary<string, string>
+                {
+                    [OrchestrationTags.CreateTraceForNewOrchestration] = "true",
+                },
+            };
+
+            Activity? activity = TraceHelper.StartTraceActivityForOrchestrationExecution(startEvent);
+
+            Assert.IsNotNull(activity, "Should create an orchestration activity via legacy tag");
+            Assert.IsFalse(startEvent.Tags.ContainsKey(OrchestrationTags.CreateTraceForNewOrchestration),
+                "Legacy tag should be consumed (removed) after use");
+            Assert.IsNotNull(startEvent.ParentTraceContext, "ParentTraceContext should be set by the producer span");
+
+            activity.Stop();
+            DistributedTraceActivity.Current = null;
+        }
+
+        [TestMethod]
+        public void TraceHelper_LegacyTag_PreservesOtherTags()
+        {
+            // Ensure consuming the legacy tag does not affect other user-defined tags.
+            var startEvent = new ExecutionStartedEvent(-1, "input")
+            {
+                GenerateNewTrace = false,
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = "test-tags", ExecutionId = "exec1" },
+                Name = "TestOrch",
+                Tags = new Dictionary<string, string>
+                {
+                    [OrchestrationTags.CreateTraceForNewOrchestration] = "true",
+                    ["user-tag"] = "my-value",
+                },
+            };
+
+            Activity? activity = TraceHelper.StartTraceActivityForOrchestrationExecution(startEvent);
+
+            Assert.IsNotNull(activity);
+            Assert.IsFalse(startEvent.Tags.ContainsKey(OrchestrationTags.CreateTraceForNewOrchestration),
+                "Legacy tag should be removed");
+            Assert.AreEqual("my-value", startEvent.Tags["user-tag"],
+                "User tags should be preserved");
+
+            activity.Stop();
+            DistributedTraceActivity.Current = null;
+        }
+
+        [TestMethod]
+        public void TraceHelper_BothGenerateNewTraceAndLegacyTag_WorksTogether()
+        {
+            // When both GenerateNewTrace and the legacy tag are set, both should be consumed
+            // to prevent the tag from triggering a second fresh trace on replay.
+            var startEvent = new ExecutionStartedEvent(-1, "input")
+            {
+                GenerateNewTrace = true,
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = "test-both", ExecutionId = "exec1" },
+                Name = "TestOrch",
+                Tags = new Dictionary<string, string>
+                {
+                    [OrchestrationTags.CreateTraceForNewOrchestration] = "true",
+                },
+            };
+
+            Activity? activity = TraceHelper.StartTraceActivityForOrchestrationExecution(startEvent);
+
+            Assert.IsNotNull(activity, "Should create an orchestration activity");
+            Assert.IsFalse(startEvent.GenerateNewTrace, "GenerateNewTrace should be reset");
+            Assert.IsFalse(startEvent.Tags.ContainsKey(OrchestrationTags.CreateTraceForNewOrchestration),
+                "Legacy tag should also be consumed to prevent double trace on replay");
+
+            activity.Stop();
+            DistributedTraceActivity.Current = null;
+        }
+
         #endregion
 
         #region TaskOrchestrationContext — ContinueAsNew overloads
