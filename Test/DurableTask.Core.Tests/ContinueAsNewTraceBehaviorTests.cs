@@ -14,6 +14,7 @@ namespace DurableTask.Core.Tests
     using System.IO;
     using System.Linq;
     using System.Runtime.Serialization.Json;
+    using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
 
@@ -113,7 +114,7 @@ namespace DurableTask.Core.Tests
         {
             // An event serialized without GenerateNewTrace should deserialize with false.
             // This simulates loading a pre-upgrade event from storage.
-            var oldEvent = new ExecutionStartedEvent(-1, "input")
+            var currentEvent = new ExecutionStartedEvent(-1, "input")
             {
                 OrchestrationInstance = new OrchestrationInstance { InstanceId = "test", ExecutionId = "exec1" },
                 Name = "TestOrch",
@@ -121,10 +122,14 @@ namespace DurableTask.Core.Tests
 
             var serializer = new DataContractJsonSerializer(typeof(ExecutionStartedEvent));
             using var stream = new MemoryStream();
-            serializer.WriteObject(stream, oldEvent);
+            serializer.WriteObject(stream, currentEvent);
 
-            stream.Position = 0;
-            var deserialized = (ExecutionStartedEvent?)serializer.ReadObject(stream);
+            string json = Encoding.UTF8.GetString(stream.ToArray())
+                .Replace(",\"GenerateNewTrace\":false", string.Empty, StringComparison.Ordinal)
+                .Replace("\"GenerateNewTrace\":false,", string.Empty, StringComparison.Ordinal);
+
+            using var oldPayload = new MemoryStream(Encoding.UTF8.GetBytes(json));
+            var deserialized = (ExecutionStartedEvent?)serializer.ReadObject(oldPayload);
 
             Assert.IsNotNull(deserialized);
             Assert.IsFalse(deserialized.GenerateNewTrace, "Pre-upgrade events should default to false");
@@ -395,6 +400,37 @@ namespace DurableTask.Core.Tests
 
             activity.Stop();
             DistributedTraceActivity.Current = null;
+        }
+
+        [TestMethod]
+        public void TraceHelper_DoesNotConsumeFreshTraceSignals_WhenProducerActivityIsSuppressed()
+        {
+            listener?.Dispose();
+            listener = new ActivityListener
+            {
+                ShouldListenTo = source => source.Name == "DurableTask.Core",
+                Sample = (ref ActivityCreationOptions<ActivityContext> options) => ActivitySamplingResult.None,
+            };
+            ActivitySource.AddActivityListener(listener);
+
+            var startEvent = new ExecutionStartedEvent(-1, "input")
+            {
+                GenerateNewTrace = true,
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = "test-suppressed", ExecutionId = "exec1" },
+                Name = "TestOrch",
+                Tags = new Dictionary<string, string>
+                {
+                    [OrchestrationTags.CreateTraceForNewOrchestration] = "true",
+                },
+            };
+
+            Activity? activity = TraceHelper.StartTraceActivityForOrchestrationExecution(startEvent);
+
+            Assert.IsNull(activity, "No activity should be created when the producer span is suppressed");
+            Assert.IsTrue(startEvent.GenerateNewTrace, "GenerateNewTrace should remain for replay");
+            Assert.IsTrue(startEvent.Tags.ContainsKey(OrchestrationTags.CreateTraceForNewOrchestration),
+                "Legacy trace-creation tag should remain for replay");
+            Assert.IsNull(startEvent.ParentTraceContext, "No trace identity should be persisted when no producer span exists");
         }
 
         #endregion

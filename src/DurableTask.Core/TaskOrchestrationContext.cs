@@ -33,7 +33,7 @@ namespace DurableTask.Core
         private readonly IDictionary<int, OpenTaskInfo> openTasks;
         private readonly IDictionary<int, OrchestratorAction> orchestratorActionsMap;
         private OrchestrationCompleteOrchestratorAction continueAsNew;
-        static readonly ContinueAsNewOptions DefaultContinueAsNewOptions = new ContinueAsNewOptions();
+        private static readonly ContinueAsNewOptions DefaultContinueAsNewOptions = new ContinueAsNewOptions();
         private bool executionCompletedOrTerminated;
         private int idCounter;
         private readonly Queue<HistoryEvent> eventsWhileSuspended;
