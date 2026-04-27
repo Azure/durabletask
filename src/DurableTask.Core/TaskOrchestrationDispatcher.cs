@@ -26,6 +26,7 @@ namespace DurableTask.Core
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Globalization;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
@@ -641,8 +642,20 @@ namespace DurableTask.Core
                                     continueAsNewExecutionStarted!.Correlation = CorrelationTraceContext.Current.SerializableTraceContext;
                                 });
 
-                                // Copy the distributed trace context, if any
-                                continueAsNewExecutionStarted!.SetParentTraceContext(runtimeState.ExecutionStartedEvent);
+                                // Copy the distributed trace context to preserve lineage, unless
+                                // the next generation was explicitly requested to start a fresh trace.
+                                if (!continueAsNewExecutionStarted!.GenerateNewTrace)
+                                {
+                                    continueAsNewExecutionStarted.SetParentTraceContext(runtimeState.ExecutionStartedEvent);
+                                }
+                                else
+                                {
+                                    // Stamp the dispatcher processing time for this continuation request
+                                    // so the producer span created by TraceHelper uses this timestamp.
+                                    continueAsNewExecutionStarted.Tags ??= new Dictionary<string, string>();
+                                    continueAsNewExecutionStarted.Tags[OrchestrationTags.RequestTime] =
+                                        DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+                                }
 
                                 runtimeState = new OrchestrationRuntimeState();
                                 runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
@@ -1055,10 +1068,18 @@ namespace DurableTask.Core
                         InstanceId = runtimeState.OrchestrationInstance!.InstanceId,
                         ExecutionId = Guid.NewGuid().ToString("N")
                     },
-                    Tags = runtimeState.Tags,
+                    // Clone tags to avoid mutating the current generation's tag dictionary.
+                    // Preserve the comparer if the underlying type is Dictionary<string, string>.
+                    Tags = runtimeState.Tags == null
+                        ? null
+                        : runtimeState.Tags is Dictionary<string, string> dictionaryTags
+                            ? new Dictionary<string, string>(dictionaryTags, dictionaryTags.Comparer)
+                            : new Dictionary<string, string>(runtimeState.Tags),
                     ParentInstance = runtimeState.ParentInstance,
                     Name = runtimeState.Name,
-                    Version = completeOrchestratorAction.NewVersion ?? runtimeState.Version
+                    Version = completeOrchestratorAction.NewVersion ?? runtimeState.Version,
+                    // Signal that the next generation should start a fresh distributed trace
+                    GenerateNewTrace = completeOrchestratorAction.ContinueAsNewTraceBehavior == ContinueAsNewTraceBehavior.StartNewTrace,
                 };
 
                 taskMessage.OrchestrationInstance = startedEvent.OrchestrationInstance;

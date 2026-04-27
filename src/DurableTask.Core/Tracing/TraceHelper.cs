@@ -95,12 +95,31 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            if (startEvent.Tags != null && startEvent.Tags.ContainsKey(OrchestrationTags.CreateTraceForNewOrchestration))
+            // Check both the typed GenerateNewTrace property (used by ContinueAsNew)
+            // and the legacy CreateTraceForNewOrchestration tag (used by external clients
+            // like durabletask-dotnet's ShimDurableTaskClient) for backward compatibility.
+            bool shouldGenerateNewTrace = startEvent.GenerateNewTrace;
+            if (!shouldGenerateNewTrace &&
+                startEvent.Tags != null &&
+                startEvent.Tags.ContainsKey(OrchestrationTags.CreateTraceForNewOrchestration))
             {
-                startEvent.Tags.Remove(OrchestrationTags.CreateTraceForNewOrchestration);
+                shouldGenerateNewTrace = true;
+            }
+
+            if (shouldGenerateNewTrace)
+            {
                 // Note that if we create the trace activity for starting a new orchestration here, then its duration will be longer since its end time will be set to once we 
                 // start processing the orchestration rather than when the request for a new orchestration is committed to storage. 
                 using var activityForNewOrchestration = StartActivityForNewOrchestration(startEvent);
+
+                // Consume the signals only after the fresh trace identity is established.
+                // ActivitySource.StartActivity may return null when sampling suppresses the
+                // producer span, in which case the request must remain for replay.
+                if (activityForNewOrchestration != null || startEvent.ParentTraceContext != null)
+                {
+                    startEvent.GenerateNewTrace = false;
+                    startEvent.Tags?.Remove(OrchestrationTags.CreateTraceForNewOrchestration);
+                }
             }
 
             if (!startEvent.TryGetParentTraceContext(out ActivityContext activityContext))
@@ -108,9 +127,10 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
+            DistributedTraceContext parentTraceContext = startEvent.ParentTraceContext!;
             string activityName = CreateSpanName(TraceActivityConstants.Orchestration, startEvent.Name, startEvent.Version);
             ActivityKind activityKind = ActivityKind.Server;
-            DateTimeOffset startTime = startEvent.ParentTraceContext.ActivityStartTime ?? default;
+            DateTimeOffset startTime = parentTraceContext.ActivityStartTime ?? default;
 
             Activity? activity = ActivityTraceSource.StartActivity(
                 activityName,
@@ -132,16 +152,16 @@ namespace DurableTask.Core.Tracing
                 activity.SetTag(Schema.Task.Version, startEvent.Version);
             }
 
-            if (startEvent.ParentTraceContext.Id != null && startEvent.ParentTraceContext.SpanId != null)
+            if (parentTraceContext.Id != null && parentTraceContext.SpanId != null)
             {
-                activity.SetId(startEvent.ParentTraceContext.Id!);
-                activity.SetSpanId(startEvent.ParentTraceContext.SpanId!);
+                activity.SetId(parentTraceContext.Id!);
+                activity.SetSpanId(parentTraceContext.SpanId!);
             }
             else
             {
-                startEvent.ParentTraceContext.Id = activity.Id;
-                startEvent.ParentTraceContext.SpanId = activity.SpanId.ToString();
-                startEvent.ParentTraceContext.ActivityStartTime = activity.StartTimeUtc;
+                parentTraceContext.Id = activity.Id;
+                parentTraceContext.SpanId = activity.SpanId.ToString();
+                parentTraceContext.ActivityStartTime = activity.StartTimeUtc;
             }
 
             DistributedTraceActivity.Current = activity;

@@ -61,5 +61,12 @@ namespace DurableTask.Core.Command
         /// Gets a collection of tags associated with the completion action.
         /// </summary>
         public IDictionary<string, string> Tags { get; } = new Dictionary<string, string>();
+
+        /// <summary>
+        /// Gets or sets how distributed tracing should behave for the next <c>ContinueAsNew</c> generation.
+        /// Defaults to <see cref="ContinueAsNewTraceBehavior.PreserveTraceContext"/>.
+        /// </summary>
+        public ContinueAsNewTraceBehavior ContinueAsNewTraceBehavior { get; set; } =
+            ContinueAsNewTraceBehavior.PreserveTraceContext;
     }
 }
