@@ -125,8 +125,8 @@ namespace DurableTask.Core.Tests
             serializer.WriteObject(stream, currentEvent);
 
             string json = Encoding.UTF8.GetString(stream.ToArray())
-                .Replace(",\"GenerateNewTrace\":false", string.Empty, StringComparison.Ordinal)
-                .Replace("\"GenerateNewTrace\":false,", string.Empty, StringComparison.Ordinal);
+                .Replace(",\"GenerateNewTrace\":false", string.Empty)
+                .Replace("\"GenerateNewTrace\":false,", string.Empty);
 
             using var oldPayload = new MemoryStream(Encoding.UTF8.GetBytes(json));
             var deserialized = (ExecutionStartedEvent?)serializer.ReadObject(oldPayload);
