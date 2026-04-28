@@ -28,6 +28,7 @@
     <PackageVersion Include="Microsoft.ServiceFabric.Services" Version="3.3.617" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="1.0.0" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageVersion Include="OpenTelemetry.Api" Version="1.15.3" />
     <PackageVersion Include="System.Collections.Immutable" Version="1.2.0" />
     <PackageVersion Include="System.Diagnostics.DiagnosticSource" Version="6.0.1" />
     <PackageVersion Include="System.Linq.Async" Version="6.0.1" />
