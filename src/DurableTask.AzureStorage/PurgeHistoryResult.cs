@@ -34,6 +34,19 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
+        /// Constructor for purge history statistics with completion status.
+        /// </summary>
+        /// <param name="storageRequests">Requests sent to storage</param>
+        /// <param name="instancesDeleted">Number of instances deleted</param>
+        /// <param name="rowsDeleted">Number of rows deleted</param>
+        /// <param name="isComplete">Whether the purge operation completed all matching instances.</param>
+        public PurgeHistoryResult(int storageRequests, int instancesDeleted, int rowsDeleted, bool? isComplete)
+            : this(storageRequests, instancesDeleted, rowsDeleted)
+        {
+            this.IsComplete = isComplete;
+        }
+
+        /// <summary>
         /// Number of requests sent to Storage during this execution of purge history
         /// </summary>
         public int StorageRequests { get; }
@@ -49,11 +62,19 @@ namespace DurableTask.AzureStorage
         public int RowsDeleted { get; }
 
         /// <summary>
+        /// Gets a value indicating whether the purge operation is complete.
+        /// <c>true</c> if all matching instances were purged;
+        /// <c>false</c> if more instances remain and purge should be called again;
+        /// <c>null</c> if completion status is unknown.
+        /// </summary>
+        public bool? IsComplete { get; }
+
+        /// <summary>
         /// Converts from AzureStorage.PurgeHistoryResult to Core.PurgeResult type
         /// </summary>
         public PurgeResult ToCorePurgeHistoryResult()
         {
-            return new PurgeResult(this.InstancesDeleted);
+            return new PurgeResult(this.InstancesDeleted, this.IsComplete);
         }
     }
 }

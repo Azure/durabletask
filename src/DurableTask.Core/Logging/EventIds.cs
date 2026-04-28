@@ -31,6 +31,7 @@ namespace DurableTask.Core.Logging
         public const int ProcessWorkItemStarting = 27;
         public const int ProcessWorkItemCompleted = 28;
         public const int ProcessWorkItemFailed = 29;
+        public const int DispatcherLoopFailed = 30;
 
         public const int SchedulingOrchestration = 40;
         public const int RaisingEvent = 41;

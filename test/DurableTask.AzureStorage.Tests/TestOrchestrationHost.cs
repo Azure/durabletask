@@ -39,7 +39,6 @@ namespace DurableTask.AzureStorage.Tests
         public TestOrchestrationHost(AzureStorageOrchestrationServiceSettings settings, VersioningSettings versioningSettings = null)
         {
             this.service = new AzureStorageOrchestrationService(settings);
-            this.service.CreateAsync().GetAwaiter().GetResult();
 
             this.settings = settings;
             this.worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory, versioningSettings: versioningSettings);
@@ -55,9 +54,10 @@ namespace DurableTask.AzureStorage.Tests
             this.worker.Dispose();
         }
 
-        public Task StartAsync()
+        public async Task StartAsync()
         {
-            return this.worker.StartAsync();
+            await this.service.CreateAsync();
+            await this.worker.StartAsync();
         }
 
         public Task StopAsync()

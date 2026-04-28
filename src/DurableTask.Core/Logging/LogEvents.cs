@@ -158,6 +158,37 @@ namespace DurableTask.Core.Logging
                 StructuredEventSource.Log.DispatcherStopped(this.Dispatcher, Utils.AppName, Utils.PackageVersion);
         }
 
+        internal class DispatcherLoopFailed : StructuredLogEvent, IEventSourceEvent
+        {
+            public DispatcherLoopFailed(WorkItemDispatcherContext context, Exception exception)
+            {
+                this.Dispatcher = context.GetDisplayName();
+                this.Details = exception.ToString();
+            }
+
+            [StructuredLogField]
+            public string Dispatcher { get; }
+
+            [StructuredLogField]
+            public string Details { get; }
+
+            public override EventId EventId => new EventId(
+                EventIds.DispatcherLoopFailed,
+                nameof(EventIds.DispatcherLoopFailed));
+
+            public override LogLevel Level => LogLevel.Error;
+
+            protected override string CreateLogMessage() =>
+                $"{this.Dispatcher}: Unhandled exception in dispatch loop. Will retry after backoff. Details: {this.Details}";
+
+            void IEventSourceEvent.WriteEventSource() =>
+                StructuredEventSource.Log.DispatcherLoopFailed(
+                    this.Dispatcher,
+                    this.Details,
+                    Utils.AppName,
+                    Utils.PackageVersion);
+        }
+
         internal class DispatchersStopping : StructuredLogEvent, IEventSourceEvent
         {
             public DispatchersStopping(string name, string id, int concurrentWorkItemCount, int activeFetchers)

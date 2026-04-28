@@ -106,8 +106,9 @@ namespace DurableTask.Core.Tests
 
                 var streamingContext = new StreamingContext();
 
+#pragma warning disable SYSLIB0050 // Formatter-based serialization is obsolete - needed for testing
                 var info = new SerializationInfo(_, new FormatterConverter());
-
+#pragma warning restore SYSLIB0050
                 // ReSharper disable once AccessToModifiedClosure
                 // Add base properties
                 ignoredProperties.ToList().ForEach(keyValuePair => info.AddValue(keyValuePair.Key, GetValueFromType(keyValuePair.Value)));
@@ -130,8 +131,12 @@ namespace DurableTask.Core.Tests
                 var exception = (Exception)constructor.Invoke(new object[] { info, streamingContext });
 
                 // Make sure the values were serialized property
+#pragma warning disable SYSLIB0050 // Formatter-based serialization is obsolete - needed for testing
                 info = new SerializationInfo(_, new FormatterConverter());
+#pragma warning restore SYSLIB0050
+#pragma warning disable SYSLIB0051
                 exception.GetObjectData(info, streamingContext);
+#pragma warning restore SYSLIB0051
 
                 foreach (PropertyInfo propertyInfo in properties)
                 {
