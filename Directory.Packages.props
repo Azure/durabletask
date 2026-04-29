@@ -99,7 +99,7 @@
     <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="3.1.32" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="6.0.1" />
     <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.1.0" />
-    <PackageVersion Include="OpenTelemetry.Exporter.Zipkin" Version="1.1.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.Zipkin" Version="1.15.3" />
     <PackageVersion Include="Vio.DurableTask.Hosting" Version="2.2.1" />
   </ItemGroup>
 
