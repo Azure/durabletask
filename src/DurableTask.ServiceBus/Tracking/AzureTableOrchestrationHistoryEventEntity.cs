@@ -18,7 +18,6 @@ namespace DurableTask.ServiceBus.Tracking
     using System.Runtime.Serialization;
     using Azure.Data.Tables;
     using DurableTask.Core.History;
-    using DurableTask.Core.Serializing;
     using Newtonsoft.Json;
 
     /// <summary>
@@ -35,7 +34,7 @@ namespace DurableTask.ServiceBus.Tracking
         private static readonly JsonSerializerSettings ReadJsonSettings = new JsonSerializerSettings
         {
             TypeNameHandling = TypeNameHandling.Objects,
-            SerializationBinder = new PackageUpgradeSerializationBinder()
+            SerializationBinder = new HistoryEventSerializationBinder()
         };
 
         /// <summary>
