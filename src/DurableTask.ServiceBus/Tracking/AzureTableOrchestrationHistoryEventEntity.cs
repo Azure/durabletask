@@ -28,11 +28,13 @@ namespace DurableTask.ServiceBus.Tracking
         private static readonly JsonSerializerSettings WriteJsonSettings = new JsonSerializerSettings
         {
             Formatting = Formatting.Indented,
+            // CodeQL [SM02211] Serialization-only path; deserialization is constrained by HistoryEventSerializationBinder on ReadJsonSettings.
             TypeNameHandling = TypeNameHandling.Objects
         };
 
         private static readonly JsonSerializerSettings ReadJsonSettings = new JsonSerializerSettings
         {
+            // CodeQL [SM02211] Constrained by HistoryEventSerializationBinder allowlist; only DurableTask.Core types and Dictionary<string,string> are accepted.
             TypeNameHandling = TypeNameHandling.Objects,
             SerializationBinder = new HistoryEventSerializationBinder()
         };
