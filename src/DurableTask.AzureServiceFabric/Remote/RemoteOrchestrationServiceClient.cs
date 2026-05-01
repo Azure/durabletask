@@ -301,11 +301,11 @@ namespace DurableTask.AzureServiceFabric.Remote
             }
         }
 
-        // CodeQL [SM02211] False positive: serialization (write) path only; no untrusted JSON is deserialized here.
         private async Task PutJsonAsync(string instanceId, string fragment, object @object, CancellationToken cancellationToken)
         {
             var mediaFormatter = new JsonMediaTypeFormatter()
             {
+                // CodeQL [SM02211] False positive: serialization (write) path only; no untrusted JSON is deserialized here.
                 SerializerSettings = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.All }
             };
 
