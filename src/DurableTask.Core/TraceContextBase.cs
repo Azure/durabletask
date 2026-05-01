@@ -19,6 +19,7 @@ namespace DurableTask.Core
     using System.Linq;
     using System.Reflection;
     using DurableTask.Core.Common;
+    using DurableTask.Core.Serializing;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
 
@@ -44,6 +45,7 @@ namespace DurableTask.Core
                 TypeNameHandling = TypeNameHandling.Objects,
                 PreserveReferencesHandling = PreserveReferencesHandling.Objects,
                 ReferenceLoopHandling = ReferenceLoopHandling.Serialize,
+                SerializationBinder = new TraceContextSerializationBinder(),
             };
 
             serializer = JsonSerializer.Create(CustomJsonSerializerSettings);   
