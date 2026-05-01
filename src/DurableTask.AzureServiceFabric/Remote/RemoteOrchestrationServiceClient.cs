@@ -15,7 +15,6 @@ namespace DurableTask.AzureServiceFabric.Remote
 {
     using System;
     using System.Collections.Generic;
-    using System.Diagnostics.CodeAnalysis;
     using System.Linq;
     using System.Net;
     using System.Net.Http;
@@ -302,23 +301,9 @@ namespace DurableTask.AzureServiceFabric.Remote
             }
         }
 
-        [SuppressMessage(
-            "Security",
-            "CA2326:Do not use TypeNameHandling values other than None",
-            Justification = "Serialization (write) path only; no untrusted JSON is deserialized through these settings. See inline CodeQL suppression comment below.")]
-        [SuppressMessage(
-            "Security",
-            "CA2327:Do not use insecure deserializer settings",
-            Justification = "Serialization (write) path only; no untrusted JSON is deserialized through these settings. See inline CodeQL suppression comment below.")]
+        // CodeQL [SM02211] False positive: serialization (write) path only; no untrusted JSON is deserialized here.
         private async Task PutJsonAsync(string instanceId, string fragment, object @object, CancellationToken cancellationToken)
         {
-            // CodeQL [SM02211] False positive on the serialization (write) path.
-            // JsonMediaTypeFormatter is only used here to serialize outgoing PUT request bodies;
-            // no untrusted JSON is deserialized through these settings. The matching response
-            // reads use the default formatter (TypeNameHandling.None) or strongly-typed
-            // ReadAsAsync<T>. The wire format requires TypeNameHandling.All for interop with
-            // FabricOrchestrationServiceController, which is configured symmetrically in
-            // Service/Startup.cs.
             var mediaFormatter = new JsonMediaTypeFormatter()
             {
                 SerializerSettings = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.All }
