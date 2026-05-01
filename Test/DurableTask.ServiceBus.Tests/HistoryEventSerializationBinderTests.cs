@@ -15,6 +15,7 @@ namespace DurableTask.ServiceBus.Tests
 {
     using System;
     using System.Collections.Generic;
+    using System.IO;
     using DurableTask.Core;
     using DurableTask.Core.History;
     using DurableTask.ServiceBus.Tracking;
@@ -79,8 +80,15 @@ namespace DurableTask.ServiceBus.Tests
         public void RejectsNonAllowlistedRootType()
         {
             // System.IO.FileInfo is a classic gadget-chain probe. The binder must reject it
-            // even though the BCL would happily resolve it via Type.GetType.
-            string json = "{\"$type\":\"System.IO.FileInfo, System.Private.CoreLib\",\"OriginalPath\":\"c:\\\\evil\"}";
+            // even though the BCL would happily resolve it via Type.GetType. FileInfo lives
+            // in the BCL (which is on the assembly-name allowlist so that Dictionary<string,
+            // string> can round-trip), so this test specifically exercises the post-resolution
+            // IsAllowed filter rather than the assembly-name pre-filter.
+            // The BCL assembly name differs between TFMs (System.Private.CoreLib on .NET,
+            // mscorlib on .NET Framework), so build the $type string from the actual runtime
+            // type to avoid passing for the wrong reason (type-resolution failure).
+            string bclAssemblyName = typeof(FileInfo).Assembly.GetName().Name;
+            string json = $"{{\"$type\":\"System.IO.FileInfo, {bclAssemblyName}\",\"OriginalPath\":\"c:\\\\evil\"}}";
             Assert.ThrowsException<JsonSerializationException>(
                 () => JsonConvert.DeserializeObject<HistoryEvent>(json, ReadJsonSettings));
         }
@@ -91,9 +99,15 @@ namespace DurableTask.ServiceBus.Tests
             // Embed a malicious $type inside an otherwise valid ExecutionStartedEvent's Tags
             // member. The Tags member is IDictionary<string,string>, so the $type token is
             // honored by Newtonsoft.Json when reading. Anything other than
-            // Dictionary<string,string> must be rejected.
-            string json = "{\"$type\":\"DurableTask.Core.History.ExecutionStartedEvent, DurableTask.Core\","
-                + "\"Tags\":{\"$type\":\"System.Collections.Generic.SortedDictionary`2[[System.String, System.Private.CoreLib],[System.String, System.Private.CoreLib]], System.Collections\"}}";
+            // Dictionary<string,string> must be rejected. SortedDictionary lives in a non-BCL
+            // assembly (System.Collections on .NET, System on .NET Framework) so this test
+            // exercises the assembly-name pre-filter.
+            // Build $type strings dynamically so they resolve under both target frameworks.
+            string bclAssemblyName = typeof(string).Assembly.GetName().Name;
+            string sortedDictAssemblyName = typeof(SortedDictionary<string, string>).Assembly.GetName().Name;
+            string json =
+                "{\"$type\":\"DurableTask.Core.History.ExecutionStartedEvent, DurableTask.Core\","
+                + $"\"Tags\":{{\"$type\":\"System.Collections.Generic.SortedDictionary`2[[System.String, {bclAssemblyName}],[System.String, {bclAssemblyName}]], {sortedDictAssemblyName}\"}}}}";
             Assert.ThrowsException<JsonSerializationException>(
                 () => JsonConvert.DeserializeObject<HistoryEvent>(json, ReadJsonSettings));
         }
@@ -102,12 +116,30 @@ namespace DurableTask.ServiceBus.Tests
         public void AllowsDictionaryStringStringForTags()
         {
             // The exact concrete type Newtonsoft.Json emits for IDictionary<string,string> Tags.
-            string json = "{\"$type\":\"DurableTask.Core.History.ExecutionStartedEvent, DurableTask.Core\","
-                + "\"Tags\":{\"$type\":\"System.Collections.Generic.Dictionary`2[[System.String, " + typeof(string).Assembly.GetName().Name + "],[System.String, " + typeof(string).Assembly.GetName().Name + "]], " + typeof(Dictionary<string, string>).Assembly.GetName().Name + "\","
+            string bclAssemblyName = typeof(string).Assembly.GetName().Name;
+            string dictAssemblyName = typeof(Dictionary<string, string>).Assembly.GetName().Name;
+            string json =
+                "{\"$type\":\"DurableTask.Core.History.ExecutionStartedEvent, DurableTask.Core\","
+                + $"\"Tags\":{{\"$type\":\"System.Collections.Generic.Dictionary`2[[System.String, {bclAssemblyName}],[System.String, {bclAssemblyName}]], {dictAssemblyName}\","
                 + "\"tag1\":\"v1\"}}";
 
             var deserialized = (ExecutionStartedEvent)JsonConvert.DeserializeObject<HistoryEvent>(json, ReadJsonSettings);
             Assert.AreEqual("v1", deserialized.Tags["tag1"]);
+        }
+
+        [TestMethod]
+        public void AllowsLegacyDurableTaskAssemblyNameRewrite()
+        {
+            // Pre-v2 DTFx payloads were written with assembly name 'DurableTask' (or
+            // 'DurableTaskFx') and a 'DurableTask.<X>' type name. PackageUpgradeSerializationBinder
+            // (the base class) rewrites these to 'DurableTask.Core.<X>' for upgrade compatibility.
+            // This test guards that path: HistoryEventSerializationBinder must keep the legacy
+            // assembly name on its allowlist and must accept the rewritten type after resolution.
+            var binder = new HistoryEventSerializationBinder();
+            Type bound = binder.BindToType(
+                assemblyName: "DurableTask",
+                typeName: "DurableTask.History.ExecutionStartedEvent");
+            Assert.AreEqual(typeof(ExecutionStartedEvent), bound);
         }
     }
 }

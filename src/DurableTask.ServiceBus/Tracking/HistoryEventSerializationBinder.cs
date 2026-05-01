@@ -38,11 +38,38 @@ namespace DurableTask.ServiceBus.Tracking
     {
         static readonly Assembly DurableTaskCoreAssembly = typeof(HistoryEvent).Assembly;
 
+        // Allowlist of simple assembly names whose types may even be resolved by this binder.
+        // This is a defense-in-depth check applied *before* delegating to the base binder, so
+        // that the .NET runtime never has to load (and execute the module initializer of) an
+        // assembly that is not on the allowlist as a side effect of probing a malicious $type.
+        static readonly HashSet<string> AllowedAssemblySimpleNames = new HashSet<string>(StringComparer.Ordinal)
+        {
+            DurableTaskCoreAssembly.GetName().Name,                          // DurableTask.Core
+            typeof(Dictionary<string, string>).Assembly.GetName().Name,     // BCL host of Dictionary<string,string>; differs across TFMs
+            "DurableTask",                                                  // pre-v2 DTFx assembly (legacy upgrade path)
+            "DurableTaskFx",                                                // pre-v2 DTFx vNext assembly (legacy upgrade path)
+        };
+
         /// <inheritdoc />
         public override Type BindToType(string assemblyName, string typeName)
         {
+            // Stage 1: reject by assembly name string before invoking the base binder so that
+            // unknown assemblies are never loaded just to be rejected afterwards.
+            string simpleAssemblyName = ExtractSimpleAssemblyName(assemblyName);
+            if (simpleAssemblyName != null && !AllowedAssemblySimpleNames.Contains(simpleAssemblyName))
+            {
+                throw new JsonSerializationException(
+                    $"Type '{typeName}' from assembly '{assemblyName}' is not permitted by the orchestration history serialization binder.");
+            }
+
+            // Stage 2: delegate to PackageUpgradeSerializationBinder for the legacy
+            // DurableTask.* -> DurableTask.Core.* rewrite and standard type resolution.
             Type resolved = base.BindToType(assemblyName, typeName);
 
+            // Stage 3: filter the resolved type. The BCL is in the assembly allowlist (so that
+            // Dictionary<string,string> can be round-tripped for the Tags member), so we still
+            // need this post-resolution check to reject other BCL types (e.g., FileInfo,
+            // ObjectDataProvider) that an attacker might try to use as a deserialization gadget.
             if (resolved == null || !IsAllowed(resolved))
             {
                 throw new JsonSerializationException(
@@ -62,6 +89,16 @@ namespace DurableTask.ServiceBus.Tracking
             // declared type is an interface).
             return type.Assembly == DurableTaskCoreAssembly
                 || type == typeof(Dictionary<string, string>);
+        }
+
+        static string ExtractSimpleAssemblyName(string assemblyName)
+        {
+            if (string.IsNullOrWhiteSpace(assemblyName))
+            {
+                return null;
+            }
+            int comma = assemblyName.IndexOf(',');
+            return comma < 0 ? assemblyName : assemblyName.Substring(0, comma);
         }
     }
 }
