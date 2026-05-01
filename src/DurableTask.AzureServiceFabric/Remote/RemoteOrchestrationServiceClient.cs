@@ -305,7 +305,15 @@ namespace DurableTask.AzureServiceFabric.Remote
         {
             var mediaFormatter = new JsonMediaTypeFormatter()
             {
-                SerializerSettings = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.All }
+                // TypeNameHandling.Auto is sufficient: it emits $type only for polymorphic members
+                // (e.g., HistoryEvent Event on TaskMessage). The strict binder restricts the resolvable
+                // type set to DurableTask.* assemblies as defense in depth in case this formatter is
+                // ever reused for deserialization.
+                SerializerSettings = new JsonSerializerSettings
+                {
+                    TypeNameHandling = TypeNameHandling.Auto,
+                    SerializationBinder = new RemoteOrchestrationTypeBinder(),
+                }
             };
 
             using (var result = await this.ExecuteRequestWithRetriesAsync(
