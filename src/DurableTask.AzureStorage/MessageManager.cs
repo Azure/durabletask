@@ -14,7 +14,6 @@
 namespace DurableTask.AzureStorage
 {
     using System;
-    using System.Diagnostics.CodeAnalysis;
     using System.IO;
     using System.IO.Compression;
     using System.Linq;
@@ -52,14 +51,6 @@ namespace DurableTask.AzureStorage
 
         bool containerInitialized;
 
-        [SuppressMessage(
-            "Security",
-            "CA2326:Do not use TypeNameHandling values other than None",
-            Justification = "Required to round-trip polymorphic HistoryEvent payloads through customer-owned Azure Storage. See inline CodeQL suppression comment below.")]
-        [SuppressMessage(
-            "Security",
-            "CA2327:Do not use insecure deserializer settings",
-            Justification = "Required to round-trip polymorphic HistoryEvent payloads through customer-owned Azure Storage. See inline CodeQL suppression comment below.")]
         public MessageManager(
             AzureStorageOrchestrationServiceSettings settings,
             AzureStorageClient azureStorageClient,
@@ -68,14 +59,6 @@ namespace DurableTask.AzureStorage
             this.settings = settings;
             this.azureStorageClient = azureStorageClient;
             this.blobContainer = this.azureStorageClient.GetBlobContainerReference(blobContainerName);
-            // CodeQL [SM05220] TypeNameHandling.Objects with TypeNameSerializationBinder is required to round-trip
-            // polymorphic HistoryEvent payloads (and dictionary types like ExecutionStartedEvent.Tags) through
-            // customer-owned Azure Storage queues/blobs. The DTFx worker and the Storage account sit on the same
-            // side of the trust boundary: both are authenticated with the customer's tenant credentials, so any
-            // attacker capable of writing a malicious $type into the queue/blob has already breached the data-plane
-            // auth boundary that protects the Storage account. The public ICustomTypeBinder extensibility point
-            // (CustomMessageTypeBinder) lets security-sensitive customers plug in their own allowlist; tightening
-            // the default binder to a hard-coded allowlist would be a breaking change for the DTFx public API.
             this.taskMessageSerializerSettings = new JsonSerializerSettings
             {
                 TypeNameHandling = TypeNameHandling.Objects,
@@ -389,6 +372,7 @@ namespace DurableTask.AzureStorage
             TypeNameSerializationHelper.BindToName(customBinder, serializedType, out assemblyName, out typeName);
         }
 
+        // CodeQL [SM05220] False positive: customer-owned Storage is inside the DTFx trust boundary.
         public Type BindToType(string assemblyName, string typeName)
         {
             return TypeNameSerializationHelper.BindToType(customBinder, assemblyName, typeName);
@@ -408,6 +392,7 @@ namespace DurableTask.AzureStorage
             TypeNameSerializationHelper.BindToName(customBinder, serializedType, out assemblyName, out typeName);
         }
 
+        // CodeQL [SM05220] False positive: customer-owned Storage is inside the DTFx trust boundary.
         public override Type BindToType(string assemblyName, string typeName)
         {
             return TypeNameSerializationHelper.BindToType(customBinder, assemblyName, typeName);
