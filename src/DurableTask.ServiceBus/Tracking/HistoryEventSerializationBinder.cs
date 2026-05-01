@@ -42,12 +42,22 @@ namespace DurableTask.ServiceBus.Tracking
         // This is a defense-in-depth check applied *before* delegating to the base binder, so
         // that the .NET runtime never has to load (and execute the module initializer of) an
         // assembly that is not on the allowlist as a side effect of probing a malicious $type.
+        // The set spans:
+        //   * DurableTask.Core (the source of HistoryEvent and friends).
+        //   * The legacy pre-v2 DTFx assembly names rewritten by PackageUpgradeSerializationBinder.
+        //   * The BCL assemblies that host common IDictionary<string, string> implementations
+        //     emitted as $type for the Tags member. The host assembly varies by TFM and by
+        //     concrete dictionary type, so we enumerate them via typeof(...).Assembly to stay
+        //     correct under multi-targeting.
         static readonly HashSet<string> AllowedAssemblySimpleNames = new HashSet<string>(StringComparer.Ordinal)
         {
-            DurableTaskCoreAssembly.GetName().Name,                          // DurableTask.Core
-            typeof(Dictionary<string, string>).Assembly.GetName().Name,     // BCL host of Dictionary<string,string>; differs across TFMs
-            "DurableTask",                                                  // pre-v2 DTFx assembly (legacy upgrade path)
-            "DurableTaskFx",                                                // pre-v2 DTFx vNext assembly (legacy upgrade path)
+            DurableTaskCoreAssembly.GetName().Name,                                                  // DurableTask.Core
+            typeof(Dictionary<string, string>).Assembly.GetName().Name,                              // mscorlib / System.Private.CoreLib
+            typeof(SortedDictionary<string, string>).Assembly.GetName().Name,                        // System / System.Collections
+            typeof(System.Collections.Concurrent.ConcurrentDictionary<string, string>).Assembly.GetName().Name, // mscorlib / System.Collections.Concurrent
+            typeof(System.Collections.ObjectModel.ReadOnlyDictionary<string, string>).Assembly.GetName().Name,  // mscorlib / System.ObjectModel
+            "DurableTask",                                                                            // pre-v2 DTFx assembly (legacy upgrade path)
+            "DurableTaskFx",                                                                          // pre-v2 DTFx vNext assembly (legacy upgrade path)
         };
 
         /// <inheritdoc />
@@ -55,8 +65,13 @@ namespace DurableTask.ServiceBus.Tracking
         {
             // Stage 1: reject by assembly name string before invoking the base binder so that
             // unknown assemblies are never loaded just to be rejected afterwards.
+            // Reject null/empty assembly names deterministically. Json.NET can invoke
+            // BindToType with a null assemblyName when an incoming $type token omits the
+            // assembly portion; an unqualified type name is never produced by DTFx
+            // serialization and would also cause the base PackageUpgradeSerializationBinder
+            // to throw a NullReferenceException, so fail fast with a typed exception here.
             string simpleAssemblyName = ExtractSimpleAssemblyName(assemblyName);
-            if (simpleAssemblyName != null && !AllowedAssemblySimpleNames.Contains(simpleAssemblyName))
+            if (simpleAssemblyName == null || !AllowedAssemblySimpleNames.Contains(simpleAssemblyName))
             {
                 throw new JsonSerializationException(
                     $"Type '{typeName}' from assembly '{assemblyName}' is not permitted by the orchestration history serialization binder.");
@@ -82,13 +97,20 @@ namespace DurableTask.ServiceBus.Tracking
         static bool IsAllowed(Type type)
         {
             // Allow any type defined in DurableTask.Core (HistoryEvent subclasses, OrchestrationInstance,
-            // ParentInstance, FailureDetails, OrchestrationExecutionContext, etc.), plus
-            // Dictionary<string, string> to round-trip the IDictionary<string, string> Tags members
-            // declared on ExecutionStartedEvent / SubOrchestrationInstanceCreatedEvent /
-            // TaskScheduledEvent (Newtonsoft.Json emits a $type for these because the static
-            // declared type is an interface).
-            return type.Assembly == DurableTaskCoreAssembly
-                || type == typeof(Dictionary<string, string>);
+            // ParentInstance, FailureDetails, OrchestrationExecutionContext, etc.).
+            if (type.Assembly == DurableTaskCoreAssembly)
+            {
+                return true;
+            }
+
+            // For all other allowlisted assemblies (the BCL dictionary hosts plus the legacy
+            // pre-v2 DTFx assemblies), only types assignable to IDictionary<string, string>
+            // are accepted. This narrows the resolved set so that gadget types living in the
+            // same allowlisted BCL assembly (e.g., FileInfo in System.Private.CoreLib) cannot
+            // pass the post-resolution check. Tags is the only IDictionary<string, string>
+            // member declared on a serialized HistoryEvent subtree, so any other concrete
+            // type is unreachable by the legitimate serializer in any case.
+            return typeof(IDictionary<string, string>).IsAssignableFrom(type);
         }
 
         static string ExtractSimpleAssemblyName(string assemblyName)

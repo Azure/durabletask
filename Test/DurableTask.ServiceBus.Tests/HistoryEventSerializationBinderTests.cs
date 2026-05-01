@@ -98,18 +98,42 @@ namespace DurableTask.ServiceBus.Tests
         {
             // Embed a malicious $type inside an otherwise valid ExecutionStartedEvent's Tags
             // member. The Tags member is IDictionary<string,string>, so the $type token is
-            // honored by Newtonsoft.Json when reading. Anything other than
-            // Dictionary<string,string> must be rejected. SortedDictionary lives in a non-BCL
-            // assembly (System.Collections on .NET, System on .NET Framework) so this test
-            // exercises the assembly-name pre-filter.
-            // Build $type strings dynamically so they resolve under both target frameworks.
-            string bclAssemblyName = typeof(string).Assembly.GetName().Name;
-            string sortedDictAssemblyName = typeof(SortedDictionary<string, string>).Assembly.GetName().Name;
+            // honored by Newtonsoft.Json when reading. The binder must reject any concrete
+            // type that is not assignable to IDictionary<string,string> even when it lives in
+            // an allowlisted assembly. System.Collections.Hashtable is in the BCL (so the
+            // assembly-name pre-filter does not apply) but is not IDictionary<string,string>,
+            // so this exercises the post-resolution IsAllowed filter.
+            string bclAssemblyName = typeof(System.Collections.Hashtable).Assembly.GetName().Name;
             string json =
                 "{\"$type\":\"DurableTask.Core.History.ExecutionStartedEvent, DurableTask.Core\","
-                + $"\"Tags\":{{\"$type\":\"System.Collections.Generic.SortedDictionary`2[[System.String, {bclAssemblyName}],[System.String, {bclAssemblyName}]], {sortedDictAssemblyName}\"}}}}";
+                + $"\"Tags\":{{\"$type\":\"System.Collections.Hashtable, {bclAssemblyName}\"}}}}";
             Assert.ThrowsException<JsonSerializationException>(
                 () => JsonConvert.DeserializeObject<HistoryEvent>(json, ReadJsonSettings));
+        }
+
+        [TestMethod]
+        public void RejectsNonBclDictionaryAssembly()
+        {
+            // Even an IDictionary<string,string> implementation must originate from an
+            // allowlisted assembly. Construct a $type referencing a fictitious assembly to
+            // confirm the assembly-name pre-filter rejects it before any type loading occurs.
+            string json =
+                "{\"$type\":\"DurableTask.Core.History.ExecutionStartedEvent, DurableTask.Core\","
+                + "\"Tags\":{\"$type\":\"Some.Evil.Dictionary, Some.Evil.Assembly\"}}";
+            Assert.ThrowsException<JsonSerializationException>(
+                () => JsonConvert.DeserializeObject<HistoryEvent>(json, ReadJsonSettings));
+        }
+
+        [TestMethod]
+        public void RejectsNullAssemblyName()
+        {
+            // Json.NET can invoke BindToType with a null assemblyName when an incoming $type
+            // token omits the assembly portion. The binder must fail deterministically with a
+            // JsonSerializationException rather than letting a NullReferenceException leak out
+            // of PackageUpgradeSerializationBinder.
+            var binder = new HistoryEventSerializationBinder();
+            Assert.ThrowsException<JsonSerializationException>(
+                () => binder.BindToType(assemblyName: null, typeName: "DurableTask.Core.History.ExecutionStartedEvent"));
         }
 
         [TestMethod]
@@ -121,6 +145,24 @@ namespace DurableTask.ServiceBus.Tests
             string json =
                 "{\"$type\":\"DurableTask.Core.History.ExecutionStartedEvent, DurableTask.Core\","
                 + $"\"Tags\":{{\"$type\":\"System.Collections.Generic.Dictionary`2[[System.String, {bclAssemblyName}],[System.String, {bclAssemblyName}]], {dictAssemblyName}\","
+                + "\"tag1\":\"v1\"}}";
+
+            var deserialized = (ExecutionStartedEvent)JsonConvert.DeserializeObject<HistoryEvent>(json, ReadJsonSettings);
+            Assert.AreEqual("v1", deserialized.Tags["tag1"]);
+        }
+
+        [TestMethod]
+        public void AllowsSortedDictionaryStringStringForTags()
+        {
+            // Public DTFx APIs accept any IDictionary<string, string> for Tags and persist it
+            // with its runtime $type. SortedDictionary lives in a different BCL assembly than
+            // Dictionary on .NET (System.Collections), so this test exercises the multi-host
+            // assembly allowlist together with the IDictionary<string, string>-shape post-check.
+            string bclAssemblyName = typeof(string).Assembly.GetName().Name;
+            string sortedDictAssemblyName = typeof(SortedDictionary<string, string>).Assembly.GetName().Name;
+            string json =
+                "{\"$type\":\"DurableTask.Core.History.ExecutionStartedEvent, DurableTask.Core\","
+                + $"\"Tags\":{{\"$type\":\"System.Collections.Generic.SortedDictionary`2[[System.String, {bclAssemblyName}],[System.String, {bclAssemblyName}]], {sortedDictAssemblyName}\","
                 + "\"tag1\":\"v1\"}}";
 
             var deserialized = (ExecutionStartedEvent)JsonConvert.DeserializeObject<HistoryEvent>(json, ReadJsonSettings);
