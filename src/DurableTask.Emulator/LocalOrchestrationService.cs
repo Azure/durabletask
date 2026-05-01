@@ -21,7 +21,6 @@ namespace DurableTask.Emulator
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
-    using System.Diagnostics.CodeAnalysis;
     using System.Linq;
     using System.Text;
     using System.Threading;
@@ -56,20 +55,7 @@ namespace DurableTask.Emulator
 
         readonly ConcurrentDictionary<string, TaskCompletionSource<OrchestrationState>> orchestrationWaiters;
 
-        // CodeQL [SM02211] False positive. LocalOrchestrationService is a fully in-proc emulator intended for
-        // testing only. The bytes produced by SerializeOrchestrationRuntimeState are stored in the in-memory
-        // sessionState dictionary on this same instance and never cross a trust boundary (no disk, network,
-        // or cross-process surface). The polymorphic surface is bounded to HistoryEvent subclasses defined in
-        // DurableTask.Core; customer payload fields (Input/Output/Result/Reason/Details) are typed as string
-        // and are opaque to this serializer. No attacker-controlled JSON can reach DeserializeOrchestrationRuntimeState.
-        [SuppressMessage(
-            "Security",
-            "CA2326:Do not use TypeNameHandling values other than None",
-            Justification = "In-proc test-only emulator; serialized bytes never cross a trust boundary. See inline CodeQL suppression comment above.")]
-        [SuppressMessage(
-            "Security",
-            "CA2327:Do not use insecure deserializer settings",
-            Justification = "In-proc test-only emulator; serialized bytes never cross a trust boundary. See inline CodeQL suppression comment above.")]
+        // CodeQL [SM02211] False positive: in-proc test-only emulator; bytes stay in-memory and never cross a trust boundary.
         static readonly JsonSerializerSettings StateJsonSettings = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto };
 
         /// <summary>
