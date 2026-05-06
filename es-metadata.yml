@@ -1,0 +1,12 @@
+schemaVersion: 1.0.0
+providers:
+- provider: InventoryAsCode
+  version: 1.0.0
+  metadata:
+    isProduction: true
+    accountableOwners:
+      service: c5281ccb-b379-4acf-9099-95a37f9805f3
+    routing:
+      defaultAreaPath:
+        org: azfunc
+        path: internal\DurableTask
