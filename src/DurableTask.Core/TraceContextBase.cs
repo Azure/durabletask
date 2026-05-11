@@ -41,6 +41,7 @@ namespace DurableTask.Core
         {
             CustomJsonSerializerSettings = new JsonSerializerSettings()
             {
+                // CodeQL [SM02211] Internal-only payload; Restore validates root $type is a TraceContextBase subclass.
                 TypeNameHandling = TypeNameHandling.Objects,
                 PreserveReferencesHandling = PreserveReferencesHandling.Objects,
                 ReferenceLoopHandling = ReferenceLoopHandling.Serialize,
