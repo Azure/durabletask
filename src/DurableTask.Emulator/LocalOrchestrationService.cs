@@ -54,6 +54,8 @@ namespace DurableTask.Emulator
         readonly object timerLock = new object();
 
         readonly ConcurrentDictionary<string, TaskCompletionSource<OrchestrationState>> orchestrationWaiters;
+
+        // CodeQL [SM02211] False positive: in-proc test-only emulator; bytes stay in-memory and never cross a trust boundary.
         static readonly JsonSerializerSettings StateJsonSettings = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto };
 
         /// <summary>
