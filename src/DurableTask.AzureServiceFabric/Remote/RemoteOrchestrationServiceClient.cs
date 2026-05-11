@@ -305,6 +305,7 @@ namespace DurableTask.AzureServiceFabric.Remote
         {
             var mediaFormatter = new JsonMediaTypeFormatter()
             {
+                // CodeQL [SM02211] False positive: serialization (write) path only; no untrusted JSON is deserialized here.
                 SerializerSettings = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.All }
             };
 
