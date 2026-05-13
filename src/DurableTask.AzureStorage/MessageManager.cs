@@ -372,6 +372,7 @@ namespace DurableTask.AzureStorage
             TypeNameSerializationHelper.BindToName(customBinder, serializedType, out assemblyName, out typeName);
         }
 
+        // CodeQL [SM05220] False positive: customer-owned Storage is inside the DTFx trust boundary.
         public Type BindToType(string assemblyName, string typeName)
         {
             return TypeNameSerializationHelper.BindToType(customBinder, assemblyName, typeName);
@@ -391,6 +392,7 @@ namespace DurableTask.AzureStorage
             TypeNameSerializationHelper.BindToName(customBinder, serializedType, out assemblyName, out typeName);
         }
 
+        // CodeQL [SM05220] False positive: customer-owned Storage is inside the DTFx trust boundary.
         public override Type BindToType(string assemblyName, string typeName)
         {
             return TypeNameSerializationHelper.BindToType(customBinder, assemblyName, typeName);

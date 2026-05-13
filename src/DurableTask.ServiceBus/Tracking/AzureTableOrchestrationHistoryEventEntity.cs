@@ -29,6 +29,7 @@ namespace DurableTask.ServiceBus.Tracking
         private static readonly JsonSerializerSettings WriteJsonSettings = new JsonSerializerSettings
         {
             Formatting = Formatting.Indented,
+            // CodeQL [SM02211] Write-only path; deserialization is constrained by ReadJsonSettings.
             TypeNameHandling = TypeNameHandling.Objects
         };
 
