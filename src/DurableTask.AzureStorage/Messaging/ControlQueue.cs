@@ -251,7 +251,7 @@ namespace DurableTask.AzureStorage.Messaging
                     this.settings.TaskHubName,
                     this.settings.WorkerId,
                     this.Name,
-                    $"Failed to abandon message {queueMessage.MessageId} during drain: {e.Message}");
+                    $"Failed to abandon message {queueMessage.MessageId} during drain: {e}");
             }
         }
 
