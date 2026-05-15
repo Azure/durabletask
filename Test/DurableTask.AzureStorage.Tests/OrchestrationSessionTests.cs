@@ -18,11 +18,11 @@ namespace DurableTask.AzureStorage.Tests
     using System.Diagnostics;
     using System.Linq;
     using System.Reflection;
+    using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
-    using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Moq;
@@ -228,10 +228,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task GetNextSessionAsync_DrainedReadyQueueNode_IsIgnored()
         {
-            var settings = new AzureStorageOrchestrationServiceSettings
-            {
-                StorageAccountClientProvider = new StorageAccountClientProvider("UseDevelopmentStorage=true"),
-            };
+            var settings = new AzureStorageOrchestrationServiceSettings();
             var stats = new AzureStorageOrchestrationServiceStats();
             var trackingStore = new Mock<ITrackingStore>();
 
@@ -241,9 +238,7 @@ namespace DurableTask.AzureStorage.Tests
                 stats,
                 trackingStore.Object);
 
-            var storageClient = new AzureStorageClient(settings);
-            var messageManager = new MessageManager(settings, storageClient, settings.TaskHubName);
-            var controlQueue = new ControlQueue(storageClient, "partition-0", messageManager);
+            var controlQueue = CreateControlQueueWithoutStorage();
 
             object pendingBatch = CreatePendingBatch(controlQueue);
             object node = AddPendingBatchNode(manager, pendingBatch);
@@ -273,6 +268,11 @@ namespace DurableTask.AzureStorage.Tests
                 binder: null,
                 args: new object[] { controlQueue, "instance1", "execution1" },
                 culture: null);
+        }
+
+        static ControlQueue CreateControlQueueWithoutStorage()
+        {
+            return (ControlQueue)RuntimeHelpers.GetUninitializedObject(typeof(ControlQueue));
         }
 
         static object AddPendingBatchNode(OrchestrationSessionManager manager, object pendingBatch)
