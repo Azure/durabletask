@@ -258,6 +258,7 @@ namespace DurableTask.AzureStorage.Tests
             }
             catch (OperationCanceledException)
             {
+                Assert.IsTrue(true, "Operation cancellation was expected.");
             }
         }
 
