@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage.Tests
 {
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
@@ -335,6 +336,35 @@ namespace DurableTask.AzureStorage.Tests
 
             manager.GetStats(out int pendingOrchestratorInstances, out _, out _);
             Assert.AreEqual(0, pendingOrchestratorInstances, "Released queue messages should not be added to pending batches.");
+        }
+
+        [TestMethod]
+        public async Task WaitForDequeueLoopToStopAsync_FaultedDequeueLoop_PropagatesUnexpectedException()
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings();
+            var stats = new AzureStorageOrchestrationServiceStats();
+            var trackingStore = new Mock<ITrackingStore>();
+
+            using var manager = new OrchestrationSessionManager(
+                "testaccount",
+                settings,
+                stats,
+                trackingStore.Object);
+
+            var dequeueLoopTasks = (ConcurrentDictionary<string, Task>)GetPrivateField(manager, "dequeueLoopTasks");
+            var expected = new InvalidOperationException("unexpected dequeue loop failure");
+            dequeueLoopTasks["partition-0"] = Task.FromException(expected);
+
+            MethodInfo wait = typeof(OrchestrationSessionManager).GetMethod(
+                "WaitForDequeueLoopToStopAsync",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+
+            Task waitTask = (Task)wait.Invoke(manager, new object[] { "partition-0", CancellationToken.None });
+
+            InvalidOperationException actual = await Assert.ThrowsExceptionAsync<InvalidOperationException>(
+                () => waitTask);
+
+            Assert.AreSame(expected, actual);
         }
 
         static object CreatePendingBatch(ControlQueue controlQueue)

@@ -261,14 +261,23 @@ namespace DurableTask.AzureStorage
                         $"Timed-out waiting for the dequeue loop to stop during drain.");
                 }
             }
-            catch (Exception e)
+            catch (OperationCanceledException e)
             {
                 this.settings.Logger.PartitionManagerWarning(
                     this.storageAccountName,
                     this.settings.TaskHubName,
                     this.settings.WorkerId,
                     partitionId,
-                    $"Exception while waiting for the dequeue loop to stop during drain. Exception: {e}");
+                    $"Canceled while waiting for the dequeue loop to stop during drain. Exception: {e}");
+            }
+            catch (AggregateException e) when (e.InnerExceptions.All(ex => ex is OperationCanceledException))
+            {
+                this.settings.Logger.PartitionManagerWarning(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    this.settings.WorkerId,
+                    partitionId,
+                    $"Canceled while waiting for the dequeue loop to stop during drain. Exception: {e}");
             }
         }
 
