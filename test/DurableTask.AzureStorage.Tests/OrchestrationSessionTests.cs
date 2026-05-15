@@ -261,13 +261,16 @@ namespace DurableTask.AzureStorage.Tests
         {
             Type pendingBatchType = typeof(OrchestrationSessionManager)
                 .GetNestedType("PendingMessageBatch", BindingFlags.NonPublic);
+            Assert.IsNotNull(pendingBatchType);
 
-            return Activator.CreateInstance(
+            object pendingBatch = Activator.CreateInstance(
                 pendingBatchType,
                 BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
                 binder: null,
                 args: new object[] { controlQueue, "instance1", "execution1" },
                 culture: null);
+            Assert.IsNotNull(pendingBatch);
+            return pendingBatch;
         }
 
         static ControlQueue CreateControlQueueWithoutStorage()
@@ -279,13 +282,17 @@ namespace DurableTask.AzureStorage.Tests
         {
             object pendingBatches = GetPrivateField(manager, "pendingOrchestrationMessageBatches");
             MethodInfo addLast = pendingBatches.GetType().GetMethod("AddLast", new[] { pendingBatch.GetType() });
-            return addLast.Invoke(pendingBatches, new[] { pendingBatch });
+            Assert.IsNotNull(addLast);
+            object node = addLast.Invoke(pendingBatches, new[] { pendingBatch });
+            Assert.IsNotNull(node);
+            return node;
         }
 
         static void RemovePendingBatchNode(OrchestrationSessionManager manager, object node)
         {
             object pendingBatches = GetPrivateField(manager, "pendingOrchestrationMessageBatches");
             MethodInfo remove = pendingBatches.GetType().GetMethod("Remove", new[] { node.GetType() });
+            Assert.IsNotNull(remove);
             remove.Invoke(pendingBatches, new[] { node });
         }
 
@@ -293,6 +300,7 @@ namespace DurableTask.AzureStorage.Tests
         {
             object readyQueue = GetPrivateField(manager, "orchestrationsReadyForProcessingQueue");
             MethodInfo enqueue = readyQueue.GetType().GetMethod("Enqueue");
+            Assert.IsNotNull(enqueue);
             enqueue.Invoke(readyQueue, new[] { node });
         }
 

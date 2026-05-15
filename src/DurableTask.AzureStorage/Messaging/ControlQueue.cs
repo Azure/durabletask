@@ -245,7 +245,7 @@ namespace DurableTask.AzureStorage.Messaging
                     clientRequestId: null,
                     cancellationToken: cancellationToken);
             }
-            catch (RequestFailedException e)
+            catch (Exception e)
             {
                 this.settings.Logger.PartitionManagerWarning(
                     this.storageAccountName,
