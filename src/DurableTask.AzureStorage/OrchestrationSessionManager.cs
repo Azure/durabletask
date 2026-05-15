@@ -217,7 +217,28 @@ namespace DurableTask.AzureStorage
             finally
             {
                 // Make dequeued-but-undispatched messages visible before dropping the partition.
-                await this.AbandonPendingMessagesAsync(partitionId);
+                try
+                {
+                    await this.AbandonPendingMessagesAsync(partitionId, cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    this.settings.Logger.PartitionManagerWarning(
+                        this.storageAccountName,
+                        this.settings.TaskHubName,
+                        this.settings.WorkerId,
+                        partitionId,
+                        "Canceled while abandoning pending messages during drain.");
+                }
+                catch (Exception e)
+                {
+                    this.settings.Logger.PartitionManagerWarning(
+                        this.storageAccountName,
+                        this.settings.TaskHubName,
+                        this.settings.WorkerId,
+                        partitionId,
+                        $"Failed to abandon pending messages during drain: {e}");
+                }
 
                 this.RemoveQueue(partitionId, reason, caller);
             }
@@ -229,7 +250,7 @@ namespace DurableTask.AzureStorage
         /// This prevents a throughput gap equal to the visibility timeout duration when a partition
         /// is released during drain.
         /// </summary>
-        async Task AbandonPendingMessagesAsync(string partitionId)
+        async Task AbandonPendingMessagesAsync(string partitionId, CancellationToken cancellationToken)
         {
             var messagesToAbandon = new List<(ControlQueue Queue, MessageData Message)>();
 
@@ -257,6 +278,8 @@ namespace DurableTask.AzureStorage
 
             if (messagesToAbandon.Count > 0)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 this.settings.Logger.PartitionManagerInfo(
                     this.storageAccountName,
                     this.settings.TaskHubName,
@@ -266,7 +289,7 @@ namespace DurableTask.AzureStorage
 
                 await messagesToAbandon.ParallelForEachAsync(
                     this.settings.MaxStorageOperationConcurrency,
-                    item => item.Queue.AbandonMessageForDrainAsync(item.Message));
+                    item => item.Queue.AbandonMessageForDrainAsync(item.Message, cancellationToken));
             }
         }
 

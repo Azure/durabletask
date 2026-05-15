@@ -216,7 +216,7 @@ namespace DurableTask.AzureStorage.Messaging
         /// for another partition owner to pick up. This is used during drain to avoid stranding
         /// messages that were dequeued but not yet promoted to active sessions.
         /// </summary>
-        public async Task AbandonMessageForDrainAsync(MessageData message)
+        public async Task AbandonMessageForDrainAsync(MessageData message, CancellationToken cancellationToken = default)
         {
             this.stats.PendingOrchestratorMessages.TryRemove(message.OriginalQueueMessage.MessageId, out _);
 
@@ -242,7 +242,8 @@ namespace DurableTask.AzureStorage.Messaging
                 await this.storageQueue.UpdateMessageAsync(
                     queueMessage,
                     TimeSpan.Zero,
-                    clientRequestId: null);
+                    clientRequestId: null,
+                    cancellationToken: cancellationToken);
             }
             catch (RequestFailedException e)
             {
