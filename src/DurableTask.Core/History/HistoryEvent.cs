@@ -90,6 +90,20 @@ namespace DurableTask.Core.History
         public virtual EventType EventType { get; private set; }
 
         /// <summary>
+        /// Gets or sets the number of times this event has been dispatched.
+        /// </summary>
+        [DataMember]
+        public int DispatchCount { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether or not this event has been marked as "poisoned".
+        /// This can occur if the event's dispatch count exceeds a certain threshold,
+        /// or if some other error occurs during dispatch.
+        /// </summary>
+        [DataMember]
+        public bool IsPoisoned { get; set; }
+
+        /// <summary>
         /// Implementation for <see cref="IExtensibleDataObject.ExtensionData"/>.
         /// </summary>
         public ExtensionDataObject? ExtensionData { get; set; }

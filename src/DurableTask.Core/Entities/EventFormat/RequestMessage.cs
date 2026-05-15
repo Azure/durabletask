@@ -122,6 +122,11 @@ namespace DurableTask.Core.Entities.EventFormat
         /// </summary>
         public string? ClientSpanId { get; set; }
 
+        /// <summary>
+        /// The dispatch count of this request message.
+        /// </summary>
+        public int DispatchCount { get; set; }
+
         /// <inheritdoc/>
         public override string GetShortDescription()
         {
