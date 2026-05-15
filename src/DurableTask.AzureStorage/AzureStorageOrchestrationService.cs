@@ -1249,7 +1249,13 @@ namespace DurableTask.AzureStorage
                 {
                     var messages = session.DeferredMessages.ToList();
                     session.DeferredMessages.Clear();
-                    this.orchestrationSessionManager.AddMessageToPendingOrchestration(session.ControlQueue, messages, session.TraceActivityId, CancellationToken.None);
+                    IReadOnlyList<MessageData> messagesToAbandon = this.orchestrationSessionManager.AddMessageToPendingOrchestration(
+                        session.ControlQueue,
+                        messages,
+                        session.TraceActivityId,
+                        CancellationToken.None);
+
+                    await this.orchestrationSessionManager.AbandonMessagesForDrainAsync(session.ControlQueue, messagesToAbandon);
                 }
             }
             // Handle the case where the 'ETag' has changed, which implies another worker has taken over this work item while
@@ -1524,8 +1530,11 @@ namespace DurableTask.AzureStorage
             if (this.orchestrationSessionManager.TryReleaseSession(
                 instanceId,
                 this.shutdownSource.Token,
-                out OrchestrationSession session))
+                out OrchestrationSession session,
+                out IReadOnlyList<MessageData> messagesToAbandon))
             {
+                await this.orchestrationSessionManager.AbandonMessagesForDrainAsync(session.ControlQueue, messagesToAbandon);
+
                 // Some messages may need to be discarded
                 await session.DiscardedMessages.ParallelForEachAsync(
                     this.settings.MaxStorageOperationConcurrency,

@@ -20,10 +20,13 @@ namespace DurableTask.AzureStorage.Tests
     using System.Reflection;
     using System.Threading;
     using System.Threading.Tasks;
+    using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
+    using DurableTask.Core;
+    using DurableTask.Core.History;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Moq;
 
@@ -258,7 +261,80 @@ namespace DurableTask.AzureStorage.Tests
             }
             catch (OperationCanceledException)
             {
+                Assert.IsTrue(true, "The drained node was skipped until cancellation.");
             }
+        }
+
+        [TestMethod]
+        public async Task ScheduleOrchestrationStatePrefetch_DetachedNode_DoesNotFetchHistory()
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider("UseDevelopmentStorage=true"),
+            };
+            var stats = new AzureStorageOrchestrationServiceStats();
+            int fetchCount = 0;
+            var trackingStore = new Mock<ITrackingStore>();
+            trackingStore
+                .Setup(t => t.GetHistoryEventsAsync("instance1", "execution1", It.IsAny<CancellationToken>()))
+                .Callback(() => fetchCount++)
+                .ThrowsAsync(new OperationCanceledException());
+
+            using var manager = new OrchestrationSessionManager(
+                "testaccount",
+                settings,
+                stats,
+                trackingStore.Object);
+
+            var storageClient = new AzureStorageClient(settings);
+            var messageManager = new MessageManager(settings, storageClient, settings.TaskHubName);
+            var controlQueue = new ControlQueue(storageClient, "partition-0", messageManager);
+
+            object pendingBatch = CreatePendingBatch(controlQueue);
+            object node = AddPendingBatchNode(manager, pendingBatch);
+            RemovePendingBatchNode(manager, node);
+
+            await InvokeScheduleOrchestrationStatePrefetch(manager, node, CancellationToken.None);
+
+            Assert.AreEqual(0, fetchCount, "Detached pending batches should not fetch orchestration history.");
+        }
+
+        [TestMethod]
+        public void AddMessageToPendingOrchestration_ReleasedControlQueue_ReturnsMessagesToAbandon()
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider("UseDevelopmentStorage=true"),
+            };
+            var stats = new AzureStorageOrchestrationServiceStats();
+            var trackingStore = new Mock<ITrackingStore>();
+
+            using var manager = new OrchestrationSessionManager(
+                "testaccount",
+                settings,
+                stats,
+                trackingStore.Object);
+
+            var storageClient = new AzureStorageClient(settings);
+            var messageManager = new MessageManager(settings, storageClient, settings.TaskHubName);
+            var controlQueue = new ControlQueue(storageClient, "partition-0", messageManager);
+            controlQueue.Release(null, "test");
+
+            MessageData message = CreateMessageData();
+            MethodInfo addMessage = typeof(OrchestrationSessionManager).GetMethod(
+                "AddMessageToPendingOrchestration",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            var messagesToAbandon = (IReadOnlyList<MessageData>)addMessage.Invoke(
+                manager,
+                new object[] { controlQueue, new[] { message }, Guid.NewGuid(), CancellationToken.None });
+
+            Assert.IsNotNull(messagesToAbandon, "Released queue messages should be returned for immediate abandon.");
+            Assert.AreEqual(1, messagesToAbandon.Count);
+            Assert.AreSame(message, messagesToAbandon[0]);
+
+            manager.GetStats(out int pendingOrchestratorInstances, out _, out _);
+            Assert.AreEqual(0, pendingOrchestratorInstances, "Released queue messages should not be added to pending batches.");
         }
 
         static object CreatePendingBatch(ControlQueue controlQueue)
@@ -293,6 +369,51 @@ namespace DurableTask.AzureStorage.Tests
             object readyQueue = GetPrivateField(manager, "orchestrationsReadyForProcessingQueue");
             MethodInfo enqueue = readyQueue.GetType().GetMethod("Enqueue");
             enqueue.Invoke(readyQueue, new[] { node });
+        }
+
+        static Task InvokeScheduleOrchestrationStatePrefetch(
+            OrchestrationSessionManager manager,
+            object node,
+            CancellationToken cancellationToken)
+        {
+            MethodInfo schedule = typeof(OrchestrationSessionManager).GetMethod(
+                "ScheduleOrchestrationStatePrefetch",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+
+            return (Task)schedule.Invoke(manager, new[] { node, Guid.NewGuid(), cancellationToken });
+        }
+
+        static MessageData CreateMessageData()
+        {
+            var instance = new OrchestrationInstance
+            {
+                InstanceId = "instance1",
+                ExecutionId = "execution1",
+            };
+
+            var taskMessage = new TaskMessage
+            {
+                OrchestrationInstance = instance,
+                Event = new TimerFiredEvent(0),
+            };
+
+            var message = new MessageData(
+                taskMessage,
+                Guid.NewGuid(),
+                "partition-0",
+                orchestrationEpisode: null,
+                sender: instance);
+
+            message.OriginalQueueMessage = QueuesModelFactory.QueueMessage(
+                Guid.NewGuid().ToString("N"),
+                Guid.NewGuid().ToString("N"),
+                string.Empty,
+                1,
+                DateTimeOffset.UtcNow,
+                DateTimeOffset.UtcNow.AddHours(1),
+                DateTimeOffset.UtcNow.AddMinutes(5));
+
+            return message;
         }
 
         static object GetPrivateField(object target, string fieldName)

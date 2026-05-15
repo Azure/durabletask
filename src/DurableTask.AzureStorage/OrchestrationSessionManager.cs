@@ -30,8 +30,11 @@ namespace DurableTask.AzureStorage
 
     class OrchestrationSessionManager : IDisposable
     {
+        static readonly IReadOnlyList<MessageData> EmptyMessageDataList = Array.Empty<MessageData>();
+
         readonly Dictionary<string, OrchestrationSession> activeOrchestrationSessions = new Dictionary<string, OrchestrationSession>(StringComparer.OrdinalIgnoreCase);
         readonly ConcurrentDictionary<string, ControlQueue> ownedControlQueues = new ConcurrentDictionary<string, ControlQueue>();
+        readonly ConcurrentDictionary<string, Task> dequeueLoopTasks = new ConcurrentDictionary<string, Task>();
         readonly LinkedList<PendingMessageBatch> pendingOrchestrationMessageBatches = new LinkedList<PendingMessageBatch>();
         readonly AsyncQueue<LinkedListNode<PendingMessageBatch>> orchestrationsReadyForProcessingQueue = new AsyncQueue<LinkedListNode<PendingMessageBatch>>();
         readonly AsyncQueue<LinkedListNode<PendingMessageBatch>> entitiesReadyForProcessingQueue = new AsyncQueue<LinkedListNode<PendingMessageBatch>>();
@@ -67,7 +70,8 @@ namespace DurableTask.AzureStorage
 
             if (this.ownedControlQueues.TryAdd(partitionId, controlQueue))
             {
-                _ = Task.Run(() => this.DequeueLoop(partitionId, controlQueue, cancellationToken));
+                Task dequeueLoopTask = Task.Run(async () => await this.DequeueLoop(partitionId, controlQueue, cancellationToken));
+                this.dequeueLoopTasks[partitionId] = dequeueLoopTask;
             }
             else
             {
@@ -85,6 +89,7 @@ namespace DurableTask.AzureStorage
             if (this.ownedControlQueues.TryRemove(partitionId, out ControlQueue controlQueue))
             {
                 controlQueue.Release(reason, caller);
+                this.dequeueLoopTasks.TryRemove(partitionId, out _);
             }
         }
 
@@ -154,7 +159,13 @@ namespace DurableTask.AzureStorage
                             traceActivityId,
                             cancellationToken);
 
-                        this.AddMessageToPendingOrchestration(controlQueue, filteredMessages, traceActivityId, cancellationToken);
+                        IReadOnlyList<MessageData> messagesToAbandon = this.AddMessageToPendingOrchestration(
+                            controlQueue,
+                            filteredMessages,
+                            traceActivityId,
+                            cancellationToken);
+
+                        await this.AbandonMessagesForDrainAsync(controlQueue, messagesToAbandon);
                     }
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -198,6 +209,8 @@ namespace DurableTask.AzureStorage
             this.ReleaseQueue(partitionId, reason, caller);
             try
             {
+                await this.WaitForDequeueLoopToStopAsync(partitionId, cancellationToken);
+
                 // Wait until all messages from this queue have been processed.
                 while (!cancellationToken.IsCancellationRequested && this.IsControlQueueProcessingMessages(partitionId))
                 {
@@ -216,11 +229,69 @@ namespace DurableTask.AzureStorage
             }
             finally
             {
-                // Make dequeued-but-undispatched messages visible before dropping the partition.
-                await this.AbandonPendingMessagesAsync(partitionId);
-
-                this.RemoveQueue(partitionId, reason, caller);
+                try
+                {
+                    // Make dequeued-but-undispatched messages visible before dropping the partition.
+                    await this.AbandonPendingMessagesAsync(partitionId);
+                }
+                finally
+                {
+                    this.RemoveQueue(partitionId, reason, caller);
+                }
             }
+        }
+
+        async Task WaitForDequeueLoopToStopAsync(string partitionId, CancellationToken cancellationToken)
+        {
+            if (!this.dequeueLoopTasks.TryGetValue(partitionId, out Task dequeueLoopTask))
+            {
+                return;
+            }
+
+            try
+            {
+                bool completed = await WaitForTaskAsync(dequeueLoopTask, cancellationToken);
+                if (!completed)
+                {
+                    this.settings.Logger.PartitionManagerWarning(
+                        this.storageAccountName,
+                        this.settings.TaskHubName,
+                        this.settings.WorkerId,
+                        partitionId,
+                        $"Timed-out waiting for the dequeue loop to stop during drain.");
+                }
+            }
+            catch (Exception e)
+            {
+                this.settings.Logger.PartitionManagerWarning(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    this.settings.WorkerId,
+                    partitionId,
+                    $"Exception while waiting for the dequeue loop to stop during drain. Exception: {e}");
+            }
+        }
+
+        static async Task<bool> WaitForTaskAsync(Task task, CancellationToken cancellationToken)
+        {
+            if (task.IsCompleted)
+            {
+                await task;
+                return true;
+            }
+
+            var cancellationCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            using (cancellationToken.Register(state => ((TaskCompletionSource<bool>)state).TrySetResult(true), cancellationCompletion))
+            {
+                Task completedTask = await Task.WhenAny(task, cancellationCompletion.Task);
+                if (completedTask != task)
+                {
+                    return false;
+                }
+            }
+
+            await task;
+            return true;
         }
 
         /// <summary>
@@ -255,6 +326,27 @@ namespace DurableTask.AzureStorage
                 }
             }
 
+            await this.AbandonMessagesForDrainAsync(partitionId, messagesToAbandon);
+        }
+
+        internal Task AbandonMessagesForDrainAsync(ControlQueue controlQueue, IReadOnlyList<MessageData> messages)
+        {
+            if (messages.Count == 0)
+            {
+                return Utils.CompletedTask;
+            }
+
+            var messagesToAbandon = messages
+                .Select(message => (controlQueue, message))
+                .ToList();
+
+            return this.AbandonMessagesForDrainAsync(controlQueue.Name, messagesToAbandon);
+        }
+
+        async Task AbandonMessagesForDrainAsync(
+            string partitionId,
+            IList<(ControlQueue Queue, MessageData Message)> messagesToAbandon)
+        {
             if (messagesToAbandon.Count > 0)
             {
                 this.settings.Logger.PartitionManagerInfo(
@@ -451,7 +543,7 @@ namespace DurableTask.AzureStorage
         /// <param name="queueMessages">New messages to assign to orchestrators</param>
         /// <param name="traceActivityId">The "related" ActivityId of this operation.</param>
         /// <param name="cancellationToken">Cancellation token in case the orchestration is terminated.</param>
-        internal void AddMessageToPendingOrchestration(
+        internal IReadOnlyList<MessageData> AddMessageToPendingOrchestration(
             ControlQueue controlQueue,
             IEnumerable<MessageData> queueMessages,
             Guid traceActivityId,
@@ -463,6 +555,11 @@ namespace DurableTask.AzureStorage
             //  3. Do we need to add messages to a currently executing orchestration?
             lock (this.messageAndSessionLock)
             {
+                if (controlQueue.IsReleased)
+                {
+                    return queueMessages.ToList();
+                }
+
                 var existingSessionMessages = new Dictionary<OrchestrationSession, List<MessageData>>();
 
                 foreach (MessageData data in queueMessages)
@@ -558,6 +655,8 @@ namespace DurableTask.AzureStorage
                     session.AddOrReplaceMessages(newMessages);
                 }
             }
+
+            return EmptyMessageDataList;
         }
 
         // This method runs on a background task thread
@@ -566,6 +665,11 @@ namespace DurableTask.AzureStorage
             Guid traceActivityId,
             CancellationToken cancellationToken)
         {
+            if (!this.IsPendingBatchActive(node))
+            {
+                return;
+            }
+
             PendingMessageBatch batch = node.Value;
 
             AnalyticsEventSource.SetLogicalTraceActivityId(traceActivityId);
@@ -579,6 +683,11 @@ namespace DurableTask.AzureStorage
                        batch.OrchestrationExecutionId,
                        cancellationToken);
 
+                    if (!this.IsPendingBatchActive(node))
+                    {
+                        return;
+                    }
+
                     batch.OrchestrationState = new OrchestrationRuntimeState(history.Events);
                     batch.ETags.HistoryETag = history.ETag;
                     batch.LastCheckpointTime = history.LastCheckpointTime;
@@ -590,20 +699,34 @@ namespace DurableTask.AzureStorage
                         InstanceStatus? instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(
                             batch.OrchestrationInstanceId,
                             cancellationToken);
+
+                        if (!this.IsPendingBatchActive(node))
+                        {
+                            return;
+                        }
+
                         // The instance could not exist in the case that these messages are for the first execution of a suborchestration,
                         // or an entity-started orchestration, for example
                         batch.ETags.InstanceETag = instanceStatus?.ETag;
                     }
                 }
 
-                if (this.settings.UseSeparateQueueForEntityWorkItems
-                    && DurableTask.Core.Common.Entities.IsEntityInstance(batch.OrchestrationInstanceId))
+                lock (this.messageAndSessionLock)
                 {
-                    this.entitiesReadyForProcessingQueue.Enqueue(node);
-                }
-                else
-                {
-                    this.orchestrationsReadyForProcessingQueue.Enqueue(node);
+                    if (!this.IsPendingBatchActiveLocked(node))
+                    {
+                        return;
+                    }
+
+                    if (this.settings.UseSeparateQueueForEntityWorkItems
+                        && DurableTask.Core.Common.Entities.IsEntityInstance(batch.OrchestrationInstanceId))
+                    {
+                        this.entitiesReadyForProcessingQueue.Enqueue(node);
+                    }
+                    else
+                    {
+                        this.orchestrationsReadyForProcessingQueue.Enqueue(node);
+                    }
                 }
             }
             catch (OperationCanceledException)
@@ -620,12 +743,35 @@ namespace DurableTask.AzureStorage
                     e.ToString());
 
                 // Sleep briefly to avoid a tight failure loop.
-                await Task.Delay(TimeSpan.FromSeconds(5));
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
 
                 // This is a background operation so failure is not an option. All exceptions must be handled.
                 // To avoid starvation, we need to re-enqueue this async operation instead of retrying in a loop.
-                await Task.Run(() => this.ScheduleOrchestrationStatePrefetch(node, traceActivityId, cancellationToken));
+                if (this.IsPendingBatchActive(node))
+                {
+                    await Task.Run(async () => await this.ScheduleOrchestrationStatePrefetch(node, traceActivityId, cancellationToken));
+                }
             }
+        }
+
+        bool IsPendingBatchActive(LinkedListNode<PendingMessageBatch> node)
+        {
+            lock (this.messageAndSessionLock)
+            {
+                return this.IsPendingBatchActiveLocked(node);
+            }
+        }
+
+        bool IsPendingBatchActiveLocked(LinkedListNode<PendingMessageBatch> node)
+        {
+            return node.List == this.pendingOrchestrationMessageBatches && !node.Value.ControlQueue.IsReleased;
         }
 
         public async Task<OrchestrationSession?> GetNextSessionAsync(bool entitiesOnly, CancellationToken cancellationToken)
@@ -737,8 +883,14 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public bool TryReleaseSession(string instanceId, CancellationToken cancellationToken, out OrchestrationSession session)
+        public bool TryReleaseSession(
+            string instanceId,
+            CancellationToken cancellationToken,
+            out OrchestrationSession session,
+            out IReadOnlyList<MessageData> messagesToAbandon)
         {
+            messagesToAbandon = EmptyMessageDataList;
+
             // Taking this lock ensures we don't add new messages to a session we're about to release.
             lock (this.messageAndSessionLock)
             {
@@ -748,7 +900,7 @@ namespace DurableTask.AzureStorage
                     this.activeOrchestrationSessions.Remove(instanceId))
                 {
                     // Put any unprocessed messages back into the pending buffer.
-                    this.AddMessageToPendingOrchestration(
+                    messagesToAbandon = this.AddMessageToPendingOrchestration(
                         session.ControlQueue,
                         session.PendingMessages.Concat(session.DeferredMessages),
                         session.TraceActivityId,
