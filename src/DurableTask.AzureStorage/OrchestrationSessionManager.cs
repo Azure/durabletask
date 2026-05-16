@@ -103,7 +103,7 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public async Task<bool> ResumeListeningIfOwnQueue(string partitionId, ControlQueue controlQueue, CancellationToken shutdownToken)
+        public async Task<bool> ResumeListeningIfOwnQueue(string partitionId, ControlQueue controlQueue, CancellationToken cancellationToken)
         {
             if (this.ownedControlQueues.TryGetValue(partitionId, out ControlQueue ownedControlQueue))
             {
@@ -111,7 +111,7 @@ namespace DurableTask.AzureStorage
                 {
                     // The easiest way to resume listening is to re-add a new queue that has not been released.
                     await this.RemoveQueue(partitionId, null, "OrchestrationSessionManager ResumeListeningIfOwnQueue");
-                    this.AddQueue(partitionId, controlQueue, shutdownToken);
+                    this.AddQueue(partitionId, controlQueue, cancellationToken);
                 }
             }
 
