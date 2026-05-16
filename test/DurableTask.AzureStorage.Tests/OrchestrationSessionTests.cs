@@ -21,6 +21,8 @@ namespace DurableTask.AzureStorage.Tests
     using System.Reflection;
     using System.Threading;
     using System.Threading.Tasks;
+    using Azure;
+    using Azure.Storage.Queues;
     using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
@@ -367,6 +369,146 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreSame(expected, actual);
         }
 
+        [TestMethod]
+        public async Task AbandonMessageForDrainAsync_DurableTaskStorageException_DoesNotThrow()
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider("UseDevelopmentStorage=true"),
+            };
+            var storageClient = new AzureStorageClient(settings);
+            var messageManager = new MessageManager(settings, storageClient, settings.TaskHubName);
+            var controlQueue = new ControlQueue(storageClient, "partition-0", messageManager);
+
+            var queueClient = new Mock<QueueClient>();
+            queueClient.SetupGet(q => q.Name).Returns("partition-0");
+            queueClient
+                .Setup(
+                    q => q.UpdateMessageAsync(
+                        It.IsAny<string>(),
+                        It.IsAny<string>(),
+                        It.IsAny<string>(),
+                        It.IsAny<TimeSpan>(),
+                        It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new RequestFailedException(404, "queue update failed"));
+            SetPrivateField(controlQueue.InnerQueue, "queueClient", queueClient.Object);
+
+            await controlQueue.AbandonMessageForDrainAsync(CreateMessageData());
+        }
+
+        [TestMethod]
+        public async Task GetNextSessionAsync_ReleasedDelayedRequeueNode_IsNotRequeued()
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider("UseDevelopmentStorage=true"),
+            };
+            var stats = new AzureStorageOrchestrationServiceStats();
+            var trackingStore = new Mock<ITrackingStore>();
+
+            using var manager = new OrchestrationSessionManager(
+                "testaccount",
+                settings,
+                stats,
+                trackingStore.Object);
+
+            var storageClient = new AzureStorageClient(settings);
+            var messageManager = new MessageManager(settings, storageClient, settings.TaskHubName);
+            var controlQueue = new ControlQueue(storageClient, "partition-0", messageManager);
+            MessageData message = CreateMessageData();
+            int abandonCount = 0;
+            var queueClient = new Mock<QueueClient>();
+            queueClient.SetupGet(q => q.Name).Returns("partition-0");
+            queueClient
+                .Setup(
+                    q => q.UpdateMessageAsync(
+                        message.OriginalQueueMessage.MessageId,
+                        message.OriginalQueueMessage.PopReceipt,
+                        It.IsAny<string>(),
+                        TimeSpan.Zero,
+                        It.IsAny<CancellationToken>()))
+                .Callback(() => abandonCount++)
+                .ReturnsAsync(Response.FromValue(
+                    QueuesModelFactory.UpdateReceipt("newPopReceipt", DateTimeOffset.UtcNow),
+                    Mock.Of<Response>()));
+            SetPrivateField(controlQueue.InnerQueue, "queueClient", queueClient.Object);
+
+            AddActiveSession(manager, settings, controlQueue, "instance1", "activeExecution");
+            object pendingBatch = CreatePendingBatch(controlQueue);
+            AddMessageToPendingBatch(pendingBatch, message);
+            object node = AddPendingBatchNode(manager, pendingBatch);
+            EnqueueReadyForProcessingNode(manager, node);
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            Task<OrchestrationSession> getNextTask = manager.GetNextSessionAsync(entitiesOnly: false, cts.Token);
+
+            await WaitUntilAsync(() => IsNodeDetached(node), TimeSpan.FromSeconds(2));
+            controlQueue.Release(null, "test");
+            cts.Cancel();
+            await Assert.ThrowsExceptionAsync<OperationCanceledException>(() => getNextTask);
+
+            await WaitUntilAsync(() => abandonCount == 1, TimeSpan.FromSeconds(2));
+
+            Assert.AreEqual(0, GetPendingBatchCount(manager), "Released queue nodes should not be requeued after a delay.");
+            Assert.AreEqual(0, GetReadyQueueCount(manager), "Released queue nodes should not be made ready for dispatch.");
+            Assert.AreEqual(1, abandonCount, "Messages from a released delayed requeue node should be immediately abandoned.");
+        }
+
+        [TestMethod]
+        public async Task GetNextSessionAsync_ReleasedReadyQueueNode_IsAbandonedImmediately()
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider("UseDevelopmentStorage=true"),
+            };
+            var stats = new AzureStorageOrchestrationServiceStats();
+            var trackingStore = new Mock<ITrackingStore>();
+
+            using var manager = new OrchestrationSessionManager(
+                "testaccount",
+                settings,
+                stats,
+                trackingStore.Object);
+
+            var storageClient = new AzureStorageClient(settings);
+            var messageManager = new MessageManager(settings, storageClient, settings.TaskHubName);
+            var controlQueue = new ControlQueue(storageClient, "partition-0", messageManager);
+            MessageData message = CreateMessageData();
+            int abandonCount = 0;
+            var queueClient = new Mock<QueueClient>();
+            queueClient.SetupGet(q => q.Name).Returns("partition-0");
+            queueClient
+                .Setup(
+                    q => q.UpdateMessageAsync(
+                        message.OriginalQueueMessage.MessageId,
+                        message.OriginalQueueMessage.PopReceipt,
+                        It.IsAny<string>(),
+                        TimeSpan.Zero,
+                        It.IsAny<CancellationToken>()))
+                .Callback(() => abandonCount++)
+                .ReturnsAsync(Response.FromValue(
+                    QueuesModelFactory.UpdateReceipt("newPopReceipt", DateTimeOffset.UtcNow),
+                    Mock.Of<Response>()));
+            SetPrivateField(controlQueue.InnerQueue, "queueClient", queueClient.Object);
+
+            object pendingBatch = CreatePendingBatch(controlQueue);
+            AddMessageToPendingBatch(pendingBatch, message);
+            object node = AddPendingBatchNode(manager, pendingBatch);
+            EnqueueReadyForProcessingNode(manager, node);
+            controlQueue.Release(null, "test");
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            Task<OrchestrationSession> getNextTask = manager.GetNextSessionAsync(entitiesOnly: false, cts.Token);
+
+            await WaitUntilAsync(() => GetReadyQueueCount(manager) == 0, TimeSpan.FromSeconds(2));
+            await WaitUntilAsync(() => abandonCount == 1, TimeSpan.FromSeconds(2));
+            cts.Cancel();
+            await Assert.ThrowsExceptionAsync<OperationCanceledException>(() => getNextTask);
+
+            Assert.AreEqual(0, GetPendingBatchCount(manager), "Released ready nodes should be removed from pending batches.");
+            Assert.AreEqual(1, abandonCount, "Messages from released ready nodes should be immediately abandoned.");
+        }
+
         static object CreatePendingBatch(ControlQueue controlQueue)
         {
             Type pendingBatchType = typeof(OrchestrationSessionManager)
@@ -401,6 +543,12 @@ namespace DurableTask.AzureStorage.Tests
             enqueue.Invoke(readyQueue, new[] { node });
         }
 
+        static void AddMessageToPendingBatch(object pendingBatch, MessageData message)
+        {
+            var messages = (ICollection<MessageData>)pendingBatch.GetType().GetProperty("Messages").GetValue(pendingBatch);
+            messages.Add(message);
+        }
+
         static Task InvokeScheduleOrchestrationStatePrefetch(
             OrchestrationSessionManager manager,
             object node,
@@ -411,6 +559,72 @@ namespace DurableTask.AzureStorage.Tests
                 BindingFlags.NonPublic | BindingFlags.Instance);
 
             return (Task)schedule.Invoke(manager, new[] { node, Guid.NewGuid(), cancellationToken });
+        }
+
+        static void AddActiveSession(
+            OrchestrationSessionManager manager,
+            AzureStorageOrchestrationServiceSettings settings,
+            ControlQueue controlQueue,
+            string instanceId,
+            string executionId)
+        {
+            var sessions = (Dictionary<string, OrchestrationSession>)GetPrivateField(manager, "activeOrchestrationSessions");
+            var instance = new OrchestrationInstance
+            {
+                InstanceId = instanceId,
+                ExecutionId = executionId,
+            };
+            var runtimeState = new OrchestrationRuntimeState();
+            runtimeState.AddEvent(new ExecutionStartedEvent(-1, string.Empty)
+            {
+                OrchestrationInstance = instance,
+            });
+
+            sessions[instanceId] = new OrchestrationSession(
+                settings,
+                "testaccount",
+                instance,
+                controlQueue,
+                new List<MessageData>(),
+                runtimeState,
+                eTags: null,
+                DateTime.UtcNow,
+                trackingStoreContext: null,
+                TimeSpan.FromSeconds(30),
+                CancellationToken.None,
+                Guid.NewGuid());
+        }
+
+        static bool IsNodeDetached(object node)
+        {
+            object list = node.GetType().GetProperty("List").GetValue(node);
+            return list == null;
+        }
+
+        static int GetPendingBatchCount(OrchestrationSessionManager manager)
+        {
+            object pendingBatches = GetPrivateField(manager, "pendingOrchestrationMessageBatches");
+            return (int)pendingBatches.GetType().GetProperty("Count").GetValue(pendingBatches);
+        }
+
+        static int GetReadyQueueCount(OrchestrationSessionManager manager)
+        {
+            object readyQueue = GetPrivateField(manager, "orchestrationsReadyForProcessingQueue");
+            return (int)readyQueue.GetType().GetProperty("Count").GetValue(readyQueue);
+        }
+
+        static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            while (!condition())
+            {
+                if (stopwatch.Elapsed > timeout)
+                {
+                    Assert.Fail("Condition was not reached before timeout.");
+                }
+
+                await Task.Delay(TimeSpan.FromMilliseconds(10));
+            }
         }
 
         static MessageData CreateMessageData()
@@ -451,6 +665,13 @@ namespace DurableTask.AzureStorage.Tests
             FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
             Assert.IsNotNull(field);
             return field.GetValue(target);
+        }
+
+        static void SetPrivateField(object target, string fieldName, object value)
+        {
+            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.IsNotNull(field);
+            field.SetValue(target, value);
         }
     }
 }

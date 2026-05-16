@@ -793,6 +793,8 @@ namespace DurableTask.AzureStorage
                 //  1) a batch of messages has been received for a particular instance and
                 //  2) the history for that instance has been fetched
                 LinkedListNode<PendingMessageBatch> node = await readyForProcessingQueue.DequeueAsync(cancellationToken);
+                ControlQueue? queueToAbandon = null;
+                IReadOnlyList<MessageData> messagesToAbandon = EmptyMessageDataList;
 
                 lock (this.messageAndSessionLock)
                 {
@@ -805,7 +807,12 @@ namespace DurableTask.AzureStorage
                     PendingMessageBatch nextBatch = node.Value;
                     this.pendingOrchestrationMessageBatches.Remove(node);
 
-                    if (!this.activeOrchestrationSessions.TryGetValue(nextBatch.OrchestrationInstanceId, out var existingSession))
+                    if (nextBatch.ControlQueue.IsReleased)
+                    {
+                        queueToAbandon = nextBatch.ControlQueue;
+                        messagesToAbandon = nextBatch.Messages.ToList();
+                    }
+                    else if (!this.activeOrchestrationSessions.TryGetValue(nextBatch.OrchestrationInstanceId, out var existingSession))
                     {
                         OrchestrationInstance instance = nextBatch.OrchestrationState?.OrchestrationInstance ??
                             new OrchestrationInstance
@@ -849,26 +856,62 @@ namespace DurableTask.AzureStorage
                         {
                             // To avoid a tight dequeue loop, delay for a bit before putting this node back into the queue.
                             // This is only necessary when the queue is empty. The main dequeue thread must not be blocked
-                            // by this delay, which is why we use Task.Delay(...).ContinueWith(...) instead of await.
-                            Task.Delay(millisecondsDelay: 200).ContinueWith(_ =>
-                            {
-                                lock (this.messageAndSessionLock)
-                                {
-                                    this.pendingOrchestrationMessageBatches.AddLast(node);
-                                    readyForProcessingQueue.Enqueue(node);
-                                }
-                            });
+                            // by this delay, which is why it is scheduled without awaiting here.
+                            _ = this.RequeuePendingBatchAfterDelayAsync(node, readyForProcessingQueue);
                         }
                         else
                         {
-                            this.pendingOrchestrationMessageBatches.AddLast(node);
-                            readyForProcessingQueue.Enqueue(node);
+                            this.RequeueOrAbandonPendingBatchLocked(node, readyForProcessingQueue, out queueToAbandon, out messagesToAbandon);
                         }
                     }
+                }
+
+                if (queueToAbandon != null)
+                {
+                    await this.AbandonMessagesForDrainAsync(queueToAbandon, messagesToAbandon);
                 }
             }
 
             return null;
+        }
+
+        async Task RequeuePendingBatchAfterDelayAsync(
+            LinkedListNode<PendingMessageBatch> node,
+            AsyncQueue<LinkedListNode<PendingMessageBatch>> readyForProcessingQueue)
+        {
+            await Task.Delay(millisecondsDelay: 200);
+
+            ControlQueue? queueToAbandon;
+            IReadOnlyList<MessageData> messagesToAbandon;
+
+            lock (this.messageAndSessionLock)
+            {
+                this.RequeueOrAbandonPendingBatchLocked(node, readyForProcessingQueue, out queueToAbandon, out messagesToAbandon);
+            }
+
+            if (queueToAbandon != null)
+            {
+                await this.AbandonMessagesForDrainAsync(queueToAbandon, messagesToAbandon);
+            }
+        }
+
+        void RequeueOrAbandonPendingBatchLocked(
+            LinkedListNode<PendingMessageBatch> node,
+            AsyncQueue<LinkedListNode<PendingMessageBatch>> readyForProcessingQueue,
+            out ControlQueue? queueToAbandon,
+            out IReadOnlyList<MessageData> messagesToAbandon)
+        {
+            if (node.Value.ControlQueue.IsReleased)
+            {
+                queueToAbandon = node.Value.ControlQueue;
+                messagesToAbandon = node.Value.Messages.ToList();
+                return;
+            }
+
+            this.pendingOrchestrationMessageBatches.AddLast(node);
+            readyForProcessingQueue.Enqueue(node);
+            queueToAbandon = null;
+            messagesToAbandon = EmptyMessageDataList;
         }
 
         /// <summary>

@@ -19,7 +19,6 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using Azure;
     using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
@@ -244,7 +243,7 @@ namespace DurableTask.AzureStorage.Messaging
                     TimeSpan.Zero,
                     clientRequestId: null);
             }
-            catch (RequestFailedException e)
+            catch (DurableTaskStorageException e)
             {
                 this.settings.Logger.PartitionManagerWarning(
                     this.storageAccountName,
