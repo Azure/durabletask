@@ -795,73 +795,77 @@ namespace DurableTask.AzureStorage
                 LinkedListNode<PendingMessageBatch> node = await readyForProcessingQueue.DequeueAsync(cancellationToken);
                 ControlQueue? queueToAbandon = null;
                 IReadOnlyList<MessageData> messagesToAbandon = EmptyMessageDataList;
+                bool shouldStopWaitingForSessions = false;
 
                 lock (this.messageAndSessionLock)
                 {
                     // Drain may have removed this batch after it was queued for dispatch.
                     if (node.List != this.pendingOrchestrationMessageBatches)
                     {
-                        continue;
-                    }
-
-                    PendingMessageBatch nextBatch = node.Value;
-                    this.pendingOrchestrationMessageBatches.Remove(node);
-
-                    if (nextBatch.ControlQueue.IsReleased)
-                    {
-                        queueToAbandon = nextBatch.ControlQueue;
-                        messagesToAbandon = nextBatch.Messages.ToList();
-                    }
-                    else if (!this.activeOrchestrationSessions.TryGetValue(nextBatch.OrchestrationInstanceId, out var existingSession))
-                    {
-                        OrchestrationInstance instance = nextBatch.OrchestrationState?.OrchestrationInstance ??
-                            new OrchestrationInstance
-                            {
-                                InstanceId = nextBatch.OrchestrationInstanceId,
-                                ExecutionId = nextBatch.OrchestrationExecutionId,
-                            };
-
-                        Guid traceActivityId = AzureStorageOrchestrationService.StartNewLogicalTraceScope(useExisting: true);
-
-                        OrchestrationSession session = new OrchestrationSession(
-                            this.settings,
-                            this.storageAccountName,
-                            instance,
-                            nextBatch.ControlQueue,
-                            nextBatch.Messages,
-                            nextBatch.OrchestrationState,
-                            nextBatch.ETags,
-                            nextBatch.LastCheckpointTime,
-                            nextBatch.TrackingStoreContext,
-                            this.settings.ExtendedSessionIdleTimeout,
-                            this.shutdownToken,
-                            traceActivityId);
-
-                        this.activeOrchestrationSessions.Add(instance.InstanceId, session);
-
-                        return session;
-                    }
-                    else if (nextBatch.OrchestrationExecutionId == existingSession.Instance?.ExecutionId)
-                    {
-                        // there is already an active session with the same execution id.
-                        // The session might be waiting for more messages. If it is, signal them.
-                        existingSession.AddOrReplaceMessages(node.Value.Messages);
+                        shouldStopWaitingForSessions = this.ShouldStopWaitingForSessions(readyForProcessingQueue);
                     }
                     else
                     {
-                        // A message arrived for a different generation of an existing orchestration instance.
-                        // Put it back into the ready queue so that it can be processed once the current generation
-                        // is done executing.
-                        if (readyForProcessingQueue.Count == 0)
+                        PendingMessageBatch nextBatch = node.Value;
+                        this.pendingOrchestrationMessageBatches.Remove(node);
+
+                        if (nextBatch.ControlQueue.IsReleased)
                         {
-                            // To avoid a tight dequeue loop, delay for a bit before putting this node back into the queue.
-                            // This is only necessary when the queue is empty. The main dequeue thread must not be blocked
-                            // by this delay, which is why it is scheduled without awaiting here.
-                            _ = this.RequeuePendingBatchAfterDelayAsync(node, readyForProcessingQueue);
+                            queueToAbandon = nextBatch.ControlQueue;
+                            messagesToAbandon = nextBatch.Messages.ToList();
+                            shouldStopWaitingForSessions = this.ShouldStopWaitingForSessions(readyForProcessingQueue);
+                        }
+                        else if (!this.activeOrchestrationSessions.TryGetValue(nextBatch.OrchestrationInstanceId, out var existingSession))
+                        {
+                            OrchestrationInstance instance = nextBatch.OrchestrationState?.OrchestrationInstance ??
+                                new OrchestrationInstance
+                                {
+                                    InstanceId = nextBatch.OrchestrationInstanceId,
+                                    ExecutionId = nextBatch.OrchestrationExecutionId,
+                                };
+
+                            Guid traceActivityId = AzureStorageOrchestrationService.StartNewLogicalTraceScope(useExisting: true);
+
+                            OrchestrationSession session = new OrchestrationSession(
+                                this.settings,
+                                this.storageAccountName,
+                                instance,
+                                nextBatch.ControlQueue,
+                                nextBatch.Messages,
+                                nextBatch.OrchestrationState,
+                                nextBatch.ETags,
+                                nextBatch.LastCheckpointTime,
+                                nextBatch.TrackingStoreContext,
+                                this.settings.ExtendedSessionIdleTimeout,
+                                this.shutdownToken,
+                                traceActivityId);
+
+                            this.activeOrchestrationSessions.Add(instance.InstanceId, session);
+
+                            return session;
+                        }
+                        else if (nextBatch.OrchestrationExecutionId == existingSession.Instance?.ExecutionId)
+                        {
+                            // there is already an active session with the same execution id.
+                            // The session might be waiting for more messages. If it is, signal them.
+                            existingSession.AddOrReplaceMessages(node.Value.Messages);
                         }
                         else
                         {
-                            this.RequeueOrAbandonPendingBatchLocked(node, readyForProcessingQueue, out queueToAbandon, out messagesToAbandon);
+                            // A message arrived for a different generation of an existing orchestration instance.
+                            // Put it back into the ready queue so that it can be processed once the current generation
+                            // is done executing.
+                            if (readyForProcessingQueue.Count == 0)
+                            {
+                                // To avoid a tight dequeue loop, delay for a bit before putting this node back into the queue.
+                                // This is only necessary when the queue is empty. The main dequeue thread must not be blocked
+                                // by this delay, which is why it is scheduled without awaiting here.
+                                _ = this.RequeuePendingBatchAfterDelayAsync(node, readyForProcessingQueue);
+                            }
+                            else
+                            {
+                                this.RequeueOrAbandonPendingBatchLocked(node, readyForProcessingQueue, out queueToAbandon, out messagesToAbandon);
+                            }
                         }
                     }
                 }
@@ -869,6 +873,11 @@ namespace DurableTask.AzureStorage
                 if (queueToAbandon != null)
                 {
                     await this.AbandonMessagesForDrainAsync(queueToAbandon, messagesToAbandon);
+                }
+
+                if (shouldStopWaitingForSessions)
+                {
+                    return null;
                 }
             }
 
@@ -883,15 +892,21 @@ namespace DurableTask.AzureStorage
 
             ControlQueue? queueToAbandon;
             IReadOnlyList<MessageData> messagesToAbandon;
+            bool shouldStopWaitingForSessions;
 
             lock (this.messageAndSessionLock)
             {
                 this.RequeueOrAbandonPendingBatchLocked(node, readyForProcessingQueue, out queueToAbandon, out messagesToAbandon);
+                shouldStopWaitingForSessions = queueToAbandon != null && this.ShouldStopWaitingForSessions(readyForProcessingQueue);
             }
 
             if (queueToAbandon != null)
             {
                 await this.AbandonMessagesForDrainAsync(queueToAbandon, messagesToAbandon);
+                if (shouldStopWaitingForSessions)
+                {
+                    readyForProcessingQueue.Enqueue(node);
+                }
             }
         }
 
@@ -912,6 +927,12 @@ namespace DurableTask.AzureStorage
             readyForProcessingQueue.Enqueue(node);
             queueToAbandon = null;
             messagesToAbandon = EmptyMessageDataList;
+        }
+
+        bool ShouldStopWaitingForSessions(AsyncQueue<LinkedListNode<PendingMessageBatch>> readyForProcessingQueue)
+        {
+            return readyForProcessingQueue.Count == 0 &&
+                !this.ownedControlQueues.Values.Any(queue => !queue.IsReleased);
         }
 
         /// <summary>

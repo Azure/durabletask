@@ -232,7 +232,7 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public async Task GetNextSessionAsync_DrainedReadyQueueNode_IsIgnored()
+        public async Task GetNextSessionAsync_DrainedReadyQueueNode_ReturnsNullWhenNoQueuesRemain()
         {
             var settings = new AzureStorageOrchestrationServiceSettings
             {
@@ -257,15 +257,9 @@ namespace DurableTask.AzureStorage.Tests
             EnqueueReadyForProcessingNode(manager, node);
 
             using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
-            try
-            {
-                await manager.GetNextSessionAsync(entitiesOnly: false, cts.Token);
-                Assert.Fail("Expected cancellation after the drained node was skipped.");
-            }
-            catch (OperationCanceledException)
-            {
-                Assert.IsTrue(true, "The drained node was skipped until cancellation.");
-            }
+            OrchestrationSession session = await manager.GetNextSessionAsync(entitiesOnly: false, cts.Token);
+
+            Assert.IsNull(session, "Detached ready nodes should not block dispatch when no queues remain.");
         }
 
         [TestMethod]
@@ -397,7 +391,7 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public async Task GetNextSessionAsync_ReleasedDelayedRequeueNode_IsNotRequeued()
+        public async Task GetNextSessionAsync_ReleasedDelayedRequeueNode_AbandonsMessagesAndReturnsNullWhenNoQueuesRemain()
         {
             var settings = new AzureStorageOrchestrationServiceSettings
             {
@@ -439,14 +433,14 @@ namespace DurableTask.AzureStorage.Tests
             object node = AddPendingBatchNode(manager, pendingBatch);
             EnqueueReadyForProcessingNode(manager, node);
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
             Task<OrchestrationSession> getNextTask = manager.GetNextSessionAsync(entitiesOnly: false, cts.Token);
 
             await WaitUntilAsync(() => IsNodeDetached(node), TimeSpan.FromSeconds(2));
             controlQueue.Release(null, "test");
-            cts.Cancel();
-            await Assert.ThrowsExceptionAsync<OperationCanceledException>(() => getNextTask);
+            OrchestrationSession session = await getNextTask;
 
+            Assert.IsNull(session, "Released delayed requeue nodes should not block dispatch when no queues remain.");
             await WaitUntilAsync(() => abandonCount == 1, TimeSpan.FromSeconds(2));
 
             Assert.AreEqual(0, GetPendingBatchCount(manager), "Released queue nodes should not be requeued after a delay.");
@@ -455,7 +449,7 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public async Task GetNextSessionAsync_ReleasedReadyQueueNode_IsAbandonedImmediately()
+        public async Task GetNextSessionAsync_ReleasedReadyQueueNode_AbandonsMessagesAndReturnsNullWhenNoQueuesRemain()
         {
             var settings = new AzureStorageOrchestrationServiceSettings
             {
@@ -497,14 +491,10 @@ namespace DurableTask.AzureStorage.Tests
             EnqueueReadyForProcessingNode(manager, node);
             controlQueue.Release(null, "test");
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            Task<OrchestrationSession> getNextTask = manager.GetNextSessionAsync(entitiesOnly: false, cts.Token);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+            OrchestrationSession session = await manager.GetNextSessionAsync(entitiesOnly: false, cts.Token);
 
-            await WaitUntilAsync(() => GetReadyQueueCount(manager) == 0, TimeSpan.FromSeconds(2));
-            await WaitUntilAsync(() => abandonCount == 1, TimeSpan.FromSeconds(2));
-            cts.Cancel();
-            await Assert.ThrowsExceptionAsync<OperationCanceledException>(() => getNextTask);
-
+            Assert.IsNull(session, "Released queue nodes should not block dispatch when no queues remain.");
             Assert.AreEqual(0, GetPendingBatchCount(manager), "Released ready nodes should be removed from pending batches.");
             Assert.AreEqual(1, abandonCount, "Messages from released ready nodes should be immediately abandoned.");
         }
