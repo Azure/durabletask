@@ -26,6 +26,7 @@ namespace DurableTask.AzureStorage.Tests
     using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
+    using DurableTask.AzureStorage.Partitioning;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
@@ -335,6 +336,105 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
+        public async Task RemoveQueue_PendingBatch_AbandonsMessages()
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider("UseDevelopmentStorage=true"),
+            };
+            var stats = new AzureStorageOrchestrationServiceStats();
+            var trackingStore = new Mock<ITrackingStore>();
+
+            using var manager = new OrchestrationSessionManager(
+                "testaccount",
+                settings,
+                stats,
+                trackingStore.Object);
+
+            var storageClient = new AzureStorageClient(settings);
+            var messageManager = new MessageManager(settings, storageClient, settings.TaskHubName);
+            var controlQueue = new ControlQueue(storageClient, "partition-0", messageManager);
+            AddOwnedControlQueue(manager, "partition-0", controlQueue);
+
+            MessageData message = CreateMessageData();
+            int abandonCount = 0;
+            var queueClient = new Mock<QueueClient>();
+            queueClient.SetupGet(q => q.Name).Returns("partition-0");
+            queueClient
+                .Setup(
+                    q => q.UpdateMessageAsync(
+                        message.OriginalQueueMessage.MessageId,
+                        message.OriginalQueueMessage.PopReceipt,
+                        It.IsAny<string>(),
+                        TimeSpan.Zero,
+                        It.IsAny<CancellationToken>()))
+                .Callback(() => abandonCount++)
+                .ReturnsAsync(Response.FromValue(
+                    QueuesModelFactory.UpdateReceipt("newPopReceipt", DateTimeOffset.UtcNow),
+                    Mock.Of<Response>()));
+            SetPrivateField(controlQueue.InnerQueue, "queueClient", queueClient.Object);
+
+            object pendingBatch = CreatePendingBatch(controlQueue);
+            AddMessageToPendingBatch(pendingBatch, message);
+            AddPendingBatchNode(manager, pendingBatch);
+
+            await InvokeRemoveQueue(manager, "partition-0");
+
+            Assert.AreEqual(0, GetPendingBatchCount(manager), "RemoveQueue should remove pending batches for the released queue.");
+            Assert.AreEqual(1, abandonCount, "RemoveQueue should immediately abandon pending messages for the released queue.");
+        }
+
+        [TestMethod]
+        public async Task RemoveQueue_PendingBatch_ReturnsNullToWaitingDispatcher()
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider("UseDevelopmentStorage=true"),
+            };
+            var stats = new AzureStorageOrchestrationServiceStats();
+            var trackingStore = new Mock<ITrackingStore>();
+
+            using var manager = new OrchestrationSessionManager(
+                "testaccount",
+                settings,
+                stats,
+                trackingStore.Object);
+
+            var storageClient = new AzureStorageClient(settings);
+            var messageManager = new MessageManager(settings, storageClient, settings.TaskHubName);
+            var controlQueue = new ControlQueue(storageClient, "partition-0", messageManager);
+            AddOwnedControlQueue(manager, "partition-0", controlQueue);
+
+            MessageData message = CreateMessageData();
+            var queueClient = new Mock<QueueClient>();
+            queueClient.SetupGet(q => q.Name).Returns("partition-0");
+            queueClient
+                .Setup(
+                    q => q.UpdateMessageAsync(
+                        message.OriginalQueueMessage.MessageId,
+                        message.OriginalQueueMessage.PopReceipt,
+                        It.IsAny<string>(),
+                        TimeSpan.Zero,
+                        It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Response.FromValue(
+                    QueuesModelFactory.UpdateReceipt("newPopReceipt", DateTimeOffset.UtcNow),
+                    Mock.Of<Response>()));
+            SetPrivateField(controlQueue.InnerQueue, "queueClient", queueClient.Object);
+
+            object pendingBatch = CreatePendingBatch(controlQueue);
+            AddMessageToPendingBatch(pendingBatch, message);
+            AddPendingBatchNode(manager, pendingBatch);
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+            Task<OrchestrationSession> getNextTask = manager.GetNextSessionAsync(entitiesOnly: false, cts.Token);
+
+            await InvokeRemoveQueue(manager, "partition-0");
+            OrchestrationSession session = await getNextTask;
+
+            Assert.IsNull(session, "Removing the last queue should unblock dispatchers waiting for a session.");
+        }
+
+        [TestMethod]
         public async Task WaitForDequeueLoopToStopAsync_FaultedDequeueLoop_PropagatesUnexpectedException()
         {
             var settings = new AzureStorageOrchestrationServiceSettings();
@@ -531,6 +631,22 @@ namespace DurableTask.AzureStorage.Tests
             object readyQueue = GetPrivateField(manager, "orchestrationsReadyForProcessingQueue");
             MethodInfo enqueue = readyQueue.GetType().GetMethod("Enqueue");
             enqueue.Invoke(readyQueue, new[] { node });
+        }
+
+        static void AddOwnedControlQueue(OrchestrationSessionManager manager, string partitionId, ControlQueue controlQueue)
+        {
+            var ownedQueues = (ConcurrentDictionary<string, ControlQueue>)GetPrivateField(manager, "ownedControlQueues");
+            ownedQueues[partitionId] = controlQueue;
+        }
+
+        static async Task InvokeRemoveQueue(OrchestrationSessionManager manager, string partitionId)
+        {
+            MethodInfo removeQueue = typeof(OrchestrationSessionManager).GetMethod("RemoveQueue");
+            object result = removeQueue.Invoke(manager, new object[] { partitionId, CloseReason.LeaseLost, "test" });
+            if (result is Task task)
+            {
+                await task;
+            }
         }
 
         static void AddMessageToPendingBatch(object pendingBatch, MessageData message)

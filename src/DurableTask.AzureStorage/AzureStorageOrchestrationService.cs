@@ -553,7 +553,7 @@ namespace DurableTask.AzureStorage
         {
             var controlQueue = new ControlQueue(this.azureStorageClient, lease.PartitionId, this.messageManager);
             await controlQueue.CreateIfNotExistsAsync();
-            this.orchestrationSessionManager.ResumeListeningIfOwnQueue(lease.PartitionId, controlQueue, this.shutdownSource.Token);
+            await this.orchestrationSessionManager.ResumeListeningIfOwnQueue(lease.PartitionId, controlQueue, this.shutdownSource.Token);
         }
 
         internal Task OnIntentLeaseReleasedAsync(BlobPartitionLease lease, CloseReason reason)
@@ -572,21 +572,20 @@ namespace DurableTask.AzureStorage
             this.allControlQueues[lease.PartitionId] = controlQueue;
         }
 
-        internal void DropLostControlQueue(TablePartitionLease partition)
+        internal async Task DropLostControlQueue(TablePartitionLease partition)
         {
             // If lease is lost but we're still dequeuing messages, remove the queue
             if (this.allControlQueues.TryGetValue(partition.RowKey, out ControlQueue controlQueue) &&
                 this.OwnedControlQueues.Contains(controlQueue) &&
                 partition.CurrentOwner != this.settings.WorkerId)
             {
-                this.orchestrationSessionManager.RemoveQueue(partition.RowKey, CloseReason.LeaseLost, nameof(DropLostControlQueue));
+                await this.orchestrationSessionManager.RemoveQueue(partition.RowKey, CloseReason.LeaseLost, nameof(DropLostControlQueue));
             }
         }
 
         internal Task OnOwnershipLeaseReleasedAsync(BlobPartitionLease lease, CloseReason reason)
         {
-            this.orchestrationSessionManager.RemoveQueue(lease.PartitionId, reason, "Ownership LeaseCollectionBalancer");
-            return Utils.CompletedTask;
+            return this.orchestrationSessionManager.RemoveQueue(lease.PartitionId, reason, "Ownership LeaseCollectionBalancer");
         }
 
         internal async Task OnTableLeaseAcquiredAsync(TablePartitionLease lease)

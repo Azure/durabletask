@@ -84,12 +84,13 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public void RemoveQueue(string partitionId, CloseReason? reason, string caller)
+        public async Task RemoveQueue(string partitionId, CloseReason? reason, string caller)
         {
             if (this.ownedControlQueues.TryRemove(partitionId, out ControlQueue controlQueue))
             {
                 controlQueue.Release(reason, caller);
                 this.dequeueLoopTasks.TryRemove(partitionId, out _);
+                await this.AbandonPendingMessagesAsync(partitionId, controlQueue);
             }
         }
 
@@ -102,14 +103,14 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public bool ResumeListeningIfOwnQueue(string partitionId, ControlQueue controlQueue, CancellationToken shutdownToken)
+        public async Task<bool> ResumeListeningIfOwnQueue(string partitionId, ControlQueue controlQueue, CancellationToken shutdownToken)
         {
             if (this.ownedControlQueues.TryGetValue(partitionId, out ControlQueue ownedControlQueue))
             {
                 if (ownedControlQueue.IsReleased)
                 {
                     // The easiest way to resume listening is to re-add a new queue that has not been released.
-                    this.RemoveQueue(partitionId, null, "OrchestrationSessionManager ResumeListeningIfOwnQueue");
+                    await this.RemoveQueue(partitionId, null, "OrchestrationSessionManager ResumeListeningIfOwnQueue");
                     this.AddQueue(partitionId, controlQueue, shutdownToken);
                 }
             }
@@ -236,7 +237,7 @@ namespace DurableTask.AzureStorage
                 }
                 finally
                 {
-                    this.RemoveQueue(partitionId, reason, caller);
+                    await this.RemoveQueue(partitionId, reason, caller);
                 }
             }
         }
@@ -309,7 +310,7 @@ namespace DurableTask.AzureStorage
         /// This prevents a throughput gap equal to the visibility timeout duration when a partition
         /// is released during drain.
         /// </summary>
-        async Task AbandonPendingMessagesAsync(string partitionId)
+        async Task AbandonPendingMessagesAsync(string partitionId, ControlQueue? removedControlQueue = null)
         {
             var messagesToAbandon = new List<(ControlQueue Queue, MessageData Message)>();
 
@@ -336,6 +337,11 @@ namespace DurableTask.AzureStorage
             }
 
             await this.AbandonMessagesForDrainAsync(partitionId, messagesToAbandon);
+
+            if (removedControlQueue != null)
+            {
+                this.SignalSessionWaitersIfNoQueuesRemain(removedControlQueue);
+            }
         }
 
         internal Task AbandonMessagesForDrainAsync(ControlQueue controlQueue, IReadOnlyList<MessageData> messages)
@@ -933,6 +939,24 @@ namespace DurableTask.AzureStorage
         {
             return readyForProcessingQueue.Count == 0 &&
                 !this.ownedControlQueues.Values.Any(queue => !queue.IsReleased);
+        }
+
+        void SignalSessionWaitersIfNoQueuesRemain(ControlQueue releasedControlQueue)
+        {
+            lock (this.messageAndSessionLock)
+            {
+                if (this.ownedControlQueues.Values.Any(queue => !queue.IsReleased))
+                {
+                    return;
+                }
+
+                var orchestratorSentinel = new LinkedListNode<PendingMessageBatch>(
+                    new PendingMessageBatch(releasedControlQueue, string.Empty, executionId: null));
+                var entitySentinel = new LinkedListNode<PendingMessageBatch>(
+                    new PendingMessageBatch(releasedControlQueue, string.Empty, executionId: null));
+                this.orchestrationsReadyForProcessingQueue.Enqueue(orchestratorSentinel);
+                this.entitiesReadyForProcessingQueue.Enqueue(entitySentinel);
+            }
         }
 
         /// <summary>
