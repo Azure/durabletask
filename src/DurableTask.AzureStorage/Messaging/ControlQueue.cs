@@ -23,6 +23,7 @@ namespace DurableTask.AzureStorage.Messaging
     using DurableTask.AzureStorage.Monitoring;
     using DurableTask.AzureStorage.Partitioning;
     using DurableTask.AzureStorage.Storage;
+    using DurableTask.Core;
 
     class ControlQueue : TaskHubQueue, IDisposable
     {
@@ -207,6 +208,50 @@ namespace DurableTask.AzureStorage.Messaging
         {
             this.stats.PendingOrchestratorMessages.TryRemove(message.OriginalQueueMessage.MessageId, out _);
             return base.AbandonMessageAsync(message, session);
+        }
+
+        /// <summary>
+        /// Abandons a message with zero visibility timeout so it becomes immediately visible
+        /// for another partition owner to pick up. This is used during drain to avoid stranding
+        /// messages that were dequeued but not yet promoted to active sessions.
+        /// </summary>
+        public async Task AbandonMessageForDrainAsync(MessageData message)
+        {
+            this.stats.PendingOrchestratorMessages.TryRemove(message.OriginalQueueMessage.MessageId, out _);
+
+            QueueMessage queueMessage = message.OriginalQueueMessage;
+            TaskMessage taskMessage = message.TaskMessage;
+            OrchestrationInstance instance = taskMessage.OrchestrationInstance;
+
+            this.settings.Logger.AbandoningMessage(
+                this.storageAccountName,
+                this.settings.TaskHubName,
+                taskMessage.Event.EventType.ToString(),
+                Utils.GetTaskEventId(taskMessage.Event),
+                queueMessage.MessageId,
+                instance.InstanceId,
+                instance.ExecutionId,
+                this.storageQueue.Name,
+                message.SequenceNumber,
+                queueMessage.PopReceipt,
+                visibilityTimeoutSeconds: 0);
+
+            try
+            {
+                await this.storageQueue.UpdateMessageAsync(
+                    queueMessage,
+                    TimeSpan.Zero,
+                    clientRequestId: null);
+            }
+            catch (DurableTaskStorageException e)
+            {
+                this.settings.Logger.PartitionManagerWarning(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    this.settings.WorkerId,
+                    this.Name,
+                    $"Failed to abandon message {queueMessage.MessageId} during drain: {e.Message}");
+            }
         }
 
         public override Task DeleteMessageAsync(MessageData message, SessionBase? session = null)

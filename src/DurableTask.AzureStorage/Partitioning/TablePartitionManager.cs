@@ -362,7 +362,7 @@ namespace DurableTask.AzureStorage.Partitioning
                     // In a worker becomes unhealthy, it may lose a lease without realizing it and continue listening
                     // for messages. We check for that case here and stop dequeuing messages if we discover that
                     // another worker currently owns the lease.
-                    this.service.DropLostControlQueue(partition);
+                    await this.service.DropLostControlQueue(partition);
 
                     bool claimedLease = false;
                     bool stoleLease = false;
