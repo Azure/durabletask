@@ -1266,11 +1266,13 @@ namespace DurableTask.AzureStorage.Logging
             public WaitingForMoreMessages(
                 string account,
                 string taskHub,
-                string partitionId)
+                string partitionId,
+                string details)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
                 this.PartitionId = partitionId;
+                this.Details = details;
             }
 
             [StructuredLogField]
@@ -1282,6 +1284,9 @@ namespace DurableTask.AzureStorage.Logging
             [StructuredLogField]
             public string PartitionId { get; }
 
+            [StructuredLogField]
+            public string Details { get; }
+
             public override EventId EventId => new EventId(
                 EventIds.WaitingForMoreMessages,
                 nameof(EventIds.WaitingForMoreMessages));
@@ -1289,12 +1294,13 @@ namespace DurableTask.AzureStorage.Logging
             public override LogLevel Level => LogLevel.Information;
 
             protected override string CreateLogMessage() => 
-                $"{this.PartitionId}: No new messages were found - backing off";
+                $"{this.PartitionId}: No new messages were found - backing off. Details: ${this.Details}";
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.WaitingForMoreMessages(
                 this.Account,
                 this.TaskHub,
                 this.PartitionId,
+                this.Details,
                 Utils.AppName,
                 Utils.ExtensionVersion);
         }

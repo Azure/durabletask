@@ -420,12 +420,14 @@ namespace DurableTask.AzureStorage.Logging
         internal void WaitingForMoreMessages(
             string account,
             string taskHub,
-            string partitionId)
+            string partitionId,
+            string details)
         {
             var logEvent = new LogEvents.WaitingForMoreMessages(
                 account,
                 taskHub,
-                partitionId);
+                partitionId,
+                details);
             this.WriteStructuredLog(logEvent);
         }
 

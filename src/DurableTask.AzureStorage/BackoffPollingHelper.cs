@@ -36,6 +36,11 @@ namespace DurableTask.AzureStorage
             this.resetEvent.Set();
         }
 
+        public TimeSpan GetCurrentDelay()
+        {
+            return this.backoffStrategy.CurrentInterval;
+        }
+
         public async Task<bool> WaitAsync(CancellationToken hostCancellationToken)
         {
             bool signaled = await this.resetEvent.WaitAsync(this.backoffStrategy.CurrentInterval, hostCancellationToken);
