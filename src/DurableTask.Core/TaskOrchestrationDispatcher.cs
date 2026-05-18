@@ -627,6 +627,8 @@ namespace DurableTask.Core
                         {
                             if (continuedAsNew)
                             {
+                                OrchestrationRuntimeState completedRuntimeState = runtimeState;
+
                                 TraceHelper.TraceSession(
                                     TraceEventType.Information,
                                     "TaskOrchestrationDispatcher-UpdatingStateForContinuation",
@@ -644,14 +646,6 @@ namespace DurableTask.Core
                                 if (!continueAsNewExecutionStarted!.GenerateNewTrace)
                                 {
                                     continueAsNewExecutionStarted.SetParentTraceContext(runtimeState.ExecutionStartedEvent);
-                                }
-                                else
-                                {
-                                    // Stamp the dispatcher processing time for this continuation request
-                                    // so the producer span created by TraceHelper uses this timestamp.
-                                    continueAsNewExecutionStarted.Tags ??= new Dictionary<string, string>();
-                                    continueAsNewExecutionStarted.Tags[OrchestrationTags.RequestTime] =
-                                        DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture);
                                 }
 
                                 runtimeState = new OrchestrationRuntimeState();
@@ -672,6 +666,11 @@ namespace DurableTask.Core
                                 workItem.OrchestrationRuntimeState = runtimeState;
 
                                 workItem.Cursor = null;
+
+                                traceActivity = RestartTraceActivityForContinueAsNewIfNeeded(
+                                    traceActivity,
+                                    completedRuntimeState,
+                                    continueAsNewExecutionStarted);
                             }
 
                             instanceState = Utils.BuildOrchestrationState(runtimeState);
@@ -1130,6 +1129,23 @@ namespace DurableTask.Core
             TraceHelper.SetRuntimeStatusTag(runtimeState.OrchestrationStatus.ToString());
             DistributedTraceActivity.Current?.Stop();
             DistributedTraceActivity.Current = null;
+        }
+
+        internal static Activity? RestartTraceActivityForContinueAsNewIfNeeded(
+            Activity? currentTraceActivity,
+            OrchestrationRuntimeState completedRuntimeState,
+            ExecutionStartedEvent continueAsNewExecutionStarted)
+        {
+            if (!continueAsNewExecutionStarted.GenerateNewTrace)
+            {
+                return currentTraceActivity;
+            }
+
+            TraceHelper.SetRuntimeStatusTag(completedRuntimeState.OrchestrationStatus.ToString());
+            currentTraceActivity?.Stop();
+            DistributedTraceActivity.Current = null;
+
+            return TraceHelper.StartTraceActivityForOrchestrationExecution(continueAsNewExecutionStarted);
         }
 
         private static void SetOrchestrationActivityStatus(OrchestrationCompleteOrchestratorAction completeOrchestratorAction)

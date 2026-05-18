@@ -49,9 +49,11 @@ namespace DurableTask.Core.Tracing
                 return null;
             }
 
-            DateTimeOffset? startTime = null;
-            // In the case that a request time for the start orchestration request is provided via ExecutionStartedEvent.Tags, we will use this as the start time of the Activity rather than the current time
-            if (startEvent.Tags != null && startEvent.Tags.ContainsKey(OrchestrationTags.RequestTime) &&
+            DateTimeOffset startTime = GetActivityStartTime(startEvent.Timestamp);
+
+            // Honor the legacy RequestTime tag for backward compatibility with older payloads.
+            if (startEvent.Tags != null &&
+                startEvent.Tags.ContainsKey(OrchestrationTags.RequestTime) &&
                 DateTimeOffset.TryParse(startEvent.Tags[OrchestrationTags.RequestTime], CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset requestTime))
             {
                 startTime = requestTime;
@@ -61,7 +63,7 @@ namespace DurableTask.Core.Tracing
                 CreateSpanName(TraceActivityConstants.CreateOrchestration, startEvent.Name, startEvent.Version),
                 kind: ActivityKind.Producer,
                 parentContext: parentTraceContext,
-                startTime: startTime ?? default);
+                startTime: startTime);
 
             if (newActivity != null)
             {
@@ -74,11 +76,21 @@ namespace DurableTask.Core.Tracing
                 {
                     newActivity.SetTag(Schema.Task.Version, startEvent.Version);
                 }
-                
+
                 startEvent.SetParentTraceContext(newActivity);
+                startEvent.Tags?.Remove(OrchestrationTags.RequestTime);
             }
 
             return newActivity;
+        }
+
+        private static DateTimeOffset GetActivityStartTime(DateTime timestamp)
+        {
+            DateTime utcTimestamp = timestamp.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(timestamp, DateTimeKind.Utc)
+                : timestamp.ToUniversalTime();
+
+            return new DateTimeOffset(utcTimestamp);
         }
 
         /// <summary>

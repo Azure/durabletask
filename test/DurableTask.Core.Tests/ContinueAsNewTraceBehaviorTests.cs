@@ -11,6 +11,7 @@ namespace DurableTask.Core.Tests
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Globalization;
     using System.IO;
     using System.Linq;
     using System.Runtime.Serialization.Json;
@@ -376,6 +377,58 @@ namespace DurableTask.Core.Tests
         }
 
         [TestMethod]
+        public void TraceHelper_UsesExecutionStartedTimestamp_WithoutLeakingTags()
+        {
+            var timestamp = new DateTime(2026, 04, 24, 01, 02, 03, DateTimeKind.Utc);
+            var startEvent = new ExecutionStartedEvent(-1, "input")
+            {
+                Timestamp = timestamp,
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = "test-request-time", ExecutionId = "exec1" },
+                Name = "TestOrch",
+                Tags = new Dictionary<string, string>
+                {
+                    ["user-tag"] = "my-value",
+                },
+            };
+
+            Activity? activity = TraceHelper.StartActivityForNewOrchestration(startEvent);
+
+            Assert.IsNotNull(activity, "Should create a producer activity for the orchestration start");
+            Assert.AreEqual(timestamp, activity.StartTimeUtc, "Producer span should use the ExecutionStartedEvent timestamp");
+            Assert.AreEqual("my-value", startEvent.Tags["user-tag"], "User tags should be preserved");
+            Assert.IsFalse(startEvent.Tags.ContainsKey(OrchestrationTags.RequestTime),
+                "RequestTime should not leak into the persisted user-visible tag bag");
+
+            activity.Stop();
+        }
+
+        [TestMethod]
+        public void TraceHelper_LegacyRequestTimeTag_IsConsumedAfterProducerCreation()
+        {
+            var requestTime = new DateTimeOffset(2026, 04, 24, 01, 02, 03, TimeSpan.Zero);
+            var startEvent = new ExecutionStartedEvent(-1, "input")
+            {
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = "test-request-tag", ExecutionId = "exec1" },
+                Name = "TestOrch",
+                Tags = new Dictionary<string, string>
+                {
+                    [OrchestrationTags.RequestTime] = requestTime.ToString("O", CultureInfo.InvariantCulture),
+                    ["user-tag"] = "my-value",
+                },
+            };
+
+            Activity? activity = TraceHelper.StartActivityForNewOrchestration(startEvent);
+
+            Assert.IsNotNull(activity, "Should create a producer activity for the orchestration start");
+            Assert.AreEqual(requestTime.UtcDateTime, activity.StartTimeUtc, "Producer span should honor the legacy RequestTime tag");
+            Assert.AreEqual("my-value", startEvent.Tags["user-tag"], "User tags should be preserved");
+            Assert.IsFalse(startEvent.Tags.ContainsKey(OrchestrationTags.RequestTime),
+                "Legacy RequestTime should be consumed after use so it does not leak to users");
+
+            activity.Stop();
+        }
+
+        [TestMethod]
         public void TraceHelper_BothGenerateNewTraceAndLegacyTag_WorksTogether()
         {
             // When both GenerateNewTrace and the legacy tag are set, both should be consumed
@@ -431,6 +484,51 @@ namespace DurableTask.Core.Tests
             Assert.IsTrue(startEvent.Tags.ContainsKey(OrchestrationTags.CreateTraceForNewOrchestration),
                 "Legacy trace-creation tag should remain for replay");
             Assert.IsNull(startEvent.ParentTraceContext, "No trace identity should be persisted when no producer span exists");
+        }
+
+        [TestMethod]
+        public void Dispatcher_RestartsTraceActivity_ForContinueAsNewStartNewTrace()
+        {
+            var currentExecutionStarted = new ExecutionStartedEvent(-1, "input")
+            {
+                GenerateNewTrace = true,
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = "test-current", ExecutionId = "exec1" },
+                Name = "TestOrch",
+            };
+
+            var completedRuntimeState = new OrchestrationRuntimeState();
+            completedRuntimeState.AddEvent(currentExecutionStarted);
+            completedRuntimeState.AddEvent(new ContinueAsNewEvent(1, "next-input"));
+
+            Activity? currentActivity = TraceHelper.StartTraceActivityForOrchestrationExecution(currentExecutionStarted);
+            Assert.IsNotNull(currentActivity, "Current execution should have an orchestration activity");
+
+            string currentTraceId = currentActivity.TraceId.ToString();
+
+            var nextExecutionStarted = new ExecutionStartedEvent(-1, "next-input")
+            {
+                GenerateNewTrace = true,
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = "test-current", ExecutionId = "exec2" },
+                Name = "TestOrch",
+            };
+
+            Activity? nextActivity = TaskOrchestrationDispatcher.RestartTraceActivityForContinueAsNewIfNeeded(
+                currentActivity,
+                completedRuntimeState,
+                nextExecutionStarted);
+
+            Assert.IsNotNull(nextActivity, "Next generation should start its own orchestration activity");
+            Assert.AreNotEqual(currentTraceId, nextActivity.TraceId.ToString(),
+                "StartNewTrace should restart the next generation in a fresh trace");
+            Assert.AreSame(nextActivity, DistributedTraceActivity.Current,
+                "The restarted activity should become the ambient orchestration activity");
+            Assert.IsFalse(nextExecutionStarted.GenerateNewTrace,
+                "The fresh-trace signal should be consumed once the next generation activity starts");
+            Assert.IsNotNull(nextExecutionStarted.ParentTraceContext,
+                "The next generation should persist the fresh trace identity for replay");
+
+            nextActivity.Stop();
+            DistributedTraceActivity.Current = null;
         }
 
         #endregion
