@@ -69,6 +69,12 @@ Attributes:
 | durabletask.task.execution_id  | Execution ID of the enqueued orchestration  |
 | exception.*  | Exception details on failure. |
 
+##### Continue-as-new fresh traces
+
+When `ContinueAsNew` is used with `ContinueAsNewTraceBehavior.StartNewTrace`, DurableTask emits this producer span shape for the next generation even though no external client call occurred. The producer span is the root of a new trace, starts at the next generation's orchestration-created timestamp, and ends when the worker establishes the trace before running the generation.
+
+The following `orchestration:{orchestrationName}(@{orchestrationVersion})?` server span is a child of this producer span. The orchestration instance ID is preserved, but the new generation is not parented to the previous generation's trace.
+
 #### Client: Starting a sub-orchestration
 
 Represents enqueueing and waiting for a sub-orchestration to complete 

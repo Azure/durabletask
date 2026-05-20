@@ -71,6 +71,7 @@ namespace DurableTask.Core.History
             Correlation = other.Correlation;
             ScheduledStartTime = other.ScheduledStartTime;
             Generation = other.Generation;
+            GenerateNewTrace = other.GenerateNewTrace;
         }
 
         /// <summary>
@@ -132,6 +133,15 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public int? Generation { get; set; }
+
+        /// <summary>
+        /// When true, indicates that this execution should start a fresh distributed trace
+        /// rather than inheriting the trace context from the previous generation.
+        /// This flag is consumed once by the trace infrastructure and reset to false after
+        /// the new trace is created, so that subsequent replays use the persisted trace identity.
+        /// </summary>
+        [DataMember]
+        public bool GenerateNewTrace { get; set; }
 
         // Used for Continue-as-New scenarios
         internal void SetParentTraceContext(ExecutionStartedEvent parent)

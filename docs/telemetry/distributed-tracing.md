@@ -209,6 +209,24 @@ Traces are automatically correlated across:
 - Orchestration → Activity
 - Client → Orchestration
 
+### Continue-as-new trace behavior
+
+By default, `ContinueAsNew` preserves the current distributed trace context. This keeps generations of the same orchestration instance connected in one trace.
+
+For long-running or periodic orchestrations, use `ContinueAsNewOptions` with `ContinueAsNewTraceBehavior.StartNewTrace` to start the next generation in a fresh trace:
+
+```csharp
+context.ContinueAsNew(
+    newVersion: null,
+    input: nextInput,
+    options: new ContinueAsNewOptions
+    {
+        TraceBehavior = ContinueAsNewTraceBehavior.StartNewTrace,
+    });
+```
+
+The orchestration instance ID is preserved, but the next generation gets a new trace ID. Use this when each loop or cycle should be independently visible in your telemetry backend.
+
 ### Example Trace Hierarchy
 
 ```text

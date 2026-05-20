@@ -452,6 +452,33 @@ namespace DurableTask.Core
         public abstract void ContinueAsNew(string newVersion, object input);
 
         /// <summary>
+        ///     Checkpoint the orchestration instance by completing the current execution in the ContinueAsNew
+        ///     state and creating a new execution of this instance with the specified input parameter.
+        ///     This overload allows the caller to customize how the next generation behaves, such as
+        ///     starting a fresh distributed trace.
+        /// </summary>
+        /// <param name="newVersion">
+        ///     New version of the orchestration to start. Pass <c>null</c> to keep the current version.
+        /// </param>
+        /// <param name="input">
+        ///     Input to the new execution of this instance. This is the same type as the one used to start
+        ///     the first execution of this orchestration instance.
+        /// </param>
+        /// <param name="options">
+        ///     Options that customize the next generation.
+        /// </param>
+        /// <exception cref="NotSupportedException">
+        ///     Thrown if the current <see cref="OrchestrationContext"/> implementation does not support
+        ///     <see cref="ContinueAsNewOptions"/>. Override this method in a derived class to add support.
+        /// </exception>
+        public virtual void ContinueAsNew(string newVersion, object input, ContinueAsNewOptions options)
+        {
+            throw new NotSupportedException(
+                $"This {GetType().Name} implementation does not support ContinueAsNewOptions. " +
+                "Override this method in a derived class to add support.");
+        }
+
+        /// <summary>
         ///     Create a proxy client class to schedule remote TaskActivities via a strongly typed interface.
         /// </summary>
         /// <typeparam name="T"></typeparam>
