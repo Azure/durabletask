@@ -7,7 +7,7 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <LangVersion>9.0</LangVersion>
     <!-- See https://github.com/Azure/durabletask/issues/428 -->
-    <NoWarn>NU5125,NU5048</NoWarn>
+    <NoWarn>NU5125</NoWarn>
     <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
     <!-- SourceLink Settings-->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
@@ -50,12 +50,19 @@
     <Copyright>© Microsoft Corporation. All rights reserved.</Copyright>
     <PackageProjectUrl>https://github.com/Azure/durabletask/</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Azure/durabletask/</RepositoryUrl>
-    <PackageIconUrl>https://github.com/Azure/durabletask/blob/master/logo.png?raw=true</PackageIconUrl>
+    <PackageIcon>logo.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageTags>ServiceBus Azure Task Durable Orchestration Workflow Activity Reliable</PackageTags>
     <NeutralLanguage>en-US</NeutralLanguage>
     <IncludeSymbols>true</IncludeSymbols>
     <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
   </PropertyGroup>
+
+  <!-- Pack shared assets (icon and README) -->
+  <ItemGroup Condition="'$(IsPackable)' != 'false'">
+    <None Include="$(MSBuildThisFileDirectory)..\logo.png" Pack="true" PackagePath="\" />
+    <None Include="$(MSBuildThisFileDirectory)..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <Target Name="Build">
   </Target>
