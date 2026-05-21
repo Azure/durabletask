@@ -9,10 +9,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Diagnostics.DiagnosticSource" VersionOverride="7.0.2" />
     <PackageReference Include="Vio.DurableTask.Hosting" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.ApplicationInsights.WorkerService" />
+    <!-- Pinned to override vulnerable transitive System.Text.Json 6.0.0 (GHSA-8g4q-xg66-9fp4). -->
+    <PackageReference Include="System.Text.Json" />
   </ItemGroup>
 
   <ItemGroup>

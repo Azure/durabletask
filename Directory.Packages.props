@@ -48,7 +48,7 @@
   
   <!-- Test dependencies -->
   <ItemGroup>
-    <PackageVersion Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.6.0" />
+    <PackageVersion Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.8.1" />
     <PackageVersion Include="CommandLineParser" Version="2.9.1" Condition="'$(TargetFramework)' == 'net8.0'" />
     <PackageVersion Include="CommandLineParser" Version="1.9.71" Condition="'$(TargetFramework)' == 'net48'" />
     <PackageVersion Include="EnterpriseLibrary.SemanticLogging.EventSourceAnalyzer.NetCore" Version="2.0.1406.4" />
@@ -62,7 +62,7 @@
     <PackageVersion Include="System.Data.SqlClient" Version="4.8.6" />
     <PackageVersion Include="System.Net.Http" Version="4.3.4" />
     <PackageVersion Include="System.Text.RegularExpressions" Version="4.3.1" />
-    <PackageVersion Include="System.Text.Json" Version="10.0.3" />
+    <PackageVersion Include="System.Text.Json" Version="10.0.8" />
     <PackageVersion Include="WindowsAzure.Storage" Version="9.3.3" Condition="'$(TargetFramework)' == 'net8.0'" />
     <PackageVersion Include="WindowsAzure.Storage" Version="8.7.0" Condition="'$(TargetFramework)' == 'net48'" />
   </ItemGroup>
@@ -90,17 +90,17 @@
 
   <!-- Samples dependencies -->
   <ItemGroup>
-    <PackageVersion Include="Azure.Identity" Version="1.18.0" />
-    <PackageVersion Include="Microsoft.ApplicationInsights.DependencyCollector" Version="2.12.0" />
-    <PackageVersion Include="Microsoft.ApplicationInsights.WorkerService" Version="2.21.0" />
+    <PackageVersion Include="Azure.Identity" Version="1.21.0" />
+    <PackageVersion Include="Microsoft.ApplicationInsights.DependencyCollector" Version="2.23.0" />
+    <PackageVersion Include="Microsoft.ApplicationInsights.WorkerService" Version="2.23.0" />
     <PackageVersion Include="Microsoft.Azure.DurableTask.AzureStorage" Version="1.17.3" />
-    <PackageVersion Include="Microsoft.Extensions.Azure" Version="1.7.4" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="3.1.32" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="3.1.32" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="6.0.1" />
-    <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.1.0" />
-    <PackageVersion Include="OpenTelemetry.Exporter.Zipkin" Version="1.15.3" />
-    <PackageVersion Include="Vio.DurableTask.Hosting" Version="2.2.1" />
+    <PackageVersion Include="Microsoft.Extensions.Azure" Version="1.14.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
+    <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.15.3" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
+    <PackageVersion Include="Vio.DurableTask.Hosting" Version="2.2.17" />
   </ItemGroup>
 
   <!-- Dependencies specific to net8.0-->
@@ -118,7 +118,7 @@
 
   <!-- Samples dependencies with net48-->
   <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
-    <PackageVersion Include="ncrontab" version="1.0.0" />
+    <PackageVersion Include="ncrontab" Version="3.4.0" />
   </ItemGroup>
 
 </Project>

@@ -9,7 +9,7 @@
   <ItemGroup>
     <PackageReference Include="OpenTelemetry.Api" />
     <PackageReference Include="OpenTelemetry.Exporter.Console" />
-    <PackageReference Include="OpenTelemetry.Exporter.Zipkin" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
     <PackageReference Include="Azure.Monitor.OpenTelemetry.Exporter" />
   </ItemGroup>
 
