@@ -21,6 +21,8 @@
   <ItemGroup>
     <PackageReference Include="System.Data.SqlClient" />
     <PackageReference Include="System.Net.Http" />
+    <!-- Pinned to override vulnerable transitive (GHSA-cmhx-cq75-c4mj). -->
+    <PackageReference Include="System.Text.RegularExpressions" />
     <None Update="appsettings.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

@@ -14,6 +14,9 @@
     <PackageReference Include="Microsoft.Extensions.Logging" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+    <!-- Pinned to override vulnerable transitives from DurableTask 1.x / WindowsAzure.Storage 9.x (GHSA-7jgj-8wvc-jh57, GHSA-cmhx-cq75-c4mj). -->
+    <PackageReference Include="System.Net.Http" />
+    <PackageReference Include="System.Text.RegularExpressions" />
   </ItemGroup>
 
 </Project>

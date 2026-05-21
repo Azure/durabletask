@@ -31,7 +31,7 @@ namespace OpenTelemetrySample
                 .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("MySample"))
                 .AddSource("DurableTask.Core")
                 .AddConsoleExporter()
-                .AddZipkinExporter()
+                .AddOtlpExporter()
                 .AddAzureMonitorTraceExporter(options =>
                 {
                     options.ConnectionString = Environment.GetEnvironmentVariable("AZURE_MONITOR_CONNECTION_STRING");

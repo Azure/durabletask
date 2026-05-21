@@ -69,7 +69,21 @@ namespace Correlation.Samples
             telemetryInitializer.ExcludeComponentCorrelationHttpHeadersOnDomains.Add("127.0.0.1");
             config.TelemetryInitializers.Add(telemetryInitializer);
 
-            config.InstrumentationKey = Environment.GetEnvironmentVariable("APPINSIGHTS_INSTRUMENTATIONKEY");
+            string connectionString = Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
+            if (!string.IsNullOrEmpty(connectionString))
+            {
+                config.ConnectionString = connectionString;
+            }
+            else
+            {
+                string instrumentationKey = Environment.GetEnvironmentVariable("APPINSIGHTS_INSTRUMENTATIONKEY");
+                if (!string.IsNullOrEmpty(instrumentationKey))
+                {
+#pragma warning disable CS0618 // InstrumentationKey is obsolete; kept for backward compatibility.
+                    config.InstrumentationKey = instrumentationKey;
+#pragma warning restore CS0618
+                }
+            }
 
             module.Initialize(config);
 
