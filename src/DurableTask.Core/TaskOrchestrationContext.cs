@@ -18,6 +18,7 @@ namespace DurableTask.Core
     using System.Diagnostics;
     using System.Globalization;
     using System.Linq;
+    using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Core.Command;
@@ -30,6 +31,8 @@ namespace DurableTask.Core
 
     internal class TaskOrchestrationContext : OrchestrationContext
     {
+        private const int MaxOpenTaskSummaryEntries = 32;
+        private const int MaxOpenTaskSummaryLength = 1024;
         private readonly IDictionary<int, OpenTaskInfo> openTasks;
         private readonly IDictionary<int, OrchestratorAction> orchestratorActionsMap;
         private OrchestrationCompleteOrchestratorAction continueAsNew;
@@ -79,8 +82,69 @@ namespace DurableTask.Core
 
         internal string GetOpenTasksSummary()
         {
-            return string.Join(", ", this.openTasks.Select(
-                kv => $"{kv.Value.Name ?? "Timer"}#{kv.Key}"));
+            int openTaskCount = this.openTasks.Count;
+            if (openTaskCount == 0)
+            {
+                return string.Empty;
+            }
+
+            var summaryBuilder = new StringBuilder(Math.Min(openTaskCount * 16, MaxOpenTaskSummaryLength));
+            int includedEntries = 0;
+            bool summaryTruncatedByLength = false;
+
+            foreach (KeyValuePair<int, OpenTaskInfo> openTask in this.openTasks)
+            {
+                if (includedEntries >= MaxOpenTaskSummaryEntries)
+                {
+                    break;
+                }
+
+                string entry = $"{openTask.Value.Name ?? "Timer"}#{openTask.Key}";
+                int separatorLength = includedEntries > 0 ? 2 : 0;
+                int requiredLength = separatorLength + entry.Length;
+
+                if (summaryBuilder.Length + requiredLength > MaxOpenTaskSummaryLength)
+                {
+                    summaryTruncatedByLength = true;
+                    break;
+                }
+
+                if (separatorLength > 0)
+                {
+                    summaryBuilder.Append(", ");
+                }
+
+                summaryBuilder.Append(entry);
+                includedEntries++;
+            }
+
+            int omittedTaskCount = openTaskCount - includedEntries;
+            if (omittedTaskCount > 0 || summaryTruncatedByLength)
+            {
+                string suffix = $"... (+{omittedTaskCount} more task(s))";
+                int separatorLength = summaryBuilder.Length > 0 ? 2 : 0;
+                int requiredLength = separatorLength + suffix.Length;
+
+                if (summaryBuilder.Length + requiredLength > MaxOpenTaskSummaryLength)
+                {
+                    int maxPrefixLength = MaxOpenTaskSummaryLength - requiredLength;
+                    if (maxPrefixLength < 0)
+                    {
+                        return suffix.Substring(0, MaxOpenTaskSummaryLength);
+                    }
+
+                    summaryBuilder.Length = Math.Min(summaryBuilder.Length, maxPrefixLength);
+                }
+
+                if (separatorLength > 0)
+                {
+                    summaryBuilder.Append(", ");
+                }
+
+                summaryBuilder.Append(suffix);
+            }
+
+            return summaryBuilder.ToString();
         }
 
         internal void ClearPendingActions()

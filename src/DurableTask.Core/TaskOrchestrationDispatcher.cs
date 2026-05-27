@@ -835,7 +835,7 @@ namespace DurableTask.Core
 
             var cursor = new OrchestrationExecutionCursor(runtimeState, taskOrchestration, executor, decisions);
             cursor.OpenTaskCount = result?.OpenTaskCount ?? 0;
-            cursor.OpenTaskNames = result?.OpenTaskNames;
+            cursor.OpenTaskNames = result?.OpenTaskNames ?? string.Empty;
             return cursor;
         }
 
@@ -873,7 +873,7 @@ namespace DurableTask.Core
 
             cursor.LatestDecisions = decisions;
             cursor.OpenTaskCount = result?.OpenTaskCount ?? 0;
-            cursor.OpenTaskNames = result?.OpenTaskNames;
+            cursor.OpenTaskNames = result?.OpenTaskNames ?? string.Empty;
         }
 
         /// <summary>
