@@ -432,14 +432,19 @@ namespace DurableTask.Core.Logging
         /// <param name="instance">The orchestration instance that was executed.</param>
         /// <param name="name">The name of the orchestration.</param>
         /// <param name="actions">The actions taken by the orchestration</param>
+        /// <param name="openTaskCount">The number of pending tasks awaiting completion.</param>
+        /// <param name="openTaskNames">A summary of the pending task names.</param>
         internal void OrchestrationExecuted(
             OrchestrationInstance instance,
             string name,
-            IReadOnlyList<OrchestratorAction> actions)
+            IReadOnlyList<OrchestratorAction> actions,
+            int openTaskCount,
+            string openTaskNames)
         {
             if (this.IsStructuredLoggingEnabled)
             {
-                this.WriteStructuredLog(new LogEvents.OrchestrationExecuted(instance, name, actions.Count));
+                this.WriteStructuredLog(new LogEvents.OrchestrationExecuted(
+                    instance, name, actions.Count, openTaskCount, openTaskNames));
             }
         }
 

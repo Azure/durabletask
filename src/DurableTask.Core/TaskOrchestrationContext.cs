@@ -75,6 +75,14 @@ namespace DurableTask.Core
 
         public bool HasOpenTasks => this.openTasks.Count > 0;
 
+        internal int OpenTaskCount => this.openTasks.Count;
+
+        internal string GetOpenTasksSummary()
+        {
+            return string.Join(", ", this.openTasks.Select(
+                kv => $"{kv.Value.Name ?? "Timer"}#{kv.Key}"));
+        }
+
         internal void ClearPendingActions()
         {
             this.orchestratorActionsMap.Clear();
