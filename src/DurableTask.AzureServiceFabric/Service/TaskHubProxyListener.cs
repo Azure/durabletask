@@ -163,7 +163,7 @@ namespace DurableTask.AzureServiceFabric.Service
                 string protocol = this.enableHttps ? "https" : "http";
                 string listeningAddress = string.Format(CultureInfo.InvariantCulture, "{0}://{1}:{2}/{3}/dtfx/", protocol, ipAddress, serviceEndpoint.Port, context.PartitionId);
 
-                return new OwinCommunicationListener(new Startup(listeningAddress, this.fabricOrchestrationProvider));
+                return new OwinCommunicationListener(new Startup(listeningAddress, this.fabricOrchestrationProvider, this.fabricOrchestrationProviderSettings.JsonSerializationBinder));
             }, Constants.TaskHubProxyServiceName);
         }
 
