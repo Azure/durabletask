@@ -18,37 +18,46 @@ namespace DurableTask.AzureServiceFabric.Service
     using System.Collections.Generic;
     using System.Linq;
     using System.Reflection;
+    using DurableTask.AzureServiceFabric.Models;
+    using DurableTask.Core;
+    using DurableTask.Core.History;
+    using DurableTask.Core.Tracing;
     using Newtonsoft.Json.Serialization;
 
     /// <summary>
-    /// A serialization binder that restricts deserialization to only known DurableTask types
-    /// and core system types. This prevents untrusted <c>$type</c> metadata in JSON payloads
-    /// from loading arbitrary assemblies or instantiating arbitrary types.
+    /// A serialization binder that restricts deserialization to only the specific types
+    /// that flow through the Service Fabric proxy HTTP endpoints. This prevents untrusted
+    /// <c>$type</c> metadata in JSON payloads from loading arbitrary assemblies or
+    /// instantiating arbitrary types.
     /// </summary>
     public sealed class AllowedTypesSerializationBinder : ISerializationBinder
     {
-        static readonly HashSet<string> AllowedAssemblyNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            typeof(Core.TaskMessage).Assembly.GetName().Name,           // DurableTask.Core
-            typeof(FabricOrchestrationProvider).Assembly.GetName().Name, // DurableTask.AzureServiceFabric
-            "mscorlib",                                                  // .NET Framework core types
-            "System.Private.CoreLib",                                    // .NET Core/5+ core types
-        };
+        static readonly HashSet<Type> AllowedTypes = BuildAllowedTypes();
 
         readonly DefaultSerializationBinder defaultBinder = new DefaultSerializationBinder();
-        readonly ConcurrentDictionary<string, bool> assemblyAllowCache = new ConcurrentDictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        readonly ConcurrentDictionary<Type, bool> typeAllowCache = new ConcurrentDictionary<Type, bool>();
 
         /// <inheritdoc />
         public Type BindToType(string assemblyName, string typeName)
         {
-            if (!IsAssemblyAllowed(assemblyName))
+            // Validate assembly name before resolving to prevent Assembly.Load of untrusted assemblies.
+            if (!string.IsNullOrWhiteSpace(assemblyName) && !IsAssemblyNameAllowed(assemblyName))
             {
                 throw new InvalidOperationException(
                     $"Deserialization of type '{typeName}' from assembly '{assemblyName}' is not allowed. " +
-                    $"Only known DurableTask and core system types are permitted.");
+                    $"Only known DurableTask proxy endpoint types are permitted.");
             }
 
-            return this.defaultBinder.BindToType(assemblyName, typeName);
+            Type resolvedType = this.defaultBinder.BindToType(assemblyName, typeName);
+
+            if (!IsTypeAllowed(resolvedType))
+            {
+                throw new InvalidOperationException(
+                    $"Deserialization of type '{resolvedType.FullName}' is not allowed. " +
+                    $"Only known DurableTask proxy endpoint types are permitted.");
+            }
+
+            return resolvedType;
         }
 
         /// <inheritdoc />
@@ -57,20 +66,96 @@ namespace DurableTask.AzureServiceFabric.Service
             this.defaultBinder.BindToName(serializedType, out assemblyName, out typeName);
         }
 
-        bool IsAssemblyAllowed(string assemblyName)
+        static HashSet<Type> BuildAllowedTypes()
         {
-            if (string.IsNullOrWhiteSpace(assemblyName))
+            var types = new HashSet<Type>
             {
-                // No assembly specified — let the default binder resolve it.
-                return true;
+                // Core domain types that appear in the proxy endpoint object graph
+                typeof(TaskMessage),
+                typeof(OrchestrationInstance),
+                typeof(OrchestrationExecutionContext),
+                typeof(OrchestrationState),
+                typeof(ParentInstance),
+                typeof(DistributedTraceContext),
+                typeof(FailureDetails),
+
+                // Service Fabric proxy parameter types
+                typeof(CreateTaskOrchestrationParameters),
+                typeof(PurgeOrchestrationHistoryParameters),
+
+                // System collections used for Tags and FailureDetails.Properties
+                typeof(Dictionary<string, string>),
+                typeof(Dictionary<string, object>),
+            };
+
+            // All HistoryEvent subclasses (self-maintaining via assembly scanning).
+            // Use the same logic as HistoryEvent.KnownTypes() but handle partial load failures
+            // that can occur when not all referenced assemblies are available.
+            try
+            {
+                foreach (Type historyEventType in HistoryEvent.KnownTypes())
+                {
+                    types.Add(historyEventType);
+                }
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                foreach (Type loadedType in ex.Types)
+                {
+                    if (loadedType != null && !loadedType.IsAbstract && typeof(HistoryEvent).IsAssignableFrom(loadedType))
+                    {
+                        types.Add(loadedType);
+                    }
+                }
             }
 
-            return this.assemblyAllowCache.GetOrAdd(assemblyName, name =>
+            return types;
+        }
+
+        static bool IsAssemblyNameAllowed(string assemblyName)
+        {
+            // Strip version/culture/publicKeyToken if present
+            int commaIndex = assemblyName.IndexOf(',');
+            string shortName = commaIndex >= 0 ? assemblyName.Substring(0, commaIndex).Trim() : assemblyName.Trim();
+
+            return string.Equals(shortName, typeof(TaskMessage).Assembly.GetName().Name, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(shortName, typeof(FabricOrchestrationProvider).Assembly.GetName().Name, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(shortName, "mscorlib", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(shortName, "System.Private.CoreLib", StringComparison.OrdinalIgnoreCase);
+        }
+
+        bool IsTypeAllowed(Type type)
+        {
+            return this.typeAllowCache.GetOrAdd(type, t =>
             {
-                // Strip version/culture/publicKeyToken if present (e.g., "mscorlib, Version=4.0.0.0, ...")
-                int commaIndex = name.IndexOf(',');
-                string shortName = commaIndex >= 0 ? name.Substring(0, commaIndex).Trim() : name.Trim();
-                return AllowedAssemblyNames.Contains(shortName);
+                // Primitives and strings are always safe
+                if (t.IsPrimitive || t == typeof(string) || t == typeof(DateTime)
+                    || t == typeof(DateTimeOffset) || t == typeof(TimeSpan)
+                    || t == typeof(Guid) || t == typeof(decimal))
+                {
+                    return true;
+                }
+
+                // Arrays of allowed types
+                if (t.IsArray)
+                {
+                    return IsTypeAllowed(t.GetElementType());
+                }
+
+                // Nullable<T> of allowed types
+                Type nullable = Nullable.GetUnderlyingType(t);
+                if (nullable != null)
+                {
+                    return IsTypeAllowed(nullable);
+                }
+
+                // Enums are safe (serialize as values)
+                if (t.IsEnum)
+                {
+                    return true;
+                }
+
+                return AllowedTypes.Contains(t);
             });
         }
     }

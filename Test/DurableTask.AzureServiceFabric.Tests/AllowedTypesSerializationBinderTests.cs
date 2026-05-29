@@ -15,6 +15,9 @@ namespace DurableTask.AzureServiceFabric.Tests
 {
     using System;
     using System.Collections.Generic;
+    using System.Linq;
+    using System.Reflection;
+    using DurableTask.AzureServiceFabric.Models;
     using DurableTask.AzureServiceFabric.Service;
     using DurableTask.Core;
     using DurableTask.Core.History;
@@ -43,9 +46,9 @@ namespace DurableTask.AzureServiceFabric.Tests
         }
 
         [TestMethod]
-        public void BindToType_AllowsServiceFabricTypes()
+        public void BindToType_AllowsServiceFabricProxyTypes()
         {
-            var type = typeof(FabricOrchestrationProvider);
+            var type = typeof(CreateTaskOrchestrationParameters);
             var result = this.binder.BindToType(type.Assembly.GetName().Name, type.FullName);
             Assert.AreEqual(type, result);
         }
@@ -96,6 +99,44 @@ namespace DurableTask.AzureServiceFabric.Tests
             var type = typeof(System.Diagnostics.Process);
             Assert.ThrowsException<InvalidOperationException>(() =>
                 this.binder.BindToType(type.Assembly.GetName().Name, type.FullName));
+        }
+
+        [TestMethod]
+        public void BindToType_RejectsNonAllowlistedMscorlibType()
+        {
+            // System.Type is from mscorlib but not in the type allowlist
+            Assert.ThrowsException<InvalidOperationException>(() =>
+                this.binder.BindToType("mscorlib", typeof(Type).FullName));
+        }
+
+        [TestMethod]
+        public void BindToType_RejectsNonAllowlistedDurableTaskCoreType()
+        {
+            // TaskOrchestration is a DurableTask.Core type but not in the proxy endpoint allowlist
+            var type = typeof(TaskOrchestration);
+            Assert.ThrowsException<InvalidOperationException>(() =>
+                this.binder.BindToType(type.Assembly.GetName().Name, type.FullName));
+        }
+
+        [TestMethod]
+        public void BindToType_AllowsAllHistoryEventKnownTypes()
+        {
+            IEnumerable<Type> knownTypes;
+            try
+            {
+                knownTypes = HistoryEvent.KnownTypes();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                // In test environments, not all types may be loadable
+                knownTypes = ex.Types.Where(t => t != null && !t.IsAbstract && typeof(HistoryEvent).IsAssignableFrom(t));
+            }
+
+            foreach (Type knownType in knownTypes)
+            {
+                var result = this.binder.BindToType(knownType.Assembly.GetName().Name, knownType.FullName);
+                Assert.AreEqual(knownType, result, $"HistoryEvent subclass {knownType.Name} should be allowed");
+            }
         }
 
         [TestMethod]
