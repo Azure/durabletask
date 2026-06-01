@@ -27,7 +27,7 @@ namespace DurableTask.AzureServiceFabric.Service
     class Startup : IOwinAppBuilder
     {
         FabricOrchestrationProvider fabricOrchestrationProvider;
-        ISerializationBinder serializationBinder;
+        readonly ISerializationBinder serializationBinder;
         string listeningAddress;
 
         public Startup(string listeningAddress, FabricOrchestrationProvider fabricOrchestrationProvider, ISerializationBinder serializationBinder)

@@ -100,12 +100,9 @@ namespace DurableTask.AzureServiceFabric.Service
             }
             catch (ReflectionTypeLoadException ex)
             {
-                foreach (Type loadedType in ex.Types)
+                foreach (Type loadedType in ex.Types.Where(t => t != null && !t.IsAbstract && typeof(HistoryEvent).IsAssignableFrom(t)))
                 {
-                    if (loadedType != null && !loadedType.IsAbstract && typeof(HistoryEvent).IsAssignableFrom(loadedType))
-                    {
-                        types.Add(loadedType);
-                    }
+                    types.Add(loadedType);
                 }
             }
 
