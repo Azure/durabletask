@@ -50,10 +50,10 @@ namespace DurableTask.AzureServiceFabric.Service
 
             Type resolvedType = this.defaultBinder.BindToType(assemblyName, typeName);
 
-            if (!IsTypeAllowed(resolvedType))
+            if (resolvedType == null || !IsTypeAllowed(resolvedType))
             {
                 throw new InvalidOperationException(
-                    $"Deserialization of type '{resolvedType.FullName}' is not allowed. " +
+                    $"Deserialization of type '{typeName}' from assembly '{assemblyName}' is not allowed. " +
                     $"Only known DurableTask proxy endpoint types are permitted.");
             }
 

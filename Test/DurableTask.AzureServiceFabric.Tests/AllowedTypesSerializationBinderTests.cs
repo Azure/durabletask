@@ -110,6 +110,15 @@ namespace DurableTask.AzureServiceFabric.Tests
         }
 
         [TestMethod]
+        public void BindToType_RejectsUnresolvableType()
+        {
+            // A type name that cannot be resolved should throw a controlled exception, not NullReferenceException
+            var ex = Assert.ThrowsException<JsonSerializationException>(() =>
+                this.binder.BindToType("DurableTask.Core", "DurableTask.Core.NonExistentType"));
+            StringAssert.Contains(ex.Message, "NonExistentType");
+        }
+
+        [TestMethod]
         public void BindToType_RejectsNonAllowlistedDurableTaskCoreType()
         {
             // TaskOrchestration is a DurableTask.Core type but not in the proxy endpoint allowlist
