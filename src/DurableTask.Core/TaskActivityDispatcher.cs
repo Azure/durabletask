@@ -132,7 +132,7 @@ namespace DurableTask.Core
                     this.logHelper.TaskActivityDispatcherError(
                         workItem,
                         $"The activity worker received a message that does not have any OrchestrationInstance information.");
-                    if (this.maxDispatchCount != null)
+                    if (this.maxDispatchCount > 0)
                     {
                         this.logHelper.PoisonMessageDetected(
                             orchestrationInstance,

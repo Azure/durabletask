@@ -923,7 +923,7 @@ namespace DurableTask.Core
             ErrorPropagationMode errorPropagationMode,
             LogHelper logHelper,
             bool isPoisonMessageHandlingEnabled,
-            out string? reason)
+            [NotNullWhen(true)] out string? reason)
         {
             void MarkAllMessagesPoisoned()
             {
