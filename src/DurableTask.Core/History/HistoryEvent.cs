@@ -92,7 +92,7 @@ namespace DurableTask.Core.History
         /// <summary>
         /// Gets or sets the number of times this event has been dispatched.
         /// </summary>
-        [DataMember]
+        [DataMember(EmitDefaultValue = false)]
         public int DispatchCount { get; set; }
 
         /// <summary>
