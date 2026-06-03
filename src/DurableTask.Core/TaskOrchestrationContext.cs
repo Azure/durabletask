@@ -33,6 +33,7 @@ namespace DurableTask.Core
         private readonly IDictionary<int, OpenTaskInfo> openTasks;
         private readonly IDictionary<int, OrchestratorAction> orchestratorActionsMap;
         private OrchestrationCompleteOrchestratorAction continueAsNew;
+        private static readonly ContinueAsNewOptions DefaultContinueAsNewOptions = new ContinueAsNewOptions();
         private bool executionCompletedOrTerminated;
         private int idCounter;
         private readonly Queue<HistoryEvent> eventsWhileSuspended;
@@ -249,15 +250,25 @@ namespace DurableTask.Core
 
         public override void ContinueAsNew(object input)
         {
-            ContinueAsNew(null, input);
+            this.ContinueAsNew(null, input, DefaultContinueAsNewOptions);
         }
 
         public override void ContinueAsNew(string newVersion, object input)
         {
-            ContinueAsNewCore(newVersion, input);
+            this.ContinueAsNew(newVersion, input, DefaultContinueAsNewOptions);
         }
 
-        void ContinueAsNewCore(string newVersion, object input)
+        public override void ContinueAsNew(string newVersion, object input, ContinueAsNewOptions options)
+        {
+            if (options == null)
+            {
+                throw new ArgumentNullException(nameof(options));
+            }
+
+            ContinueAsNewCore(newVersion, input, options);
+        }
+
+        void ContinueAsNewCore(string newVersion, object input, ContinueAsNewOptions options)
         {
             string serializedInput = this.MessageDataConverter.SerializeInternal(input);
 
@@ -265,7 +276,8 @@ namespace DurableTask.Core
             {
                 Result = serializedInput,
                 OrchestrationStatus = OrchestrationStatus.ContinuedAsNew,
-                NewVersion = newVersion
+                NewVersion = newVersion,
+                ContinueAsNewTraceBehavior = options.TraceBehavior,
             };
         }
 

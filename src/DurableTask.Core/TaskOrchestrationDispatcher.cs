@@ -297,6 +297,7 @@ namespace DurableTask.Core
                             "OnProcessWorkItemSession-Release",
                             $"Releasing extended session after {processCount} batch(es).");
                         this.concurrentSessionLock.Release();
+                        await workItem.Session.EndSessionAsync();
                     }
                 }
             }
@@ -592,10 +593,6 @@ namespace DurableTask.Core
                                     orchestratorMessages.AddRange(subOrchestrationRewindMessages);
                                     workItem.OrchestrationRuntimeState = newRuntimeState;
                                     runtimeState = newRuntimeState;
-                                    // Setting this to true here will end an extended session if it is in progress.
-                                    // We don't want to save the state across executions, since we essentially manually modify
-                                    // the orchestration history here and so that stored by the extended session is incorrect.
-                                    isRewinding = true;
                                     break;
                                 default:
                                     throw TraceHelper.TraceExceptionInstance(
@@ -669,6 +666,8 @@ namespace DurableTask.Core
                         {
                             if (continuedAsNew)
                             {
+                                OrchestrationRuntimeState completedRuntimeState = runtimeState;
+
                                 TraceHelper.TraceSession(
                                     TraceEventType.Information,
                                     "TaskOrchestrationDispatcher-UpdatingStateForContinuation",
@@ -681,8 +680,12 @@ namespace DurableTask.Core
                                     continueAsNewExecutionStarted!.Correlation = CorrelationTraceContext.Current.SerializableTraceContext;
                                 });
 
-                                // Copy the distributed trace context, if any
-                                continueAsNewExecutionStarted!.SetParentTraceContext(runtimeState.ExecutionStartedEvent);
+                                // Copy the distributed trace context to preserve lineage, unless
+                                // the next generation was explicitly requested to start a fresh trace.
+                                if (!continueAsNewExecutionStarted!.GenerateNewTrace)
+                                {
+                                    continueAsNewExecutionStarted.SetParentTraceContext(runtimeState.ExecutionStartedEvent);
+                                }
 
                                 runtimeState = new OrchestrationRuntimeState();
                                 runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
@@ -702,6 +705,11 @@ namespace DurableTask.Core
                                 workItem.OrchestrationRuntimeState = runtimeState;
 
                                 workItem.Cursor = null;
+
+                                traceActivity = RestartTraceActivityForContinueAsNewIfNeeded(
+                                    traceActivity,
+                                    completedRuntimeState,
+                                    continueAsNewExecutionStarted);
                             }
 
                             instanceState = Utils.BuildOrchestrationState(runtimeState);
@@ -1113,10 +1121,18 @@ namespace DurableTask.Core
                         InstanceId = runtimeState.OrchestrationInstance!.InstanceId,
                         ExecutionId = Guid.NewGuid().ToString("N")
                     },
-                    Tags = runtimeState.Tags,
+                    // Clone tags to avoid mutating the current generation's tag dictionary.
+                    // Preserve the comparer if the underlying type is Dictionary<string, string>.
+                    Tags = runtimeState.Tags == null
+                        ? null
+                        : runtimeState.Tags is Dictionary<string, string> dictionaryTags
+                            ? new Dictionary<string, string>(dictionaryTags, dictionaryTags.Comparer)
+                            : new Dictionary<string, string>(runtimeState.Tags),
                     ParentInstance = runtimeState.ParentInstance,
                     Name = runtimeState.Name,
-                    Version = completeOrchestratorAction.NewVersion ?? runtimeState.Version
+                    Version = completeOrchestratorAction.NewVersion ?? runtimeState.Version,
+                    // Signal that the next generation should start a fresh distributed trace
+                    GenerateNewTrace = completeOrchestratorAction.ContinueAsNewTraceBehavior == ContinueAsNewTraceBehavior.StartNewTrace,
                 };
 
                 taskMessage.OrchestrationInstance = startedEvent.OrchestrationInstance;
@@ -1170,6 +1186,23 @@ namespace DurableTask.Core
             TraceHelper.SetRuntimeStatusTag(runtimeState.OrchestrationStatus.ToString());
             DistributedTraceActivity.Current?.Stop();
             DistributedTraceActivity.Current = null;
+        }
+
+        internal static Activity? RestartTraceActivityForContinueAsNewIfNeeded(
+            Activity? currentTraceActivity,
+            OrchestrationRuntimeState completedRuntimeState,
+            ExecutionStartedEvent continueAsNewExecutionStarted)
+        {
+            if (!continueAsNewExecutionStarted.GenerateNewTrace)
+            {
+                return currentTraceActivity;
+            }
+
+            TraceHelper.SetRuntimeStatusTag(completedRuntimeState.OrchestrationStatus.ToString());
+            currentTraceActivity?.Stop();
+            DistributedTraceActivity.Current = null;
+
+            return TraceHelper.StartTraceActivityForOrchestrationExecution(continueAsNewExecutionStarted);
         }
 
         private static void SetOrchestrationActivityStatus(OrchestrationCompleteOrchestratorAction completeOrchestratorAction)
