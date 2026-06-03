@@ -572,6 +572,7 @@ namespace DurableTask.Core
                             if (this.poisonMessageHandler?.IsPoisonMessage(e, out string reason) == true)
                             {
                                 requestMessage.PoisonReason = reason;
+                                requestMessage.DispatchCount = e.DispatchCount;
                             }
 
                             IEnumerable<RequestMessage> deliverNow;
@@ -651,7 +652,7 @@ namespace DurableTask.Core
 
                             if (this.poisonMessageHandler?.IsPoisonMessage(e, out string reason) == true)
                             {
-                                this.logHelper.PoisonMessageDetected(runtimeState.OrchestrationInstance, message, reason);
+                                this.logHelper.PoisonMessageDetected(runtimeState.OrchestrationInstance, message, e.DispatchCount, reason);
                                 this.poisonMessageHandler.HandlePoisonMessage(e, reason);
                                 break;
                             }

@@ -662,6 +662,7 @@ namespace DurableTask.Core.Logging
             string ExecutionId,
             string EventType,
             int TaskEventId,
+            int DispatchCount,
             string Details,
             string AppName,
             string ExtensionVersion)
@@ -675,6 +676,7 @@ namespace DurableTask.Core.Logging
                     ExecutionId ?? string.Empty,
                     EventType,
                     TaskEventId,
+                    DispatchCount,
                     Details,
                     AppName,
                     ExtensionVersion);

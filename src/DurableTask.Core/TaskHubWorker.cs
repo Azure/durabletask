@@ -38,7 +38,6 @@ namespace DurableTask.Core
         readonly INameVersionObjectManager<TaskOrchestration> orchestrationManager;
         readonly INameVersionObjectManager<TaskEntity> entityManager;
         readonly VersioningSettings versioningSettings;
-        readonly int? maxDispatchCount;
 
         readonly DispatchMiddlewarePipeline orchestrationDispatchPipeline = new DispatchMiddlewarePipeline();
         readonly DispatchMiddlewarePipeline entityDispatchPipeline = new DispatchMiddlewarePipeline();
@@ -219,43 +218,6 @@ namespace DurableTask.Core
             this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
             this.dispatchEntitiesSeparately = (orchestrationService as IEntityOrchestrationService)?.EntityBackendProperties?.UseSeparateQueueForEntityWorkItems ?? false;
             this.versioningSettings = versioningSettings;
-        }
-
-        /// <summary>
-        ///     Create a new TaskHubWorker with given OrchestrationService and name version managers
-        /// </summary>
-        /// <param name="orchestrationService">Reference the orchestration service implementation</param>
-        /// <param name="orchestrationObjectManager">NameVersionObjectManager for Orchestrations</param>
-        /// <param name="activityObjectManager">NameVersionObjectManager for Activities</param>
-        /// <param name="entityObjectManager">The NameVersionObjectManager for entities. The version is the entity key.</param>
-        /// <param name="versioningSettings">The <see cref="VersioningSettings"/> that define how orchestration versions are handled</param>
-        /// <param name="maxDispatchCount">
-        /// The maximum amount of times the same event can be dispatched before it is considered "poisoned" and the corresponding operation
-        /// is failed. Providing this value effectively enables poison message handling in the dispatchers.
-        /// </param>
-        /// <param name="loggerFactory">The <see cref="ILoggerFactory"/> to use for logging</param>
-        public TaskHubWorker(
-            IOrchestrationService orchestrationService,
-            INameVersionObjectManager<TaskOrchestration> orchestrationObjectManager,
-            INameVersionObjectManager<TaskActivity> activityObjectManager,
-            INameVersionObjectManager<TaskEntity> entityObjectManager,
-            VersioningSettings versioningSettings,
-            int maxDispatchCount,
-            ILoggerFactory loggerFactory = null)
-        {
-            this.orchestrationManager = orchestrationObjectManager ?? throw new ArgumentException("orchestrationObjectManager");
-            this.activityManager = activityObjectManager ?? throw new ArgumentException("activityObjectManager");
-            this.entityManager = entityObjectManager ?? throw new ArgumentException("entityObjectManager");
-            this.orchestrationService = orchestrationService ?? throw new ArgumentException("orchestrationService");
-            this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
-            this.dispatchEntitiesSeparately = (orchestrationService as IEntityOrchestrationService)?.EntityBackendProperties?.UseSeparateQueueForEntityWorkItems ?? false;
-            this.versioningSettings = versioningSettings;
-
-            if (maxDispatchCount <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(maxDispatchCount), "The maximum dispatch count must be greater than 0");
-            }
-            this.maxDispatchCount = maxDispatchCount;
         }
 
         /// <summary>

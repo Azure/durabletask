@@ -13,15 +13,15 @@
 #nullable enable
 namespace DurableTask.Core.Logging
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Text;
     using DurableTask.Core.Command;
     using DurableTask.Core.Common;
     using DurableTask.Core.Entities.EventFormat;
     using DurableTask.Core.Entities.OperationFormat;
     using DurableTask.Core.History;
     using Microsoft.Extensions.Logging;
-    using System;
-    using System.Collections.Generic;
-    using System.Text;
 
     class LogHelper
     {
@@ -777,6 +777,7 @@ namespace DurableTask.Core.Logging
                     orchestrationInstance,
                     historyEvent.EventType.ToString(),
                     Utils.GetTaskEventId(historyEvent),
+                    historyEvent.DispatchCount,
                     details));
             }
         }
@@ -795,6 +796,7 @@ namespace DurableTask.Core.Logging
                     orchestrationInstance,
                     requestMessage.IsLockRequest ? "LockRequest" : "OperationRequest",
                     taskEventId: -1,
+                    requestMessage.DispatchCount,
                     details));
             }
         }
@@ -804,8 +806,9 @@ namespace DurableTask.Core.Logging
         /// </summary>
         /// <param name="orchestrationInstance">The orchestration instance this event was sent to.</param>
         /// <param name="releaseMessage">The "poisoned" release message.</param>
+        /// <param name="dispatchCount">The dispatch count of the release message.</param>
         /// <param name="details">Extra details related to the processing of this poison message.</param>
-        internal void PoisonMessageDetected(OrchestrationInstance orchestrationInstance, ReleaseMessage releaseMessage, string details)
+        internal void PoisonMessageDetected(OrchestrationInstance orchestrationInstance, ReleaseMessage releaseMessage, int dispatchCount, string details)
         {
             if (this.IsStructuredLoggingEnabled)
             {
@@ -813,6 +816,7 @@ namespace DurableTask.Core.Logging
                     orchestrationInstance,
                     "LockRelease",
                     taskEventId: -1,
+                    dispatchCount,
                     details));
             }
         }

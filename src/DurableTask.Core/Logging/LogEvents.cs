@@ -1981,13 +1981,14 @@ namespace DurableTask.Core.Logging
         /// </summary>
         internal class PoisonMessageDetected : StructuredLogEvent, IEventSourceEvent
         {
-            public PoisonMessageDetected(OrchestrationInstance orchestrationInstance, string eventType, int taskEventId, string details)
+            public PoisonMessageDetected(OrchestrationInstance orchestrationInstance, string eventType, int taskEventId, int dispatchCount, string details)
             {
                 this.InstanceId = orchestrationInstance?.InstanceId ?? string.Empty;
                 this.ExecutionId = orchestrationInstance?.ExecutionId ?? string.Empty;
                 this.EventType = eventType;
                 this.TaskEventId = taskEventId;
                 this.Details = details;
+                this.DispatchCount = dispatchCount;
             }
 
             [StructuredLogField]
@@ -2003,6 +2004,9 @@ namespace DurableTask.Core.Logging
             public int TaskEventId { get; }
 
             [StructuredLogField]
+            public int DispatchCount { get; }
+
+            [StructuredLogField]
             public string Details { get; }
 
             public override EventId EventId => new EventId(
@@ -2012,7 +2016,7 @@ namespace DurableTask.Core.Logging
             public override LogLevel Level => LogLevel.Error;
 
             protected override string CreateLogMessage() =>
-                $"{this.InstanceId}: Poison message detected for {GetEventDescription(this.EventType, this.TaskEventId)}: {this.Details}";
+                $"{this.InstanceId}: Poison message detected for {GetEventDescription(this.EventType, this.TaskEventId)} with dispatch count {this.DispatchCount}: {this.Details}";
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.PoisonMessageDetected(
@@ -2020,6 +2024,7 @@ namespace DurableTask.Core.Logging
                     this.ExecutionId,
                     this.EventType,
                     this.TaskEventId,
+                    this.DispatchCount,
                     this.Details,
                     Utils.AppName,
                     Utils.PackageVersion);
