@@ -27,7 +27,6 @@ namespace DurableTask.Core
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
-    using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
     using ActivityStatusCode = Tracing.ActivityStatusCode;
@@ -386,7 +385,10 @@ namespace DurableTask.Core
                 {
                     // TODO : mark an orchestration as faulted if there is data corruption
                     this.logHelper.DroppingOrchestrationWorkItem(workItem, reason!);
-                    this.poisonMessageHandler?.HandleInvalidWorkItem(workItem, reason!);
+                    if (this.poisonMessageHandler != null)
+                    {
+                        await this.poisonMessageHandler.HandleInvalidWorkItemAsync(workItem, reason!);
+                    }
                     TraceHelper.TraceSession(
                         TraceEventType.Error,
                         "TaskOrchestrationDispatcher-DeletedOrchestration",

@@ -255,25 +255,38 @@ namespace DurableTask.Core
             {
                 bool firstExecutionIfExtendedSession = schedulerState == null;
 
-                // Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
-                if (!TaskOrchestrationDispatcher.ReconcileMessagesWithState(
+                Work workToDoNow = null;
+                string reason = null;
+                bool reconciled = TaskOrchestrationDispatcher.ReconcileMessagesWithState(
                         workItem,
                         nameof(TaskEntityDispatcher),
                         this.errorPropagationMode,
                         this.logHelper,
                         this.poisonMessageHandler != null,
-                        out string reason) ||
+                        out reason);
+
+                bool workDetermined = false;
+                if (reconciled)
+                {
                     // we start with processing all the requests and figuring out which ones to execute now
                     // results can depend on whether the entity is locked, what the maximum batch size is,
                     // and whether the messages arrived out of order
-                    !this.DetermineWork(workItem,
-                         ref schedulerState,
-                         out Work workToDoNow,
-                         out reason))
+                    DetermineWorkResult determineWorkResult = await this.DetermineWorkAsync(workItem, schedulerState);
+                    schedulerState = determineWorkResult.SchedulerState;
+                    workToDoNow = determineWorkResult.Batch;
+                    reason = determineWorkResult.ErrorMessage;
+                    workDetermined = determineWorkResult.Success;
+                }
+
+                // Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
+                if (!reconciled || !workDetermined)
                 {
                     // TODO : mark an orchestration as faulted if there is data corruption
                     this.logHelper.DroppingOrchestrationWorkItem(workItem, reason);
-                    this.poisonMessageHandler?.HandleInvalidWorkItem(workItem, reason);
+                    if (this.poisonMessageHandler != null)
+                    {
+                        await this.poisonMessageHandler.HandleInvalidWorkItemAsync(workItem, reason);
+                    }
                 }
                 else
                 {
@@ -501,13 +514,29 @@ namespace DurableTask.Core
 
         #region Preprocess to determine work
 
-        bool DetermineWork(TaskOrchestrationWorkItem workItem, ref SchedulerState schedulerState, out Work batch, out string errorMessage)
+        readonly struct DetermineWorkResult
+        {
+            public DetermineWorkResult(bool success, SchedulerState schedulerState, Work batch, string errorMessage)
+            {
+                this.Success = success;
+                this.SchedulerState = schedulerState;
+                this.Batch = batch;
+                this.ErrorMessage = errorMessage;
+            }
+
+            public bool Success { get; }
+            public SchedulerState SchedulerState { get; }
+            public Work Batch { get; }
+            public string ErrorMessage { get; }
+        }
+
+        async Task<DetermineWorkResult> DetermineWorkAsync(TaskOrchestrationWorkItem workItem, SchedulerState schedulerState)
         {
             OrchestrationRuntimeState runtimeState = workItem.OrchestrationRuntimeState;
             string instanceId = runtimeState.OrchestrationInstance.InstanceId;
             bool deserializeState = schedulerState == null;
             schedulerState ??= new();
-            batch = new Work();
+            Work batch = new Work();
 
             Queue<RequestMessage> lockHolderMessages = null;
 
@@ -530,12 +559,12 @@ namespace DurableTask.Core
                             {
                                 if (this.poisonMessageHandler != null)
                                 {
-                                    errorMessage = $"Failed to deserialize the entity scheduler state from the {EventType.ExecutionStarted} input.";
+                                    string errorMessage = $"Failed to deserialize the entity scheduler state from the {EventType.ExecutionStarted} input.";
                                     this.logHelper.PoisonMessageDetected(
                                         runtimeState.OrchestrationInstance,
                                         e,
                                         $"Dropping entity work item: {errorMessage}");
-                                    return false;
+                                    return new DetermineWorkResult(success: false, schedulerState, batch, errorMessage);
                                 }
                                 throw new EntitySchedulerException("Failed to deserialize entity scheduler state - may be corrupted or wrong version.", exception);
                             }
@@ -563,7 +592,7 @@ namespace DurableTask.Core
                                         runtimeState.OrchestrationInstance,
                                         eventRaisedEvent,
                                         invalidReason);
-                                    this.poisonMessageHandler.HandlePoisonMessage(e, invalidReason);
+                                    await this.poisonMessageHandler.HandlePoisonMessageAsync(e, invalidReason);
                                     break;
                                 }
                                 throw new EntitySchedulerException("Failed to deserialize incoming request message - may be corrupted or wrong version.", exception);
@@ -644,7 +673,7 @@ namespace DurableTask.Core
                                         runtimeState.OrchestrationInstance,
                                         eventRaisedEvent,
                                         invalidReason);
-                                    this.poisonMessageHandler.HandlePoisonMessage(e, invalidReason);
+                                    await this.poisonMessageHandler.HandlePoisonMessageAsync(e, invalidReason);
                                     break;
                                 }
                                 throw new EntitySchedulerException("Failed to deserialize lock release message - may be corrupted or wrong version.", exception);
@@ -653,7 +682,7 @@ namespace DurableTask.Core
                             if (this.poisonMessageHandler?.IsPoisonMessage(e, out string reason) == true)
                             {
                                 this.logHelper.PoisonMessageDetected(runtimeState.OrchestrationInstance, message, e.DispatchCount, reason);
-                                this.poisonMessageHandler.HandlePoisonMessage(e, reason);
+                                await this.poisonMessageHandler.HandlePoisonMessageAsync(e, reason);
                                 break;
                             }
 
@@ -668,7 +697,7 @@ namespace DurableTask.Core
                             if (this.poisonMessageHandler?.IsPoisonMessage(eventRaisedEvent, out string reason) == true)
                             {
                                 this.logHelper.PoisonMessageDetected(runtimeState.OrchestrationInstance, eventRaisedEvent, reason);
-                                this.poisonMessageHandler.HandlePoisonMessage(e, reason);
+                                await this.poisonMessageHandler.HandlePoisonMessageAsync(e, reason);
                                 break;
                             }
 
@@ -720,8 +749,7 @@ namespace DurableTask.Core
                 }
             }
 
-            errorMessage = null;
-            return true;
+            return new DetermineWorkResult(success: true, schedulerState, batch, errorMessage: null);
         }
 
         bool EntityIsDeleted(SchedulerState schedulerState)
@@ -1050,7 +1078,7 @@ namespace DurableTask.Core
                 operationsToSend = new List<OperationRequest>();
                 for (int i = 0; i < operations.Count; i++)
                 {
-                    if (workToDoNow.Operations[i].PoisonReason != null)
+                    if (workToDoNow.Operations[i].PoisonReason == null)
                     {
                         operationsToSend.Add(operations[i]);
                     }

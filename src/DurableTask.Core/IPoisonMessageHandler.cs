@@ -37,20 +37,20 @@ namespace DurableTask.Core
         /// </summary>
         /// <param name="historyEvent">The "poisoned" history event.</param>
         /// <param name="reason">The reason the event is "poisoned".</param>
-        public Task HandlePoisonMessage(HistoryEvent historyEvent, string reason);
+        public Task HandlePoisonMessageAsync(HistoryEvent historyEvent, string reason);
 
         /// <summary>
         /// Invoked to handle a work item that is invalid and cannot be processed at all.
         /// </summary>
         /// <param name="workItem">The work item that could not be processed.</param>
         /// <param name="reason">Why the work item is invalid.</param>
-        public void HandleInvalidWorkItem(TaskOrchestrationWorkItem workItem, string reason);
+        public Task HandleInvalidWorkItemAsync(TaskOrchestrationWorkItem workItem, string reason);
 
         /// <summary>
         /// Invoked to handle a work item that is invalid and cannot be processed at all.
         /// </summary>
         /// <param name="workItem">The work item that could not be processed.</param>
         /// <param name="reason">Why the work item is invalid.</param>
-        public void HandleInvalidWorkItem(TaskActivityWorkItem workItem, string reason);
+        public Task HandleInvalidWorkItemAsync(TaskActivityWorkItem workItem, string reason);
     }
 }
