@@ -798,6 +798,24 @@ namespace DurableTask.Core.Logging
                     details));
             }
         }
+
+        /// <summary>
+        /// Logs that a "poison" entity lock release message has been detected and is being dropped.
+        /// </summary>
+        /// <param name="orchestrationInstance">The orchestration instance this event was sent to.</param>
+        /// <param name="releaseMessage">The "poisoned" release message.</param>
+        /// <param name="details">Extra details related to the processing of this poison message.</param>
+        internal void PoisonMessageDetected(OrchestrationInstance orchestrationInstance, ReleaseMessage releaseMessage, string details)
+        {
+            if (this.IsStructuredLoggingEnabled)
+            {
+                this.WriteStructuredLog(new LogEvents.PoisonMessageDetected(
+                    orchestrationInstance,
+                    "LockRelease",
+                    taskEventId: -1,
+                    details));
+            }
+        }
         #endregion
 
         internal void OrchestrationDebugTrace(string instanceId, string executionId, string details)

@@ -341,16 +341,14 @@ namespace DurableTask.Core
                     this.logHelper,
                     this.ErrorPropagationMode,
                     this.versioningSettings,
-                    this.ExceptionPropertiesProvider,
-                    this.maxDispatchCount);
+                    this.ExceptionPropertiesProvider);
                 this.activityDispatcher = new TaskActivityDispatcher(
                     this.orchestrationService,
                     this.activityManager,
                     this.activityDispatchPipeline,
                     this.logHelper,
                     this.ErrorPropagationMode,
-                    this.ExceptionPropertiesProvider,
-                    this.maxDispatchCount);
+                    this.ExceptionPropertiesProvider);
 
                 if (this.dispatchEntitiesSeparately)
                 {
@@ -360,8 +358,7 @@ namespace DurableTask.Core
                         this.entityDispatchPipeline,
                         this.logHelper,
                         this.ErrorPropagationMode,
-                        this.ExceptionPropertiesProvider,
-                        this.maxDispatchCount);
+                        this.ExceptionPropertiesProvider);
                 }
 
                 await this.orchestrationService.StartAsync();

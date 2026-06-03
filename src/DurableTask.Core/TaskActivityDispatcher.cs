@@ -37,7 +37,7 @@ namespace DurableTask.Core
         readonly LogHelper logHelper;
         readonly ErrorPropagationMode errorPropagationMode;
         readonly IExceptionPropertiesProvider? exceptionPropertiesProvider;
-        readonly int? maxDispatchCount;
+        readonly IPoisonMessageHandler? poisonMessageHandler;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TaskActivityDispatcher"/> class with an exception properties provider.
@@ -48,18 +48,13 @@ namespace DurableTask.Core
         /// <param name="logHelper">The log helper</param>
         /// <param name="errorPropagationMode">The error propagation mode</param>
         /// <param name="exceptionPropertiesProvider">The exception properties provider for extracting custom properties from exceptions</param>
-        /// <param name="maxDispatchCount">
-        /// The maximum amount of times the same event can be dispatched before it is considered "poisoned"
-        /// and the corresponding operation is failed. If not set, there is no poison message handling enabled.
-        /// </param>
         internal TaskActivityDispatcher(
             IOrchestrationService orchestrationService,
             INameVersionObjectManager<TaskActivity> objectManager,
             DispatchMiddlewarePipeline dispatchPipeline,
             LogHelper logHelper,
             ErrorPropagationMode errorPropagationMode,
-            IExceptionPropertiesProvider? exceptionPropertiesProvider,
-            int? maxDispatchCount = null)
+            IExceptionPropertiesProvider? exceptionPropertiesProvider)
         {
             this.orchestrationService = orchestrationService ?? throw new ArgumentNullException(nameof(orchestrationService));
             this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
@@ -67,12 +62,7 @@ namespace DurableTask.Core
             this.logHelper = logHelper;
             this.errorPropagationMode = errorPropagationMode;
             this.exceptionPropertiesProvider = exceptionPropertiesProvider;
-
-            if (maxDispatchCount <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(maxDispatchCount), "The maximum dispatch count must be greater than 0");
-            }
-            this.maxDispatchCount = maxDispatchCount;
+            this.poisonMessageHandler = orchestrationService as IPoisonMessageHandler;
 
             this.dispatcher = new WorkItemDispatcher<TaskActivityWorkItem>(
                 "TaskActivityDispatcher",
@@ -129,18 +119,12 @@ namespace DurableTask.Core
             {
                 if (orchestrationInstance == null || string.IsNullOrWhiteSpace(orchestrationInstance.InstanceId))
                 {
-                    this.logHelper.TaskActivityDispatcherError(
-                        workItem,
-                        $"The activity worker received a message that does not have any OrchestrationInstance information.");
-                    if (this.maxDispatchCount > 0)
+                    string message = "The activity worker received a message that does not have any OrchestrationInstance information.";
+                    this.logHelper.TaskActivityDispatcherError(workItem, message);
+                    if (this.poisonMessageHandler != null)
                     {
-                        this.logHelper.PoisonMessageDetected(
-                            orchestrationInstance,
-                            taskMessage.Event,
-                            $"Activity has received an event with no parent orchestration instance ID.");
-                        taskMessage.Event.IsPoisoned = true;
-                        // All orchestration services that implement poison message handling must have logic to handle a null response message in this case.
-                        await this.orchestrationService.CompleteTaskActivityWorkItemAsync(workItem, responseMessage: null);
+                        this.logHelper.PoisonMessageDetected(orchestrationInstance, taskMessage.Event, message);
+                        this.poisonMessageHandler.HandleInvalidWorkItem(workItem, message);
                         return;
                     }
                     throw TraceHelper.TraceException(
@@ -154,15 +138,10 @@ namespace DurableTask.Core
                     string message = $"The activity worker received an event of type '{taskMessage.Event.EventType}' but only " +
                         $"'{EventType.TaskScheduled}' is supported.";
                     this.logHelper.TaskActivityDispatcherError(workItem, message);
-                    if (this.maxDispatchCount != null)
+                    if (this.poisonMessageHandler != null)
                     {
-                        this.logHelper.PoisonMessageDetected(
-                            orchestrationInstance,
-                            taskMessage.Event,
-                            message);
-                        taskMessage.Event.IsPoisoned = true;
-                        // All orchestration services that implement poison message handling must have logic to handle a null response message in this case.
-                        await this.orchestrationService.CompleteTaskActivityWorkItemAsync(workItem, responseMessage: null);
+                        this.logHelper.PoisonMessageDetected(orchestrationInstance, taskMessage.Event, message);
+                        this.poisonMessageHandler.HandleInvalidWorkItem(workItem, message);
                         return;
                     }
                     throw TraceHelper.TraceException(
@@ -177,37 +156,27 @@ namespace DurableTask.Core
                 // Distributed tracing: start a new trace activity derived from the orchestration's trace context.
                 Activity? traceActivity = TraceHelper.StartTraceActivityForTaskExecution(scheduledEvent, orchestrationInstance);
 
+                string? poisonMessageReason = null;
                 if (scheduledEvent.Name == null)
                 {
-                    string message = $"The activity worker received a {nameof(EventType.TaskScheduled)} event that does not specify an activity name.";
-                    this.logHelper.TaskActivityDispatcherError(workItem, message);
-                    if (this.maxDispatchCount == null)
+                    poisonMessageReason = $"The activity worker received a {nameof(EventType.TaskScheduled)} event that does not specify an activity name.";
+                    this.logHelper.TaskActivityDispatcherError(workItem, poisonMessageReason);
+                    if (this.poisonMessageHandler == null)
                     {
                         throw TraceHelper.TraceException(
                             TraceEventType.Error,
                             "TaskActivityDispatcher-MissingActivityName",
-                            new InvalidOperationException(message));
-                    }
-                    else
-                    {
-                        scheduledEvent.IsPoisoned = true;
+                            new InvalidOperationException(poisonMessageReason));
                     }
                 }
 
                 HistoryEvent? eventToRespond = null;
-                if (scheduledEvent.DispatchCount > this.maxDispatchCount || scheduledEvent.IsPoisoned)
+                if (poisonMessageReason != null || this.poisonMessageHandler?.IsPoisonMessage(scheduledEvent, out poisonMessageReason) == true)
                 {
-                    string message = scheduledEvent.IsPoisoned
-                        ? "Activity worker has received an event that does not specify an Activity name"
-                        : $"Activity worker has received an event with dispatch count {taskMessage.Event.DispatchCount} which exceeds " +
-                          $"the maximum dispatch count of {this.maxDispatchCount}";
-
-                    scheduledEvent.IsPoisoned = true;
-
                     this.logHelper.PoisonMessageDetected(
                         orchestrationInstance,
                         taskMessage.Event,
-                        $"{message}. The task will be failed.");
+                        $"{poisonMessageReason}. The task will be failed.");
 
                     eventToRespond = new TaskFailedEvent(
                         -1,
@@ -217,12 +186,12 @@ namespace DurableTask.Core
                         new
                         (
                             "PoisonMessage",
-                            message,
+                            poisonMessageReason!,
                             stackTrace: null,
                             innerFailure: null,
                             isNonRetriable: true)
                         );
-                    traceActivity?.SetStatus(ActivityStatusCode.Error, message);
+                    traceActivity?.SetStatus(ActivityStatusCode.Error, poisonMessageReason);
                 }
                 else
                 {

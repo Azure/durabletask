@@ -123,9 +123,10 @@ namespace DurableTask.Core.Entities.EventFormat
         public string? ClientSpanId { get; set; }
 
         /// <summary>
-        /// The dispatch count of this request message.
+        /// If the request message is poisoned, the reason it is poisoned.
+        /// Otherwise, null.
         /// </summary>
-        public int DispatchCount { get; set; }
+        public string? PoisonReason { get; set; }
 
         /// <inheritdoc/>
         public override string GetShortDescription()
