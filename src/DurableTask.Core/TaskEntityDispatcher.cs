@@ -1145,6 +1145,13 @@ namespace DurableTask.Core
                     if (workToDoNow.Operations[i].PoisonReason == null)
                     {
                         resultAfterPoisonMessageHandling.Add(result.Results[middlewareResultIndex++]);
+
+                        // We have reached the end of the results, which means not all operations in the batch were executed.
+                        // The rest will potentially be deferred, so end the iteration here.
+                        if (middlewareResultIndex == result.Results.Count)
+                        {
+                            break;
+                        }
                     }
                     else
                     {
