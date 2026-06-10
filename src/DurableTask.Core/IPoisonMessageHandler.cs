@@ -31,26 +31,31 @@ namespace DurableTask.Core
         public bool IsPoisonMessage(HistoryEvent historyEvent, out string? reason);
 
         /// <summary>
-        /// Invoked to handle a poison message.
-        /// This is invoked in the case that a message cannot necessarily be "failed" by the dispatchers, so
-        /// the <see cref="IPoisonMessageHandler"/> must decide what to do.
+        /// Invoked to handle a poison message in the case that a message cannot necessarily
+        /// be "failed" by the dispatchers, so  the <see cref="IPoisonMessageHandler"/> must
+        /// decide what to do.
         /// </summary>
+        /// <param name="orchestrationInstance">The orchestration instance the event was sent to, or null
+        /// if this information is not available.</param>
         /// <param name="historyEvent">The "poisoned" history event.</param>
         /// <param name="reason">The reason the event is "poisoned".</param>
-        public Task HandlePoisonMessageAsync(HistoryEvent historyEvent, string reason);
+        /// <returns>True if the poison message was successfully handled, otherwise false.</returns>
+        public Task<bool> HandlePoisonMessageAsync(OrchestrationInstance? orchestrationInstance, HistoryEvent historyEvent, string reason);
 
         /// <summary>
         /// Invoked to handle a work item that is invalid and cannot be processed at all.
         /// </summary>
         /// <param name="workItem">The work item that could not be processed.</param>
         /// <param name="reason">Why the work item is invalid.</param>
-        public Task HandleInvalidWorkItemAsync(TaskOrchestrationWorkItem workItem, string reason);
+        /// <returns>True if the poison message was successfully handled, otherwise false.</returns>
+        public Task<bool> HandleInvalidWorkItemAsync(TaskOrchestrationWorkItem workItem, string reason);
 
         /// <summary>
         /// Invoked to handle a work item that is invalid and cannot be processed at all.
         /// </summary>
         /// <param name="workItem">The work item that could not be processed.</param>
         /// <param name="reason">Why the work item is invalid.</param>
-        public Task HandleInvalidWorkItemAsync(TaskActivityWorkItem workItem, string reason);
+        /// <returns>True if the poison message was successfully handled, otherwise false.</returns>
+        public Task<bool> HandleInvalidWorkItemAsync(TaskActivityWorkItem workItem, string reason);
     }
 }

@@ -158,8 +158,8 @@ namespace DurableTask.Core
                             // If we failed to acquire it, we will end the extended session after this execution.
                             schedulerState = await this.OnProcessWorkItemAsync(workItem, schedulerState);
 
-                            // The entity has been deleted, so we end the extended session.
-                            if (this.EntityIsDeleted(schedulerState))
+                            // The work item could not be processed or the entity has been deleted, so we end the extended session.
+                            if (schedulerState == null || this.EntityIsDeleted(schedulerState))
                             {
                                 break;
                             }
@@ -286,7 +286,11 @@ namespace DurableTask.Core
                     this.logHelper.DroppingOrchestrationWorkItem(workItem, reason);
                     if (this.poisonMessageHandler != null)
                     {
-                        await this.poisonMessageHandler.HandleInvalidWorkItemAsync(workItem, reason);
+                        if (await this.poisonMessageHandler.HandleInvalidWorkItemAsync(workItem, reason!))
+                        {
+                            // Signal the extended session to end if one is running
+                            return null;
+                        }
                     }
                 }
                 else
@@ -593,8 +597,10 @@ namespace DurableTask.Core
                                         runtimeState.OrchestrationInstance,
                                         eventRaisedEvent,
                                         invalidReason);
-                                    await this.poisonMessageHandler.HandlePoisonMessageAsync(e, invalidReason);
-                                    break;
+                                    if (await this.poisonMessageHandler.HandlePoisonMessageAsync(workItem.OrchestrationRuntimeState.OrchestrationInstance, eventRaisedEvent, invalidReason))
+                                    {
+                                        break;
+                                    }
                                 }
                                 throw new EntitySchedulerException("Failed to deserialize incoming request message - may be corrupted or wrong version.", exception);
                             }
@@ -674,17 +680,21 @@ namespace DurableTask.Core
                                         runtimeState.OrchestrationInstance,
                                         eventRaisedEvent,
                                         invalidReason);
-                                    await this.poisonMessageHandler.HandlePoisonMessageAsync(e, invalidReason);
-                                    break;
+                                    if (await this.poisonMessageHandler.HandlePoisonMessageAsync(workItem.OrchestrationRuntimeState.OrchestrationInstance, eventRaisedEvent, invalidReason))
+                                    {
+                                        break;
+                                    }
                                 }
                                 throw new EntitySchedulerException("Failed to deserialize lock release message - may be corrupted or wrong version.", exception);
                             }
 
-                            if (this.poisonMessageHandler?.IsPoisonMessage(e, out string reason) == true)
+                            if (this.poisonMessageHandler?.IsPoisonMessage(eventRaisedEvent, out string reason) == true)
                             {
                                 this.logHelper.PoisonMessageDetected(runtimeState.OrchestrationInstance, message, e.DispatchCount, reason);
-                                await this.poisonMessageHandler.HandlePoisonMessageAsync(e, reason);
-                                break;
+                                if (await this.poisonMessageHandler.HandlePoisonMessageAsync(workItem.OrchestrationRuntimeState.OrchestrationInstance, eventRaisedEvent, reason))
+                                {
+                                    break;
+                                }
                             }
 
                             if (schedulerState.LockedBy == message.ParentInstanceId)
@@ -698,8 +708,10 @@ namespace DurableTask.Core
                             if (this.poisonMessageHandler?.IsPoisonMessage(eventRaisedEvent, out string reason) == true)
                             {
                                 this.logHelper.PoisonMessageDetected(runtimeState.OrchestrationInstance, eventRaisedEvent, reason);
-                                await this.poisonMessageHandler.HandlePoisonMessageAsync(e, reason);
-                                break;
+                                await this.poisonMessageHandler.HandlePoisonMessageAsync(workItem.OrchestrationRuntimeState.OrchestrationInstance, eventRaisedEvent, reason);
+
+                                // we will still process the continue message even if it is "poisoned" after this point to avoid
+                                // leaving the entity in a stuck state
                             }
 
                             // this is a continue message.

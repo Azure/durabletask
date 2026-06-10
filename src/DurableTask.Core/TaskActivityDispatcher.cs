@@ -124,8 +124,10 @@ namespace DurableTask.Core
                     if (this.poisonMessageHandler != null)
                     {
                         this.logHelper.PoisonMessageDetected(orchestrationInstance, taskMessage.Event, message);
-                        await this.poisonMessageHandler.HandleInvalidWorkItemAsync(workItem, message);
-                        return;
+                        if (await this.poisonMessageHandler.HandleInvalidWorkItemAsync(workItem, message))
+                        {
+                            return;
+                        }
                     }
                     throw TraceHelper.TraceException(
                         TraceEventType.Error,
@@ -141,8 +143,10 @@ namespace DurableTask.Core
                     if (this.poisonMessageHandler != null)
                     {
                         this.logHelper.PoisonMessageDetected(orchestrationInstance, taskMessage.Event, message);
-                        await this.poisonMessageHandler.HandleInvalidWorkItemAsync(workItem, message);
-                        return;
+                        if (await this.poisonMessageHandler.HandleInvalidWorkItemAsync(workItem, message))
+                        {
+                            return;
+                        }
                     }
                     throw TraceHelper.TraceException(
                         TraceEventType.Critical,

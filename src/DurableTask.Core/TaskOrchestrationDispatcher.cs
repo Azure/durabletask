@@ -386,10 +386,6 @@ namespace DurableTask.Core
                 {
                     // TODO : mark an orchestration as faulted if there is data corruption
                     this.logHelper.DroppingOrchestrationWorkItem(workItem, reason!);
-                    if (this.poisonMessageHandler != null)
-                    {
-                        await this.poisonMessageHandler.HandleInvalidWorkItemAsync(workItem, reason!);
-                    }
                     TraceHelper.TraceSession(
                         TraceEventType.Error,
                         "TaskOrchestrationDispatcher-DeletedOrchestration",
@@ -397,6 +393,13 @@ namespace DurableTask.Core
                         "Received work-item for an invalid orchestration");
                     isCompleted = true;
                     traceActivity?.Dispose();
+                    if (this.poisonMessageHandler != null)
+                    {
+                        if (await this.poisonMessageHandler.HandleInvalidWorkItemAsync(workItem, reason!))
+                        {
+                            return isCompleted;
+                        }
+                    }
                 }
                 else
                 {
