@@ -1147,21 +1147,18 @@ namespace DurableTask.Core
 
             if (poisonMessagesExist)
             {
-                var resultAfterPoisonMessageHandling = new List<OperationResult>(operations.Count);
+                // We initialize with an initial capacity of at least the middleware operations count,
+                // though we will have more results if there are poison messages
+                var resultAfterPoisonMessageHandling = new List<OperationResult>(result.Results.Count);
                 int middlewareResultIndex = 0;
 
-                for (int i = 0; i < operations.Count; i++)
+                // We end iteration once we reach the end of the middleware results, any remaining operations
+                // (including potential poison messages) will be deferred
+                for (int i = 0; i < operations.Count && middlewareResultIndex < result.Results.Count; i++)
                 {
                     if (workToDoNow.Operations[i].PoisonReason == null)
                     {
                         resultAfterPoisonMessageHandling.Add(result.Results[middlewareResultIndex++]);
-
-                        // We have reached the end of the results, which means not all operations in the batch were executed.
-                        // The rest will potentially be deferred, so end the iteration here.
-                        if (middlewareResultIndex == result.Results.Count)
-                        {
-                            break;
-                        }
                     }
                     else
                     {
