@@ -393,12 +393,10 @@ namespace DurableTask.Core
                         "Received work-item for an invalid orchestration");
                     isCompleted = true;
                     traceActivity?.Dispose();
-                    if (this.poisonMessageHandler != null)
+                    if (this.poisonMessageHandler != null &&
+                        await this.poisonMessageHandler.HandleInvalidWorkItemAsync(workItem, reason!))
                     {
-                        if (await this.poisonMessageHandler.HandleInvalidWorkItemAsync(workItem, reason!))
-                        {
-                            return isCompleted;
-                        }
+                        return isCompleted;
                     }
                 }
                 else
