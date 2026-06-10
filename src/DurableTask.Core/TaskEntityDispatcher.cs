@@ -284,13 +284,11 @@ namespace DurableTask.Core
                 {
                     // TODO : mark an orchestration as faulted if there is data corruption
                     this.logHelper.DroppingOrchestrationWorkItem(workItem, reason);
-                    if (this.poisonMessageHandler != null)
+                    if (this.poisonMessageHandler != null
+                        && await this.poisonMessageHandler.HandleInvalidWorkItemAsync(workItem, reason!))
                     {
-                        if (await this.poisonMessageHandler.HandleInvalidWorkItemAsync(workItem, reason!))
-                        {
-                            // Signal the extended session to end if one is running
-                            return null;
-                        }
+                        // Signal the extended session to end if one is running
+                        return null;
                     }
                 }
                 else
