@@ -461,7 +461,7 @@ namespace DurableTask.Core
 
         void ProcessLockRequest(WorkItemEffects effects, SchedulerState schedulerState, RequestMessage request)
         {
-            bool isPoisonMessage = request.PoisonReason != null;
+            bool isPoisonMessage = request.DispatchCount > this.poisonMessageHandler?.MaxDispatchCount;
             if (!isPoisonMessage)
             {
                 this.logHelper.EntityLockAcquired(effects.InstanceId, request);
@@ -492,7 +492,8 @@ namespace DurableTask.Core
                     isPoisonMessage ?
                         new FailureDetails(
                             "PoisonMessage",
-                            request.PoisonReason,
+                            $"Entity lock request has dispatch count {request.DispatchCount} " +
+                            $"which exceeds the maximum dispatch count of {this.poisonMessageHandler?.MaxDispatchCount}.",
                             stackTrace: null,
                             innerFailure: null,
                             isNonRetriable: true)
@@ -576,6 +577,7 @@ namespace DurableTask.Core
 
                     case EventType.EventRaised:
                         EventRaisedEvent eventRaisedEvent = (EventRaisedEvent)e;
+                        bool isPoisonMessage = eventRaisedEvent.DispatchCount > this.poisonMessageHandler?.MaxDispatchCount;
 
                         if (EntityMessageEventNames.IsRequestMessage(eventRaisedEvent.Name))
                         {
@@ -588,27 +590,25 @@ namespace DurableTask.Core
                             }
                             catch (Exception exception)
                             {
+                                string failureReason = $"Failed to deserialize incoming entity request message - may be corrupted or wrong version: {exception.Message}";
                                 if (this.poisonMessageHandler != null)
                                 {
-                                    string invalidReason = $"Failed to deserialize incoming entity request message - may be corrupted or wrong version: {exception.Message}";
                                     this.logHelper.PoisonMessageDetected(
                                         runtimeState.OrchestrationInstance,
                                         eventRaisedEvent,
-                                        invalidReason);
-                                    if (await this.poisonMessageHandler.HandlePoisonMessageAsync(workItem.OrchestrationRuntimeState.OrchestrationInstance, eventRaisedEvent, invalidReason))
+                                        failureReason);
+                                    if (await this.poisonMessageHandler.HandlePoisonMessageAsync(
+                                        workItem.OrchestrationRuntimeState.OrchestrationInstance,
+                                        eventRaisedEvent,
+                                        failureReason))
                                     {
                                         break;
                                     }
                                 }
-                                throw new EntitySchedulerException("Failed to deserialize incoming request message - may be corrupted or wrong version.", exception);
+                                throw new EntitySchedulerException(failureReason, exception);
                             }
 
-                            if (this.poisonMessageHandler?.IsPoisonMessage(e, out string reason) == true)
-                            {
-                                requestMessage.PoisonReason = reason;
-                                requestMessage.DispatchCount = e.DispatchCount;
-                            }
-
+                            requestMessage.DispatchCount = eventRaisedEvent.DispatchCount;
                             IEnumerable<RequestMessage> deliverNow;
 
                             if (requestMessage.ScheduledTime.HasValue)
@@ -671,25 +671,33 @@ namespace DurableTask.Core
                             }
                             catch (Exception exception)
                             {
+                                string failureReason = $"Failed to deserialize entity lock release message - may be corrupted or wrong version: {exception.Message}";
                                 if (this.poisonMessageHandler != null)
                                 {
-                                    string invalidReason = $"Failed to deserialize entity lock release message - may be corrupted or wrong version: {exception.Message}";
                                     this.logHelper.PoisonMessageDetected(
                                         runtimeState.OrchestrationInstance,
                                         eventRaisedEvent,
-                                        invalidReason);
-                                    if (await this.poisonMessageHandler.HandlePoisonMessageAsync(workItem.OrchestrationRuntimeState.OrchestrationInstance, eventRaisedEvent, invalidReason))
+                                        failureReason);
+                                    if (await this.poisonMessageHandler.HandlePoisonMessageAsync(
+                                        workItem.OrchestrationRuntimeState.OrchestrationInstance,
+                                        eventRaisedEvent,
+                                        failureReason))
                                     {
                                         break;
                                     }
                                 }
-                                throw new EntitySchedulerException("Failed to deserialize lock release message - may be corrupted or wrong version.", exception);
+                                throw new EntitySchedulerException(failureReason, exception);
                             }
 
-                            if (this.poisonMessageHandler?.IsPoisonMessage(eventRaisedEvent, out string reason) == true)
+                            if (isPoisonMessage)
                             {
-                                this.logHelper.PoisonMessageDetected(runtimeState.OrchestrationInstance, message, e.DispatchCount, reason);
-                                if (await this.poisonMessageHandler.HandlePoisonMessageAsync(workItem.OrchestrationRuntimeState.OrchestrationInstance, eventRaisedEvent, reason))
+                                string failureReason = $"Entity lock release message from parent instance '{message.ParentInstanceId}' has dispatch count " +
+                                    $"{eventRaisedEvent.DispatchCount} which exceeds the maximum allowed dispatch count of {this.poisonMessageHandler?.MaxDispatchCount}.";
+                                this.logHelper.PoisonMessageDetected(runtimeState.OrchestrationInstance, message, eventRaisedEvent.DispatchCount, failureReason);
+                                if (await this.poisonMessageHandler.HandlePoisonMessageAsync(
+                                    workItem.OrchestrationRuntimeState.OrchestrationInstance,
+                                    eventRaisedEvent,
+                                    failureReason))
                                 {
                                     break;
                                 }
@@ -703,13 +711,18 @@ namespace DurableTask.Core
                         }
                         else
                         {
-                            if (this.poisonMessageHandler?.IsPoisonMessage(eventRaisedEvent, out string reason) == true)
+                            if (isPoisonMessage)
                             {
-                                this.logHelper.PoisonMessageDetected(runtimeState.OrchestrationInstance, eventRaisedEvent, reason);
-                                await this.poisonMessageHandler.HandlePoisonMessageAsync(workItem.OrchestrationRuntimeState.OrchestrationInstance, eventRaisedEvent, reason);
-
-                                // we will still process the continue message even if it is "poisoned" after this point to avoid
-                                // leaving the entity in a stuck state
+                                string failureReason = $"Entity self-continue message has dispatch count {eventRaisedEvent.DispatchCount} which exceeds the maximum allowed " +
+                                    $"dispatch count of {this.poisonMessageHandler?.MaxDispatchCount}.";
+                                this.logHelper.PoisonMessageDetected(runtimeState.OrchestrationInstance, eventRaisedEvent, failureReason);
+                                if (await this.poisonMessageHandler.HandlePoisonMessageAsync(
+                                    workItem.OrchestrationRuntimeState.OrchestrationInstance,
+                                    eventRaisedEvent,
+                                    failureReason))
+                                {
+                                    break;
+                                }
                             }
 
                             // this is a continue message.
@@ -743,9 +756,13 @@ namespace DurableTask.Core
                     }
 
                     var request = schedulerState.Dequeue();
-                    if (request.PoisonReason != null)
+                    if (request.DispatchCount > this.poisonMessageHandler?.MaxDispatchCount)
                     {
-                        this.logHelper.PoisonMessageDetected(runtimeState.OrchestrationInstance, request, request.PoisonReason);
+                        this.logHelper.PoisonMessageDetected(
+                            runtimeState.OrchestrationInstance,
+                            request,
+                            $"Entity request has dispatch count {request.DispatchCount} which exceeds the maximum dispatch count " +
+                            $"of {this.poisonMessageHandler?.MaxDispatchCount} and will be failed.");
                     }
 
                     if (request.IsLockRequest)
@@ -1081,7 +1098,7 @@ namespace DurableTask.Core
             var startTime = DateTime.UtcNow;
             var (operations, traceActivities) = workToDoNow.GetOperationRequestsAndTraceActivities(instance.InstanceId);
 
-            bool poisonMessagesExist = workToDoNow.Operations.Any(op => op.PoisonReason != null);
+            bool poisonMessagesExist = workToDoNow.Operations.Any(op => op.DispatchCount > this.poisonMessageHandler?.MaxDispatchCount);
             var operationsToSend = operations;
 
             if (poisonMessagesExist)
@@ -1089,7 +1106,7 @@ namespace DurableTask.Core
                 operationsToSend = new List<OperationRequest>();
                 for (int i = 0; i < operations.Count; i++)
                 {
-                    if (workToDoNow.Operations[i].PoisonReason == null)
+                    if (workToDoNow.Operations[i].DispatchCount <= this.poisonMessageHandler.MaxDispatchCount)
                     {
                         operationsToSend.Add(operations[i]);
                     }
@@ -1156,7 +1173,7 @@ namespace DurableTask.Core
                 // (including potential poison messages) will be deferred
                 for (int i = 0; i < operations.Count && middlewareResultIndex < result.Results.Count; i++)
                 {
-                    if (workToDoNow.Operations[i].PoisonReason == null)
+                    if (workToDoNow.Operations[i].DispatchCount <= this.poisonMessageHandler.MaxDispatchCount)
                     {
                         resultAfterPoisonMessageHandling.Add(result.Results[middlewareResultIndex++]);
                     }
@@ -1168,7 +1185,8 @@ namespace DurableTask.Core
                                 FailureDetails = new
                                 (
                                     "PoisonMessage",
-                                    workToDoNow.Operations[i].PoisonReason,
+                                    $"Entity operation request has dispatch count {workToDoNow.Operations[i].DispatchCount} " +
+                                    $"which exceeds the maximum dispatch count of {this.poisonMessageHandler?.MaxDispatchCount}.",
                                     stackTrace: null,
                                     innerFailure: null,
                                     isNonRetriable: true

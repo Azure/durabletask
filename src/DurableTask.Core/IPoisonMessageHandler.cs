@@ -23,12 +23,9 @@ namespace DurableTask.Core
     public interface IPoisonMessageHandler
     {
         /// <summary>
-        /// Determines whether the given <see cref="HistoryEvent"/> is a poison message.
+        /// The maximum dispatch count after which a message should be considered "poisoned" if it is dispatched again.
         /// </summary>
-        /// <param name="historyEvent">The history event being dispatched.</param>
-        /// <param name="reason">Why the message is considered poisoned.</param>
-        /// <returns><c>true</c> if the message should be treated as poisoned; otherwise <c>false</c>.</returns>
-        public bool IsPoisonMessage(HistoryEvent historyEvent, out string? reason);
+        public int MaxDispatchCount { get; }
 
         /// <summary>
         /// Invoked to handle a poison message in the case that a message cannot necessarily

@@ -174,13 +174,19 @@ namespace DurableTask.Core
                     }
                 }
 
+                if (poisonMessageReason == null && scheduledEvent.DispatchCount > this.poisonMessageHandler?.MaxDispatchCount)
+                {
+                    poisonMessageReason = $"Activity has received an event with dispatch count {taskMessage.Event.DispatchCount} which exceeds the maximum dispatch " +
+                        $"count of {this.poisonMessageHandler?.MaxDispatchCount}. The task will be failed.";
+                }
+
                 HistoryEvent? eventToRespond = null;
-                if (poisonMessageReason != null || this.poisonMessageHandler?.IsPoisonMessage(scheduledEvent, out poisonMessageReason) == true)
+                if (poisonMessageReason != null)
                 {
                     this.logHelper.PoisonMessageDetected(
                         orchestrationInstance,
                         taskMessage.Event,
-                        $"{poisonMessageReason}. The task will be failed.");
+                        poisonMessageReason);
 
                     eventToRespond = new TaskFailedEvent(
                         -1,

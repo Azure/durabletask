@@ -446,17 +446,16 @@ namespace DurableTask.Core
                             }
                         }
 
-                        var poisonEvents = this.poisonMessageHandler != null
-                            ? runtimeState.NewEvents.Where(evt => this.poisonMessageHandler.IsPoisonMessage(evt, out string? reason)).ToDictionary(evt => evt, evt => reason)
-                            : new Dictionary<HistoryEvent, string?>();
-                        if (poisonEvents.Count > 0)
+                        var poisonEvents = runtimeState.NewEvents.Where(evt => evt.DispatchCount > this.poisonMessageHandler?.MaxDispatchCount);
+                        if (poisonEvents.Count() > 0)
                         {
-                            foreach (var kvp in poisonEvents)
+                            foreach (var poisonEvent in poisonEvents)
                             {
                                 this.logHelper.PoisonMessageDetected(
                                     runtimeState.OrchestrationInstance!,
-                                    kvp.Key,
-                                    kvp.Value!);
+                                    poisonEvent,
+                                    $"Orchestration has received an event with dispatch count {poisonEvent.DispatchCount} which exceeds the maximum dispatch" +
+                                    $"count of {this.poisonMessageHandler?.MaxDispatchCount} and will be failed.");
                             }
 
                             var failureAction = new OrchestrationCompleteOrchestratorAction
@@ -464,8 +463,9 @@ namespace DurableTask.Core
                                 Id = runtimeState.PastEvents.Count,
                                 FailureDetails = new FailureDetails(
                                     "PoisonMessages",
-                                    $"Orchestration has received messages of type {string.Join(",", poisonEvents.Select(kvp => kvp.Key.EventType))} " +
-                                    $"that have been classified as poisoned.",
+                                    $"Orchestration has received messages of type {string.Join(",", poisonEvents.Select(e => e.EventType))} " +
+                                    $"with dispatch counts {string.Join(",", poisonEvents.Select(e => e.DispatchCount))} which exceed the " +
+                                    $"maximum dispatch count of {this.poisonMessageHandler?.MaxDispatchCount}.",
                                     stackTrace: null,
                                     innerFailure: null,
                                     isNonRetriable: true),
@@ -482,7 +482,7 @@ namespace DurableTask.Core
                             "Executing user orchestration: {0}",
                             JsonDataConverter.Default.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true));
 
-                        if (!versioningFailed && poisonEvents.Count == 0)
+                        if (!versioningFailed && poisonEvents.Count() == 0)
                         {
                             // In this case we skip the orchestration's execution since all tasks have been completed and it is in a terminal state.
                             // Instead we "rewind" its execution by removing all failed tasks (see ProcessRewindOrchestrationDecision).
