@@ -32,9 +32,13 @@ namespace DurableTask.Core
 
         /// <summary>
         /// Invoked to handle a poison message in the case that a message cannot necessarily
-        /// be "failed" by the dispatchers, so  the <see cref="IPoisonMessageHandler"/> must
+        /// be "failed" by the dispatchers, so the <see cref="IPoisonMessageHandler"/> must
         /// decide what to do.
         /// </summary>
+        /// <remarks>
+        /// If this method returns false, the dispatcher should fall back to the default behavior
+        /// followed when poison message handling is not enabled.
+        /// </remarks>
         /// <param name="orchestrationInstance">The orchestration instance the event was sent to, or null
         /// if this information is not available.</param>
         /// <param name="historyEvent">The "poisoned" history event.</param>
@@ -45,6 +49,10 @@ namespace DurableTask.Core
         /// <summary>
         /// Invoked to handle a work item that is invalid and cannot be processed at all.
         /// </summary>
+        /// <remarks>
+        /// If this method returns false, the dispatcher should fall back to the default behavior
+        /// followed in the case of an invalid work item.
+        /// </remarks>
         /// <param name="workItem">The work item that could not be processed.</param>
         /// <param name="reason">Why the work item is invalid.</param>
         /// <returns>True if the poison message was successfully handled, otherwise false.</returns>
@@ -53,6 +61,10 @@ namespace DurableTask.Core
         /// <summary>
         /// Invoked to handle a work item that is invalid and cannot be processed at all.
         /// </summary>
+        /// <remarks>
+        /// If this method returns false, the dispatcher should fall back to the default behavior
+        /// followed in the case of an invalid work item.
+        /// </remarks>
         /// <param name="workItem">The work item that could not be processed.</param>
         /// <param name="reason">Why the work item is invalid.</param>
         /// <returns>True if the poison message was successfully handled, otherwise false.</returns>

@@ -2013,7 +2013,7 @@ namespace DurableTask.Core.Logging
                 EventIds.PoisonMessageDetected,
                 nameof(EventIds.PoisonMessageDetected));
 
-            public override LogLevel Level => LogLevel.Error;
+            public override LogLevel Level => LogLevel.Warning;
 
             protected override string CreateLogMessage() =>
                 $"{this.InstanceId}: Poison message detected for {GetEventDescription(this.EventType, this.TaskEventId)} with dispatch count {this.DispatchCount}: {this.Details}";

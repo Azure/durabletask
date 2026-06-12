@@ -482,7 +482,7 @@ namespace DurableTask.Core
                             "Executing user orchestration: {0}",
                             JsonDataConverter.Default.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true));
 
-                        if (!versioningFailed && !poisonEvents.Any())
+                        if (!versioningFailed && poisonEvents.Count == 0)
                         {
                             // In this case we skip the orchestration's execution since all tasks have been completed and it is in a terminal state.
                             // Instead we "rewind" its execution by removing all failed tasks (see ProcessRewindOrchestrationDecision).
@@ -917,7 +917,7 @@ namespace DurableTask.Core
         /// <param name="isPoisonMessageHandlingEnabled">Indicates whether poison message handling is enabled.
         /// If it is, the method will not throw any exceptions under the expectation that the poison message handler will handle the
         /// invalid work item.</param>
-        /// <param name="reason">In the case that the work item should be dropped (this method return false), provides the reason why.</param>
+        /// <param name="errorMessage">In the case that the work item should be dropped (this method return false), provides the reason why.</param>
         /// <returns>True if workItem should be processed further. False otherwise.</returns>
         internal static bool ReconcileMessagesWithState(
             TaskOrchestrationWorkItem workItem,
@@ -925,7 +925,7 @@ namespace DurableTask.Core
             ErrorPropagationMode errorPropagationMode,
             LogHelper logHelper,
             bool isPoisonMessageHandlingEnabled,
-            out string? reason)
+            out string? errorMessage)
         {
             foreach (TaskMessage message in workItem.NewMessages)
             {
@@ -934,8 +934,8 @@ namespace DurableTask.Core
                 {
                     if (isPoisonMessageHandlingEnabled)
                     {
-                        reason = $"Work item includes a message with no orchestration instance ID with event type {message.Event.EventType}";
-                        logHelper.PoisonMessageDetected(workItem.OrchestrationRuntimeState.OrchestrationInstance, message.Event, reason);
+                        errorMessage = $"Work item includes a message with no orchestration instance ID with event type {message.Event.EventType}";
+                        logHelper.PoisonMessageDetected(workItem.OrchestrationRuntimeState.OrchestrationInstance, message.Event, errorMessage);
                         return false;
                     }
 
@@ -952,7 +952,7 @@ namespace DurableTask.Core
                         $"its history contains exactly one event which is neither an {EventType.ExecutionStarted} or " +
                         $"{EventType.OrchestratorStarted} but rather has type {workItem.OrchestrationRuntimeState.Events[0].EventType}" :
                         $"its history contains multiple events but no {EventType.ExecutionStarted} event";
-                    reason = $"Orchestration runtime state is invalid: {corruptionType}";
+                    errorMessage = $"Orchestration runtime state is invalid: {corruptionType}";
                     return false;
                 }
 
@@ -961,7 +961,7 @@ namespace DurableTask.Core
                     // we get here because of:
                     //      i) responses for scheduled tasks after the orchestrations have been completed
                     //      ii) responses for explicitly deleted orchestrations
-                    reason = $"Orchestration contains no {EventType.ExecutionStarted} event in its history and did not receive one as part of its new messages.";
+                    errorMessage = $"Orchestration contains no {EventType.ExecutionStarted} event in its history and did not receive one as part of its new messages.";
                     return false;
                 }
 
@@ -969,9 +969,9 @@ namespace DurableTask.Core
                     && workItem.OrchestrationRuntimeState.OrchestrationStatus != OrchestrationStatus.Running
                     && workItem.NewMessages.Count > 1)
                 {
-                    reason = "Multiple messages sent to an instance that is attempting to rewind from a terminal state. " +
+                    errorMessage = "Multiple messages sent to an instance that is attempting to rewind from a terminal state. " +
                         "The only message that can be sent in this case is the rewind request.";
-                    logHelper.PoisonMessageDetected(orchestrationInstance, message.Event, reason);
+                    logHelper.PoisonMessageDetected(orchestrationInstance, message.Event, errorMessage);
                     return false;
                 }
 
@@ -1063,7 +1063,7 @@ namespace DurableTask.Core
                 }
             }
 
-            reason = null;
+            errorMessage = null;
             return true;
         }
 

@@ -667,7 +667,7 @@ namespace DurableTask.Core.Logging
             string AppName,
             string ExtensionVersion)
         {
-            if (this.IsEnabled(EventLevel.Error))
+            if (this.IsEnabled(EventLevel.Warning))
             {
                 // TODO: Use WriteEventCore for better performance
                 this.WriteEvent(

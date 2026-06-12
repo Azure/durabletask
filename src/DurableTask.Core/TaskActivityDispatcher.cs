@@ -120,7 +120,6 @@ namespace DurableTask.Core
                 if (orchestrationInstance == null || string.IsNullOrWhiteSpace(orchestrationInstance.InstanceId))
                 {
                     string message = "The activity worker received a message that does not have any OrchestrationInstance information.";
-                    this.logHelper.TaskActivityDispatcherError(workItem, message);
                     if (this.poisonMessageHandler != null)
                     {
                         this.logHelper.PoisonMessageDetected(orchestrationInstance, taskMessage.Event, message);
@@ -129,6 +128,7 @@ namespace DurableTask.Core
                             return;
                         }
                     }
+                    this.logHelper.TaskActivityDispatcherError(workItem, message);
                     throw TraceHelper.TraceException(
                         TraceEventType.Error,
                         "TaskActivityDispatcher-MissingOrchestrationInstance",
@@ -139,7 +139,6 @@ namespace DurableTask.Core
                 {
                     string message = $"The activity worker received an event of type '{taskMessage.Event.EventType}' but only " +
                         $"'{EventType.TaskScheduled}' is supported.";
-                    this.logHelper.TaskActivityDispatcherError(workItem, message);
                     if (this.poisonMessageHandler != null)
                     {
                         this.logHelper.PoisonMessageDetected(orchestrationInstance, taskMessage.Event, message);
@@ -148,6 +147,7 @@ namespace DurableTask.Core
                             return;
                         }
                     }
+                    this.logHelper.TaskActivityDispatcherError(workItem, message);
                     throw TraceHelper.TraceException(
                         TraceEventType.Critical,
                         "TaskActivityDispatcher-UnsupportedEventType",
@@ -164,9 +164,9 @@ namespace DurableTask.Core
                 if (scheduledEvent.Name == null)
                 {
                     poisonMessageReason = $"The activity worker received a {nameof(EventType.TaskScheduled)} event that does not specify an activity name.";
-                    this.logHelper.TaskActivityDispatcherError(workItem, poisonMessageReason);
                     if (this.poisonMessageHandler == null)
                     {
+                        this.logHelper.TaskActivityDispatcherError(workItem, poisonMessageReason);
                         throw TraceHelper.TraceException(
                             TraceEventType.Error,
                             "TaskActivityDispatcher-MissingActivityName",
