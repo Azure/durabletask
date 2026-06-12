@@ -656,7 +656,7 @@ namespace DurableTask.Core.Logging
             }
         }
 
-        [Event(EventIds.PoisonMessageDetected, Level = EventLevel.Error, Version = 1)]
+        [Event(EventIds.PoisonMessageDetected, Level = EventLevel.Warning, Version = 1)]
         internal void PoisonMessageDetected(
             string InstanceId,
             string ExecutionId,
