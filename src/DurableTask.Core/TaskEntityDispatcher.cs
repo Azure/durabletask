@@ -257,14 +257,13 @@ namespace DurableTask.Core
                 bool firstExecutionIfExtendedSession = schedulerState == null;
 
                 Work workToDoNow = null;
-                string reason = null;
                 bool reconciled = TaskOrchestrationDispatcher.ReconcileMessagesWithState(
-                        workItem,
-                        nameof(TaskEntityDispatcher),
-                        this.errorPropagationMode,
-                        this.logHelper,
-                        this.poisonMessageHandler != null,
-                        out reason);
+                    workItem,
+                    nameof(TaskEntityDispatcher),
+                    this.errorPropagationMode,
+                    this.logHelper,
+                    this.poisonMessageHandler != null,
+                    out string errorMessage);
 
                 bool workDetermined = false;
                 if (reconciled)
@@ -275,7 +274,7 @@ namespace DurableTask.Core
                     DetermineWorkResult determineWorkResult = await this.DetermineWorkAsync(workItem, schedulerState);
                     schedulerState = determineWorkResult.SchedulerState;
                     workToDoNow = determineWorkResult.Batch;
-                    reason = determineWorkResult.ErrorMessage;
+                    errorMessage = determineWorkResult.ErrorMessage;
                     workDetermined = determineWorkResult.Success;
                 }
 
@@ -283,9 +282,9 @@ namespace DurableTask.Core
                 if (!reconciled || !workDetermined)
                 {
                     // TODO : mark an orchestration as faulted if there is data corruption
-                    this.logHelper.DroppingOrchestrationWorkItem(workItem, reason);
+                    this.logHelper.DroppingOrchestrationWorkItem(workItem, errorMessage);
                     if (this.poisonMessageHandler != null
-                        && await this.poisonMessageHandler.HandleInvalidWorkItemAsync(workItem, reason!))
+                        && await this.poisonMessageHandler.HandleInvalidWorkItemAsync(workItem, errorMessage))
                     {
                         // Signal the extended session to end if one is running
                         return null;

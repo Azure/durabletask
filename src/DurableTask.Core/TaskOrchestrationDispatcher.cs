@@ -382,10 +382,10 @@ namespace DurableTask.Core
                     this.errorPropagationMode,
                     logHelper,
                     this.poisonMessageHandler != null,
-                    out string? reason))
+                    out string? errorMessage))
                 {
                     // TODO : mark an orchestration as faulted if there is data corruption
-                    this.logHelper.DroppingOrchestrationWorkItem(workItem, reason!);
+                    this.logHelper.DroppingOrchestrationWorkItem(workItem, errorMessage!);
                     TraceHelper.TraceSession(
                         TraceEventType.Error,
                         "TaskOrchestrationDispatcher-DeletedOrchestration",
@@ -394,7 +394,7 @@ namespace DurableTask.Core
                     isCompleted = true;
                     traceActivity?.Dispose();
                     if (this.poisonMessageHandler != null &&
-                        await this.poisonMessageHandler.HandleInvalidWorkItemAsync(workItem, reason!))
+                        await this.poisonMessageHandler.HandleInvalidWorkItemAsync(workItem, errorMessage!))
                     {
                         return isCompleted;
                     }
