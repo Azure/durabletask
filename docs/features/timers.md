@@ -78,11 +78,13 @@ public class ApprovalOrchestration : TaskOrchestration<ApprovalResult, ApprovalR
         OrchestrationContext context, 
         ApprovalRequest request)
     {
-        // Send approval request
-        await context.ScheduleTask<bool>(typeof(SendApprovalEmail), request);
-        
+        // Create the event handle before any awaited work so an "Approved" event that
+        // arrives while the activity runs is captured instead of dropped.
         this.approvalHandle = new TaskCompletionSource<bool>();
         var approvalTask = this.approvalHandle.Task;
+
+        // Send approval request
+        await context.ScheduleTask<bool>(typeof(SendApprovalEmail), request);
 
         using var cts = new CancellationTokenSource();
         

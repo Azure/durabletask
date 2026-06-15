@@ -284,7 +284,7 @@ You can use orchestrations to implement FIFO job queues. Use one orchestration i
 // framework deserializes incoming events and passes OnEvent a typed value.
 public class ResourceUpdateQueueOrchestration : TaskOrchestration<object, QueueState, ResourceUpdate, string>
 {
-    const int MaxUpdatesPerGeneration = 100;  // Bound history; ContinueAsNew after this many.
+    const int MaxUpdatesPerGeneration = 100;  // Max updates processed per generation
 
     // Rebuilt deterministically on replay, since OnEvent replays in original enqueue order.
     readonly Queue<ResourceUpdate> inbox = new Queue<ResourceUpdate>();
@@ -410,7 +410,7 @@ public class WorkerOrchestration : TaskOrchestration<object, Config, bool, strin
     {
         if (name == "Stop")
         {
-            this.stopHandle?.TrySetResult(true);
+            this.stopHandle?.TrySetResult(input);
         }
     }
 }

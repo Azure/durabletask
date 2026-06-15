@@ -186,12 +186,13 @@ public class ApprovalOrchestration : TaskOrchestration<ApprovalResult, ApprovalR
         OrchestrationContext context, 
         ApprovalRequest request)
     {
-        // Send notification to approver
-        await context.ScheduleTask<bool>(typeof(SendApprovalRequestActivity), request);
-        
-        // Wait for approval with timeout
+        // Create the event handle before any awaited work so an "Approved" event that
+        // arrives while the activity runs is captured instead of dropped.
         this.approvalHandle = new TaskCompletionSource<bool>();
         var approvalTask = this.approvalHandle.Task;
+
+        // Send notification to approver
+        await context.ScheduleTask<bool>(typeof(SendApprovalRequestActivity), request);
 
         using var cts = new CancellationTokenSource();
         var timeoutTask = context.CreateTimer(

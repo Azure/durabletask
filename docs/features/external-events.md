@@ -65,11 +65,14 @@ public class ApprovalOrchestration : TaskOrchestration<ApprovalResult, ApprovalR
         OrchestrationContext context, 
         ApprovalRequest request)
     {
+        // Create the event handle before any awaited work so an "Approval" event that
+        // arrives while the activity runs is captured instead of dropped.
+        this.approvalHandle = new TaskCompletionSource<ApprovalResponse>();
+
         // Send approval request
         await context.ScheduleTask<bool>(typeof(SendApprovalEmailActivity), request);
         
         // Wait for approval response
-        this.approvalHandle = new TaskCompletionSource<ApprovalResponse>();
         var response = await this.approvalHandle.Task;
         this.approvalHandle = null;
         
@@ -303,6 +306,10 @@ public class ApprovalWorkflow : TaskOrchestration<ApprovalResult, ApprovalReques
         OrchestrationContext context, 
         ApprovalRequest request)
     {
+        // Create the event handle before any awaited work so an "ApprovalResponse" event
+        // that arrives while the activity runs is captured instead of dropped.
+        this.approvalHandle = new TaskCompletionSource<ApprovalResponse>();
+
         // Step 1: Send approval request email
         await context.ScheduleTask<bool>(typeof(SendApprovalEmailActivity), new EmailData
         {
@@ -312,8 +319,6 @@ public class ApprovalWorkflow : TaskOrchestration<ApprovalResult, ApprovalReques
         });
         
         // Step 2: Wait for response with 7-day timeout
-        this.approvalHandle = new TaskCompletionSource<ApprovalResponse>();
-        
         using var cts = new CancellationTokenSource();
         var approvalTask = this.approvalHandle.Task;
         var timeoutTask = context.CreateTimer(
