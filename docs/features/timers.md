@@ -67,33 +67,49 @@ public override async Task<Result> RunTask(OrchestrationContext context, Input i
 ### Approval with Deadline
 
 ```csharp
-public override async Task<ApprovalResult> RunTask(
-    OrchestrationContext context, 
-    ApprovalRequest request)
+public class ApprovalOrchestration : TaskOrchestration<ApprovalResult, ApprovalRequest>
 {
-    // Send approval request
-    await context.ScheduleTask<bool>(typeof(SendApprovalEmail), request);
-    
-    using var cts = new CancellationTokenSource();
-    
-    // Wait for approval event or 7-day timeout
-    var approvalTask = context.WaitForExternalEvent<bool>("Approved");
-    var deadlineTask = context.CreateTimer(
-        context.CurrentUtcDateTime.AddDays(7),
-        true,
-        cts.Token);
-    
-    var winner = await Task.WhenAny(approvalTask, deadlineTask);
-    
-    if (winner == approvalTask)
+    // Completed by OnEvent when an "Approved" event arrives
+    TaskCompletionSource<bool> approvalHandle;
+
+    public override async Task<ApprovalResult> RunTask(
+        OrchestrationContext context, 
+        ApprovalRequest request)
     {
-        cts.Cancel();
-        var approved = await approvalTask;
-        return new ApprovalResult { Approved = approved };
+        // Send approval request
+        await context.ScheduleTask<bool>(typeof(SendApprovalEmail), request);
+        
+        this.approvalHandle = new TaskCompletionSource<bool>();
+        var approvalTask = this.approvalHandle.Task;
+
+        using var cts = new CancellationTokenSource();
+        
+        // Wait for approval event or 7-day timeout
+        var deadlineTask = context.CreateTimer(
+            context.CurrentUtcDateTime.AddDays(7),
+            true,
+            cts.Token);
+        
+        var winner = await Task.WhenAny(approvalTask, deadlineTask);
+        
+        if (winner == approvalTask)
+        {
+            cts.Cancel();
+            var approved = await approvalTask;
+            return new ApprovalResult { Approved = approved };
+        }
+        else
+        {
+            return new ApprovalResult { Approved = false, Expired = true };
+        }
     }
-    else
+
+    public override void OnEvent(OrchestrationContext context, string name, string input)
     {
-        return new ApprovalResult { Approved = false, Expired = true };
+        if (name == "Approved")
+        {
+            this.approvalHandle?.SetResult(context.MessageDataConverter.Deserialize<bool>(input));
+        }
     }
 }
 ```
@@ -257,7 +273,7 @@ await context.CreateTimer(DateTime.UtcNow.AddMinutes(5), true);
 ```csharp
 using var cts = new CancellationTokenSource();
 var timer = context.CreateTimer(deadline, true, cts.Token);
-var work = context.WaitForExternalEvent<string>("Event");
+var work = this.eventHandle.Task;  // Completed by OnEvent; see External Events
 
 var winner = await Task.WhenAny(timer, work);
 if (winner == work)

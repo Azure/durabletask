@@ -79,28 +79,40 @@ await context.CreateTimer(context.CurrentUtcDateTime.AddMinutes(5), true);
 
 ### Waiting for External Events
 
-Orchestrations can pause and wait for external events sent from client code or other orchestrations.
+Orchestrations can pause and wait for external events sent from client code or other orchestrations. This is done by overriding `OnEvent` and completing a `TaskCompletionSource`. See [External Events](../features/external-events.md) for the full pattern.
 
 ```csharp
-// Wait indefinitely for an event
-var approvalData = await context.WaitForExternalEvent<ApprovalData>("ApprovalReceived");
-
-// Wait with timeout
-using var cts = new CancellationTokenSource();
-var timerTask = context.CreateTimer(context.CurrentUtcDateTime.AddDays(1), true, cts.Token);
-var eventTask = context.WaitForExternalEvent<ApprovalData>("ApprovalReceived");
-
-var winner = await Task.WhenAny(timerTask, eventTask);
-if (winner == eventTask)
+public class ApprovalOrchestration : TaskOrchestration<ApprovalData, string>
 {
-    // Timer cancelled since event was received (this is important)
-    cts.Cancel();
-    var approval = await eventTask;
-    // Process approval
-}
-else
-{
-    // Timeout - escalate or reject
+    TaskCompletionSource<ApprovalData> approvalHandle;
+
+    public override async Task<ApprovalData> RunTask(OrchestrationContext context, string input)
+    {
+        this.approvalHandle = new TaskCompletionSource<ApprovalData>();
+        var eventTask = this.approvalHandle.Task;
+
+        // Wait for the event with a 1-day timeout
+        using var cts = new CancellationTokenSource();
+        var timerTask = context.CreateTimer(context.CurrentUtcDateTime.AddDays(1), true, cts.Token);
+
+        var winner = await Task.WhenAny(timerTask, eventTask);
+        if (winner == eventTask)
+        {
+            cts.Cancel();  // Cancel the timer since the event was received (this is important)
+            return await eventTask;  // Process approval
+        }
+
+        // Timeout - escalate or reject
+        return null;
+    }
+
+    public override void OnEvent(OrchestrationContext context, string name, string input)
+    {
+        if (name == "ApprovalReceived")
+        {
+            this.approvalHandle?.SetResult(context.MessageDataConverter.Deserialize<ApprovalData>(input));
+        }
+    }
 }
 ```
 
@@ -162,30 +174,45 @@ public override async Task<int[]> RunTask(OrchestrationContext context, int[] in
 ### Human Interaction
 
 ```csharp
-public override async Task<ApprovalResult> RunTask(
-    OrchestrationContext context, 
-    ApprovalRequest request)
+public class ApprovalOrchestration : TaskOrchestration<ApprovalResult, ApprovalRequest>
 {
-    // Send notification to approver
-    await context.ScheduleTask<bool>(typeof(SendApprovalRequestActivity), request);
-    
-    // Wait for approval with timeout
-    using var cts = new CancellationTokenSource();
-    var approvalTask = context.WaitForExternalEvent<bool>("Approved");
-    var timeoutTask = context.CreateTimer(
-        context.CurrentUtcDateTime.AddDays(7), 
-        true, 
-        cts.Token);
-    
-    var winner = await Task.WhenAny(approvalTask, timeoutTask);
-    
-    if (winner == approvalTask)
+    TaskCompletionSource<bool> approvalHandle;
+
+    public override async Task<ApprovalResult> RunTask(
+        OrchestrationContext context, 
+        ApprovalRequest request)
     {
-        cts.Cancel();
-        return new ApprovalResult { Approved = await approvalTask };
+        // Send notification to approver
+        await context.ScheduleTask<bool>(typeof(SendApprovalRequestActivity), request);
+        
+        // Wait for approval with timeout
+        this.approvalHandle = new TaskCompletionSource<bool>();
+        var approvalTask = this.approvalHandle.Task;
+
+        using var cts = new CancellationTokenSource();
+        var timeoutTask = context.CreateTimer(
+            context.CurrentUtcDateTime.AddDays(7), 
+            true, 
+            cts.Token);
+        
+        var winner = await Task.WhenAny(approvalTask, timeoutTask);
+        
+        if (winner == approvalTask)
+        {
+            cts.Cancel();
+            return new ApprovalResult { Approved = await approvalTask };
+        }
+        
+        return new ApprovalResult { Approved = false, TimedOut = true };
     }
-    
-    return new ApprovalResult { Approved = false, TimedOut = true };
+
+    public override void OnEvent(OrchestrationContext context, string name, string input)
+    {
+        if (name == "Approved")
+        {
+            this.approvalHandle?.SetResult(context.MessageDataConverter.Deserialize<bool>(input));
+        }
+    }
 }
 ```
 

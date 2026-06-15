@@ -164,6 +164,9 @@ public override async Task<object> RunTask(
 ```csharp
 public class AggregatorOrchestration : TaskOrchestration<object, AggregatorState>
 {
+    // Completed by OnEvent when a "NewData" event arrives
+    TaskCompletionSource<DataPoint> dataHandle;
+
     public override async Task<object> RunTask(
         OrchestrationContext context, 
         AggregatorState state)
@@ -172,8 +175,10 @@ public class AggregatorOrchestration : TaskOrchestration<object, AggregatorState
         state ??= new AggregatorState { Count = 0, Total = 0 };
         
         // Wait for data event or periodic save
+        this.dataHandle = new TaskCompletionSource<DataPoint>();
+        var eventTask = this.dataHandle.Task;
+
         using var cts = new CancellationTokenSource();
-        var eventTask = context.WaitForExternalEvent<DataPoint>("NewData");
         var saveTask = context.CreateTimer(
             context.CurrentUtcDateTime.AddMinutes(5),
             true,
@@ -210,6 +215,14 @@ public class AggregatorOrchestration : TaskOrchestration<object, AggregatorState
         // Continue with updated state
         context.ContinueAsNew(state);
         return null;
+    }
+
+    public override void OnEvent(OrchestrationContext context, string name, string input)
+    {
+        if (name == "NewData")
+        {
+            this.dataHandle?.SetResult(context.MessageDataConverter.Deserialize<DataPoint>(input));
+        }
     }
 }
 ```
@@ -257,36 +270,143 @@ public override async Task<ProcessingResult> RunTask(
 }
 ```
 
+## FIFO Job Queues
+
+You can use orchestrations to implement FIFO job queues. Use one orchestration instance per logical "queue" to serialize jobs. Because an orchestration runs its own logic sequentially, only one job per queue is ever active and jobs run in FIFO order, while different queues run in parallel. Incoming jobs are buffered via the [External Events](external-events.md) pattern.  `ContinueAsNew` carries any unprocessed jobs forward so none are lost when history is reset.
+
+```csharp
+// One instance per resource ID applies each update to a primary store then a replica,
+// strictly in FIFO order. Expected event: "Enqueue" (ResourceUpdate).
+public class ResourceUpdateQueueOrchestration : TaskOrchestration<object, QueueState>
+{
+    const int MaxUpdatesPerGeneration = 100;  // Bound history; ContinueAsNew after this many.
+
+    // Rebuilt deterministically on replay, since OnEvent replays in original enqueue order.
+    readonly Queue<ResourceUpdate> inbox = new Queue<ResourceUpdate>();
+    TaskCompletionSource<bool> newWork;  // Wakes RunTask when an update arrives while parked.
+
+    public override async Task<object> RunTask(OrchestrationContext context, QueueState state)
+    {
+        // Re-seed with updates carried over from the previous generation (oldest first, so
+        // they stay ahead of any newly arriving events and FIFO order is preserved).
+        foreach (ResourceUpdate update in state?.Backlog ?? Enumerable.Empty<ResourceUpdate>())
+        {
+            this.inbox.Enqueue(update);
+        }
+
+        // Block until the first update arrives.
+        if (this.inbox.Count == 0)
+        {
+            this.newWork = new TaskCompletionSource<bool>();
+            await this.newWork.Task;
+            this.newWork = null;
+        }
+
+        // Drain in FIFO order. Limit the number processed per generation to bound history size; if there are more, we'll pick up the rest in the next generation.
+        for (int processed = 0; this.inbox.Count > 0 && processed < MaxUpdatesPerGeneration; processed++)
+        {
+            ResourceUpdate next = this.inbox.Dequeue();
+            await context.ScheduleTask<bool>(typeof(UpdatePrimaryStoreActivity), next);
+            await context.ScheduleTask<bool>(typeof(UpdateReplicaStoreActivity), next);
+        }
+
+        // Reset history, carrying any updates that arrived while we were busy.
+        context.ContinueAsNew(new QueueState { Backlog = this.inbox.ToArray() });
+        return null;
+    }
+
+    public override void OnEvent(OrchestrationContext context, string name, string input)
+    {
+        if (name == "Enqueue")
+        {
+            this.inbox.Enqueue(context.MessageDataConverter.Deserialize<ResourceUpdate>(input));
+            this.newWork?.TrySetResult(true);
+        }
+    }
+}
+
+public class QueueState
+{
+    // Updates carried over from the previous generation, oldest first.
+    public ResourceUpdate[] Backlog { get; set; } = Array.Empty<ResourceUpdate>();
+}
+```
+
+Producers enqueue by sending an `Enqueue` event to the per-resource instance. The first update atomically creates the queue and delivers the event, so there's no window where it could be lost:
+
+```csharp
+static string InstanceIdFor(string resourceId) => $"resource-update-queue:{resourceId}";
+
+public static async Task EnqueueAsync(TaskHubClient client, ResourceUpdate update)
+{
+    try
+    {
+        // First update: atomically create the queue and deliver the update.
+        await client.CreateOrchestrationInstanceWithRaisedEventAsync(
+            typeof(ResourceUpdateQueueOrchestration),
+            InstanceIdFor(update.ResourceId),
+            new QueueState(),
+            eventName: "Enqueue",
+            eventData: update);
+    }
+    catch (OrchestrationAlreadyExistsException)
+    {
+        // Queue already running for this resource ID; just append the update.
+        await client.RaiseEventAsync(
+            new OrchestrationInstance { InstanceId = InstanceIdFor(update.ResourceId) },
+            "Enqueue",
+            update);
+    }
+}
+```
+
+> [!NOTE]
+> On Azure Storage (the default `Carryover` behavior), events that arrive during the brief `ContinueAsNew` transition are automatically re-delivered to the next generation, so nothing is lost. The Service Fabric provider instead uses `Ignore` and drops them — there, treat the producer as the source of truth and re-drive any unacknowledged update (using `UpdateId` for idempotency).
+
 ## Graceful Termination
 
 ### Using External Events
 
 ```csharp
-public override async Task<object> RunTask(
-    OrchestrationContext context, 
-    Config config)
+public class WorkerOrchestration : TaskOrchestration<object, Config>
 {
-    using var cts = new CancellationTokenSource();
-    
-    // Check for stop signal
-    Task stopTask = context.WaitForExternalEvent<bool>("Stop");
-    Task workTask = DoWorkAsync(context, config);
-    Task timerTask = context.CreateTimer(
-        context.CurrentUtcDateTime.AddMinutes(1),
-        true,
-        cts.Token);
-    
-    Task winner = await Task.WhenAny(stopTask, workTask, timerTask);
-    cts.Cancel();
-    
-    if (winner == stopTask)
+    // Completed by OnEvent when a "Stop" event arrives.
+    TaskCompletionSource<bool> stopHandle;
+
+    public override async Task<object> RunTask(
+        OrchestrationContext context, 
+        Config config)
     {
-        // Graceful shutdown
-        return new Result { StoppedGracefully = true };
+        this.stopHandle = new TaskCompletionSource<bool>();
+        Task stopTask = this.stopHandle.Task;
+
+        using var cts = new CancellationTokenSource();
+        Task workTask = DoWorkAsync(context, config);
+        Task timerTask = context.CreateTimer(
+            context.CurrentUtcDateTime.AddMinutes(1),
+            true,
+            cts.Token);
+        
+        Task winner = await Task.WhenAny(stopTask, workTask, timerTask);
+        cts.Cancel();
+        
+        if (winner == stopTask)
+        {
+            // Graceful shutdown
+            return new Result { StoppedGracefully = true };
+        }
+        
+        context.ContinueAsNew(config);
+        return null;
     }
-    
-    context.ContinueAsNew(config);
-    return null;
+
+    public override void OnEvent(OrchestrationContext context, string name, string input)
+    {
+        if (name == "Stop")
+        {
+            this.stopHandle?.SetResult(true);
+        }
+    }
 }
 ```
 

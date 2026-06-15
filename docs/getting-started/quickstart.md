@@ -157,7 +157,6 @@ await context.ScheduleTask<string>(typeof(GreetActivity), input);
 - `ScheduleTask` — Schedule an activity
 - `CreateSubOrchestrationInstance` — Start a sub-orchestration
 - `CreateTimer` — Create a durable timer
-- `WaitForExternalEvent` — Wait for an external event
 
 ### TaskHubWorker and TaskHubClient
 
