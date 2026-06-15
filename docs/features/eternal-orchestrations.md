@@ -162,7 +162,9 @@ public override async Task<object> RunTask(
 ### Stateful Aggregator
 
 ```csharp
-public class AggregatorOrchestration : TaskOrchestration<object, AggregatorState>
+// The 4-type-parameter base declares the event payload type (DataPoint), so the framework
+// deserializes incoming events for us and hands OnEvent a typed value.
+public class AggregatorOrchestration : TaskOrchestration<object, AggregatorState, DataPoint, string>
 {
     // Completed by OnEvent when a "NewData" event arrives
     TaskCompletionSource<DataPoint> dataHandle;
@@ -217,11 +219,12 @@ public class AggregatorOrchestration : TaskOrchestration<object, AggregatorState
         return null;
     }
 
-    public override void OnEvent(OrchestrationContext context, string name, string input)
+    // TrySetResult keeps a duplicate or late "NewData" event from faulting the orchestration.
+    public override void OnEvent(OrchestrationContext context, string name, DataPoint input)
     {
         if (name == "NewData")
         {
-            this.dataHandle?.SetResult(context.MessageDataConverter.Deserialize<DataPoint>(input));
+            this.dataHandle?.TrySetResult(input);
         }
     }
 }
@@ -277,7 +280,9 @@ You can use orchestrations to implement FIFO job queues. Use one orchestration i
 ```csharp
 // One instance per resource ID applies each update to a primary store then a replica,
 // strictly in FIFO order. Expected event: "Enqueue" (ResourceUpdate).
-public class ResourceUpdateQueueOrchestration : TaskOrchestration<object, QueueState>
+// The 4-type-parameter base declares ResourceUpdate as the event payload type, so the
+// framework deserializes incoming events and passes OnEvent a typed value.
+public class ResourceUpdateQueueOrchestration : TaskOrchestration<object, QueueState, ResourceUpdate, string>
 {
     const int MaxUpdatesPerGeneration = 100;  // Bound history; ContinueAsNew after this many.
 
@@ -315,11 +320,11 @@ public class ResourceUpdateQueueOrchestration : TaskOrchestration<object, QueueS
         return null;
     }
 
-    public override void OnEvent(OrchestrationContext context, string name, string input)
+    public override void OnEvent(OrchestrationContext context, string name, ResourceUpdate input)
     {
         if (name == "Enqueue")
         {
-            this.inbox.Enqueue(context.MessageDataConverter.Deserialize<ResourceUpdate>(input));
+            this.inbox.Enqueue(input);
             this.newWork?.TrySetResult(true);
         }
     }
@@ -368,7 +373,7 @@ public static async Task EnqueueAsync(TaskHubClient client, ResourceUpdate updat
 ### Using External Events
 
 ```csharp
-public class WorkerOrchestration : TaskOrchestration<object, Config>
+public class WorkerOrchestration : TaskOrchestration<object, Config, bool, string>
 {
     // Completed by OnEvent when a "Stop" event arrives.
     TaskCompletionSource<bool> stopHandle;
@@ -400,11 +405,12 @@ public class WorkerOrchestration : TaskOrchestration<object, Config>
         return null;
     }
 
-    public override void OnEvent(OrchestrationContext context, string name, string input)
+    // TrySetResult keeps a duplicate "Stop" event from faulting the orchestration.
+    public override void OnEvent(OrchestrationContext context, string name, bool input)
     {
         if (name == "Stop")
         {
-            this.stopHandle?.SetResult(true);
+            this.stopHandle?.TrySetResult(true);
         }
     }
 }

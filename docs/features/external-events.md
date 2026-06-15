@@ -43,17 +43,21 @@ public class SignalOrchestration : TaskOrchestration<string, string>
     public override void OnEvent(OrchestrationContext context, string name, string input)
     {
         // Complete the pending task when event arrives
-        this.resumeHandle?.SetResult(input);
+        this.resumeHandle?.TrySetResult(input);
     }
 }
 ```
 
 ### Typed Event Data
 
-For strongly-typed event data, deserialize in `OnEvent`:
+For strongly-typed event data, declare the payload type as the third type parameter
+(`TEvent`). The framework deserializes the incoming event and passes a typed value to
+`OnEvent` — no manual deserialization required:
 
 ```csharp
-public class ApprovalOrchestration : TaskOrchestration<ApprovalResult, ApprovalRequest>
+// TaskOrchestration<TResult, TInput, TEvent, TStatus>: the third type parameter
+// declares the external event payload type.
+public class ApprovalOrchestration : TaskOrchestration<ApprovalResult, ApprovalRequest, ApprovalResponse, string>
 {
     TaskCompletionSource<ApprovalResponse> approvalHandle;
 
@@ -76,12 +80,11 @@ public class ApprovalOrchestration : TaskOrchestration<ApprovalResult, ApprovalR
         };
     }
 
-    public override void OnEvent(OrchestrationContext context, string name, string input)
+    public override void OnEvent(OrchestrationContext context, string name, ApprovalResponse input)
     {
-        if (name == "Approval" && this.approvalHandle != null)
+        if (name == "Approval")
         {
-            var response = context.MessageDataConverter.Deserialize<ApprovalResponse>(input);
-            this.approvalHandle.SetResult(response);
+            this.approvalHandle?.TrySetResult(input);
         }
     }
 }
@@ -130,7 +133,7 @@ public class TimedApprovalOrchestration : TaskOrchestration<Result, Request>
     {
         if (name == "UserResponse")
         {
-            this.eventHandle?.SetResult(input);
+            this.eventHandle?.TrySetResult(input);
         }
     }
 }
@@ -181,7 +184,7 @@ public class MultiEventOrchestration : TaskOrchestration<Result, Request>
         if (this.eventHandle != null && 
             (name == "Approve" || name == "Reject" || name == "Cancel"))
         {
-            this.eventHandle.SetResult((name, input));
+            this.eventHandle.TrySetResult((name, input));
         }
     }
 }
@@ -292,7 +295,7 @@ public class WebhookController : ControllerBase
 ### Human Approval Workflow
 
 ```csharp
-public class ApprovalWorkflow : TaskOrchestration<ApprovalResult, ApprovalRequest>
+public class ApprovalWorkflow : TaskOrchestration<ApprovalResult, ApprovalRequest, ApprovalResponse, string>
 {
     TaskCompletionSource<ApprovalResponse> approvalHandle;
 
@@ -352,12 +355,11 @@ public class ApprovalWorkflow : TaskOrchestration<ApprovalResult, ApprovalReques
         }
     }
 
-    public override void OnEvent(OrchestrationContext context, string name, string input)
+    public override void OnEvent(OrchestrationContext context, string name, ApprovalResponse input)
     {
-        if (name == "ApprovalResponse" && this.approvalHandle != null)
+        if (name == "ApprovalResponse")
         {
-            var response = context.MessageDataConverter.Deserialize<ApprovalResponse>(input);
-            this.approvalHandle.SetResult(response);
+            this.approvalHandle?.TrySetResult(input);
         }
     }
 }
@@ -402,7 +404,7 @@ public class MultiStepOrchestration : TaskOrchestration<Result, Request>
     {
         if (name == this.currentEventName && this.currentEventHandle != null)
         {
-            this.currentEventHandle.SetResult(input);
+            this.currentEventHandle.TrySetResult(input);
         }
     }
 }
@@ -476,20 +478,18 @@ public override async Task<Result> RunTask(OrchestrationContext context, Request
 ### 4. Validate Event Data
 
 ```csharp
-public override void OnEvent(OrchestrationContext context, string name, string input)
+public override void OnEvent(OrchestrationContext context, string name, ApprovalResponse input)
 {
-    if (name == "Approval" && this.approvalHandle != null)
+    if (name == "Approval")
     {
-        var response = context.MessageDataConverter.Deserialize<ApprovalResponse>(input);
-        
         // Validate before completing
-        if (string.IsNullOrEmpty(response.ApprovedBy))
+        if (string.IsNullOrEmpty(input.ApprovedBy))
         {
             // Could log warning or ignore invalid event
             return;
         }
-        
-        this.approvalHandle.SetResult(response);
+
+        this.approvalHandle?.TrySetResult(input);
     }
 }
 ```

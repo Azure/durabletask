@@ -82,7 +82,9 @@ await context.CreateTimer(context.CurrentUtcDateTime.AddMinutes(5), true);
 Orchestrations can pause and wait for external events sent from client code or other orchestrations. This is done by overriding `OnEvent` and completing a `TaskCompletionSource`. See [External Events](../features/external-events.md) for the full pattern.
 
 ```csharp
-public class ApprovalOrchestration : TaskOrchestration<ApprovalData, string>
+// The 4-type-parameter base declares ApprovalData as the event payload type, so the
+// framework deserializes incoming events and passes OnEvent a typed value.
+public class ApprovalOrchestration : TaskOrchestration<ApprovalData, string, ApprovalData, string>
 {
     TaskCompletionSource<ApprovalData> approvalHandle;
 
@@ -103,14 +105,14 @@ public class ApprovalOrchestration : TaskOrchestration<ApprovalData, string>
         }
 
         // Timeout - escalate or reject
-        return null;
+        return default;
     }
 
-    public override void OnEvent(OrchestrationContext context, string name, string input)
+    public override void OnEvent(OrchestrationContext context, string name, ApprovalData input)
     {
         if (name == "ApprovalReceived")
         {
-            this.approvalHandle?.SetResult(context.MessageDataConverter.Deserialize<ApprovalData>(input));
+            this.approvalHandle?.TrySetResult(input);
         }
     }
 }
@@ -174,7 +176,9 @@ public override async Task<int[]> RunTask(OrchestrationContext context, int[] in
 ### Human Interaction
 
 ```csharp
-public class ApprovalOrchestration : TaskOrchestration<ApprovalResult, ApprovalRequest>
+// The 4-type-parameter base declares bool as the event payload type, so the framework
+// deserializes incoming events and passes OnEvent a typed value.
+public class ApprovalOrchestration : TaskOrchestration<ApprovalResult, ApprovalRequest, bool, string>
 {
     TaskCompletionSource<bool> approvalHandle;
 
@@ -206,11 +210,11 @@ public class ApprovalOrchestration : TaskOrchestration<ApprovalResult, ApprovalR
         return new ApprovalResult { Approved = false, TimedOut = true };
     }
 
-    public override void OnEvent(OrchestrationContext context, string name, string input)
+    public override void OnEvent(OrchestrationContext context, string name, bool input)
     {
         if (name == "Approved")
         {
-            this.approvalHandle?.SetResult(context.MessageDataConverter.Deserialize<bool>(input));
+            this.approvalHandle?.TrySetResult(input);
         }
     }
 }

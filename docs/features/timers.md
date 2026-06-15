@@ -67,7 +67,9 @@ public override async Task<Result> RunTask(OrchestrationContext context, Input i
 ### Approval with Deadline
 
 ```csharp
-public class ApprovalOrchestration : TaskOrchestration<ApprovalResult, ApprovalRequest>
+// The 4-type-parameter base declares bool as the event payload type, so the framework
+// deserializes incoming events and passes OnEvent a typed value.
+public class ApprovalOrchestration : TaskOrchestration<ApprovalResult, ApprovalRequest, bool, string>
 {
     // Completed by OnEvent when an "Approved" event arrives
     TaskCompletionSource<bool> approvalHandle;
@@ -104,11 +106,11 @@ public class ApprovalOrchestration : TaskOrchestration<ApprovalResult, ApprovalR
         }
     }
 
-    public override void OnEvent(OrchestrationContext context, string name, string input)
+    public override void OnEvent(OrchestrationContext context, string name, bool input)
     {
         if (name == "Approved")
         {
-            this.approvalHandle?.SetResult(context.MessageDataConverter.Deserialize<bool>(input));
+            this.approvalHandle?.TrySetResult(input);
         }
     }
 }
@@ -273,7 +275,7 @@ await context.CreateTimer(DateTime.UtcNow.AddMinutes(5), true);
 ```csharp
 using var cts = new CancellationTokenSource();
 var timer = context.CreateTimer(deadline, true, cts.Token);
-var work = this.eventHandle.Task;  // Completed by OnEvent; see External Events
+var work = context.ScheduleTask<string>(typeof(DoWorkActivity), input);
 
 var winner = await Task.WhenAny(timer, work);
 if (winner == work)
