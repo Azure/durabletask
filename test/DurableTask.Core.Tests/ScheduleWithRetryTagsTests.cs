@@ -166,13 +166,13 @@ namespace DurableTask.Core.Tests
 
             // Original execution: run up to the "crash" point (attempts 1 and 2 fail)
             RetryOptions originalRetry = new RetryOptions(TimeSpan.FromMilliseconds(1), maxAttempts);
-            Task<int> originalTask = this.context.ScheduleWithRetry<int>("Act", "1.0", originalRetry, "p");
+            _ = this.context.ScheduleWithRetry<int>("Act", "1.0", originalRetry, "p");
             this.context.FailLastScheduledTask(new InvalidOperationException("attempt-1"));
             this.context.FailLastScheduledTask(new InvalidOperationException("attempt-2"));
 
             string originalAttempt1 = this.context.ScheduledTasks[0].Options.Tags[RetryTags.Attempt];
             string originalAttempt2 = this.context.ScheduledTasks[1].Options.Tags[RetryTags.Attempt];
-            // originalTask is intentionally left pending — it models the instance crashing before attempt 3.
+            // The original schedule call is intentionally left pending — it models the instance crashing before attempt 3.
 
             // Replay: a fresh context re-walks the same history with IsReplaying = true
             var replayContext = new MockContext(this.instance, TaskScheduler.Default) { IsReplaying = true };
