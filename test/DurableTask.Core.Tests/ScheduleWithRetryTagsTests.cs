@@ -14,7 +14,6 @@ namespace DurableTask.Core.Tests
     /// <summary>
     /// Tests for the per-attempt retry tag injection added to
     /// <see cref="OrchestrationContext.ScheduleWithRetry{T}(string, string, RetryOptions, object[])"/>.
-    /// Covers Core test items #1, #2, #3, #5, #7, #8 from the design test plan.
     /// </summary>
     [TestClass]
     public class ScheduleWithRetryTagsTests
@@ -88,7 +87,42 @@ namespace DurableTask.Core.Tests
         }
 
         // ---------------------------------------------------------------------
-        // Core test #2: no cross-call leakage — each ScheduleWithRetry call has its own counter.
+        // Attempt values that cross into double digits are formatted as
+        // plain multi-digit decimal strings ("10", "11", "12") — no zero-padding, separators, or
+        // culture-specific digits.
+        // ---------------------------------------------------------------------
+        [TestMethod]
+        public async Task ScheduleWithRetry_AttemptsCrossIntoDoubleDigits_TagsAreMultiDigitDecimal()
+        {
+            // Arrange: a policy ceiling high enough to push the attempt counter past 9.
+            const int maxAttempts = 12;
+            RetryOptions retry = new RetryOptions(TimeSpan.FromMilliseconds(1), maxAttempts);
+
+            // Fail every attempt so all 12 schedules land.
+            Task<int> resultTask = this.context.ScheduleWithRetry<int>("Act", "1.0", retry, "p");
+            await this.FailEveryScheduledTaskAsync(maxAttempts);
+            await Assert.ThrowsExceptionAsync<DurableTask.Core.Exceptions.TaskFailedException>(() => resultTask);
+
+            // Every attempt tag equals its 1-based index rendered as an invariant decimal,
+            // including the multi-digit values 10, 11, and 12.
+            Assert.AreEqual(maxAttempts, this.context.ScheduledTasks.Count);
+            for (int i = 0; i < maxAttempts; i++)
+            {
+                Assert.AreEqual(
+                    (i + 1).ToString(CultureInfo.InvariantCulture),
+                    this.context.ScheduledTasks[i].Options.Tags[RetryTags.Attempt]);
+                Assert.AreEqual("12", this.context.ScheduledTasks[i].Options.Tags[RetryTags.MaxAttempts]);
+            }
+
+            // Explicit spot-checks across the single-/double-digit boundary.
+            Assert.AreEqual("9", this.context.ScheduledTasks[8].Options.Tags[RetryTags.Attempt]);
+            Assert.AreEqual("10", this.context.ScheduledTasks[9].Options.Tags[RetryTags.Attempt]);
+            Assert.AreEqual("12", this.context.ScheduledTasks[11].Options.Tags[RetryTags.Attempt]);
+        }
+
+        // ---------------------------------------------------------------------
+        // Each ScheduleWithRetry call owns an independent attempt counter, so a new call site
+        // begins at attempt 1 instead of inheriting the previous call's count.
         // ---------------------------------------------------------------------
         [TestMethod]
         public async Task ScheduleWithRetry_MultipleCallSites_EachHasOwnCounter()
@@ -120,6 +154,51 @@ namespace DurableTask.Core.Tests
             // ActB starts a fresh counter at 1 — not 3.
             Assert.AreEqual("ActB", this.context.ScheduledTasks[2].Name);
             Assert.AreEqual("1", this.context.ScheduledTasks[2].Options.Tags[RetryTags.Attempt]);
+        }
+
+        // ---------------------------------------------------------------------
+        // Deterministic replay test
+        // ---------------------------------------------------------------------
+        [TestMethod]
+        public async Task ScheduleWithRetry_Replay_ReproducesIdenticalTags_AndContinuesCounter()
+        {
+            const int maxAttempts = 5;
+
+            // Original execution: run up to the "crash" point (attempts 1 and 2 fail)
+            RetryOptions originalRetry = new RetryOptions(TimeSpan.FromMilliseconds(1), maxAttempts);
+            Task<int> originalTask = this.context.ScheduleWithRetry<int>("Act", "1.0", originalRetry, "p");
+            this.context.FailLastScheduledTask(new InvalidOperationException("attempt-1"));
+            this.context.FailLastScheduledTask(new InvalidOperationException("attempt-2"));
+
+            string originalAttempt1 = this.context.ScheduledTasks[0].Options.Tags[RetryTags.Attempt];
+            string originalAttempt2 = this.context.ScheduledTasks[1].Options.Tags[RetryTags.Attempt];
+            // originalTask is intentionally left pending — it models the instance crashing before attempt 3.
+
+            // Replay: a fresh context re-walks the same history with IsReplaying = true
+            var replayContext = new MockContext(this.instance, TaskScheduler.Default) { IsReplaying = true };
+            RetryOptions replayRetry = new RetryOptions(TimeSpan.FromMilliseconds(1), maxAttempts);
+            Task<int> replayTask = replayContext.ScheduleWithRetry<int>("Act", "1.0", replayRetry, "p");
+
+            // Re-walk the recorded failures for attempts 1 and 2
+            replayContext.FailLastScheduledTask(new InvalidOperationException("attempt-1"));
+            replayContext.FailLastScheduledTask(new InvalidOperationException("attempt-2"));
+
+            // Continue past the crash point: attempt 3 succeeds.
+            replayContext.CompleteLastScheduledTask(99);
+            int replayResult = await replayTask;
+
+            // Assert: the replayed attempts are byte-for-byte identical to the original run,
+            // even though the replay context advertised IsReplaying = true.
+            Assert.AreEqual(originalAttempt1, replayContext.ScheduledTasks[0].Options.Tags[RetryTags.Attempt]);
+            Assert.AreEqual(originalAttempt2, replayContext.ScheduledTasks[1].Options.Tags[RetryTags.Attempt]);
+            Assert.AreEqual("1", replayContext.ScheduledTasks[0].Options.Tags[RetryTags.Attempt]);
+            Assert.AreEqual("2", replayContext.ScheduledTasks[1].Options.Tags[RetryTags.Attempt]);
+
+            // Assert: replay proceeded to schedule attempt 3 with attempt=3 and the unchanged ceiling.
+            Assert.AreEqual(3, replayContext.ScheduledTasks.Count);
+            Assert.AreEqual("3", replayContext.ScheduledTasks[2].Options.Tags[RetryTags.Attempt]);
+            Assert.AreEqual("5", replayContext.ScheduledTasks[2].Options.Tags[RetryTags.MaxAttempts]);
+            Assert.AreEqual(99, replayResult);
         }
 
         // ---------------------------------------------------------------------
@@ -202,8 +281,7 @@ namespace DurableTask.Core.Tests
         }
 
         // ---------------------------------------------------------------------
-        // Core test #7: maxAttempts=1 policy still emits tags (attempt=1, maxAttempts=1).
-        // Edge case #2 in the design.
+        // Core test #4: maxAttempts=1 policy still emits tags (attempt=1, maxAttempts=1).
         // ---------------------------------------------------------------------
         [TestMethod]
         public async Task ScheduleWithRetry_MaxAttempts1_EmitsTagsAndConsumesOnlyAttempt()

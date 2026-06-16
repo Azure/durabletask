@@ -18,9 +18,6 @@ namespace DurableTask.Core
     /// <see cref="History.TaskScheduledEvent.Tags"/>) when an activity is scheduled under a retry policy.
     /// </summary>
     /// <remarks>
-    /// These key names are part of the cross-stack wire contract consumed by the Functions extension,
-    /// the JS SDK helpers, and the DTS Dashboard. They are frozen at v1 and must not be renamed.
-    /// The full design and test-vector fixture live in the <c>df-retry-information</c> investigation doc.
     /// The <c>dt.</c> prefix is reserved for DTFx-injected metadata; customers must not use it on
     /// caller-supplied tags.
     /// </remarks>
