@@ -233,10 +233,14 @@ namespace DurableTask.AzureStorage.Tracking
 
         TableQueryResponse<TableEntity> GetHistoryEntitiesResponseInfoAsync(string instanceId, string expectedExecutionId, IList<string> projectionColumns, CancellationToken cancellationToken)
         {
-            string filter = $"{nameof(ITableEntity.PartitionKey)} eq '{KeySanitation.EscapePartitionKey(instanceId)}'";
+            string escapedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
+            string filter = TableClient.CreateQueryFilter($"PartitionKey eq {escapedInstanceId}");
             if (!string.IsNullOrEmpty(expectedExecutionId))
             {
-                filter += $" and ({nameof(ITableEntity.RowKey)} eq '{SentinelRowKey}' or {nameof(OrchestrationInstance.ExecutionId)} eq '{expectedExecutionId}')";
+                // Use parameterized filter to prevent OData injection via crafted execution IDs
+                string sentinelCondition = TableClient.CreateQueryFilter($"RowKey eq {SentinelRowKey}");
+                string executionIdCondition = TableClient.CreateQueryFilter($"ExecutionId eq {expectedExecutionId}");
+                filter += $" and ({sentinelCondition} or {executionIdCondition})";
             }
 
             return this.HistoryTable.ExecuteQueryAsync<TableEntity>(filter, select: projectionColumns, cancellationToken: cancellationToken);
@@ -278,7 +282,8 @@ namespace DurableTask.AzureStorage.Tracking
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
             bool hasFailedSubOrchestrations = false;
-            string partitionFilter = $"{nameof(ITableEntity.PartitionKey)} eq '{KeySanitation.EscapePartitionKey(instanceId)}'";
+            string escapedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
+            string partitionFilter = TableClient.CreateQueryFilter($"PartitionKey eq {escapedInstanceId}");
 
             string orchestratorStartedFilter = $"{partitionFilter} and {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.OrchestratorStarted)}'";
             IReadOnlyList<TableEntity> orchestratorStartedEntities = await this.QueryHistoryAsync(orchestratorStartedFilter, instanceId, cancellationToken);
@@ -289,7 +294,8 @@ namespace DurableTask.AzureStorage.Tracking
             string executionId = recentStartRow[0].GetString(nameof(OrchestrationInstance.ExecutionId));
             DateTime instanceTimestamp = recentStartRow[0].Timestamp.GetValueOrDefault().DateTime;
 
-            string executionIdFilter = $"{nameof(OrchestrationInstance.ExecutionId)} eq '{executionId}'";
+            // Use parameterized filter to prevent OData injection via crafted execution IDs
+            string executionIdFilter = TableClient.CreateQueryFilter($"ExecutionId eq {executionId}");
 
             var updateFilterBuilder = new StringBuilder();
             updateFilterBuilder.Append($"{partitionFilter}");
