@@ -16,7 +16,6 @@ namespace DurableTask.AzureStorage.Tracking
     using System;
     using System.Collections.Generic;
     using System.Linq;
-    using Azure.Data.Tables;
     using DurableTask.Core;
 
     /// <summary>
@@ -131,7 +130,7 @@ namespace DurableTask.AzureStorage.Tracking
             if (this.TaskHubNames != null && this.TaskHubNames.Any())
             {
                 // Use parameterized filter to prevent OData injection via crafted task hub names
-                conditions.Add($"{string.Join(" or ", this.TaskHubNames.Select(x => TableClient.CreateQueryFilter($"TaskHubName eq {x}")))}");
+                conditions.Add(string.Join(" or ", this.TaskHubNames.Select(x => AzureTableQueryFilter.ColumnEquals("TaskHubName", x))));
             }
 
             if (!string.IsNullOrEmpty(this.InstanceIdPrefix))
@@ -142,10 +141,9 @@ namespace DurableTask.AzureStorage.Tracking
 
                 string greaterThanPrefix = sanitizedPrefix.Substring(0, length) + incrementedLastChar;
 
-                // Use parameterized filter to prevent OData injection via crafted instance ID prefixes.
-                // Property names must be literal text (not interpolated) for CreateQueryFilter.
-                conditions.Add(TableClient.CreateQueryFilter($"PartitionKey ge {sanitizedPrefix}"));
-                conditions.Add(TableClient.CreateQueryFilter($"PartitionKey lt {greaterThanPrefix}"));
+                // Use parameterized filters to prevent OData injection via crafted instance ID prefixes.
+                conditions.Add(AzureTableQueryFilter.PartitionKeyGreaterOrEqual(sanitizedPrefix));
+                conditions.Add(AzureTableQueryFilter.PartitionKeyLessThan(greaterThanPrefix));
             }
             else if (this.ExcludeEntities)
             {
@@ -154,9 +152,8 @@ namespace DurableTask.AzureStorage.Tracking
 
             if (this.InstanceId != null)
             {
-                string sanitizedInstanceId = KeySanitation.EscapePartitionKey(this.InstanceId);
                 // Use parameterized filter to prevent OData injection via crafted instance IDs
-                conditions.Add(TableClient.CreateQueryFilter($"PartitionKey eq {sanitizedInstanceId}"));
+                conditions.Add(AzureTableQueryFilter.PartitionKeyEquals(this.InstanceId));
             }
 
             return conditions.Count switch

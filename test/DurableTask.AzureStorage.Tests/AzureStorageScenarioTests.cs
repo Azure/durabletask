@@ -358,6 +358,31 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
+        public async Task PurgeInstanceHistory_InstanceIdWithSingleQuote_Succeeds()
+        {
+            // Regression test for OData injection: an instance ID containing a single quote
+            // must be escaped when building the purge filter. Without escaping, the resulting
+            // OData filter is malformed and the purge query fails.
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                string instanceId = "purge'inject-" + Guid.NewGuid().ToString();
+                await host.StartAsync();
+                TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(Orchestrations.Factorial), 110, instanceId);
+                await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                List<HistoryStateEvent> historyEvents = await client.GetOrchestrationHistoryAsync(instanceId);
+                Assert.IsTrue(historyEvents.Count > 0);
+
+                await client.PurgeInstanceHistory();
+
+                List<HistoryStateEvent> historyEventsAfterPurging = await client.GetOrchestrationHistoryAsync(instanceId);
+                Assert.AreEqual(0, historyEventsAfterPurging.Count);
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
         public async Task ValidateCustomStatusPersists()
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(false))
