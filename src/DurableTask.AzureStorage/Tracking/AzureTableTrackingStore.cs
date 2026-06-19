@@ -237,8 +237,8 @@ namespace DurableTask.AzureStorage.Tracking
             if (!string.IsNullOrEmpty(expectedExecutionId))
             {
                 // Use parameterized filters to prevent OData injection via crafted execution IDs
-                string sentinelCondition = AzureTableQueryFilter.ColumnEquals("RowKey", SentinelRowKey);
-                string executionIdCondition = AzureTableQueryFilter.ColumnEquals("ExecutionId", expectedExecutionId);
+                string sentinelCondition = AzureTableQueryFilter.ColumnEquals(nameof(ITableEntity.RowKey), SentinelRowKey);
+                string executionIdCondition = AzureTableQueryFilter.ColumnEquals(nameof(OrchestrationInstance.ExecutionId), expectedExecutionId);
                 filter += $" and ({sentinelCondition} or {executionIdCondition})";
             }
 
@@ -293,7 +293,7 @@ namespace DurableTask.AzureStorage.Tracking
             DateTime instanceTimestamp = recentStartRow[0].Timestamp.GetValueOrDefault().DateTime;
 
             // Use parameterized filter to prevent OData injection via crafted execution IDs
-            string executionIdFilter = AzureTableQueryFilter.ColumnEquals("ExecutionId", executionId);
+            string executionIdFilter = AzureTableQueryFilter.ColumnEquals(nameof(OrchestrationInstance.ExecutionId), executionId);
 
             var updateFilterBuilder = new StringBuilder();
             updateFilterBuilder.Append($"{partitionFilter}");
@@ -716,7 +716,7 @@ namespace DurableTask.AzureStorage.Tracking
         public override async Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(string instanceId, CancellationToken cancellationToken = default)
         {
             // Use parameterized filters to prevent OData injection via crafted instance IDs
-            string filter = $"{AzureTableQueryFilter.PartitionKeyEquals(instanceId)} and {AzureTableQueryFilter.ColumnEquals("RowKey", string.Empty)}";
+            string filter = $"{AzureTableQueryFilter.PartitionKeyEquals(instanceId)} and {AzureTableQueryFilter.ColumnEquals(RowKeyProperty, string.Empty)}";
             var results = await this.InstancesTable
                 .ExecuteQueryAsync<OrchestrationInstanceStatus>(filter, cancellationToken: cancellationToken)
                 .GetResultsAsync(cancellationToken: cancellationToken);
@@ -1178,8 +1178,8 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 // Use parameterized filters to prevent OData injection via crafted instance/execution IDs
                 string filter = $"{AzureTableQueryFilter.PartitionKeyEquals(instanceId)}" +
-                    $" and {AzureTableQueryFilter.ColumnEquals("ExecutionId", executionId)}" +
-                    $" and {AzureTableQueryFilter.ColumnEquals("EventType", nameof(EventType.ExecutionCompleted))}";
+                    $" and {AzureTableQueryFilter.ColumnEquals(nameof(OrchestrationInstance.ExecutionId), executionId)}" +
+                    $" and {AzureTableQueryFilter.ColumnEquals(nameof(HistoryEvent.EventType), nameof(EventType.ExecutionCompleted))}";
                 TableEntity executionCompletedEntity = GetSingleEntityFromHistoryTableResults(await this.QueryHistoryAsync(filter, instanceId, cancellationToken), "output");
                 this.SetInstancesTablePropertyFromHistoryProperty(
                     executionCompletedEntity,
@@ -1201,8 +1201,8 @@ namespace DurableTask.AzureStorage.Tracking
                 {
                     // Use parameterized filters to prevent OData injection via crafted instance/execution IDs
                     string filter = $"{AzureTableQueryFilter.PartitionKeyEquals(instanceId)}" +
-                        $" and {AzureTableQueryFilter.ColumnEquals("ExecutionId", executionId)}" +
-                        $" and {AzureTableQueryFilter.ColumnEquals("EventType", nameof(EventType.ExecutionStarted))}";
+                        $" and {AzureTableQueryFilter.ColumnEquals(nameof(OrchestrationInstance.ExecutionId), executionId)}" +
+                        $" and {AzureTableQueryFilter.ColumnEquals(nameof(HistoryEvent.EventType), nameof(EventType.ExecutionStarted))}";
                     TableEntity executionStartedEntity = GetSingleEntityFromHistoryTableResults(await this.QueryHistoryAsync(filter, instanceId, cancellationToken), "input");
                     this.SetInstancesTablePropertyFromHistoryProperty(
                         executionStartedEntity,
