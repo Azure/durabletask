@@ -1186,7 +1186,7 @@ namespace DurableTask.Core
                                 (
                                     "PoisonMessage",
                                     $"Entity operation request has dispatch count {workToDoNow.Operations[i].DispatchCount} " +
-                                    $"which exceeds the maximum dispatch count of {this.poisonMessageHandler?.MaxDispatchCount}.",
+                                    $"which exceeds the maximum dispatch count of {this.poisonMessageHandler.MaxDispatchCount}.",
                                     stackTrace: null,
                                     innerFailure: null,
                                     isNonRetriable: true
