@@ -691,7 +691,7 @@ namespace DurableTask.Core
                             if (isPoisonMessage)
                             {
                                 string failureReason = $"Entity lock release message from parent instance '{message.ParentInstanceId}' has dispatch count " +
-                                    $"{eventRaisedEvent.DispatchCount} which exceeds the maximum allowed dispatch count of {this.poisonMessageHandler?.MaxDispatchCount}.";
+                                    $"{eventRaisedEvent.DispatchCount} which exceeds the maximum allowed dispatch count of {this.poisonMessageHandler.MaxDispatchCount}.";
                                 this.logHelper.PoisonMessageDetected(runtimeState.OrchestrationInstance, message, eventRaisedEvent.DispatchCount, failureReason);
                                 if (await this.poisonMessageHandler.HandlePoisonMessageAsync(
                                     workItem.OrchestrationRuntimeState.OrchestrationInstance,
