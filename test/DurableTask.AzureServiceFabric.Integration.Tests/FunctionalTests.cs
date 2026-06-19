@@ -24,6 +24,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
     using DurableTask.Test.Orchestrations.Performance;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Moq;
+    using Moq.Protected;
     using TestApplication.Common.Orchestrations;
 
     [TestClass]
@@ -591,38 +592,30 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
         [TestMethod]
         public async Task CreateTaskOrchestration_HandlesConflictResponse_When_HttpClientReturnsNullContent()
         {
-            var httpClientMock = new Mock<HttpClient>();
             var response = new HttpResponseMessage(System.Net.HttpStatusCode.Conflict) { Content = null };
-            SetupHttpClientMockForPut(httpClientMock, response);
+            var mockHandler = new Mock<HttpMessageHandler>();
+            mockHandler
+                .Protected()
+                .Setup<Task<HttpResponseMessage>>(
+                    "SendAsync",
+                    ItExpr.IsAny<HttpRequestMessage>(),
+                    ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(response);
+
+            var httpClient = new HttpClient(mockHandler.Object)
+            {
+                BaseAddress = new Uri("http://localhost")
+            };
 
             var taskHubClient = Utilities.CreateTaskHubClient((serviceClient) =>
             {
-                serviceClient.HttpClient = httpClientMock.Object;
+                serviceClient.HttpClient = httpClient;
             });
 
             await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(async () =>
             {
                 await taskHubClient.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), new TestOrchestrationData());
             });
-        }
-
-        private static void SetupHttpClientMockForPut(Mock<HttpClient> httpClientMock, HttpResponseMessage response)
-        {
-            httpClientMock
-                .Setup(x => x.PutAsync(It.IsAny<string>(), It.IsAny<HttpContent>()))
-                .ReturnsAsync(response);
-
-            httpClientMock
-                .Setup(x => x.PutAsync(It.IsAny<Uri>(), It.IsAny<HttpContent>()))
-                .ReturnsAsync(response);
-
-            httpClientMock
-                .Setup(x => x.PutAsync(It.IsAny<string>(), It.IsAny<HttpContent>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(response);
-
-            httpClientMock
-                .Setup(x => x.PutAsync(It.IsAny<Uri>(), It.IsAny<HttpContent>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(response);
         }
     }
 }
