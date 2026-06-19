@@ -713,7 +713,7 @@ namespace DurableTask.Core
                             if (isPoisonMessage)
                             {
                                 string failureReason = $"Entity self-continue message has dispatch count {eventRaisedEvent.DispatchCount} which exceeds the maximum allowed " +
-                                    $"dispatch count of {this.poisonMessageHandler?.MaxDispatchCount}.";
+                                    $"dispatch count of {this.poisonMessageHandler.MaxDispatchCount}.";
                                 this.logHelper.PoisonMessageDetected(runtimeState.OrchestrationInstance, eventRaisedEvent, failureReason);
                                 if (await this.poisonMessageHandler.HandlePoisonMessageAsync(
                                     workItem.OrchestrationRuntimeState.OrchestrationInstance,
