@@ -365,7 +365,7 @@ namespace DurableTask.AzureStorage.Tests
             // OData filter is malformed and the purge query fails.
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
             {
-                string instanceId = "purge'inject-" + Guid.NewGuid().ToString();
+                string instanceId = "purge'inject-" + Guid.NewGuid();
                 await host.StartAsync();
                 TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(Orchestrations.Factorial), 110, instanceId);
                 await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
