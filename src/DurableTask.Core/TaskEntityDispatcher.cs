@@ -492,7 +492,7 @@ namespace DurableTask.Core
                         new FailureDetails(
                             "PoisonMessage",
                             $"Entity lock request has dispatch count {request.DispatchCount} " +
-                            $"which exceeds the maximum dispatch count of {this.poisonMessageHandler?.MaxDispatchCount}.",
+                            $"which exceeds the maximum dispatch count of {this.poisonMessageHandler.MaxDispatchCount}.",
                             stackTrace: null,
                             innerFailure: null,
                             isNonRetriable: true)
