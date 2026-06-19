@@ -755,13 +755,14 @@ namespace DurableTask.Core
                     }
 
                     var request = schedulerState.Dequeue();
-                    if (request.DispatchCount > this.poisonMessageHandler?.MaxDispatchCount)
+                    var poisonMessageHandler = this.poisonMessageHandler;
+                    if (poisonMessageHandler != null && request.DispatchCount > poisonMessageHandler.MaxDispatchCount)
                     {
                         this.logHelper.PoisonMessageDetected(
                             runtimeState.OrchestrationInstance,
                             request,
                             $"Entity request has dispatch count {request.DispatchCount} which exceeds the maximum dispatch count " +
-                            $"of {this.poisonMessageHandler?.MaxDispatchCount} and will be failed.");
+                            $"of {poisonMessageHandler.MaxDispatchCount} and will be failed.");
                     }
 
                     if (request.IsLockRequest)
