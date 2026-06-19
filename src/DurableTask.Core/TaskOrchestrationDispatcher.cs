@@ -455,7 +455,7 @@ namespace DurableTask.Core
                                     runtimeState.OrchestrationInstance!,
                                     poisonEvent,
                                     $"Orchestration has received an event with dispatch count {poisonEvent.DispatchCount} which exceeds the maximum dispatch" +
-                                    $"count of {this.poisonMessageHandler?.MaxDispatchCount} and will be failed.");
+                                    $"count of {this.poisonMessageHandler!.MaxDispatchCount} and will be failed.");
                             }
 
                             var failureAction = new OrchestrationCompleteOrchestratorAction
@@ -465,7 +465,7 @@ namespace DurableTask.Core
                                     "PoisonMessages",
                                     $"Orchestration has received messages of type {string.Join(",", poisonEvents.Select(e => e.EventType))} " +
                                     $"with dispatch counts {string.Join(",", poisonEvents.Select(e => e.DispatchCount))} which exceed the " +
-                                    $"maximum dispatch count of {this.poisonMessageHandler?.MaxDispatchCount}.",
+                                    $"maximum dispatch count of {this.poisonMessageHandler!.MaxDispatchCount}.",
                                     stackTrace: null,
                                     innerFailure: null,
                                     isNonRetriable: true),

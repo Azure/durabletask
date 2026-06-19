@@ -177,7 +177,7 @@ namespace DurableTask.Core
                 if (poisonMessageReason == null && scheduledEvent.DispatchCount > this.poisonMessageHandler?.MaxDispatchCount)
                 {
                     poisonMessageReason = $"Activity has received an event with dispatch count {taskMessage.Event.DispatchCount} which exceeds the maximum dispatch " +
-                        $"count of {this.poisonMessageHandler?.MaxDispatchCount}. The task will be failed.";
+                        $"count of {this.poisonMessageHandler.MaxDispatchCount}. The task will be failed.";
                 }
 
                 HistoryEvent? eventToRespond = null;
