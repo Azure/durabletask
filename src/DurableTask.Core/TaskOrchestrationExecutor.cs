@@ -212,6 +212,8 @@ namespace DurableTask.Core
                 {
                     Actions = this.context.OrchestratorActions,
                     CustomStatus = this.taskOrchestration.GetStatus(),
+                    OpenTaskCount = this.context.OpenTaskCount,
+                    OpenTaskNames = this.context.GetOpenTasksSummary(),
                 };
             }
             finally

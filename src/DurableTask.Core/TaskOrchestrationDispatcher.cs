@@ -464,10 +464,15 @@ namespace DurableTask.Core
                             }
                         }
 
+                        int openTaskCount = workItem.Cursor?.OpenTaskCount ?? 0;
+                        string openTaskNames = workItem.Cursor?.OpenTaskNames ?? string.Empty;
+
                         this.logHelper.OrchestrationExecuted(
                             runtimeState.OrchestrationInstance!,
                             runtimeState.Name,
-                            decisions);
+                            decisions,
+                            openTaskCount,
+                            openTaskNames);
                         TraceHelper.TraceInstance(
                             TraceEventType.Information,
                             "TaskOrchestrationDispatcher-ExecuteUserOrchestration-End",
@@ -825,10 +830,13 @@ namespace DurableTask.Core
             });
 
             var result = dispatchContext.GetProperty<OrchestratorExecutionResult>();
-            IEnumerable<OrchestratorAction> decisions = result?.Actions ?? Enumerable.Empty<OrchestratorAction>();
+            var decisions = (result?.Actions ?? Enumerable.Empty<OrchestratorAction>()).ToList();
             runtimeState.Status = result?.CustomStatus;
 
-            return new OrchestrationExecutionCursor(runtimeState, taskOrchestration, executor, decisions);
+            var cursor = new OrchestrationExecutionCursor(runtimeState, taskOrchestration, executor, decisions);
+            cursor.OpenTaskCount = result?.OpenTaskCount ?? 0;
+            cursor.OpenTaskNames = result?.OpenTaskNames ?? string.Empty;
+            return cursor;
         }
 
         async Task ResumeOrchestrationAsync(TaskOrchestrationWorkItem workItem)
@@ -860,8 +868,12 @@ namespace DurableTask.Core
             });
 
             var result = dispatchContext.GetProperty<OrchestratorExecutionResult>();
-            cursor.LatestDecisions = result?.Actions ?? Enumerable.Empty<OrchestratorAction>();
+            var decisions = (result?.Actions ?? Enumerable.Empty<OrchestratorAction>()).ToList();
             cursor.RuntimeState.Status = result?.CustomStatus;
+
+            cursor.LatestDecisions = decisions;
+            cursor.OpenTaskCount = result?.OpenTaskCount ?? 0;
+            cursor.OpenTaskNames = result?.OpenTaskNames ?? string.Empty;
         }
 
         /// <summary>
