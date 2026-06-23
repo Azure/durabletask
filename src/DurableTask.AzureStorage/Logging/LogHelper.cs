@@ -261,7 +261,8 @@ namespace DurableTask.AzureStorage.Logging
             int requestCount,
             long latencyMs,
             string eTag,
-            DateTime lastCheckpointTime)
+            DateTime lastCheckpointTime,
+            string latestEvents)
         {
             var logEvent = new LogEvents.FetchedInstanceHistory(
                 account,
@@ -273,7 +274,8 @@ namespace DurableTask.AzureStorage.Logging
                 requestCount,
                 latencyMs,
                 eTag,
-                lastCheckpointTime);
+                lastCheckpointTime,
+                latestEvents);
             this.WriteStructuredLog(logEvent);
         }
 
