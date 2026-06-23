@@ -318,6 +318,7 @@ namespace DurableTask.AzureStorage
             long LatencyMs,
             string ETag,
             DateTime LastCheckpointTime,
+            string LatestEvents,
             string AppName,
             string ExtensionVersion)
         {
@@ -333,6 +334,7 @@ namespace DurableTask.AzureStorage
                 LatencyMs,
                 ETag ?? string.Empty,
                 LastCheckpointTime,
+                LatestEvents,
                 AppName,
                 ExtensionVersion);
         }
