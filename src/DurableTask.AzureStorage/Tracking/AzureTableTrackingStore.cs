@@ -14,7 +14,6 @@
 namespace DurableTask.AzureStorage.Tracking
 {
     using System;
-    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
@@ -226,7 +225,8 @@ namespace DurableTask.AzureStorage.Tracking
                 results.RequestCount,
                 results.ElapsedMilliseconds,
                 eTagValue?.ToString(),
-                checkpointCompletionTime);
+                checkpointCompletionTime,
+                string.Join(",", historyEvents.Skip(Math.Max(0, historyEvents.Count - 10)).Select(e => e.EventType.ToString())));
 
             return new OrchestrationHistory(historyEvents, checkpointCompletionTime, eTagValue, trackingStoreContext);
         }
@@ -264,7 +264,8 @@ namespace DurableTask.AzureStorage.Tracking
                 results.RequestCount,
                 results.ElapsedMilliseconds,
                 eTag: string.Empty,
-                DateTime.MinValue);
+                DateTime.MinValue,
+                string.Join(",", entities.Skip(Math.Max(0, entities.Count - 10)).Select(e => e.GetString(nameof(HistoryEvent.EventType)))));
 
             return entities;
         }
