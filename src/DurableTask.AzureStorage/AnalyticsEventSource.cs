@@ -306,7 +306,7 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(EventIds.FetchedInstanceHistory, Level = EventLevel.Informational, Version = 4)]
+        [Event(EventIds.FetchedInstanceHistory, Level = EventLevel.Informational, Version = 5)]
         public void FetchedInstanceHistory(
             string Account,
             string TaskHub,
