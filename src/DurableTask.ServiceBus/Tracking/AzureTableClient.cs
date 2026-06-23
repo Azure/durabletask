@@ -42,6 +42,12 @@ namespace DurableTask.ServiceBus.Tracking
             {{ FilterComparisonType.Equals, AzureTableConstants.EqualityOperator},
             { FilterComparisonType.NotEquals, AzureTableConstants.InEqualityOperator}};
 
+        /// <summary>
+        /// Escapes a string value for safe use in an OData filter expression
+        /// by doubling single quotes (<c>'</c> → <c>''</c>).
+        /// </summary>
+        static string EscapeODataValue(string value) => value?.Replace("'", "''");
+
         volatile TableClient historyTableClient;
         volatile TableClient jumpStartTableClient;
 
@@ -234,7 +240,7 @@ namespace DurableTask.ServiceBus.Tracking
                     {
                         filterExpression = string.Format(CultureInfo.InvariantCulture,
                             AzureTableConstants.PrimaryInstanceQueryRangeTemplate,
-                            typedFilter.InstanceId, ComputeNextKeyInRange(typedFilter.InstanceId));
+                            EscapeODataValue(typedFilter.InstanceId), EscapeODataValue(ComputeNextKeyInRange(typedFilter.InstanceId)));
                     }
                     else
                     {
@@ -242,14 +248,14 @@ namespace DurableTask.ServiceBus.Tracking
                         {
                             filterExpression = string.Format(CultureInfo.InvariantCulture,
                                 AzureTableConstants.PrimaryInstanceQueryRangeTemplate,
-                                typedFilter.InstanceId, ComputeNextKeyInRange(typedFilter.InstanceId));
+                                EscapeODataValue(typedFilter.InstanceId), EscapeODataValue(ComputeNextKeyInRange(typedFilter.InstanceId)));
                         }
                         else
                         {
                             filterExpression = string.Format(CultureInfo.InvariantCulture,
                                 AzureTableConstants.PrimaryInstanceQueryExactTemplate,
-                                typedFilter.InstanceId,
-                                typedFilter.ExecutionId);
+                                EscapeODataValue(typedFilter.InstanceId),
+                                EscapeODataValue(typedFilter.ExecutionId));
                         }
                     }
                 }
@@ -275,20 +281,20 @@ namespace DurableTask.ServiceBus.Tracking
                 {
                     query = string.Format(CultureInfo.InvariantCulture,
                         AzureTableConstants.InstanceQuerySecondaryFilterRangeTemplate,
-                        orchestrationStateInstanceFilter.InstanceId, ComputeNextKeyInRange(orchestrationStateInstanceFilter.InstanceId));
+                        EscapeODataValue(orchestrationStateInstanceFilter.InstanceId), EscapeODataValue(ComputeNextKeyInRange(orchestrationStateInstanceFilter.InstanceId)));
                 }
                 else
                 {
                     if (string.IsNullOrWhiteSpace(orchestrationStateInstanceFilter.ExecutionId))
                     {
                         query = string.Format(CultureInfo.InvariantCulture,
-                            AzureTableConstants.InstanceQuerySecondaryFilterTemplate, orchestrationStateInstanceFilter.InstanceId);
+                            AzureTableConstants.InstanceQuerySecondaryFilterTemplate, EscapeODataValue(orchestrationStateInstanceFilter.InstanceId));
                     }
                     else
                     {
                         query = string.Format(CultureInfo.InvariantCulture,
-                            AzureTableConstants.InstanceQuerySecondaryFilterExactTemplate, orchestrationStateInstanceFilter.InstanceId,
-                            orchestrationStateInstanceFilter.ExecutionId);
+                            AzureTableConstants.InstanceQuerySecondaryFilterExactTemplate, EscapeODataValue(orchestrationStateInstanceFilter.InstanceId),
+                            EscapeODataValue(orchestrationStateInstanceFilter.ExecutionId));
                     }
                 }
             }
@@ -297,20 +303,20 @@ namespace DurableTask.ServiceBus.Tracking
                 if (orchestrationStateNameVersionFilter.Version == null)
                 {
                     query = string.Format(CultureInfo.InvariantCulture,
-                        AzureTableConstants.NameVersionQuerySecondaryFilterTemplate, orchestrationStateNameVersionFilter.Name);
+                        AzureTableConstants.NameVersionQuerySecondaryFilterTemplate, EscapeODataValue(orchestrationStateNameVersionFilter.Name));
                 }
                 else
                 {
                     query = string.Format(CultureInfo.InvariantCulture,
-                        AzureTableConstants.NameVersionQuerySecondaryFilterExactTemplate, orchestrationStateNameVersionFilter.Name,
-                        orchestrationStateNameVersionFilter.Version);
+                        AzureTableConstants.NameVersionQuerySecondaryFilterExactTemplate, EscapeODataValue(orchestrationStateNameVersionFilter.Name),
+                        EscapeODataValue(orchestrationStateNameVersionFilter.Version));
                 }
             }
             else if (filter is OrchestrationStateStatusFilter orchestrationStateStatusFilter)
             {
                 string template = AzureTableConstants.StatusQuerySecondaryFilterTemplate;
                 query = string.Format(CultureInfo.InvariantCulture,
-                    template, ComparisonOperatorMap[orchestrationStateStatusFilter.ComparisonType], orchestrationStateStatusFilter.Status);
+                    template, ComparisonOperatorMap[orchestrationStateStatusFilter.ComparisonType], EscapeODataValue(orchestrationStateStatusFilter.Status.ToString()));
             }
             else if (filter is OrchestrationStateTimeRangeFilter orchestrationStateTimeRangeFilter)
             {
@@ -383,7 +389,7 @@ namespace DurableTask.ServiceBus.Tracking
                                  AzureTableConstants.JoinDelimiterPlusOne;
 
             string filter = string.Format(CultureInfo.InvariantCulture, AzureTableConstants.TableRangeQueryFormat,
-                partitionKey, rowKeyLower, rowKeyUpper);
+                EscapeODataValue(partitionKey), EscapeODataValue(rowKeyLower), EscapeODataValue(rowKeyUpper));
 
             var pageableResults = historyTableClient.QueryAsync<AzureTableOrchestrationHistoryEventEntity>(filter);
 
