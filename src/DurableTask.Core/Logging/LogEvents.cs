@@ -1976,5 +1976,59 @@ namespace DurableTask.Core.Logging
                     Utils.PackageVersion);
         }
 
+        /// <summary>
+        /// Log event representing the discarding of a "poison" message.
+        /// </summary>
+        internal class PoisonMessageDetected : StructuredLogEvent, IEventSourceEvent
+        {
+            public PoisonMessageDetected(OrchestrationInstance orchestrationInstance, string eventType, int taskEventId, int dispatchCount, string details)
+            {
+                this.InstanceId = orchestrationInstance?.InstanceId ?? string.Empty;
+                this.ExecutionId = orchestrationInstance?.ExecutionId ?? string.Empty;
+                this.EventType = eventType;
+                this.TaskEventId = taskEventId;
+                this.Details = details;
+                this.DispatchCount = dispatchCount;
+            }
+
+            [StructuredLogField]
+            public string InstanceId { get; }
+
+            [StructuredLogField]
+            public string ExecutionId { get; }
+
+            [StructuredLogField]
+            public string EventType { get; }
+
+            [StructuredLogField]
+            public int TaskEventId { get; }
+
+            [StructuredLogField]
+            public int DispatchCount { get; }
+
+            [StructuredLogField]
+            public string Details { get; }
+
+            public override EventId EventId => new EventId(
+                EventIds.PoisonMessageDetected,
+                nameof(EventIds.PoisonMessageDetected));
+
+            public override LogLevel Level => LogLevel.Warning;
+
+            protected override string CreateLogMessage() =>
+                $"{this.InstanceId}: Poison message detected for {GetEventDescription(this.EventType, this.TaskEventId)} with dispatch count {this.DispatchCount}: {this.Details}";
+
+            void IEventSourceEvent.WriteEventSource() =>
+                StructuredEventSource.Log.PoisonMessageDetected(
+                    this.InstanceId,
+                    this.ExecutionId,
+                    this.EventType,
+                    this.TaskEventId,
+                    this.DispatchCount,
+                    this.Details,
+                    Utils.AppName,
+                    Utils.PackageVersion);
+        }
+
     }
 }

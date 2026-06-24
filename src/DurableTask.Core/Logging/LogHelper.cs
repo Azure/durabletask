@@ -17,6 +17,8 @@ namespace DurableTask.Core.Logging
     using System.Collections.Generic;
     using System.Text;
     using DurableTask.Core.Command;
+    using DurableTask.Core.Common;
+    using DurableTask.Core.Entities.EventFormat;
     using DurableTask.Core.Entities.OperationFormat;
     using DurableTask.Core.History;
     using Microsoft.Extensions.Logging;
@@ -758,6 +760,64 @@ namespace DurableTask.Core.Logging
             if (this.IsStructuredLoggingEnabled)
             {
                 this.WriteStructuredLog(new LogEvents.RenewActivityMessageFailed(workItem, exception), exception);
+            }
+        }
+
+        /// <summary>
+        /// Logs that a "poison message" has been detected and is being dropped.
+        /// </summary>
+        /// <param name="orchestrationInstance">The orchestration instance this event was sent to.</param>
+        /// <param name="historyEvent">The "poisoned" event.</param>
+        /// <param name="details">Extra details related to the processing of this poison message.</param>
+        internal void PoisonMessageDetected(OrchestrationInstance? orchestrationInstance, HistoryEvent historyEvent, string details)
+        {
+            if (this.IsStructuredLoggingEnabled)
+            {
+                this.WriteStructuredLog(new LogEvents.PoisonMessageDetected(
+                    orchestrationInstance,
+                    historyEvent.EventType.ToString(),
+                    Utils.GetTaskEventId(historyEvent),
+                    historyEvent.DispatchCount,
+                    details));
+            }
+        }
+
+        /// <summary>
+        /// Logs that a "poison" entity request message has been detected and is being dropped.
+        /// </summary>
+        /// <param name="orchestrationInstance">The orchestration instance this event was sent to.</param>
+        /// <param name="requestMessage">The "poisoned" request message.</param>
+        /// <param name="details">Extra details related to the processing of this poison message.</param>
+        internal void PoisonMessageDetected(OrchestrationInstance orchestrationInstance, RequestMessage requestMessage, string details)
+        {
+            if (this.IsStructuredLoggingEnabled)
+            {
+                this.WriteStructuredLog(new LogEvents.PoisonMessageDetected(
+                    orchestrationInstance,
+                    requestMessage.IsLockRequest ? "LockRequest" : "OperationRequest",
+                    taskEventId: -1,
+                    requestMessage.DispatchCount,
+                    details));
+            }
+        }
+
+        /// <summary>
+        /// Logs that a "poison" entity lock release message has been detected and is being dropped.
+        /// </summary>
+        /// <param name="orchestrationInstance">The orchestration instance this event was sent to.</param>
+        /// <param name="releaseMessage">The "poisoned" release message.</param>
+        /// <param name="dispatchCount">The dispatch count of the release message.</param>
+        /// <param name="details">Extra details related to the processing of this poison message.</param>
+        internal void PoisonMessageDetected(OrchestrationInstance orchestrationInstance, ReleaseMessage releaseMessage, int dispatchCount, string details)
+        {
+            if (this.IsStructuredLoggingEnabled)
+            {
+                this.WriteStructuredLog(new LogEvents.PoisonMessageDetected(
+                    orchestrationInstance,
+                    "LockRelease",
+                    taskEventId: -1,
+                    dispatchCount,
+                    details));
             }
         }
         #endregion

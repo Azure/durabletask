@@ -341,6 +341,16 @@ namespace DurableTask.Core.Entities
             this.lockAcquisitionPending = false;
         }
 
+        /// <summary>
+        /// Called when the entity lock acquisition fails.
+        /// </summary>
+        public void AbandonAcquire()
+        {
+            this.criticalSectionLocks = null;
+            this.criticalSectionId = null;
+            this.lockAcquisitionPending = false;
+        }
+
         internal void AdjustOutgoingMessage(string instanceId, RequestMessage requestMessage, DateTime? cappedTime, out string eventName)
         {
             if (cappedTime.HasValue)
