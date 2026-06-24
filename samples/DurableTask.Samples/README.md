@@ -42,134 +42,65 @@ The worker automatically starts and waits for the orchestration to complete.
 
 ## Available Samples
 
+Each sample's full source is linked below. For deeper explanations of the patterns
+they demonstrate, see the [DTFx documentation](../../docs/README.md).
+
 ### Greetings
 
-A simple "Hello World" orchestration that calls greeting activities.
+Two activities run in sequence: `GetUserTask` produces a name, then `SendGreetingTask`
+greets it. A minimal introduction to orchestrations and activities.
 
-```csharp
-public class GreetingsOrchestration : TaskOrchestration<string, string>
-{
-    public override async Task<string> RunTask(OrchestrationContext context, string input)
-    {
-        string greeting = await context.ScheduleTask<string>(typeof(GetUserTask));
-        string result = await context.ScheduleTask<string>(typeof(SendGreetingTask), greeting);
-        return result;
-    }
-}
-```
-
-**Run:** `DurableTask.Samples.exe -s Greetings`
+- Source: [Greetings/GreetingsOrchestration.cs](Greetings/GreetingsOrchestration.cs)
+- Docs: [Orchestrations](../../docs/concepts/orchestrations.md), [Activities](../../docs/concepts/activities.md)
+- **Run:** `DurableTask.Samples.exe -s Greetings`
 
 ### Greetings2
 
-Demonstrates parameterized orchestrations with a configurable number of greetings.
+A variation that races the `GetUserTask` activity against a durable timer using
+`Task.WhenAny`, so the orchestration proceeds when the user responds or the timeout
+elapses, whichever comes first. The parameter is the timeout in seconds.
 
-**Run:** `DurableTask.Samples.exe -s Greetings2 -p 5`
+- Source: [Greetings2/GreetingsOrchestration.cs](Greetings2/GreetingsOrchestration.cs)
+- Docs: [Timers](../../docs/features/timers.md)
+- **Run:** `DurableTask.Samples.exe -s Greetings2 -p 5`
 
 ### Cron
 
-An eternal orchestration that runs on a schedule using `CreateTimer` and `ContinueAsNew`.
+Schedules `CronTask` to run repeatedly on a [cron](https://en.wikipedia.org/wiki/Cron)
+expression (via NCrontab), using `CreateTimer` to wait between runs. The parameter is the
+cron schedule and is optional (it falls back to a fixed interval when omitted).
 
-```csharp
-public class CronOrchestration : TaskOrchestration<string, string>
-{
-    public override async Task<string> RunTask(OrchestrationContext context, string schedule)
-    {
-        // Execute the scheduled task
-        await context.ScheduleTask<string>(typeof(CronTask));
-        
-        // Wait until next scheduled time
-        DateTime nextRun = CalculateNextRun(context.CurrentUtcDateTime, schedule);
-        await context.CreateTimer(nextRun, true);
-        
-        // Continue as new instance
-        context.ContinueAsNew(schedule);
-        return "Completed cycle";
-    }
-}
-```
+- Source: [Cron/CronOrchestration.cs](Cron/CronOrchestration.cs)
+- Docs: [Timers](../../docs/features/timers.md), [Eternal Orchestrations](../../docs/features/eternal-orchestrations.md)
+- **Run:** `DurableTask.Samples.exe -s Cron -p "0 12 * */2 Mon"`
 
-**Run:** `DurableTask.Samples.exe -s Cron -p "0 12 * * *"`
+### Average
 
-### AverageCalculator
+A fan-out/fan-in pattern that splits a numeric range into chunks, computes a partial sum
+for each chunk in parallel via `ComputeSumTask`, then aggregates the results into an
+average. Parameters are `<start> <end> <step>`.
 
-Fan-out/fan-in pattern that distributes computation across multiple activities.
-
-```csharp
-public class AverageCalculatorOrchestration : TaskOrchestration<double, int[]>
-{
-    public override async Task<double> RunTask(OrchestrationContext context, int[] numbers)
-    {
-        // Fan-out: process chunks in parallel
-        var tasks = new List<Task<int>>();
-        foreach (var chunk in numbers.Chunk(10))
-        {
-            tasks.Add(context.ScheduleTask<int>(typeof(ComputeSumTask), chunk));
-        }
-        
-        // Fan-in: aggregate results
-        int[] sums = await Task.WhenAll(tasks);
-        return sums.Sum() / (double)numbers.Length;
-    }
-}
-```
-
-**Run:** `DurableTask.Samples.exe -s Average -p "1 50 10"`
-
-Parameters: `<start> <end> <chunkSize>`
+- Source: [AverageCalculator/AverageCalculatorOrchestration.cs](AverageCalculator/AverageCalculatorOrchestration.cs)
+- Docs: [Orchestrations](../../docs/concepts/orchestrations.md)
+- **Run:** `DurableTask.Samples.exe -s Average -p "1 50 10"`
 
 ### ErrorHandling
 
-Demonstrates retry policies and exception handling patterns.
+Demonstrates exception handling with `try`/`catch` around activities and a compensating
+`CleanupTask` when an activity fails.
 
-```csharp
-public override async Task<string> RunTask(OrchestrationContext context, string input)
-{
-    var retryOptions = new RetryOptions(
-        firstRetryInterval: TimeSpan.FromSeconds(5),
-        maxNumberOfAttempts: 3);
-    
-    try
-    {
-        return await context.ScheduleWithRetry<string>(
-            typeof(UnreliableActivity), 
-            retryOptions, 
-            input);
-    }
-    catch (TaskFailedException ex)
-    {
-        // Handle permanent failure
-        return $"Failed after retries: {ex.Message}";
-    }
-}
-```
-
-**Run:** `DurableTask.Samples.exe -s ErrorHandling`
+- Source: [ErrorHandling/ErrorHandlingOrchestration.cs](ErrorHandling/ErrorHandlingOrchestration.cs)
+- Docs: [Error Handling](../../docs/features/error-handling.md), [Retries](../../docs/features/retries.md)
+- **Run:** `DurableTask.Samples.exe -s ErrorHandling`
 
 ### Signal
 
-Demonstrates external events and human interaction patterns.
+Demonstrates external events using the `OnEvent` + `TaskCompletionSource` pattern: the
+orchestration waits for an external signal and then sends a greeting with the signaled value.
 
-```csharp
-public override async Task<string> RunTask(OrchestrationContext context, ApprovalRequest input)
-{
-    // Send notification
-    await context.ScheduleTask<bool>(typeof(SendApprovalRequest), input);
-    
-    // Wait for external event
-    var approval = await context.WaitForExternalEvent<ApprovalResult>("ApprovalResult");
-    
-    if (approval.IsApproved)
-    {
-        await context.ScheduleTask<bool>(typeof(ProcessApproval), input);
-        return "Approved and processed";
-    }
-    
-    return "Rejected";
-}
-```
-
-**Run:** `DurableTask.Samples.exe -s Signal`
+- Source: [Signal/SignalOrchestration.cs](Signal/SignalOrchestration.cs)
+- Docs: [External Events](../../docs/features/external-events.md)
+- **Run:** `DurableTask.Samples.exe -s Signal`
 
 To raise an event to a running instance:
 
@@ -177,11 +108,20 @@ To raise an event to a running instance:
 DurableTask.Samples.exe -n <eventName> -i <instanceId> -p <eventData>
 ```
 
+You can also start an instance and raise its first event in one step with the
+`SignalAndRaise` sample:
+
+- **Run:** `DurableTask.Samples.exe -s SignalAndRaise -n <eventName> -p <eventData>`
+
 ### SumOfSquares
 
-Another fan-out/fan-in example computing sum of squares from a JSON input file.
+A recursive fan-out/fan-in example that walks a nested JSON array
+([BagofNumbers.json](SumOfSquares/BagofNumbers.json)), squaring integers via
+`SumOfSquaresTask` and recursing into nested arrays as sub-orchestrations.
 
-**Run:** `DurableTask.Samples.exe -s SumOfSquares`
+- Source: [SumOfSquares/SumOfSquaresOrchestration.cs](SumOfSquares/SumOfSquaresOrchestration.cs)
+- Docs: [Sub-Orchestrations](../../docs/features/sub-orchestrations.md)
+- **Run:** `DurableTask.Samples.exe -s SumOfSquares`
 
 ## Command Line Options
 

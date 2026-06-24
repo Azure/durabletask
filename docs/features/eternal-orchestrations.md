@@ -342,6 +342,13 @@ Producers enqueue by sending an `Enqueue` event to the per-resource instance. Th
 ```csharp
 static string InstanceIdFor(string resourceId) => $"resource-update-queue:{resourceId}";
 
+static readonly OrchestrationStatus[] ActiveQueueStatuses =
+{
+    OrchestrationStatus.Pending,
+    OrchestrationStatus.Running,
+    OrchestrationStatus.ContinuedAsNew,
+};
+
 public static async Task EnqueueAsync(TaskHubClient client, ResourceUpdate update)
 {
     try
@@ -351,12 +358,13 @@ public static async Task EnqueueAsync(TaskHubClient client, ResourceUpdate updat
             typeof(ResourceUpdateQueueOrchestration),
             InstanceIdFor(update.ResourceId),
             new QueueState(),
+            dedupeStatuses: ActiveQueueStatuses,
             eventName: "Enqueue",
             eventData: update);
     }
     catch (OrchestrationAlreadyExistsException)
     {
-        // Queue already running for this resource ID; just append the update.
+        // Queue already active for this resource ID; just append the update.
         await client.RaiseEventAsync(
             new OrchestrationInstance { InstanceId = InstanceIdFor(update.ResourceId) },
             "Enqueue",
