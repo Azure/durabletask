@@ -13,9 +13,11 @@
 
 namespace DurableTask.AzureServiceFabric
 {
+    using DurableTask.AzureServiceFabric.Service;
     using DurableTask.Core;
     using DurableTask.Core.Settings;
     using Microsoft.Extensions.Logging;
+    using Newtonsoft.Json.Serialization;
 
     /// <summary>
     /// Provides settings for service fabric based custom provider implementations
@@ -56,5 +58,17 @@ namespace DurableTask.AzureServiceFabric
         /// Gets or sets the optional <see cref="ILoggerFactory"/> to use for diagnostic logging.
         /// </summary>
         public ILoggerFactory LoggerFactory { get; set; }
+
+        /// <summary>
+        /// Gets or sets the <see cref="ISerializationBinder"/> used to restrict which types can be
+        /// deserialized from incoming JSON requests on the proxy endpoint. This protects against
+        /// untrusted <c>$type</c> metadata in JSON payloads.
+        /// <para>
+        /// Defaults to <see cref="AllowedTypesSerializationBinder"/>, which permits only known
+        /// DurableTask and core system types. Set a custom <see cref="ISerializationBinder"/> to
+        /// override, or set to <c>null</c> to disable type restrictions (not recommended).
+        /// </para>
+        /// </summary>
+        public ISerializationBinder JsonSerializationBinder { get; set; } = new AllowedTypesSerializationBinder();
     }
 }

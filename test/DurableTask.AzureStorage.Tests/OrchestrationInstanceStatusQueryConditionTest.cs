@@ -196,5 +196,51 @@ namespace DurableTask.AzureStorage.Tests
             string result = condition.ToOData().Filter;
             Assert.AreEqual("PartitionKey eq ''", result);
         }
+
+        [TestMethod]
+        public void OrchestrationInstanceQuery_TaskHubName_SingleQuoteEscaped()
+        {
+            // Verifies that a single quote in TaskHubName is properly escaped,
+            // preventing OData filter injection.
+            var condition = new OrchestrationInstanceStatusQueryCondition
+            {
+                TaskHubNames = new string[] { "Hub'Injected" }
+            };
+
+            string filter = condition.ToOData().Filter;
+            Assert.AreEqual("TaskHubName eq 'Hub''Injected'", filter);
+        }
+
+        [TestMethod]
+        public void OrchestrationInstanceQuery_InstanceIdPrefix_SingleQuoteEscaped()
+        {
+            // Verifies that a single quote in InstanceIdPrefix is properly escaped,
+            // preventing OData filter injection.
+            var condition = new OrchestrationInstanceStatusQueryCondition
+            {
+                InstanceIdPrefix = "prefix'inject",
+            };
+
+            string filter = condition.ToOData().Filter;
+            // The prefix goes through EscapePartitionKey (which doesn't touch quotes)
+            // then through CreateQueryFilter (which escapes the quote for OData).
+            Assert.IsTrue(filter.Contains("prefix''inject"), $"Expected escaped quote in filter: {filter}");
+            Assert.IsTrue(filter.Contains("PartitionKey ge"), $"Expected ge condition in filter: {filter}");
+            Assert.IsTrue(filter.Contains("PartitionKey lt"), $"Expected lt condition in filter: {filter}");
+        }
+
+        [TestMethod]
+        public void OrchestrationInstanceQuery_InstanceId_SingleQuoteEscaped()
+        {
+            // Verifies that a single quote in InstanceId is properly escaped,
+            // preventing OData filter injection.
+            var condition = new OrchestrationInstanceStatusQueryCondition
+            {
+                InstanceId = "instance'id",
+            };
+
+            string filter = condition.ToOData().Filter;
+            Assert.AreEqual("PartitionKey eq 'instance''id'", filter);
+        }
     }
 }
