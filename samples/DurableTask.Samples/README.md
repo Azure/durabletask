@@ -66,12 +66,13 @@ elapses, whichever comes first. The parameter is the timeout in seconds.
 
 ### Cron
 
-Schedules `CronTask` to run repeatedly on a [cron](https://en.wikipedia.org/wiki/Cron)
-expression (via NCrontab), using `CreateTimer` to wait between runs. The parameter is the
-cron schedule and is optional (it falls back to a fixed interval when omitted).
+Runs `CronTask` on a schedule, using `CreateTimer` to wait between runs. The sample loops a
+fixed number of times (currently 4) and then returns — it is not an eternal orchestration and
+does not use `ContinueAsNew`. The parameter is a [cron](https://en.wikipedia.org/wiki/Cron)
+expression (via NCrontab) and is optional (it falls back to a fixed interval when omitted).
 
 - Source: [Cron/CronOrchestration.cs](Cron/CronOrchestration.cs)
-- Docs: [Timers](../../docs/features/timers.md), [Eternal Orchestrations](../../docs/features/eternal-orchestrations.md)
+- Docs: [Timers](../../docs/features/timers.md)
 - **Run:** `DurableTask.Samples.exe -s Cron -p "0 12 * */2 Mon"`
 
 ### Average

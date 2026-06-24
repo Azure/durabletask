@@ -178,7 +178,7 @@ public override async Task<int[]> RunTask(OrchestrationContext context, int[] in
 ```csharp
 // The 4-type-parameter base declares bool as the event payload type, so the framework
 // deserializes incoming events and passes OnEvent a typed value.
-public class ApprovalOrchestration : TaskOrchestration<ApprovalResult, ApprovalRequest, bool, string>
+public class HumanApprovalOrchestration : TaskOrchestration<ApprovalResult, ApprovalRequest, bool, string>
 {
     TaskCompletionSource<bool> approvalHandle;
 

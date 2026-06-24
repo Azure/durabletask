@@ -354,6 +354,9 @@ public static async Task EnqueueAsync(TaskHubClient client, ResourceUpdate updat
     try
     {
         // First update: atomically create the queue and deliver the update.
+        // Note: the dedupeStatuses overload is supported by Azure Storage, Service Bus, and others.
+        // The Service Fabric provider throws NotSupportedException for dedupeStatuses—omit it
+        // there and rely on the OrchestrationAlreadyExistsException from a plain create.
         await client.CreateOrchestrationInstanceWithRaisedEventAsync(
             typeof(ResourceUpdateQueueOrchestration),
             InstanceIdFor(update.ResourceId),
@@ -374,7 +377,9 @@ public static async Task EnqueueAsync(TaskHubClient client, ResourceUpdate updat
 ```
 
 > [!NOTE]
-> On Azure Storage (the default `Carryover` behavior), events that arrive during the brief `ContinueAsNew` transition are automatically re-delivered to the next generation, so nothing is lost. The Service Fabric provider instead uses `Ignore` and drops them — there, treat the producer as the source of truth and re-drive any unacknowledged update (using `UpdateId` for idempotency).
+> Provider differences apply to this sample. The `dedupeStatuses` overload used above is supported by the Azure Storage, Service Bus, and some other providers; the Service Fabric provider does not support it (it throws `NotSupportedException`), so omit that argument and rely on the `OrchestrationAlreadyExistsException` from a plain create instead.
+>
+> Behavior during the brief `ContinueAsNew` transition also differs: on Azure Storage (the default `Carryover` behavior), events that arrive mid-transition are automatically re-delivered to the next generation, so nothing is lost. The Service Fabric provider instead uses `Ignore` and drops them — there, treat the producer as the source of truth and re-drive any unacknowledged update (using `UpdateId` for idempotency).
 
 ## Graceful Termination
 
