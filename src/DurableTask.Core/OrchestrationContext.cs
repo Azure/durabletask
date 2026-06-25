@@ -210,7 +210,7 @@ namespace DurableTask.Core
         ///     under the reserved <c>dt.retry.*</c> tag namespace (<c>dt.retry.attempt</c>, <c>dt.retry.maxAttempts</c>).
         ///     These tags flow through <c>ScheduleTaskOrchestratorAction.Tags</c> into the persisted
         ///     <c>TaskScheduledEvent.Tags</c>, where consumers (Functions extension, DTS Dashboard) can read them.
-        ///     Backends that do not roundtrip <c>TaskScheduledEvent.Tags</c> (currently Azure Storage, MSSQL, Netherite)
+        ///     Backends that do not roundtrip <c>TaskScheduledEvent.Tags</c>
         ///     simply drop the tags at persistence; consumers fall back to a "metadata unavailable" path with no error.
         ///     The attempt counter is closure-local, so each call site builds its own counter; deterministic replay
         ///     reproduces the same per-attempt values because <see cref="RetryInterceptor{T}.Invoke"/> invokes the
