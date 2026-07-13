@@ -745,7 +745,8 @@ namespace DurableTask.AzureStorage.Logging
                 int requestCount,
                 long latencyMs,
                 string eTag,
-                DateTime lastCheckpointTime)
+                DateTime lastCheckpointTime,
+                string latestEvents)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
@@ -757,6 +758,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.LatencyMs = latencyMs;
                 this.ETag = eTag;
                 this.LastCheckpointTime = lastCheckpointTime;
+                this.LatestEvents = latestEvents;
             }
 
             [StructuredLogField]
@@ -789,6 +791,9 @@ namespace DurableTask.AzureStorage.Logging
             [StructuredLogField]
             public DateTime LastCheckpointTime { get; }
 
+            [StructuredLogField]
+            public string LatestEvents { get; }
+
             public override EventId EventId => new EventId(
                 EventIds.FetchedInstanceHistory,
                 nameof(EventIds.FetchedInstanceHistory));
@@ -811,6 +816,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.LatencyMs,
                 this.ETag,
                 this.LastCheckpointTime,
+                this.LatestEvents,
                 Utils.AppName,
                 Utils.ExtensionVersion);
         }

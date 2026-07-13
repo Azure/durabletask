@@ -131,6 +131,7 @@ Service Fabric handles partitioning automatically based on your service configur
 | `TaskActivityDispatcherSettings.MaxConcurrentActivities` | Max concurrent activities | 1000 |
 | `TaskActivityDispatcherSettings.DispatcherCount` | Number of activity dispatchers | 10 |
 | `LoggerFactory` | Optional logger factory for diagnostics | null |
+| `JsonSerializationBinder` | `ISerializationBinder` that restricts which types can be deserialized from incoming JSON requests on the proxy endpoint | `AllowedTypesSerializationBinder` |
 
 ### Example Configuration
 
@@ -148,6 +149,25 @@ var settings = new FabricOrchestrationProviderSettings
         DispatcherCount = 5
     }
 };
+```
+
+### Serialization Security
+
+The proxy endpoint uses `TypeNameHandling.All` for JSON deserialization to support polymorphic types like `HistoryEvent`. By default, an `AllowedTypesSerializationBinder` restricts deserialization to types from `DurableTask.Core`, `DurableTask.AzureServiceFabric`, and core system assemblies. This prevents untrusted `$type` metadata in JSON payloads from loading arbitrary types.
+
+To provide a custom binder:
+
+```csharp
+settings.JsonSerializationBinder = new MyCustomSerializationBinder();
+```
+
+To disable type restrictions and restore legacy behavior:
+
+```csharp
+// ⚠️ Not recommended: disables deserialization type restrictions.
+// Only use this if you have other security controls in place
+// (e.g., network isolation, mutual TLS) to protect the proxy endpoint.
+settings.JsonSerializationBinder = null;
 ```
 
 ## Client Access

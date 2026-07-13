@@ -306,7 +306,7 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(EventIds.FetchedInstanceHistory, Level = EventLevel.Informational, Version = 4)]
+        [Event(EventIds.FetchedInstanceHistory, Level = EventLevel.Informational, Version = 5)]
         public void FetchedInstanceHistory(
             string Account,
             string TaskHub,
@@ -318,6 +318,7 @@ namespace DurableTask.AzureStorage
             long LatencyMs,
             string ETag,
             DateTime LastCheckpointTime,
+            string LatestEvents,
             string AppName,
             string ExtensionVersion)
         {
@@ -333,6 +334,7 @@ namespace DurableTask.AzureStorage
                 LatencyMs,
                 ETag ?? string.Empty,
                 LastCheckpointTime,
+                LatestEvents,
                 AppName,
                 ExtensionVersion);
         }

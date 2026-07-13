@@ -21,17 +21,20 @@ namespace DurableTask.AzureServiceFabric.Service
     using DurableTask.Core;
     using DurableTask.AzureServiceFabric;
     using Microsoft.Extensions.DependencyInjection;
+    using Newtonsoft.Json.Serialization;
     using Owin;
 
     class Startup : IOwinAppBuilder
     {
         FabricOrchestrationProvider fabricOrchestrationProvider;
+        readonly ISerializationBinder serializationBinder;
         string listeningAddress;
 
-        public Startup(string listeningAddress, FabricOrchestrationProvider fabricOrchestrationProvider)
+        public Startup(string listeningAddress, FabricOrchestrationProvider fabricOrchestrationProvider, ISerializationBinder serializationBinder)
         {
             this.listeningAddress = listeningAddress ?? throw new ArgumentNullException(nameof(listeningAddress));
             this.fabricOrchestrationProvider = fabricOrchestrationProvider ?? throw new ArgumentNullException(nameof(fabricOrchestrationProvider));
+            this.serializationBinder = serializationBinder;
         }
 
         public string GetListeningAddress()
@@ -61,6 +64,11 @@ namespace DurableTask.AzureServiceFabric.Service
             config.Formatters.Remove(config.Formatters.XmlFormatter);
             config.Formatters.Remove(config.Formatters.FormUrlEncodedFormatter);
             config.Formatters.JsonFormatter.SerializerSettings.TypeNameHandling = Newtonsoft.Json.TypeNameHandling.All;
+            if (this.serializationBinder != null)
+            {
+                config.Formatters.JsonFormatter.SerializerSettings.SerializationBinder = this.serializationBinder;
+            }
+
             appBuilder.UseWebApi(config);
         }
     }
