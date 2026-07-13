@@ -18,6 +18,7 @@ namespace DurableTask.AzureStorage.Tracking
     using System.Threading;
     using System.Threading.Tasks;
     using Azure;
+    using DurableTask.AzureStorage.Messaging;
     using DurableTask.Core;
     using DurableTask.Core.History;
 
@@ -49,6 +50,37 @@ namespace DurableTask.AzureStorage.Tracking
         /// </summary>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         Task StartAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Signals the start of a live migration away from this backend. Creates the modified-instances queue and
+        /// records a durable marker indicating that migration has started. This operation is idempotent.
+        /// </summary>
+        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
+        Task StartMigrationAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Signals the completion of a live migration away from this backend by updating the durable marker to
+        /// <see cref="MigrationState.Completed"/>. Once completed, a backend that reads the marker on startup must
+        /// immediately shut down. This operation is idempotent.
+        /// </summary>
+        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
+        Task StopMigrationAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Reads the durable migration marker and caches the result so that subsequent writes behave accordingly.
+        /// </summary>
+        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
+        /// <returns>The current <see cref="MigrationState"/>.</returns>
+        Task<MigrationState> LoadMigrationStateAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Gets a value indicating whether a live migration is currently in progress (the marker is
+        /// <see cref="MigrationState.Started"/>). Reflects the cached state from the most recent
+        /// <see cref="LoadMigrationStateAsync"/>, <see cref="StartMigrationAsync"/>, or <see cref="StopMigrationAsync"/>.
+        /// </summary>
+        bool IsMigrationActive { get; }
+
+        ReaderWriterLockSlim MigrationStateLock { get; }
 
         /// <summary>
         /// Get History Events from the Store
@@ -194,8 +226,9 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="createdTimeFrom">Start creation time for querying instances for purging</param>
         /// <param name="createdTimeTo">End creation time for querying instances for purging</param>
         /// <param name="runtimeStatus">List of runtime status for querying instances for purging. Only Completed, Terminated, Canceled, or Failed will be processed</param>
+        /// <param name="modifiedInstancesQueue">Queue to track modified instances during a migration.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <returns>Class containing number of storage requests sent, along with instances and rows deleted/purged</returns>
-        Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default);
+        Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, ModifiedInstancesQueue modifiedInstancesQueue, CancellationToken cancellationToken = default);
     }
 }

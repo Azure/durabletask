@@ -18,6 +18,7 @@ namespace DurableTask.AzureStorage.Tracking
     using System.Threading;
     using System.Threading.Tasks;
     using Azure;
+    using DurableTask.AzureStorage.Messaging;
     using DurableTask.Core;
     using DurableTask.Core.History;
 
@@ -86,7 +87,7 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public virtual Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default)
+        public virtual Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, ModifiedInstancesQueue modifiedInstancesQueue, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
@@ -105,6 +106,30 @@ namespace DurableTask.AzureStorage.Tracking
 
         /// <inheritdoc />
         public abstract Task StartAsync(CancellationToken cancellationToken = default);
+
+        /// <inheritdoc />
+        public virtual Task StartMigrationAsync(CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        /// <inheritdoc />
+        public virtual Task StopMigrationAsync(CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        /// <inheritdoc />
+        public virtual Task<MigrationState> LoadMigrationStateAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(MigrationState.NotStarted);
+        }
+
+        /// <inheritdoc />
+        public virtual bool IsMigrationActive => false;
+
+        /// <inheritdoc />
+        public virtual ReaderWriterLockSlim MigrationStateLock => null;
 
         /// <inheritdoc />
         public abstract Task UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, OrchestrationETags eTags, object executionData, CancellationToken cancellationToken = default);

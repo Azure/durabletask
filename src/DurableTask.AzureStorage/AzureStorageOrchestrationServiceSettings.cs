@@ -246,6 +246,7 @@ namespace DurableTask.AzureStorage
 
         internal string InstanceTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}Instances" : $"{this.TaskHubName}Instances";
         internal string PartitionTableName => $"{this.TaskHubName}Partitions";
+        internal string MigrationTableName => this.HasTrackingStoreStorageAccount ? $"{this.TrackingStoreNamePrefix}Migration" : $"{this.TaskHubName}Migration";
 
         /// <summary>
         /// Gets an instance of <see cref="LogHelper"/> that can be used for writing structured logs.

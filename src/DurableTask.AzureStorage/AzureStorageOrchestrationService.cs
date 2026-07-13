@@ -61,6 +61,7 @@ namespace DurableTask.AzureStorage
         readonly AzureStorageOrchestrationServiceStats stats;
         readonly ConcurrentDictionary<string, ControlQueue> allControlQueues;
         readonly WorkItemQueue workItemQueue;
+        readonly ModifiedInstancesQueue modifiedInstancesQueue;
         readonly ConcurrentDictionary<string, ActivitySession> activeActivitySessions;
         readonly MessageManager messageManager;
 
@@ -129,6 +130,8 @@ namespace DurableTask.AzureStorage
 
             var workItemQueueName = GetWorkItemQueueName(this.settings.TaskHubName);
             this.workItemQueue = new WorkItemQueue(this.azureStorageClient, workItemQueueName, this.messageManager);
+
+            this.modifiedInstancesQueue = new ModifiedInstancesQueue(this.azureStorageClient);
 
             if (customInstanceStore == null)
             {
@@ -465,6 +468,19 @@ namespace DurableTask.AzureStorage
             await this.appLeaseManager.StartAsync();
 
             this.isStarted = true;
+
+            // Determine the live-migration state from the durable marker. If a migration has already completed,
+            // this backend must not continue running: immediately shut down.
+            MigrationState migrationState = await this.trackingStore.LoadMigrationStateAsync(this.shutdownSource.Token);
+            if (migrationState == MigrationState.Completed)
+            {
+                this.settings.Logger.GeneralError(
+                    this.azureStorageClient.QueueAccountName,
+                    this.settings.TaskHubName,
+                    "A completed migration marker was found on startup. Shutting down the orchestration service immediately.");
+
+                await this.StopAsync();
+            }
         }
 
         /// <inheritdoc />
@@ -489,6 +505,31 @@ namespace DurableTask.AzureStorage
 
             await this.appLeaseManager.StopAsync();
             this.isStarted = false;
+        }
+
+        /// <summary>
+        /// Signals the start of a live migration away from the Azure Storage backend. This creates the
+        /// modified-instances queue and records a durable marker indicating that migration has started. While a
+        /// migration is in progress, the backend records every modified instance in the modified-instances queue and
+        /// increments a per-instance sequence number on every write (including purges). This operation is idempotent.
+        /// </summary>
+        public async Task StartMigrationAsync(CancellationToken cancellationToken = default)
+        {
+            await this.EnsureTaskHubAsync();
+
+            // Creating the modified-instances queue is idempotent, so invoking this API multiple times is safe.
+            await this.modifiedInstancesQueue.CreateIfNotExistsAsync(cancellationToken);
+            await this.trackingStore.StartMigrationAsync(cancellationToken);
+        }
+
+        /// <summary>
+        /// Signals the completion of a live migration away from the Azure Storage backend by updating the durable
+        /// marker to indicate that migration has finished. Once completed, any backend instance that reads the marker
+        /// on startup will immediately shut down. This operation is idempotent.
+        /// </summary>
+        public Task StopMigrationAsync(CancellationToken cancellationToken = default)
+        {
+            return this.trackingStore.StopMigrationAsync(cancellationToken);
         }
 
         async Task ReportStatsLoop(CancellationToken cancellationToken)
@@ -1083,9 +1124,24 @@ namespace DurableTask.AzureStorage
                     if (executionTerminatedEventMessage is not null)
                     {
                         var executionTerminatedEvent = (ExecutionTerminatedEvent)executionTerminatedEventMessage.Event;
-                        await this.trackingStore.UpdateStatusForTerminationAsync(
-                            instanceId,
-                            executionTerminatedEvent);
+
+                        this.trackingStore.MigrationStateLock.EnterReadLock();
+                        try
+                        {
+                            if (this.trackingStore.IsMigrationActive)
+                            {
+                                await this.modifiedInstancesQueue.AddInstanceAsync(instanceId, cancellationToken);
+                            }
+
+                            await this.trackingStore.UpdateStatusForTerminationAsync(
+                                instanceId,
+                                executionTerminatedEvent);
+                        }
+                        finally
+                        {
+                            this.trackingStore.MigrationStateLock.ExitReadLock();
+                        }
+
                         return $"Instance is {OrchestrationStatus.Terminated}";
                     }
 
@@ -1109,12 +1165,25 @@ namespace DurableTask.AzureStorage
                 if (instanceStatus == null || (instanceStatus.State.OrchestrationInstance.ExecutionId == runtimeState.OrchestrationInstance.ExecutionId
                     && instanceStatus.State.OrchestrationStatus != runtimeState.OrchestrationStatus))
                 {
-                    await this.trackingStore.UpdateInstanceStatusForCompletedOrchestrationAsync(
-                        runtimeState.OrchestrationInstance.InstanceId,
-                        runtimeState.OrchestrationInstance.ExecutionId,
-                        runtimeState,
-                        instanceStatus is not null,
-                        cancellationToken);
+                    this.trackingStore.MigrationStateLock.EnterReadLock();
+                    try
+                    {
+                        if (this.trackingStore.IsMigrationActive)
+                        {
+                            await this.modifiedInstancesQueue.AddInstanceAsync(runtimeState.OrchestrationInstance.InstanceId, cancellationToken);
+                        }
+
+                        await this.trackingStore.UpdateInstanceStatusForCompletedOrchestrationAsync(
+                            runtimeState.OrchestrationInstance.InstanceId,
+                            runtimeState.OrchestrationInstance.ExecutionId,
+                            runtimeState,
+                            instanceStatus is not null,
+                            cancellationToken);
+                    }
+                    finally
+                    {
+                        this.trackingStore.MigrationStateLock.ExitReadLock();
+                    }
                 }
                 if (!allowReplayingTerminalInstances)
                 {
@@ -1239,7 +1308,22 @@ namespace DurableTask.AzureStorage
             // will result in a duplicate replay of the orchestration with no side-effects.
             try
             {
-                await this.trackingStore.UpdateStateAsync(runtimeState, workItem.OrchestrationRuntimeState, instanceId, executionId, session.ETags, session.TrackingStoreContext);
+                this.trackingStore.MigrationStateLock.EnterReadLock();
+                try
+                {
+                    if (this.trackingStore.IsMigrationActive)
+                    {
+                        await this.modifiedInstancesQueue.AddInstanceAsync(instanceId);
+                    }
+
+                    await this.trackingStore.UpdateStateAsync(runtimeState, workItem.OrchestrationRuntimeState, instanceId, executionId, session.ETags, session.TrackingStoreContext);
+
+                }
+                finally
+                {
+                    this.trackingStore.MigrationStateLock.ExitReadLock();
+                }
+
                 // update the runtime state and execution id stored in the session
                 session.UpdateRuntimeState(runtimeState);
 
@@ -1791,10 +1875,23 @@ namespace DurableTask.AzureStorage
                 inputPayloadOverride = this.messageManager.GetBlobUrl(startMessage.CompressedBlobName);
             }
 
-            await this.trackingStore.SetNewExecutionAsync(
-                executionStartedEvent,
-                existingInstance?.ETag,
-                inputPayloadOverride);
+            this.trackingStore.MigrationStateLock.EnterReadLock();
+            try
+            {
+                if (this.trackingStore.IsMigrationActive)
+                {
+                    await this.modifiedInstancesQueue.AddInstanceAsync(creationMessage.OrchestrationInstance.InstanceId);
+                }
+
+                await this.trackingStore.SetNewExecutionAsync(
+                    executionStartedEvent,
+                    existingInstance?.ETag,
+                    inputPayloadOverride);
+            }
+            finally
+            {
+                this.trackingStore.MigrationStateLock.ExitReadLock();
+            }
         }
 
         /// <summary>
@@ -1964,7 +2061,23 @@ namespace DurableTask.AzureStorage
         /// <param name="reason">The reason for rewinding.</param>
         public async Task RewindTaskOrchestrationAsync(string instanceId, string reason)
         {
-            List<string> queueIds = await this.trackingStore.RewindHistoryAsync(instanceId).ToListAsync();
+            this.trackingStore.MigrationStateLock.EnterReadLock();
+            List<string> queueIds;
+
+            try
+            {
+                if (this.trackingStore.IsMigrationActive)
+                {
+                    await this.modifiedInstancesQueue.AddInstanceAsync(instanceId);
+                }
+
+                queueIds = await this.trackingStore.RewindHistoryAsync(instanceId).ToListAsync();
+            }
+            finally
+            {
+                this.trackingStore.MigrationStateLock.ExitReadLock();
+            }
+
 
             foreach (string id in queueIds)
             {
@@ -2013,9 +2126,22 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration.</param>
         /// <returns>Class containing number of storage requests sent, along with instances and rows deleted/purged</returns>
-        public Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(string instanceId)
+        public async Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(string instanceId)
         {
-            return this.trackingStore.PurgeInstanceHistoryAsync(instanceId);
+            this.trackingStore.MigrationStateLock.EnterReadLock();
+            try
+            {
+                if (this.trackingStore.IsMigrationActive)
+                {
+                    await this.modifiedInstancesQueue.AddInstanceAsync(instanceId);
+                }
+
+                return await this.trackingStore.PurgeInstanceHistoryAsync(instanceId);
+            }
+            finally
+            {
+                this.trackingStore.MigrationStateLock.ExitReadLock();
+            }
         }
 
         /// <summary>
@@ -2025,9 +2151,9 @@ namespace DurableTask.AzureStorage
         /// <param name="createdTimeTo">CreatedTime of orchestrations. Purges history less than this value.</param>
         /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several statuses.</param>
         /// <returns>Class containing number of storage requests sent, along with instances and rows deleted/purged</returns>
-        public Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        public async Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
         {
-            return this.trackingStore.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus);
+            return await this.trackingStore.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus, this.modifiedInstancesQueue);
         }
 
         /// <inheritdoc />
@@ -2050,6 +2176,7 @@ namespace DurableTask.AzureStorage
                     purgeInstanceFilter.CreatedTimeFrom,
                     purgeInstanceFilter.CreatedTimeTo,
                     purgeInstanceFilter.RuntimeStatus,
+                    this.modifiedInstancesQueue,
                     timeoutCts.Token);
             }
             else
@@ -2059,7 +2186,8 @@ namespace DurableTask.AzureStorage
                 storagePurgeHistoryResult = await this.trackingStore.PurgeInstanceHistoryAsync(
                     purgeInstanceFilter.CreatedTimeFrom,
                     purgeInstanceFilter.CreatedTimeTo,
-                    purgeInstanceFilter.RuntimeStatus);
+                    purgeInstanceFilter.RuntimeStatus,
+                    this.modifiedInstancesQueue);
             }
 
             return storagePurgeHistoryResult.ToCorePurgeHistoryResult();

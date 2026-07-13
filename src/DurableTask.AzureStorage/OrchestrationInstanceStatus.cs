@@ -35,6 +35,14 @@ namespace DurableTask.AzureStorage
         public DateTime? ScheduledStartTime { get; set; }
         public int Generation { get; set; }
         public string Tags { get; set; }
+
+        /// <summary>
+        /// Per-instance sequence number used to resolve races between bulk-migration and modified-instance
+        /// processing during a live migration. Null until the first write after migration starts, at which
+        /// point it becomes 1 and is incremented on every subsequent write (including purges).
+        /// </summary>
+        public long? SequenceNumber { get; set; }
+
         public string PartitionKey { get; set; }
         public string RowKey { get; set; }
         public DateTimeOffset? Timestamp { get; set; }
