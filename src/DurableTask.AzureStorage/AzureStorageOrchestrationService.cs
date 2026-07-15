@@ -22,8 +22,6 @@ namespace DurableTask.AzureStorage
     using System.Threading;
     using System.Threading.Tasks;
     using Azure;
-    using Azure.Data.Tables;
-    using Azure.Storage.Blobs.Models;
     using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
@@ -46,7 +44,8 @@ namespace DurableTask.AzureStorage
         IDisposable,
         IOrchestrationServiceQueryClient,
         IOrchestrationServicePurgeClient,
-        IEntityOrchestrationService
+        IEntityOrchestrationService,
+        IPoisonMessageHandler
     {
         static readonly HistoryEvent[] EmptyHistoryEventList = new HistoryEvent[0];
 
@@ -72,6 +71,9 @@ namespace DurableTask.AzureStorage
         readonly OrchestrationSessionManager orchestrationSessionManager;
         readonly IPartitionManager partitionManager;
         readonly object hubCreationLock;
+
+        readonly BlobContainer instancePoisonMessageContainer;
+        readonly BlobContainer activityPoisonMessageContainer;
 
         bool isStarted;
         Task statsLoop;
@@ -186,6 +188,16 @@ namespace DurableTask.AzureStorage
                 this.settings.TaskHubName.ToLowerInvariant() + "-applease",
                 this.settings.TaskHubName.ToLowerInvariant() + "-appleaseinfo",
                 this.settings.AppLeaseOptions);
+
+            if (this.settings.IsPoisonMessageStorageEnabled)
+            {
+                string prefix = string.IsNullOrEmpty(this.settings.PoisonMessageStorageContainerNamePrefix)
+                    ? "durable-task-poison"
+                    : this.settings.PoisonMessageStorageContainerNamePrefix;
+
+                this.instancePoisonMessageContainer = this.azureStorageClient.GetBlobContainerReference($"{prefix}-instance-messages");
+                this.activityPoisonMessageContainer = this.azureStorageClient.GetBlobContainerReference($"{prefix}-activity-messages");
+            }
         }
 
         internal string WorkerId => this.settings.WorkerId;
@@ -796,7 +808,11 @@ namespace DurableTask.AzureStorage
                     {
                         InstanceId = session.Instance.InstanceId,
                         LockedUntilUtc = session.CurrentMessageBatch.Min(msg => msg.OriginalQueueMessage.NextVisibleOn.Value.UtcDateTime),
-                        NewMessages = session.CurrentMessageBatch.Select(m => m.TaskMessage).ToList(),
+                        NewMessages = session.CurrentMessageBatch.Select(m =>
+                        {
+                            m.TaskMessage.Event.DispatchCount = (int)m.OriginalQueueMessage.DequeueCount;
+                            return m.TaskMessage;
+                        }).ToList(),
                         OrchestrationRuntimeState = session.RuntimeState,
                         Session = this.settings.ExtendedSessionsEnabled ? session : null,
                         TraceContext = currentRequestTraceContext,
@@ -1278,7 +1294,15 @@ namespace DurableTask.AzureStorage
                 throw;
             }
 
-            // Finally, delete the messages which triggered this orchestration execution. This is the final commit.
+            // Finally, store any poison messages and delete the messages which triggered this orchestration execution. This is the final commit.
+            if (this.settings.IsPoisonMessageStorageEnabled)
+            {
+                await this.StorePoisonMessagesAsync(
+                    runtimeState.OrchestrationInstance,
+                    workItem.NewMessages.Where(m => m.Event.DispatchCount > this.settings.MaxDispatchCount),
+                    this.instancePoisonMessageContainer);
+            }
+
             await this.DeleteMessageBatchAsync(session, session.CurrentMessageBatch);
         }
 
@@ -1585,6 +1609,8 @@ namespace DurableTask.AzureStorage
 
                 this.stats.ActiveActivityExecutions.Increment();
 
+                session.MessageData.TaskMessage.Event.DispatchCount = (int)message.OriginalQueueMessage.DequeueCount;
+
                 return new TaskActivityWorkItem
                 {
                     Id = message.Id,
@@ -1630,6 +1656,23 @@ namespace DurableTask.AzureStorage
                 });
 
             // Next, delete the work item queue message. This must come after enqueuing the response message.
+            // Before deleting, persist the message to poison storage if it has exceeded the maximum dispatch count.
+            if (this.settings.IsPoisonMessageStorageEnabled
+                && workItem.TaskMessage.Event.DispatchCount > this.settings.MaxDispatchCount)
+            {
+                string activityName = workItem.TaskMessage.Event is TaskScheduledEvent scheduledEvent
+                    ? scheduledEvent.Name ?? string.Empty
+                    : string.Empty;
+
+                // We must wait for this to finish before deleting the message so that the poison message is persisted
+                // in storage before the message that triggered it is removed from the queue.
+                await this.StorePoisonMessagesAsync(
+                    workItem.TaskMessage.OrchestrationInstance,
+                    new[] { workItem.TaskMessage },
+                    this.activityPoisonMessageContainer,
+                    blobNamePrefix: $"{activityName}~");
+            }
+
             await this.workItemQueue.DeleteMessageAsync(session.MessageData, session);
 
             if (this.activeActivitySessions.TryRemove(workItem.Id, out _))
@@ -2229,6 +2272,408 @@ namespace DurableTask.AzureStorage
 
             return new OrchestrationQueryResult(results, statusContext.ContinuationToken);
         }
+
+        #region Poison message handling
+
+        /// <inheritdoc />
+        int IPoisonMessageHandler.MaxDispatchCount =>
+            this.settings.IsPoisonMessageStorageEnabled ? this.settings.MaxDispatchCount : int.MaxValue;
+
+        /// <inheritdoc />
+        async Task<bool> IPoisonMessageHandler.HandlePoisonEntityMessageAsync(
+            OrchestrationInstance? entityInstance,
+            HistoryEvent historyEvent,
+            PoisonMessageReason reason,
+            string details)
+        {
+            if (!this.settings.IsPoisonMessageStorageEnabled || 
+                !await this.StorePoisonMessagesAsync(
+                entityInstance,
+                new[] { new TaskMessage { OrchestrationInstance = entityInstance, Event = historyEvent } },
+                this.instancePoisonMessageContainer))
+            {
+                return false;
+            }
+
+            if (historyEvent is EventRaisedEvent eventRaisedEvent)
+            {
+                // For a self-continue or lock release message that we were able to deserialize (i.e. it is poisoned because it
+                // exceeded the maximum dispatch count), we don't want to leave the entity stuck, so we return false
+                // to allow the dispatcher to continue processing 
+                if (reason == PoisonMessageReason.DispatchCount)
+                {
+                    return false;
+                }
+                // This is an entity request message, either a call, lock, or signal.
+                // For the first two cases we want to try and return a failure to the calling orchestration if possible.
+                else if (eventRaisedEvent.Name == "op")
+                {
+                    EntityMessageEvent? failureResponse = ClientEntityHelpers.TryCreateEntityOperationFailedResponse(
+                        eventRaisedEvent.Input,
+                        "EntityRequestMessageDeserializationError",
+                        details);
+
+                    await this.TrySendEntityMessageAsync(entityInstance, failureResponse);
+                }
+                // This is a lock release message we were not able to deserialize. To avoid leaving the entity locked forever,
+                // we will attempt a more lenient deserialization to see if we can extract the locking parent instance ID, and
+                // send the unlock message to the entity again
+                else if (eventRaisedEvent.Name == "release")
+                {
+                    string? parentInstanceId = null;
+                    EntityMessageEvent? unlockEvent = entityInstance != null
+                        ? ClientEntityHelpers.TryRecreateEntityUnlock(eventRaisedEvent.Input, entityInstance, out parentInstanceId)
+                        : null;
+
+                    await this.TrySendEntityMessageAsync(new OrchestrationInstance { InstanceId = parentInstanceId }, unlockEvent);
+                }
+
+            }
+            else
+            {
+                // The only type of poison message we could ever receive via this API should be an EventRaisedEvent
+                this.settings.Logger.GeneralError(
+                    this.azureStorageClient.QueueAccountName,
+                    this.settings.TaskHubName,
+                    $"Received unexpected poison message with event type {historyEvent.EventType}. " +
+                    $"Only entity messages of type {EventType.EventRaised} are expected to be received.");
+            }
+
+            return true;
+        }
+
+        async Task TrySendEntityMessageAsync(OrchestrationInstance? sourceInstance, EntityMessageEvent? messageEvent)
+        {
+            if (messageEvent == null)
+            {
+                return;
+            }
+
+            try
+            {
+                EntityMessageEvent eventToSend = messageEvent.Value;
+                string targetInstanceId = eventToSend.TargetInstance.InstanceId;
+                ControlQueue? targetControlQueue = await this.GetControlQueueAsync(targetInstanceId);
+                if (targetControlQueue != null)
+                {
+                    await targetControlQueue.AddMessageAsync(
+                        eventToSend.AsTaskMessage(),
+                        sourceInstance ?? EmptySourceInstance);
+                }
+            }
+            catch (Exception e)
+            {
+                this.settings.Logger.GeneralError(
+                    this.azureStorageClient.QueueAccountName,
+                    this.settings.TaskHubName,
+                    $"Failed to send entity message during poison entity message handling for instance " +
+                    $"InstanceId={sourceInstance?.InstanceId ?? string.Empty}. Error: {e}");
+            }
+        }
+
+        /// <inheritdoc />
+        async Task<bool> IPoisonMessageHandler.HandleInvalidWorkItemAsync(TaskOrchestrationWorkItem workItem, PoisonMessageReason reason, string details, bool isEntity)
+        {
+            if (!this.settings.IsPoisonMessageStorageEnabled)
+            {
+                return false;
+            }
+
+            OrchestrationInstance? orchestrationInstance = workItem.OrchestrationRuntimeState?.OrchestrationInstance;
+
+            if (!await this.StorePoisonMessagesAsync(orchestrationInstance, workItem.NewMessages, this.instancePoisonMessageContainer))
+            {
+                return false;
+            }
+
+            // There must have been a deserialization error with the ExecutionStartedEvent, or the work item is somehow
+            // otherwise invalid (i.e. missing an ExecutionStartedEvent).
+            // We make a best effort attempt to send a failure response for any entity calls included in the work item,
+            // but do not complete the work item since that would cause deletion of the other entity messages included in it and we
+            // have no real way to mark an entity as "failed".
+            // These messages will presumably continue to be retried since there is no completion to delete them, so all subsequent
+            // attempts will land in poison storage as well.
+            if (isEntity)
+            {
+                foreach (TaskMessage message in workItem.NewMessages)
+                {
+                    if (message.Event is EventRaisedEvent eventRaisedEvent
+                        && eventRaisedEvent.Name != null
+                        && eventRaisedEvent.Name.StartsWith("op", StringComparison.Ordinal))
+                    {
+                        EntityMessageEvent? failureResponse = ClientEntityHelpers.TryCreateEntityOperationFailedResponse(
+                            eventRaisedEvent.Input,
+                            "SchedulerStateDeserializationError",
+                            details);
+
+                        await this.TrySendEntityMessageAsync(orchestrationInstance, failureResponse);
+                    }
+                }
+            }
+            else
+            {
+                // If this was related to rewind, then presumably the orchestration is already in a terminal state so
+                // there is not much we can do. We just store the messages in poison storage.
+                // They will probably continue to be retried since there is no completion to delete them, so all subsequent
+                // attempts will land in poison storage as well.
+                if (!details.Contains("rewind"))
+                {
+                    if (await this.TryCompleteInvalidWorkItemAsync(workItem, details))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            // We have no sensible way to complete the work item, or there was an error when attempting to do so, so we
+            // just abandon it. The messages have already been stored in poison storage.
+            try
+            {
+                await this.AbandonTaskOrchestrationWorkItemAsync(workItem);
+            }
+            catch (Exception ex)
+            {
+                this.settings.Logger.GeneralError(
+                    this.azureStorageClient.QueueAccountName,
+                    this.settings.TaskHubName,
+                    $"Failed to abandon invalid instance work item. " +
+                    $"InstanceId={workItem?.InstanceId ?? string.Empty}. " +
+                    $"ExecutionId={orchestrationInstance?.ExecutionId ?? string.Empty}. " +
+                    $"Error: {ex}");
+            }
+
+            return true;
+        }
+
+        async Task<bool> TryCompleteInvalidWorkItemAsync(TaskOrchestrationWorkItem workItem, string reason)
+        {
+            try
+            {
+                if (!this.orchestrationSessionManager.TryGetExistingSession(workItem.InstanceId, out OrchestrationSession session))
+                {
+                    return false;
+                }
+
+                session.StartNewLogicalTraceScope();
+
+                // Best effort: fail the orchestration by appending a failed ExecutionCompleted event to its history
+                // and updating the instance metadata to a Failed terminal status.
+                OrchestrationRuntimeState runtimeState = session.RuntimeState;
+                string instanceId = workItem.InstanceId;
+                string? executionId = runtimeState.OrchestrationInstance?.ExecutionId ?? session.Instance?.ExecutionId;
+
+                if (executionId != null)
+                {
+                    var failureDetails = new FailureDetails(
+                        errorType: "OrchestrationHistoryCorrupted",
+                        errorMessage: reason,
+                        stackTrace: null,
+                        innerFailure: null,
+                        isNonRetriable: true);
+
+                    runtimeState.AddEvent(new ExecutionCompletedEvent(
+                        eventId: -1,
+                        result: null,
+                        orchestrationStatus: OrchestrationStatus.Failed,
+                        failureDetails: failureDetails)
+                    {
+                        Timestamp = DateTime.UtcNow,
+                    });
+
+                    // Commit the updated history and instance table metadata (RuntimeStatus = Failed).
+                    await this.trackingStore.UpdateStateAsync(
+                        workItem.OrchestrationRuntimeState,
+                        workItem.OrchestrationRuntimeState,
+                        instanceId,
+                        executionId,
+                        session.ETags,
+                        session.TrackingStoreContext);
+
+                    session.UpdateRuntimeState(runtimeState);
+                }
+
+                // Delete the messages that triggered this invalid work item so they are not retried forever.
+                await this.DeleteMessageBatchAsync(session, session.CurrentMessageBatch);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                this.settings.Logger.GeneralError(
+                    this.azureStorageClient.QueueAccountName,
+                    this.settings.TaskHubName,
+                    $"Failed to complete invalid work item. InstanceId={workItem.InstanceId}. Error: {ex}");
+                return false;
+            }
+        }
+
+
+        /// <inheritdoc />
+        async Task<bool> IPoisonMessageHandler.HandleInvalidWorkItemAsync(TaskActivityWorkItem workItem, PoisonMessageReason reason, string details)
+        {
+            if (!this.settings.IsPoisonMessageStorageEnabled)
+            {
+                return false;
+            }
+
+            TaskMessage taskMessage = workItem.TaskMessage;
+            string activityName = taskMessage.Event is TaskScheduledEvent scheduledEvent
+                ? scheduledEvent.Name ?? string.Empty
+                : string.Empty;
+
+            if (!await this.StorePoisonMessagesAsync(
+                taskMessage.OrchestrationInstance,
+                new[] { taskMessage },
+                this.activityPoisonMessageContainer,
+                $"{activityName}~"))
+            {
+                return false;
+            }
+
+            // If missing an activity name, the dispatcher will fail the corresponding orchestration so we do not want to abandon the
+            // activity work item here
+            if (reason != PoisonMessageReason.MissingActivityName)
+            {
+                try
+                {
+                    await this.AbandonTaskActivityWorkItemAsync(workItem);
+                }
+                catch (Exception ex)
+                {
+                    this.settings.Logger.GeneralError(
+                        this.azureStorageClient.QueueAccountName,
+                        this.settings.TaskHubName,
+                        $"Failed to abandon invalid activity work item. " +
+                        $"InstanceId={taskMessage.OrchestrationInstance?.InstanceId ?? string.Empty} " +
+                        $"ExecutionId={taskMessage.OrchestrationInstance?.ExecutionId ?? string.Empty}. " +
+                        $"Error: {ex}");
+                }
+            }
+
+            return true;
+        }
+
+        async Task<bool> StorePoisonMessagesAsync(
+            OrchestrationInstance? orchestrationInstance,
+            IEnumerable<TaskMessage> poisonMessages,
+            BlobContainer container,
+            string blobNamePrefix = "")
+        {
+            if (poisonMessages.Count() > 0)
+            {
+                try
+                {
+                    // Replace any invalid characters with a dash
+                    string sanitizedInstanceId = SanitizeString(orchestrationInstance?.InstanceId, '-');
+                    blobNamePrefix += $"{sanitizedInstanceId}~{orchestrationInstance?.ExecutionId ?? string.Empty}";
+
+                    // Blob name length limit is 1024 characters and we attach an extra character (~) and GUID (32) at the end
+                    // From https://learn.microsoft.com/en-us/rest/api/storageservices/naming-and-referencing-containers--blobs--and-metadata?#blob-names
+                    const int MaxPrefixLength = 1024 - 32 - 1;
+                    if (blobNamePrefix.Length > MaxPrefixLength)
+                    {
+                        blobNamePrefix = blobNamePrefix.Substring(0, MaxPrefixLength);
+                    }
+                    string blobName = $"{blobNamePrefix}~{Guid.NewGuid():N}";
+
+                    await container.CreateIfNotExistsAsync();
+
+                    string serializedPoisonMessages = JsonConvert.SerializeObject(
+                        poisonMessages,
+                        new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto });
+
+                    Blob blob = container.GetBlobReference(blobName);
+                    await blob.UploadTextAsync(serializedPoisonMessages);
+
+                    this.settings.Logger.GeneralWarning(
+                        this.azureStorageClient.BlobAccountName,
+                        this.settings.TaskHubName,
+                        $"Stored {poisonMessages.Count()} poison message(s) for instance InstanceId='{orchestrationInstance?.InstanceId ?? string.Empty}' " +
+                        $"ExecutionId='{orchestrationInstance?.ExecutionId ?? string.Empty}' in blob '{blobName}'.");
+                }
+                catch (Exception e)
+                {
+                    this.settings.Logger.GeneralError(
+                        this.azureStorageClient.BlobAccountName,
+                        this.settings.TaskHubName,
+                       $"Error when attempting to store poison messages for instance " +
+                                   $"InstanceId={orchestrationInstance?.InstanceId ?? string.Empty} " +
+                                   $"ExecutionId={orchestrationInstance?.ExecutionId ?? string.Empty} " +
+                                   $"Error: {e}");
+
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        static string SanitizeString(string? input, char replacement)
+        {
+            if (input == null)
+            {
+                return string.Empty;
+            }
+
+            // From https://learn.microsoft.com/en-us/rest/api/storageservices/naming-and-referencing-containers--blobs--and-metadata?#unicode-characters-not-recommended-for-use-in-container-or-blob-names
+            static bool IsInvalidCodePoint(int scalar)
+            {
+                if (scalar == 0x0080 ||
+                    (scalar >= 0x0082 && scalar <= 0x008C) ||
+                    scalar == 0x008E ||
+                    (scalar >= 0x0091 && scalar <= 0x009C) ||
+                    (scalar >= 0x009E && scalar <= 0x009F) ||
+                    (scalar >= 0xFDD1 && scalar <= 0xFDDC) ||
+                    (scalar >= 0xFDDE && scalar <= 0xFDEF) ||
+                    (scalar >= 0xFFF0 && scalar <= 0xFFFF))
+                {
+                    return true;
+                }
+
+                return scalar == 0x1FFFE || scalar == 0x1FFFF ||
+                        scalar == 0x2FFFE || scalar == 0x2FFFF ||
+                        scalar == 0x3FFFE || scalar == 0x3FFFF ||
+                        scalar == 0x5FFFE || scalar == 0x5FFFF ||
+                        scalar == 0x6FFFE || scalar == 0x6FFFF ||
+                        scalar == 0x7FFFE || scalar == 0x7FFFF ||
+                        scalar == 0x9FFFE || scalar == 0x9FFFF ||
+                        scalar == 0xAFFFE || scalar == 0xAFFFF ||
+                        scalar == 0xBFFFE || scalar == 0xBFFFF ||
+                        scalar == 0xDFFFE || scalar == 0xDFFFF ||
+                        scalar == 0xEFFFE || scalar == 0xEFFFF ||
+                        scalar == 0xFFFFE || scalar == 0xFFFFF;
+            }
+
+            var sb = new StringBuilder(input.Length);
+
+            for (int i = 0; i < input.Length; i++)
+            {
+                char c = input[i];
+                int scalar;
+
+                // Since the .NET version is too low to iterate the runes, we manually detect and combine surrogate pairs here
+                if (char.IsHighSurrogate(c) && i + 1 < input.Length && char.IsLowSurrogate(input[i + 1]))
+                {
+                    scalar = char.ConvertToUtf32(c, input[i + 1]);
+                    i++;
+                }
+                else
+                {
+                    scalar = c;
+                }
+
+                if (IsInvalidCodePoint(scalar))
+                {
+                    sb.Append(replacement);
+                }
+                else
+                {
+                    sb.Append(char.ConvertFromUtf32(scalar));
+                }
+            }
+
+            return sb.ToString();
+        }
+
+        #endregion
 
         class PendingMessageBatch
         {

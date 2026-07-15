@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage
 {
     using System;
+    using System.Collections.Generic;
     using System.Runtime.Serialization;
     using Azure.Data.Tables;
     using DurableTask.AzureStorage.Logging;
@@ -294,6 +295,33 @@ namespace DurableTask.AzureStorage
         /// The default is <see cref="QueueClientMessageEncoding.UTF8"/>.
         /// </summary>
         public QueueClientMessageEncoding QueueClientMessageEncoding { get; set; } = QueueClientMessageEncoding.UTF8;
+
+        /// <summary>
+        /// Gets or sets a flag whether poison storage is enabled.
+        /// </summary>
+        /// <remarks>
+        /// <para>If enabled, orchestration, entity, and activity messages that have been dispatched for processing
+        /// more than <see cref="MaxDispatchCount"/> times will be "failed" and moved to the poison storage.
+        /// </para>
+        /// </remarks>
+        public bool IsPoisonMessageStorageEnabled { get; set; } = false;
+
+        /// <summary>
+        /// Gets or sets the amount of times a message is dispatched for processing before it is considered "poisoned"
+        /// and moved to the poison storage. The default value is 5.
+        /// </summary>
+        /// <remarks>
+        /// This setting is applicable when <see cref="IsPoisonMessageStorageEnabled"/> is set to <c>true</c>.
+        /// </remarks>
+        public int MaxDispatchCount { get; set; } = 5;
+
+        /// <summary>
+        /// Gets or sets the Azure Blob Storage container name prefix to use for poison message storage.
+        /// Two containers will be created with this prefix in the format "{prefix}-instance-messages" (used for both
+        /// orchestration and entity messages) and "{prefix}-activity-messages".
+        /// If not specified, the default value "durable-task-poison" will be used.
+        /// </summary>
+        public string? PoisonMessageStorageContainerNamePrefix { get; set; } = "durable-task-poison";
 
         /// <summary>
         /// When true, an etag is used when attempting to make instance table updates upon completing an orchestration work item.
