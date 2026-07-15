@@ -2410,19 +2410,14 @@ namespace DurableTask.AzureStorage
                     }
                 }
             }
-            else
+            // If this was related to rewind, then presumably the orchestration is already in a terminal state so
+            // there is not much we can do. We just store the messages in poison storage.
+            // They will probably continue to be retried since there is no completion to delete them, so all subsequent
+            // attempts will land in poison storage as well.
+            else if (reason != PoisonMessageReason.InvalidRewindRequest
+                && await this.TryCompleteInvalidWorkItemAsync(workItem, details))
             {
-                // If this was related to rewind, then presumably the orchestration is already in a terminal state so
-                // there is not much we can do. We just store the messages in poison storage.
-                // They will probably continue to be retried since there is no completion to delete them, so all subsequent
-                // attempts will land in poison storage as well.
-                if (!details.Contains("rewind"))
-                {
-                    if (await this.TryCompleteInvalidWorkItemAsync(workItem, details))
-                    {
-                        return true;
-                    }
-                }
+                return true;
             }
 
             // We have no sensible way to complete the work item, or there was an error when attempting to do so, so we
