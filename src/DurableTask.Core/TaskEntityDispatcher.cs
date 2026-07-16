@@ -1184,12 +1184,17 @@ namespace DurableTask.Core
                 var resultAfterPoisonMessageHandling = new List<OperationResult>(result.Results.Count);
                 int middlewareResultIndex = 0;
 
-                // We end iteration once we reach the end of the middleware results, any remaining operations
-                // (including potential poison messages) will be deferred
-                for (int i = 0; i < operations.Count && middlewareResultIndex < result.Results.Count; i++)
+                for (int i = 0; i < operations.Count; i++)
                 {
                     if (workToDoNow.Operations[i].DispatchCount <= this.poisonMessageHandler.MaxDispatchCount)
                     {
+                        // This was a non-poison message that was meant to be executed by the middleware but we have reached
+                        // the end of the middleware results. We end the loop at this point, and any remaining operations
+                        // (including potential poison messages) will be deferred
+                        if (middlewareResultIndex == result.Results.Count)
+                        {
+                            break;
+                        }
                         resultAfterPoisonMessageHandling.Add(result.Results[middlewareResultIndex++]);
                     }
                     else
