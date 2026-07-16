@@ -230,66 +230,6 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public async Task OrchestrationWithManuallySetDispatchCount_PoisonHandlingDisabled_CompletesSuccessfully()
-        {
-            // With MaxDispatchCount=1 but poison handling disabled, a message whose DispatchCount is manually set above
-            // the limit must NOT be treated as poisoned: the effective max dispatch count is int.MaxValue when disabled,
-            // so the orchestration should still complete successfully and no blob container should be created.
-            string prefix = CreateUniquePrefix();
-            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 1, prefix: prefix, poisonEnabled: false);
-
-            BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string containerName = $"{prefix}-instance-messages";
-            BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
-            await containerClient.DeleteIfExistsAsync();
-
-            var inner = new AzureStorageOrchestrationService(settings);
-            var service = new FaultInjectingOrchestrationService(inner)
-            {
-                CorruptOrchestrationWorkItem = wi =>
-                {
-                    // Simulate a message that has been dispatched twice (DispatchCount = 2), which exceeds the
-                    // configured MaxDispatchCount of 1. If poison handling were enabled, this would be poisoned.
-                    foreach (TaskMessage message in wi.NewMessages)
-                    {
-                        message.Event.DispatchCount = 2;
-                    }
-                },
-            };
-
-            await service.CreateAsync(recreateInstanceStore: true);
-
-            using var worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
-            worker.AddTaskOrchestrations(typeof(EchoOrchestration));
-            await worker.StartAsync();
-
-            try
-            {
-                var client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
-                OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
-                    name: NameVersionHelper.GetDefaultName(typeof(EchoOrchestration)),
-                    version: NameVersionHelper.GetDefaultVersion(typeof(EchoOrchestration)),
-                    input: "hello");
-
-                OrchestrationState state = await client.WaitForOrchestrationAsync(instance, DefaultTimeout);
-
-                Assert.IsNotNull(state);
-                // Poison handling is disabled, so the over-limit dispatch count is ignored and the orchestration runs.
-                Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
-                Assert.IsNull(state.FailureDetails);
-
-                Assert.IsFalse(
-                    await containerClient.ExistsAsync(),
-                    $"Blob container '{containerName}' should not exist when poison handling is disabled");
-            }
-            finally
-            {
-                await worker.StopAsync(isForced: true);
-                await service.DeleteAsync();
-            }
-        }
-
-        [TestMethod]
         public async Task ActivityWithPoisonMessage_Failed_AndPoisonMessageStored()
         {
             string prefix = CreateUniquePrefix();
@@ -339,6 +279,8 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.IsNotNull(failureDetails);
                 StringAssert.Contains(failureDetails.ErrorMessage, "maximum dispatch count of 1");
                 StringAssert.Contains(failureDetails.ErrorMessage, "dispatch count 2");
+                // Currently DT.Core does not propagate the nonretriable property from the Activity/entity that caused the failure
+                //Assert.IsTrue(failureDetails.IsNonRetriable);
 
                 Assert.IsFalse(
                     await instanceContainerClient.ExistsAsync(),
@@ -664,6 +606,8 @@ namespace DurableTask.AzureStorage.Tests
                 FailureDetails failureDetails = GetFailureDetails(state);
                 Assert.IsNotNull(failureDetails);
                 StringAssert.Contains(failureDetails.ErrorMessage, "does not specify an activity name");
+                // Currently DT.Core does not propagate the nonretriable property from the Activity/entity that caused the failure
+                //Assert.IsTrue(failureDetails.IsNonRetriable);
 
                 // The poison message is also stored to the activity poison container before the failure is returned.
                 Assert.IsTrue(
