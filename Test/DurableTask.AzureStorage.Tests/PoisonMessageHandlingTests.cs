@@ -96,7 +96,8 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.IsNotNull(failureDetails);
                 Assert.AreEqual("PoisonMessages", failureDetails.ErrorType);
                 StringAssert.Contains(failureDetails.ErrorMessage, EventType.ExecutionStarted.ToString());
-                StringAssert.Contains(failureDetails.ErrorMessage, "maximum dispatch count");
+                StringAssert.Contains(failureDetails.ErrorMessage, "maximum dispatch count of 1");
+                StringAssert.Contains(failureDetails.ErrorMessage, "dispatch counts 2");
                 Assert.IsTrue(failureDetails.IsNonRetriable);
 
                 Assert.IsTrue(await containerClient.ExistsAsync(), $"Blob container '{containerName}' should exist");
@@ -173,6 +174,117 @@ namespace DurableTask.AzureStorage.Tests
             {
                 await worker.StopAsync(isForced: true);
                 await containerClient.DeleteIfExistsAsync();
+                await service.DeleteAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task OrchestrationWithDispatchExceedingMax_PoisonHandlingDisabled_CompletesSuccessfully_NoBlob()
+        {
+            // Even with MaxDispatchCount=1 and an injected transient failure that pushes DispatchCount above the limit,
+            // when poison handling is disabled the message must NOT be treated as poisoned, the orchestration must NOT
+            // fail, and no blob container should be created.
+            string prefix = CreateUniquePrefix();
+            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 1, prefix: prefix, poisonEnabled: false);
+
+            BlobServiceClient blobServiceClient = CreateBlobServiceClient();
+            string containerName = $"{prefix}-instance-messages";
+            BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
+            await containerClient.DeleteIfExistsAsync();
+
+            var inner = new AzureStorageOrchestrationService(settings);
+            var service = new FaultInjectingOrchestrationService(inner)
+            {
+                OrchestrationCompletionFailuresRemaining = 1,
+            };
+
+            await service.CreateAsync(recreateInstanceStore: true);
+
+            using var worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
+            worker.AddTaskOrchestrations(typeof(EchoOrchestration));
+            await worker.StartAsync();
+
+            try
+            {
+                var client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
+                OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
+                    name: NameVersionHelper.GetDefaultName(typeof(EchoOrchestration)),
+                    version: NameVersionHelper.GetDefaultVersion(typeof(EchoOrchestration)),
+                    input: "hello");
+
+                OrchestrationState state = await client.WaitForOrchestrationAsync(instance, DefaultTimeout);
+
+                Assert.IsNotNull(state);
+                Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+                Assert.IsNull(state.FailureDetails);
+
+                Assert.IsFalse(
+                    await containerClient.ExistsAsync(),
+                    $"Blob container '{containerName}' should not exist when poison handling is disabled");
+            }
+            finally
+            {
+                await worker.StopAsync(isForced: true);
+                await service.DeleteAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task OrchestrationWithManuallySetDispatchCount_PoisonHandlingDisabled_CompletesSuccessfully()
+        {
+            // With MaxDispatchCount=1 but poison handling disabled, a message whose DispatchCount is manually set above
+            // the limit must NOT be treated as poisoned: the effective max dispatch count is int.MaxValue when disabled,
+            // so the orchestration should still complete successfully and no blob container should be created.
+            string prefix = CreateUniquePrefix();
+            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 1, prefix: prefix, poisonEnabled: false);
+
+            BlobServiceClient blobServiceClient = CreateBlobServiceClient();
+            string containerName = $"{prefix}-instance-messages";
+            BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
+            await containerClient.DeleteIfExistsAsync();
+
+            var inner = new AzureStorageOrchestrationService(settings);
+            var service = new FaultInjectingOrchestrationService(inner)
+            {
+                CorruptOrchestrationWorkItem = wi =>
+                {
+                    // Simulate a message that has been dispatched twice (DispatchCount = 2), which exceeds the
+                    // configured MaxDispatchCount of 1. If poison handling were enabled, this would be poisoned.
+                    foreach (TaskMessage message in wi.NewMessages)
+                    {
+                        message.Event.DispatchCount = 2;
+                    }
+                },
+            };
+
+            await service.CreateAsync(recreateInstanceStore: true);
+
+            using var worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
+            worker.AddTaskOrchestrations(typeof(EchoOrchestration));
+            await worker.StartAsync();
+
+            try
+            {
+                var client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
+                OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
+                    name: NameVersionHelper.GetDefaultName(typeof(EchoOrchestration)),
+                    version: NameVersionHelper.GetDefaultVersion(typeof(EchoOrchestration)),
+                    input: "hello");
+
+                OrchestrationState state = await client.WaitForOrchestrationAsync(instance, DefaultTimeout);
+
+                Assert.IsNotNull(state);
+                // Poison handling is disabled, so the over-limit dispatch count is ignored and the orchestration runs.
+                Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+                Assert.IsNull(state.FailureDetails);
+
+                Assert.IsFalse(
+                    await containerClient.ExistsAsync(),
+                    $"Blob container '{containerName}' should not exist when poison handling is disabled");
+            }
+            finally
+            {
+                await worker.StopAsync(isForced: true);
                 await service.DeleteAsync();
             }
         }
@@ -306,6 +418,55 @@ namespace DurableTask.AzureStorage.Tests
             {
                 await worker.StopAsync(isForced: true);
                 await activityContainerClient.DeleteIfExistsAsync();
+                await service.DeleteAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task ActivityWithDispatchExceedingMax_PoisonHandlingDisabled_CompletesSuccessfully_NoBlob()
+        {
+            string prefix = CreateUniquePrefix();
+            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 1, prefix: prefix, poisonEnabled: false);
+
+            BlobServiceClient blobServiceClient = CreateBlobServiceClient();
+            string activityContainerName = $"{prefix}-activity-messages";
+            BlobContainerClient activityContainerClient = blobServiceClient.GetBlobContainerClient(activityContainerName);
+            await activityContainerClient.DeleteIfExistsAsync();
+
+            var inner = new AzureStorageOrchestrationService(settings);
+            var service = new FaultInjectingOrchestrationService(inner)
+            {
+                ActivityCompletionFailuresRemaining = 1,
+            };
+
+            await service.CreateAsync(recreateInstanceStore: true);
+
+            using var worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
+            worker.AddTaskOrchestrations(typeof(ScheduleActivityOrchestration));
+            worker.AddTaskActivities(typeof(EchoActivity));
+            await worker.StartAsync();
+
+            try
+            {
+                var client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
+                OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
+                    name: NameVersionHelper.GetDefaultName(typeof(ScheduleActivityOrchestration)),
+                    version: NameVersionHelper.GetDefaultVersion(typeof(ScheduleActivityOrchestration)),
+                    input: "hello");
+
+                OrchestrationState state = await client.WaitForOrchestrationAsync(instance, DefaultTimeout);
+
+                Assert.IsNotNull(state);
+                Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+                Assert.IsNull(state.FailureDetails);
+
+                Assert.IsFalse(
+                    await activityContainerClient.ExistsAsync(),
+                    $"Blob container '{activityContainerName}' should not exist when poison handling is disabled");
+            }
+            finally
+            {
+                await worker.StopAsync(isForced: true);
                 await service.DeleteAsync();
             }
         }
@@ -593,6 +754,7 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.IsNotNull(failureDetails);
                 Assert.AreEqual("OrchestrationHistoryCorrupted", failureDetails.ErrorType);
                 Assert.IsTrue(failureDetails.IsNonRetriable);
+                StringAssert.Contains(failureDetails.ErrorMessage, "no orchestration instance ID");
 
                 Assert.IsTrue(await containerClient.ExistsAsync(), $"Blob container '{containerName}' should exist");
 
@@ -691,6 +853,7 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.IsNotNull(failureDetails);
                 Assert.AreEqual("OrchestrationHistoryCorrupted", failureDetails.ErrorType);
                 Assert.IsTrue(failureDetails.IsNonRetriable);
+                StringAssert.Contains(failureDetails.ErrorMessage, $"contains no {EventType.ExecutionStarted} event in its history and did not receive one as part of its new messages");
 
                 Assert.IsTrue(await containerClient.ExistsAsync(), $"Blob container '{containerName}' should exist");
 
@@ -702,6 +865,81 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(2, poisonMessages.Count);
                 Assert.IsTrue(poisonMessages.Any(m => m.Event is EventRaisedEvent raised && raised.Name == "fakeEvent"));
                 Assert.IsTrue(poisonMessages.Any(m => m.Event is EventRaisedEvent raised && raised.Name == "extraMarker"));
+            }
+            finally
+            {
+                await worker.StopAsync(isForced: true);
+                await containerClient.DeleteIfExistsAsync();
+                await service.DeleteAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task OrchestrationWithInvalidWorkItem_InvalidRuntimeState_FailedAndPoisonMessagesStored()
+        {
+            string prefix = CreateUniquePrefix();
+            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 5, prefix: prefix);
+
+            BlobServiceClient blobServiceClient = CreateBlobServiceClient();
+            string containerName = $"{prefix}-instance-messages";
+            BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
+            await containerClient.DeleteIfExistsAsync();
+
+            var inner = new AzureStorageOrchestrationService(settings);
+
+            int corruptionCount = 0;
+            var service = new FaultInjectingOrchestrationService(inner)
+            {
+                CorruptOrchestrationWorkItem = wi =>
+                {
+                    if (Interlocked.Increment(ref corruptionCount) == 1 && wi.NewMessages.Count > 0)
+                    {
+                        // Add a single EventRaisedEvent (neither an ExecutionStarted nor an OrchestratorStarted event)
+                        // to the existing runtime state's history so OrchestrationRuntimeState.IsValid becomes false.
+                        // We mutate the existing runtime state in place (rather than replacing it) so the work item and
+                        // the session share the same runtime-state reference, which the completion path relies on.
+                        // ReconcileMessagesWithState then returns false with an "Orchestration runtime state is
+                        // invalid..." reason and fails the orchestration with OrchestrationHistoryCorrupted. New
+                        // messages are left untouched so they are persisted as poison.
+                        wi.OrchestrationRuntimeState.AddEvent(new EventRaisedEvent(-1, "fake input") { Name = "fakeEvent" });
+                    }
+                },
+            };
+
+            await service.CreateAsync(recreateInstanceStore: true);
+
+            using var worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
+            worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
+            worker.AddTaskOrchestrations(typeof(EchoOrchestration));
+            await worker.StartAsync();
+
+            try
+            {
+                var client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
+                OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
+                    name: NameVersionHelper.GetDefaultName(typeof(EchoOrchestration)),
+                    version: NameVersionHelper.GetDefaultVersion(typeof(EchoOrchestration)),
+                    input: "hello");
+
+                OrchestrationState state = await client.WaitForOrchestrationAsync(instance, DefaultTimeout);
+
+                Assert.IsNotNull(state);
+                Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
+                FailureDetails failureDetails = GetFailureDetails(state);
+                Assert.IsNotNull(failureDetails);
+                Assert.AreEqual("OrchestrationHistoryCorrupted", failureDetails.ErrorType);
+                Assert.IsTrue(failureDetails.IsNonRetriable);
+                StringAssert.Contains(failureDetails.ErrorMessage, "history contains multiple events but no ExecutionStarted event");
+
+                Assert.IsTrue(await containerClient.ExistsAsync(), $"Blob container '{containerName}' should exist");
+
+                List<BlobItem> blobs = await ListBlobsAsync(containerClient);
+                Assert.AreEqual(1, blobs.Count);
+
+                List<TaskMessage> poisonMessages = await DownloadPoisonMessagesAsync(containerClient, blobs[0].Name);
+                // The untouched new messages (the original ExecutionStarted message) must be persisted as poison.
+                Assert.AreEqual(1, poisonMessages.Count);
+                Assert.IsInstanceOfType(poisonMessages[0].Event, typeof(ExecutionStartedEvent));
             }
             finally
             {
@@ -804,106 +1042,6 @@ namespace DurableTask.AzureStorage.Tests
             {
                 await worker.StopAsync(isForced: true);
                 await containerClient.DeleteIfExistsAsync();
-                await service.DeleteAsync();
-            }
-        }
-
-        [TestMethod]
-        public async Task OrchestrationWithDispatchExceedingMax_PoisonHandlingDisabled_CompletesSuccessfully_NoBlob()
-        {
-            // Even with MaxDispatchCount=1 and an injected transient failure that pushes DispatchCount above the limit,
-            // when poison handling is disabled the message must NOT be treated as poisoned, the orchestration must NOT
-            // fail, and no blob container should be created.
-            string prefix = CreateUniquePrefix();
-            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 1, prefix: prefix, poisonEnabled: false);
-
-            BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string containerName = $"{prefix}-instance-messages";
-            BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
-            await containerClient.DeleteIfExistsAsync();
-
-            var inner = new AzureStorageOrchestrationService(settings);
-            var service = new FaultInjectingOrchestrationService(inner)
-            {
-                OrchestrationCompletionFailuresRemaining = 1,
-            };
-
-            await service.CreateAsync(recreateInstanceStore: true);
-
-            using var worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
-            worker.AddTaskOrchestrations(typeof(EchoOrchestration));
-            await worker.StartAsync();
-
-            try
-            {
-                var client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
-                OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
-                    name: NameVersionHelper.GetDefaultName(typeof(EchoOrchestration)),
-                    version: NameVersionHelper.GetDefaultVersion(typeof(EchoOrchestration)),
-                    input: "hello");
-
-                OrchestrationState state = await client.WaitForOrchestrationAsync(instance, DefaultTimeout);
-
-                Assert.IsNotNull(state);
-                Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
-                Assert.IsNull(state.FailureDetails);
-
-                Assert.IsFalse(
-                    await containerClient.ExistsAsync(),
-                    $"Blob container '{containerName}' should not exist when poison handling is disabled");
-            }
-            finally
-            {
-                await worker.StopAsync(isForced: true);
-                await service.DeleteAsync();
-            }
-        }
-
-        [TestMethod]
-        public async Task ActivityWithDispatchExceedingMax_PoisonHandlingDisabled_CompletesSuccessfully_NoBlob()
-        {
-            string prefix = CreateUniquePrefix();
-            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 1, prefix: prefix, poisonEnabled: false);
-
-            BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string activityContainerName = $"{prefix}-activity-messages";
-            BlobContainerClient activityContainerClient = blobServiceClient.GetBlobContainerClient(activityContainerName);
-            await activityContainerClient.DeleteIfExistsAsync();
-
-            var inner = new AzureStorageOrchestrationService(settings);
-            var service = new FaultInjectingOrchestrationService(inner)
-            {
-                ActivityCompletionFailuresRemaining = 1,
-            };
-
-            await service.CreateAsync(recreateInstanceStore: true);
-
-            using var worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
-            worker.AddTaskOrchestrations(typeof(ScheduleActivityOrchestration));
-            worker.AddTaskActivities(typeof(EchoActivity));
-            await worker.StartAsync();
-
-            try
-            {
-                var client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
-                OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
-                    name: NameVersionHelper.GetDefaultName(typeof(ScheduleActivityOrchestration)),
-                    version: NameVersionHelper.GetDefaultVersion(typeof(ScheduleActivityOrchestration)),
-                    input: "hello");
-
-                OrchestrationState state = await client.WaitForOrchestrationAsync(instance, DefaultTimeout);
-
-                Assert.IsNotNull(state);
-                Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
-                Assert.IsNull(state.FailureDetails);
-
-                Assert.IsFalse(
-                    await activityContainerClient.ExistsAsync(),
-                    $"Blob container '{activityContainerName}' should not exist when poison handling is disabled");
-            }
-            finally
-            {
-                await worker.StopAsync(isForced: true);
                 await service.DeleteAsync();
             }
         }
@@ -1092,6 +1230,8 @@ namespace DurableTask.AzureStorage.Tests
             // could not be deserialized), the message is still archived to the poison container, but
             // HandlePoisonEntityMessageAsync returns false so the dispatcher can continue processing, and it does NOT
             // emit any follow-up entity message (no failure response or unlock).
+            // This is because this method is only invoked with this reason in the case of an unlock or self-continue message,
+            // and we do not want to leave the entity stuck in that case so we return false to continue processing
             string prefix = CreateUniquePrefix();
             AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 5, prefix: prefix);
             settings.PartitionCount = 1;
