@@ -516,7 +516,7 @@ namespace DurableTask.AzureStorage.Tests
             try
             {
                 var client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
-                OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
+                await client.CreateOrchestrationInstanceAsync(
                     name: NameVersionHelper.GetDefaultName(typeof(ScheduleActivityOrchestration)),
                     version: NameVersionHelper.GetDefaultVersion(typeof(ScheduleActivityOrchestration)),
                     input: "hello");
@@ -677,7 +677,7 @@ namespace DurableTask.AzureStorage.Tests
             try
             {
                 var client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
-                OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
+                await client.CreateOrchestrationInstanceAsync(
                     name: NameVersionHelper.GetDefaultName(typeof(EchoOrchestration)),
                     version: NameVersionHelper.GetDefaultVersion(typeof(EchoOrchestration)),
                     input: "hello");
@@ -768,7 +768,7 @@ namespace DurableTask.AzureStorage.Tests
             try
             {
                 var client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
-                OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
+                await client.CreateOrchestrationInstanceAsync(
                     name: NameVersionHelper.GetDefaultName(typeof(EchoOrchestration)),
                     version: NameVersionHelper.GetDefaultVersion(typeof(EchoOrchestration)),
                     input: "hello");
@@ -838,7 +838,7 @@ namespace DurableTask.AzureStorage.Tests
             try
             {
                 var client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
-                OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
+                await client.CreateOrchestrationInstanceAsync(
                     name: NameVersionHelper.GetDefaultName(typeof(EchoOrchestration)),
                     version: NameVersionHelper.GetDefaultVersion(typeof(EchoOrchestration)),
                     input: "hello");
@@ -1022,9 +1022,8 @@ namespace DurableTask.AzureStorage.Tests
                 activityWorkItem, PoisonMessageReason.MissingActivityName, "disabled-test"));
 
             // 5. None of the poison blob containers should have been created.
-            foreach (string suffix in containerSuffixes)
+            foreach (string containerName in containerSuffixes.Select(suffix => $"{prefix}-{suffix}"))
             {
-                string containerName = $"{prefix}-{suffix}";
                 Assert.IsFalse(
                     await blobServiceClient.GetBlobContainerClient(containerName).ExistsAsync(),
                     $"Blob container '{containerName}' should not exist when poison handling is disabled");
@@ -1152,10 +1151,6 @@ namespace DurableTask.AzureStorage.Tests
 
             var service = new AzureStorageOrchestrationService(settings);
             await service.CreateAsync(recreateInstanceStore: true);
-
-            string controlQueueName = AzureStorageOrchestrationService.GetControlQueueName(settings.TaskHubName, 0);
-            var controlQueueClient = new Azure.Storage.Queues.QueueClient(
-                TestHelpers.GetTestStorageAccountConnectionString(), controlQueueName);
 
             try
             {
