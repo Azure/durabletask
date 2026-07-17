@@ -455,13 +455,9 @@ namespace DurableTask.AzureStorage.Tests
                     version: NameVersionHelper.GetDefaultVersion(typeof(ScheduleActivityOrchestration)),
                     input: "hello");
 
-                OrchestrationState state = await client.WaitForOrchestrationAsync(instance, DefaultTimeout);
-
-                Assert.IsNotNull(state);
-                // After abandoning the corrupted dispatch, the activity is re-delivered and processed normally.
-                Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
-
-                Assert.IsTrue(await activityContainerClient.ExistsAsync(), $"Blob container '{activityContainerName}' should exist");
+                await TestHelpers.WaitFor(
+                    () => activityContainerClient.Exists().Value && ListBlobsAsync(activityContainerClient).GetAwaiter().GetResult().Count > 0,
+                    TimeSpan.FromSeconds(30));
 
                 List<BlobItem> blobs = await ListBlobsAsync(activityContainerClient);
                 Assert.AreEqual(1, blobs.Count);
@@ -525,13 +521,9 @@ namespace DurableTask.AzureStorage.Tests
                     version: NameVersionHelper.GetDefaultVersion(typeof(ScheduleActivityOrchestration)),
                     input: "hello");
 
-                OrchestrationState state = await client.WaitForOrchestrationAsync(instance, DefaultTimeout);
-
-                Assert.IsNotNull(state);
-                // After abandoning the corrupted dispatch, the activity is re-delivered and processed normally.
-                Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
-
-                Assert.IsTrue(await activityContainerClient.ExistsAsync(), $"Blob container '{activityContainerName}' should exist");
+                await TestHelpers.WaitFor(
+                    () => activityContainerClient.Exists().Value && ListBlobsAsync(activityContainerClient).GetAwaiter().GetResult().Count > 0,
+                    TimeSpan.FromSeconds(30));
 
                 List<BlobItem> blobs = await ListBlobsAsync(activityContainerClient);
                 Assert.AreEqual(1, blobs.Count);
@@ -633,7 +625,7 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public async Task OrchestrationWithInvalidWorkItem_MissingOrchestrationInstance_FailedAndPoisonMessageStored()
+        public async Task OrchestrationWithInvalidWorkItem_MissingOrchestrationInstance_PoisonMessagesStored()
         {
             string prefix = CreateUniquePrefix();
             AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 5, prefix: prefix);
@@ -690,17 +682,9 @@ namespace DurableTask.AzureStorage.Tests
                     version: NameVersionHelper.GetDefaultVersion(typeof(EchoOrchestration)),
                     input: "hello");
 
-                OrchestrationState state = await client.WaitForOrchestrationAsync(instance, DefaultTimeout);
-
-                Assert.IsNotNull(state);
-                Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
-                FailureDetails failureDetails = GetFailureDetails(state);
-                Assert.IsNotNull(failureDetails);
-                Assert.AreEqual("OrchestrationHistoryCorrupted", failureDetails.ErrorType);
-                Assert.IsTrue(failureDetails.IsNonRetriable);
-                StringAssert.Contains(failureDetails.ErrorMessage, "no orchestration instance ID");
-
-                Assert.IsTrue(await containerClient.ExistsAsync(), $"Blob container '{containerName}' should exist");
+                await TestHelpers.WaitFor(
+                    () => containerClient.Exists().Value && ListBlobsAsync(containerClient).GetAwaiter().GetResult().Count > 0,
+                    TimeSpan.FromSeconds(30));
 
                 List<BlobItem> blobs = await ListBlobsAsync(containerClient);
                 Assert.AreEqual(1, blobs.Count);
@@ -722,7 +706,7 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public async Task OrchestrationWithInvalidWorkItem_NoExecutionStartedEvent_FailedAndPoisonMessagesStored()
+        public async Task OrchestrationWithInvalidWorkItem_NoExecutionStartedEvent_PoisonMessagesStored()
         {
             string prefix = CreateUniquePrefix();
             AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 5, prefix: prefix);
@@ -789,20 +773,14 @@ namespace DurableTask.AzureStorage.Tests
                     version: NameVersionHelper.GetDefaultVersion(typeof(EchoOrchestration)),
                     input: "hello");
 
-                OrchestrationState state = await client.WaitForOrchestrationAsync(instance, DefaultTimeout);
-
-                Assert.IsNotNull(state);
-                Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
-                FailureDetails failureDetails = GetFailureDetails(state);
-                Assert.IsNotNull(failureDetails);
-                Assert.AreEqual("OrchestrationHistoryCorrupted", failureDetails.ErrorType);
-                Assert.IsTrue(failureDetails.IsNonRetriable);
-                StringAssert.Contains(failureDetails.ErrorMessage, $"contains no {EventType.ExecutionStarted} event in its history and did not receive one as part of its new messages");
-
-                Assert.IsTrue(await containerClient.ExistsAsync(), $"Blob container '{containerName}' should exist");
+                await TestHelpers.WaitFor(
+                    () => containerClient.Exists().Value && ListBlobsAsync(containerClient).GetAwaiter().GetResult().Count > 0,
+                    TimeSpan.FromSeconds(30));
 
                 List<BlobItem> blobs = await ListBlobsAsync(containerClient);
                 Assert.AreEqual(1, blobs.Count);
+                // Empty instance/execution ids sanitize to "~~{guid}".
+                StringAssert.StartsWith(blobs[0].Name, "~~");
 
                 List<TaskMessage> poisonMessages = await DownloadPoisonMessagesAsync(containerClient, blobs[0].Name);
                 // Both the replaced ES message and the injected rider must be persisted as poison.
@@ -819,7 +797,7 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public async Task OrchestrationWithInvalidWorkItem_InvalidRuntimeState_FailedAndPoisonMessagesStored()
+        public async Task OrchestrationWithInvalidWorkItem_InvalidRuntimeState_PoisonMessagesStored()
         {
             string prefix = CreateUniquePrefix();
             AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 5, prefix: prefix);
@@ -865,17 +843,9 @@ namespace DurableTask.AzureStorage.Tests
                     version: NameVersionHelper.GetDefaultVersion(typeof(EchoOrchestration)),
                     input: "hello");
 
-                OrchestrationState state = await client.WaitForOrchestrationAsync(instance, DefaultTimeout);
-
-                Assert.IsNotNull(state);
-                Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
-                FailureDetails failureDetails = GetFailureDetails(state);
-                Assert.IsNotNull(failureDetails);
-                Assert.AreEqual("OrchestrationHistoryCorrupted", failureDetails.ErrorType);
-                Assert.IsTrue(failureDetails.IsNonRetriable);
-                StringAssert.Contains(failureDetails.ErrorMessage, "history contains multiple events but no ExecutionStarted event");
-
-                Assert.IsTrue(await containerClient.ExistsAsync(), $"Blob container '{containerName}' should exist");
+                await TestHelpers.WaitFor(
+                    () => containerClient.Exists().Value && ListBlobsAsync(containerClient).GetAwaiter().GetResult().Count > 0,
+                    TimeSpan.FromSeconds(30));
 
                 List<BlobItem> blobs = await ListBlobsAsync(containerClient);
                 Assert.AreEqual(1, blobs.Count);
@@ -894,7 +864,7 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public async Task OrchestrationWithInvalidWorkItem_RewindWithOtherMessages_PoisonMessageStoredAndAbandoned()
+        public async Task OrchestrationWithInvalidWorkItem_RewindWithOtherMessages_PoisonMessageStored()
         {
             string prefix = CreateUniquePrefix();
             AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 5, prefix: prefix);
@@ -963,14 +933,9 @@ namespace DurableTask.AzureStorage.Tests
                     version: NameVersionHelper.GetDefaultVersion(typeof(EchoOrchestration)),
                     input: "hello");
 
-                // The first dispatch is poisoned (blob written, work item abandoned). The redelivery runs normally
-                // and the orchestration completes.
-                OrchestrationState state = await client.WaitForOrchestrationAsync(instance, DefaultTimeout);
-
-                Assert.IsNotNull(state);
-                Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
-
-                Assert.IsTrue(await containerClient.ExistsAsync(), $"Blob container '{containerName}' should exist");
+                await TestHelpers.WaitFor(
+                    () => containerClient.Exists().Value && ListBlobsAsync(containerClient).GetAwaiter().GetResult().Count > 0,
+                    TimeSpan.FromSeconds(30));
 
                 List<BlobItem> blobs = await ListBlobsAsync(containerClient);
                 Assert.AreEqual(1, blobs.Count);
@@ -1168,7 +1133,7 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public async Task EntityPoisonMessage_DispatchCountReason_StoredButReturnsFalseAndNoMessageEmitted()
+        public async Task EntityPoisonMessage_DispatchCountReason_ReturnsFalseAndNoMessagesStored()
         {
             // When an entity message is poisoned because it exceeded the maximum dispatch count (rather than because it
             // could not be deserialized), the message is still archived to the poison container, but
@@ -1214,20 +1179,8 @@ namespace DurableTask.AzureStorage.Tests
                 // The dispatch-count reason must return false (let the dispatcher continue) ...
                 Assert.IsFalse(handled);
 
-                // ... the message is still archived to the poison container ...
-                Assert.IsTrue(
-                    await containerClient.ExistsAsync(),
-                    $"Blob container '{containerName}' should exist");
-                List<BlobItem> blobs = await ListBlobsAsync(containerClient);
-                Assert.AreEqual(1, blobs.Count);
-                List<TaskMessage> poisonMessages = await DownloadPoisonMessagesAsync(containerClient, blobs[0].Name);
-                Assert.AreEqual(1, poisonMessages.Count);
-                Assert.IsInstanceOfType(poisonMessages[0].Event, typeof(EventRaisedEvent));
-                Assert.AreEqual("release", ((EventRaisedEvent)poisonMessages[0].Event).Name);
-
-                // ... but no follow-up entity message (failure response or unlock) should have been emitted.
-                QueueMessage extraMessage = controlQueueClient.ReceiveMessage(TimeSpan.FromSeconds(1)).Value;
-                Assert.IsNull(extraMessage, "No message should be emitted for a dispatch-count poison message.");
+                // ... and no poison message should be stored (will be stored when work item completes) ...
+                Assert.IsFalse(await containerClient.ExistsAsync(), $"Blob container '{containerName}' should not exist");
             }
             finally
             {

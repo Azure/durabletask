@@ -14,7 +14,6 @@
 namespace DurableTask.AzureStorage
 {
     using System;
-    using System.Collections.Generic;
     using System.Runtime.Serialization;
     using Azure.Data.Tables;
     using DurableTask.AzureStorage.Logging;

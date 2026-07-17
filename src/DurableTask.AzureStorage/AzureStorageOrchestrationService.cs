@@ -34,7 +34,6 @@ namespace DurableTask.AzureStorage
     using DurableTask.Core.History;
     using DurableTask.Core.Query;
     using Newtonsoft.Json;
-    using static System.Collections.Specialized.BitVector32;
 
     /// <summary>
     /// Orchestration service provider for the Durable Task Framework which uses Azure Storage as the durable store.

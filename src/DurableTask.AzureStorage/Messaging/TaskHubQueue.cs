@@ -356,8 +356,8 @@ namespace DurableTask.AzureStorage.Messaging
                     taskMessage.Event.EventType.ToString(),
                     Utils.GetTaskEventId(taskMessage.Event),
                     message.OriginalQueueMessage.MessageId,
-                    taskMessage.OrchestrationInstance.InstanceId,
-                    taskMessage.OrchestrationInstance.ExecutionId,
+                    taskMessage.OrchestrationInstance?.InstanceId ?? string.Empty,
+                    taskMessage.OrchestrationInstance?.ExecutionId ?? string.Empty,
                     this.storageQueue.Name,
                     message.SequenceNumber,
                     message.OriginalQueueMessage.PopReceipt);
