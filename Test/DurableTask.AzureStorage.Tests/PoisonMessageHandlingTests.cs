@@ -450,7 +450,7 @@ namespace DurableTask.AzureStorage.Tests
             try
             {
                 var client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
-                OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
+                await client.CreateOrchestrationInstanceAsync(
                     name: NameVersionHelper.GetDefaultName(typeof(ScheduleActivityOrchestration)),
                     version: NameVersionHelper.GetDefaultVersion(typeof(ScheduleActivityOrchestration)),
                     input: "hello");
