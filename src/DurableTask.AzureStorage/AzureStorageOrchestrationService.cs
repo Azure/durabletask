@@ -34,6 +34,7 @@ namespace DurableTask.AzureStorage
     using DurableTask.Core.History;
     using DurableTask.Core.Query;
     using Newtonsoft.Json;
+    using static System.Collections.Specialized.BitVector32;
 
     /// <summary>
     /// Orchestration service provider for the Durable Task Framework which uses Azure Storage as the durable store.
@@ -2286,24 +2287,26 @@ namespace DurableTask.AzureStorage
             PoisonMessageReason reason,
             string details)
         {
-            if (!this.settings.IsPoisonMessageStorageEnabled || 
-                !await this.StorePoisonMessagesAsync(
-                entityInstance,
-                new[] { new TaskMessage { OrchestrationInstance = entityInstance, Event = historyEvent } },
-                this.instancePoisonMessageContainer))
-            {
-                return false;
-            }
-
             if (historyEvent is EventRaisedEvent eventRaisedEvent)
             {
                 // For a self-continue or lock release message that we were able to deserialize (i.e. it is poisoned because it
                 // exceeded the maximum dispatch count), we don't want to leave the entity stuck, so we return false
-                // to allow the dispatcher to continue processing 
+                // to allow the dispatcher to continue processing.
+                // The poison message will be stored when the work item completes due to its excessive dispatch count
                 if (reason == PoisonMessageReason.DispatchCount)
                 {
                     return false;
                 }
+
+                if (!this.settings.IsPoisonMessageStorageEnabled ||
+                    !await this.StorePoisonMessagesAsync(
+                    entityInstance,
+                    new[] { new TaskMessage { OrchestrationInstance = entityInstance, Event = historyEvent } },
+                    this.instancePoisonMessageContainer))
+                {
+                    return false;
+                }
+
                 // This is an entity request message, either a call, lock, or signal.
                 // For the first two cases we want to try and return a failure to the calling orchestration if possible.
                 else if (eventRaisedEvent.Name == "op")
@@ -2388,11 +2391,7 @@ namespace DurableTask.AzureStorage
 
             // There must have been a deserialization error with the ExecutionStartedEvent, or the work item is somehow
             // otherwise invalid (i.e. missing an ExecutionStartedEvent).
-            // We make a best effort attempt to send a failure response for any entity calls included in the work item,
-            // but do not complete the work item since that would cause deletion of the other entity messages included in it and we
-            // have no real way to mark an entity as "failed".
-            // These messages will presumably continue to be retried since there is no completion to delete them, so all subsequent
-            // attempts will land in poison storage as well.
+            // We make a best effort attempt to send a failure response for any entity calls included in the work item
             if (isEntity)
             {
                 foreach (TaskMessage message in workItem.NewMessages)
@@ -2410,12 +2409,8 @@ namespace DurableTask.AzureStorage
                     }
                 }
             }
-            // If this was related to rewind, then presumably the orchestration is already in a terminal state so
-            // there is not much we can do. We just store the messages in poison storage.
-            // They will probably continue to be retried since there is no completion to delete them, so all subsequent
-            // attempts will land in poison storage as well.
-            else if (reason != PoisonMessageReason.InvalidRewindRequest
-                && await this.TryCompleteInvalidWorkItemAsync(workItem, details))
+
+            if (await this.TryDeleteOrchestrationMessagesAsync(workItem))
             {
                 return true;
             }
@@ -2440,51 +2435,17 @@ namespace DurableTask.AzureStorage
             return true;
         }
 
-        async Task<bool> TryCompleteInvalidWorkItemAsync(TaskOrchestrationWorkItem workItem, string reason)
+        async Task<bool> TryDeleteOrchestrationMessagesAsync(TaskOrchestrationWorkItem workItem)
         {
             try
             {
                 if (!this.orchestrationSessionManager.TryGetExistingSession(workItem.InstanceId, out OrchestrationSession session))
                 {
+                    this.settings.Logger.AssertFailure(
+                        this.azureStorageClient.QueueAccountName,
+                        this.settings.TaskHubName,
+                        $"{nameof(CompleteTaskOrchestrationWorkItemAsync)}: Session for instance {workItem.InstanceId} was not found!");
                     return false;
-                }
-
-                session.StartNewLogicalTraceScope();
-
-                // Best effort: fail the orchestration by appending a failed ExecutionCompleted event to its history
-                // and updating the instance metadata to a Failed terminal status.
-                OrchestrationRuntimeState runtimeState = session.RuntimeState;
-                string instanceId = workItem.InstanceId;
-                string? executionId = runtimeState.OrchestrationInstance?.ExecutionId ?? session.Instance?.ExecutionId;
-
-                if (executionId != null)
-                {
-                    var failureDetails = new FailureDetails(
-                        errorType: "OrchestrationHistoryCorrupted",
-                        errorMessage: reason,
-                        stackTrace: null,
-                        innerFailure: null,
-                        isNonRetriable: true);
-
-                    runtimeState.AddEvent(new ExecutionCompletedEvent(
-                        eventId: -1,
-                        result: null,
-                        orchestrationStatus: OrchestrationStatus.Failed,
-                        failureDetails: failureDetails)
-                    {
-                        Timestamp = DateTime.UtcNow,
-                    });
-
-                    // Commit the updated history and instance table metadata (RuntimeStatus = Failed).
-                    await this.trackingStore.UpdateStateAsync(
-                        workItem.OrchestrationRuntimeState,
-                        workItem.OrchestrationRuntimeState,
-                        instanceId,
-                        executionId,
-                        session.ETags,
-                        session.TrackingStoreContext);
-
-                    session.UpdateRuntimeState(runtimeState);
                 }
 
                 // Delete the messages that triggered this invalid work item so they are not retried forever.
@@ -2496,7 +2457,7 @@ namespace DurableTask.AzureStorage
                 this.settings.Logger.GeneralError(
                     this.azureStorageClient.QueueAccountName,
                     this.settings.TaskHubName,
-                    $"Failed to complete invalid work item. InstanceId={workItem.InstanceId}. Error: {ex}");
+                    $"Failed to delete messages in invalid work item. InstanceId={workItem.InstanceId}. Error: {ex}");
                 return false;
             }
         }
@@ -2528,6 +2489,11 @@ namespace DurableTask.AzureStorage
             // activity work item here
             if (reason != PoisonMessageReason.MissingActivityName)
             {
+                if (await this.TryDeleteActivityMessage(workItem))
+                {
+                    return true;
+                }
+
                 try
                 {
                     await this.AbandonTaskActivityWorkItemAsync(workItem);
@@ -2545,6 +2511,34 @@ namespace DurableTask.AzureStorage
             }
 
             return true;
+        }
+
+        async Task<bool> TryDeleteActivityMessage(TaskActivityWorkItem workItem)
+        {
+            try
+            {
+                if (!this.activeActivitySessions.TryGetValue(workItem.Id, out ActivitySession session))
+                {
+                    // The context does not exist - possibly because it was already removed.
+                    this.settings.Logger.AssertFailure(
+                        this.azureStorageClient.QueueAccountName,
+                        this.settings.TaskHubName,
+                        $"Could not find context for work item with ID = {workItem.Id}.");
+                    return false;
+                }
+
+                // Delete the message that triggered this invalid work item so it is not retried forever.
+                await this.workItemQueue.DeleteMessageAsync(session.MessageData, session);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                this.settings.Logger.GeneralError(
+                    this.azureStorageClient.QueueAccountName,
+                    this.settings.TaskHubName,
+                    $"Failed to delete messages in invalid activity work item. InstanceId={workItem.Id}. Error: {ex}");
+                return false;
+            }
         }
 
         async Task<bool> StorePoisonMessagesAsync(
