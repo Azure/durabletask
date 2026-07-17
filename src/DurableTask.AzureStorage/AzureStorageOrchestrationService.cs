@@ -2300,9 +2300,9 @@ namespace DurableTask.AzureStorage
 
                 if (!this.settings.IsPoisonMessageStorageEnabled ||
                     !await this.StorePoisonMessagesAsync(
-                    entityInstance,
-                    new[] { new TaskMessage { OrchestrationInstance = entityInstance, Event = historyEvent } },
-                    this.instancePoisonMessageContainer))
+                        entityInstance,
+                        new[] { new TaskMessage { OrchestrationInstance = entityInstance, Event = historyEvent } },
+                        this.instancePoisonMessageContainer))
                 {
                     return false;
                 }
@@ -2335,7 +2335,7 @@ namespace DurableTask.AzureStorage
             else
             {
                 // The only type of poison message we could ever receive via this API should be an EventRaisedEvent
-                this.settings.Logger.GeneralError(
+                this.settings.Logger.GeneralWarning(
                     this.azureStorageClient.QueueAccountName,
                     this.settings.TaskHubName,
                     $"Received unexpected poison message with event type {historyEvent.EventType}. " +
@@ -2415,8 +2415,8 @@ namespace DurableTask.AzureStorage
                 return true;
             }
 
-            // We have no sensible way to complete the work item, or there was an error when attempting to do so, so we
-            // just abandon it. The messages have already been stored in poison storage.
+            // We were unable to delete the orchestration messages so we just abandon the work item.
+            // The messages have already been stored in poison storage.
             try
             {
                 await this.AbandonTaskOrchestrationWorkItemAsync(workItem);
