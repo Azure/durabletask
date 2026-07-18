@@ -972,13 +972,15 @@ namespace DurableTask.Core
                     // we get here because of:
                     //      i) responses for scheduled tasks after the orchestrations have been completed
                     //      ii) responses for explicitly deleted orchestrations
+                    string errorMessage = $"Orchestration contains no {EventType.ExecutionStarted} event in its history and did not receive one as part of its new messages.";
                     if (poisonMessageHandler != null
                         && await poisonMessageHandler.HandleInvalidWorkItemAsync(
                             workItem,
                             PoisonMessageReason.MissingExecutionStartedEvent,
-                            $"Orchestration contains no {EventType.ExecutionStarted} event in its history and did not receive one as part of its new messages.",
+                            errorMessage,
                             isEntity))
                     {
+                        logHelper.PoisonMessageDetected(workItem.OrchestrationRuntimeState.OrchestrationInstance, message.Event, errorMessage);
                         return WorkItemReconcileResult.PoisonMessageHandled;
                     }
                     return WorkItemReconcileResult.Error;

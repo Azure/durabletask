@@ -2308,7 +2308,7 @@ namespace DurableTask.AzureStorage
 
                 // This is an entity request message, either a call, lock, or signal.
                 // For the first two cases we want to try and return a failure to the calling orchestration if possible.
-                else if (eventRaisedEvent.Name == "op")
+                else if (eventRaisedEvent.Name?.StartsWith("op") == true)
                 {
                     EntityMessageEvent? failureResponse = ClientEntityHelpers.TryCreateEntityOperationFailedResponse(
                         eventRaisedEvent.Input,

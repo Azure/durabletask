@@ -757,7 +757,7 @@ namespace DurableTask.AzureStorage.Tests
                     }
                 },
             };
-
+            
             await service.CreateAsync(recreateInstanceStore: true);
 
             using var worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
