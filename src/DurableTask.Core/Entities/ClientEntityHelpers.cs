@@ -121,7 +121,8 @@ namespace DurableTask.Core.Entities
             // call. A default (empty) id means the id could not be recovered from the (malformed) request.
             if (requestMessage == null
                 || string.IsNullOrEmpty(requestMessage.ParentInstanceId)
-                || requestMessage.Id == Guid.Empty)
+                || requestMessage.Id == Guid.Empty
+                || requestMessage.IsSignal)
             {
                 return null;
             }
