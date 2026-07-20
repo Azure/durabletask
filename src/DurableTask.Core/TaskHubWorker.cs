@@ -44,9 +44,6 @@ namespace DurableTask.Core
         readonly DispatchMiddlewarePipeline activityDispatchPipeline = new DispatchMiddlewarePipeline();
 
         readonly bool dispatchEntitiesSeparately;
-        readonly bool dispatchEntities;
-        readonly bool dispatchOrchestrations;
-        readonly bool dispatchActivities;
         readonly SemaphoreSlim slimLock = new SemaphoreSlim(1, 1);
         readonly LogHelper logHelper;
 
@@ -219,16 +216,7 @@ namespace DurableTask.Core
             this.entityManager = entityObjectManager ?? throw new ArgumentException("entityObjectManager");
             this.orchestrationService = orchestrationService ?? throw new ArgumentException("orchestrationService");
             this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
-
-            // A dispatcher count of zero means the backend has disabled that kind of dispatch for this worker
-            // (e.g. a worker restricted to only orchestrations or only activities). Entities are dispatched
-            // alongside orchestrations, so they only run when orchestrations do. Note that dispatchEntitiesSeparately
-            // keeps its original meaning (backend capability) so that entity registration still succeeds regardless
-            // of mode; dispatchEntities controls whether the entity dispatcher actually runs on this worker.
-            this.dispatchOrchestrations = orchestrationService.TaskOrchestrationDispatcherCount > 0;
-            this.dispatchActivities = orchestrationService.TaskActivityDispatcherCount > 0;
             this.dispatchEntitiesSeparately = (orchestrationService as IEntityOrchestrationService)?.EntityBackendProperties?.UseSeparateQueueForEntityWorkItems ?? false;
-            this.dispatchEntities = this.dispatchEntitiesSeparately && this.dispatchOrchestrations;
             this.versioningSettings = versioningSettings;
         }
 
@@ -308,6 +296,14 @@ namespace DurableTask.Core
 
                 this.logHelper.TaskHubWorkerStarting();
                 var sw = Stopwatch.StartNew();
+
+                // Read the dispatcher counts here (rather than caching them in the constructor) so a backend
+                // that derives them from mutable settings is honored if they changed after construction.
+                // A count of zero disables that dispatcher for this worker; entities ride with orchestrations.
+                bool dispatchOrchestrations = this.orchestrationService.TaskOrchestrationDispatcherCount > 0;
+                bool dispatchActivities = this.orchestrationService.TaskActivityDispatcherCount > 0;
+                bool dispatchEntities = this.dispatchEntitiesSeparately && dispatchOrchestrations;
+
                 // Dispatcher objects are always constructed so the public TaskOrchestrationDispatcher/
                 // TaskActivityDispatcher properties stay non-null for callers that configure them after
                 // StartAsync (e.g. IncludeDetails). Whether each one actually polls is gated below on
@@ -341,17 +337,17 @@ namespace DurableTask.Core
 
                 await this.orchestrationService.StartAsync();
 
-                if (this.dispatchOrchestrations)
+                if (dispatchOrchestrations)
                 {
                     await this.orchestrationDispatcher.StartAsync();
                 }
 
-                if (this.dispatchActivities)
+                if (dispatchActivities)
                 {
                     await this.activityDispatcher.StartAsync();
                 }
 
-                if (this.dispatchEntities)
+                if (dispatchEntities)
                 {
                     await this.entityDispatcher.StartAsync();
                 }
