@@ -44,6 +44,9 @@ namespace DurableTask.Core
         readonly DispatchMiddlewarePipeline activityDispatchPipeline = new DispatchMiddlewarePipeline();
 
         readonly bool dispatchEntitiesSeparately;
+        readonly bool dispatchEntities;
+        readonly bool dispatchOrchestrations;
+        readonly bool dispatchActivities;
         readonly SemaphoreSlim slimLock = new SemaphoreSlim(1, 1);
         readonly LogHelper logHelper;
 
@@ -216,7 +219,16 @@ namespace DurableTask.Core
             this.entityManager = entityObjectManager ?? throw new ArgumentException("entityObjectManager");
             this.orchestrationService = orchestrationService ?? throw new ArgumentException("orchestrationService");
             this.logHelper = new LogHelper(loggerFactory?.CreateLogger("DurableTask.Core"));
+
+            // A dispatcher count of zero means the backend has disabled that kind of dispatch for this worker
+            // (e.g. a worker restricted to only orchestrations or only activities). Entities are dispatched
+            // alongside orchestrations, so they only run when orchestrations do. Note that dispatchEntitiesSeparately
+            // keeps its original meaning (backend capability) so that entity registration still succeeds regardless
+            // of mode; dispatchEntities controls whether the entity dispatcher actually runs on this worker.
+            this.dispatchOrchestrations = orchestrationService.TaskOrchestrationDispatcherCount > 0;
+            this.dispatchActivities = orchestrationService.TaskActivityDispatcherCount > 0;
             this.dispatchEntitiesSeparately = (orchestrationService as IEntityOrchestrationService)?.EntityBackendProperties?.UseSeparateQueueForEntityWorkItems ?? false;
+            this.dispatchEntities = this.dispatchEntitiesSeparately && this.dispatchOrchestrations;
             this.versioningSettings = versioningSettings;
         }
 
@@ -296,23 +308,30 @@ namespace DurableTask.Core
 
                 this.logHelper.TaskHubWorkerStarting();
                 var sw = Stopwatch.StartNew();
-                this.orchestrationDispatcher = new TaskOrchestrationDispatcher(
-                    this.orchestrationService,
-                    this.orchestrationManager,
-                    this.orchestrationDispatchPipeline,
-                    this.logHelper,
-                    this.ErrorPropagationMode,
-                    this.versioningSettings,
-                    this.ExceptionPropertiesProvider);
-                this.activityDispatcher = new TaskActivityDispatcher(
-                    this.orchestrationService,
-                    this.activityManager,
-                    this.activityDispatchPipeline,
-                    this.logHelper,
-                    this.ErrorPropagationMode,
-                    this.ExceptionPropertiesProvider);
+                if (this.dispatchOrchestrations)
+                {
+                    this.orchestrationDispatcher = new TaskOrchestrationDispatcher(
+                        this.orchestrationService,
+                        this.orchestrationManager,
+                        this.orchestrationDispatchPipeline,
+                        this.logHelper,
+                        this.ErrorPropagationMode,
+                        this.versioningSettings,
+                        this.ExceptionPropertiesProvider);
+                }
 
-                if (this.dispatchEntitiesSeparately)
+                if (this.dispatchActivities)
+                {
+                    this.activityDispatcher = new TaskActivityDispatcher(
+                        this.orchestrationService,
+                        this.activityManager,
+                        this.activityDispatchPipeline,
+                        this.logHelper,
+                        this.ErrorPropagationMode,
+                        this.ExceptionPropertiesProvider);
+                }
+
+                if (this.dispatchEntities)
                 {
                     this.entityDispatcher = new TaskEntityDispatcher(
                         this.orchestrationService,
@@ -324,10 +343,18 @@ namespace DurableTask.Core
                 }
 
                 await this.orchestrationService.StartAsync();
-                await this.orchestrationDispatcher.StartAsync();
-                await this.activityDispatcher.StartAsync();
 
-                if (this.dispatchEntitiesSeparately)
+                if (this.dispatchOrchestrations)
+                {
+                    await this.orchestrationDispatcher.StartAsync();
+                }
+
+                if (this.dispatchActivities)
+                {
+                    await this.activityDispatcher.StartAsync();
+                }
+
+                if (this.dispatchEntities)
                 {
                     await this.entityDispatcher.StartAsync();
                 }
@@ -367,9 +394,9 @@ namespace DurableTask.Core
 
                     var dispatcherShutdowns = new Task[]
                     {
-                        this.orchestrationDispatcher.StopAsync(isForced),
-                        this.activityDispatcher.StopAsync(isForced),
-                        this.dispatchEntitiesSeparately ? this.entityDispatcher.StopAsync(isForced) : Task.CompletedTask,
+                        this.dispatchOrchestrations ? this.orchestrationDispatcher.StopAsync(isForced) : Task.CompletedTask,
+                        this.dispatchActivities ? this.activityDispatcher.StopAsync(isForced) : Task.CompletedTask,
+                        this.dispatchEntities ? this.entityDispatcher.StopAsync(isForced) : Task.CompletedTask,
                     };
 
                     await Task.WhenAll(dispatcherShutdowns);
