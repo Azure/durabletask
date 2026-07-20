@@ -23,7 +23,7 @@ namespace DurableTask.AzureStorage.Tests
     [TestClass]
     public class DecoupledWorkerDispatchTests
     {
-        const string TestConnectionString = "UseDevelopmentStorage=true";
+        static readonly string TestConnectionString = TestHelpers.GetTestStorageAccountConnectionString();
 
         // ---------------------------------------------------------------------------------------
         // Unit tests: the WorkerDispatchMode setting maps onto the IOrchestrationService dispatcher
@@ -71,7 +71,7 @@ namespace DurableTask.AzureStorage.Tests
         {
             var settings = new AzureStorageOrchestrationServiceSettings
             {
-                TaskHubName = taskHub,
+                TaskHubName = TestHelpers.GetTestTaskHubName() + taskHub,
                 StorageAccountClientProvider = new StorageAccountClientProvider(TestConnectionString),
             };
 
@@ -93,7 +93,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task DecoupledWorkers_RunOrchestrationToCompletion()
         {
-            const string taskHub = "DecoupledDispatch";
+            string taskHub = TestHelpers.GetTestTaskHubName() + "Decoupled";
             const string input = "world";
 
             var orchestratorSettings = new AzureStorageOrchestrationServiceSettings

@@ -308,30 +308,27 @@ namespace DurableTask.Core
 
                 this.logHelper.TaskHubWorkerStarting();
                 var sw = Stopwatch.StartNew();
-                if (this.dispatchOrchestrations)
-                {
-                    this.orchestrationDispatcher = new TaskOrchestrationDispatcher(
-                        this.orchestrationService,
-                        this.orchestrationManager,
-                        this.orchestrationDispatchPipeline,
-                        this.logHelper,
-                        this.ErrorPropagationMode,
-                        this.versioningSettings,
-                        this.ExceptionPropertiesProvider);
-                }
+                // Dispatcher objects are always constructed so the public TaskOrchestrationDispatcher/
+                // TaskActivityDispatcher properties stay non-null for callers that configure them after
+                // StartAsync (e.g. IncludeDetails). Whether each one actually polls is gated below on
+                // StartAsync, and a disabled dispatcher (dispatcher count 0) starts zero fetch loops.
+                this.orchestrationDispatcher = new TaskOrchestrationDispatcher(
+                    this.orchestrationService,
+                    this.orchestrationManager,
+                    this.orchestrationDispatchPipeline,
+                    this.logHelper,
+                    this.ErrorPropagationMode,
+                    this.versioningSettings,
+                    this.ExceptionPropertiesProvider);
+                this.activityDispatcher = new TaskActivityDispatcher(
+                    this.orchestrationService,
+                    this.activityManager,
+                    this.activityDispatchPipeline,
+                    this.logHelper,
+                    this.ErrorPropagationMode,
+                    this.ExceptionPropertiesProvider);
 
-                if (this.dispatchActivities)
-                {
-                    this.activityDispatcher = new TaskActivityDispatcher(
-                        this.orchestrationService,
-                        this.activityManager,
-                        this.activityDispatchPipeline,
-                        this.logHelper,
-                        this.ErrorPropagationMode,
-                        this.ExceptionPropertiesProvider);
-                }
-
-                if (this.dispatchEntities)
+                if (this.dispatchEntitiesSeparately)
                 {
                     this.entityDispatcher = new TaskEntityDispatcher(
                         this.orchestrationService,
@@ -394,9 +391,9 @@ namespace DurableTask.Core
 
                     var dispatcherShutdowns = new Task[]
                     {
-                        this.dispatchOrchestrations ? this.orchestrationDispatcher.StopAsync(isForced) : Task.CompletedTask,
-                        this.dispatchActivities ? this.activityDispatcher.StopAsync(isForced) : Task.CompletedTask,
-                        this.dispatchEntities ? this.entityDispatcher.StopAsync(isForced) : Task.CompletedTask,
+                        this.orchestrationDispatcher.StopAsync(isForced),
+                        this.activityDispatcher.StopAsync(isForced),
+                        this.dispatchEntitiesSeparately ? this.entityDispatcher.StopAsync(isForced) : Task.CompletedTask,
                     };
 
                     await Task.WhenAll(dispatcherShutdowns);
