@@ -15,7 +15,7 @@ namespace DurableTask.AzureStorage
 {
     using System;
     using System.Runtime.Serialization;
-    using Azure.Data.Tables;
+    using System.Text.RegularExpressions;
     using DurableTask.AzureStorage.Logging;
     using DurableTask.AzureStorage.Partitioning;
     using DurableTask.Core;
@@ -341,8 +341,55 @@ namespace DurableTask.AzureStorage
         /// https://learn.microsoft.com/en-us/rest/api/storageservices/Naming-and-Referencing-Containers--Blobs--and-Metadata#directory-names
         /// In particular, this means the total length of the name must not exceed 63 characters, can only contain lowercase letters, numbers,
         /// and hyphens, and must start and end with a letter or number.
+        /// Additionally, every hyphen must be immediately preceded and followed by a letter or number.
         /// If not specified, the default value "durable-task-poison" will be used.
         /// </summary>
-        public string PoisonMessageStorageContainerNamePrefix { get; set; } = "durable-task-poison";
+        /// <exception cref="ArgumentException">
+        /// Thrown when the value does not conform to the Azure Blob Storage container naming rules described above.
+        /// </exception>
+        public string PoisonMessageStorageContainerNamePrefix
+        {
+            get => this.poisonMessageStorageContainerNamePrefix;
+            set
+            {
+                ValidatePoisonMessageStorageContainerNamePrefix(value);
+                this.poisonMessageStorageContainerNamePrefix = value;
+            }
+        }
+
+        string poisonMessageStorageContainerNamePrefix = "durable-task-poison";
+
+        static readonly Regex PoisonMessageStorageContainerNamePrefixRegex = new Regex(
+            "^[a-z0-9]+(-[a-z0-9]+)*$",
+            RegexOptions.CultureInvariant);
+
+        static void ValidatePoisonMessageStorageContainerNamePrefix(string value)
+        {
+            if (value == null)
+            {
+                throw new ArgumentNullException(nameof(PoisonMessageStorageContainerNamePrefix));
+            }
+
+            // The prefix is embedded in the container name "{taskhubname}-{prefix}-instance-messages" (or
+            // "-activity-messages"), whose total length must not exceed 63 characters.
+            // We don't necessarily know the taskhub name at this point so we just enforce the length check
+            // on -{prefix}-instance-messages (which is incidentally the same length as -{prefix}-activity-messages)
+            // + 1 additional char (at least) for the taskhub name
+            if (value.Length == 0 || $"-{value}-instance-messages".Length + 1 > 63)
+            {
+                throw new ArgumentException(
+                    $"The {nameof(PoisonMessageStorageContainerNamePrefix)} must be between 1 and 63 characters long.",
+                    nameof(PoisonMessageStorageContainerNamePrefix));
+            }
+
+            if (!PoisonMessageStorageContainerNamePrefixRegex.IsMatch(value))
+            {
+                throw new ArgumentException(
+                    $"The {nameof(PoisonMessageStorageContainerNamePrefix)} '{value}' is invalid. It may only contain " +
+                    "lowercase letters, numbers, and hyphens, must start and end with a letter or number, and every " +
+                    "hyphen must be immediately preceded and followed by a letter or number.",
+                    nameof(PoisonMessageStorageContainerNamePrefix));
+            }
+        }
     }
 }

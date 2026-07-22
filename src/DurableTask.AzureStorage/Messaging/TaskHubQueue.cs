@@ -394,9 +394,13 @@ namespace DurableTask.AzureStorage.Messaging
 
         protected abstract string PoisonMessageContainerName { get; }
 
-
         protected async Task<bool> TryMoveMessageToPoisonStorageAsync(MessageData messageData, CancellationToken cancellationToken = default)
         {
+            if (!this.settings.IsPoisonMessageStorageEnabled || messageData.OriginalQueueMessage.DequeueCount <= this.settings.MaxDequeueCount)
+            {
+                return false;
+            }
+
             string serializedMessageData = JsonConvert.SerializeObject(
                     messageData,
                     new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto });
@@ -410,6 +414,11 @@ namespace DurableTask.AzureStorage.Messaging
 
         protected async Task<bool> TryMoveMessageToPoisonStorageAsync(QueueMessage queueMessage, CancellationToken cancellationToken = default)
         {
+            if (!this.settings.IsPoisonMessageStorageEnabled || queueMessage.DequeueCount <= this.settings.MaxDequeueCount)
+            {
+                return false;
+            }
+
             return await this.StorePoisonMessageAsync(
                 orchestrationInstance: null,
                 queueMessage,
@@ -423,11 +432,6 @@ namespace DurableTask.AzureStorage.Messaging
             string serializedPoisonMessage,
             CancellationToken cancellationToken)
         {
-            if (!this.settings.IsPoisonMessageStorageEnabled || queueMessage.DequeueCount <= this.settings.MaxDequeueCount)
-            {
-                return false;
-            }
-
             try
             {
                 BlobContainer container = this.poisonMessageContainer ??=

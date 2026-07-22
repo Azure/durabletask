@@ -526,6 +526,76 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        [DataTestMethod]
+        [DataRow("durable-task-poison")]
+        [DataRow("abc")]
+        [DataRow("a1")]
+        [DataRow("a-b-c")]
+        [DataRow("123")]
+        [DataRow("a1-2b-3c")]
+        public void PoisonMessageStorageContainerNamePrefix_ValidValue_IsAccepted(string value)
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                PoisonMessageStorageContainerNamePrefix = value,
+            };
+
+            Assert.AreEqual(value, settings.PoisonMessageStorageContainerNamePrefix);
+        }
+
+        [TestMethod]
+        public void PoisonMessageStorageContainerNamePrefix_MaxLength_IsAccepted()
+        {
+            // The prefix is embedded in "{taskhubname}-{prefix}-instance-messages"; the validation reserves room for
+            // the "-instance-messages" suffix plus a "-" and one char for the taskhub name within the 63-character limit.
+            int maxPrefixLength = 63 - "-instance-messages".Length - 2;
+            string maxLength = new string('a', maxPrefixLength);
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                PoisonMessageStorageContainerNamePrefix = maxLength,
+            };
+
+            Assert.AreEqual(maxLength, settings.PoisonMessageStorageContainerNamePrefix);
+        }
+
+        [DataTestMethod]
+        [DataRow("")]                 // empty
+        [DataRow("Abc")]              // uppercase
+        [DataRow("ABC")]              // uppercase
+        [DataRow("-abc")]             // leading hyphen
+        [DataRow("abc-")]             // trailing hyphen
+        [DataRow("a--b")]             // consecutive hyphens
+        [DataRow("a_b")]              // underscore is not allowed
+        [DataRow("a.b")]              // period is not allowed
+        [DataRow("a b")]              // whitespace is not allowed
+        public void PoisonMessageStorageContainerNamePrefix_InvalidValue_ThrowsArgumentException(string value)
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings();
+
+            Assert.ThrowsException<ArgumentException>(
+                () => settings.PoisonMessageStorageContainerNamePrefix = value);
+        }
+
+        [TestMethod]
+        public void PoisonMessageStorageContainerNamePrefix_TooLong_ThrowsArgumentException()
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings();
+            int maxPrefixLength = 63 - "-instance-messages".Length - 2;
+            string tooLong = new string('a', maxPrefixLength + 1);
+
+            Assert.ThrowsException<ArgumentException>(
+                () => settings.PoisonMessageStorageContainerNamePrefix = tooLong);
+        }
+
+        [TestMethod]
+        public void PoisonMessageStorageContainerNamePrefix_Null_ThrowsArgumentNullException()
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings();
+
+            Assert.ThrowsException<ArgumentNullException>(
+                () => settings.PoisonMessageStorageContainerNamePrefix = null!);
+        }
+
 
         static AzureStorageOrchestrationServiceSettings CreateSettings(
             int MaxDequeueCount,
