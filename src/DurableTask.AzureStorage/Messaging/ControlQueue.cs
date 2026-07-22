@@ -47,11 +47,9 @@ namespace DurableTask.AzureStorage.Messaging
 
         protected override TimeSpan MessageVisibilityTimeout => this.settings.ControlQueueVisibilityTimeout;
 
-        protected override string PoisonMessageContainerName =>
-            $"{this.settings.TaskHubName.ToLowerInvariant()}-{this.settings.PoisonMessageStorageContainerNamePrefix}-instance-messages";
-
         public async Task<IReadOnlyList<MessageData>> GetMessagesAsync(CancellationToken cancellationToken)
         {
+            string poisonMessageContainerName = this.GetPoisonMessageContainerName("instance-messages");
             using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(this.releaseCancellationToken, cancellationToken))
             {
                 bool pendingOrchestratorMessageLimitReached = false;
@@ -128,7 +126,7 @@ namespace DurableTask.AzureStorage.Messaging
                                     0 /* TaskEventId */,
                                     e.ToString());
 
-                                if (await this.TryMoveMessageToPoisonStorageAsync(queueMessage, linkedCts.Token))
+                                if (await this.CheckForAndHandlePoisonMessageAsync(poisonMessageContainerName, queueMessage, orchestrationInstance: null, linkedCts.Token))
                                 {
                                     return;
                                 }
@@ -139,7 +137,7 @@ namespace DurableTask.AzureStorage.Messaging
                                 return;
                             }
 
-                            if (await this.TryMoveMessageToPoisonStorageAsync(messageData, linkedCts.Token))
+                            if (await this.CheckForAndHandlePoisonMessageAsync(poisonMessageContainerName, queueMessage, messageData.TaskMessage.OrchestrationInstance, linkedCts.Token))
                             {
                                 return;
                             }

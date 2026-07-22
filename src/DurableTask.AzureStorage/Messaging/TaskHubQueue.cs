@@ -392,86 +392,72 @@ namespace DurableTask.AzureStorage.Messaging
             }
         }
 
-        protected abstract string PoisonMessageContainerName { get; }
-
-        protected async Task<bool> TryMoveMessageToPoisonStorageAsync(MessageData messageData, CancellationToken cancellationToken = default)
+        protected string GetPoisonMessageContainerName(string suffix)
         {
-            if (!this.settings.IsPoisonMessageStorageEnabled || messageData.OriginalQueueMessage.DequeueCount <= this.settings.MaxDequeueCount)
-            {
-                return false;
-            }
-
-            string serializedMessageData = JsonConvert.SerializeObject(
-                    messageData,
-                    new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto });
-
-            return await this.StorePoisonMessageAsync(
-                messageData.TaskMessage?.OrchestrationInstance,
-                messageData.OriginalQueueMessage,
-                serializedMessageData,
-                cancellationToken);
+            return $"{this.settings.TaskHubName.ToLowerInvariant()}-{this.settings.PoisonMessageStorageContainerNamePrefix}-{suffix}";
         }
 
-        protected async Task<bool> TryMoveMessageToPoisonStorageAsync(QueueMessage queueMessage, CancellationToken cancellationToken = default)
+        protected async Task<bool> CheckForAndHandlePoisonMessageAsync(
+            string poisonMessageContainerName,
+            QueueMessage queueMessage,
+            OrchestrationInstance? orchestrationInstance = null,
+            CancellationToken cancellationToken = default)
         {
             if (!this.settings.IsPoisonMessageStorageEnabled || queueMessage.DequeueCount <= this.settings.MaxDequeueCount)
             {
                 return false;
             }
 
-            return await this.StorePoisonMessageAsync(
-                orchestrationInstance: null,
-                queueMessage,
-                queueMessage.Body.ToString(),
-                cancellationToken);
-        }
-
-        async Task<bool> StorePoisonMessageAsync(
-            OrchestrationInstance? orchestrationInstance,
-            QueueMessage queueMessage,
-            string serializedPoisonMessage,
-            CancellationToken cancellationToken)
-        {
             try
             {
                 BlobContainer container = this.poisonMessageContainer ??=
-                    this.azureStorageClient.GetBlobContainerReference(this.PoisonMessageContainerName);
+                    this.azureStorageClient.GetBlobContainerReference(poisonMessageContainerName);
 
                 // Replace any invalid characters with a dash
                 string sanitizedInstanceId = SanitizeString(orchestrationInstance?.InstanceId, '-');
-                string sanitizedExecutionId = SanitizeString(orchestrationInstance?.ExecutionId, '-');
-                string blobNamePrefix = $"{sanitizedInstanceId}~{sanitizedExecutionId}";
-                // Blob name length limit is 1024 characters and we attach an extra character (~) and GUID (32) at the end
+                string blobNamePrefix = sanitizedInstanceId;
+
+                if (!string.IsNullOrEmpty(orchestrationInstance?.ExecutionId))
+                {
+                    blobNamePrefix += $"_{SanitizeString(orchestrationInstance?.ExecutionId, '-')}";
+                }
+
+                // Blob name length limit is 1024 characters and we attach an extra character (_) and the message ID at the end
                 // From https://learn.microsoft.com/en-us/rest/api/storageservices/naming-and-referencing-containers--blobs--and-metadata?#blob-names
-                const int MaxPrefixLength = 1024 - 32 - 1;
+                int MaxPrefixLength = 1024 - queueMessage.MessageId.Length - 1;
                 if (blobNamePrefix.Length > MaxPrefixLength)
                 {
                     blobNamePrefix = blobNamePrefix.Substring(0, MaxPrefixLength);
                 }
-                string blobName = $"{blobNamePrefix}~{Guid.NewGuid():N}";
+                string blobName = $"{blobNamePrefix}_{queueMessage.MessageId}";
 
                 await container.CreateIfNotExistsAsync(cancellationToken);
 
                 Blob blob = container.GetBlobReference(blobName);
-                await blob.UploadTextAsync(serializedPoisonMessage, cancellationToken: cancellationToken);
+                await blob.UploadTextAsync(queueMessage.Body.ToString(), cancellationToken: cancellationToken);
 
-                this.settings.Logger.GeneralWarning(
+                this.settings.Logger.PoisonMessageStored(
                     this.azureStorageClient.BlobAccountName,
                     this.settings.TaskHubName,
-                    $"Stored a poison message for instance InstanceId='{orchestrationInstance?.InstanceId ?? string.Empty}' " +
-                    $"ExecutionId='{orchestrationInstance?.ExecutionId ?? string.Empty}' in blob '{blobName}'.");
+                    orchestrationInstance?.InstanceId ?? string.Empty,
+                    orchestrationInstance?.ExecutionId ?? string.Empty,
+                    queueMessage.MessageId,
+                    blobName);
 
                 await this.storageQueue.DeleteMessageAsync(queueMessage, cancellationToken: cancellationToken);
             }
             catch (Exception e)
             {
-                this.settings.Logger.GeneralError(
+                this.settings.Logger.MessageFailure(
                     this.azureStorageClient.BlobAccountName,
                     this.settings.TaskHubName,
-                    $"Error when attempting to store poison message for instance " +
-                        $"InstanceId={orchestrationInstance?.InstanceId ?? string.Empty} " +
-                        $"ExecutionId={orchestrationInstance?.ExecutionId ?? string.Empty} " +
-                        $"Error: {e}");
+                    queueMessage.MessageId,
+                    orchestrationInstance?.InstanceId ?? string.Empty,
+                    orchestrationInstance?.ExecutionId ?? string.Empty,
+                    this.storageQueue.Name,
+                    string.Empty /* EventType */,
+                    0 /* TaskEventId */,
+                    $"Error when attempting to store poison message. Error: {e}");
 
                 return false;
             }

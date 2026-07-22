@@ -31,11 +31,9 @@ namespace DurableTask.AzureStorage.Messaging
 
         protected override TimeSpan MessageVisibilityTimeout => this.settings.WorkItemQueueVisibilityTimeout;
 
-        protected override string PoisonMessageContainerName =>
-            $"{this.settings.TaskHubName.ToLowerInvariant()}-{this.settings.PoisonMessageStorageContainerNamePrefix}-activity-messages";
-
         public async Task<MessageData> GetMessageAsync(CancellationToken cancellationToken)
         {
+            string poisonMessageContainerName = this.GetPoisonMessageContainerName("activity-messages");
             while (!cancellationToken.IsCancellationRequested)
             {
                 try
@@ -58,7 +56,7 @@ namespace DurableTask.AzureStorage.Messaging
                     }
                     catch (Exception)
                     {
-                        if (await this.TryMoveMessageToPoisonStorageAsync(queueMessage, cancellationToken))
+                        if (await this.CheckForAndHandlePoisonMessageAsync(poisonMessageContainerName, queueMessage, orchestrationInstance: null, cancellationToken))
                         {
                             this.backoffHelper.Reset();
                             continue;
@@ -67,7 +65,7 @@ namespace DurableTask.AzureStorage.Messaging
                         throw;
                     }
 
-                    if (await this.TryMoveMessageToPoisonStorageAsync(data, cancellationToken))
+                    if (await this.CheckForAndHandlePoisonMessageAsync(poisonMessageContainerName, queueMessage, data.TaskMessage.OrchestrationInstance, cancellationToken))
                     {
                         this.backoffHelper.Reset();
                         continue;

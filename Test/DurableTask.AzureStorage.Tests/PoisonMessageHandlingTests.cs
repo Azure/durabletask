@@ -97,10 +97,10 @@ namespace DurableTask.AzureStorage.Tests
                 List<BlobItem> blobs = await ListBlobsAsync(instanceContainerClient);
                 Assert.AreEqual(1, blobs.Count);
 
-                string expectedPrefix = $"{instance.InstanceId}~{instance.ExecutionId}";
+                string expectedPrefix = $"{instance.InstanceId}_{instance.ExecutionId}";
                 Assert.AreEqual(expectedPrefix, blobs[0].Name.Substring(0, expectedPrefix.Length));
 
-                MessageData poisonMessage = await DownloadPoisonMessagesAsync(instanceContainerClient, blobs[0].Name);
+                MessageData poisonMessage = await DownloadPoisonMessagesAsync(instanceContainerClient, blobs[0].Name, CreateMessageManager(settings));
                 Assert.AreEqual(string.Empty, poisonMessage.Sender.InstanceId);
                 Assert.AreEqual(string.Empty, poisonMessage.Sender.ExecutionId);
                 Assert.AreEqual(instance.InstanceId, poisonMessage.TaskMessage.OrchestrationInstance.InstanceId);
@@ -208,24 +208,32 @@ namespace DurableTask.AzureStorage.Tests
                 List<BlobItem> blobs = await ListBlobsAsync(instanceContainerClient);
                 Assert.AreEqual(1, blobs.Count);
 
-                // The blob name uses the sanitized instance ID, and the composed "{instanceId}~{executionId}" prefix
-                // is truncated to keep the total blob name within the 1024 character limit.
-                const int maxPrefixLength = 1024 - 32 - 1;
-                string expectedPrefix = $"{expectedSanitizedInstanceId}~{executionId}";
+                // The blob name is "{sanitizedInstanceId}_{executionId}_{messageId}". The instance/execution portion
+                // is truncated so the total blob name stays within the 1024 character limit. Neither the sanitized
+                // instance IDs used here, the execution ID (hex GUID), nor the message ID contains an underscore, so
+                // the message ID is the final underscore-delimited segment.
+                string blobName = blobs[0].Name;
+                Assert.IsTrue(blobName.Length <= 1024, $"Blob name length {blobName.Length} exceeds the 1024 character limit.");
+
+                int lastUnderscore = blobName.LastIndexOf('_');
+                Assert.IsTrue(lastUnderscore > 0, "Blob name should contain a message ID segment.");
+                string actualPrefix = blobName.Substring(0, lastUnderscore);
+                string messageId = blobName.Substring(lastUnderscore + 1);
+
+                string expectedPrefix = $"{expectedSanitizedInstanceId}_{executionId}";
+                int maxPrefixLength = 1024 - messageId.Length - 1;
                 if (expectedPrefix.Length > maxPrefixLength)
                 {
                     expectedPrefix = expectedPrefix.Substring(0, maxPrefixLength);
                 }
 
-                Assert.AreEqual(expectedPrefix, blobs[0].Name.Substring(0, expectedPrefix.Length));
-                Assert.IsTrue(blobs[0].Name.Length <= 1024, $"Blob name length {blobs[0].Name.Length} exceeds the 1024 character limit.");
+                Assert.AreEqual(expectedPrefix, actualPrefix);
 
-                // Sanitization only affects the blob name. The stored poison message must preserve the original
-                // (unsanitized) instance ID.
-                MessageData poisonMessage = await DownloadPoisonMessagesAsync(instanceContainerClient, blobs[0].Name);
-                Assert.AreEqual(instanceId, poisonMessage.TaskMessage.OrchestrationInstance.InstanceId);
-                Assert.AreEqual(executionId, poisonMessage.TaskMessage.OrchestrationInstance.ExecutionId);
-                Assert.IsInstanceOfType(poisonMessage.TaskMessage.Event, typeof(ExecutionStartedEvent));
+                // The stored poison message is the raw queue message body. Sanitization only affects the blob name,
+                // so the stored content is exactly the original message body (which still contains the unsanitized
+                // instance ID).
+                string blobContent = await DownloadBlobTextAsync(instanceContainerClient, blobName);
+                Assert.AreEqual(body, blobContent);
 
                 await AssertQueuesAreEmptyAsync(settings);
             }
@@ -386,10 +394,10 @@ namespace DurableTask.AzureStorage.Tests
                 List<BlobItem> blobs = await ListBlobsAsync(activityContainerClient);
                 Assert.AreEqual(1, blobs.Count);
 
-                string expectedPrefix = $"{instance.InstanceId}~{instance.ExecutionId}";
+                string expectedPrefix = $"{instance.InstanceId}_{instance.ExecutionId}";
                 Assert.AreEqual(expectedPrefix, blobs[0].Name.Substring(0, expectedPrefix.Length));
 
-                MessageData poisonMessage = await DownloadPoisonMessagesAsync(activityContainerClient, blobs[0].Name);
+                MessageData poisonMessage = await DownloadPoisonMessagesAsync(activityContainerClient, blobs[0].Name, CreateMessageManager(settings));
                 Assert.AreEqual(instance.InstanceId, poisonMessage.Sender.InstanceId);
                 Assert.AreEqual(instance.ExecutionId, poisonMessage.Sender.ExecutionId);
                 Assert.AreEqual(instance.InstanceId, poisonMessage.TaskMessage.OrchestrationInstance.InstanceId);
@@ -631,77 +639,6 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        [DataTestMethod]
-        [DataRow("durable-task-poison")]
-        [DataRow("abc")]
-        [DataRow("a1")]
-        [DataRow("a-b-c")]
-        [DataRow("123")]
-        [DataRow("a1-2b-3c")]
-        public void PoisonMessageStorageContainerNamePrefix_ValidValue_IsAccepted(string value)
-        {
-            var settings = new AzureStorageOrchestrationServiceSettings
-            {
-                PoisonMessageStorageContainerNamePrefix = value,
-            };
-
-            Assert.AreEqual(value, settings.PoisonMessageStorageContainerNamePrefix);
-        }
-
-        [TestMethod]
-        public void PoisonMessageStorageContainerNamePrefix_MaxLength_IsAccepted()
-        {
-            // The prefix is embedded in "{taskhubname}-{prefix}-instance-messages"; the validation reserves room for
-            // the "-instance-messages" suffix plus a "-" and one char for the taskhub name within the 63-character limit.
-            int maxPrefixLength = 63 - "-instance-messages".Length - 2;
-            string maxLength = new string('a', maxPrefixLength);
-            var settings = new AzureStorageOrchestrationServiceSettings
-            {
-                PoisonMessageStorageContainerNamePrefix = maxLength,
-            };
-
-            Assert.AreEqual(maxLength, settings.PoisonMessageStorageContainerNamePrefix);
-        }
-
-        [DataTestMethod]
-        [DataRow("")]                 // empty
-        [DataRow("Abc")]              // uppercase
-        [DataRow("ABC")]              // uppercase
-        [DataRow("-abc")]             // leading hyphen
-        [DataRow("abc-")]             // trailing hyphen
-        [DataRow("a--b")]             // consecutive hyphens
-        [DataRow("a_b")]              // underscore is not allowed
-        [DataRow("a.b")]              // period is not allowed
-        [DataRow("a b")]              // whitespace is not allowed
-        public void PoisonMessageStorageContainerNamePrefix_InvalidValue_ThrowsArgumentException(string value)
-        {
-            var settings = new AzureStorageOrchestrationServiceSettings();
-
-            Assert.ThrowsException<ArgumentException>(
-                () => settings.PoisonMessageStorageContainerNamePrefix = value);
-        }
-
-        [TestMethod]
-        public void PoisonMessageStorageContainerNamePrefix_TooLong_ThrowsArgumentException()
-        {
-            var settings = new AzureStorageOrchestrationServiceSettings();
-            int maxPrefixLength = 63 - "-instance-messages".Length - 2;
-            string tooLong = new string('a', maxPrefixLength + 1);
-
-            Assert.ThrowsException<ArgumentException>(
-                () => settings.PoisonMessageStorageContainerNamePrefix = tooLong);
-        }
-
-        [TestMethod]
-        public void PoisonMessageStorageContainerNamePrefix_Null_ThrowsArgumentNullException()
-        {
-            var settings = new AzureStorageOrchestrationServiceSettings();
-
-            Assert.ThrowsException<ArgumentNullException>(
-                () => settings.PoisonMessageStorageContainerNamePrefix = null!);
-        }
-
-
         static AzureStorageOrchestrationServiceSettings CreateSettings(
             int MaxDequeueCount,
             string prefix,
@@ -802,7 +739,7 @@ namespace DurableTask.AzureStorage.Tests
             return blobs;
         }
 
-        static async Task<MessageData> DownloadPoisonMessagesAsync(BlobContainerClient containerClient, string blobName)
+        static async Task<MessageData> DownloadPoisonMessagesAsync(BlobContainerClient containerClient, string blobName, MessageManager messageManager)
         {
             BlobClient blobClient = containerClient.GetBlobClient(blobName);
             BlobDownloadResult downloadResult = await blobClient.DownloadContentAsync();
@@ -810,9 +747,10 @@ namespace DurableTask.AzureStorage.Tests
 
             Assert.IsFalse(string.IsNullOrEmpty(blobContent), "Blob content should not be empty");
 
-            MessageData poisonMessage = JsonConvert.DeserializeObject<MessageData>(
-                blobContent,
-                new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto });
+            // The poison blob stores the raw queue message body, which is serialized with the product's message
+            // serializer (TypeNameHandling.Objects plus a custom type binder). Use a MessageManager so the same
+            // serializer settings/binder are applied when deserializing.
+            MessageData poisonMessage = messageManager.DeserializeMessageData(blobContent);
 
             Assert.IsNotNull(poisonMessage);
             return poisonMessage;

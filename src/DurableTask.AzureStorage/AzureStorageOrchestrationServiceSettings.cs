@@ -339,52 +339,11 @@ namespace DurableTask.AzureStorage
         /// (used for activity messages dequeued from the work item queue).
         /// The container name must adhere to the Azure Blob Storage container naming rules:
         /// https://learn.microsoft.com/en-us/rest/api/storageservices/Naming-and-Referencing-Containers--Blobs--and-Metadata#directory-names
-        /// In particular, this means the total length of the name must not exceed 63 characters, can only contain lowercase letters, numbers,
+        /// In particular, this means the total length of the name must not exceed 63 characters, it can only contain lowercase letters, numbers,
         /// and hyphens, and must start and end with a letter or number.
         /// Additionally, every hyphen must be immediately preceded and followed by a letter or number.
         /// If not specified, the default value "durable-task-poison" will be used.
         /// </summary>
-        /// <exception cref="ArgumentException">
-        /// Thrown when the value does not conform to the Azure Blob Storage container naming rules described above.
-        /// </exception>
-        public string PoisonMessageStorageContainerNamePrefix
-        {
-            get => this.poisonMessageStorageContainerNamePrefix;
-            set
-            {
-                ValidatePoisonMessageStorageContainerNamePrefix(value);
-                this.poisonMessageStorageContainerNamePrefix = value;
-            }
-        }
-
-        string poisonMessageStorageContainerNamePrefix = "durable-task-poison";
-
-
-        static void ValidatePoisonMessageStorageContainerNamePrefix(string value)
-        {
-            if (value == null)
-            {
-                throw new ArgumentNullException(nameof(PoisonMessageStorageContainerNamePrefix));
-            }
-             
-            // The taskhub name may not have been set at this point, so we make a best effort validation but leaving at least one character
-            // for the hub name (and another for the additional "-" in the final container name)
-            int maxLength = 63 - "-instance-messages".Length - 2;
-            if (value.Length == 0 || value.Length > maxLength)
-            {
-                throw new ArgumentException(
-                    $"The {nameof(PoisonMessageStorageContainerNamePrefix)} must be between 1 and {maxLength} characters long.",
-                    nameof(PoisonMessageStorageContainerNamePrefix));
-            }
-
-            if (!Regex.IsMatch(value, "^[a-z0-9]+(-[a-z0-9]+)*$"))
-            {
-                throw new ArgumentException(
-                    $"The {nameof(PoisonMessageStorageContainerNamePrefix)} '{value}' is invalid. It may only contain " +
-                    "lowercase letters, numbers, and hyphens, must start and end with a letter or number, and every " +
-                    "hyphen must be immediately preceded and followed by a letter or number.",
-                    nameof(PoisonMessageStorageContainerNamePrefix));
-            }
-        }
+        public string PoisonMessageStorageContainerNamePrefix { get; set; } = "durable-task-poison";
     }
 }

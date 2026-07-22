@@ -123,6 +123,24 @@ namespace DurableTask.AzureStorage.Logging
             this.WriteStructuredLog(logEvent);
         }
 
+        internal void PoisonMessageStored(
+            string account,
+            string taskHub,
+            string instanceId,
+            string executionId,
+            string messageId,
+            string blobName)
+        {
+            var logEvent = new LogEvents.PoisonMessageStored(
+                account,
+                taskHub,
+                instanceId,
+                executionId,
+                messageId,
+                blobName);
+            this.WriteStructuredLog(logEvent);
+        }
+
         internal void AbandoningMessage(
             string account,
             string taskHub,

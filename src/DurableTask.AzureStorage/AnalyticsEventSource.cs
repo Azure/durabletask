@@ -965,6 +965,29 @@ namespace DurableTask.AzureStorage
             this.WriteEvent(EventIds.GeneralWarning, Account, TaskHub, Details, AppName, ExtensionVersion, InstanceId ?? string.Empty);
         }
 
+        [Event(EventIds.PoisonMessageStored, Level = EventLevel.Warning, Version = 1)]
+        public void PoisonMessageStored(
+            string Account,
+            string TaskHub,
+            string InstanceId,
+            string ExecutionId,
+            string MessageId,
+            string BlobName,
+            string AppName,
+            string ExtensionVersion)
+        {
+            this.WriteEvent(
+                EventIds.PoisonMessageStored,
+                Account,
+                TaskHub,
+                InstanceId ?? string.Empty,
+                ExecutionId ?? string.Empty,
+                MessageId,
+                BlobName,
+                AppName,
+                ExtensionVersion);
+        }
+
         [Event(EventIds.SplitBrainDetected, Level = EventLevel.Warning, Version = 2)]
         public void SplitBrainDetected(
             string Account,
