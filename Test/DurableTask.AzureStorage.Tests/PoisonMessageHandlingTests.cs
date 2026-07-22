@@ -51,17 +51,20 @@ namespace DurableTask.AzureStorage.Tests
         public async Task OrchestrationWithPoisonMessage_Failed_AndPoisonMessageStored()
         {
             string prefix = CreateUniquePrefix();
-            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 1, prefix: prefix);
+            AzureStorageOrchestrationServiceSettings settings = CreateSettings(MaxDequeueCount: 1, prefix: prefix);
 
             BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string containerName = $"{prefix}-instance-messages";
-            BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
-            await containerClient.DeleteIfExistsAsync();
+            string instanceContainerName = $"{settings.TaskHubName}-{prefix}-instance-messages";
+            string activityContainerName = $"{settings.TaskHubName}-{prefix}-activity-messages";
+            BlobContainerClient instanceContainerClient = blobServiceClient.GetBlobContainerClient(instanceContainerName);
+            BlobContainerClient activityContainerClient = blobServiceClient.GetBlobContainerClient(activityContainerName);
+            await instanceContainerClient.DeleteIfExistsAsync();
+            await activityContainerClient.DeleteIfExistsAsync();
 
             var inner = new AzureStorageOrchestrationService(settings);
 
             // Fail the first orchestration work item completion so the ExecutionStarted message is redelivered
-            // with a dispatch count of 2, which exceeds the maximum dispatch count of 1.
+            // with a dequeue count of 2, which exceeds the maximum dequeue count of 1.
             var service = new FaultInjectingOrchestrationService(inner)
             {
                 OrchestrationCompletionFailuresRemaining = 1,
@@ -85,33 +88,30 @@ namespace DurableTask.AzureStorage.Tests
                     input: "hello",
                     tags: tags);
 
-                OrchestrationState state = await client.WaitForOrchestrationAsync(instance, DefaultTimeout);
+                // The orchestration itself never completes because the ExecutionStartedEvent was discarded, so we wait
+                // for the poison blob to appear rather than for orchestration completion.
+                await TestHelpers.WaitFor(
+                    () => instanceContainerClient.Exists().Value && ListBlobsAsync(instanceContainerClient).GetAwaiter().GetResult().Count > 0,
+                    TimeSpan.FromSeconds(30));
 
-                Assert.IsNotNull(state);
-                Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
+                Assert.IsFalse(
+                    await activityContainerClient.ExistsAsync(),
+                    $"Blob container '{activityContainerName}' should not exist");
 
-                // The orchestration-level FailureDetails is serialized into the output as "{ErrorType}: {ErrorMessage}",
-                // so reconstruct it from whichever the backend populated.
-                FailureDetails failureDetails = GetFailureDetails(state);
-                Assert.IsNotNull(failureDetails);
-                Assert.AreEqual("PoisonMessages", failureDetails.ErrorType);
-                StringAssert.Contains(failureDetails.ErrorMessage, EventType.ExecutionStarted.ToString());
-                StringAssert.Contains(failureDetails.ErrorMessage, "maximum dispatch count of 1");
-                StringAssert.Contains(failureDetails.ErrorMessage, "dispatch counts 2");
-                Assert.IsTrue(failureDetails.IsNonRetriable);
-
-                Assert.IsTrue(await containerClient.ExistsAsync(), $"Blob container '{containerName}' should exist");
-
-                List<BlobItem> blobs = await ListBlobsAsync(containerClient);
+                List<BlobItem> blobs = await ListBlobsAsync(instanceContainerClient);
                 Assert.AreEqual(1, blobs.Count);
 
                 string expectedPrefix = $"{instance.InstanceId}~{instance.ExecutionId}";
                 Assert.AreEqual(expectedPrefix, blobs[0].Name.Substring(0, expectedPrefix.Length));
 
-                List<TaskMessage> poisonMessages = await DownloadPoisonMessagesAsync(containerClient, blobs[0].Name);
-                Assert.AreEqual(1, poisonMessages.Count);
-                Assert.IsInstanceOfType(poisonMessages[0].Event, typeof(ExecutionStartedEvent));
-                var executionStartedEvent = (ExecutionStartedEvent)poisonMessages[0].Event;
+                MessageData poisonMessage = await DownloadPoisonMessagesAsync(instanceContainerClient, blobs[0].Name);
+                Assert.AreEqual(string.Empty, poisonMessage.Sender.InstanceId);
+                Assert.AreEqual(string.Empty, poisonMessage.Sender.ExecutionId);
+                Assert.AreEqual(instance.InstanceId, poisonMessage.TaskMessage.OrchestrationInstance.InstanceId);
+                Assert.AreEqual(instance.ExecutionId, poisonMessage.TaskMessage.OrchestrationInstance.ExecutionId);
+
+                Assert.IsInstanceOfType(poisonMessage.TaskMessage.Event, typeof(ExecutionStartedEvent));
+                var executionStartedEvent = (ExecutionStartedEvent)poisonMessage.TaskMessage.Event;
                 Assert.AreEqual(instance.InstanceId, executionStartedEvent.OrchestrationInstance.InstanceId);
                 Assert.AreEqual(instance.ExecutionId, executionStartedEvent.OrchestrationInstance.ExecutionId);
                 Assert.AreEqual(NameVersionHelper.GetDefaultName(typeof(EchoOrchestration)), executionStartedEvent.Name);
@@ -120,24 +120,26 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(1, executionStartedEvent.Tags.Count);
                 Assert.IsTrue(executionStartedEvent.Tags.ContainsKey("key"));
                 Assert.AreEqual("value", executionStartedEvent.Tags["key"]);
-                Assert.AreEqual(2, executionStartedEvent.DispatchCount);
+
+                await AssertQueuesAreEmptyAsync(settings);
             }
             finally
             {
                 await worker.StopAsync(isForced: true);
-                await containerClient.DeleteIfExistsAsync();
+                await instanceContainerClient.DeleteIfExistsAsync();
+                await activityContainerClient.DeleteIfExistsAsync();
                 await service.DeleteAsync();
             }
         }
 
         [TestMethod]
-        public async Task OrchestrationWithMessageEqualToMaxDispatchCount_CompletesSuccessfully()
+        public async Task OrchestrationWithMessageEqualToMaxDequeueCount_CompletesSuccessfully()
         {
             string prefix = CreateUniquePrefix();
-            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 2, prefix: prefix);
+            AzureStorageOrchestrationServiceSettings settings = CreateSettings(MaxDequeueCount: 2, prefix: prefix);
 
             BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string containerName = $"{prefix}-instance-messages";
+            string containerName = $"{settings.TaskHubName}-{prefix}-instance-messages";
             BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
             await containerClient.DeleteIfExistsAsync();
 
@@ -179,16 +181,13 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public async Task OrchestrationWithDispatchExceedingMax_PoisonHandlingDisabled_CompletesSuccessfully_NoBlob()
+        public async Task OrchestrationWithDequeueExceedingMax_PoisonHandlingDisabled_CompletesSuccessfully_NoBlob()
         {
-            // Even with MaxDispatchCount=1 and an injected transient failure that pushes DispatchCount above the limit,
-            // when poison handling is disabled the message must NOT be treated as poisoned, the orchestration must NOT
-            // fail, and no blob container should be created.
             string prefix = CreateUniquePrefix();
-            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 1, prefix: prefix, poisonEnabled: false);
+            AzureStorageOrchestrationServiceSettings settings = CreateSettings(MaxDequeueCount: 1, prefix: prefix, poisonEnabled: false);
 
             BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string containerName = $"{prefix}-instance-messages";
+            string containerName = $"{settings.TaskHubName}-{prefix}-instance-messages";
             BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
             await containerClient.DeleteIfExistsAsync();
 
@@ -233,11 +232,11 @@ namespace DurableTask.AzureStorage.Tests
         public async Task ActivityWithPoisonMessage_Failed_AndPoisonMessageStored()
         {
             string prefix = CreateUniquePrefix();
-            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 1, prefix: prefix);
+            AzureStorageOrchestrationServiceSettings settings = CreateSettings(MaxDequeueCount: 1, prefix: prefix);
 
             BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string instanceContainerName = $"{prefix}-instance-messages";
-            string activityContainerName = $"{prefix}-activity-messages";
+            string instanceContainerName = $"{settings.TaskHubName}-{prefix}-instance-messages";
+            string activityContainerName = $"{settings.TaskHubName}-{prefix}-activity-messages";
             BlobContainerClient instanceContainerClient = blobServiceClient.GetBlobContainerClient(instanceContainerName);
             BlobContainerClient activityContainerClient = blobServiceClient.GetBlobContainerClient(activityContainerName);
             await instanceContainerClient.DeleteIfExistsAsync();
@@ -268,41 +267,36 @@ namespace DurableTask.AzureStorage.Tests
                     version: NameVersionHelper.GetDefaultVersion(typeof(ScheduleActivityOrchestration)),
                     input: "hello");
 
-                OrchestrationState state = await client.WaitForOrchestrationAsync(instance, DefaultTimeout);
-
-                Assert.IsNotNull(state);
-                Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
-
-                // The orchestration fails because the activity exceeded the maximum dispatch count. The poison reason
-                // now propagates back to the calling orchestration and is surfaced in the output.
-                FailureDetails failureDetails = GetFailureDetails(state);
-                Assert.IsNotNull(failureDetails);
-                StringAssert.Contains(failureDetails.ErrorMessage, "maximum dispatch count of 1");
-                StringAssert.Contains(failureDetails.ErrorMessage, "dispatch count 2");
-                // Currently DT.Core does not propagate the nonretriable property from the Activity/entity that caused the failure
-                //Assert.IsTrue(failureDetails.IsNonRetriable);
+                // The activity message exceeds the maximum dequeue count and is moved to poison storage. The
+                // orchestration itself never completes because the activity result is never produced, so we wait
+                // for the poison blob to appear rather than for orchestration completion.
+                await TestHelpers.WaitFor(
+                    () => activityContainerClient.Exists().Value && ListBlobsAsync(activityContainerClient).GetAwaiter().GetResult().Count > 0,
+                    TimeSpan.FromSeconds(30));
 
                 Assert.IsFalse(
                     await instanceContainerClient.ExistsAsync(),
                     $"Blob container '{instanceContainerName}' should not exist");
-                Assert.IsTrue(
-                    await activityContainerClient.ExistsAsync(),
-                    $"Blob container '{activityContainerName}' should exist");
 
                 List<BlobItem> blobs = await ListBlobsAsync(activityContainerClient);
                 Assert.AreEqual(1, blobs.Count);
 
-                string activityName = NameVersionHelper.GetDefaultName(typeof(EchoActivity));
-                string expectedPrefix = $"{activityName}~{instance.InstanceId}~{instance.ExecutionId}";
+                string expectedPrefix = $"{instance.InstanceId}~{instance.ExecutionId}";
                 Assert.AreEqual(expectedPrefix, blobs[0].Name.Substring(0, expectedPrefix.Length));
 
-                List<TaskMessage> poisonMessages = await DownloadPoisonMessagesAsync(activityContainerClient, blobs[0].Name);
-                Assert.AreEqual(1, poisonMessages.Count);
-                Assert.IsInstanceOfType(poisonMessages[0].Event, typeof(TaskScheduledEvent));
-                var taskScheduledEvent = (TaskScheduledEvent)poisonMessages[0].Event;
+                MessageData poisonMessage = await DownloadPoisonMessagesAsync(activityContainerClient, blobs[0].Name);
+                Assert.AreEqual(instance.InstanceId, poisonMessage.Sender.InstanceId);
+                Assert.AreEqual(instance.ExecutionId, poisonMessage.Sender.ExecutionId);
+                Assert.AreEqual(instance.InstanceId, poisonMessage.TaskMessage.OrchestrationInstance.InstanceId);
+                Assert.AreEqual(instance.ExecutionId, poisonMessage.TaskMessage.OrchestrationInstance.ExecutionId);
+
+                string activityName = NameVersionHelper.GetDefaultName(typeof(EchoActivity));
+                Assert.IsInstanceOfType(poisonMessage.TaskMessage.Event, typeof(TaskScheduledEvent));
+                var taskScheduledEvent = (TaskScheduledEvent)poisonMessage.TaskMessage.Event;
                 Assert.AreEqual(activityName, taskScheduledEvent.Name);
                 Assert.AreEqual("[\"hello\"]", taskScheduledEvent.Input);
-                Assert.AreEqual(2, taskScheduledEvent.DispatchCount);
+
+                await AssertQueuesAreEmptyAsync(settings);
             }
             finally
             {
@@ -314,13 +308,13 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public async Task ActivityWithMessageEqualToMaxDispatchCount_CompletesSuccessfully()
+        public async Task ActivityWithMessageEqualToMaxDequeueCount_CompletesSuccessfully()
         {
             string prefix = CreateUniquePrefix();
-            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 2, prefix: prefix);
+            AzureStorageOrchestrationServiceSettings settings = CreateSettings(MaxDequeueCount: 2, prefix: prefix);
 
             BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string activityContainerName = $"{prefix}-activity-messages";
+            string activityContainerName = $"{settings.TaskHubName}-{prefix}-activity-messages";
             BlobContainerClient activityContainerClient = blobServiceClient.GetBlobContainerClient(activityContainerName);
             await activityContainerClient.DeleteIfExistsAsync();
 
@@ -368,10 +362,10 @@ namespace DurableTask.AzureStorage.Tests
         public async Task ActivityWithDispatchExceedingMax_PoisonHandlingDisabled_CompletesSuccessfully_NoBlob()
         {
             string prefix = CreateUniquePrefix();
-            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 1, prefix: prefix, poisonEnabled: false);
+            AzureStorageOrchestrationServiceSettings settings = CreateSettings(MaxDequeueCount: 1, prefix: prefix, poisonEnabled: false);
 
             BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string activityContainerName = $"{prefix}-activity-messages";
+            string activityContainerName = $"{settings.TaskHubName}-{prefix}-activity-messages";
             BlobContainerClient activityContainerClient = blobServiceClient.GetBlobContainerClient(activityContainerName);
             await activityContainerClient.DeleteIfExistsAsync();
 
@@ -414,868 +408,127 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public async Task ActivityWithInvalidWorkItem_MissingOrchestrationInstance_PoisonMessageStored()
+        public async Task ControlQueueMessageWithBadJson_StoredAsPoison_AndDeleted()
         {
             string prefix = CreateUniquePrefix();
-            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 5, prefix: prefix);
+            AzureStorageOrchestrationServiceSettings settings = CreateSettings(MaxDequeueCount: 1, prefix: prefix);
 
             BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string activityContainerName = $"{prefix}-activity-messages";
+            string instanceContainerName = $"{settings.TaskHubName}-{prefix}-instance-messages";
+            string activityContainerName = $"{settings.TaskHubName}-{prefix}-activity-messages";
+            BlobContainerClient instanceContainerClient = blobServiceClient.GetBlobContainerClient(instanceContainerName);
             BlobContainerClient activityContainerClient = blobServiceClient.GetBlobContainerClient(activityContainerName);
+            await instanceContainerClient.DeleteIfExistsAsync();
             await activityContainerClient.DeleteIfExistsAsync();
-
-            var inner = new AzureStorageOrchestrationService(settings);
-
-            int corruptionCount = 0;
-            var service = new FaultInjectingOrchestrationService(inner)
-            {
-                // Corrupt the first activity dispatch by removing its OrchestrationInstance, which routes the work
-                // item through the activity dispatcher's "missing OrchestrationInstance" invalid-work-item path.
-                CorruptActivityWorkItem = wi =>
-                {
-                    if (Interlocked.Increment(ref corruptionCount) == 1)
-                    {
-                        wi.TaskMessage.OrchestrationInstance = null;
-                    }
-                },
-            };
-
-            await service.CreateAsync(recreateInstanceStore: true);
-
-            using var worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
-            worker.AddTaskOrchestrations(typeof(ScheduleActivityOrchestration));
-            worker.AddTaskActivities(typeof(EchoActivity));
-            await worker.StartAsync();
-
-            try
-            {
-                var client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
-                await client.CreateOrchestrationInstanceAsync(
-                    name: NameVersionHelper.GetDefaultName(typeof(ScheduleActivityOrchestration)),
-                    version: NameVersionHelper.GetDefaultVersion(typeof(ScheduleActivityOrchestration)),
-                    input: "hello");
-
-                await TestHelpers.WaitFor(
-                    () => activityContainerClient.Exists().Value && ListBlobsAsync(activityContainerClient).GetAwaiter().GetResult().Count > 0,
-                    TimeSpan.FromSeconds(30));
-
-                List<BlobItem> blobs = await ListBlobsAsync(activityContainerClient);
-                Assert.AreEqual(1, blobs.Count);
-
-                string activityName = NameVersionHelper.GetDefaultName(typeof(EchoActivity));
-                StringAssert.StartsWith(blobs[0].Name, $"{activityName}~");
-
-                List<TaskMessage> poisonMessages = await DownloadPoisonMessagesAsync(activityContainerClient, blobs[0].Name);
-                Assert.AreEqual(1, poisonMessages.Count);
-                // The poison message preserves the corruption that we injected.
-                Assert.IsNull(poisonMessages[0].OrchestrationInstance);
-                Assert.IsInstanceOfType(poisonMessages[0].Event, typeof(TaskScheduledEvent));
-            }
-            finally
-            {
-                await worker.StopAsync(isForced: true);
-                await activityContainerClient.DeleteIfExistsAsync();
-                await service.DeleteAsync();
-            }
-        }
-
-        [TestMethod]
-        public async Task ActivityWithInvalidWorkItem_NonTaskScheduledEvent_PoisonMessageStored()
-        {
-            string prefix = CreateUniquePrefix();
-            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 5, prefix: prefix);
-
-            BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string activityContainerName = $"{prefix}-activity-messages";
-            BlobContainerClient activityContainerClient = blobServiceClient.GetBlobContainerClient(activityContainerName);
-            await activityContainerClient.DeleteIfExistsAsync();
-
-            var inner = new AzureStorageOrchestrationService(settings);
-
-            int corruptionCount = 0;
-            var service = new FaultInjectingOrchestrationService(inner)
-            {
-                CorruptActivityWorkItem = wi =>
-                {
-                    if (Interlocked.Increment(ref corruptionCount) == 1)
-                    {
-                        // Replace the TaskScheduled event with an unrelated event type to trigger the
-                        // "unsupported event type" invalid-work-item path in the activity dispatcher.
-                        wi.TaskMessage.Event = new EventRaisedEvent(-1, "garbage") { Name = "notAnActivity" };
-                    }
-                },
-            };
-
-            await service.CreateAsync(recreateInstanceStore: true);
-
-            using var worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
-            worker.AddTaskOrchestrations(typeof(ScheduleActivityOrchestration));
-            worker.AddTaskActivities(typeof(EchoActivity));
-            await worker.StartAsync();
-
-            try
-            {
-                var client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
-                await client.CreateOrchestrationInstanceAsync(
-                    name: NameVersionHelper.GetDefaultName(typeof(ScheduleActivityOrchestration)),
-                    version: NameVersionHelper.GetDefaultVersion(typeof(ScheduleActivityOrchestration)),
-                    input: "hello");
-
-                await TestHelpers.WaitFor(
-                    () => activityContainerClient.Exists().Value && ListBlobsAsync(activityContainerClient).GetAwaiter().GetResult().Count > 0,
-                    TimeSpan.FromSeconds(30));
-
-                List<BlobItem> blobs = await ListBlobsAsync(activityContainerClient);
-                Assert.AreEqual(1, blobs.Count);
-
-                // When the event type isn't TaskScheduled, the blob name uses an empty activity name prefix ("~").
-                StringAssert.StartsWith(blobs[0].Name, "~");
-
-                List<TaskMessage> poisonMessages = await DownloadPoisonMessagesAsync(activityContainerClient, blobs[0].Name);
-                Assert.AreEqual(1, poisonMessages.Count);
-                Assert.IsInstanceOfType(poisonMessages[0].Event, typeof(EventRaisedEvent));
-            }
-            finally
-            {
-                await worker.StopAsync(isForced: true);
-                await activityContainerClient.DeleteIfExistsAsync();
-                await service.DeleteAsync();
-            }
-        }
-
-        [TestMethod]
-        public async Task ActivityWithInvalidWorkItem_MissingActivityName_CallingOrchestrationFails()
-        {
-            // When an activity work item's TaskScheduledEvent has no activity name, the activity dispatcher cannot
-            // dispatch it and (with poison handling enabled) stores the poison message and responds to the calling
-            // orchestration with a non-retriable TaskFailedEvent. This surfaces as a failed activity, which fails the
-            // calling orchestration.
-            string prefix = CreateUniquePrefix();
-            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 5, prefix: prefix);
-
-            BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string activityContainerName = $"{prefix}-activity-messages";
-            BlobContainerClient activityContainerClient = blobServiceClient.GetBlobContainerClient(activityContainerName);
-            await activityContainerClient.DeleteIfExistsAsync();
-
-            var inner = new AzureStorageOrchestrationService(settings);
-
-            var service = new FaultInjectingOrchestrationService(inner)
-            {
-                CorruptActivityWorkItem = wi =>
-                {
-                    // Strip the activity name from every dispatch so the message can never be dispatched. The dispatcher
-                    // detects the missing name and fails the activity back to the orchestration.
-                    if (wi.TaskMessage.Event is TaskScheduledEvent scheduledEvent)
-                    {
-                        scheduledEvent.Name = null;
-                    }
-                },
-            };
-
-            await service.CreateAsync(recreateInstanceStore: true);
-
-            using var worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
-            worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
-            worker.AddTaskOrchestrations(typeof(ScheduleActivityOrchestration));
-            worker.AddTaskActivities(typeof(EchoActivity));
-            await worker.StartAsync();
-
-            try
-            {
-                var client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
-                OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
-                    name: NameVersionHelper.GetDefaultName(typeof(ScheduleActivityOrchestration)),
-                    version: NameVersionHelper.GetDefaultVersion(typeof(ScheduleActivityOrchestration)),
-                    input: "hello");
-
-                OrchestrationState state = await client.WaitForOrchestrationAsync(instance, DefaultTimeout);
-
-                Assert.IsNotNull(state);
-                // The activity could not be dispatched (no activity name), so the calling orchestration fails with the
-                // poison reason propagated back to it.
-                Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
-                FailureDetails failureDetails = GetFailureDetails(state);
-                Assert.IsNotNull(failureDetails);
-                StringAssert.Contains(failureDetails.ErrorMessage, "does not specify an activity name");
-                // Currently DT.Core does not propagate the nonretriable property from the Activity/entity that caused the failure
-                //Assert.IsTrue(failureDetails.IsNonRetriable);
-
-                // The poison message is also stored to the activity poison container before the failure is returned.
-                Assert.IsTrue(
-                    await activityContainerClient.ExistsAsync(),
-                    $"Blob container '{activityContainerName}' should exist");
-
-                List<BlobItem> blobs = await ListBlobsAsync(activityContainerClient);
-                Assert.AreEqual(1, blobs.Count);
-
-                // When the activity name is missing, the blob name uses an empty activity name prefix ("~").
-                StringAssert.StartsWith(blobs[0].Name, "~");
-
-                List<TaskMessage> poisonMessages = await DownloadPoisonMessagesAsync(activityContainerClient, blobs[0].Name);
-                Assert.AreEqual(1, poisonMessages.Count);
-                Assert.IsInstanceOfType(poisonMessages[0].Event, typeof(TaskScheduledEvent));
-            }
-            finally
-            {
-                await worker.StopAsync(isForced: true);
-                await activityContainerClient.DeleteIfExistsAsync();
-                await service.DeleteAsync();
-            }
-        }
-
-        [TestMethod]
-        public async Task OrchestrationWithInvalidWorkItem_MissingOrchestrationInstance_PoisonMessagesStored()
-        {
-            string prefix = CreateUniquePrefix();
-            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 5, prefix: prefix);
-
-            BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string containerName = $"{prefix}-instance-messages";
-            BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
-            await containerClient.DeleteIfExistsAsync();
-
-            var inner = new AzureStorageOrchestrationService(settings);
-
-            int corruptionCount = 0;
-            var service = new FaultInjectingOrchestrationService(inner)
-            {
-                CorruptOrchestrationWorkItem = wi =>
-                {
-                    if (Interlocked.Increment(ref corruptionCount) == 1 && wi.NewMessages.Count > 0)
-                    {
-                        // Swap for a mutable list, then replace the first message's OrchestrationInstance with one that
-                        // has an empty InstanceId. ReconcileMessagesWithState returns false with "Work item includes a
-                        // message with no orchestration instance ID...", which routes through HandleInvalidWorkItemAsync
-                        // and fails the orchestration with OrchestrationHistoryCorrupted.
-                        wi.NewMessages = new List<TaskMessage>(wi.NewMessages);
-
-                        OrchestrationInstance originalInstance = wi.NewMessages[0].OrchestrationInstance;
-                        wi.NewMessages[0].OrchestrationInstance = new OrchestrationInstance
-                        {
-                            InstanceId = string.Empty,
-                            ExecutionId = string.Empty,
-                        };
-
-                        // Inject an extra message so the poison handler must persist the full batch.
-                        wi.NewMessages.Add(new TaskMessage
-                        {
-                            OrchestrationInstance = originalInstance,
-                            Event = new EventRaisedEvent(-1, "extra payload") { Name = "extraMarker" },
-                        });
-                    }
-                },
-            };
-
-            await service.CreateAsync(recreateInstanceStore: true);
-
-            using var worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
-            worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
-            worker.AddTaskOrchestrations(typeof(EchoOrchestration));
-            await worker.StartAsync();
-
-            try
-            {
-                var client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
-                await client.CreateOrchestrationInstanceAsync(
-                    name: NameVersionHelper.GetDefaultName(typeof(EchoOrchestration)),
-                    version: NameVersionHelper.GetDefaultVersion(typeof(EchoOrchestration)),
-                    input: "hello");
-
-                await TestHelpers.WaitFor(
-                    () => containerClient.Exists().Value && ListBlobsAsync(containerClient).GetAwaiter().GetResult().Count > 0,
-                    TimeSpan.FromSeconds(30));
-
-                List<BlobItem> blobs = await ListBlobsAsync(containerClient);
-                Assert.AreEqual(1, blobs.Count);
-                // Empty instance/execution ids sanitize to "~~{guid}".
-                StringAssert.StartsWith(blobs[0].Name, "~~");
-
-                List<TaskMessage> poisonMessages = await DownloadPoisonMessagesAsync(containerClient, blobs[0].Name);
-                // Both the OI-stripped ExecutionStarted message and the injected event must be persisted as poison.
-                Assert.AreEqual(2, poisonMessages.Count);
-                Assert.IsTrue(poisonMessages.Any(m => m.Event is ExecutionStartedEvent && string.IsNullOrEmpty(m.OrchestrationInstance?.InstanceId)));
-                Assert.IsTrue(poisonMessages.Any(m => m.Event is EventRaisedEvent raised && raised.Name == "extraMarker"));
-            }
-            finally
-            {
-                await worker.StopAsync(isForced: true);
-                await containerClient.DeleteIfExistsAsync();
-                await service.DeleteAsync();
-            }
-        }
-
-        [TestMethod]
-        public async Task OrchestrationWithInvalidWorkItem_NoExecutionStartedEvent_PoisonMessagesStored()
-        {
-            string prefix = CreateUniquePrefix();
-            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 5, prefix: prefix);
-
-            BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string containerName = $"{prefix}-instance-messages";
-            BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
-            await containerClient.DeleteIfExistsAsync();
-
-            var inner = new AzureStorageOrchestrationService(settings);
-
-            int corruptionCount = 0;
-            var service = new FaultInjectingOrchestrationService(inner)
-            {
-                CorruptOrchestrationWorkItem = wi =>
-                {
-                    if (Interlocked.Increment(ref corruptionCount) == 1 && wi.NewMessages.Count > 0)
-                    {
-                        // Replace the ExecutionStarted message with a non-ES message so the orchestration has no
-                        // ExecutionStarted event either in history or in new messages. ReconcileMessagesWithState
-                        // returns false with "Orchestration contains no ExecutionStarted event..." and fails the
-                        // orchestration with OrchestrationHistoryCorrupted.
-                        wi.NewMessages = new List<TaskMessage>(wi.NewMessages);
-
-                        OrchestrationInstance instance = null;
-                        for (int i = 0; i < wi.NewMessages.Count; i++)
-                        {
-                            if (wi.NewMessages[i].Event is ExecutionStartedEvent)
-                            {
-                                instance = wi.NewMessages[i].OrchestrationInstance;
-                                wi.NewMessages[i] = new TaskMessage
-                                {
-                                    OrchestrationInstance = instance,
-                                    Event = new EventRaisedEvent(-1, "fake input") { Name = "fakeEvent" },
-                                };
-                                break;
-                            }
-                        }
-
-                        if (instance != null)
-                        {
-                            wi.NewMessages.Add(new TaskMessage
-                            {
-                                OrchestrationInstance = instance,
-                                Event = new EventRaisedEvent(-1, "extra payload") { Name = "extraMarker" },
-                            });
-                        }
-                    }
-                },
-            };
-            
-            await service.CreateAsync(recreateInstanceStore: true);
-
-            using var worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
-            worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
-            worker.AddTaskOrchestrations(typeof(EchoOrchestration));
-            await worker.StartAsync();
-
-            try
-            {
-                var client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
-                await client.CreateOrchestrationInstanceAsync(
-                    name: NameVersionHelper.GetDefaultName(typeof(EchoOrchestration)),
-                    version: NameVersionHelper.GetDefaultVersion(typeof(EchoOrchestration)),
-                    input: "hello");
-
-                await TestHelpers.WaitFor(
-                    () => containerClient.Exists().Value && ListBlobsAsync(containerClient).GetAwaiter().GetResult().Count > 0,
-                    TimeSpan.FromSeconds(30));
-
-                List<BlobItem> blobs = await ListBlobsAsync(containerClient);
-                Assert.AreEqual(1, blobs.Count);
-                // Empty instance/execution ids sanitize to "~~{guid}".
-                StringAssert.StartsWith(blobs[0].Name, "~~");
-
-                List<TaskMessage> poisonMessages = await DownloadPoisonMessagesAsync(containerClient, blobs[0].Name);
-                // Both the replaced ES message and the injected rider must be persisted as poison.
-                Assert.AreEqual(2, poisonMessages.Count);
-                Assert.IsTrue(poisonMessages.Any(m => m.Event is EventRaisedEvent raised && raised.Name == "fakeEvent"));
-                Assert.IsTrue(poisonMessages.Any(m => m.Event is EventRaisedEvent raised && raised.Name == "extraMarker"));
-            }
-            finally
-            {
-                await worker.StopAsync(isForced: true);
-                await containerClient.DeleteIfExistsAsync();
-                await service.DeleteAsync();
-            }
-        }
-
-        [TestMethod]
-        public async Task OrchestrationWithInvalidWorkItem_InvalidRuntimeState_PoisonMessagesStored()
-        {
-            string prefix = CreateUniquePrefix();
-            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 5, prefix: prefix);
-
-            BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string containerName = $"{prefix}-instance-messages";
-            BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
-            await containerClient.DeleteIfExistsAsync();
-
-            var inner = new AzureStorageOrchestrationService(settings);
-
-            int corruptionCount = 0;
-            var service = new FaultInjectingOrchestrationService(inner)
-            {
-                CorruptOrchestrationWorkItem = wi =>
-                {
-                    if (Interlocked.Increment(ref corruptionCount) == 1 && wi.NewMessages.Count > 0)
-                    {
-                        // Add a single EventRaisedEvent (neither an ExecutionStarted nor an OrchestratorStarted event)
-                        // to the existing runtime state's history so OrchestrationRuntimeState.IsValid becomes false.
-                        // We mutate the existing runtime state in place (rather than replacing it) so the work item and
-                        // the session share the same runtime-state reference, which the completion path relies on.
-                        // ReconcileMessagesWithState then returns false with an "Orchestration runtime state is
-                        // invalid..." reason and fails the orchestration with OrchestrationHistoryCorrupted. New
-                        // messages are left untouched so they are persisted as poison.
-                        wi.OrchestrationRuntimeState.AddEvent(new EventRaisedEvent(-1, "fake input") { Name = "fakeEvent" });
-                    }
-                },
-            };
-
-            await service.CreateAsync(recreateInstanceStore: true);
-
-            using var worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
-            worker.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
-            worker.AddTaskOrchestrations(typeof(EchoOrchestration));
-            await worker.StartAsync();
-
-            try
-            {
-                var client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
-                await client.CreateOrchestrationInstanceAsync(
-                    name: NameVersionHelper.GetDefaultName(typeof(EchoOrchestration)),
-                    version: NameVersionHelper.GetDefaultVersion(typeof(EchoOrchestration)),
-                    input: "hello");
-
-                await TestHelpers.WaitFor(
-                    () => containerClient.Exists().Value && ListBlobsAsync(containerClient).GetAwaiter().GetResult().Count > 0,
-                    TimeSpan.FromSeconds(30));
-
-                List<BlobItem> blobs = await ListBlobsAsync(containerClient);
-                Assert.AreEqual(1, blobs.Count);
-
-                List<TaskMessage> poisonMessages = await DownloadPoisonMessagesAsync(containerClient, blobs[0].Name);
-                // The untouched new messages (the original ExecutionStarted message) must be persisted as poison.
-                Assert.AreEqual(1, poisonMessages.Count);
-                Assert.IsInstanceOfType(poisonMessages[0].Event, typeof(ExecutionStartedEvent));
-            }
-            finally
-            {
-                await worker.StopAsync(isForced: true);
-                await containerClient.DeleteIfExistsAsync();
-                await service.DeleteAsync();
-            }
-        }
-
-        [TestMethod]
-        public async Task OrchestrationWithInvalidWorkItem_RewindWithOtherMessages_PoisonMessageStored()
-        {
-            string prefix = CreateUniquePrefix();
-            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 5, prefix: prefix);
-
-            BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string containerName = $"{prefix}-instance-messages";
-            BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
-            await containerClient.DeleteIfExistsAsync();
-
-            var inner = new AzureStorageOrchestrationService(settings);
-
-            int corruptionCount = 0;
-            var service = new FaultInjectingOrchestrationService(inner)
-            {
-                CorruptOrchestrationWorkItem = wi =>
-                {
-                    // Only corrupt the very first dispatch. The poison handler abandons the work item, so it is
-                    // redelivered; we let the redelivery run normally so the orchestration can complete.
-                    if (Interlocked.Increment(ref corruptionCount) != 1 || wi.NewMessages.Count == 0)
-                    {
-                        return;
-                    }
-
-                    // Will contain the fresh ExecutionStartedEvent along with the ExecutionRewoundEvent below, which is illegal
-                    // (the only new message should be the ExecutionRewoundEvent in this case)
-                    wi.NewMessages = new List<TaskMessage>(wi.NewMessages);
-
-                    OrchestrationInstance instance = wi.NewMessages[0].OrchestrationInstance;
-
-                    // Pre-populate a synthetic runtime state in a terminal (Failed) status. ReconcileMessagesWithState's
-                    // rewind poison branch requires OrchestrationStatus != Running, an ExecutionRewoundEvent in the
-                    // batch, and NewMessages.Count > 1. The ParentTraceContext on the ExecutionStartedEvent is required
-                    // so the dispatcher's rewind setup does not throw a NullReferenceException before the poison check.
-                    var syntheticEs = new ExecutionStartedEvent(-1, null)
-                    {
-                        OrchestrationInstance = instance,
-                        Name = NameVersionHelper.GetDefaultName(typeof(EchoOrchestration)),
-                        Version = NameVersionHelper.GetDefaultVersion(typeof(EchoOrchestration)),
-                        ParentTraceContext = new DistributedTraceContext("00-00000000000000000000000000000000-0000000000000000-00"),
-                    };
-                    var syntheticEc = new ExecutionCompletedEvent(-1, null, OrchestrationStatus.Failed);
-                    wi.OrchestrationRuntimeState = new OrchestrationRuntimeState(new List<HistoryEvent> { syntheticEs, syntheticEc });
-
-                    wi.NewMessages.Add(new TaskMessage
-                    {
-                        OrchestrationInstance = instance,
-                        Event = new ExecutionRewoundEvent(-1, "fake rewind")
-                        {
-                            ParentTraceContext = new DistributedTraceContext("00-00000000000000000000000000000000-0000000000000000-00"),
-                        },
-                    });
-                },
-            };
-
-            await service.CreateAsync(recreateInstanceStore: true);
-
-            using var worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
-            worker.AddTaskOrchestrations(typeof(EchoOrchestration));
-            await worker.StartAsync();
-
-            try
-            {
-                var client = new TaskHubClient(service, loggerFactory: settings.LoggerFactory);
-                OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(
-                    name: NameVersionHelper.GetDefaultName(typeof(EchoOrchestration)),
-                    version: NameVersionHelper.GetDefaultVersion(typeof(EchoOrchestration)),
-                    input: "hello");
-
-                await TestHelpers.WaitFor(
-                    () => containerClient.Exists().Value && ListBlobsAsync(containerClient).GetAwaiter().GetResult().Count > 0,
-                    TimeSpan.FromSeconds(30));
-
-                List<BlobItem> blobs = await ListBlobsAsync(containerClient);
-                Assert.AreEqual(1, blobs.Count);
-                StringAssert.StartsWith(blobs[0].Name, $"{instance.InstanceId}~");
-
-                List<TaskMessage> poisonMessages = await DownloadPoisonMessagesAsync(containerClient, blobs[0].Name);
-                // The poisoned batch must contain the injected rewind event alongside the original ExecutionStarted message.
-                Assert.IsTrue(poisonMessages.Count > 1, "Expected the poisoned batch to contain the rewind event alongside other messages.");
-                Assert.IsTrue(poisonMessages.Any(m => m.Event is ExecutionRewoundEvent));
-                Assert.IsTrue(poisonMessages.Any(m => m.Event is ExecutionStartedEvent));
-            }
-            finally
-            {
-                await worker.StopAsync(isForced: true);
-                await containerClient.DeleteIfExistsAsync();
-                await service.DeleteAsync();
-            }
-        }
-
-        [TestMethod]
-        public async Task PoisonMessageHandlerApis_PoisonHandlingDisabled_ReturnFalse()
-        {
-            // Directly invokes each IPoisonMessageHandler API on a service constructed with poison handling disabled.
-            // All handler APIs must return false, MaxDispatchCount must be int.MaxValue (so the dispatchers never treat
-            // any message as poisoned), and no blob containers should be created by these calls.
-            string prefix = CreateUniquePrefix();
-            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 1, prefix: prefix, poisonEnabled: false);
-
-            BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string[] containerSuffixes = { "instance-messages", "activity-messages" };
-            foreach (string suffix in containerSuffixes)
-            {
-                await blobServiceClient.GetBlobContainerClient($"{prefix}-{suffix}").DeleteIfExistsAsync();
-            }
 
             var service = new AzureStorageOrchestrationService(settings);
-            IPoisonMessageHandler handler = service;
+            await service.CreateAsync(recreateInstanceStore: true);
 
-            var orchInstance = new OrchestrationInstance
+            // Insert a malformed message directly into the single control queue. It cannot be deserialized, so once
+            // its dequeue count exceeds the maximum it must be moved to poison storage and deleted from the queue.
+            var azureStorageClient = new DurableTask.AzureStorage.Storage.AzureStorageClient(settings);
+            string controlQueueName = AzureStorageOrchestrationService.GetControlQueueName(settings.TaskHubName, 0);
+            DurableTask.AzureStorage.Storage.Queue controlQueue = azureStorageClient.GetQueueReference(controlQueueName);
+            const string badMessage = "{ this is not valid json";
+            await controlQueue.AddMessageAsync(badMessage, visibilityDelay: null);
+
+            using var worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
+            await worker.StartAsync();
+
+            try
             {
-                InstanceId = Guid.NewGuid().ToString("N"),
-                ExecutionId = Guid.NewGuid().ToString("N"),
-            };
+                await TestHelpers.WaitFor(
+                    () => instanceContainerClient.Exists().Value && ListBlobsAsync(instanceContainerClient).GetAwaiter().GetResult().Count > 0,
+                    TimeSpan.FromSeconds(30));
 
-            // 1. Poison detection is effectively off (unbounded dispatch count) when handling is disabled.
-            Assert.AreEqual(int.MaxValue, handler.MaxDispatchCount);
-
-            // 2. HandlePoisonEntityMessageAsync returns false.
-            var entityRequest = new EventRaisedEvent(eventId: -1, input: "{}")
-            {
-                Name = "op",
-                DispatchCount = 100,
-            };
-            Assert.IsFalse(await handler.HandlePoisonEntityMessageAsync(
-                orchInstance, entityRequest, PoisonMessageReason.DeserializationError, "disabled-test"));
-
-            // 3. HandleInvalidWorkItemAsync(TaskOrchestrationWorkItem) returns false.
-            var orchestrationWorkItem = new TaskOrchestrationWorkItem
-            {
-                InstanceId = orchInstance.InstanceId,
-                NewMessages = new List<TaskMessage>(),
-                OrchestrationRuntimeState = new OrchestrationRuntimeState(),
-                LockedUntilUtc = DateTime.UtcNow.AddMinutes(5),
-            };
-            Assert.IsFalse(await handler.HandleInvalidWorkItemAsync(
-                orchestrationWorkItem, PoisonMessageReason.InvalidRuntimeState, "disabled-test", isEntity: false));
-
-            // 4. HandleInvalidWorkItemAsync(TaskActivityWorkItem) returns false.
-            var activityWorkItem = new TaskActivityWorkItem
-            {
-                Id = "act-1",
-                LockedUntilUtc = DateTime.UtcNow.AddMinutes(5),
-                TaskMessage = new TaskMessage
-                {
-                    Event = new TaskScheduledEvent(eventId: -1)
-                    {
-                        Name = "echoActivity",
-                        Version = "1",
-                        DispatchCount = 100,
-                    },
-                },
-            };
-            Assert.IsFalse(await handler.HandleInvalidWorkItemAsync(
-                activityWorkItem, PoisonMessageReason.MissingActivityName, "disabled-test"));
-
-            // 5. None of the poison blob containers should have been created.
-            foreach (string containerName in containerSuffixes.Select(suffix => $"{prefix}-{suffix}"))
-            {
                 Assert.IsFalse(
-                    await blobServiceClient.GetBlobContainerClient(containerName).ExistsAsync(),
-                    $"Blob container '{containerName}' should not exist when poison handling is disabled");
-            }
-        }
+                    await activityContainerClient.ExistsAsync(),
+                    $"Blob container '{activityContainerName}' should not exist");
 
-        /*
-         * Lower-level entity coverage: there is no in-repo way to make an orchestration call an entity,
-         * so we exercise HandlePoisonEntityMessageAsync directly against a real service.
-        */
-
-        [TestMethod]
-        public async Task EntityPoisonMessage_MalformedOpRequest_PoisonMessageStoredAndFailureResponseEnqueued()
-        {
-            // A malformed entity "op" request is poisoned; assert it is persisted to the (consolidated) instance
-            // poison container and that a failure response is enqueued back to the calling orchestration.
-            string prefix = CreateUniquePrefix();
-            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 5, prefix: prefix);
-            // A single partition means a single control queue that we can inspect for the emitted failure response.
-            settings.PartitionCount = 1;
-
-            BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string containerName = $"{prefix}-instance-messages";
-            BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
-            await containerClient.DeleteIfExistsAsync();
-
-            var service = new AzureStorageOrchestrationService(settings);
-            await service.CreateAsync(recreateInstanceStore: true);
-
-            string controlQueueName = AzureStorageOrchestrationService.GetControlQueueName(settings.TaskHubName, 0);
-            var controlQueueClient = new Azure.Storage.Queues.QueueClient(
-                TestHelpers.GetTestStorageAccountConnectionString(), controlQueueName);
-
-            try
-            {
-                IPoisonMessageHandler handler = service;
-
-                var entityInstance = new OrchestrationInstance
-                {
-                    InstanceId = "@counter@myEntity",
-                    ExecutionId = Guid.NewGuid().ToString("N"),
-                };
-
-                // The request id of the poisoned operation. The failure response event is named after this id so the
-                // calling orchestration can correlate the response with its outstanding call.
-                string requestId = Guid.NewGuid().ToString();
-
-                // An "op" (entity operation call) request whose JSON preserves the "id" and "parent" (calling
-                // orchestration) fields but is malformed afterwards. The strict decode fails (routing through poison
-                // handling), but the lenient decode can still recover the caller so a failure response can be returned.
-                var opEvent = new EventRaisedEvent(-1, $"{{\"op\":\"add\",\"id\":\"{requestId}\",\"parent\":\"@caller@1\",\"input\": \"not valid json")
-                {
-                    Name = "op",
-                };
-
-                bool handled = await handler.HandlePoisonEntityMessageAsync(
-                    entityInstance, opEvent, PoisonMessageReason.DeserializationError, "malformed entity op request");
-
-                Assert.IsTrue(handled);
-
-                // The poison message is stored.
-                Assert.IsTrue(await containerClient.ExistsAsync(), $"Blob container '{containerName}' should exist");
-                List<BlobItem> blobs = await ListBlobsAsync(containerClient);
+                List<BlobItem> blobs = await ListBlobsAsync(instanceContainerClient);
                 Assert.AreEqual(1, blobs.Count);
 
-                List<TaskMessage> poisonMessages = await DownloadPoisonMessagesAsync(containerClient, blobs[0].Name);
-                Assert.AreEqual(1, poisonMessages.Count);
-                Assert.IsInstanceOfType(poisonMessages[0].Event, typeof(EventRaisedEvent));
-                Assert.AreEqual("op", ((EventRaisedEvent)poisonMessages[0].Event).Name);
+                // The stored poison message must match the original (undeserializable) queue message body.
+                string blobContent = await DownloadBlobTextAsync(instanceContainerClient, blobs[0].Name);
+                Assert.AreEqual(badMessage, blobContent);
 
-                // A failure response is enqueued back to the calling orchestration ("@caller@1") so it does not hang
-                // waiting for a response that will never come. Dequeue it and confirm it targets the caller and is
-                // correlated with the original request id.
-                QueueMessage queueMessage = null;
+                // The malformed message must have been deleted from the control queue.
+                await AssertQueuesAreEmptyAsync(settings);
+            }
+            finally
+            {
+                await worker.StopAsync(isForced: true);
+                await instanceContainerClient.DeleteIfExistsAsync();
+                await activityContainerClient.DeleteIfExistsAsync();
+                await service.DeleteAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task WorkItemQueueMessageWithBadJson_StoredAsPoison_AndDeleted()
+        {
+            string prefix = CreateUniquePrefix();
+            AzureStorageOrchestrationServiceSettings settings = CreateSettings(MaxDequeueCount: 1, prefix: prefix);
+
+            // The work item queue does not abandon undeserializable messages, so redelivery only happens after the
+            // visibility timeout expires. Shorten it so the message is quickly redelivered (bumping its dequeue
+            // count past the maximum) and moved to poison storage within the test's wait window.
+            settings.WorkItemQueueVisibilityTimeout = TimeSpan.FromSeconds(3);
+
+            BlobServiceClient blobServiceClient = CreateBlobServiceClient();
+            string instanceContainerName = $"{settings.TaskHubName}-{prefix}-instance-messages";
+            string activityContainerName = $"{settings.TaskHubName}-{prefix}-activity-messages";
+            BlobContainerClient instanceContainerClient = blobServiceClient.GetBlobContainerClient(instanceContainerName);
+            BlobContainerClient activityContainerClient = blobServiceClient.GetBlobContainerClient(activityContainerName);
+            await instanceContainerClient.DeleteIfExistsAsync();
+            await activityContainerClient.DeleteIfExistsAsync();
+
+            var service = new AzureStorageOrchestrationService(settings);
+            await service.CreateAsync(recreateInstanceStore: true);
+
+            // Insert a malformed message directly into the work item queue. It cannot be deserialized, so once its
+            // dequeue count exceeds the maximum it must be moved to poison storage and deleted from the queue.
+            var azureStorageClient = new DurableTask.AzureStorage.Storage.AzureStorageClient(settings);
+            string workItemQueueName = AzureStorageOrchestrationService.GetWorkItemQueueName(settings.TaskHubName);
+            DurableTask.AzureStorage.Storage.Queue workItemQueue = azureStorageClient.GetQueueReference(workItemQueueName);
+            const string badMessage = "{ this is not valid json";
+            await workItemQueue.AddMessageAsync(badMessage, visibilityDelay: null);
+
+            using var worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
+            await worker.StartAsync();
+
+            try
+            {
                 await TestHelpers.WaitFor(
-                    () =>
-                    {
-                        queueMessage = controlQueueClient.ReceiveMessage(TimeSpan.FromMinutes(1)).Value;
-                        return queueMessage != null;
-                    },
-                    TimeSpan.FromSeconds(15));
-                Assert.IsNotNull(queueMessage, "Expected a failure response to be enqueued to the caller's control queue.");
+                    () => activityContainerClient.Exists().Value && ListBlobsAsync(activityContainerClient).GetAwaiter().GetResult().Count > 0,
+                    TimeSpan.FromSeconds(30));
 
-                MessageData messageData = CreateMessageManager(settings).DeserializeMessageData(queueMessage.MessageText);
-                TaskMessage responseTaskMessage = messageData.TaskMessage;
+                Assert.IsFalse(
+                    await instanceContainerClient.ExistsAsync(),
+                    $"Blob container '{instanceContainerName}' should not exist");
 
-                // The response is an EventRaisedEvent whose name is the request id, targeting the calling orchestration.
-                Assert.IsInstanceOfType(responseTaskMessage.Event, typeof(EventRaisedEvent));
-                var responseEvent = (EventRaisedEvent)responseTaskMessage.Event;
-                Assert.AreEqual(requestId, responseEvent.Name);
-                Assert.AreEqual("@caller@1", responseTaskMessage.OrchestrationInstance.InstanceId);
-
-                // The response payload must carry a failure so the caller observes an error rather than a success.
-                Assert.IsNotNull(responseEvent.Input);
-                StringAssert.Contains(responseEvent.Input, "EntityRequestMessageDeserializationError");
-
-                // No further messages should have been emitted.
-                QueueMessage extraMessage = controlQueueClient.ReceiveMessage(TimeSpan.FromSeconds(1)).Value;
-                Assert.IsNull(extraMessage, "Only a single failure response should have been emitted.");
-            }
-            finally
-            {
-                await containerClient.DeleteIfExistsAsync();
-                await service.DeleteAsync();
-            }
-        }
-
-        [TestMethod]
-        public async Task EntityPoisonMessage_DispatchCountReason_ReturnsFalseAndNoMessagesStored()
-        {
-            // When an entity message is poisoned because it exceeded the maximum dispatch count (rather than because it
-            // could not be deserialized), the message is still archived to the poison container, but
-            // HandlePoisonEntityMessageAsync returns false so the dispatcher can continue processing, and it does NOT
-            // emit any follow-up entity message (no failure response or unlock).
-            // This is because this method is only invoked with this reason in the case of an unlock or self-continue message,
-            // and we do not want to leave the entity stuck in that case so we return false to continue processing
-            string prefix = CreateUniquePrefix();
-            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 5, prefix: prefix);
-            settings.PartitionCount = 1;
-
-            BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string containerName = $"{prefix}-instance-messages";
-            BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
-            await containerClient.DeleteIfExistsAsync();
-
-            var service = new AzureStorageOrchestrationService(settings);
-            await service.CreateAsync(recreateInstanceStore: true);
-
-            try
-            {
-                IPoisonMessageHandler handler = service;
-
-                var entityInstance = new OrchestrationInstance
-                {
-                    InstanceId = "@counter@myEntity",
-                    ExecutionId = Guid.NewGuid().ToString("N"),
-                };
-
-                // A well-formed release message that is poisoned only because it exceeded the dispatch count.
-                var releaseEvent = new EventRaisedEvent(-1, "{\"parent\":\"@caller@1\",\"id\":\"fix\"}")
-                {
-                    Name = "release",
-                };
-
-                bool handled = await handler.HandlePoisonEntityMessageAsync(
-                    entityInstance, releaseEvent, PoisonMessageReason.DispatchCount, "dispatch count exceeded");
-
-                // The dispatch-count reason must return false (let the dispatcher continue) ...
-                Assert.IsFalse(handled);
-
-                // ... and no poison message should be stored (will be stored when work item completes) ...
-                Assert.IsFalse(await containerClient.ExistsAsync(), $"Blob container '{containerName}' should not exist");
-            }
-            finally
-            {
-                await containerClient.DeleteIfExistsAsync();
-                await service.DeleteAsync();
-            }
-        }
-
-        [TestMethod]
-        public async Task EntityPoisonMessage_MalformedReleaseRequest_PoisonMessageStoredAndUnlockEmitted()
-        {
-            string prefix = CreateUniquePrefix();
-            AzureStorageOrchestrationServiceSettings settings = CreateSettings(maxDispatchCount: 5, prefix: prefix);
-            // A single partition means a single control queue that we can inspect for the emitted unlock message.
-            settings.PartitionCount = 1;
-
-            BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string containerName = $"{prefix}-instance-messages";
-            BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
-            await containerClient.DeleteIfExistsAsync();
-
-            var service = new AzureStorageOrchestrationService(settings);
-            await service.CreateAsync(recreateInstanceStore: true);
-
-            string controlQueueName = AzureStorageOrchestrationService.GetControlQueueName(settings.TaskHubName, 0);
-            var controlQueueClient = new Azure.Storage.Queues.QueueClient(
-                TestHelpers.GetTestStorageAccountConnectionString(), controlQueueName);
-
-            try
-            {
-                IPoisonMessageHandler handler = service;
-
-                var entityInstance = new OrchestrationInstance
-                {
-                    InstanceId = "@counter@myEntity",
-                    ExecutionId = Guid.NewGuid().ToString("N"),
-                };
-
-                // A "release" (lock release) message whose JSON preserves the "parent" (lock owner) field but is
-                // malformed afterwards. The strict decode fails (routing through poison handling), but the lenient
-                // decode can still recover the lock owner so a fresh unlock can be emitted to the entity.
-                var releaseEvent = new EventRaisedEvent(-1, "{\"parent\":\"@caller@1\",\"id\":\"fix\",\"lockset\": \"not valid json")
-                {
-                    Name = "release",
-                };
-
-                bool handled = await handler.HandlePoisonEntityMessageAsync(
-                    entityInstance, releaseEvent, PoisonMessageReason.DeserializationError, "malformed entity release");
-
-                Assert.IsTrue(handled);
-
-                // The poison message is stored.
-                Assert.IsTrue(await containerClient.ExistsAsync(), $"Blob container '{containerName}' should exist");
-                List<BlobItem> blobs = await ListBlobsAsync(containerClient);
+                List<BlobItem> blobs = await ListBlobsAsync(activityContainerClient);
                 Assert.AreEqual(1, blobs.Count);
 
-                List<TaskMessage> poisonMessages = await DownloadPoisonMessagesAsync(containerClient, blobs[0].Name);
-                Assert.AreEqual(1, poisonMessages.Count);
-                Assert.IsInstanceOfType(poisonMessages[0].Event, typeof(EventRaisedEvent));
-                Assert.AreEqual("release", ((EventRaisedEvent)poisonMessages[0].Event).Name);
+                // The stored poison message must match the original (undeserializable) queue message body.
+                string blobContent = await DownloadBlobTextAsync(activityContainerClient, blobs[0].Name);
+                Assert.AreEqual(badMessage, blobContent);
 
-                // A fresh unlock (release) message is emitted to the entity's control queue so the entity does not
-                // remain locked forever by the failed caller. Dequeue it and confirm it is a well-formed release that
-                // targets the entity and recovers the original lock owner ("@caller@1").
-                QueueMessage queueMessage = null;
-                await TestHelpers.WaitFor(
-                    () =>
-                    {
-                        queueMessage = controlQueueClient.ReceiveMessage(TimeSpan.FromMinutes(1)).Value;
-                        return queueMessage != null;
-                    },
-                    TimeSpan.FromSeconds(15));
-                Assert.IsNotNull(queueMessage, "Expected an unlock message to be emitted to the entity's control queue.");
-
-                MessageData messageData = CreateMessageManager(settings).DeserializeMessageData(queueMessage.MessageText);
-                TaskMessage unlockTaskMessage = messageData.TaskMessage;
-
-                // The emitted message must be an entity "release" event targeting the entity instance.
-                Assert.IsInstanceOfType(unlockTaskMessage.Event, typeof(EventRaisedEvent));
-                var unlockEvent = (EventRaisedEvent)unlockTaskMessage.Event;
-                Assert.AreEqual("release", unlockEvent.Name);
-                Assert.AreEqual(entityInstance.InstanceId, unlockTaskMessage.OrchestrationInstance.InstanceId);
-
-                // The recreated release must recover the original lock owner so the correct caller's lock is released.
-                Assert.IsNotNull(unlockEvent.Input);
-                StringAssert.Contains(unlockEvent.Input, "@caller@1");
-
-                // No further messages should have been emitted.
-                QueueMessage extraMessage = controlQueueClient.ReceiveMessage(TimeSpan.FromSeconds(1)).Value;
-                Assert.IsNull(extraMessage, "Only a single unlock message should have been emitted.");
+                // The malformed message must have been deleted from the work item queue.
+                await AssertQueuesAreEmptyAsync(settings);
             }
             finally
             {
-                await containerClient.DeleteIfExistsAsync();
+                await worker.StopAsync(isForced: true);
+                await instanceContainerClient.DeleteIfExistsAsync();
+                await activityContainerClient.DeleteIfExistsAsync();
                 await service.DeleteAsync();
             }
         }
+
 
         static AzureStorageOrchestrationServiceSettings CreateSettings(
-            int maxDispatchCount,
+            int MaxDequeueCount,
             string prefix,
             bool poisonEnabled = true)
         {
@@ -1285,10 +538,36 @@ namespace DurableTask.AzureStorage.Tests
             // Use a unique task hub per test to isolate queues/tables from other tests.
             settings.TaskHubName = "poison" + Guid.NewGuid().ToString("N").Substring(0, 10);
             settings.IsPoisonMessageStorageEnabled = poisonEnabled;
-            settings.MaxDispatchCount = maxDispatchCount;
+            settings.MaxDequeueCount = MaxDequeueCount;
             settings.PoisonMessageStorageContainerNamePrefix = prefix;
 
+            // Use a single partition so tests have a single, deterministic control queue to inspect.
+            settings.PartitionCount = 1;
+
             return settings;
+        }
+
+        // Verifies that every control queue and the work item queue for the given task hub is empty. This confirms
+        // that processed and poisoned messages have been removed from their source queues.
+        static async Task AssertQueuesAreEmptyAsync(AzureStorageOrchestrationServiceSettings settings)
+        {
+            var azureStorageClient = new DurableTask.AzureStorage.Storage.AzureStorageClient(settings);
+
+            var queueNames = new List<string>();
+            for (int i = 0; i < settings.PartitionCount; i++)
+            {
+                queueNames.Add(AzureStorageOrchestrationService.GetControlQueueName(settings.TaskHubName, i));
+            }
+
+            queueNames.Add(AzureStorageOrchestrationService.GetWorkItemQueueName(settings.TaskHubName));
+
+            foreach (string queueName in queueNames)
+            {
+                DurableTask.AzureStorage.Storage.Queue queue = azureStorageClient.GetQueueReference(queueName);
+                await TestHelpers.WaitFor(
+                    () => queue.GetApproximateMessagesCountAsync().GetAwaiter().GetResult() == 0,
+                    TimeSpan.FromSeconds(30));
+            }
         }
 
         static BlobServiceClient CreateBlobServiceClient()
@@ -1348,7 +627,7 @@ namespace DurableTask.AzureStorage.Tests
             return blobs;
         }
 
-        static async Task<List<TaskMessage>> DownloadPoisonMessagesAsync(BlobContainerClient containerClient, string blobName)
+        static async Task<MessageData> DownloadPoisonMessagesAsync(BlobContainerClient containerClient, string blobName)
         {
             BlobClient blobClient = containerClient.GetBlobClient(blobName);
             BlobDownloadResult downloadResult = await blobClient.DownloadContentAsync();
@@ -1356,12 +635,19 @@ namespace DurableTask.AzureStorage.Tests
 
             Assert.IsFalse(string.IsNullOrEmpty(blobContent), "Blob content should not be empty");
 
-            List<TaskMessage> poisonMessages = JsonConvert.DeserializeObject<List<TaskMessage>>(
+            MessageData poisonMessage = JsonConvert.DeserializeObject<MessageData>(
                 blobContent,
                 new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto });
 
-            Assert.IsNotNull(poisonMessages);
-            return poisonMessages;
+            Assert.IsNotNull(poisonMessage);
+            return poisonMessage;
+        }
+
+        static async Task<string> DownloadBlobTextAsync(BlobContainerClient containerClient, string blobName)
+        {
+            BlobClient blobClient = containerClient.GetBlobClient(blobName);
+            BlobDownloadResult downloadResult = await blobClient.DownloadContentAsync();
+            return downloadResult.Content.ToString();
         }
 
         sealed class EchoOrchestration : TaskOrchestration<string, string>
@@ -1412,7 +698,7 @@ namespace DurableTask.AzureStorage.Tests
         /// This is used to force work items to be abandoned and redelivered (incrementing their dequeue/dispatch
         /// counts) so that poison message handling can be exercised.
         /// </summary>
-        sealed class FaultInjectingOrchestrationService : IEntityOrchestrationService, IOrchestrationServiceClient, IPoisonMessageHandler
+        sealed class FaultInjectingOrchestrationService : IEntityOrchestrationService, IOrchestrationServiceClient
         {
             readonly AzureStorageOrchestrationService inner;
 
@@ -1453,8 +739,6 @@ namespace DurableTask.AzureStorage.Tests
             IOrchestrationServiceClient InnerClient => this.inner;
 
             IEntityOrchestrationService InnerEntityService => this.inner;
-
-            IPoisonMessageHandler InnerPoisonHandler => this.inner;
 
             // ---- IOrchestrationService: management/lifecycle ----
 
@@ -1622,19 +906,6 @@ namespace DurableTask.AzureStorage.Tests
 
             public Task PurgeOrchestrationHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType) =>
                 this.InnerClient.PurgeOrchestrationHistoryAsync(thresholdDateTimeUtc, timeRangeFilterType);
-
-            // ---- IPoisonMessageHandler ----
-
-            public int MaxDispatchCount => this.InnerPoisonHandler.MaxDispatchCount;
-
-            public Task<bool> HandlePoisonEntityMessageAsync(OrchestrationInstance entityInstance, HistoryEvent historyEvent, PoisonMessageReason reason, string details) =>
-                this.InnerPoisonHandler.HandlePoisonEntityMessageAsync(entityInstance, historyEvent, reason, details);
-
-            public Task<bool> HandleInvalidWorkItemAsync(TaskOrchestrationWorkItem workItem, PoisonMessageReason reason, string details, bool isEntity) =>
-                this.InnerPoisonHandler.HandleInvalidWorkItemAsync(workItem, reason, details, isEntity);
-
-            public Task<bool> HandleInvalidWorkItemAsync(TaskActivityWorkItem workItem, PoisonMessageReason reason, string details) =>
-                this.InnerPoisonHandler.HandleInvalidWorkItemAsync(workItem, reason, details);
         }
     }
 }

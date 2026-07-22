@@ -313,30 +313,36 @@ namespace DurableTask.AzureStorage
         public bool UseInstanceTableEtag { get; set; } = false;
 
         /// <summary>
-        /// Gets or sets a flag whether poison storage is enabled.
+        /// Gets or sets a flag whether poison message storage is enabled.
         /// </summary>
         /// <remarks>
-        /// <para>If enabled, orchestration, entity, and activity messages that have been dispatched for processing
-        /// more than <see cref="MaxDispatchCount"/> times will be "failed" and moved to the poison storage.
+        /// <para>If enabled, orchestration, entity, and activity messages that have been dequeued for processing
+        /// more than <see cref="MaxDequeueCount"/> times will be moved to poison message storage in Azure Blob
+        /// Storage and deleted from their source queue.
         /// </para>
         /// </remarks>
         public bool IsPoisonMessageStorageEnabled { get; set; } = false;
 
         /// <summary>
-        /// Gets or sets the amount of times a message is dispatched for processing before it is considered "poisoned"
-        /// and moved to the poison storage. The default value is 5.
+        /// Gets or sets the number of times a message is dequeued for processing before it is considered "poisoned"
+        /// and moved to poison message storage. The default value is 5.
         /// </summary>
         /// <remarks>
         /// This setting is applicable when <see cref="IsPoisonMessageStorageEnabled"/> is set to <c>true</c>.
         /// </remarks>
-        public int MaxDispatchCount { get; set; } = 5;
+        public long MaxDequeueCount { get; set; } = 5;
 
         /// <summary>
         /// Gets or sets the Azure Blob Storage container name prefix to use for poison message storage.
-        /// Two containers will be created with this prefix in the format "{prefix}-instance-messages" (used for both
-        /// orchestration and entity messages) and "{prefix}-activity-messages".
+        /// Two containers will be created with this prefix in the format "{taskhubname}-{prefix}-instance-messages" (used for both
+        /// orchestration and entity messages dequeued from the control queues) and "{taskhubname}-{prefix}-activity-messages"
+        /// (used for activity messages dequeued from the work item queue).
+        /// The container name must adhere to the Azure Blob Storage container naming rules:
+        /// https://learn.microsoft.com/en-us/rest/api/storageservices/Naming-and-Referencing-Containers--Blobs--and-Metadata#directory-names
+        /// In particular, this means the total length of the name must not exceed 63 characters, can only contain lowercase letters, numbers,
+        /// and hyphens, and must start and end with a letter or number.
         /// If not specified, the default value "durable-task-poison" will be used.
         /// </summary>
-        public string? PoisonMessageStorageContainerNamePrefix { get; set; } = "durable-task-poison";
+        public string PoisonMessageStorageContainerNamePrefix { get; set; } = "durable-task-poison";
     }
 }

@@ -626,51 +626,51 @@ namespace DurableTask.Core.Tracing
         /// the entity did not return results for all of the requests</param>
         internal static void EndActivitiesForProcessingEntityInvocation(List<Activity> traceActivities, List<OperationResult> results, FailureDetails? batchFailureDetails)
         {
-            foreach (var (activity, result) in traceActivities.Zip(results, (activity, result) => (activity, result)))
+            if (results.Count == traceActivities.Count)
             {
-                if (activity != null)
+                foreach (var (activity, result) in traceActivities.Zip(results, (activity, result) => (activity, result)))
                 {
-                    if (result.ErrorMessage != null || result.FailureDetails != null)
+                    if (activity != null)
                     {
-                        string errorDetails = result.ErrorMessage ?? result.FailureDetails!.ErrorMessage;
-                        activity.SetTag(Schema.Task.ErrorMessage, errorDetails);
-                        activity.SetStatus(ActivityStatusCode.Error, errorDetails);
+                        if (result.ErrorMessage != null || result.FailureDetails != null)
+                        {
+                            string errorDetails = result.ErrorMessage ?? result.FailureDetails!.ErrorMessage;
+                            activity.SetTag(Schema.Task.ErrorMessage, errorDetails);
+                            activity.SetStatus(ActivityStatusCode.Error, errorDetails);
+                        }
+                        else
+                        {
+                            activity.SetStatus(ActivityStatusCode.OK, "Completed");
+                        }
+                        if (result.StartTimeUtc is DateTime startTime)
+                        {
+                            activity.SetStartTime(startTime);
+                        }
+                        if (result.EndTimeUtc is DateTime endTime)
+                        {
+                            activity.SetEndTime(endTime);
+                        }
+                        activity.Dispose();
                     }
-                    else
-                    {
-                        activity.SetStatus(ActivityStatusCode.OK, "Completed");
-                    }
-                    if (result.StartTimeUtc is DateTime startTime)
-                    {
-                        activity.SetStartTime(startTime);
-                    }
-                    if (result.EndTimeUtc is DateTime endTime)
-                    {
-                        activity.SetEndTime(endTime);
-                    }
-                    activity.Dispose();
                 }
             }
-
-            // This can happen if not all of the operations in the batch were executed, in which case we populate the remaining
-            // activities with the failure details if they are available.
-            // If not, this work will be deferred and tried again, so we do not want to publish the activity.
-            for (int i = results.Count; i < traceActivities.Count; i++)
+            // This can happen if some of the operations failed and have no corresponding OperationResult
+            // There is no way to map the successful operation results to the corresponding operation requests or trace activities, so we will just "fail" the trace activities in this case and dispose them
+            else
             {
-                var activity = traceActivities[i];
-                if (activity != null)
+                string errorMessage = "Unable to generate a trace activity for the entity invocation even though it may have succeeded.";
+                if (batchFailureDetails is FailureDetails failureDetails)
                 {
-                    if (batchFailureDetails != null)
+                    errorMessage += $" If it failed, it may be due to {failureDetails.ErrorMessage}";
+                }
+                foreach (var activity in traceActivities)
+                {
+                    if (activity != null)
                     {
-                        activity.SetTag(Schema.Task.ErrorMessage, batchFailureDetails.ErrorMessage);
-                        activity.SetStatus(ActivityStatusCode.Error, batchFailureDetails.ErrorMessage);
+                        activity.SetTag(Schema.Task.ErrorMessage, errorMessage);
+                        activity.SetStatus(ActivityStatusCode.Error, errorMessage);
+                        activity.Dispose();
                     }
-                    else
-                    {
-                        // This will only work if the listener honors the Recorded flag, so this is a best effort attempt
-                        activity.ActivityTraceFlags &= ~ActivityTraceFlags.Recorded;
-                    }
-                    activity.Dispose();
                 }
             }
         }

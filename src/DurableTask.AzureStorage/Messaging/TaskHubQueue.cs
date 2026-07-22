@@ -23,6 +23,7 @@ namespace DurableTask.AzureStorage.Messaging
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
     using DurableTask.Core.History;
+    using Newtonsoft.Json;
 
     abstract class TaskHubQueue
     {
@@ -34,6 +35,8 @@ namespace DurableTask.AzureStorage.Messaging
         protected readonly string storageAccountName;
         protected readonly AzureStorageOrchestrationServiceSettings settings;
         protected readonly BackoffPollingHelper backoffHelper;
+
+        BlobContainer? poisonMessageContainer;
 
         public TaskHubQueue(
             AzureStorageClient azureStorageClient,
@@ -356,8 +359,8 @@ namespace DurableTask.AzureStorage.Messaging
                     taskMessage.Event.EventType.ToString(),
                     Utils.GetTaskEventId(taskMessage.Event),
                     message.OriginalQueueMessage.MessageId,
-                    taskMessage.OrchestrationInstance?.InstanceId ?? string.Empty,
-                    taskMessage.OrchestrationInstance?.ExecutionId ?? string.Empty,
+                    taskMessage.OrchestrationInstance.InstanceId,
+                    taskMessage.OrchestrationInstance.ExecutionId,
                     this.storageQueue.Name,
                     message.SequenceNumber,
                     message.OriginalQueueMessage.PopReceipt);
@@ -387,6 +390,155 @@ namespace DurableTask.AzureStorage.Messaging
 
                 break;
             }
+        }
+
+        protected abstract string PoisonMessageContainerName { get; }
+
+
+        protected async Task<bool> TryMoveMessageToPoisonStorageAsync(MessageData messageData, CancellationToken cancellationToken = default)
+        {
+            string serializedMessageData = JsonConvert.SerializeObject(
+                    messageData,
+                    new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto });
+
+            return await this.StorePoisonMessageAsync(
+                messageData.TaskMessage?.OrchestrationInstance,
+                messageData.OriginalQueueMessage,
+                serializedMessageData,
+                cancellationToken);
+        }
+
+        protected async Task<bool> TryMoveMessageToPoisonStorageAsync(QueueMessage queueMessage, CancellationToken cancellationToken = default)
+        {
+            return await this.StorePoisonMessageAsync(
+                orchestrationInstance: null,
+                queueMessage,
+                queueMessage.Body.ToString(),
+                cancellationToken);
+        }
+
+        async Task<bool> StorePoisonMessageAsync(
+            OrchestrationInstance? orchestrationInstance,
+            QueueMessage queueMessage,
+            string serializedPoisonMessage,
+            CancellationToken cancellationToken)
+        {
+            if (!this.settings.IsPoisonMessageStorageEnabled || queueMessage.DequeueCount <= this.settings.MaxDequeueCount)
+            {
+                return false;
+            }
+
+            try
+            {
+                BlobContainer container = this.poisonMessageContainer ??=
+                    this.azureStorageClient.GetBlobContainerReference(this.PoisonMessageContainerName);
+
+                // Replace any invalid characters with a dash
+                string sanitizedInstanceId = SanitizeString(orchestrationInstance?.InstanceId, '-');
+                string blobNamePrefix = $"{sanitizedInstanceId}~{orchestrationInstance?.ExecutionId ?? string.Empty}";
+
+                // Blob name length limit is 1024 characters and we attach an extra character (~) and GUID (32) at the end
+                // From https://learn.microsoft.com/en-us/rest/api/storageservices/naming-and-referencing-containers--blobs--and-metadata?#blob-names
+                const int MaxPrefixLength = 1024 - 32 - 1;
+                if (blobNamePrefix.Length > MaxPrefixLength)
+                {
+                    blobNamePrefix = blobNamePrefix.Substring(0, MaxPrefixLength);
+                }
+                string blobName = $"{blobNamePrefix}~{Guid.NewGuid():N}";
+
+                await container.CreateIfNotExistsAsync(cancellationToken);
+
+                Blob blob = container.GetBlobReference(blobName);
+                await blob.UploadTextAsync(serializedPoisonMessage, cancellationToken: cancellationToken);
+
+                this.settings.Logger.GeneralWarning(
+                    this.azureStorageClient.BlobAccountName,
+                    this.settings.TaskHubName,
+                    $"Stored a poison message for instance InstanceId='{orchestrationInstance?.InstanceId ?? string.Empty}' " +
+                    $"ExecutionId='{orchestrationInstance?.ExecutionId ?? string.Empty}' in blob '{blobName}'.");
+
+                await this.storageQueue.DeleteMessageAsync(queueMessage, cancellationToken: cancellationToken);
+            }
+            catch (Exception e)
+            {
+                this.settings.Logger.GeneralError(
+                    this.azureStorageClient.BlobAccountName,
+                    this.settings.TaskHubName,
+                    $"Error when attempting to store poison message for instance " +
+                        $"InstanceId={orchestrationInstance?.InstanceId ?? string.Empty} " +
+                        $"ExecutionId={orchestrationInstance?.ExecutionId ?? string.Empty} " +
+                        $"Error: {e}");
+
+                return false;
+            }
+            return true;
+        }
+
+        static string SanitizeString(string? input, char replacement)
+        {
+            if (input == null)
+            {
+                return string.Empty;
+            }
+
+            // From https://learn.microsoft.com/en-us/rest/api/storageservices/naming-and-referencing-containers--blobs--and-metadata?#unicode-characters-not-recommended-for-use-in-container-or-blob-names
+            static bool IsInvalidCodePoint(int scalar)
+            {
+                if (scalar == 0x0080 ||
+                    (scalar >= 0x0082 && scalar <= 0x008C) ||
+                    scalar == 0x008E ||
+                    (scalar >= 0x0091 && scalar <= 0x009C) ||
+                    (scalar >= 0x009E && scalar <= 0x009F) ||
+                    (scalar >= 0xFDD1 && scalar <= 0xFDDC) ||
+                    (scalar >= 0xFDDE && scalar <= 0xFDEF) ||
+                    (scalar >= 0xFFF0 && scalar <= 0xFFFF))
+                {
+                    return true;
+                }
+
+                return scalar == 0x1FFFE || scalar == 0x1FFFF ||
+                        scalar == 0x2FFFE || scalar == 0x2FFFF ||
+                        scalar == 0x3FFFE || scalar == 0x3FFFF ||
+                        scalar == 0x5FFFE || scalar == 0x5FFFF ||
+                        scalar == 0x6FFFE || scalar == 0x6FFFF ||
+                        scalar == 0x7FFFE || scalar == 0x7FFFF ||
+                        scalar == 0x9FFFE || scalar == 0x9FFFF ||
+                        scalar == 0xAFFFE || scalar == 0xAFFFF ||
+                        scalar == 0xBFFFE || scalar == 0xBFFFF ||
+                        scalar == 0xDFFFE || scalar == 0xDFFFF ||
+                        scalar == 0xEFFFE || scalar == 0xEFFFF ||
+                        scalar == 0xFFFFE || scalar == 0xFFFFF;
+            }
+
+            var sb = new StringBuilder(input.Length);
+
+            for (int i = 0; i < input.Length; i++)
+            {
+                char c = input[i];
+                int scalar;
+
+                // Since the .NET version is too low to iterate the runes, we manually detect and combine surrogate pairs here
+                if (char.IsHighSurrogate(c) && i + 1 < input.Length && char.IsLowSurrogate(input[i + 1]))
+                {
+                    scalar = char.ConvertToUtf32(c, input[i + 1]);
+                    i++;
+                }
+                else
+                {
+                    scalar = c;
+                }
+
+                if (IsInvalidCodePoint(scalar))
+                {
+                    sb.Append(replacement);
+                }
+                else
+                {
+                    sb.Append(char.ConvertFromUtf32(scalar));
+                }
+            }
+
+            return sb.ToString();
         }
 
         static bool IsMessageGoneException(Exception e)

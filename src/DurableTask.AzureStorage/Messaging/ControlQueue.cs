@@ -47,6 +47,9 @@ namespace DurableTask.AzureStorage.Messaging
 
         protected override TimeSpan MessageVisibilityTimeout => this.settings.ControlQueueVisibilityTimeout;
 
+        protected override string PoisonMessageContainerName =>
+            $"{this.settings.TaskHubName.ToLowerInvariant()}-{this.settings.PoisonMessageStorageContainerNamePrefix}-instance-messages";
+
         public async Task<IReadOnlyList<MessageData>> GetMessagesAsync(CancellationToken cancellationToken)
         {
             using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(this.releaseCancellationToken, cancellationToken))
@@ -125,9 +128,19 @@ namespace DurableTask.AzureStorage.Messaging
                                     0 /* TaskEventId */,
                                     e.ToString());
 
+                                if (await this.TryMoveMessageToPoisonStorageAsync(queueMessage, linkedCts.Token))
+                                {
+                                    return;
+                                }
+
                                 // Abandon the message so we can try it again later.
                                 // Note: We will fetch the message again from the queue before retrying, so no need to read the receipt
                                 _ = await this.AbandonMessageAsync(queueMessage);
+                                return;
+                            }
+
+                            if (await this.TryMoveMessageToPoisonStorageAsync(messageData, linkedCts.Token))
+                            {
                                 return;
                             }
 

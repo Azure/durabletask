@@ -1,4 +1,4 @@
-//  ----------------------------------------------------------------------------------
+﻿//  ----------------------------------------------------------------------------------
 //  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -25,10 +25,8 @@ namespace DurableTask.Core
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
-    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using static DurableTask.Core.TaskOrchestrationDispatcher;
 
     /// <summary>
     /// Dispatcher for orchestrations and entities to handle processing and renewing, completion of orchestration events.
@@ -45,7 +43,6 @@ namespace DurableTask.Core
         readonly ErrorPropagationMode errorPropagationMode;
         readonly TaskOrchestrationDispatcher.NonBlockingCountdownLock concurrentSessionLock;
         readonly IExceptionPropertiesProvider exceptionPropertiesProvider;
-        readonly IPoisonMessageHandler poisonMessageHandler;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TaskEntityDispatcher"/> class with an exception properties provider.
@@ -72,8 +69,7 @@ namespace DurableTask.Core
             this.exceptionPropertiesProvider = exceptionPropertiesProvider;
             this.entityOrchestrationService = (orchestrationService as IEntityOrchestrationService)!;
             this.entityBackendProperties = entityOrchestrationService.EntityBackendProperties;
-            this.poisonMessageHandler = orchestrationService as IPoisonMessageHandler;
-
+           
             this.dispatcher = new WorkItemDispatcher<TaskOrchestrationWorkItem>(
                 "TaskEntityDispatcher",
                 item => item == null ? string.Empty : item.InstanceId,
@@ -159,8 +155,8 @@ namespace DurableTask.Core
                             // If we failed to acquire it, we will end the extended session after this execution.
                             schedulerState = await this.OnProcessWorkItemAsync(workItem, schedulerState);
 
-                            // The work item could not be processed or the entity has been deleted, so we end the extended session.
-                            if (schedulerState == null || this.EntityIsDeleted(schedulerState))
+                            // The entity has been deleted, so we end the extended session.
+                            if (this.EntityIsDeleted(schedulerState))
                             {
                                 break;
                             }
@@ -255,43 +251,23 @@ namespace DurableTask.Core
 
             try
             {
-                var reconcileResult = await ReconcileMessagesWithStateAsync(
-                    workItem,
-                    nameof(TaskEntityDispatcher),
-                    this.errorPropagationMode,
-                    this.logHelper,
-                    this.poisonMessageHandler,
-                    isEntity: true);
-
-                if (reconcileResult != WorkItemReconcileResult.Success)
+                // Assumes that: if the batch contains a new "ExecutionStarted" event, it is the first message in the batch.
+                if (!TaskOrchestrationDispatcher.ReconcileMessagesWithState(workItem, nameof(TaskEntityDispatcher), this.errorPropagationMode, this.logHelper))
                 {
                     // TODO : mark an orchestration as faulted if there is data corruption
                     this.logHelper.DroppingOrchestrationWorkItem(workItem, "Received work-item for an invalid orchestration");
-
-                    if (reconcileResult == WorkItemReconcileResult.PoisonMessageHandled)
-                    {
-                        // Signal the extended session to end if one is running
-                        return null;
-                    }
                 }
                 else
                 {
                     bool firstExecutionIfExtendedSession = schedulerState == null;
 
-                    Work workToDoNow = null;
-
                     // we start with processing all the requests and figuring out which ones to execute now
                     // results can depend on whether the entity is locked, what the maximum batch size is,
                     // and whether the messages arrived out of order
-                    DetermineWorkResult determineWorkResult = await this.DetermineWorkAsync(workItem, schedulerState);
-                    if (!determineWorkResult.Success)
-                    {
-                        // Signal the extended session to end if one is running
-                        return null;
-                    }
 
-                    schedulerState = determineWorkResult.SchedulerState;
-                    workToDoNow = determineWorkResult.Batch;
+                    this.DetermineWork(workItem.OrchestrationRuntimeState,
+                         ref schedulerState,
+                         out Work workToDoNow);
 
                     if (workToDoNow.OperationCount > 0)
                     {
@@ -461,18 +437,14 @@ namespace DurableTask.Core
 
         void ProcessLockRequest(WorkItemEffects effects, SchedulerState schedulerState, RequestMessage request)
         {
-            bool isPoisonMessage = request.DispatchCount > this.poisonMessageHandler?.MaxDispatchCount;
-            if (!isPoisonMessage)
-            {
-                this.logHelper.EntityLockAcquired(effects.InstanceId, request);
+            this.logHelper.EntityLockAcquired(effects.InstanceId, request);
 
-                // mark the entity state as locked
-                schedulerState.LockedBy = request.ParentInstanceId;
+            // mark the entity state as locked
+            schedulerState.LockedBy = request.ParentInstanceId;
 
-                request.Position++;
-            }
+            request.Position++;
 
-            if (request.Position < request.LockSet.Length && !isPoisonMessage)
+            if (request.Position < request.LockSet.Length)
             {
                 // send lock request to next entity in the lock set
                 var target = new OrchestrationInstance() { InstanceId = request.LockSet[request.Position].ToString() };
@@ -482,22 +454,7 @@ namespace DurableTask.Core
             {
                 // send lock acquisition completed response back to originating orchestration instance
                 var target = new OrchestrationInstance() { InstanceId = request.ParentInstanceId, ExecutionId = request.ParentExecutionId };
-
-                // In the case of a poison message, it will be the locking instance's responsibility to unlock any other entities for whom the 
-                // lock request may have succeeded.
-                this.SendLockResponseMessage(
-                    effects,
-                    target,
-                    request.Id,
-                    isPoisonMessage ?
-                        new FailureDetails(
-                            "PoisonMessage",
-                            $"Entity lock request has dispatch count {request.DispatchCount} " +
-                            $"which exceeds the maximum dispatch count of {this.poisonMessageHandler.MaxDispatchCount}.",
-                            stackTrace: null,
-                            innerFailure: null,
-                            isNonRetriable: true)
-                        : null);
+                this.SendLockResponseMessage(effects, target, request.Id);
             }
         }
 
@@ -518,27 +475,12 @@ namespace DurableTask.Core
 
         #region Preprocess to determine work
 
-        readonly struct DetermineWorkResult
+        void DetermineWork(OrchestrationRuntimeState runtimeState, ref SchedulerState schedulerState, out Work batch)
         {
-            public DetermineWorkResult(bool success, SchedulerState schedulerState, Work batch)
-            {
-                this.Success = success;
-                this.SchedulerState = schedulerState;
-                this.Batch = batch;
-            }
-
-            public bool Success { get; }
-            public SchedulerState SchedulerState { get; }
-            public Work Batch { get; }
-        }
-
-        async Task<DetermineWorkResult> DetermineWorkAsync(TaskOrchestrationWorkItem workItem, SchedulerState schedulerState)
-        {
-            OrchestrationRuntimeState runtimeState = workItem.OrchestrationRuntimeState;
             string instanceId = runtimeState.OrchestrationInstance.InstanceId;
             bool deserializeState = schedulerState == null;
             schedulerState ??= new();
-            Work batch = new Work();
+            batch = new Work();
 
             Queue<RequestMessage> lockHolderMessages = null;
 
@@ -559,21 +501,6 @@ namespace DurableTask.Core
                             }
                             catch (Exception exception)
                             {
-                                string errorMessage = $"Failed to deserialize the entity scheduler state from the {EventType.ExecutionStarted} input.";
-                                if (this.poisonMessageHandler != null
-                                    && await this.poisonMessageHandler.HandleInvalidWorkItemAsync(
-                                        workItem,
-                                        PoisonMessageReason.DeserializationError,
-                                        errorMessage,
-                                        isEntity: true))
-                                {
-                                    this.logHelper.PoisonMessageDetected(
-                                        runtimeState.OrchestrationInstance,
-                                        e,
-                                        $"Dropping entity work item: {errorMessage}");
-
-                                     return new DetermineWorkResult(success: false, schedulerState, batch);
-                                }
                                 throw new EntitySchedulerException("Failed to deserialize entity scheduler state - may be corrupted or wrong version.", exception);
                             }
                         }
@@ -581,7 +508,6 @@ namespace DurableTask.Core
 
                     case EventType.EventRaised:
                         EventRaisedEvent eventRaisedEvent = (EventRaisedEvent)e;
-                        bool isPoisonMessage = eventRaisedEvent.DispatchCount > this.poisonMessageHandler?.MaxDispatchCount;
 
                         if (EntityMessageEventNames.IsRequestMessage(eventRaisedEvent.Name))
                         {
@@ -594,25 +520,9 @@ namespace DurableTask.Core
                             }
                             catch (Exception exception)
                             {
-                                string failureReason = $"Failed to deserialize incoming entity request message - may be corrupted or wrong version: {exception.Message}";
-                                if (this.poisonMessageHandler != null
-                                    && await this.poisonMessageHandler.HandlePoisonEntityMessageAsync(
-                                        workItem.OrchestrationRuntimeState.OrchestrationInstance,
-                                        eventRaisedEvent,
-                                        PoisonMessageReason.DeserializationError,
-                                        failureReason))
-                                {
-                                    this.logHelper.PoisonMessageDetected(
-                                        runtimeState.OrchestrationInstance,
-                                        eventRaisedEvent,
-                                        failureReason);
-                                    break;
-                                }
-
-                                throw new EntitySchedulerException(failureReason, exception);
+                                throw new EntitySchedulerException("Failed to deserialize incoming request message - may be corrupted or wrong version.", exception);
                             }
 
-                            requestMessage.DispatchCount = eventRaisedEvent.DispatchCount;
                             IEnumerable<RequestMessage> deliverNow;
 
                             if (requestMessage.ScheduledTime.HasValue)
@@ -675,36 +585,7 @@ namespace DurableTask.Core
                             }
                             catch (Exception exception)
                             {
-                                string failureReason = $"Failed to deserialize entity lock release message - may be corrupted or wrong version: {exception.Message}";
-                                if (this.poisonMessageHandler != null
-                                    && await this.poisonMessageHandler.HandlePoisonEntityMessageAsync(
-                                        workItem.OrchestrationRuntimeState.OrchestrationInstance,
-                                        eventRaisedEvent,
-                                        PoisonMessageReason.DeserializationError,
-                                        failureReason))
-                                {
-                                    this.logHelper.PoisonMessageDetected(
-                                        runtimeState.OrchestrationInstance,
-                                        eventRaisedEvent,
-                                        failureReason);
-                                    break;
-                                }
-                                throw new EntitySchedulerException(failureReason, exception);
-                            }
-
-                            if (isPoisonMessage)
-                            {
-                                string failureReason = $"Entity lock release message from parent instance '{message.ParentInstanceId}' has dispatch count " +
-                                    $"{eventRaisedEvent.DispatchCount} which exceeds the maximum allowed dispatch count of {this.poisonMessageHandler.MaxDispatchCount}.";
-                                if (await this.poisonMessageHandler.HandlePoisonEntityMessageAsync(
-                                    workItem.OrchestrationRuntimeState.OrchestrationInstance,
-                                    eventRaisedEvent,
-                                    PoisonMessageReason.DispatchCount,
-                                    failureReason))
-                                {
-                                    this.logHelper.PoisonMessageDetected(runtimeState.OrchestrationInstance, message, eventRaisedEvent.DispatchCount, failureReason);
-                                    break;
-                                }
+                                throw new EntitySchedulerException("Failed to deserialize lock release message - may be corrupted or wrong version.", exception);
                             }
 
                             if (schedulerState.LockedBy == message.ParentInstanceId)
@@ -715,21 +596,6 @@ namespace DurableTask.Core
                         }
                         else
                         {
-                            if (isPoisonMessage)
-                            {
-                                string failureReason = $"Entity self-continue message has dispatch count {eventRaisedEvent.DispatchCount} which exceeds the maximum allowed " +
-                                    $"dispatch count of {this.poisonMessageHandler.MaxDispatchCount}.";
-                                if (await this.poisonMessageHandler.HandlePoisonEntityMessageAsync(
-                                    workItem.OrchestrationRuntimeState.OrchestrationInstance,
-                                    eventRaisedEvent,
-                                    PoisonMessageReason.DispatchCount,
-                                    failureReason))
-                                {
-                                    this.logHelper.PoisonMessageDetected(runtimeState.OrchestrationInstance, eventRaisedEvent, failureReason);
-                                    break;
-                                }
-                            }
-
                             // this is a continue message.
                             // Resumes processing of previously queued operations, if any.
                             schedulerState.Suspended = false;
@@ -761,14 +627,6 @@ namespace DurableTask.Core
                     }
 
                     var request = schedulerState.Dequeue();
-                    if (request.DispatchCount > this.poisonMessageHandler?.MaxDispatchCount)
-                    {
-                        this.logHelper.PoisonMessageDetected(
-                            runtimeState.OrchestrationInstance,
-                            request,
-                            $"Entity request has dispatch count {request.DispatchCount} which exceeds the maximum dispatch count " +
-                            $"of {poisonMessageHandler.MaxDispatchCount} and will be failed.");
-                    }
 
                     if (request.IsLockRequest)
                     {
@@ -781,8 +639,6 @@ namespace DurableTask.Core
                     }
                 }
             }
-
-            return new DetermineWorkResult(success: true, schedulerState, batch);
         }
 
         bool EntityIsDeleted(SchedulerState schedulerState)
@@ -865,7 +721,7 @@ namespace DurableTask.Core
                             parentTraceContext);
                     }
 
-                    // We still want to add the trace activity to the list even if it was not successfully created and is null. This is because otherwise we have no easy way of mapping OperationResults to Activities if the lists
+                    // We still want to add the trace activity to the list even if it was not successfully created and is null. This is because otherwise we have no easy way of mapping OperationResults to Activities otherwise if the lists
                     // do not have the same length in TraceHelper.EndActivitiesForProcessingEntityInvocation. We will simply skip ending the Activity if it is null in this method
                     traceActivities.Add(traceActivity);
 
@@ -990,13 +846,12 @@ namespace DurableTask.Core
             this.ProcessSendEventMessage(effects, target, EntityMessageEventNames.RequestMessageEventName, message);
         }
 
-        void SendLockResponseMessage(WorkItemEffects effects, OrchestrationInstance target, Guid requestId, FailureDetails failureDetails)
+        void SendLockResponseMessage(WorkItemEffects effects, OrchestrationInstance target, Guid requestId)
         {
             var message = new ResponseMessage()
             {
                 // content is ignored by receiver but helps with tracing
-                Result = ResponseMessage.LockAcquisitionCompletion,
-                FailureDetails = failureDetails,
+                Result = ResponseMessage.LockAcquisitionCompletion, 
             };
             this.ProcessSendEventMessage(effects, target, EntityMessageEventNames.ResponseMessageEventName(requestId), message);
         }
@@ -1100,30 +955,13 @@ namespace DurableTask.Core
 
         async Task<EntityBatchResult> ExecuteViaMiddlewareAsync(Work workToDoNow, OrchestrationInstance instance, string serializedEntityState, bool isExtendedSession, bool includeEntityState)
         {
-            var startTime = DateTime.UtcNow;
             var (operations, traceActivities) = workToDoNow.GetOperationRequestsAndTraceActivities(instance.InstanceId);
-
-            bool poisonMessagesExist = workToDoNow.Operations.Any(op => op.DispatchCount > this.poisonMessageHandler?.MaxDispatchCount);
-            var operationsToSend = operations;
-
-            if (poisonMessagesExist)
-            {
-                operationsToSend = new List<OperationRequest>();
-                for (int i = 0; i < operations.Count; i++)
-                {
-                    if (workToDoNow.Operations[i].DispatchCount <= this.poisonMessageHandler.MaxDispatchCount)
-                    {
-                        operationsToSend.Add(operations[i]);
-                    }
-                }
-            }
-
             // the request object that will be passed to the worker
             var request = new EntityBatchRequest()
             {
                 InstanceId = instance.InstanceId,
                 EntityState = serializedEntityState,
-                Operations = operationsToSend,
+                Operations = operations,
             };
 
             this.logHelper.EntityBatchExecuting(request);
@@ -1161,55 +999,11 @@ namespace DurableTask.Core
                 }
 
                 var result = await taskEntity.ExecuteOperationBatchAsync(request);
-
+                
                 dispatchContext.SetProperty(result);
             });
 
             var result = dispatchContext.GetProperty<EntityBatchResult>();
-
-            if (poisonMessagesExist)
-            {
-                // We initialize with an initial capacity of at least the middleware operations count,
-                // though we will have more results if there are poison messages
-                var resultAfterPoisonMessageHandling = new List<OperationResult>(result.Results.Count);
-                int middlewareResultIndex = 0;
-
-                for (int i = 0; i < operations.Count; i++)
-                {
-                    if (workToDoNow.Operations[i].DispatchCount <= this.poisonMessageHandler.MaxDispatchCount)
-                    {
-                        // This was a non-poison message that was meant to be executed by the middleware but we have reached
-                        // the end of the middleware results. We end the loop at this point, and any remaining operations
-                        // (including potential poison messages) will be deferred
-                        if (middlewareResultIndex == result.Results.Count)
-                        {
-                            break;
-                        }
-                        resultAfterPoisonMessageHandling.Add(result.Results[middlewareResultIndex++]);
-                    }
-                    else
-                    {
-                        resultAfterPoisonMessageHandling.Add(
-                            new()
-                            {
-                                FailureDetails = new
-                                (
-                                    "PoisonMessage",
-                                    $"Entity operation request has dispatch count {workToDoNow.Operations[i].DispatchCount} " +
-                                    $"which exceeds the maximum dispatch count of {this.poisonMessageHandler.MaxDispatchCount}.",
-                                    stackTrace: null,
-                                    innerFailure: null,
-                                    isNonRetriable: true
-                                ),
-                                StartTimeUtc = startTime,
-                                EndTimeUtc = DateTime.UtcNow
-                            }
-                        );
-                    }
-                }
-                result.Results = resultAfterPoisonMessageHandling;
-            }
-
             TraceHelper.EndActivitiesForProcessingEntityInvocation(traceActivities, result.Results, result.FailureDetails);
 
             this.logHelper.EntityBatchExecuted(request, result);
