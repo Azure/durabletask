@@ -370,15 +370,11 @@ namespace DurableTask.AzureStorage
                 throw new ArgumentNullException(nameof(PoisonMessageStorageContainerNamePrefix));
             }
 
-            // The prefix is embedded in the container name "{taskhubname}-{prefix}-instance-messages" (or
-            // "-activity-messages"), whose total length must not exceed 63 characters.
-            // We don't necessarily know the taskhub name at this point so we just enforce the length check
-            // on -{prefix}-instance-messages (which is incidentally the same length as -{prefix}-activity-messages)
-            // + 1 additional char (at least) for the taskhub name
-            if (value.Length == 0 || $"-{value}-instance-messages".Length + 1 > 63)
+            int maxLength = 63 - "-instance-messages".Length - 2;
+            if (value.Length == 0 || value.Length > maxLength)
             {
                 throw new ArgumentException(
-                    $"The {nameof(PoisonMessageStorageContainerNamePrefix)} must be between 1 and 63 characters long.",
+                    $"The {nameof(PoisonMessageStorageContainerNamePrefix)} must be between 1 and {maxLength} characters long.",
                     nameof(PoisonMessageStorageContainerNamePrefix));
             }
 
