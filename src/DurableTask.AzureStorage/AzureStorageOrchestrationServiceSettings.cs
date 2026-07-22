@@ -359,9 +359,6 @@ namespace DurableTask.AzureStorage
 
         string poisonMessageStorageContainerNamePrefix = "durable-task-poison";
 
-        static readonly Regex PoisonMessageStorageContainerNamePrefixRegex = new Regex(
-            "^[a-z0-9]+(-[a-z0-9]+)*$",
-            RegexOptions.CultureInvariant);
 
         static void ValidatePoisonMessageStorageContainerNamePrefix(string value)
         {
@@ -382,7 +379,7 @@ namespace DurableTask.AzureStorage
                     nameof(PoisonMessageStorageContainerNamePrefix));
             }
 
-            if (!PoisonMessageStorageContainerNamePrefixRegex.IsMatch(value))
+            if (!Regex.IsMatch(value, "^[a-z0-9]+(-[a-z0-9]+)*$"))
             {
                 throw new ArgumentException(
                     $"The {nameof(PoisonMessageStorageContainerNamePrefix)} '{value}' is invalid. It may only contain " +
