@@ -366,7 +366,9 @@ namespace DurableTask.AzureStorage
             {
                 throw new ArgumentNullException(nameof(PoisonMessageStorageContainerNamePrefix));
             }
-
+             
+            // The taskhub name may not have been set at this point, so we make a best effort validation but leaving at least one character
+            // for the hub name (and another for the additional "-" in the final container name)
             int maxLength = 63 - "-instance-messages".Length - 2;
             if (value.Length == 0 || value.Length > maxLength)
             {
