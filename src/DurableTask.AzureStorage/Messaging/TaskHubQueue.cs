@@ -439,8 +439,8 @@ namespace DurableTask.AzureStorage.Messaging
 
                 // Replace any invalid characters with a dash
                 string sanitizedInstanceId = SanitizeString(orchestrationInstance?.InstanceId, '-');
-                string blobNamePrefix = $"{sanitizedInstanceId}~{orchestrationInstance?.ExecutionId ?? string.Empty}";
-
+                string sanitizedExecutionId = SanitizeString(orchestrationInstance?.ExecutionId, '-');
+                string blobNamePrefix = $"{sanitizedInstanceId}~{sanitizedExecutionId}";
                 // Blob name length limit is 1024 characters and we attach an extra character (~) and GUID (32) at the end
                 // From https://learn.microsoft.com/en-us/rest/api/storageservices/naming-and-referencing-containers--blobs--and-metadata?#blob-names
                 const int MaxPrefixLength = 1024 - 32 - 1;
