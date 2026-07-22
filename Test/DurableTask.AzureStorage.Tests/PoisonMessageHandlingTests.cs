@@ -14,20 +14,16 @@
 namespace DurableTask.AzureStorage.Tests
 {
     using System;
-    using System.ClientModel;
     using System.Collections.Generic;
     using System.Diagnostics;
-    using System.Linq;
     using System.Runtime.Serialization;
     using System.Threading;
     using System.Threading.Tasks;
     using Azure.Storage.Blobs;
     using Azure.Storage.Blobs.Models;
-    using Azure.Storage.Queues.Models;
     using DurableTask.Core;
     using DurableTask.Core.Entities;
     using DurableTask.Core.History;
-    using DurableTask.Core.Tracing;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Newtonsoft.Json;
 
@@ -128,6 +124,115 @@ namespace DurableTask.AzureStorage.Tests
                 await worker.StopAsync(isForced: true);
                 await instanceContainerClient.DeleteIfExistsAsync();
                 await activityContainerClient.DeleteIfExistsAsync();
+                await service.DeleteAsync();
+            }
+        }
+
+        static IEnumerable<object[]> InvalidInstanceIdCases()
+        {
+            // A single invalid control character (U+0080) is replaced with a dash.
+            yield return new object[] { "bad\u0080id", "bad-id" };
+
+            // Multiple invalid control characters (U+0080 and U+008E) are each replaced with a dash.
+            yield return new object[] { "a\u0080b\u008Ec", "a-b-c" };
+
+            // An instance ID that is too long for a blob name is truncated. The sanitized value is unchanged (all
+            // characters are valid) but the composed blob name prefix exceeds the length limit and must be cut.
+            yield return new object[] { new string('a', 1000), new string('a', 1000) };
+        }
+
+        [DataTestMethod]
+        [DynamicData(nameof(InvalidInstanceIdCases), DynamicDataSourceType.Method)]
+        public async Task OrchestrationWithPoisonMessage_InvalidInstanceId_IsSanitizedInBlobName(
+            string instanceId,
+            string expectedSanitizedInstanceId)
+        {
+            string prefix = CreateUniquePrefix();
+
+            // MaxDequeueCount of 0 causes the message to be treated as poison on its very first dequeue, so we can
+            // enqueue a control message directly and observe the poison behavior without running an orchestration.
+            AzureStorageOrchestrationServiceSettings settings = CreateSettings(MaxDequeueCount: 0, prefix: prefix);
+
+            BlobServiceClient blobServiceClient = CreateBlobServiceClient();
+            string instanceContainerName = $"{settings.TaskHubName}-{prefix}-instance-messages";
+            BlobContainerClient instanceContainerClient = blobServiceClient.GetBlobContainerClient(instanceContainerName);
+            await instanceContainerClient.DeleteIfExistsAsync();
+
+            var service = new AzureStorageOrchestrationService(settings);
+            await service.CreateAsync(recreateInstanceStore: true);
+
+            // Build and enqueue an ExecutionStarted control message with the (potentially invalid) instance ID
+            // directly onto the single control queue. This intentionally bypasses the tracking table, which cannot
+            // store arbitrarily long or exotic instance IDs, so we can focus on the poison-blob naming behavior.
+
+            // Note that ExecutionStartedEvents can be enqueued before a table entry is created (for example for a suborchestration),
+            // so this path is valid to exercise
+            string executionId = Guid.NewGuid().ToString("N");
+            var orchestrationInstance = new OrchestrationInstance { InstanceId = instanceId, ExecutionId = executionId };
+            var executionStartedEvent = new ExecutionStartedEvent(-1, "\"hello\"")
+            {
+                Name = "SomeOrchestration",
+                Version = string.Empty,
+                OrchestrationInstance = orchestrationInstance,
+            };
+            var taskMessage = new TaskMessage
+            {
+                OrchestrationInstance = orchestrationInstance,
+                Event = executionStartedEvent,
+            };
+
+            string controlQueueName = AzureStorageOrchestrationService.GetControlQueueName(settings.TaskHubName, 0);
+            MessageManager messageManager = CreateMessageManager(settings);
+            var messageData = new MessageData(
+                taskMessage,
+                Guid.NewGuid(),
+                controlQueueName,
+                orchestrationEpisode: null,
+                sender: new OrchestrationInstance { InstanceId = string.Empty, ExecutionId = string.Empty });
+            string body = await messageManager.SerializeMessageDataAsync(messageData);
+
+            var azureStorageClient = new DurableTask.AzureStorage.Storage.AzureStorageClient(settings);
+            DurableTask.AzureStorage.Storage.Queue controlQueue = azureStorageClient.GetQueueReference(controlQueueName);
+            await controlQueue.AddMessageAsync(body, visibilityDelay: null);
+
+            using var worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory);
+            worker.AddTaskOrchestrations(typeof(EchoOrchestration));
+            await worker.StartAsync();
+
+            try
+            {
+                await TestHelpers.WaitFor(
+                    () => instanceContainerClient.Exists().Value && ListBlobsAsync(instanceContainerClient).GetAwaiter().GetResult().Count > 0,
+                    TimeSpan.FromSeconds(30));
+
+                List<BlobItem> blobs = await ListBlobsAsync(instanceContainerClient);
+                Assert.AreEqual(1, blobs.Count);
+
+                // The blob name uses the sanitized instance ID, and the composed "{instanceId}~{executionId}" prefix
+                // is truncated to keep the total blob name within the 1024 character limit.
+                const int maxPrefixLength = 1024 - 32 - 1;
+                string expectedPrefix = $"{expectedSanitizedInstanceId}~{executionId}";
+                if (expectedPrefix.Length > maxPrefixLength)
+                {
+                    expectedPrefix = expectedPrefix.Substring(0, maxPrefixLength);
+                }
+
+                Assert.AreEqual(expectedPrefix, blobs[0].Name.Substring(0, expectedPrefix.Length));
+                Assert.IsTrue(blobs[0].Name.Length <= 1024, $"Blob name length {blobs[0].Name.Length} exceeds the 1024 character limit.");
+
+                // Sanitization only affects the blob name. The stored poison message must preserve the original
+                // (unsanitized) instance ID.
+                MessageData poisonMessage = await DownloadPoisonMessagesAsync(instanceContainerClient, blobs[0].Name);
+                Assert.AreEqual(instanceId, poisonMessage.TaskMessage.OrchestrationInstance.InstanceId);
+                Assert.AreEqual(executionId, poisonMessage.TaskMessage.OrchestrationInstance.ExecutionId);
+                Assert.IsInstanceOfType(poisonMessage.TaskMessage.Event, typeof(ExecutionStartedEvent));
+
+                await AssertQueuesAreEmptyAsync(settings);
+            }
+            finally
+            {
+                await worker.StopAsync(isForced: true);
+                await instanceContainerClient.DeleteIfExistsAsync();
                 await service.DeleteAsync();
             }
         }

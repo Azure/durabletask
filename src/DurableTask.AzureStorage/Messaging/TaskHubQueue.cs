@@ -527,6 +527,18 @@ namespace DurableTask.AzureStorage.Messaging
                     scalar = char.ConvertToUtf32(c, input[i + 1]);
                     i++;
                 }
+                else if (char.IsSurrogate(c))
+                {
+                    // Unpaired surrogate. These are not valid Unicode scalar values, so char.ConvertFromUtf32 below
+                    // would throw for them. In practice an unpaired surrogate never reaches this method: instance and
+                    // execution IDs are round-tripped through Azure Storage queues, which substitute unpaired
+                    // surrogates (and other characters that are not valid in the storage encoding) with the Unicode
+                    // replacement character (U+FFFD) before we read the message back. We therefore don't enumerate
+                    // surrogate code points in IsInvalidCodePoint above; we just replace any that somehow appear here
+                    // so that blob-name generation can never throw.
+                    sb.Append(replacement);
+                    continue;
+                }
                 else
                 {
                     scalar = c;
