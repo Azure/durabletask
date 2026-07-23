@@ -460,8 +460,8 @@ namespace DurableTask.AzureStorage.Messaging
                     orchestrationInstance?.InstanceId ?? string.Empty,
                     orchestrationInstance?.ExecutionId ?? string.Empty,
                     this.storageQueue.Name,
-                    string.Empty /* EventType */,
-                    0 /* TaskEventId */,
+                    eventType,
+                    taskEventId,
                     $"Error when attempting to store poison message. Error: {e}");
 
                 return false;
