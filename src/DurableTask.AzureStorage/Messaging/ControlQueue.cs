@@ -49,7 +49,6 @@ namespace DurableTask.AzureStorage.Messaging
 
         public async Task<IReadOnlyList<MessageData>> GetMessagesAsync(CancellationToken cancellationToken)
         {
-            string poisonMessageContainerName = this.GetPoisonMessageContainerName("instance-messages");
             using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(this.releaseCancellationToken, cancellationToken))
             {
                 bool pendingOrchestratorMessageLimitReached = false;
@@ -126,7 +125,11 @@ namespace DurableTask.AzureStorage.Messaging
                                     0 /* TaskEventId */,
                                     e.ToString());
 
-                                if (await this.CheckForAndHandlePoisonMessageAsync(poisonMessageContainerName, queueMessage, orchestrationInstance: null, linkedCts.Token))
+                                if (await this.CheckForAndHandlePoisonMessageAsync(
+                                    blobNamePrefix: "instance-messages/",
+                                    queueMessage,
+                                    orchestrationInstance: null,
+                                    linkedCts.Token))
                                 {
                                     return;
                                 }
@@ -137,7 +140,11 @@ namespace DurableTask.AzureStorage.Messaging
                                 return;
                             }
 
-                            if (await this.CheckForAndHandlePoisonMessageAsync(poisonMessageContainerName, queueMessage, messageData.TaskMessage.OrchestrationInstance, linkedCts.Token))
+                            if (await this.CheckForAndHandlePoisonMessageAsync(
+                                blobNamePrefix: "instance-messages/",
+                                queueMessage,
+                                orchestrationInstance: messageData.TaskMessage.OrchestrationInstance,
+                                linkedCts.Token))
                             {
                                 return;
                             }

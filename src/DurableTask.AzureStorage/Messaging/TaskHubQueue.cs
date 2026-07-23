@@ -23,7 +23,6 @@ namespace DurableTask.AzureStorage.Messaging
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
     using DurableTask.Core.History;
-    using Newtonsoft.Json;
 
     abstract class TaskHubQueue
     {
@@ -35,8 +34,10 @@ namespace DurableTask.AzureStorage.Messaging
         protected readonly string storageAccountName;
         protected readonly AzureStorageOrchestrationServiceSettings settings;
         protected readonly BackoffPollingHelper backoffHelper;
+        protected readonly string poisonMessageContainerName;
 
         BlobContainer? poisonMessageContainer;
+
 
         public TaskHubQueue(
             AzureStorageClient azureStorageClient,
@@ -58,6 +59,7 @@ namespace DurableTask.AzureStorage.Messaging
             }
 
             this.backoffHelper = new BackoffPollingHelper(minPollingDelay, maxPollingDelay);
+            this.poisonMessageContainerName = $"{this.settings.TaskHubName.ToLowerInvariant()}-{this.settings.PoisonMessageStorageContainerNameSuffix}";
         }
 
         public string Name => this.storageQueue.Name;
@@ -255,19 +257,6 @@ namespace DurableTask.AzureStorage.Messaging
             int numSecondsToWait = queueMessage.DequeueCount <= 30 ? 
                 Math.Min((int)Math.Pow(2, queueMessage.DequeueCount), maxSecondsToWait) :
                 maxSecondsToWait;
-            if (numSecondsToWait == maxSecondsToWait)
-            {
-                this.settings.Logger.PoisonMessageDetected(
-                    this.storageAccountName,
-                    this.settings.TaskHubName,
-                    eventType,
-                    taskEventId,
-                    queueMessage.MessageId,
-                    instanceId,
-                    executionId,
-                    this.storageQueue.Name,
-                    queueMessage.DequeueCount);
-            }
 
             this.settings.Logger.AbandoningMessage(
                 this.storageAccountName,
@@ -392,13 +381,8 @@ namespace DurableTask.AzureStorage.Messaging
             }
         }
 
-        protected string GetPoisonMessageContainerName(string suffix)
-        {
-            return $"{this.settings.TaskHubName.ToLowerInvariant()}-{this.settings.PoisonMessageStorageContainerNamePrefix}-{suffix}";
-        }
-
         protected async Task<bool> CheckForAndHandlePoisonMessageAsync(
-            string poisonMessageContainerName,
+            string blobNamePrefix,
             QueueMessage queueMessage,
             OrchestrationInstance? orchestrationInstance = null,
             CancellationToken cancellationToken = default)
@@ -411,15 +395,15 @@ namespace DurableTask.AzureStorage.Messaging
             try
             {
                 BlobContainer container = this.poisonMessageContainer ??=
-                    this.azureStorageClient.GetBlobContainerReference(poisonMessageContainerName);
+                    this.azureStorageClient.GetBlobContainerReference(this.poisonMessageContainerName);
 
                 // Replace any invalid characters with a dash
                 string sanitizedInstanceId = SanitizeString(orchestrationInstance?.InstanceId, '-');
-                string blobNamePrefix = sanitizedInstanceId;
+                blobNamePrefix += sanitizedInstanceId;
 
                 if (!string.IsNullOrEmpty(orchestrationInstance?.ExecutionId))
                 {
-                    blobNamePrefix += $"_{SanitizeString(orchestrationInstance?.ExecutionId, '-')}";
+                    blobNamePrefix += $"_{SanitizeString(orchestrationInstance!.ExecutionId, '-')}";
                 }
 
                 // Blob name length limit is 1024 characters and we attach an extra character (_) and the message ID at the end
@@ -431,17 +415,36 @@ namespace DurableTask.AzureStorage.Messaging
                 }
                 string blobName = $"{blobNamePrefix}_{queueMessage.MessageId}";
 
+                // A blob name may contain at most 254 path segment delimiters ('/'). Replace any '/' beyond the
+                // first 254 with a dash so the blob name remains valid.
+                // From https://learn.microsoft.com/en-us/rest/api/storageservices/naming-and-referencing-containers--blobs--and-metadata?#blob-names
+                const int MaxForwardSlashes = 254;
+                int forwardSlashCount = 0;
+                char[] blobNameChars = blobName.ToCharArray();
+                for (int i = 0; i < blobNameChars.Length; i++)
+                {
+                    if (blobNameChars[i] == '/' && ++forwardSlashCount > MaxForwardSlashes)
+                    {
+                        blobNameChars[i] = '-';
+                    }
+                }
+                blobName = new string(blobNameChars);
+
                 await container.CreateIfNotExistsAsync(cancellationToken);
 
                 Blob blob = container.GetBlobReference(blobName);
                 await blob.UploadTextAsync(queueMessage.Body.ToString(), cancellationToken: cancellationToken);
 
-                this.settings.Logger.PoisonMessageStored(
+                this.settings.Logger.PoisonMessageDetected(
                     this.azureStorageClient.BlobAccountName,
                     this.settings.TaskHubName,
+                    eventType: string.Empty,
+                    taskEventId: 0,
+                    queueMessage.MessageId,
                     orchestrationInstance?.InstanceId ?? string.Empty,
                     orchestrationInstance?.ExecutionId ?? string.Empty,
-                    queueMessage.MessageId,
+                    this.storageQueue.Name,
+                    queueMessage.DequeueCount,
                     blobName);
 
                 await this.storageQueue.DeleteMessageAsync(queueMessage, cancellationToken: cancellationToken);

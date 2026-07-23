@@ -50,12 +50,9 @@ namespace DurableTask.AzureStorage.Tests
             AzureStorageOrchestrationServiceSettings settings = CreateSettings(MaxDequeueCount: 1, prefix: prefix);
 
             BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string instanceContainerName = $"{settings.TaskHubName}-{prefix}-instance-messages";
-            string activityContainerName = $"{settings.TaskHubName}-{prefix}-activity-messages";
-            BlobContainerClient instanceContainerClient = blobServiceClient.GetBlobContainerClient(instanceContainerName);
-            BlobContainerClient activityContainerClient = blobServiceClient.GetBlobContainerClient(activityContainerName);
-            await instanceContainerClient.DeleteIfExistsAsync();
-            await activityContainerClient.DeleteIfExistsAsync();
+            string containerName = GetPoisonContainerName(settings);
+            BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
+            await containerClient.DeleteIfExistsAsync();
 
             var inner = new AzureStorageOrchestrationService(settings);
 
@@ -87,20 +84,17 @@ namespace DurableTask.AzureStorage.Tests
                 // The orchestration itself never completes because the ExecutionStartedEvent was discarded, so we wait
                 // for the poison blob to appear rather than for orchestration completion.
                 await TestHelpers.WaitFor(
-                    () => instanceContainerClient.Exists().Value && ListBlobsAsync(instanceContainerClient).GetAwaiter().GetResult().Count > 0,
+                    () => containerClient.Exists().Value && ListBlobsAsync(containerClient).GetAwaiter().GetResult().Count > 0,
                     TimeSpan.FromSeconds(30));
 
-                Assert.IsFalse(
-                    await activityContainerClient.ExistsAsync(),
-                    $"Blob container '{activityContainerName}' should not exist");
-
-                List<BlobItem> blobs = await ListBlobsAsync(instanceContainerClient);
+                List<BlobItem> blobs = await ListBlobsAsync(containerClient);
                 Assert.AreEqual(1, blobs.Count);
 
-                string expectedPrefix = $"{instance.InstanceId}_{instance.ExecutionId}";
+                // Control-queue (orchestration) poison messages are stored under the "instance-messages/" prefix.
+                string expectedPrefix = $"{InstanceMessagesBlobPrefix}{instance.InstanceId}_{instance.ExecutionId}";
                 Assert.AreEqual(expectedPrefix, blobs[0].Name.Substring(0, expectedPrefix.Length));
 
-                MessageData poisonMessage = await DownloadPoisonMessagesAsync(instanceContainerClient, blobs[0].Name, CreateMessageManager(settings));
+                MessageData poisonMessage = await DownloadPoisonMessagesAsync(containerClient, blobs[0].Name, CreateMessageManager(settings));
                 Assert.AreEqual(string.Empty, poisonMessage.Sender.InstanceId);
                 Assert.AreEqual(string.Empty, poisonMessage.Sender.ExecutionId);
                 Assert.AreEqual(instance.InstanceId, poisonMessage.TaskMessage.OrchestrationInstance.InstanceId);
@@ -122,8 +116,7 @@ namespace DurableTask.AzureStorage.Tests
             finally
             {
                 await worker.StopAsync(isForced: true);
-                await instanceContainerClient.DeleteIfExistsAsync();
-                await activityContainerClient.DeleteIfExistsAsync();
+                await containerClient.DeleteIfExistsAsync();
                 await service.DeleteAsync();
             }
         }
@@ -139,6 +132,16 @@ namespace DurableTask.AzureStorage.Tests
             // An instance ID that is too long for a blob name is truncated. The sanitized value is unchanged (all
             // characters are valid) but the composed blob name prefix exceeds the length limit and must be cut.
             yield return new object[] { new string('a', 1000), new string('a', 1000) };
+
+            // A blob name may contain at most 254 '/' path segment delimiters. The blob name already contains one
+            // '/' from the "instance-messages/" prefix, so only the first 253 '/' from the instance ID are kept;
+            // every '/' after that is replaced with a dash.
+            const int slashCount = 300;
+            yield return new object[]
+            {
+                new string('/', slashCount),
+                new string('/', 253) + new string('-', slashCount - 253),
+            };
         }
 
         [DataTestMethod]
@@ -154,8 +157,8 @@ namespace DurableTask.AzureStorage.Tests
             AzureStorageOrchestrationServiceSettings settings = CreateSettings(MaxDequeueCount: 0, prefix: prefix);
 
             BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string instanceContainerName = $"{settings.TaskHubName}-{prefix}-instance-messages";
-            BlobContainerClient instanceContainerClient = blobServiceClient.GetBlobContainerClient(instanceContainerName);
+            string containerName = GetPoisonContainerName(settings);
+            BlobContainerClient instanceContainerClient = blobServiceClient.GetBlobContainerClient(containerName);
             await instanceContainerClient.DeleteIfExistsAsync();
 
             var service = new AzureStorageOrchestrationService(settings);
@@ -220,7 +223,7 @@ namespace DurableTask.AzureStorage.Tests
                 string actualPrefix = blobName.Substring(0, lastUnderscore);
                 string messageId = blobName.Substring(lastUnderscore + 1);
 
-                string expectedPrefix = $"{expectedSanitizedInstanceId}_{executionId}";
+                string expectedPrefix = $"{InstanceMessagesBlobPrefix}{expectedSanitizedInstanceId}_{executionId}";
                 int maxPrefixLength = 1024 - messageId.Length - 1;
                 if (expectedPrefix.Length > maxPrefixLength)
                 {
@@ -252,7 +255,7 @@ namespace DurableTask.AzureStorage.Tests
             AzureStorageOrchestrationServiceSettings settings = CreateSettings(MaxDequeueCount: 2, prefix: prefix);
 
             BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string containerName = $"{settings.TaskHubName}-{prefix}-instance-messages";
+            string containerName = GetPoisonContainerName(settings);
             BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
             await containerClient.DeleteIfExistsAsync();
 
@@ -300,7 +303,7 @@ namespace DurableTask.AzureStorage.Tests
             AzureStorageOrchestrationServiceSettings settings = CreateSettings(MaxDequeueCount: 1, prefix: prefix, poisonEnabled: false);
 
             BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string containerName = $"{settings.TaskHubName}-{prefix}-instance-messages";
+            string containerName = GetPoisonContainerName(settings);
             BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
             await containerClient.DeleteIfExistsAsync();
 
@@ -348,12 +351,9 @@ namespace DurableTask.AzureStorage.Tests
             AzureStorageOrchestrationServiceSettings settings = CreateSettings(MaxDequeueCount: 1, prefix: prefix);
 
             BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string instanceContainerName = $"{settings.TaskHubName}-{prefix}-instance-messages";
-            string activityContainerName = $"{settings.TaskHubName}-{prefix}-activity-messages";
-            BlobContainerClient instanceContainerClient = blobServiceClient.GetBlobContainerClient(instanceContainerName);
-            BlobContainerClient activityContainerClient = blobServiceClient.GetBlobContainerClient(activityContainerName);
-            await instanceContainerClient.DeleteIfExistsAsync();
-            await activityContainerClient.DeleteIfExistsAsync();
+            string containerName = GetPoisonContainerName(settings);
+            BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
+            await containerClient.DeleteIfExistsAsync();
 
             var inner = new AzureStorageOrchestrationService(settings);
 
@@ -384,20 +384,17 @@ namespace DurableTask.AzureStorage.Tests
                 // orchestration itself never completes because the activity result is never produced, so we wait
                 // for the poison blob to appear rather than for orchestration completion.
                 await TestHelpers.WaitFor(
-                    () => activityContainerClient.Exists().Value && ListBlobsAsync(activityContainerClient).GetAwaiter().GetResult().Count > 0,
+                    () => containerClient.Exists().Value && ListBlobsAsync(containerClient).GetAwaiter().GetResult().Count > 0,
                     TimeSpan.FromSeconds(30));
 
-                Assert.IsFalse(
-                    await instanceContainerClient.ExistsAsync(),
-                    $"Blob container '{instanceContainerName}' should not exist");
-
-                List<BlobItem> blobs = await ListBlobsAsync(activityContainerClient);
+                List<BlobItem> blobs = await ListBlobsAsync(containerClient);
                 Assert.AreEqual(1, blobs.Count);
 
-                string expectedPrefix = $"{instance.InstanceId}_{instance.ExecutionId}";
+                // Work item (activity) poison messages are stored under the "activity-messages/" prefix.
+                string expectedPrefix = $"{ActivityMessagesBlobPrefix}{instance.InstanceId}_{instance.ExecutionId}";
                 Assert.AreEqual(expectedPrefix, blobs[0].Name.Substring(0, expectedPrefix.Length));
 
-                MessageData poisonMessage = await DownloadPoisonMessagesAsync(activityContainerClient, blobs[0].Name, CreateMessageManager(settings));
+                MessageData poisonMessage = await DownloadPoisonMessagesAsync(containerClient, blobs[0].Name, CreateMessageManager(settings));
                 Assert.AreEqual(instance.InstanceId, poisonMessage.Sender.InstanceId);
                 Assert.AreEqual(instance.ExecutionId, poisonMessage.Sender.ExecutionId);
                 Assert.AreEqual(instance.InstanceId, poisonMessage.TaskMessage.OrchestrationInstance.InstanceId);
@@ -414,8 +411,7 @@ namespace DurableTask.AzureStorage.Tests
             finally
             {
                 await worker.StopAsync(isForced: true);
-                await instanceContainerClient.DeleteIfExistsAsync();
-                await activityContainerClient.DeleteIfExistsAsync();
+                await containerClient.DeleteIfExistsAsync();
                 await service.DeleteAsync();
             }
         }
@@ -427,7 +423,7 @@ namespace DurableTask.AzureStorage.Tests
             AzureStorageOrchestrationServiceSettings settings = CreateSettings(MaxDequeueCount: 2, prefix: prefix);
 
             BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string activityContainerName = $"{settings.TaskHubName}-{prefix}-activity-messages";
+            string activityContainerName = GetPoisonContainerName(settings);
             BlobContainerClient activityContainerClient = blobServiceClient.GetBlobContainerClient(activityContainerName);
             await activityContainerClient.DeleteIfExistsAsync();
 
@@ -478,7 +474,7 @@ namespace DurableTask.AzureStorage.Tests
             AzureStorageOrchestrationServiceSettings settings = CreateSettings(MaxDequeueCount: 1, prefix: prefix, poisonEnabled: false);
 
             BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string activityContainerName = $"{settings.TaskHubName}-{prefix}-activity-messages";
+            string activityContainerName = GetPoisonContainerName(settings);
             BlobContainerClient activityContainerClient = blobServiceClient.GetBlobContainerClient(activityContainerName);
             await activityContainerClient.DeleteIfExistsAsync();
 
@@ -527,17 +523,14 @@ namespace DurableTask.AzureStorage.Tests
             AzureStorageOrchestrationServiceSettings settings = CreateSettings(MaxDequeueCount: 1, prefix: prefix);
 
             BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string instanceContainerName = $"{settings.TaskHubName}-{prefix}-instance-messages";
-            string activityContainerName = $"{settings.TaskHubName}-{prefix}-activity-messages";
-            BlobContainerClient instanceContainerClient = blobServiceClient.GetBlobContainerClient(instanceContainerName);
-            BlobContainerClient activityContainerClient = blobServiceClient.GetBlobContainerClient(activityContainerName);
-            await instanceContainerClient.DeleteIfExistsAsync();
-            await activityContainerClient.DeleteIfExistsAsync();
+            string containerName = GetPoisonContainerName(settings);
+            BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
+            await containerClient.DeleteIfExistsAsync();
 
             var service = new AzureStorageOrchestrationService(settings);
             await service.CreateAsync(recreateInstanceStore: true);
 
-            // Insert a malformed message directly into the single control queue. It cannot be deserialized, so once
+            // Insert a malformed message directly into the single control queue.
             // its dequeue count exceeds the maximum it must be moved to poison storage and deleted from the queue.
             var azureStorageClient = new DurableTask.AzureStorage.Storage.AzureStorageClient(settings);
             string controlQueueName = AzureStorageOrchestrationService.GetControlQueueName(settings.TaskHubName, 0);
@@ -551,18 +544,17 @@ namespace DurableTask.AzureStorage.Tests
             try
             {
                 await TestHelpers.WaitFor(
-                    () => instanceContainerClient.Exists().Value && ListBlobsAsync(instanceContainerClient).GetAwaiter().GetResult().Count > 0,
+                    () => containerClient.Exists().Value && ListBlobsAsync(containerClient).GetAwaiter().GetResult().Count > 0,
                     TimeSpan.FromSeconds(30));
 
-                Assert.IsFalse(
-                    await activityContainerClient.ExistsAsync(),
-                    $"Blob container '{activityContainerName}' should not exist");
-
-                List<BlobItem> blobs = await ListBlobsAsync(instanceContainerClient);
+                List<BlobItem> blobs = await ListBlobsAsync(containerClient);
                 Assert.AreEqual(1, blobs.Count);
 
+                // The malformed control-queue message is stored under the "instance-messages/" prefix.
+                Assert.IsTrue(blobs[0].Name.StartsWith(InstanceMessagesBlobPrefix));
+
                 // The stored poison message must match the original (undeserializable) queue message body.
-                string blobContent = await DownloadBlobTextAsync(instanceContainerClient, blobs[0].Name);
+                string blobContent = await DownloadBlobTextAsync(containerClient, blobs[0].Name);
                 Assert.AreEqual(badMessage, blobContent);
 
                 // The malformed message must have been deleted from the control queue.
@@ -571,8 +563,7 @@ namespace DurableTask.AzureStorage.Tests
             finally
             {
                 await worker.StopAsync(isForced: true);
-                await instanceContainerClient.DeleteIfExistsAsync();
-                await activityContainerClient.DeleteIfExistsAsync();
+                await containerClient.DeleteIfExistsAsync();
                 await service.DeleteAsync();
             }
         }
@@ -589,17 +580,14 @@ namespace DurableTask.AzureStorage.Tests
             settings.WorkItemQueueVisibilityTimeout = TimeSpan.FromSeconds(3);
 
             BlobServiceClient blobServiceClient = CreateBlobServiceClient();
-            string instanceContainerName = $"{settings.TaskHubName}-{prefix}-instance-messages";
-            string activityContainerName = $"{settings.TaskHubName}-{prefix}-activity-messages";
-            BlobContainerClient instanceContainerClient = blobServiceClient.GetBlobContainerClient(instanceContainerName);
-            BlobContainerClient activityContainerClient = blobServiceClient.GetBlobContainerClient(activityContainerName);
-            await instanceContainerClient.DeleteIfExistsAsync();
-            await activityContainerClient.DeleteIfExistsAsync();
+            string containerName = GetPoisonContainerName(settings);
+            BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
+            await containerClient.DeleteIfExistsAsync();
 
             var service = new AzureStorageOrchestrationService(settings);
             await service.CreateAsync(recreateInstanceStore: true);
 
-            // Insert a malformed message directly into the work item queue. It cannot be deserialized, so once its
+            // Insert a malformed message directly into the work item queue.
             // dequeue count exceeds the maximum it must be moved to poison storage and deleted from the queue.
             var azureStorageClient = new DurableTask.AzureStorage.Storage.AzureStorageClient(settings);
             string workItemQueueName = AzureStorageOrchestrationService.GetWorkItemQueueName(settings.TaskHubName);
@@ -613,18 +601,17 @@ namespace DurableTask.AzureStorage.Tests
             try
             {
                 await TestHelpers.WaitFor(
-                    () => activityContainerClient.Exists().Value && ListBlobsAsync(activityContainerClient).GetAwaiter().GetResult().Count > 0,
+                    () => containerClient.Exists().Value && ListBlobsAsync(containerClient).GetAwaiter().GetResult().Count > 0,
                     TimeSpan.FromSeconds(30));
 
-                Assert.IsFalse(
-                    await instanceContainerClient.ExistsAsync(),
-                    $"Blob container '{instanceContainerName}' should not exist");
-
-                List<BlobItem> blobs = await ListBlobsAsync(activityContainerClient);
+                List<BlobItem> blobs = await ListBlobsAsync(containerClient);
                 Assert.AreEqual(1, blobs.Count);
 
+                // The malformed work item message is stored under the "activity-messages/" prefix.
+                Assert.IsTrue(blobs[0].Name.StartsWith(ActivityMessagesBlobPrefix));
+
                 // The stored poison message must match the original (undeserializable) queue message body.
-                string blobContent = await DownloadBlobTextAsync(activityContainerClient, blobs[0].Name);
+                string blobContent = await DownloadBlobTextAsync(containerClient, blobs[0].Name);
                 Assert.AreEqual(badMessage, blobContent);
 
                 // The malformed message must have been deleted from the work item queue.
@@ -633,8 +620,7 @@ namespace DurableTask.AzureStorage.Tests
             finally
             {
                 await worker.StopAsync(isForced: true);
-                await instanceContainerClient.DeleteIfExistsAsync();
-                await activityContainerClient.DeleteIfExistsAsync();
+                await containerClient.DeleteIfExistsAsync();
                 await service.DeleteAsync();
             }
         }
@@ -651,7 +637,7 @@ namespace DurableTask.AzureStorage.Tests
             settings.TaskHubName = "poison" + Guid.NewGuid().ToString("N").Substring(0, 10);
             settings.IsPoisonMessageStorageEnabled = poisonEnabled;
             settings.MaxDequeueCount = MaxDequeueCount;
-            settings.PoisonMessageStorageContainerNamePrefix = prefix;
+            settings.PoisonMessageStorageContainerNameSuffix = prefix;
 
             // Use a single partition so tests have a single, deterministic control queue to inspect.
             settings.PartitionCount = 1;
@@ -686,6 +672,15 @@ namespace DurableTask.AzureStorage.Tests
         {
             return new BlobServiceClient(TestHelpers.GetTestStorageAccountConnectionString());
         }
+
+        // Poison messages for a task hub are stored in a single container named "{taskhubname}-{suffix}".
+        // Within that container, control-queue (orchestration/entity) messages are stored under the
+        // "instance-messages/" blob-name prefix and work item (activity) messages under "activity-messages/".
+        const string InstanceMessagesBlobPrefix = "instance-messages/";
+        const string ActivityMessagesBlobPrefix = "activity-messages/";
+
+        static string GetPoisonContainerName(AzureStorageOrchestrationServiceSettings settings) =>
+            $"{settings.TaskHubName.ToLowerInvariant()}-{settings.PoisonMessageStorageContainerNameSuffix}";
 
         // Container names must be lowercase and no longer than 63 characters. The longest suffix we append is
         // "-instance-messages" (18 characters), so keep the prefix short.

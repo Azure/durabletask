@@ -33,7 +33,6 @@ namespace DurableTask.AzureStorage.Messaging
 
         public async Task<MessageData> GetMessageAsync(CancellationToken cancellationToken)
         {
-            string poisonMessageContainerName = this.GetPoisonMessageContainerName("activity-messages");
             while (!cancellationToken.IsCancellationRequested)
             {
                 try
@@ -56,7 +55,11 @@ namespace DurableTask.AzureStorage.Messaging
                     }
                     catch (Exception)
                     {
-                        if (await this.CheckForAndHandlePoisonMessageAsync(poisonMessageContainerName, queueMessage, orchestrationInstance: null, cancellationToken))
+                        if (await this.CheckForAndHandlePoisonMessageAsync(
+                            blobNamePrefix: "activity-messages/",
+                            queueMessage,
+                            orchestrationInstance: null,
+                            cancellationToken))
                         {
                             this.backoffHelper.Reset();
                             continue;
@@ -65,7 +68,11 @@ namespace DurableTask.AzureStorage.Messaging
                         throw;
                     }
 
-                    if (await this.CheckForAndHandlePoisonMessageAsync(poisonMessageContainerName, queueMessage, data.TaskMessage.OrchestrationInstance, cancellationToken))
+                    if (await this.CheckForAndHandlePoisonMessageAsync(
+                        blobNamePrefix: "activity-messages/",
+                        queueMessage,
+                        orchestrationInstance: data.TaskMessage.OrchestrationInstance,
+                        cancellationToken))
                     {
                         this.backoffHelper.Reset();
                         continue;
