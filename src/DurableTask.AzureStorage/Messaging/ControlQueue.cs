@@ -128,7 +128,6 @@ namespace DurableTask.AzureStorage.Messaging
                                 if (await this.CheckForAndHandlePoisonMessageAsync(
                                     blobNamePrefix: "instance-messages/",
                                     queueMessage,
-                                    orchestrationInstance: null,
                                     linkedCts.Token))
                                 {
                                     return;
@@ -143,8 +142,10 @@ namespace DurableTask.AzureStorage.Messaging
                             if (await this.CheckForAndHandlePoisonMessageAsync(
                                 blobNamePrefix: "instance-messages/",
                                 queueMessage,
-                                orchestrationInstance: messageData.TaskMessage.OrchestrationInstance,
-                                linkedCts.Token))
+                                linkedCts.Token,
+                                messageData.TaskMessage.OrchestrationInstance,
+                                messageData.TaskMessage.Event.EventType.ToString(),
+                                Utils.GetTaskEventId(messageData.TaskMessage.Event)))
                             {
                                 return;
                             }

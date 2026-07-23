@@ -384,8 +384,10 @@ namespace DurableTask.AzureStorage.Messaging
         protected async Task<bool> CheckForAndHandlePoisonMessageAsync(
             string blobNamePrefix,
             QueueMessage queueMessage,
+            CancellationToken cancellationToken,
             OrchestrationInstance? orchestrationInstance = null,
-            CancellationToken cancellationToken = default)
+            string eventType = "",
+            int taskEventId = 0)
         {
             if (!this.settings.IsPoisonMessageStorageEnabled || queueMessage.DequeueCount <= this.settings.MaxDequeueCount)
             {
@@ -438,8 +440,8 @@ namespace DurableTask.AzureStorage.Messaging
                 this.settings.Logger.PoisonMessageDetected(
                     this.azureStorageClient.BlobAccountName,
                     this.settings.TaskHubName,
-                    eventType: string.Empty,
-                    taskEventId: 0,
+                    eventType,
+                    taskEventId,
                     queueMessage.MessageId,
                     orchestrationInstance?.InstanceId ?? string.Empty,
                     orchestrationInstance?.ExecutionId ?? string.Empty,

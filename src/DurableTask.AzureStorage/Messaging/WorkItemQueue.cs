@@ -58,7 +58,6 @@ namespace DurableTask.AzureStorage.Messaging
                         if (await this.CheckForAndHandlePoisonMessageAsync(
                             blobNamePrefix: "activity-messages/",
                             queueMessage,
-                            orchestrationInstance: null,
                             cancellationToken))
                         {
                             this.backoffHelper.Reset();
@@ -71,8 +70,10 @@ namespace DurableTask.AzureStorage.Messaging
                     if (await this.CheckForAndHandlePoisonMessageAsync(
                         blobNamePrefix: "activity-messages/",
                         queueMessage,
-                        orchestrationInstance: data.TaskMessage.OrchestrationInstance,
-                        cancellationToken))
+                        cancellationToken,
+                        data.TaskMessage.OrchestrationInstance,
+                        data.TaskMessage.Event.EventType.ToString(),
+                        Utils.GetTaskEventId(data.TaskMessage.Event)))
                     {
                         this.backoffHelper.Reset();
                         continue;

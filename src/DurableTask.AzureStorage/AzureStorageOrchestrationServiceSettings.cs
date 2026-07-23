@@ -15,7 +15,6 @@ namespace DurableTask.AzureStorage
 {
     using System;
     using System.Runtime.Serialization;
-    using System.Text.RegularExpressions;
     using DurableTask.AzureStorage.Logging;
     using DurableTask.AzureStorage.Partitioning;
     using DurableTask.Core;
@@ -321,7 +320,7 @@ namespace DurableTask.AzureStorage
         /// more than <see cref="MaxDequeueCount"/> times will be moved to poison message storage in Azure Blob
         /// Storage and deleted from their source queue.
         /// This may leave orchestrations permanently as <see cref="OrchestrationStatus.Running"/> (or any other
-        /// non-terminal state) if the messsage(s) necessary for them make progress was deemed as "poisoned" and deleted.
+        /// non-terminal state) if the messsage(s) necessary for them make progress are deemed "poisoned" and deleted.
         /// </para>
         /// </remarks>
         public bool IsPoisonMessageStorageEnabled { get; set; } = true;
