@@ -410,10 +410,10 @@ namespace DurableTask.AzureStorage.Messaging
 
                 // Blob name length limit is 1024 characters and we attach an extra character (_) and the message ID at the end
                 // From https://learn.microsoft.com/en-us/rest/api/storageservices/naming-and-referencing-containers--blobs--and-metadata?#blob-names
-                int MaxPrefixLength = 1024 - queueMessage.MessageId.Length - 1;
-                if (blobNamePrefix.Length > MaxPrefixLength)
+                int maxPrefixLength = 1024 - queueMessage.MessageId.Length - 1;
+                if (blobNamePrefix.Length > maxPrefixLength)
                 {
-                    blobNamePrefix = blobNamePrefix.Substring(0, MaxPrefixLength);
+                    blobNamePrefix = blobNamePrefix.Substring(0, maxPrefixLength);
                 }
                 string blobName = $"{blobNamePrefix}_{queueMessage.MessageId}";
 
