@@ -252,7 +252,6 @@ namespace DurableTask.AzureStorage.Messaging
             int taskEventId = taskMessage != null ? Utils.GetTaskEventId(taskMessage.Event) : -1;
 
             // Exponentially backoff a given queue message until a maximum visibility delay of 10 minutes.
-            // Once it hits the maximum, log the message as a poison message.
             const int maxSecondsToWait = 600;
             int numSecondsToWait = queueMessage.DequeueCount <= 30 ? 
                 Math.Min((int)Math.Pow(2, queueMessage.DequeueCount), maxSecondsToWait) :
@@ -399,38 +398,7 @@ namespace DurableTask.AzureStorage.Messaging
                 BlobContainer container = this.poisonMessageContainer ??=
                     this.azureStorageClient.GetBlobContainerReference(this.poisonMessageContainerName);
 
-                // Replace any invalid characters with a dash
-                string sanitizedInstanceId = SanitizeString(orchestrationInstance?.InstanceId, '-');
-                blobNamePrefix += sanitizedInstanceId;
-
-                if (!string.IsNullOrEmpty(orchestrationInstance?.ExecutionId))
-                {
-                    blobNamePrefix += $"_{SanitizeString(orchestrationInstance!.ExecutionId, '-')}";
-                }
-
-                // Blob name length limit is 1024 characters and we attach an extra character (_) and the message ID at the end
-                // From https://learn.microsoft.com/en-us/rest/api/storageservices/naming-and-referencing-containers--blobs--and-metadata?#blob-names
-                int maxPrefixLength = 1024 - queueMessage.MessageId.Length - 1;
-                if (blobNamePrefix.Length > maxPrefixLength)
-                {
-                    blobNamePrefix = blobNamePrefix.Substring(0, maxPrefixLength);
-                }
-                string blobName = $"{blobNamePrefix}_{queueMessage.MessageId}";
-
-                // A blob name may contain at most 254 path segment delimiters ('/'). Replace any '/' beyond the
-                // first 254 with a dash so the blob name remains valid.
-                // From https://learn.microsoft.com/en-us/rest/api/storageservices/naming-and-referencing-containers--blobs--and-metadata?#blob-names
-                const int MaxForwardSlashes = 254;
-                int forwardSlashCount = 0;
-                char[] blobNameChars = blobName.ToCharArray();
-                for (int i = 0; i < blobNameChars.Length; i++)
-                {
-                    if (blobNameChars[i] == '/' && ++forwardSlashCount > MaxForwardSlashes)
-                    {
-                        blobNameChars[i] = '-';
-                    }
-                }
-                blobName = new string(blobNameChars);
+                string blobName = CreateBlobName(orchestrationInstance, blobNamePrefix, queueMessage.MessageId);
 
                 await container.CreateIfNotExistsAsync(cancellationToken);
 
@@ -438,7 +406,7 @@ namespace DurableTask.AzureStorage.Messaging
                 await blob.UploadTextAsync(queueMessage.Body.ToString(), cancellationToken: cancellationToken);
 
                 this.settings.Logger.PoisonMessageDetected(
-                    this.azureStorageClient.BlobAccountName,
+                    this.storageAccountName,
                     this.settings.TaskHubName,
                     eventType,
                     taskEventId,
@@ -454,7 +422,7 @@ namespace DurableTask.AzureStorage.Messaging
             catch (Exception e)
             {
                 this.settings.Logger.MessageFailure(
-                    this.azureStorageClient.BlobAccountName,
+                    this.storageAccountName,
                     this.settings.TaskHubName,
                     queueMessage.MessageId,
                     orchestrationInstance?.InstanceId ?? string.Empty,
@@ -467,6 +435,48 @@ namespace DurableTask.AzureStorage.Messaging
                 return false;
             }
             return true;
+        }
+
+        static string CreateBlobName(OrchestrationInstance? orchestrationInstance, string blobNamePrefix, string messageId)
+        {
+            // Replace any invalid characters with a dash
+            string sanitizedInstanceId = SanitizeString(orchestrationInstance?.InstanceId, '-');
+            blobNamePrefix += sanitizedInstanceId;
+
+            if (!string.IsNullOrEmpty(orchestrationInstance?.ExecutionId))
+            {
+                blobNamePrefix += $"_{SanitizeString(orchestrationInstance!.ExecutionId, '-')}";
+            }
+
+            // Blob name length limit is 1024 characters and we attach an extra character (_) and the message ID at the end
+            // From https://learn.microsoft.com/en-us/rest/api/storageservices/naming-and-referencing-containers--blobs--and-metadata?#blob-names
+            int maxPrefixLength = 1024 - messageId.Length - 1;
+            if (blobNamePrefix.Length > maxPrefixLength)
+            {
+                blobNamePrefix = blobNamePrefix.Substring(0, maxPrefixLength);
+
+                // Avoid leaving an unpaired surrogate at the end of the truncated prefix.
+                if (char.IsHighSurrogate(blobNamePrefix, blobNamePrefix.Length - 1))
+                {
+                    blobNamePrefix = blobNamePrefix.Substring(0, blobNamePrefix.Length - 1);
+                }
+            }
+            string blobName = $"{blobNamePrefix}_{messageId}";
+
+            // A blob name may contain at most 254 path segment delimiters ('/'). Replace any '/' beyond the
+            // first 254 with a dash so the blob name remains valid.
+            // From https://learn.microsoft.com/en-us/rest/api/storageservices/naming-and-referencing-containers--blobs--and-metadata?#blob-names
+            const int MaxForwardSlashes = 254;
+            int forwardSlashCount = 0;
+            char[] blobNameChars = blobName.ToCharArray();
+            for (int i = 0; i < blobNameChars.Length; i++)
+            {
+                if (blobNameChars[i] == '/' && ++forwardSlashCount > MaxForwardSlashes)
+                {
+                    blobNameChars[i] = '-';
+                }
+            }
+            return new string(blobNameChars);
         }
 
         static string SanitizeString(string? input, char replacement)
