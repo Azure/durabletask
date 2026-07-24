@@ -326,7 +326,7 @@ namespace DurableTask.AzureStorage
         public bool IsPoisonMessageStorageEnabled { get; set; } = true;
 
         /// <summary>
-        /// Gets or sets the number of times a message is dequeued for processing before it is considered "poisoned"
+        /// Gets or sets the number of times a message is dequeued for processing before it is considered "poisoned",
         /// moved to poison message storage, and deleted from the source queue. The default value is 5,000, chosen with
         /// the intent that only very pathological cases will be handled automatically.
         /// </summary>
