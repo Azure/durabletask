@@ -327,12 +327,13 @@ namespace DurableTask.AzureStorage
 
         /// <summary>
         /// Gets or sets the number of times a message is dequeued for processing before it is considered "poisoned"
-        /// and moved to poison message storage. The default value is 10,000.
+        /// moved to poison message storage, and deleted from the source queue. The default value is 5,000, chosen with
+        /// the intent that only very pathological cases will be handled automatically.
         /// </summary>
         /// <remarks>
         /// This setting is applicable when <see cref="IsPoisonMessageStorageEnabled"/> is set to <c>true</c>.
         /// </remarks>
-        public long MaxDequeueCount { get; set; } = 10000;
+        public long MaxDequeueCount { get; set; } = 5000;
 
         /// <summary>
         /// Gets or sets the Azure Blob Storage container name suffix to use for poison message storage.
