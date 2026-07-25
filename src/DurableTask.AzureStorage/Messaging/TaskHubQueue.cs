@@ -386,7 +386,7 @@ namespace DurableTask.AzureStorage.Messaging
             CancellationToken cancellationToken,
             OrchestrationInstance? orchestrationInstance = null,
             string eventType = "",
-            int taskEventId = 0)
+            int taskEventId = -1)
         {
             if (!this.settings.IsPoisonMessageStorageEnabled || queueMessage.DequeueCount <= this.settings.MaxDequeueCount)
             {
