@@ -80,8 +80,8 @@ namespace DurableTask.AzureStorage.Tracking
         readonly MessageManager messageManager;
         readonly Table migrationTable;
 
-        bool isMigrationActive;
-        readonly ReaderWriterLockSlim migrationStateLock = new();
+        // The live-migration mode supplied at startup, or null when not migrating. Set once before dispatch begins.
+        MigrationMode? migrationMode;
 
         public AzureTableTrackingStore(
             AzureStorageClient azureStorageClient,
@@ -621,7 +621,6 @@ namespace DurableTask.AzureStorage.Tracking
                         async Task DeleteInstanceAsync(OrchestrationInstanceStatus inst)
                         {
                             string instanceId = KeySanitation.UnescapePartitionKey(inst.PartitionKey);
-                            this.MigrationStateLock.EnterReadLock();
                             try
                             {
                                 if (this.IsMigrationActive)
@@ -648,7 +647,6 @@ namespace DurableTask.AzureStorage.Tracking
                             }
                             finally
                             {
-                                this.MigrationStateLock.ExitReadLock();
                                 throttle.Release();
                             }
                         }
@@ -704,6 +702,27 @@ namespace DurableTask.AzureStorage.Tracking
 
             IReadOnlyList<TableEntity> historyEntities = results.Entities;
 
+            // During a live migration, a purge must leave the instance row behind with an incremented sequence
+            // number (all other data is deleted) so the migration process can observe the purge.
+            Task instanceTableTask;
+            if (this.IsMigrationActive)
+            {
+                // The status entity already carries the current sequence number for both callers: the single-instance
+                // purge reads the full row, and the date-range purge's projection is derived from the entity's own
+                // properties (it only omits Input/Output), so SequenceNumber is always included.
+                long newSequenceNumber = (orchestrationInstanceStatus.SequenceNumber ?? 0) + 1;
+                var purgedInstanceEntity = new TableEntity(orchestrationInstanceStatus.PartitionKey, string.Empty)
+                {
+                    [SequenceNumberProperty] = newSequenceNumber,
+                };
+
+                instanceTableTask = this.InstancesTable.InsertOrReplaceEntityAsync(purgedInstanceEntity, cancellationToken);
+            }
+            else
+            {
+                instanceTableTask = this.InstancesTable.DeleteEntityAsync(new TableEntity(orchestrationInstanceStatus.PartitionKey, string.Empty), ETag.All, cancellationToken: cancellationToken);
+            }
+
             var tasks = new List<Task>
             {
                 Task.Run(async () =>
@@ -717,7 +736,7 @@ namespace DurableTask.AzureStorage.Tracking
                     Interlocked.Add(ref rowsDeleted, deletedEntitiesResponseInfo.Responses.Count);
                     Interlocked.Add(ref storageRequests, deletedEntitiesResponseInfo.RequestCount);
                 }),
-                this.InstancesTable.DeleteEntityAsync(new TableEntity(orchestrationInstanceStatus.PartitionKey, string.Empty), ETag.All, cancellationToken: cancellationToken)
+                instanceTableTask
             };
 
             await Task.WhenAll(tasks);
@@ -934,67 +953,26 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override bool IsMigrationActive => this.isMigrationActive;
+        public override bool IsMigrationActive => this.migrationMode == MigrationMode.MigrationStarted;
 
         /// <inheritdoc />
-        public override ReaderWriterLockSlim MigrationStateLock => this.migrationStateLock;
-
-        /// <inheritdoc />
-        public override async Task<MigrationState> LoadMigrationStateAsync(CancellationToken cancellationToken = default)
+        public override async Task SetMigrationModeAsync(MigrationMode mode, CancellationToken cancellationToken = default)
         {
-            MigrationState state = MigrationState.NotStarted;
-
-            if (await this.migrationTable.ExistsAsync(cancellationToken))
+            if (mode == MigrationMode.MigrationEnding)
             {
-                string filter = $"{AzureTableQueryFilter.PartitionKeyEquals(MigrationMarkerPartitionKey)} and {AzureTableQueryFilter.ColumnEquals(RowKeyProperty, MigrationMarkerRowKey)}";
-                TableQueryResults<TableEntity> results = await this.migrationTable
-                    .ExecuteQueryAsync<TableEntity>(filter, cancellationToken: cancellationToken)
-                    .GetResultsAsync(cancellationToken: cancellationToken);
-
-                TableEntity marker = results.Entities.FirstOrDefault();
-                if (marker != null &&
-                    marker.TryGetValue(MigrationStateProperty, out object rawState) &&
-                    rawState is string stateString &&
-                    Enum.TryParse(stateString, out MigrationState parsedState))
-                {
-                    state = parsedState;
-                }
+                await this.RecordMigrationEndingMarkerAsync(cancellationToken);
             }
 
-            this.isMigrationActive = state == MigrationState.Started;
-            return state;
+            this.migrationMode = mode;
         }
 
-        /// <inheritdoc />
-        public override async Task StartMigrationAsync(CancellationToken cancellationToken = default)
+        async Task RecordMigrationEndingMarkerAsync(CancellationToken cancellationToken)
         {
-            // Creating the marker table is idempotent, so invoking this API multiple times is safe. The
-            // modified-instances queue is owned and created by the orchestration service.
             await this.migrationTable.CreateIfNotExistsAsync(cancellationToken);
 
-            this.migrationStateLock.EnterWriteLock();
-            try
-            {
-                await this.SetMigrationStateAsync(MigrationState.Started, cancellationToken);
-                this.isMigrationActive = true;
-            }
-            finally
-            {
-                this.migrationStateLock.ExitWriteLock();
-            }
-        }
-
-        /// <inheritdoc />
-        public override Task StopMigrationAsync(CancellationToken cancellationToken = default)
-        {
-            return this.SetMigrationStateAsync(MigrationState.Completed, cancellationToken);
-        }
-
-        async Task SetMigrationStateAsync(MigrationState state, CancellationToken cancellationToken)
-        {
             var marker = new TableEntity(MigrationMarkerPartitionKey, MigrationMarkerRowKey)
             {
-                [MigrationStateProperty] = state.ToString(),
+                [MigrationStateProperty] = MigrationMode.MigrationEnding.ToString(),
             };
 
             await this.migrationTable.InsertOrReplaceEntityAsync(marker, cancellationToken);

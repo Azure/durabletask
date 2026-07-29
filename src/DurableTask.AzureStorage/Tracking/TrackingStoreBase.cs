@@ -108,28 +108,13 @@ namespace DurableTask.AzureStorage.Tracking
         public abstract Task StartAsync(CancellationToken cancellationToken = default);
 
         /// <inheritdoc />
-        public virtual Task StartMigrationAsync(CancellationToken cancellationToken = default)
+        public virtual Task SetMigrationModeAsync(MigrationMode mode, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
-        }
-
-        /// <inheritdoc />
-        public virtual Task StopMigrationAsync(CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        /// <inheritdoc />
-        public virtual Task<MigrationState> LoadMigrationStateAsync(CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult(MigrationState.NotStarted);
         }
 
         /// <inheritdoc />
         public virtual bool IsMigrationActive => false;
-
-        /// <inheritdoc />
-        public virtual ReaderWriterLockSlim MigrationStateLock => null;
 
         /// <inheritdoc />
         public abstract Task UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, OrchestrationETags eTags, object executionData, CancellationToken cancellationToken = default);

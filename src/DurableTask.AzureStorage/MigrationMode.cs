@@ -14,24 +14,20 @@
 namespace DurableTask.AzureStorage
 {
     /// <summary>
-    /// Represents the state of a live migration away from the Azure Storage backend.
+    /// The live-migration mode to run the Azure Storage backend in, supplied to
+    /// <see cref="AzureStorageOrchestrationService.StartAsync(MigrationMode)"/>.
     /// </summary>
-    enum MigrationState
+    public enum MigrationMode
     {
         /// <summary>
-        /// No migration has been started. This is the default state.
+        /// A migration is in progress. The backend records modified instances in the modified-instances queue and
+        /// increments the per-instance sequence number on every write.
         /// </summary>
-        NotStarted = 0,
+        MigrationStarted,
 
         /// <summary>
-        /// A migration has started. While in this state, the backend records modified instances in the
-        /// modified-instances queue and increments the per-instance sequence number on every write.
+        /// A migration has ended. On startup the backend records a durable marker in storage and then runs normally.
         /// </summary>
-        Started = 1,
-
-        /// <summary>
-        /// A migration has completed. A backend that reads this state on startup must immediately shut down.
-        /// </summary>
-        Completed = 2,
+        MigrationEnding,
     }
 }
