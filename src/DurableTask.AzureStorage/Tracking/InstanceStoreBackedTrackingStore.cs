@@ -101,6 +101,7 @@ namespace DurableTask.AzureStorage.Tracking
             ExecutionStartedEvent executionStartedEvent,
             ETag? eTag /* not used */,
             string inputStatusOverride,
+            long? sequenceNumber /* not used */,
             CancellationToken cancellationToken = default)
         {
             var orchestrationState = new OrchestrationState()

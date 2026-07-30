@@ -167,16 +167,18 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="executionStartedEvent">The Execution Started Event being queued</param>
         /// <param name="eTag">The eTag value to use for optimistic concurrency or <c>null</c> to overwrite any existing execution status.</param>
         /// <param name="inputPayloadOverride">An override value to use for the Input column. If not specified, uses <see cref="ExecutionStartedEvent.Input"/>.</param>
+        /// <param name="sequenceNumber">The existing instance's migration sequence number, or <c>null</c> if none. When migrating, it is carried forward (incremented) onto the new row.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <returns>Returns <c>true</c> if the record was created successfully; <c>false</c> otherwise.</returns>
-        Task<bool> SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent, ETag? eTag, string inputPayloadOverride, CancellationToken cancellationToken = default);
+        Task<bool> SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent, ETag? eTag, string inputPayloadOverride, long? sequenceNumber, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Used to update a state in the tracking store to pending whenever a rewind is initiated from the client
         /// </summary>
         /// <param name="instanceId">The instance being rewound</param>
+        /// <param name="sequenceNumber">The migration sequence number to persist on the instance row, or <c>null</c> when not migrating.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        Task UpdateStatusForRewindAsync(string instanceId, CancellationToken cancellationToken = default);
+        Task UpdateStatusForRewindAsync(string instanceId, long? sequenceNumber, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Used to update the instance status to "Terminated" when a pending orchestration is terminated.

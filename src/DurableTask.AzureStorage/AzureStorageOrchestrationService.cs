@@ -1870,7 +1870,8 @@ namespace DurableTask.AzureStorage
             await this.trackingStore.SetNewExecutionAsync(
                 executionStartedEvent,
                 existingInstance?.ETag,
-                inputPayloadOverride);
+                inputPayloadOverride,
+                existingInstance?.SequenceNumber);
         }
 
         /// <summary>

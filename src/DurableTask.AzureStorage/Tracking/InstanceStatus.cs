@@ -23,14 +23,18 @@ namespace DurableTask.AzureStorage.Tracking
             : this(state, null)
         { }
 
-        public InstanceStatus(OrchestrationState state, ETag? eTag)
+        public InstanceStatus(OrchestrationState state, ETag? eTag, long? sequenceNumber = null)
         {
             this.State = state ?? throw new ArgumentNullException(nameof(state));
             this.ETag = eTag ?? ETag.All;
+            this.SequenceNumber = sequenceNumber;
         }
 
         public OrchestrationState State { get; }
 
         public ETag ETag { get; }
+
+        // Per-instance migration sequence number, when present on the instance row.
+        public long? SequenceNumber { get; }
     }
 }
