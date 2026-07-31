@@ -21,6 +21,8 @@ steps:
   displayName: 'Restore nuget dependencies'
   inputs:
       command: restore
+      feedsToUse: config
+      nugetConfigPath: 'NuGet.config'
       verbosityRestore: Minimal
       projects: |
           src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln
@@ -60,6 +62,8 @@ steps:
     displayName: 'Restore nuget dependencies'
     inputs:
         command: restore
+        feedsToUse: config
+        nugetConfigPath: 'NuGet.config'
         verbosityRestore: Minimal
         projects: |
             .\Test\DurableTask.Core.Tests\DurableTask.Core.Tests.csproj
