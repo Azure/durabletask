@@ -137,7 +137,7 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, OrchestrationETags eTags, object executionData, CancellationToken cancellationToken = default)
+        public override async Task UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, OrchestrationConcurrencyTags eTags, object executionData, CancellationToken cancellationToken = default)
         {
             //In case there is a runtime state for an older execution/iteration as well that needs to be committed, commit it.
             //This may be the case if a ContinueAsNew was executed on the orchestration
@@ -150,7 +150,7 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        private async Task UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId, OrchestrationETags eTags, CancellationToken cancellationToken = default)
+        private async Task UpdateStateAsync(OrchestrationRuntimeState runtimeState, string instanceId, string executionId, OrchestrationConcurrencyTags eTags, CancellationToken cancellationToken = default)
         {
             int oldEventsCount = (runtimeState.Events.Count - runtimeState.NewEvents.Count);
             await instanceStore.WriteEntitiesAsync(runtimeState.NewEvents.Select((x, i) =>
@@ -179,6 +179,8 @@ namespace DurableTask.AzureStorage.Tracking
         public override async Task UpdateStatusForTerminationAsync(
             string instanceId,
             ExecutionTerminatedEvent executionTerminatedEvent,
+            long? sequenceNumber /* not used */,
+            ETag? eTag /* not used */,
             CancellationToken cancellationToken = default)
         {
             // Get the most recent execution and update its status to terminated
@@ -195,6 +197,8 @@ namespace DurableTask.AzureStorage.Tracking
             string executionId,
             OrchestrationRuntimeState runtimeState,
             bool instanceEntityExists,
+            long? sequenceNumber /* not used */,
+            ETag? eTag /* not used */,
             CancellationToken cancellationToken = default)
         {
             if (runtimeState.OrchestrationStatus != OrchestrationStatus.Completed &&

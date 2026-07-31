@@ -38,7 +38,7 @@ namespace DurableTask.AzureStorage.Messaging
             ControlQueue controlQueue,
             List<MessageData> initialMessageBatch,
             OrchestrationRuntimeState runtimeState,
-            OrchestrationETags eTags,
+            OrchestrationConcurrencyTags concurrencyTags,
             DateTime lastCheckpointTime,
             object trackingStoreContext,
             TimeSpan idleTimeout,
@@ -51,7 +51,7 @@ namespace DurableTask.AzureStorage.Messaging
             this.ControlQueue = controlQueue ?? throw new ArgumentNullException(nameof(controlQueue));
             this.CurrentMessageBatch = initialMessageBatch ?? throw new ArgumentNullException(nameof(initialMessageBatch));
             this.RuntimeState = runtimeState ?? throw new ArgumentNullException(nameof(runtimeState));
-            this.ETags = eTags;
+            this.ConcurrencyTags = concurrencyTags;
             this.LastCheckpointTime = lastCheckpointTime;
             this.TrackingStoreContext = trackingStoreContext;
 
@@ -69,7 +69,7 @@ namespace DurableTask.AzureStorage.Messaging
 
         public OrchestrationRuntimeState RuntimeState { get; private set; }
 
-        public OrchestrationETags ETags { get; set; }
+        public OrchestrationConcurrencyTags ConcurrencyTags { get; set; }
 
         public DateTime LastCheckpointTime { get; }
 

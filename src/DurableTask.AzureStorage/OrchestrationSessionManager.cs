@@ -290,7 +290,7 @@ namespace DurableTask.AzureStorage
                     // then we have no way of knowing if it's a duplicate. Either way, allow it to run.
                     if (this.settings.UseInstanceTableEtag)
                     {
-                        message.MessageMetadata = remoteInstance.ETag;
+                        message.MessageMetadata = remoteInstance;
                     }
                 }
                 else if (expectedGeneration == remoteInstance?.State.Generation && this.IsScheduledAfterInstanceUpdate(message, remoteInstance?.State))
@@ -484,9 +484,10 @@ namespace DurableTask.AzureStorage
                     if (targetBatch == null)
                     {
                         targetBatch = new PendingMessageBatch(controlQueue, instanceId, executionId);
-                        if (this.settings.UseInstanceTableEtag && data.MessageMetadata is ETag instanceEtag)
+                        if (this.settings.UseInstanceTableEtag && data.MessageMetadata is InstanceStatus instanceStatus)
                         {
-                            targetBatch.ETags.InstanceETag = instanceEtag;
+                            targetBatch.ConcurrencyTags.InstanceETag = instanceStatus.ETag;
+                            targetBatch.ConcurrencyTags.InstanceSequenceNumber = instanceStatus.SequenceNumber ?? 0;
                         }
                         node = this.pendingOrchestrationMessageBatches.AddLast(targetBatch);
 
@@ -531,19 +532,22 @@ namespace DurableTask.AzureStorage
                        cancellationToken);
 
                     batch.OrchestrationState = new OrchestrationRuntimeState(history.Events);
-                    batch.ETags.HistoryETag = history.ETag;
+                    batch.ConcurrencyTags.HistoryETag = history.ETag;
                     batch.LastCheckpointTime = history.LastCheckpointTime;
                     batch.TrackingStoreContext = history.TrackingStoreContext;
 
                     // Try to get the instance ETag from the tracking store if it wasn't already provided
-                    if (this.settings.UseInstanceTableEtag && batch.ETags.InstanceETag == null)
+                    // Note that it is sufficient to check just that the instance etag is null, since both the etag
+                    // and sequence number are set together
+                    if (this.settings.UseInstanceTableEtag && batch.ConcurrencyTags.InstanceETag == null)
                     {
                         InstanceStatus? instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(
                             batch.OrchestrationInstanceId,
                             cancellationToken);
                         // The instance could not exist in the case that these messages are for the first execution of a suborchestration,
                         // or an entity-started orchestration, for example
-                        batch.ETags.InstanceETag = instanceStatus?.ETag;
+                        batch.ConcurrencyTags.InstanceETag = instanceStatus?.ETag;
+                        batch.ConcurrencyTags.InstanceSequenceNumber = instanceStatus?.SequenceNumber ?? 0;
                     }
                 }
 
@@ -613,7 +617,7 @@ namespace DurableTask.AzureStorage
                             nextBatch.ControlQueue,
                             nextBatch.Messages,
                             nextBatch.OrchestrationState,
-                            nextBatch.ETags,
+                            nextBatch.ConcurrencyTags,
                             nextBatch.LastCheckpointTime,
                             nextBatch.TrackingStoreContext,
                             this.settings.ExtendedSessionIdleTimeout,
@@ -774,7 +778,7 @@ namespace DurableTask.AzureStorage
                 }
             }
 
-            public OrchestrationETags ETags { get; } = new OrchestrationETags();
+            public OrchestrationConcurrencyTags ConcurrencyTags { get; } = new OrchestrationConcurrencyTags();
 
             public DateTime LastCheckpointTime { get; set; }
 

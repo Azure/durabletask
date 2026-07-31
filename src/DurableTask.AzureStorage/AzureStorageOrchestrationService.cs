@@ -866,6 +866,7 @@ namespace DurableTask.AzureStorage
                         session.RuntimeState,
                         orchestrationWorkItem.NewMessages,
                         settings.AllowReplayingTerminalInstances,
+                        session.ConcurrencyTags,
                         cancellationToken);
                     if (!string.IsNullOrEmpty(warningMessage))
                     {
@@ -1110,6 +1111,7 @@ namespace DurableTask.AzureStorage
             OrchestrationRuntimeState runtimeState,
             IList<TaskMessage> newMessages,
             bool allowReplayingTerminalInstances,
+            OrchestrationConcurrencyTags concurrencyTags,
             CancellationToken cancellationToken)
         {
             if (runtimeState.ExecutionStartedEvent == null && !newMessages.Any(msg => msg.Event is ExecutionStartedEvent))
@@ -1129,12 +1131,29 @@ namespace DurableTask.AzureStorage
 
                         if (this.trackingStore.IsMigrationActive)
                         {
-                            await this.modifiedInstancesQueue.AddInstanceAsync(instanceId, cancellationToken);
+                            await this.modifiedInstancesQueue.AddInstanceAsync(instanceId, executionTerminatedEventMessage.OrchestrationInstance.ExecutionId, cancellationToken);
                         }
 
-                        await this.trackingStore.UpdateStatusForTerminationAsync(
-                            instanceId,
-                            executionTerminatedEvent);
+                        try
+                        {
+                            await this.trackingStore.UpdateStatusForTerminationAsync(
+                                instanceId,
+                                executionTerminatedEvent,
+                                concurrencyTags.InstanceSequenceNumber + 1,
+                                concurrencyTags.InstanceETag,
+                                cancellationToken);
+                        }
+                        catch (DurableTaskStorageException dtse) when (dtse.HttpStatusCode == (int)HttpStatusCode.Conflict || dtse.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
+                        {
+                            // This can happen if the instance was concurrently recreated, for example.
+                            // Swallow the exception and still return a warning so that the triggering message is deleted
+                            this.settings.Logger.GeneralWarning(
+                                this.azureStorageClient.QueueAccountName,
+                                this.settings.TaskHubName,
+                                $"Failed to update status for terminated instance {instanceId} with execution ID " +
+                                $"{executionTerminatedEventMessage.OrchestrationInstance?.ExecutionId ?? string.Empty} due to a concurrency conflict.",
+                                instanceId);
+                        }
 
                         return $"Instance is {OrchestrationStatus.Terminated}";
                     }
@@ -1161,19 +1180,35 @@ namespace DurableTask.AzureStorage
                 {
                     if (this.trackingStore.IsMigrationActive)
                     {
-                        await this.modifiedInstancesQueue.AddInstanceAsync(runtimeState.OrchestrationInstance.InstanceId, cancellationToken);
+                        await this.modifiedInstancesQueue.AddInstanceAsync(runtimeState.OrchestrationInstance.InstanceId, runtimeState.OrchestrationInstance.ExecutionId, cancellationToken);
                     }
 
-                    await this.trackingStore.UpdateInstanceStatusForCompletedOrchestrationAsync(
-                        runtimeState.OrchestrationInstance.InstanceId,
-                        runtimeState.OrchestrationInstance.ExecutionId,
-                        runtimeState,
-                        instanceStatus is not null,
-                        cancellationToken);
-                }
-                if (!allowReplayingTerminalInstances)
-                {
-                    return $"Instance is {runtimeState.OrchestrationStatus}";
+                    try
+                    {
+                        await this.trackingStore.UpdateInstanceStatusForCompletedOrchestrationAsync(
+                            runtimeState.OrchestrationInstance.InstanceId,
+                            runtimeState.OrchestrationInstance.ExecutionId,
+                            runtimeState,
+                            instanceStatus is not null,
+                            instanceStatus?.SequenceNumber + 1,
+                            instanceStatus?.ETag,
+                            cancellationToken);
+                    }
+                    catch (DurableTaskStorageException dtse) when (dtse.HttpStatusCode == (int)HttpStatusCode.Conflict || dtse.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
+                    {
+                        // This can happen in a split-brain situation if another worker ended up completing the orchestration, or if the orchestration was recreated.
+                        // Either way, swallow the exception and still return a warning such that the triggering messages are deleted.
+                        this.settings.Logger.GeneralWarning(
+                            this.azureStorageClient.QueueAccountName,
+                            this.settings.TaskHubName,
+                            $"Failed to update instance {runtimeState.OrchestrationInstance.InstanceId} with execution ID {runtimeState.OrchestrationInstance.ExecutionId} " +
+                            $"to status {runtimeState.OrchestrationStatus} due to a concurrency conflict.",
+                            runtimeState.OrchestrationInstance.InstanceId);
+                    }
+                    if (!allowReplayingTerminalInstances)
+                    {
+                        return $"Instance is {runtimeState.OrchestrationStatus}";
+                    }
                 }
             }
 
@@ -1299,10 +1334,10 @@ namespace DurableTask.AzureStorage
             {
                 if (this.trackingStore.IsMigrationActive)
                 {
-                    await this.modifiedInstancesQueue.AddInstanceAsync(instanceId);
+                    await this.modifiedInstancesQueue.AddInstanceAsync(instanceId, executionId);
                 }
 
-                await this.trackingStore.UpdateStateAsync(runtimeState, workItem.OrchestrationRuntimeState, instanceId, executionId, session.ETags, session.TrackingStoreContext);
+                await this.trackingStore.UpdateStateAsync(runtimeState, workItem.OrchestrationRuntimeState, instanceId, executionId, session.ConcurrencyTags, session.TrackingStoreContext);
 
                 // update the runtime state and execution id stored in the session
                 session.UpdateRuntimeState(runtimeState);
@@ -1864,7 +1899,7 @@ namespace DurableTask.AzureStorage
 
             if (this.trackingStore.IsMigrationActive)
             {
-                await this.modifiedInstancesQueue.AddInstanceAsync(creationMessage.OrchestrationInstance.InstanceId);
+                await this.modifiedInstancesQueue.AddInstanceAsync(creationMessage.OrchestrationInstance.InstanceId, creationMessage.OrchestrationInstance.ExecutionId);
             }
 
             await this.trackingStore.SetNewExecutionAsync(
@@ -2065,7 +2100,8 @@ namespace DurableTask.AzureStorage
 
             if (this.trackingStore.IsMigrationActive)
             {
-                await this.modifiedInstancesQueue.AddInstanceAsync(instanceId);
+                // Rewind targets the latest execution, so no specific execution ID is available here.
+                await this.modifiedInstancesQueue.AddInstanceAsync(instanceId, executionId: null);
             }
 
             List<string> queueIds = await this.trackingStore.RewindHistoryAsync(instanceId).ToListAsync();
@@ -2125,7 +2161,8 @@ namespace DurableTask.AzureStorage
 
             if (this.trackingStore.IsMigrationActive)
             {
-                await this.modifiedInstancesQueue.AddInstanceAsync(instanceId);
+                // Purge is by instance ID only, so no specific execution ID is available here.
+                await this.modifiedInstancesQueue.AddInstanceAsync(instanceId, executionId: null);
             }
 
             return await this.trackingStore.PurgeInstanceHistoryAsync(instanceId);

@@ -15,10 +15,13 @@ namespace DurableTask.AzureStorage
 {
     using Azure;
 
-    class OrchestrationETags
+    class OrchestrationConcurrencyTags
     {
         internal ETag? InstanceETag { get; set; }
 
         internal ETag? HistoryETag { get; set; }
+
+        // Current instance sequence number, read alongside the instance eTag; reused during migration to avoid a second read.
+        internal long? InstanceSequenceNumber { get; set; }
     }
 }

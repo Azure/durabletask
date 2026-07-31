@@ -89,7 +89,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="eTags">The ETag value for the instance and history tables to use for safe updates</param>
         /// <param name="trackingStoreContext">Additional context for the execution that is maintained by the tracking store.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        Task UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, OrchestrationETags eTags, object trackingStoreContext, CancellationToken cancellationToken = default);
+        Task UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, OrchestrationConcurrencyTags eTags, object trackingStoreContext, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get The Orchestration State for the Latest or All Executions
@@ -126,8 +126,10 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="executionId">The execution ID of the orchestration.</param>
         /// <param name="runtimeState">The runtime state of the orchestration.</param>
         /// <param name="instanceEntityExists">Whether the instance entity already exists in the instance store.</param>
+        /// <param name="sequenceNumber">The migration sequence number to persist on the instance row, or <c>null</c> when not migrating.</param>
+        /// <param name="eTag">The instance row eTag for optimistic concurrency, or <c>null</c> to write unconditionally.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        Task UpdateInstanceStatusForCompletedOrchestrationAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, bool instanceEntityExists, CancellationToken cancellationToken = default);
+        Task UpdateInstanceStatusForCompletedOrchestrationAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, bool instanceEntityExists, long? sequenceNumber, ETag? eTag, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get The Orchestration State for querying all orchestration instances
@@ -185,8 +187,10 @@ namespace DurableTask.AzureStorage.Tracking
         /// </summary>
         /// <param name="instanceId">The instance being terminated</param>
         /// <param name="executionTerminatedEvent">The termination history event.</param>
+        /// <param name="sequenceNumber">The migration sequence number to persist on the instance row, or <c>null</c> when not migrating.</param>
+        /// <param name="eTag">The instance row eTag for optimistic concurrency, or <c>null</c> to write unconditionally.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        Task UpdateStatusForTerminationAsync(string instanceId, ExecutionTerminatedEvent executionTerminatedEvent, CancellationToken cancellationToken = default);
+        Task UpdateStatusForTerminationAsync(string instanceId, ExecutionTerminatedEvent executionTerminatedEvent, long? sequenceNumber, ETag? eTag, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Purge The History and state  which is older than thresholdDateTimeUtc based on the timestamp type specified by timeRangeFilterType
