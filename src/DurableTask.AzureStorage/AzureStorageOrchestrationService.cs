@@ -1523,6 +1523,7 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         public async Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem)
         {
+            this.ThrowIfMigrationEnding();
             OrchestrationSession session;
             if (!this.orchestrationSessionManager.TryGetExistingSession(workItem.InstanceId, out session))
             {
@@ -1548,6 +1549,7 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         public Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
+            this.ThrowIfMigrationEnding();
             OrchestrationSession session;
             if (!this.orchestrationSessionManager.TryGetExistingSession(workItem.InstanceId, out session))
             {
@@ -1586,6 +1588,7 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         public Task ReleaseTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
+            this.ThrowIfMigrationEnding();
             return this.ReleaseSessionAsync(workItem.InstanceId);
         }
 
@@ -1674,6 +1677,7 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         public async Task CompleteTaskActivityWorkItemAsync(TaskActivityWorkItem workItem, TaskMessage responseTaskMessage)
         {
+            this.ThrowIfMigrationEnding();
             ActivitySession session;
             if (!this.activeActivitySessions.TryGetValue(workItem.Id, out session))
             {
@@ -1716,6 +1720,7 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         public async Task<TaskActivityWorkItem> RenewTaskActivityWorkItemLockAsync(TaskActivityWorkItem workItem)
         {
+            this.ThrowIfMigrationEnding();
             ActivitySession session;
             if (!this.activeActivitySessions.TryGetValue(workItem.Id, out session))
             {
@@ -1742,6 +1747,7 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         public async Task AbandonTaskActivityWorkItemAsync(TaskActivityWorkItem workItem)
         {
+            this.ThrowIfMigrationEnding();
             ActivitySession session;
             if (!this.activeActivitySessions.TryGetValue(workItem.Id, out session))
             {
@@ -2163,6 +2169,8 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         async Task<PurgeResult> IOrchestrationServicePurgeClient.PurgeInstanceStateAsync(PurgeInstanceFilter purgeInstanceFilter)
         {
+            this.ThrowIfMigrationEnding();
+
             PurgeHistoryResult storagePurgeHistoryResult;
             if (purgeInstanceFilter.Timeout.HasValue)
             {

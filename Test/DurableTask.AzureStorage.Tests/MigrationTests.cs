@@ -28,6 +28,7 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
+    using DurableTask.Core.Query;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     /// <summary>
@@ -478,6 +479,100 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(2L, instanceSequenceNumber, "The instance row should carry the winning worker's sequence number.");
                 Assert.AreEqual(2L, sentinelSequenceNumber, "The history sentinel should carry the same sequence number.");
                 Assert.AreEqual(instanceSequenceNumber, sentinelSequenceNumber, "The instance and history sequence numbers must remain aligned.");
+            }
+            finally
+            {
+                if (service != null)
+                {
+                    try
+                    {
+                        await service.StopAsync(isForced: true);
+                    }
+                    catch
+                    {
+                        // Ignore shutdown errors so the real test failure (if any) is not masked.
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Confirms that every public API guarded by ThrowIfMigrationEnding rejects requests with
+        /// <see cref="OrchestrationServiceUnavailableException"/> once the service is started in
+        /// <see cref="MigrationMode.MigrationEnding"/> (so callers are redirected to the new backend).
+        /// </summary>
+        [TestMethod]
+        public async Task MigrationEnding_RejectsGuardedPublicApiRequests()
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                PartitionCount = 1,
+                StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                TaskHubName = $"migrend{Guid.NewGuid():N}",
+                ExtendedSessionsEnabled = false,
+                UseInstanceTableEtag = true,
+            };
+
+            AzureStorageOrchestrationService? service = null;
+            try
+            {
+                service = new AzureStorageOrchestrationService(settings);
+                AzureStorageOrchestrationService svc = service;
+                await svc.CreateAsync();
+                await svc.StartAsync(MigrationMode.MigrationEnding);
+
+                var instance = new OrchestrationInstance { InstanceId = "instance_id", ExecutionId = "execution_id" };
+                var creationMessage = new TaskMessage
+                {
+                    OrchestrationInstance = instance,
+                    Event = new ExecutionStartedEvent(-1, "input") { Name = "orchestration", Version = string.Empty, OrchestrationInstance = instance },
+                };
+                var message = new TaskMessage { OrchestrationInstance = instance, Event = new GenericEvent(-1, "event") };
+                var workItem = new TaskOrchestrationWorkItem { InstanceId = "instance_id" };
+                var activityWorkItem = new TaskActivityWorkItem { Id = "activity_id", TaskMessage = message };
+                var emptyMessages = new List<TaskMessage>();
+                var runtimeStatuses = new[] { OrchestrationStatus.Completed };
+                var condition = new OrchestrationInstanceStatusQueryCondition();
+
+                // Every public API that calls ThrowIfMigrationEnding.
+                var guardedApis = new (string Name, Func<Task> Invoke)[]
+                {
+                    ("CreateTaskOrchestrationAsync(message)", () => svc.CreateTaskOrchestrationAsync(creationMessage)),
+                    ("CreateTaskOrchestrationAsync(message, dedupeStatuses)", () => svc.CreateTaskOrchestrationAsync(creationMessage, null)),
+                    ("SendTaskOrchestrationMessageAsync", () => svc.SendTaskOrchestrationMessageAsync(message)),
+                    ("SendTaskOrchestrationMessageBatchAsync", () => svc.SendTaskOrchestrationMessageBatchAsync(message)),
+                    ("GetOrchestrationStateAsync(instanceId, allExecutions)", () => svc.GetOrchestrationStateAsync("instance_id", true)),
+                    ("GetOrchestrationStateAsync(instanceId, executionId)", () => svc.GetOrchestrationStateAsync("instance_id", "execution_id")),
+                    ("GetOrchestrationStateAsync(instanceId, allExecutions, fetchInput)", () => svc.GetOrchestrationStateAsync("instance_id", true, true)),
+                    ("GetOrchestrationStateAsync(cancellationToken)", () => svc.GetOrchestrationStateAsync(CancellationToken.None)),
+                    ("GetOrchestrationStateAsync(createdTimeFrom, createdTimeTo, runtimeStatus, ct)", () => svc.GetOrchestrationStateAsync(DateTime.MinValue, DateTime.MaxValue, runtimeStatuses, CancellationToken.None)),
+                    ("GetOrchestrationStateAsync(createdTimeFrom, createdTimeTo, runtimeStatus, top, continuationToken, ct)", () => svc.GetOrchestrationStateAsync(DateTime.MinValue, DateTime.MaxValue, runtimeStatuses, 10, null, CancellationToken.None)),
+                    ("GetOrchestrationStateAsync(condition, top, continuationToken, ct)", () => svc.GetOrchestrationStateAsync(condition, 10, null, CancellationToken.None)),
+                    ("GetOrchestrationWithQueryAsync", () => svc.GetOrchestrationWithQueryAsync(new OrchestrationQuery(), CancellationToken.None)),
+                    ("ForceTerminateTaskOrchestrationAsync", () => svc.ForceTerminateTaskOrchestrationAsync("instance_id", "reason")),
+                    ("RewindTaskOrchestrationAsync", () => svc.RewindTaskOrchestrationAsync("instance_id", "reason")),
+                    ("GetOrchestrationHistoryAsync", () => svc.GetOrchestrationHistoryAsync("instance_id", "execution_id")),
+                    ("PurgeInstanceHistoryAsync(instanceId)", () => svc.PurgeInstanceHistoryAsync("instance_id")),
+                    ("PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus)", () => svc.PurgeInstanceHistoryAsync(DateTime.MinValue, DateTime.MaxValue, runtimeStatuses)),
+                    ("IOrchestrationServicePurgeClient.PurgeInstanceStateAsync(instanceId)", () => ((IOrchestrationServicePurgeClient)svc).PurgeInstanceStateAsync("instance_id")),
+                    ("IOrchestrationServicePurgeClient.PurgeInstanceStateAsync(filter)", () => ((IOrchestrationServicePurgeClient)svc).PurgeInstanceStateAsync(new PurgeInstanceFilter(DateTime.MinValue, DateTime.MaxValue, runtimeStatuses))),
+                    ("WaitForOrchestrationAsync", () => svc.WaitForOrchestrationAsync("instance_id", "execution_id", TimeSpan.FromSeconds(1), CancellationToken.None)),
+                    ("PurgeOrchestrationHistoryAsync", () => svc.PurgeOrchestrationHistoryAsync(DateTime.MinValue, OrchestrationStateTimeRangeFilterType.OrchestrationCreatedTimeFilter)),
+                    ("CompleteTaskOrchestrationWorkItemAsync", () => svc.CompleteTaskOrchestrationWorkItemAsync(workItem, null, emptyMessages, emptyMessages, emptyMessages, null, null)),
+                    ("RenewTaskOrchestrationWorkItemLockAsync", () => svc.RenewTaskOrchestrationWorkItemLockAsync(workItem)),
+                    ("AbandonTaskOrchestrationWorkItemAsync", () => svc.AbandonTaskOrchestrationWorkItemAsync(workItem)),
+                    ("ReleaseTaskOrchestrationWorkItemAsync", () => svc.ReleaseTaskOrchestrationWorkItemAsync(workItem)),
+                    ("CompleteTaskActivityWorkItemAsync", () => svc.CompleteTaskActivityWorkItemAsync(activityWorkItem, message)),
+                    ("RenewTaskActivityWorkItemLockAsync", () => svc.RenewTaskActivityWorkItemLockAsync(activityWorkItem)),
+                    ("AbandonTaskActivityWorkItemAsync", () => svc.AbandonTaskActivityWorkItemAsync(activityWorkItem)),
+                };
+
+                foreach ((string name, Func<Task> invoke) in guardedApis)
+                {
+                    await Assert.ThrowsExceptionAsync<OrchestrationServiceUnavailableException>(
+                        invoke,
+                        $"{name} should reject requests with {nameof(OrchestrationServiceUnavailableException)} while the migration is ending.");
+                }
             }
             finally
             {
