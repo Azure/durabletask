@@ -591,6 +591,59 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
+        /// Starting the service in <see cref="MigrationMode.MigrationEnding"/> must record a durable marker in the
+        /// migration table (creating the table if needed) so the ending state survives restarts.
+        /// </summary>
+        [TestMethod]
+        public async Task MigrationEnding_RecordsMarkerInMigrationTable()
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                PartitionCount = 1,
+                StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                TaskHubName = $"migrend{Guid.NewGuid():N}",
+                ExtendedSessionsEnabled = false,
+                UseInstanceTableEtag = true,
+            };
+
+            AzureStorageOrchestrationService? service = null;
+            try
+            {
+                service = new AzureStorageOrchestrationService(settings);
+                await service.CreateAsync();
+                await service.StartAsync(MigrationMode.MigrationEnding);
+
+                var azureStorageClient = new AzureStorageClient(settings);
+                Table migrationTable = azureStorageClient.GetTableReference(settings.MigrationTableName);
+
+                Assert.IsTrue(await migrationTable.ExistsAsync(), "The migration table should be created when a migration is ending.");
+
+                var markers = new List<TableEntity>();
+                await foreach (TableEntity entity in migrationTable.ExecuteQueryAsync<TableEntity>())
+                {
+                    markers.Add(entity);
+                }
+
+                Assert.AreEqual(1, markers.Count, "The migration table should contain exactly one marker row while a migration is ending.");
+                Assert.AreEqual(MigrationMode.MigrationEnding.ToString(), markers[0].GetString("State"), "The marker should record the MigrationEnding state.");
+            }
+            finally
+            {
+                if (service != null)
+                {
+                    try
+                    {
+                        await service.StopAsync(isForced: true);
+                    }
+                    catch
+                    {
+                        // Ignore shutdown errors so the real test failure (if any) is not masked.
+                    }
+                }
+            }
+        }
+
+        /// <summary>
         /// Recreating a completed instance that was subsequently purged, then running the recreated generation to
         /// completion, while a migration is active, must carry the sequence number forward across the whole lifecycle:
         /// create (1), complete (2), purge (3), recreate-create (4), recreate-complete (5) — a final sequence number of
