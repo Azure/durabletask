@@ -16,10 +16,11 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Storage;
+    using DurableTask.Core;
 
     /// <summary>
     /// Encapsulates the Azure Storage queue used to record instances whose data has been modified after a live
-    /// migration away from the Azure Storage backend has started. Each message is a JSON <see cref="ModifiedInstanceMessage"/>
+    /// migration away from the Azure Storage backend has started. Each message is a JSON <see cref="OrchestrationInstance"/>
     /// carrying the instance ID and execution ID; the migration process drains this queue to move the latest state of
     /// each modified instance to the target backend.
     /// </summary>
@@ -48,7 +49,7 @@ namespace DurableTask.AzureStorage.Messaging
         /// </summary>
         public Task AddInstanceAsync(string instanceId, string executionId, CancellationToken cancellationToken = default)
         {
-            string message = Utils.SerializeToJson(new ModifiedInstanceMessage
+            string message = Utils.SerializeToJson(new OrchestrationInstance
             {
                 InstanceId = instanceId,
                 ExecutionId = executionId,
@@ -56,15 +57,5 @@ namespace DurableTask.AzureStorage.Messaging
 
             return this.queue.AddMessageAsync(message, visibilityDelay: null, cancellationToken: cancellationToken);
         }
-    }
-
-    /// <summary>
-    /// The payload of a modified-instances queue message.
-    /// </summary>
-    class ModifiedInstanceMessage
-    {
-        public string? InstanceId { get; set; }
-
-        public string? ExecutionId { get; set; }
     }
 }

@@ -11,23 +11,19 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.AzureStorage
+namespace DurableTask.Core
 {
+    using System.Threading.Tasks;
+
     /// <summary>
-    /// The live-migration mode to run the Azure Storage backend in, supplied to
-    /// <see cref="AzureStorageOrchestrationService.StartAsync(MigrationMode)"/>.
+    /// Optional interface implemented by orchestration services that support being started in a live-migration mode.
     /// </summary>
-    public enum MigrationMode
+    public interface IMigratableOrchestrationService : IOrchestrationService
     {
         /// <summary>
-        /// A migration is in progress. The backend records modified instances in the modified-instances queue and
-        /// increments the per-instance sequence number on every write.
+        /// Starts the service in the specified live-migration mode.
         /// </summary>
-        MigrationStarted,
-
-        /// <summary>
-        /// A migration has ended. On startup the backend records a durable marker in storage and then runs normally.
-        /// </summary>
-        MigrationEnding,
+        /// <param name="migrationMode">The live-migration mode to run in.</param>
+        Task StartAsync(MigrationMode migrationMode);
     }
 }

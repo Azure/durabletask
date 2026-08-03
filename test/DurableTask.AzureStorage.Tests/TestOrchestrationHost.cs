@@ -60,6 +60,12 @@ namespace DurableTask.AzureStorage.Tests
             await this.worker.StartAsync();
         }
 
+        public async Task StartAsync(MigrationMode migrationMode)
+        {
+            await this.service.CreateAsync();
+            await this.worker.StartAsync(migrationMode);
+        }
+
         public Task StopAsync()
         {
             return this.worker.StopAsync(isForced: true);

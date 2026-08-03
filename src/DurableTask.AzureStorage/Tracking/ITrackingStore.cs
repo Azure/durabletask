@@ -127,9 +127,8 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="runtimeState">The runtime state of the orchestration.</param>
         /// <param name="instanceEntityExists">Whether the instance entity already exists in the instance store.</param>
         /// <param name="sequenceNumber">The migration sequence number to persist on the instance row, or <c>null</c> when not migrating.</param>
-        /// <param name="eTag">The instance row eTag for optimistic concurrency, or <c>null</c> to write unconditionally.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        Task UpdateInstanceStatusForCompletedOrchestrationAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, bool instanceEntityExists, long? sequenceNumber, ETag? eTag, CancellationToken cancellationToken = default);
+        Task UpdateInstanceStatusForCompletedOrchestrationAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, bool instanceEntityExists, long? sequenceNumber, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get The Orchestration State for querying all orchestration instances
@@ -169,10 +168,11 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="executionStartedEvent">The Execution Started Event being queued</param>
         /// <param name="eTag">The eTag value to use for optimistic concurrency or <c>null</c> to overwrite any existing execution status.</param>
         /// <param name="inputPayloadOverride">An override value to use for the Input column. If not specified, uses <see cref="ExecutionStartedEvent.Input"/>.</param>
-        /// <param name="sequenceNumber">The existing instance's migration sequence number, or <c>null</c> if none. When migrating, it is carried forward (incremented) onto the new row.</param>
+        /// <param name="sequenceNumber">The migration sequence number, incremented by 1 by this method and stored for the instance. If an instance already exists, then the existing sequence number
+        /// should be passsed. If not, "0" should be passed such that the first value stored for this instance is "1".</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <returns>Returns <c>true</c> if the record was created successfully; <c>false</c> otherwise.</returns>
-        Task<bool> SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent, ETag? eTag, string inputPayloadOverride, long? sequenceNumber, CancellationToken cancellationToken = default);
+        Task<bool> SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent, ETag? eTag, string inputPayloadOverride, long sequenceNumber, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Used to update a state in the tracking store to pending whenever a rewind is initiated from the client
@@ -188,9 +188,8 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="instanceId">The instance being terminated</param>
         /// <param name="executionTerminatedEvent">The termination history event.</param>
         /// <param name="sequenceNumber">The migration sequence number to persist on the instance row, or <c>null</c> when not migrating.</param>
-        /// <param name="eTag">The instance row eTag for optimistic concurrency, or <c>null</c> to write unconditionally.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        Task UpdateStatusForTerminationAsync(string instanceId, ExecutionTerminatedEvent executionTerminatedEvent, long? sequenceNumber, ETag? eTag, CancellationToken cancellationToken = default);
+        Task UpdateStatusForTerminationAsync(string instanceId, ExecutionTerminatedEvent executionTerminatedEvent, long? sequenceNumber, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Purge The History and state  which is older than thresholdDateTimeUtc based on the timestamp type specified by timeRangeFilterType

@@ -42,6 +42,7 @@ namespace DurableTask.AzureStorage
     /// </summary>
     public sealed class AzureStorageOrchestrationService :
         IOrchestrationService,
+        IMigratableOrchestrationService,
         IOrchestrationServiceClient,
         IDisposable,
         IOrchestrationServiceQueryClient,
@@ -1134,26 +1135,11 @@ namespace DurableTask.AzureStorage
                             await this.modifiedInstancesQueue.AddInstanceAsync(instanceId, executionTerminatedEventMessage.OrchestrationInstance.ExecutionId, cancellationToken);
                         }
 
-                        try
-                        {
-                            await this.trackingStore.UpdateStatusForTerminationAsync(
-                                instanceId,
-                                executionTerminatedEvent,
-                                concurrencyTags.InstanceSequenceNumber + 1,
-                                concurrencyTags.InstanceETag,
-                                cancellationToken);
-                        }
-                        catch (DurableTaskStorageException dtse) when (dtse.HttpStatusCode == (int)HttpStatusCode.Conflict || dtse.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
-                        {
-                            // This can happen if the instance was concurrently recreated, for example.
-                            // Swallow the exception and still return a warning so that the triggering message is deleted
-                            this.settings.Logger.GeneralWarning(
-                                this.azureStorageClient.QueueAccountName,
-                                this.settings.TaskHubName,
-                                $"Failed to update status for terminated instance {instanceId} with execution ID " +
-                                $"{executionTerminatedEventMessage.OrchestrationInstance?.ExecutionId ?? string.Empty} due to a concurrency conflict.",
-                                instanceId);
-                        }
+                        await this.trackingStore.UpdateStatusForTerminationAsync(
+                            instanceId,
+                            executionTerminatedEvent,
+                            concurrencyTags.InstanceSequenceNumber + 1,
+                            cancellationToken);
 
                         return $"Instance is {OrchestrationStatus.Terminated}";
                     }
@@ -1183,28 +1169,13 @@ namespace DurableTask.AzureStorage
                         await this.modifiedInstancesQueue.AddInstanceAsync(runtimeState.OrchestrationInstance.InstanceId, runtimeState.OrchestrationInstance.ExecutionId, cancellationToken);
                     }
 
-                    try
-                    {
-                        await this.trackingStore.UpdateInstanceStatusForCompletedOrchestrationAsync(
-                            runtimeState.OrchestrationInstance.InstanceId,
-                            runtimeState.OrchestrationInstance.ExecutionId,
-                            runtimeState,
-                            instanceStatus is not null,
-                            instanceStatus?.SequenceNumber + 1,
-                            instanceStatus?.ETag,
-                            cancellationToken);
-                    }
-                    catch (DurableTaskStorageException dtse) when (dtse.HttpStatusCode == (int)HttpStatusCode.Conflict || dtse.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
-                    {
-                        // This can happen in a split-brain situation if another worker ended up completing the orchestration, or if the orchestration was recreated.
-                        // Either way, swallow the exception and still return a warning such that the triggering messages are deleted.
-                        this.settings.Logger.GeneralWarning(
-                            this.azureStorageClient.QueueAccountName,
-                            this.settings.TaskHubName,
-                            $"Failed to update instance {runtimeState.OrchestrationInstance.InstanceId} with execution ID {runtimeState.OrchestrationInstance.ExecutionId} " +
-                            $"to status {runtimeState.OrchestrationStatus} due to a concurrency conflict.",
-                            runtimeState.OrchestrationInstance.InstanceId);
-                    }
+                    await this.trackingStore.UpdateInstanceStatusForCompletedOrchestrationAsync(
+                        runtimeState.OrchestrationInstance.InstanceId,
+                        runtimeState.OrchestrationInstance.ExecutionId,
+                        runtimeState,
+                        instanceStatus is not null,
+                        instanceStatus?.SequenceNumber + 1,
+                        cancellationToken);
                     if (!allowReplayingTerminalInstances)
                     {
                         return $"Instance is {runtimeState.OrchestrationStatus}";
@@ -1906,7 +1877,7 @@ namespace DurableTask.AzureStorage
                 executionStartedEvent,
                 existingInstance?.ETag,
                 inputPayloadOverride,
-                existingInstance?.SequenceNumber);
+                existingInstance?.SequenceNumber ?? 0);
         }
 
         /// <summary>

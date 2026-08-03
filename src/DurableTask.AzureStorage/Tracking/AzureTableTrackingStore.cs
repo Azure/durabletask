@@ -309,6 +309,16 @@ namespace DurableTask.AzureStorage.Tracking
             // Use parameterized filter to prevent OData injection via crafted execution IDs
             string executionIdFilter = AzureTableQueryFilter.ColumnEquals(nameof(OrchestrationInstance.ExecutionId), executionId);
 
+            // Rewind changes history, so during a live migration the sentinel's sequence number must be bumped to match
+            // the instance row update below. Compute it up front so it can be stamped on the sentinel row in-line while
+            // clearing failure events, avoiding a separate write.
+            string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
+            long? newSequenceNumber = null;
+            if (this.IsMigrationActive)
+            {
+                newSequenceNumber = await this.GetNextSequenceNumberAsync(sanitizedInstanceId, cancellationToken);
+            }
+
             var updateFilterBuilder = new StringBuilder();
             updateFilterBuilder.Append($"{partitionFilter}");
             updateFilterBuilder.Append($" and {executionIdFilter}");
@@ -316,6 +326,11 @@ namespace DurableTask.AzureStorage.Tracking
             updateFilterBuilder.Append($"{nameof(ExecutionCompletedEvent.OrchestrationStatus)} eq '{nameof(OrchestrationStatus.Failed)}'");
             updateFilterBuilder.Append($" or {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.TaskFailed)}'");
             updateFilterBuilder.Append($" or {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.SubOrchestrationInstanceFailed)}'");
+            if (this.IsMigrationActive)
+            {
+                // Include the sentinel row so its sequence number can be bumped in-line below.
+                updateFilterBuilder.Append($" or {AzureTableQueryFilter.ColumnEquals(nameof(ITableEntity.RowKey), SentinelRowKey)}");
+            }
             updateFilterBuilder.Append(')');
 
             IReadOnlyList<TableEntity> entitiesToClear = await this.QueryHistoryAsync(updateFilterBuilder.ToString(), instanceId, cancellationToken);
@@ -329,6 +344,12 @@ namespace DurableTask.AzureStorage.Tracking
 
                 if (entity.RowKey == SentinelRowKey)
                 {
+                    if (newSequenceNumber.HasValue)
+                    {
+                        entity[SequenceNumberProperty] = newSequenceNumber.Value;
+                        await this.HistoryTable.ReplaceEntityAsync(entity, entity.ETag, cancellationToken);
+                    }
+
                     continue;
                 }
 
@@ -381,15 +402,6 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             // reset orchestration status in instance store table
-            long? newSequenceNumber = null;
-            if (this.IsMigrationActive)
-            {
-                // Rewind changes history, so bump the sentinel's sequence number to match the instance row update below.
-                string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
-                newSequenceNumber = await this.GetNextSequenceNumberAsync(sanitizedInstanceId, cancellationToken);
-                await this.SetHistorySentinelSequenceNumberAsync(sanitizedInstanceId, newSequenceNumber.Value, cancellationToken);
-            }
-
             await this.UpdateStatusForRewindAsync(instanceId, newSequenceNumber, cancellationToken);
 
             if (!hasFailedSubOrchestrations)
@@ -723,6 +735,9 @@ namespace DurableTask.AzureStorage.Tracking
                 var purgedInstanceEntity = new TableEntity(orchestrationInstanceStatus.PartitionKey, string.Empty)
                 {
                     [SequenceNumberProperty] = newSequenceNumber,
+                    // Retain the execution ID in case the orchestration is recreated so that OrchestrationSessionManager.DedupeExecutionStartedMessagesAsync does not
+                    // allow the ExecutionStartedMessage to go through before the instance table is updated with the new instance
+                    ["ExecutionId"] = orchestrationInstanceStatus.ExecutionId,
                 };
 
                 instanceTableTask = this.InstancesTable.InsertOrReplaceEntityAsync(purgedInstanceEntity, cancellationToken);
@@ -832,7 +847,7 @@ namespace DurableTask.AzureStorage.Tracking
             ExecutionStartedEvent executionStartedEvent,
             ETag? eTag,
             string inputPayloadOverride,
-            long? sequenceNumber,
+            long sequenceNumber,
             CancellationToken cancellationToken = default)
         {
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(executionStartedEvent.OrchestrationInstance.InstanceId);
@@ -857,9 +872,9 @@ namespace DurableTask.AzureStorage.Tracking
 
             // Overwriting an existing row (a recreate, or a purged instance whose row we kept with only a sequence
             // number) replaces the whole row, so carry forward the existing sequence number, incremented.
-            if (this.IsMigrationActive && sequenceNumber.HasValue)
+            if (this.IsMigrationActive)
             {
-                entity[SequenceNumberProperty] = sequenceNumber.Value + 1;
+                entity[SequenceNumberProperty] = sequenceNumber + 1;
             }
 
             Stopwatch stopwatch = Stopwatch.StartNew();
@@ -936,7 +951,6 @@ namespace DurableTask.AzureStorage.Tracking
             string instanceId,
             ExecutionTerminatedEvent executionTerminatedEvent,
             long? sequenceNumber,
-            ETag? eTag,
             CancellationToken cancellationToken = default)
         {
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
@@ -959,7 +973,7 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             Stopwatch stopwatch = Stopwatch.StartNew();
-            await this.InstancesTable.MergeEntityAsync(instanceEntity, eTag ?? ETag.All, cancellationToken);
+            await this.InstancesTable.MergeEntityAsync(instanceEntity, ETag.All, cancellationToken);
 
             this.settings.Logger.InstanceStatusUpdate(
                 this.storageAccountName,
@@ -1033,16 +1047,6 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             return null;
-        }
-
-        async Task SetHistorySentinelSequenceNumberAsync(string sanitizedInstanceId, long sequenceNumber, CancellationToken cancellationToken)
-        {
-            var sentinelEntity = new TableEntity(sanitizedInstanceId, SentinelRowKey)
-            {
-                [SequenceNumberProperty] = sequenceNumber,
-            };
-
-            await this.HistoryTable.MergeEntityAsync(sentinelEntity, ETag.All, cancellationToken);
         }
 
         /// <inheritdoc />
@@ -1267,7 +1271,6 @@ namespace DurableTask.AzureStorage.Tracking
             OrchestrationRuntimeState runtimeState,
             bool instanceEntityExists,
             long? sequenceNumber,
-            ETag? eTag,
             CancellationToken cancellationToken = default)
         {
             if (runtimeState.OrchestrationStatus != OrchestrationStatus.Completed &&
@@ -1374,15 +1377,7 @@ namespace DurableTask.AzureStorage.Tracking
                 instanceEntity[SequenceNumberProperty] = sequenceNumber ?? 1;
             }
 
-            // Use the caller-supplied eTag for optimistic concurrency when the instance row already exists.
-            if (eTag.HasValue)
-            {
-                await this.InstancesTable.MergeEntityAsync(instanceEntity, eTag.Value, cancellationToken);
-            }
-            else
-            {
-                await this.InstancesTable.InsertOrMergeEntityAsync(instanceEntity);
-            }
+            await this.InstancesTable.InsertOrMergeEntityAsync(instanceEntity);
 
             this.settings.Logger.InstanceStatusUpdate(
                 this.storageAccountName,

@@ -93,7 +93,7 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public abstract Task<bool> SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent, ETag? eTag, string inputStatusOverride, long? sequenceNumber, CancellationToken cancellationToken = default);
+        public abstract Task<bool> SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent, ETag? eTag, string inputStatusOverride, long sequenceNumber, CancellationToken cancellationToken = default);
 
         /// <inheritdoc />
         public virtual Task UpdateStatusForRewindAsync(string instanceId, long? sequenceNumber, CancellationToken cancellationToken = default)
@@ -102,7 +102,7 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public abstract Task UpdateStatusForTerminationAsync(string instanceId, ExecutionTerminatedEvent executionTerminatedEvent, long? sequenceNumber, ETag? eTag, CancellationToken cancellationToken = default);
+        public abstract Task UpdateStatusForTerminationAsync(string instanceId, ExecutionTerminatedEvent executionTerminatedEvent, long? sequenceNumber, CancellationToken cancellationToken = default);
 
         /// <inheritdoc />
         public abstract Task StartAsync(CancellationToken cancellationToken = default);
@@ -120,6 +120,6 @@ namespace DurableTask.AzureStorage.Tracking
         public abstract Task UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, OrchestrationConcurrencyTags eTags, object executionData, CancellationToken cancellationToken = default);
         
         /// <inheritdoc />
-        public abstract Task UpdateInstanceStatusForCompletedOrchestrationAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, bool instanceEntityExists, long? sequenceNumber, ETag? eTag, CancellationToken cancellationToken = default);
+        public abstract Task UpdateInstanceStatusForCompletedOrchestrationAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, bool instanceEntityExists, long? sequenceNumber, CancellationToken cancellationToken = default);
     }
 }
