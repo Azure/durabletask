@@ -1935,8 +1935,9 @@ namespace DurableTask.AzureStorage.Tests
                 var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Echo), message);
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
 
-                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                AssertJsonTokenEquals(message, status?.Output);
+                Assert.IsNotNull(status);
+                Assert.AreEqual(OrchestrationStatus.Completed, status.OrchestrationStatus);
+                AssertJsonTokenEquals(message, status.Output);
                 AssertJsonTokenEquals(message, status.Input);
 
                 await host.StopAsync();
