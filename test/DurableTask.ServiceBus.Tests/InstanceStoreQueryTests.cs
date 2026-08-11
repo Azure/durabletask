@@ -464,16 +464,9 @@ namespace DurableTask.ServiceBus.Tests
         }
 
         static void AssertException<T>(Action action)
+            where T : Exception
         {
-            try
-            {
-                action();
-                Assert.IsTrue(false);
-            }
-            catch (Exception ex)
-            {
-                Assert.IsTrue(ex is T);
-            }
+            Assert.ThrowsExactly<T>(action);
         }
 
         [TestMethod]

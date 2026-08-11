@@ -68,7 +68,9 @@ namespace DurableTask.AzureStorage.Tracking
             #endregion
 
             #region <Type> output = (<Type>)FormatterServices.GetUninitializedObject(typeof(<Type>));
+#pragma warning disable SYSLIB0050 // Formatter-based deserialization is retained for backwards-compatible [DataContract] materialization.
             MethodInfo getUninitializedObjectMethod = typeof(FormatterServices).GetMethod(nameof(FormatterServices.GetUninitializedObject), new Type[] { typeof(Type) });
+#pragma warning restore SYSLIB0050
             body.Add(Expression.Assign(
                 outputVar,
                 Expression.Convert(

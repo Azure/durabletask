@@ -2,9 +2,10 @@
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net48</TargetFrameworks>
+    <TargetFrameworks>net8.0;net472;net48</TargetFrameworks>
     <PackageId>Microsoft.Azure.DurableTask.ServiceBus</PackageId>
     <Platforms>AnyCPU;x64</Platforms>
+    <DefineConstants Condition="'$(TargetFramework)' == 'net8.0' OR '$(TargetFramework)' == 'net472'">$(DefineConstants);USE_AZURE_MESSAGING_SERVICEBUS</DefineConstants>
   </PropertyGroup>
 
     <!-- Version Info -->
@@ -25,18 +26,25 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <PackageReference Include="Azure.Identity" />
     <PackageReference Include="ImpromptuInterface" />
     <PackageReference Include="Microsoft.Azure.KeyVault.Core" />
     <PackageReference Include="Microsoft.Data.Edm" />
     <PackageReference Include="Microsoft.Data.OData" />
     <PackageReference Include="Microsoft.Data.Services.Client" />
+    <PackageReference Include="Microsoft.Rest.ClientRuntime" />
     <PackageReference Include="Microsoft.WindowsAzure.ConfigurationManager" />
     <PackageReference Include="System.Spatial" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
     <PackageReference Include="WindowsAzure.ServiceBus" />
     <Reference Include="System.Transactions" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+    <Reference Include="System.Transactions" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0' OR '$(TargetFramework)' == 'net472'">
     <PackageReference Include="Azure.Messaging.ServiceBus" />
   </ItemGroup>
 

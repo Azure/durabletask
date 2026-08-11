@@ -6,7 +6,7 @@ In this tutorial, you can configure and execute a distributed tracing sample app
 
 The sample application requires these tools. If you don't have it, please click the following link and install it or create it on your Azure subscription.
 
-- [Visual Studio 2019+](https://visualstudio.microsoft.com/vs/)
+- [Visual Studio 2022 17.8+](https://visualstudio.microsoft.com/vs/)
 - [Storage Emulator 5.9+](https://docs.microsoft.com/en-us/azure/storage/common/storage-use-emulator)
 - [Application Insights](https://docs.microsoft.com/en-us/azure/azure-monitor/app/create-new-resource)
 - [Azure Subscription](https://azure.microsoft.com/en-us/)

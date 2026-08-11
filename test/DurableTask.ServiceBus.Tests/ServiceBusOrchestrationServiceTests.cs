@@ -28,6 +28,22 @@ namespace DurableTask.ServiceBus.Tests
         TaskHubClient client;
         TaskHubWorker taskHub;
 
+        static void AssertJsonTokenEquals(JToken expected, string actual)
+        {
+            JToken actualToken = JToken.Parse(actual);
+            Assert.IsTrue(
+                JToken.DeepEquals(expected, actualToken),
+                $"Expected JSON token {expected} ({expected.Type}), but found {actualToken} ({actualToken.Type}).");
+        }
+
+        static void AssertJsonTokenNotEquals(JToken expected, string actual)
+        {
+            JToken actualToken = JToken.Parse(actual);
+            Assert.IsFalse(
+                JToken.DeepEquals(expected, actualToken),
+                $"Expected JSON token to differ from {expected} ({expected.Type}).");
+        }
+
         public TestContext TestContext { get; set; }
 
         [TestInitialize]
@@ -110,10 +126,10 @@ namespace DurableTask.ServiceBus.Tests
             status = await client.WaitForOrchestrationAsync(temp, TimeSpan.FromSeconds(10));
 
             Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-            Assert.AreEqual(3, JToken.Parse(status?.Output));
+            AssertJsonTokenEquals(3, status?.Output);
 
             // When using ContinueAsNew, the original input is discarded and replaced with the most recent state.
-            Assert.AreNotEqual(initialValue, JToken.Parse(status?.Input));
+            AssertJsonTokenNotEquals(initialValue, status?.Input);
         }
 
         [TestMethod]

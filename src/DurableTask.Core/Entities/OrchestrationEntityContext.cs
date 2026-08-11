@@ -129,9 +129,10 @@ namespace DurableTask.Core.Entities
             if (this.IsInsideCriticalSection)
             {
                 var lockToUse = EntityId.FromString(targetInstanceId);
+                EntityId[] criticalSectionLocks = this.criticalSectionLocks ?? throw new InvalidOperationException("Critical section lock state is unavailable.");
                 if (oneWay)
                 {
-                    if (this.criticalSectionLocks.Contains(lockToUse))
+                    if (criticalSectionLocks.Contains(lockToUse))
                     {
                         errorMessage = "Must not signal a locked entity from a critical section.";
                         return false;
@@ -139,14 +140,15 @@ namespace DurableTask.Core.Entities
                 }
                 else
                 {
-                    if (!this.availableLocks!.Remove(lockToUse))
+                    HashSet<EntityId> availableLocks = this.availableLocks ?? throw new InvalidOperationException("Available lock state is unavailable.");
+                    if (!availableLocks.Remove(lockToUse))
                     {
                         if (this.lockAcquisitionPending)
                         {
                             errorMessage = "Must await the completion of the lock request prior to calling any entity.";
                             return false;
                         }
-                        if (this.criticalSectionLocks.Contains(lockToUse))
+                        if (criticalSectionLocks.Contains(lockToUse))
                         {
                             errorMessage = "Must not call an entity from a critical section while a prior call to the same entity is still pending.";
                             return false;
@@ -337,7 +339,8 @@ namespace DurableTask.Core.Entities
         /// <param name="criticalSectionId">The guid for the lock operation</param>
         public void CompleteAcquire(OperationResult result, Guid criticalSectionId)
         {
-            this.availableLocks = new HashSet<EntityId>(this.criticalSectionLocks);
+            EntityId[] criticalSectionLocks = this.criticalSectionLocks ?? throw new InvalidOperationException("Critical section lock state is unavailable.");
+            this.availableLocks = new HashSet<EntityId>(criticalSectionLocks);
             this.lockAcquisitionPending = false;
         }
 

@@ -250,7 +250,7 @@ namespace DurableTask.AzureStorage.Tests.Storage
                     return Task.FromResult(CreateMockBatchResponse(batch.Count()));
                 });
 
-            await Assert.ThrowsExceptionAsync<OperationCanceledException>(
+            await Assert.ThrowsExactlyAsync<OperationCanceledException>(
                 () => table.DeleteBatchParallelAsync(entities, cts.Token));
         }
 

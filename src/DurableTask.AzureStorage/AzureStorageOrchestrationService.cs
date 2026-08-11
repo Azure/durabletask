@@ -456,7 +456,9 @@ namespace DurableTask.AzureStorage
             // Disable nagling to improve storage access latency:
             // https://blogs.msdn.microsoft.com/windowsazurestorage/2010/06/25/nagles-algorithm-is-not-friendly-towards-small-requests/
             // Ad-hoc testing has shown very nice improvements (20%-50% drop in queue message age for simple scenarios).
+#if NETFRAMEWORK
             ServicePointManager.FindServicePoint(this.workItemQueue.Uri).UseNagleAlgorithm = false;
+#endif
 
             this.shutdownSource?.Dispose();
             this.shutdownSource = new CancellationTokenSource();
@@ -1158,8 +1160,8 @@ namespace DurableTask.AzureStorage
                 Utils.ConvertDateTimeInHistoryEventsToUTC(timerMessage.Event);
             }   
 
-            OrchestrationSession session;
-            if (!this.orchestrationSessionManager.TryGetExistingSession(workItem.InstanceId, out session))
+            OrchestrationSession session = null;
+            if (!this.orchestrationSessionManager.TryGetExistingSession(workItem.InstanceId, out session) || session == null)
             {
                 this.settings.Logger.AssertFailure(
                     this.azureStorageClient.QueueAccountName,
@@ -1453,8 +1455,8 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         public async Task RenewTaskOrchestrationWorkItemLockAsync(TaskOrchestrationWorkItem workItem)
         {
-            OrchestrationSession session;
-            if (!this.orchestrationSessionManager.TryGetExistingSession(workItem.InstanceId, out session))
+            OrchestrationSession session = null;
+            if (!this.orchestrationSessionManager.TryGetExistingSession(workItem.InstanceId, out session) || session == null)
             {
                 this.settings.Logger.AssertFailure(
                     this.azureStorageClient.QueueAccountName,
@@ -1478,8 +1480,8 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         public Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
         {
-            OrchestrationSession session;
-            if (!this.orchestrationSessionManager.TryGetExistingSession(workItem.InstanceId, out session))
+            OrchestrationSession session = null;
+            if (!this.orchestrationSessionManager.TryGetExistingSession(workItem.InstanceId, out session) || session == null)
             {
                 this.settings.Logger.AssertFailure(
                     this.azureStorageClient.QueueAccountName,
@@ -1524,7 +1526,8 @@ namespace DurableTask.AzureStorage
             if (this.orchestrationSessionManager.TryReleaseSession(
                 instanceId,
                 this.shutdownSource.Token,
-                out OrchestrationSession session))
+                out OrchestrationSession session) &&
+                session != null)
             {
                 // Some messages may need to be discarded
                 await session.DiscardedMessages.ParallelForEachAsync(
@@ -2150,30 +2153,29 @@ namespace DurableTask.AzureStorage
 
         // TODO: Change this to a sticky assignment so that partition count changes can
         //       be supported: https://github.com/Azure/azure-functions-durable-extension/issues/1
-        async Task<ControlQueue?> GetControlQueueAsync(string instanceId)
+        async Task<ControlQueue> GetControlQueueAsync(string instanceId)
         {
             uint partitionIndex = Fnv1aHashHelper.ComputeHash(instanceId) % (uint)this.settings.PartitionCount;
             string queueName = GetControlQueueName(this.settings.TaskHubName, (int)partitionIndex);
 
-            ControlQueue cachedQueue;
-            if (!this.allControlQueues.TryGetValue(queueName, out cachedQueue))
+            if (this.allControlQueues.TryGetValue(queueName, out ControlQueue? cachedQueue) && cachedQueue != null)
             {
-                // Lock ensures all callers asking for the same partition get the same queue reference back.
-                lock (this.allControlQueues)
-                {
-                    if (!this.allControlQueues.TryGetValue(queueName, out cachedQueue))
-                    {
-                        cachedQueue = new ControlQueue(this.azureStorageClient, queueName, this.messageManager);
-                        this.allControlQueues.TryAdd(queueName, cachedQueue);
-                    }
-                }
-
-                // Important to ensure the queue exists, whether the current thread initialized it or not.
-                // A slightly better design would be to use a semaphore to block non-initializing threads.
-                await cachedQueue.CreateIfNotExistsAsync();
+                return cachedQueue;
             }
 
-            System.Diagnostics.Debug.Assert(cachedQueue != null);
+            // Lock ensures all callers asking for the same partition get the same queue reference back.
+            lock (this.allControlQueues)
+            {
+                if (!this.allControlQueues.TryGetValue(queueName, out cachedQueue) || cachedQueue == null)
+                {
+                    cachedQueue = new ControlQueue(this.azureStorageClient, queueName, this.messageManager);
+                    this.allControlQueues.TryAdd(queueName, cachedQueue);
+                }
+            }
+
+            // Important to ensure the queue exists, whether the current thread initialized it or not.
+            // A slightly better design would be to use a semaphore to block non-initializing threads.
+            await cachedQueue.CreateIfNotExistsAsync();
             return cachedQueue;
         }
 

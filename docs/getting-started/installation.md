@@ -4,7 +4,7 @@ This guide covers installing the Durable Task Framework (DTFx) packages for your
 
 ## Prerequisites
 
-- .NET 6.0 or later (.NET 10.0 is currently recommended)
+- .NET 8.0 or later (.NET 10.0 is currently recommended)
 - .NET Framework 4.7.2 or later (for .NET Framework projects)
 
 ## NuGet Packages

@@ -41,7 +41,7 @@ There are pre-requisites for setting up this project for developing or making co
 
 ## .Net Targets
 
-Currently this project supports .Net 4.6.1, which is framework version of 'netstandard2.0'. Some of the dependency packages do not have support for 'netstandard2.0', once those packages support 'netstandard2.0' this project will also support the same.
+This project supports .NET Framework 4.7.2 or later.
   
 ## Main Contributors
 

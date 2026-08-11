@@ -118,7 +118,7 @@ namespace DurableTask.AzureStorage.Storage
             // Check the optional "hdi_isfolder" value in the metadata to determine whether
             // the blob is actually a directory. See https://github.com/Azure/azure-sdk-for-python/issues/24814
             return item.Metadata != null
-                && item.Metadata.TryGetValue("hdi_isfolder", out string value)
+                && item.Metadata.TryGetValue("hdi_isfolder", out string? value)
                 && bool.TryParse(value, out bool isFolder)
                 && isFolder;
         }

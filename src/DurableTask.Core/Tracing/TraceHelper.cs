@@ -59,14 +59,17 @@ namespace DurableTask.Core.Tracing
                 startTime = requestTime;
             }
 
-            Activity? newActivity = ActivityTraceSource.StartActivity(
+            Activity? newActivity = ActivityTraceSource.CreateActivity(
                 CreateSpanName(TraceActivityConstants.CreateOrchestration, startEvent.Name, startEvent.Version),
                 kind: ActivityKind.Producer,
                 parentContext: parentTraceContext,
-                startTime: startTime);
+                idFormat: ActivityIdFormat.W3C);
 
             if (newActivity != null)
             {
+                // This ID is persisted as a W3C traceparent, independent of process-wide Activity defaults.
+                newActivity.SetStartTime(startTime.UtcDateTime);
+                newActivity.Start();
                 newActivity.SetTag(Schema.Task.Type, TraceActivityConstants.Orchestration);
                 newActivity.SetTag(Schema.Task.Name, startEvent.Name);
                 newActivity.SetTag(Schema.Task.InstanceId, startEvent.OrchestrationInstance.InstanceId);

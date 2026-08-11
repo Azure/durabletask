@@ -241,8 +241,23 @@ namespace DurableTask.AzureStorage.Messaging
         {
             public static readonly MessageOrderingComparer Default = new MessageOrderingComparer();
 
-            public int Compare(MessageData x, MessageData y)
+            public int Compare(MessageData? x, MessageData? y)
             {
+                if (ReferenceEquals(x, y))
+                {
+                    return 0;
+                }
+
+                if (x is null)
+                {
+                    return -1;
+                }
+
+                if (y is null)
+                {
+                    return 1;
+                }
+
                 // Azure Storage is the ultimate authority on the order in which messages were received.
                 // Insertion time only has full second precision, however, so it's not always useful.
                 DateTimeOffset insertionTimeX = x.OriginalQueueMessage.InsertedOn.GetValueOrDefault();

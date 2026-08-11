@@ -13,7 +13,7 @@
 
 namespace DurableTask.ServiceBus.Settings
 {
-#if NETSTANDARD2_0
+#if USE_AZURE_MESSAGING_SERVICEBUS
     using Azure.Core;
 #endif
     using System;
@@ -36,7 +36,7 @@ namespace DurableTask.ServiceBus.Settings
             };
         }
 
-#if NETSTANDARD2_0
+#if USE_AZURE_MESSAGING_SERVICEBUS
 
         /// <summary>
         /// Creates an instance of <see cref="ServiceBusConnectionSettings"/>
@@ -83,7 +83,7 @@ namespace DurableTask.ServiceBus.Settings
         /// </summary>
         public string ConnectionString { get; private set; }
 
-#if NETSTANDARD2_0
+#if USE_AZURE_MESSAGING_SERVICEBUS
 
         /// <summary>
         /// Service Bus endpoint

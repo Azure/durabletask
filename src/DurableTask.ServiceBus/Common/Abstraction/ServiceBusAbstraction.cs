@@ -9,7 +9,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     using System.Threading.Tasks;
     using System.Xml;
     using DurableTask.ServiceBus.Tracking;
-#if !NETSTANDARD2_0
+#if !USE_AZURE_MESSAGING_SERVICEBUS
     using Microsoft.ServiceBus.Messaging;
 
     public class DataContractBinarySerializer<T>
@@ -116,7 +116,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     }
 #endif
 
-#if NETSTANDARD2_0
+#if USE_AZURE_MESSAGING_SERVICEBUS
     /// <inheritdoc />
     public class IMessageSession
     {
@@ -249,7 +249,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
     }
 
-#if NETSTANDARD2_0
+#if USE_AZURE_MESSAGING_SERVICEBUS
     public abstract class Union<A, B>
     {
         public abstract T Match<T>(Func<A, T> f, Func<B, T> g);
@@ -553,7 +553,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #endif
     }
 
-#if NETSTANDARD2_0
+#if USE_AZURE_MESSAGING_SERVICEBUS
     /// <inheritdoc />
     public abstract class RetryPolicy : Azure.Messaging.ServiceBus.ServiceBusRetryPolicy
     {
@@ -583,7 +583,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #endif
     }
 
-#if NETSTANDARD2_0
+#if USE_AZURE_MESSAGING_SERVICEBUS
     /// <inheritdoc />
     public class ServiceBusConnection
     {
@@ -643,7 +643,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #endif
     }
 
-#if NETSTANDARD2_0
+#if USE_AZURE_MESSAGING_SERVICEBUS
     /// <inheritdoc />
     public class ServiceBusConnectionStringBuilder
     {
@@ -675,7 +675,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #endif
     }
 
-#if NETSTANDARD2_0
+#if USE_AZURE_MESSAGING_SERVICEBUS
 #else
     public class TokenProvider
     {
@@ -703,7 +703,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     }
 #endif
 
-#if NETSTANDARD2_0
+#if USE_AZURE_MESSAGING_SERVICEBUS
     /// <inheritdoc />
     public class MessageSender
     {
@@ -802,7 +802,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #endif
     }
 
-#if NETSTANDARD2_0
+#if USE_AZURE_MESSAGING_SERVICEBUS
     /// <inheritdoc />
     public class MessageReceiver
     {
@@ -909,7 +909,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #endif
     }
 
-#if NETSTANDARD2_0
+#if USE_AZURE_MESSAGING_SERVICEBUS
     /// <inheritdoc />
     public class QueueClient
     {
@@ -993,7 +993,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #endif
     }
 
-#if NETSTANDARD2_0
+#if USE_AZURE_MESSAGING_SERVICEBUS
     public class QueueDescription
     {
         private readonly Union<Azure.Messaging.ServiceBus.Administration.QueueProperties, Azure.Messaging.ServiceBus.Administration.QueueRuntimeProperties> propertiesUnion;
@@ -1106,7 +1106,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 #endif
     }
 
-#if NETSTANDARD2_0
+#if USE_AZURE_MESSAGING_SERVICEBUS
     public class SessionClient
     {
         private readonly Azure.Messaging.ServiceBus.ServiceBusClient serviceBusClient;

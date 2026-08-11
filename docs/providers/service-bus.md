@@ -59,7 +59,7 @@ var client = new TaskHubClient(service, loggerFactory: loggerFactory);
 
 ### Using Managed Identity
 
-The Service Bus provider supports managed identity authentication (.NET Standard 2.0+):
+The Service Bus provider supports managed identity authentication on .NET 8.0 or later and on the .NET Framework 4.7.2 (`net472`) target:
 
 ```csharp
 using Azure.Identity;

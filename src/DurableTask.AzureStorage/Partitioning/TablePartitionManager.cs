@@ -806,7 +806,7 @@ namespace DurableTask.AzureStorage.Partitioning
             // Track partition distribution in the partitionDistribution dictionary. We use this information when balancing partitions.
             static void AddToDictionary(TablePartitionLease partition, Dictionary<string, List<TablePartitionLease>> partitionDistribution, string owner)
             {
-                if (partitionDistribution.TryGetValue(owner, out List<TablePartitionLease> ownedPartitions))
+                if (partitionDistribution.TryGetValue(owner, out List<TablePartitionLease>? ownedPartitions))
                 {
                     ownedPartitions.Add(partition);
                 }

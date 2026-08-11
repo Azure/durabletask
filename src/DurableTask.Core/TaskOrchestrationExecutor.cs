@@ -137,7 +137,7 @@ namespace DurableTask.Core
 
         OrchestratorExecutionResult ExecuteCore(IEnumerable<HistoryEvent> pastEvents, IEnumerable<HistoryEvent> newEvents)
         {
-            SynchronizationContext prevCtx = SynchronizationContext.Current;
+            SynchronizationContext? prevCtx = SynchronizationContext.Current;
 
             try
             {
@@ -290,7 +290,7 @@ namespace DurableTask.Core
                 this.scheduler = scheduler;
             }
 
-            public override void Post(SendOrPostCallback sendOrPostCallback, object state)
+            public override void Post(SendOrPostCallback sendOrPostCallback, object? state)
             {
                 Task.Factory.StartNew(() => sendOrPostCallback(state),
                     CancellationToken.None,
@@ -298,7 +298,7 @@ namespace DurableTask.Core
                     this.scheduler);
             }
 
-            public override void Send(SendOrPostCallback sendOrPostCallback, object state)
+            public override void Send(SendOrPostCallback sendOrPostCallback, object? state)
             {
                 var t = new Task(() => sendOrPostCallback(state));
                 t.RunSynchronously(this.scheduler);

@@ -24,12 +24,6 @@
     <Reference Include="System.Web" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <!-- Restoring packages for netstandard2.0 causes warnings. As warnings are treated as errors, compilation will fail. -->
-    <!-- Once the packages support netstandard2.0, this project will support netstandard2.0. -->
-    <PackageReference Include="Newtonsoft.Json" />
-  </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="ImpromptuInterface" />
     <PackageReference Include="Microsoft.AspNet.WebApi.OwinSelfHost" />

@@ -88,7 +88,7 @@ namespace DurableTask.Core
         /// <param name="e">The exception used to generate the failure details.</param>
         /// <param name="properties">The exception properties to include in failure details.</param> 
         public FailureDetails(Exception e, IDictionary<string, object?>? properties)
-            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, FromException(e.InnerException), false, properties)
+            : this(GetErrorType(e), GetErrorMessage(e), e.StackTrace, FromException(e.InnerException), false, properties)
         {
         }
 
@@ -99,7 +99,7 @@ namespace DurableTask.Core
         /// <param name="innerFailure">The inner cause of the failure.</param>
         /// <param name="properties">The exception properties to include in failure details.</param> 
         public FailureDetails(Exception e, FailureDetails innerFailure, IDictionary<string, object?>? properties)
-            : this(e.GetType().FullName, GetErrorMessage(e), e.StackTrace, innerFailure, false, properties)
+            : this(GetErrorType(e), GetErrorMessage(e), e.StackTrace, innerFailure, false, properties)
         {
         }
 
@@ -118,10 +118,10 @@ namespace DurableTask.Core
         /// </summary>
         protected FailureDetails(SerializationInfo info, StreamingContext context)
         {
-            this.ErrorType = info.GetString(nameof(this.ErrorType));
-            this.ErrorMessage = info.GetString(nameof(this.ErrorMessage));
+            this.ErrorType = info.GetString(nameof(this.ErrorType)) ?? string.Empty;
+            this.ErrorMessage = info.GetString(nameof(this.ErrorMessage)) ?? string.Empty;
             this.StackTrace = info.GetString(nameof(this.StackTrace));
-            this.InnerFailure = (FailureDetails)info.GetValue(nameof(this.InnerFailure), typeof(FailureDetails));
+            this.InnerFailure = info.GetValue(nameof(this.InnerFailure), typeof(FailureDetails)) as FailureDetails;
             // Handle backward compatibility for Properties property - defaults to null
             try
             {
@@ -212,7 +212,7 @@ namespace DurableTask.Core
         /// <summary>
         /// Gets whether two <see cref="FailureDetails"/> objects are equivalent using value semantics.
         /// </summary>
-        public override bool Equals(object other) => Equals(other as FailureDetails);
+        public override bool Equals(object? other) => Equals(other as FailureDetails);
 
         /// <summary>
         /// Gets whether two <see cref="FailureDetails"/> objects are equivalent using value semantics.
@@ -235,6 +235,12 @@ namespace DurableTask.Core
         public override int GetHashCode()
         {
             return (ErrorType, ErrorMessage, StackTrace, InnerFailure).GetHashCode();
+        }
+
+        static string GetErrorType(Exception e)
+        {
+            Type exceptionType = e.GetType();
+            return exceptionType.FullName ?? exceptionType.Name;
         }
 
         static string GetErrorMessage(Exception e)

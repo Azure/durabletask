@@ -381,7 +381,7 @@ namespace DurableTask.Test.Orchestrations
     public sealed class EventConversationOrchestration : TaskOrchestration<string, bool>
     {
         private readonly TaskCompletionSource<string> tcs
-            = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
+            = new TaskCompletionSource<string>(TaskCreationOptions.None);
 
         // HACK: This is just a hack to communicate result of orchestration back to test
         public static bool OkResult;
@@ -450,7 +450,7 @@ namespace DurableTask.Test.Orchestrations
         public class Responder : TaskOrchestration<string, string>
         {
             private readonly TaskCompletionSource<string> tcs
-                = new TaskCompletionSource<string>(TaskContinuationOptions.ExecuteSynchronously);
+                = new TaskCompletionSource<string>(TaskCreationOptions.None);
 
             public async override Task<string> RunTask(OrchestrationContext context, string input)
             {

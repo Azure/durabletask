@@ -339,7 +339,7 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual("Value", executionContext?.OrchestrationTags?["Test"]);
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(OrchestrationStatus.Completed)]
         [DataRow(OrchestrationStatus.Failed)]
         [DataRow(OrchestrationStatus.Terminated)]

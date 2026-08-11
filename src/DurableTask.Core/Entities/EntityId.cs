@@ -79,7 +79,7 @@ namespace DurableTask.Core.Entities
 
       
         /// <inheritdoc/>
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             return (obj is EntityId other) && this.Equals(other);
         }
@@ -97,9 +97,18 @@ namespace DurableTask.Core.Entities
         }
 
         /// <inheritdoc/>
-        public int CompareTo(object obj)
+        public int CompareTo(object? obj)
         {
-            var other = (EntityId)obj;
+            if (obj is null)
+            {
+                return 1;
+            }
+
+            if (obj is not EntityId other)
+            {
+                throw new ArgumentException($"Object must be of type {nameof(EntityId)}.", nameof(obj));
+            }
+
             return (this.Name, this.Key).CompareTo((other.Name, other.Key));
         }
     }

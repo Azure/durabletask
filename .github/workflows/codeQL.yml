@@ -39,7 +39,7 @@ jobs:
     steps:
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v3
+      uses: github/codeql-action/init@v4
       with:
         languages: ${{ matrix.language }}
         # If you wish to specify custom queries, you can do so here or in a config file.
@@ -49,25 +49,12 @@ jobs:
         # Details on CodeQL's query packs refer to : https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
         # queries: security-extended,security-and-quality
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v7
       with:
         submodules: true
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v3
-
-    - name: Set up .NET Core 2.1
-      uses: actions/setup-dotnet@v3
-      with:
-        dotnet-version: '2.1.x'
-
-    - name: Set up .NET Core 3.1
-      uses: actions/setup-dotnet@v3
-      with:
-        dotnet-version: '3.1.x'
-
     - name: Set up .NET 8
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v6
       with:
         dotnet-version: '8.0.x'
 
@@ -79,6 +66,6 @@ jobs:
 
     # Run CodeQL analysis
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v3
+      uses: github/codeql-action/analyze@v4
       with:
         category: "/language:${{matrix.language}}"

@@ -340,23 +340,26 @@ namespace DurableTask.Core
             // Distributed tracing support: each orchestration execution is a trace activity
             // that derives from an established parent trace context. It is expected that some
             // listener will receive these events and publish them to a distributed trace logger.
-            ExecutionStartedEvent startEvent =
+            ExecutionStartedEvent? startEvent =
                 runtimeState.ExecutionStartedEvent ??
                 workItem.NewMessages.Select(msg => msg.Event).OfType<ExecutionStartedEvent>().FirstOrDefault();
-            ExecutionRewoundEvent rewindEvent =
+            ExecutionRewoundEvent? rewindEvent =
                 workItem.NewMessages.Select(msg => msg.Event).OfType<ExecutionRewoundEvent>().LastOrDefault();
 
             if (rewindEvent is not null && runtimeState.OrchestrationStatus != OrchestrationStatus.Running)
             {
                 isRewinding = true;
-                if (rewindEvent.ParentTraceContext != null)
+                if (startEvent != null && rewindEvent.ParentTraceContext != null)
                 {
                     startEvent.ParentTraceContext = rewindEvent.ParentTraceContext;
                 }
-                // We set these to null here so that a new Activity is created to represent the execution of the rewound orchestration.
-                startEvent.ParentTraceContext.SpanId = null;
-                startEvent.ParentTraceContext.Id = null;
-                startEvent.ParentTraceContext.ActivityStartTime = null;
+                if (startEvent?.ParentTraceContext != null)
+                {
+                    // We set these to null here so that a new Activity is created to represent the execution of the rewound orchestration.
+                    startEvent.ParentTraceContext.SpanId = null;
+                    startEvent.ParentTraceContext.Id = null;
+                    startEvent.ParentTraceContext.ActivityStartTime = null;
+                }
             }   
             Activity? traceActivity = TraceHelper.StartTraceActivityForOrchestrationExecution(startEvent);
 
@@ -977,29 +980,41 @@ namespace DurableTask.Core
                     }
                     else if (historyEvent is SubOrchestrationInstanceCompletedEvent subOrchestrationInstanceCompletedEvent)
                     {
-                        SubOrchestrationInstanceCreatedEvent subOrchestrationCreatedEvent = workItem.OrchestrationRuntimeState.Events.OfType<SubOrchestrationInstanceCreatedEvent>().FirstOrDefault(x => x.EventId == subOrchestrationInstanceCompletedEvent.TaskScheduledId);
+                        SubOrchestrationInstanceCreatedEvent? subOrchestrationCreatedEvent = workItem.OrchestrationRuntimeState.Events.OfType<SubOrchestrationInstanceCreatedEvent>().FirstOrDefault(x => x.EventId == subOrchestrationInstanceCompletedEvent.TaskScheduledId);
 
                         // We immediately publish the activity span for this sub-orchestration by creating the activity and immediately calling Dispose() on it.
-                        TraceHelper.EmitTraceActivityForSubOrchestrationCompleted(workItem.OrchestrationRuntimeState.OrchestrationInstance, subOrchestrationCreatedEvent);
+                        if (subOrchestrationCreatedEvent != null)
+                        {
+                            TraceHelper.EmitTraceActivityForSubOrchestrationCompleted(workItem.OrchestrationRuntimeState.OrchestrationInstance, subOrchestrationCreatedEvent);
+                        }
                     }
                     else if (historyEvent is SubOrchestrationInstanceFailedEvent subOrchestrationInstanceFailedEvent)
                     {
-                        SubOrchestrationInstanceCreatedEvent subOrchestrationCreatedEvent = workItem.OrchestrationRuntimeState.Events.OfType<SubOrchestrationInstanceCreatedEvent>().FirstOrDefault(x => x.EventId == subOrchestrationInstanceFailedEvent.TaskScheduledId);
+                        SubOrchestrationInstanceCreatedEvent? subOrchestrationCreatedEvent = workItem.OrchestrationRuntimeState.Events.OfType<SubOrchestrationInstanceCreatedEvent>().FirstOrDefault(x => x.EventId == subOrchestrationInstanceFailedEvent.TaskScheduledId);
 
                         // We immediately publish the activity span for this sub-orchestration by creating the activity and immediately calling Dispose() on it.
-                        TraceHelper.EmitTraceActivityForSubOrchestrationFailed(workItem.OrchestrationRuntimeState.OrchestrationInstance, subOrchestrationCreatedEvent, subOrchestrationInstanceFailedEvent, errorPropagationMode);
+                        if (subOrchestrationCreatedEvent != null)
+                        {
+                            TraceHelper.EmitTraceActivityForSubOrchestrationFailed(workItem.OrchestrationRuntimeState.OrchestrationInstance, subOrchestrationCreatedEvent, subOrchestrationInstanceFailedEvent, errorPropagationMode);
+                        }
                     }
                 }
 
                 if (message.Event is TaskCompletedEvent taskCompletedEvent)
                 {
-                    TaskScheduledEvent taskScheduledEvent = workItem.OrchestrationRuntimeState.Events.OfType<TaskScheduledEvent>().LastOrDefault(x => x.EventId == taskCompletedEvent.TaskScheduledId);
-                    TraceHelper.EmitTraceActivityForTaskCompleted(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent);
+                    TaskScheduledEvent? taskScheduledEvent = workItem.OrchestrationRuntimeState.Events.OfType<TaskScheduledEvent>().LastOrDefault(x => x.EventId == taskCompletedEvent.TaskScheduledId);
+                    if (taskScheduledEvent != null)
+                    {
+                        TraceHelper.EmitTraceActivityForTaskCompleted(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent);
+                    }
                 }
                 else if (message.Event is TaskFailedEvent taskFailedEvent)
                 {
-                    TaskScheduledEvent taskScheduledEvent = workItem.OrchestrationRuntimeState.Events.OfType<TaskScheduledEvent>().LastOrDefault(x => x.EventId == taskFailedEvent.TaskScheduledId);
-                    TraceHelper.EmitTraceActivityForTaskFailed(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent, taskFailedEvent, errorPropagationMode);
+                    TaskScheduledEvent? taskScheduledEvent = workItem.OrchestrationRuntimeState.Events.OfType<TaskScheduledEvent>().LastOrDefault(x => x.EventId == taskFailedEvent.TaskScheduledId);
+                    if (taskScheduledEvent != null)
+                    {
+                        TraceHelper.EmitTraceActivityForTaskFailed(workItem.OrchestrationRuntimeState.OrchestrationInstance, taskScheduledEvent, taskFailedEvent, errorPropagationMode);
+                    }
                 }
 
                 // In this case, the ExecutionRewoundEvent has already been added to the history and is just sent as a way to trigger the failed deepest suborchestrations to rerun.
@@ -1036,7 +1051,9 @@ namespace DurableTask.Core
 
             runtimeState.AddEvent(executionCompletedEvent);
 
-            if (completeOrchestratorAction.Tags.TryGetValue(OrchestrationTags.CompleteOrchestrationLogWarning, out string warningMessage))
+            if (completeOrchestratorAction.Tags != null &&
+                completeOrchestratorAction.Tags.TryGetValue(OrchestrationTags.CompleteOrchestrationLogWarning, out string? warningMessage) &&
+                warningMessage != null)
             {
                 this.logHelper.OrchestrationCompletedWithWarning(runtimeState.OrchestrationInstance!, completeOrchestratorAction.OrchestrationStatus, warningMessage);
             }
@@ -1315,11 +1332,12 @@ namespace DurableTask.Core
 
             // If a parent trace context was provided via the CreateSubOrchestrationAction.Tags, we will use this as the parent trace context of the suborchestration execution Activity rather than Activity.Current.Context.
             if (createSubOrchestrationAction.Tags != null
-                && createSubOrchestrationAction.Tags.TryGetValue(OrchestrationTags.TraceParent, out string traceParent))
+                && createSubOrchestrationAction.Tags.TryGetValue(OrchestrationTags.TraceParent, out string? traceParent)
+                && traceParent != null)
             {
                 // If a parent trace context was provided but we fail to parse it, we don't want to attach any parent trace context to the start event since that will incorrectly link the trace corresponding to the orchestration execution
                 // as a child of Activity.Current, which is not truly the parent of the request
-                if (createSubOrchestrationAction.Tags.TryGetValue(OrchestrationTags.TraceState, out string traceState)
+                if (createSubOrchestrationAction.Tags.TryGetValue(OrchestrationTags.TraceState, out string? traceState)
                     && ActivityContext.TryParse(traceParent, traceState, out ActivityContext parentTraceContext))
                 {
                     startedEvent.SetParentTraceContext(parentTraceContext);

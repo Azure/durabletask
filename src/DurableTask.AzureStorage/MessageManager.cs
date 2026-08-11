@@ -18,9 +18,6 @@ namespace DurableTask.AzureStorage
     using System.IO.Compression;
     using System.Linq;
     using System.Reflection;
-#if !NETSTANDARD2_0
-    using System.Runtime.Serialization;
-#endif
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
@@ -29,9 +26,7 @@ namespace DurableTask.AzureStorage
     using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Storage;
     using Newtonsoft.Json;
-#if NETSTANDARD2_0
     using Newtonsoft.Json.Serialization;
-#endif
 
     /// <summary>
     /// The message manager for messages from MessageData, and DynamicTableEntities
@@ -62,11 +57,7 @@ namespace DurableTask.AzureStorage
             this.taskMessageSerializerSettings = new JsonSerializerSettings
             {
                 TypeNameHandling = TypeNameHandling.Objects,
-#if NETSTANDARD2_0
                 SerializationBinder = new TypeNameSerializationBinder(settings.CustomMessageTypeBinder),
-#else
-                Binder = new TypeNameSerializationBinder(settings.CustomMessageTypeBinder),
-#endif
             };
 
             if (this.settings.UseDataContractSerialization)
@@ -358,7 +349,6 @@ namespace DurableTask.AzureStorage
         }
     }
 
-#if NETSTANDARD2_0
     class TypeNameSerializationBinder : ISerializationBinder
     {
         readonly ICustomTypeBinder customBinder;
@@ -378,27 +368,6 @@ namespace DurableTask.AzureStorage
             return TypeNameSerializationHelper.BindToType(customBinder, assemblyName, typeName);
         }
     }
-#else
-    class TypeNameSerializationBinder : SerializationBinder
-    {
-        readonly ICustomTypeBinder customBinder;
-        public TypeNameSerializationBinder(ICustomTypeBinder customBinder)
-        {
-            this.customBinder = customBinder;
-        }
-
-        public override void BindToName(Type serializedType, out string assemblyName, out string typeName)
-        {
-            TypeNameSerializationHelper.BindToName(customBinder, serializedType, out assemblyName, out typeName);
-        }
-
-        // CodeQL [SM05220] False positive: customer-owned Storage is inside the DTFx trust boundary.
-        public override Type BindToType(string assemblyName, string typeName)
-        {
-            return TypeNameSerializationHelper.BindToType(customBinder, assemblyName, typeName);
-        }
-    }
-#endif
     static class TypeNameSerializationHelper
     {
         static readonly Assembly DurableTaskCore = typeof(DurableTask.Core.TaskMessage).Assembly;

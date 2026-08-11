@@ -82,7 +82,7 @@ namespace DurableTask.AzureStorage
 
         public void RemoveQueue(string partitionId, CloseReason? reason, string caller)
         {
-            if (this.ownedControlQueues.TryRemove(partitionId, out ControlQueue controlQueue))
+            if (this.ownedControlQueues.TryRemove(partitionId, out ControlQueue? controlQueue))
             {
                 controlQueue.Release(reason, caller);
             }
@@ -91,7 +91,7 @@ namespace DurableTask.AzureStorage
 
         public void ReleaseQueue(string partitionId, CloseReason? reason, string caller)
         {
-            if (this.ownedControlQueues.TryGetValue(partitionId, out ControlQueue controlQueue))
+            if (this.ownedControlQueues.TryGetValue(partitionId, out ControlQueue? controlQueue))
             {
                 controlQueue.Release(reason, caller);
             }
@@ -99,7 +99,7 @@ namespace DurableTask.AzureStorage
 
         public bool ResumeListeningIfOwnQueue(string partitionId, ControlQueue controlQueue, CancellationToken shutdownToken)
         {
-            if (this.ownedControlQueues.TryGetValue(partitionId, out ControlQueue ownedControlQueue))
+            if (this.ownedControlQueues.TryGetValue(partitionId, out ControlQueue? ownedControlQueue))
             {
                 if (ownedControlQueue.IsReleased)
                 {
@@ -114,7 +114,7 @@ namespace DurableTask.AzureStorage
 
         public bool IsControlQueueReceivingMessages(string partitionId)
         {
-            return this.ownedControlQueues.TryGetValue(partitionId, out ControlQueue controlQueue)
+            return this.ownedControlQueues.TryGetValue(partitionId, out ControlQueue? controlQueue)
                 && !controlQueue.IsReleased;
         }
 
@@ -277,13 +277,15 @@ namespace DurableTask.AzureStorage
             // "Remote" -> the instance ID info comes from the Instances table that we're querying
             IAsyncEnumerable<InstanceStatus> instances = this.trackingStore.FetchInstanceStatusAsync(instanceIds, cancellationToken);
             IDictionary<string, InstanceStatus> remoteOrchestrationsById = 
-                await instances.ToDictionaryAsync(o => o.State.OrchestrationInstance.InstanceId, cancellationToken);
+                await instances.ToDictionaryAsync(
+                    o => o.State.OrchestrationInstance.InstanceId,
+                    cancellationToken: cancellationToken);
 
             foreach (MessageData message in executionStartedMessages)
             {
                 OrchestrationInstance localInstance = message.TaskMessage.OrchestrationInstance;
                 var expectedGeneration = ((ExecutionStartedEvent)message.TaskMessage.Event).Generation;
-                if (remoteOrchestrationsById.TryGetValue(localInstance.InstanceId, out InstanceStatus remoteInstance) &&
+                if (remoteOrchestrationsById.TryGetValue(localInstance.InstanceId, out InstanceStatus? remoteInstance) &&
                     (remoteInstance.State.OrchestrationInstance.ExecutionId == null || string.Equals(localInstance.ExecutionId, remoteInstance.State.OrchestrationInstance.ExecutionId, StringComparison.OrdinalIgnoreCase)))
                 {
                     // Happy path: The message matches the table status. Alternatively, if the table doesn't have an ExecutionId field (older clients, pre-v1.8.5),
@@ -428,13 +430,13 @@ namespace DurableTask.AzureStorage
                     // We can't do this for ExecutionStarted messages - those must *always* go to the pending list since they are for
                     // creating entirely new orchestration instances.
                     if (data.TaskMessage.Event.EventType != EventType.ExecutionStarted &&
-                        this.activeOrchestrationSessions.TryGetValue(instanceId, out OrchestrationSession session))
+                        this.activeOrchestrationSessions.TryGetValue(instanceId, out OrchestrationSession? session))
                     {
                         // A null executionId value means that this is a management operation, like RaiseEvent or Terminate, which
                         // should be delivered to the current session.
                         if (executionId == null || session.Instance.ExecutionId == executionId)
                         {
-                            List<MessageData> pendingMessages;
+                            List<MessageData>? pendingMessages;
                             if (!existingSessionMessages.TryGetValue(session, out pendingMessages))
                             {
                                 pendingMessages = new List<MessageData>();
@@ -457,7 +459,7 @@ namespace DurableTask.AzureStorage
                     // Unless the message is an ExecutionStarted event, we attempt to assign the current message to an
                     // existing batch by walking backwards through the list of batches until we find one with a matching InstanceID.
                     // This is assumed to be more efficient than walking forward if most messages arrive in the queue in groups.
-                    LinkedListNode<PendingMessageBatch> node = this.pendingOrchestrationMessageBatches.Last;
+                    LinkedListNode<PendingMessageBatch>? node = this.pendingOrchestrationMessageBatches.Last;
                     while (node != null && data.TaskMessage.Event.EventType != EventType.ExecutionStarted)
                     {
                         PendingMessageBatch batch = node.Value;
@@ -674,7 +676,7 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public bool TryGetExistingSession(string instanceId, out OrchestrationSession session)
+        public bool TryGetExistingSession(string instanceId, out OrchestrationSession? session)
         {
             lock (this.messageAndSessionLock)
             {
@@ -682,7 +684,7 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        public bool TryReleaseSession(string instanceId, CancellationToken cancellationToken, out OrchestrationSession session)
+        public bool TryReleaseSession(string instanceId, CancellationToken cancellationToken, out OrchestrationSession? session)
         {
             // Taking this lock ensures we don't add new messages to a session we're about to release.
             lock (this.messageAndSessionLock)

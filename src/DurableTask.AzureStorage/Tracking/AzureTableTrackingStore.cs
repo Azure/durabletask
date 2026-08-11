@@ -98,8 +98,10 @@ namespace DurableTask.AzureStorage.Tracking
                 t => !t.IsAbstract && t.IsSubclassOf(historyEventType));
 
             PropertyInfo eventTypeProperty = historyEventType.GetProperty(nameof(HistoryEvent.EventType));
+#pragma warning disable SYSLIB0050 // Formatter-based deserialization is retained for backwards-compatible history event materialization.
             this.eventTypeMap = historyEventTypes.ToDictionary(
                 type => ((HistoryEvent)FormatterServices.GetUninitializedObject(type)).EventType);
+#pragma warning restore SYSLIB0050
         }
 
         // For testing
@@ -905,8 +907,10 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override Task StartAsync(CancellationToken cancellationToken = default)
         {
+#if NETFRAMEWORK
             ServicePointManager.FindServicePoint(this.HistoryTable.Uri).UseNagleAlgorithm = false;
             ServicePointManager.FindServicePoint(this.InstancesTable.Uri).UseNagleAlgorithm = false;
+#endif
 
             return Task.CompletedTask;
         }

@@ -49,17 +49,12 @@ namespace DurableTask.Core.Common
         /// <summary>
         /// Gets the version of the DurableTask.Core nuget package, which by convension is the same as the assembly file version.
         /// </summary>
-        internal static readonly string PackageVersion = FileVersionInfo.GetVersionInfo(typeof(TaskOrchestration).Assembly.Location).FileVersion;
+        internal static readonly string PackageVersion = FileVersionInfo.GetVersionInfo(typeof(TaskOrchestration).Assembly.Location).FileVersion ?? string.Empty;
 
         private static readonly JsonSerializerSettings ObjectJsonSettings = new JsonSerializerSettings
         {
             TypeNameHandling = TypeNameHandling.All,
-
-#if NETSTANDARD2_0
             SerializationBinder = new PackageUpgradeSerializationBinder()
-#else
-            Binder = new PackageUpgradeSerializationBinder()
-#endif
         };
         private static readonly JsonSerializer DefaultObjectJsonSerializer = JsonSerializer.Create(ObjectJsonSettings);
 
@@ -574,7 +569,7 @@ namespace DurableTask.Core.Common
             // This implementation avoids OperationCancelledException
             // https://github.com/dotnet/corefx/issues/2704#issuecomment-131221355
             var tcs = new TaskCompletionSource<bool>();
-            cancellationToken.Register(s => ((TaskCompletionSource<bool>)s).SetResult(true), tcs);
+            cancellationToken.Register(static state => ((TaskCompletionSource<bool>)state!).SetResult(true), tcs);
             return Task.WhenAny(Task.Delay(timeout), tcs.Task);
         }
 
@@ -695,7 +690,7 @@ namespace DurableTask.Core.Common
             // Check if type is of form T[]
             if (typeToConvert.IsArray)
             {
-                Type elementType = typeToConvert.GetElementType();
+                Type elementType = typeToConvert.GetElementType()!;
                 if (elementType.IsGenericParameter)
                 {
                     int index = Array.IndexOf(genericParameters, elementType);

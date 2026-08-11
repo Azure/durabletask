@@ -157,8 +157,8 @@ namespace DurableTask.AzureStorage.Messaging
             {
                 if (CorrelationTraceContext.GenerateDependencyTracking)
                 {
-                    PropertyInfo nameProperty = taskMessage.Event.GetType().GetProperty("Name");
-                    string name = (nameProperty == null) ? TraceConstants.DependencyDefault : (string)nameProperty.GetValue(taskMessage.Event);
+                    PropertyInfo? nameProperty = taskMessage.Event.GetType().GetProperty("Name");
+                    string name = nameProperty?.GetValue(taskMessage.Event) as string ?? TraceConstants.DependencyDefault;
 
                     var dependencyTraceContext = TraceContextFactory.Create($"{TraceConstants.Orchestrator} {name}");
                     dependencyTraceContext.TelemetryType = TelemetryType.Dependency;

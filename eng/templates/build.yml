@@ -10,6 +10,12 @@ jobs:
                 sbomPackageName: 'DurableTask SBOM'
 
       steps:
+      - task: UseDotNet@2
+        displayName: 'Use the .NET 8 SDK'
+        inputs:
+          packageType: 'sdk'
+          version: '8.0.x'
+
       # Start by restoring all the dependencies. This needs to be its own task
       # from what I can tell. We specifically only target DurableTask.AzureStorage
       # and its direct dependencies.
@@ -34,7 +40,7 @@ jobs:
         displayName: 'Build (AzureStorage)'
         inputs:
           solution: 'src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln'
-          vsVersion: '16.0'
+          vsVersion: '17.0'
           logFileVerbosity: minimal
           configuration: Release
           msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
@@ -43,7 +49,7 @@ jobs:
         displayName: 'Build (ApplicationInsights)'
         inputs:
           solution: 'src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj'
-          vsVersion: '16.0'
+          vsVersion: '17.0'
           logFileVerbosity: minimal
           configuration: Release
           msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
@@ -52,7 +58,7 @@ jobs:
         displayName: 'Build (Emulator)'
         inputs:
           solution: 'src/DurableTask.Emulator/DurableTask.Emulator.csproj'
-          vsVersion: '16.0'
+          vsVersion: '17.0'
           logFileVerbosity: minimal
           configuration: Release
           msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
@@ -61,7 +67,7 @@ jobs:
         displayName: 'Build (ServiceBus)'
         inputs:
           solution: 'src/DurableTask.ServiceBus/DurableTask.ServiceBus.csproj'
-          vsVersion: '16.0'
+          vsVersion: '17.0'
           logFileVerbosity: minimal
           configuration: Release
           platform: x64
@@ -71,18 +77,12 @@ jobs:
         displayName: 'Build (AzureServiceFabric)'
         inputs:
           solution: 'src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj'
-          vsVersion: '16.0'
+          vsVersion: '17.0'
           logFileVerbosity: minimal
           configuration: Release
           platform: x64
           msbuildArgs: /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
-      #- task: UseDotNet@2
-      #  displayName: 'Use the .NET Core 6 SDK (required for build signing)'
-      #  inputs:
-      #    packageType: 'sdk'
-      #    version: '6.x.x'
-      
       - template: ci/sign-files.yml@eng
         parameters:
           displayName: Sign assemblies
