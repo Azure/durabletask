@@ -110,10 +110,10 @@ namespace DurableTask.ServiceBus.Tests
             status = await client.WaitForOrchestrationAsync(temp, TimeSpan.FromSeconds(10));
 
             Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-            Assert.AreEqual(3, JToken.Parse(status?.Output));
+            Assert.AreEqual(3, JToken.Parse(status?.Output).Value<int>());
 
             // When using ContinueAsNew, the original input is discarded and replaced with the most recent state.
-            Assert.AreNotEqual(initialValue, JToken.Parse(status?.Input));
+            Assert.AreNotEqual(initialValue, JToken.Parse(status?.Input).Value<int>());
         }
 
         [TestMethod]

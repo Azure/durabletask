@@ -21,14 +21,14 @@ namespace DurableTask.AzureStorage.Tests
     [TestClass]
     public class AsyncAutoResetEventTests
     {
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(false, false)]
         [DataRow(true, true)]
         public async Task InitialState(bool initiallySignaled, bool expectedResult)
         {
             var resetEvent = new AsyncAutoResetEvent(initiallySignaled);
             bool result = await resetEvent.WaitAsync(TimeSpan.Zero);
-            Assert.AreEqual<bool>(result, expectedResult);
+            Assert.AreEqual<bool>(expectedResult, result);
         }
 
         [TestMethod]

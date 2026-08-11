@@ -622,12 +622,12 @@ namespace DurableTask.Core.Tests
         }
 
         [TestMethod]
-        [ExpectedException(typeof(ArgumentNullException))]
         public void Context_ContinueAsNew_NullOptions_Throws()
         {
             var instance = new OrchestrationInstance { InstanceId = "test", ExecutionId = Guid.NewGuid().ToString() };
             var context = new TestableTaskOrchestrationContext(instance, TaskScheduler.Default);
-            context.ContinueAsNew(null, "input", (ContinueAsNewOptions)null!);
+            Assert.ThrowsExactly<ArgumentNullException>(
+                () => context.ContinueAsNew(null, "input", (ContinueAsNewOptions)null!));
         }
 
         #endregion
@@ -635,11 +635,11 @@ namespace DurableTask.Core.Tests
         #region Base class — NotSupportedException for unsupported implementations
 
         [TestMethod]
-        [ExpectedException(typeof(NotSupportedException))]
         public void BaseClass_ContinueAsNewWithOptions_ThrowsNotSupported()
         {
             var ctx = new MinimalOrchestrationContext();
-            ctx.ContinueAsNew("1.0", "input", new ContinueAsNewOptions());
+            Assert.ThrowsExactly<NotSupportedException>(
+                () => ctx.ContinueAsNew("1.0", "input", new ContinueAsNewOptions()));
         }
 
         #endregion

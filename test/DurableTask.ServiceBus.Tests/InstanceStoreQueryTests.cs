@@ -468,7 +468,7 @@ namespace DurableTask.ServiceBus.Tests
             try
             {
                 action();
-                Assert.IsTrue(false);
+                Assert.Fail();
             }
             catch (Exception ex)
             {

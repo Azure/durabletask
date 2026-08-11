@@ -31,7 +31,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
     [TestClass]
     public class CorrelationScenarioTest
     {
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Protocol.W3CTraceContext, false)]
         [DataRow(Protocol.HttpCorrelationProtocol, false)]
         [DataRow(Protocol.W3CTraceContext, true)]
@@ -78,7 +78,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             }
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Protocol.W3CTraceContext, false)]
         [DataRow(Protocol.HttpCorrelationProtocol, false)]
         [DataRow(Protocol.W3CTraceContext, true)]
@@ -113,7 +113,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
                 );
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Protocol.W3CTraceContext, false)]
         [DataRow(Protocol.HttpCorrelationProtocol, false)]
         [DataRow(Protocol.W3CTraceContext, true)]
@@ -173,7 +173,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             }
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Protocol.W3CTraceContext, false)]
         [DataRow(Protocol.HttpCorrelationProtocol, false)]
         [DataRow(Protocol.W3CTraceContext, true)]
@@ -217,7 +217,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             }
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Protocol.W3CTraceContext, false)]
         [DataRow(Protocol.HttpCorrelationProtocol, false)]
         [DataRow(Protocol.W3CTraceContext, true)]
@@ -274,7 +274,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             }
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Protocol.W3CTraceContext, false)]
         [DataRow(Protocol.HttpCorrelationProtocol, false)]
         [DataRow(Protocol.W3CTraceContext, true)]
@@ -338,7 +338,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             }
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Protocol.W3CTraceContext, false)]
         [DataRow(Protocol.HttpCorrelationProtocol, false)]
         [DataRow(Protocol.W3CTraceContext, true)]
@@ -447,7 +447,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
 
         //[TestMethod] ContinueAsNew
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Protocol.W3CTraceContext, false)]
         [DataRow(Protocol.HttpCorrelationProtocol, false)]
         [DataRow(Protocol.W3CTraceContext, true)]
@@ -502,7 +502,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             }
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Protocol.W3CTraceContext, false)]
         [DataRow(Protocol.HttpCorrelationProtocol, false)]
         [DataRow(Protocol.W3CTraceContext, true)]
@@ -576,7 +576,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             }
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Protocol.W3CTraceContext, false)]
         [DataRow(Protocol.HttpCorrelationProtocol, false)]
         [DataRow(Protocol.W3CTraceContext, true)]
@@ -718,7 +718,7 @@ namespace DurableTask.AzureStorage.Tests.Correlation
             }
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Protocol.W3CTraceContext, false)]
         [DataRow(Protocol.HttpCorrelationProtocol, false)]
         [DataRow(Protocol.W3CTraceContext, true)]

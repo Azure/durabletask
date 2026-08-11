@@ -4,7 +4,7 @@ This sample demonstrates direct integration with Azure Application Insights for 
 
 ## Prerequisites
 
-- .NET 6.0 SDK or later
+- .NET 8.0 SDK or later
 - Azure Storage Emulator (Azurite) or Azure Storage account
 - Azure Application Insights resource
 

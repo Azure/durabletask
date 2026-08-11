@@ -50,7 +50,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates a simple orchestrator function which doesn't call any activity functions.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task HelloWorldOrchestration_Inline(bool enableExtendedSessions)
@@ -63,8 +63,8 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(StandardTimeout);
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual("World", JToken.Parse(status?.Input));
-                Assert.AreEqual("Hello, World!", JToken.Parse(status?.Output));
+                Assert.AreEqual("World", JToken.Parse(status?.Input).Value<string>());
+                Assert.AreEqual("Hello, World!", JToken.Parse(status?.Output).Value<string>());
 
                 await host.StopAsync();
             }
@@ -73,7 +73,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which runs a simple orchestrator function that calls a single activity function.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task HelloWorldOrchestration_Activity(bool enableExtendedSessions)
@@ -86,8 +86,8 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(StandardTimeout);
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual("World", JToken.Parse(status?.Input));
-                Assert.AreEqual("Hello, World!", JToken.Parse(status?.Output));
+                Assert.AreEqual("World", JToken.Parse(status?.Input).Value<string>());
+                Assert.AreEqual("Hello, World!", JToken.Parse(status?.Output).Value<string>());
 
                 await host.StopAsync();
             }
@@ -107,8 +107,8 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(StandardTimeout);
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual(10, JToken.Parse(status?.Input));
-                Assert.AreEqual(3628800, JToken.Parse(status?.Output));
+                Assert.AreEqual(10, JToken.Parse(status?.Input).Value<int>());
+                Assert.AreEqual(3628800, JToken.Parse(status?.Output).Value<int>());
 
                 await host.StopAsync();
             }
@@ -129,8 +129,8 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(StandardTimeout);
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual(10, JToken.Parse(status?.Input));
-                Assert.AreEqual(3628800, JToken.Parse(status?.Output));
+                Assert.AreEqual(10, JToken.Parse(status?.Input).Value<int>());
+                Assert.AreEqual(3628800, JToken.Parse(status?.Output).Value<int>());
 
                 await host.StopAsync();
             }
@@ -147,8 +147,8 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual(10, JToken.Parse(status?.Input));
-                Assert.AreEqual(3628800, JToken.Parse(status?.Output));
+                Assert.AreEqual(10, JToken.Parse(status?.Input).Value<int>());
+                Assert.AreEqual(3628800, JToken.Parse(status?.Output).Value<int>());
 
                 await host.StopAsync();
             }
@@ -157,7 +157,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which runs a slow orchestrator that causes work item renewal
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task LongRunningOrchestrator(bool enableExtendedSessions)
@@ -176,7 +176,7 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(StandardTimeout);
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual("ok", JToken.Parse(status?.Output));
+                Assert.AreEqual("ok", JToken.Parse(status?.Output).Value<string>());
 
                 await host.StopAsync();
             }
@@ -266,7 +266,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(false, false)]
         [DataRow(true, false)]
         [DataRow(false, true)]
@@ -281,13 +281,13 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual("OK", JToken.Parse(status?.Output));
+                Assert.AreEqual("OK", JToken.Parse(status?.Output).Value<string>());
 
                 await host.StopAsync();
             }
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(false)]
         [DataRow(true)]
         public async Task AutoStart(bool enableExtendedSessions)
@@ -302,13 +302,13 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual("OK", JToken.Parse(status?.Output));
+                Assert.AreEqual("OK", JToken.Parse(status?.Output).Value<string>());
 
                 await host.StopAsync();
             }
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(false)]
         [DataRow(true)]
         public async Task ContinueAsNewThenTimer(bool enableExtendedSessions)
@@ -321,7 +321,7 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual("OK", JToken.Parse(status?.Output));
+                Assert.AreEqual("OK", JToken.Parse(status?.Output).Value<string>());
 
                 await host.StopAsync();
             }
@@ -396,7 +396,7 @@ namespace DurableTask.AzureStorage.Tests
                 var state = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, state?.OrchestrationStatus);
-                Assert.AreEqual(customStatus, JToken.Parse(state?.Status));
+                Assert.AreEqual(customStatus, JToken.Parse(state?.Status).Value<string>());
 
                 await host.StopAsync();
             }
@@ -956,7 +956,7 @@ namespace DurableTask.AzureStorage.Tests
         /// End-to-end test which validates parallel function execution by enumerating all files in the current directory 
         /// in parallel and getting the sum total of all file sizes.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task ParallelOrchestration(bool enableExtendedSessions)
@@ -969,14 +969,14 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(90));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual(Environment.CurrentDirectory, JToken.Parse(status?.Input));
+                Assert.AreEqual(Environment.CurrentDirectory, JToken.Parse(status?.Input).Value<string>());
                 Assert.IsTrue(long.Parse(status?.Output) > 0L);
 
                 await host.StopAsync();
             }
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task LargeFanOutOrchestration(bool enableExtendedSessions)
@@ -1015,7 +1015,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates the ContinueAsNew functionality by implementing a counter actor pattern.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task ActorOrchestration(bool enableExtendedSessions)
@@ -1051,10 +1051,10 @@ namespace DurableTask.AzureStorage.Tests
                 status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual(3, JToken.Parse(status?.Output));
+                Assert.AreEqual(3, JToken.Parse(status?.Output).Value<int>());
 
                 // When using ContinueAsNew, the original input is discarded and replaced with the most recent state.
-                Assert.AreNotEqual(initialValue, JToken.Parse(status?.Input));
+                Assert.AreNotEqual(initialValue, JToken.Parse(status?.Input).Value<int>());
 
                 await host.StopAsync();
             }
@@ -1063,7 +1063,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates the ContinueAsNew functionality by implementing character counter actor pattern.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task ActorOrchestrationForLargeInput(bool enableExtendedSessions)
@@ -1074,7 +1074,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates the deletion of all data generated by the ContinueAsNew functionality in the character counter actor pattern.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task ActorOrchestrationDeleteAllLargeMessageBlobs(bool enableExtendedSessions)
@@ -1188,7 +1188,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates the Terminate functionality.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task TerminateOrchestration(bool enableExtendedSessions)
@@ -1218,7 +1218,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates the Suspend-Resume functionality.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task SuspendResumeOrchestration(bool enableExtendedSessions)
@@ -1242,13 +1242,13 @@ namespace DurableTask.AzureStorage.Tests
                 // Test case 2: external event does not go through
                 await client.RaiseEventAsync("changeStatusNow", changedStatus);
                 status = await client.GetStatusAsync();
-                Assert.AreEqual(originalStatus, JToken.Parse(status?.Status));
+                Assert.AreEqual(originalStatus, JToken.Parse(status?.Status).Value<string>());
 
                 // Test case 3: external event now goes through
                 await client.ResumeAsync("wakeUp");
                 status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual(changedStatus, JToken.Parse(status?.Status));
+                Assert.AreEqual(changedStatus, JToken.Parse(status?.Status).Value<string>());
 
                 await host.StopAsync();
             }
@@ -1257,7 +1257,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// Test that a suspended orchestration can be terminated.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task TerminateSuspendedOrchestration(bool enableExtendedSessions)
@@ -1286,7 +1286,7 @@ namespace DurableTask.AzureStorage.Tests
         /// Test that a pending orchestration can be terminated (including tests with a large termination reason that will need to be
         /// stored in blob storage).
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true, true)]
         [DataRow(false, true)]
         [DataRow(true, false)]
@@ -1593,7 +1593,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task TimerCancellation(bool enableExtendedSessions)
@@ -1612,7 +1612,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual("Approved", JToken.Parse(status?.Output));
+                Assert.AreEqual("Approved", JToken.Parse(status?.Output).Value<string>());
 
                 await host.StopAsync();
             }
@@ -1621,7 +1621,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates the handling of durable timer expiration.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task TimerExpiration(bool enableExtendedSessions)
@@ -1641,13 +1641,13 @@ namespace DurableTask.AzureStorage.Tests
 
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(20));
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual("Expired", JToken.Parse(status?.Output));
+                Assert.AreEqual("Expired", JToken.Parse(status?.Output).Value<string>());
 
                 await host.StopAsync();
             }
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task TimerDelay(bool useUtc)
@@ -1675,7 +1675,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(false)]
         [DataRow(true)]
         public async Task OrchestratorStartAtAcceptsAllDateTimeKinds(bool useUtc)
@@ -1715,7 +1715,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that orchestrations run concurrently of each other (up to 100 by default).
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task OrchestrationConcurrency(bool enableExtendedSessions)
@@ -1754,7 +1754,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates the orchestrator's exception handling behavior.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task HandledActivityException(bool enableExtendedSessions)
@@ -1768,7 +1768,7 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(15));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual(5, JToken.Parse(status?.Output));
+                Assert.AreEqual(5, JToken.Parse(status?.Output).Value<int>());
 
                 await host.StopAsync();
             }
@@ -1777,7 +1777,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates the handling of unhandled exceptions generated from orchestrator code.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task UnhandledOrchestrationException(bool enableExtendedSessions)
@@ -1800,7 +1800,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates the handling of unhandled exceptions generated from activity code.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task UnhandledActivityException(bool enableExtendedSessions)
@@ -1823,7 +1823,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// Fan-out/fan-in test which ensures each operation is run only once.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task FanOutToTableStorage(bool enableExtendedSessions)
@@ -1867,7 +1867,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that orchestrations with <=60KB text message sizes can run successfully.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task SmallTextMessagePayloads(bool enableExtendedSessions)
@@ -1894,7 +1894,7 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual(message, JToken.Parse(status?.Output));
+                Assert.AreEqual(message, JToken.Parse(status?.Output).Value<string>());
 
                 await host.StopAsync();
             }
@@ -1903,7 +1903,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task LargeQueueTextMessagePayloads_BlobUrl(bool enableExtendedSessions)
@@ -1920,8 +1920,8 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual(message, JToken.Parse(status?.Output));
-                Assert.AreEqual(message, JToken.Parse(status.Input));
+                Assert.AreEqual(message, JToken.Parse(status?.Output).Value<string>());
+                Assert.AreEqual(message, JToken.Parse(status.Input).Value<string>());
 
                 await host.StopAsync();
             }
@@ -1930,7 +1930,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task LargeTableTextMessagePayloads_SizeViolation_BlobUrl(bool enableExtendedSessions)
@@ -2014,7 +2014,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task LargeOverallTextMessagePayloads_BlobUrl(bool enableExtendedSessions)
@@ -2051,7 +2051,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task LargeTextMessagePayloads_FetchLargeMessages(bool enableExtendedSessions)
@@ -2065,8 +2065,8 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual(message, JToken.Parse(status?.Input));
-                Assert.AreEqual(message, JToken.Parse(status?.Output));
+                Assert.AreEqual(message, JToken.Parse(status?.Input).Value<string>());
+                Assert.AreEqual(message, JToken.Parse(status?.Output).Value<string>());
 
                 await host.StopAsync();
             }
@@ -2075,7 +2075,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task LargeTableTextMessagePayloads_FetchLargeMessages(bool enableExtendedSessions)
@@ -2091,8 +2091,8 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual(message, JToken.Parse(status?.Input));
-                Assert.AreEqual(message, JToken.Parse(status?.Output));
+                Assert.AreEqual(message, JToken.Parse(status?.Input).Value<string>());
+                Assert.AreEqual(message, JToken.Parse(status?.Output).Value<string>());
 
                 await host.StopAsync();
             }
@@ -2127,7 +2127,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task NonBlobUriPayload_FetchLargeMessages_RetainsOriginalPayload(bool enableExtendedSessions)
@@ -2141,8 +2141,8 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual(message, JToken.Parse(status?.Input));
-                Assert.AreEqual(message, JToken.Parse(status?.Output));
+                Assert.AreEqual(message, JToken.Parse(status?.Input).Value<string>());
+                Assert.AreEqual(message, JToken.Parse(status?.Output).Value<string>());
 
                 await host.StopAsync();
             }
@@ -2151,7 +2151,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that orchestrations with > 60KB text message sizes can run successfully.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task LargeTextMessagePayloads_FetchLargeMessages_QueryState(bool enableExtendedSessions)
@@ -2168,8 +2168,8 @@ namespace DurableTask.AzureStorage.Tests
                 status = (await client.GetStateAsync(status.OrchestrationInstance.InstanceId)).First();
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual(message, JToken.Parse(status?.Input));
-                Assert.AreEqual(message, JToken.Parse(status?.Output));
+                Assert.AreEqual(message, JToken.Parse(status?.Input).Value<string>());
+                Assert.AreEqual(message, JToken.Parse(status?.Output).Value<string>());
 
                 await host.StopAsync();
             }
@@ -2179,7 +2179,7 @@ namespace DurableTask.AzureStorage.Tests
         /// End-to-end test which validates that exception messages that are considered valid Urls in the Uri.TryCreate() method
         /// are handled with an additional Uri format check
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task LargeTextMessagePayloads_URIFormatCheck(bool enableExtendedSessions)
@@ -2243,7 +2243,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that orchestrations with > 60KB binary bytes message sizes can run successfully.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task LargeBinaryByteMessagePayloads(bool enableExtendedSessions)
@@ -2273,7 +2273,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that orchestrations with > 60KB binary string message sizes can run successfully.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task LargeBinaryStringMessagePayloads(bool enableExtendedSessions)
@@ -2305,7 +2305,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that a completed singleton instance can be recreated.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task RecreateCompletedInstance(bool enableExtendedSessions)
@@ -2323,8 +2323,8 @@ namespace DurableTask.AzureStorage.Tests
                 var status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual("One", JToken.Parse(status?.Input));
-                Assert.AreEqual("Hello, One!", JToken.Parse(status?.Output));
+                Assert.AreEqual("One", JToken.Parse(status?.Input).Value<string>());
+                Assert.AreEqual("Hello, One!", JToken.Parse(status?.Output).Value<string>());
 
                 client = await host.StartOrchestrationAsync(
                     typeof(Orchestrations.SayHelloWithActivity),
@@ -2333,8 +2333,8 @@ namespace DurableTask.AzureStorage.Tests
                 status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual("Two", JToken.Parse(status?.Input));
-                Assert.AreEqual("Hello, Two!", JToken.Parse(status?.Output));
+                Assert.AreEqual("Two", JToken.Parse(status?.Input).Value<string>());
+                Assert.AreEqual("Hello, Two!", JToken.Parse(status?.Output).Value<string>());
 
                 await host.StopAsync();
             }
@@ -2343,7 +2343,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that a failed singleton instance can be recreated.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task RecreateFailedInstance(bool enableExtendedSessions)
@@ -2369,7 +2369,7 @@ namespace DurableTask.AzureStorage.Tests
                 status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual("Hello, NotNull!", JToken.Parse(status?.Output));
+                Assert.AreEqual("Hello, NotNull!", JToken.Parse(status?.Output).Value<string>());
 
                 await host.StopAsync();
             }
@@ -2378,7 +2378,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that a terminated orchestration can be recreated.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task RecreateTerminatedInstance(bool enableExtendedSessions)
@@ -2422,7 +2422,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates that a running orchestration can be recreated.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task RecreateRunningInstance(bool enableExtendedSessions)
@@ -2509,7 +2509,7 @@ namespace DurableTask.AzureStorage.Tests
                 status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-                Assert.AreEqual(1, JToken.Parse(status?.Output));
+                Assert.AreEqual(1, JToken.Parse(status?.Output).Value<int>());
 
                 await host.StopAsync();
             }
@@ -2519,7 +2519,7 @@ namespace DurableTask.AzureStorage.Tests
         /// Tests an orchestration that does two consecutive fan-out, fan-ins.
         /// This is a regression test for https://github.com/Azure/durabletask/issues/241.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task DoubleFanOut(bool enableExtendedSessions)
@@ -2567,7 +2567,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// Tests the behavior of <see cref="SessionAbortedException"/> from orchestrations and activities.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task AbortOrchestrationAndActivity(bool enableExtendedSessions)
@@ -2582,7 +2582,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.IsNotNull(status.Output);
-                Assert.AreEqual("True", JToken.Parse(status.Output));
+                Assert.AreEqual("True", JToken.Parse(status.Output).Value<string>());
                 await host.StopAsync();
             }
         }
@@ -2592,7 +2592,7 @@ namespace DurableTask.AzureStorage.Tests
         /// </summary>
         /// <param name="enableExtendedSessions"></param>
         /// <returns></returns>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task ScheduledStart_Inline(bool enableExtendedSessions)
@@ -2611,11 +2611,11 @@ namespace DurableTask.AzureStorage.Tests
                 await Task.WhenAll(statusStartingNow, statusStartingIn30Seconds);
 
                 Assert.AreEqual(OrchestrationStatus.Completed, statusStartingNow.Result?.OrchestrationStatus);
-                Assert.AreEqual("Current Time!", JToken.Parse(statusStartingNow.Result?.Input));
+                Assert.AreEqual("Current Time!", JToken.Parse(statusStartingNow.Result?.Input).Value<string>());
                 Assert.IsNull(statusStartingNow.Result.ScheduledStartTime);
 
                 Assert.AreEqual(OrchestrationStatus.Completed, statusStartingIn30Seconds.Result?.OrchestrationStatus);
-                Assert.AreEqual("Current Time!", JToken.Parse(statusStartingIn30Seconds.Result?.Input));
+                Assert.AreEqual("Current Time!", JToken.Parse(statusStartingIn30Seconds.Result?.Input).Value<string>());
                 Assert.AreEqual(expectedStartTime, statusStartingIn30Seconds.Result.ScheduledStartTime);
 
                 var startNowResult = (DateTime)JToken.Parse(statusStartingNow.Result?.Output);
@@ -2633,7 +2633,7 @@ namespace DurableTask.AzureStorage.Tests
         /// </summary>
         /// <param name="enableExtendedSessions"></param>
         /// <returns></returns>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task ScheduledStart_Activity(bool enableExtendedSessions)
@@ -2652,11 +2652,11 @@ namespace DurableTask.AzureStorage.Tests
                 await Task.WhenAll(statusStartingNow, statusStartingIn30Seconds);
 
                 Assert.AreEqual(OrchestrationStatus.Completed, statusStartingNow.Result?.OrchestrationStatus);
-                Assert.AreEqual("Current Time!", JToken.Parse(statusStartingNow.Result?.Input));
+                Assert.AreEqual("Current Time!", JToken.Parse(statusStartingNow.Result?.Input).Value<string>());
                 Assert.IsNull(statusStartingNow.Result.ScheduledStartTime);
 
                 Assert.AreEqual(OrchestrationStatus.Completed, statusStartingIn30Seconds.Result?.OrchestrationStatus);
-                Assert.AreEqual("Current Time!", JToken.Parse(statusStartingIn30Seconds.Result?.Input));
+                Assert.AreEqual("Current Time!", JToken.Parse(statusStartingIn30Seconds.Result?.Input).Value<string>());
                 Assert.AreEqual(expectedStartTime, statusStartingIn30Seconds.Result.ScheduledStartTime);
 
                 var startNowResult = (DateTime)JToken.Parse(statusStartingNow.Result?.Output);
@@ -2674,7 +2674,7 @@ namespace DurableTask.AzureStorage.Tests
         /// </summary>
         /// <param name="enableExtendedSessions"></param>
         /// <returns></returns>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task ScheduledStart_Activity_GetStatus_Returns_ScheduledStart(bool enableExtendedSessions)
@@ -2719,7 +2719,7 @@ namespace DurableTask.AzureStorage.Tests
         /// To recover from this, users may set `AllowReplayingTerminalInstances` to true. When this is set, DTFx will not discard
         /// events for terminal orchestrators, forcing a replay which eventually updates the instances table to the right state.
         /// </remarks>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true, true, true)]
         [DataRow(true, true, false)]
         [DataRow(true, false, true)]
@@ -2817,7 +2817,7 @@ namespace DurableTask.AzureStorage.Tests
         /// the tracking store context object that is part of the orchestration session state which keeps track of the blobs.
         /// </summary>
         /// <returns></returns>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true, true)]
         [DataRow(false, true)]
         [DataRow(true, false)]
@@ -2909,7 +2909,7 @@ namespace DurableTask.AzureStorage.Tests
         /// Same as <see cref="TestWorkerFailingDuringCompleteWorkItemCallCompletedOrchestration"/> but for a failed orchestration.
         /// </summary>
         /// <returns></returns>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true, true)]
         [DataRow(false, true)]
         [DataRow(true, false)]
@@ -3001,7 +3001,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// Same as <see cref="TestWorkerFailingDuringCompleteWorkItemCallCompletedOrchestration"/> but for a terminated orchestration.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true, true)]
         [DataRow(false, true)]
         [DataRow(true, false)]
@@ -3095,7 +3095,7 @@ namespace DurableTask.AzureStorage.Tests
         /// Same as <see cref="TestWorkerFailingDuringCompleteWorkItemCallCompletedOrchestration"/> but for an orchestration with large input
         /// and output, which will need to be stored in blob storage.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true, true)]
         [DataRow(false, true)]
         [DataRow(true, false)]
@@ -3188,7 +3188,7 @@ namespace DurableTask.AzureStorage.Tests
         /// Same as <see cref="TestWorkerFailingDuringCompleteWorkItemCallTerminatedOrchestration"/> but for a large termination reason that
         /// will need to be stored in blob storage.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true, true)]
         [DataRow(false, true)]
         [DataRow(true, false)]
@@ -3285,7 +3285,7 @@ namespace DurableTask.AzureStorage.Tests
         /// Same as <see cref="TestWorkerFailingDuringCompleteWorkItemCallFailedOrchestration"/> but for a large exception message that will need
         /// to be stored in blob storage.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true, true)]
         [DataRow(false, true)]
         [DataRow(true, false)]
@@ -3477,7 +3477,7 @@ namespace DurableTask.AzureStorage.Tests
         /// </remarks>
         /// <param name="useInstanceEtag">The value to use for <see cref="AzureStorageOrchestrationServiceSettings.UseInstanceTableEtag"/></param>
         /// <returns></returns>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task WorkerAttemptingToUpdateInstanceTableAfterStalling(bool useInstanceEtag)
@@ -3541,7 +3541,7 @@ namespace DurableTask.AzureStorage.Tests
                 if (useInstanceEtag)
                 {
                     // Confirm an exception is thrown due to the etag mismatch for the instance table when the worker attempts to complete the work item
-                    SessionAbortedException exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
+                    SessionAbortedException exception = await Assert.ThrowsExactlyAsync<SessionAbortedException>(async () =>
                         await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
                     );
                     Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));
@@ -3592,7 +3592,7 @@ namespace DurableTask.AzureStorage.Tests
         /// </remarks>
         /// <param name="useInstanceEtag">The value to use for <see cref="AzureStorageOrchestrationServiceSettings.UseInstanceTableEtag"/></param>
         /// <returns></returns>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task WorkerAttemptingToUpdateInstanceTableAfterStallingForSubOrchestration(bool useInstanceEtag)
@@ -3699,7 +3699,7 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     // Confirm an exception is thrown because the worker attempts to insert a new entity for the suborchestration into the instance table
                     // when one already exists
-                    SessionAbortedException exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
+                    SessionAbortedException exception = await Assert.ThrowsExactlyAsync<SessionAbortedException>(async () =>
                         await service.CompleteTaskOrchestrationWorkItemAsync(workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null)
                     );
                     Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));
@@ -3733,7 +3733,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task WorkerAttemptingToDequeueMessageForNonExistentInstance(bool extendedSessionsEnabled)
@@ -3785,7 +3785,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true, true)]
         [DataRow(false, true)]
         [DataRow(true, false)]
@@ -3878,7 +3878,7 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true, true)]
         [DataRow(false, true)]
         [DataRow(true, false)]
@@ -3991,7 +3991,7 @@ namespace DurableTask.AzureStorage.Tests
         /// End-to-end test which validates a simple orchestrator function that calls an activity function
         /// and checks the OpenTelemetry trace information
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task OpenTelemetry_SayHelloWithActivity(bool enableExtendedSessions)
@@ -4061,7 +4061,7 @@ namespace DurableTask.AzureStorage.Tests
         /// End-to-end test which validates a simple orchestrator function that waits for an external event
         /// raised through the RaiseEvent API and checks the OpenTelemetry trace information
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task OpenTelemetry_ExternalEvent_RaiseEvent(bool enableExtendedSessions)
@@ -4131,7 +4131,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// End-to-end test which validates a simple orchestrator function that fires a timer and checks the OpenTelemetry trace information
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task OpenTelemetry_TimerFired(bool enableExtendedSessions)
@@ -4198,7 +4198,7 @@ namespace DurableTask.AzureStorage.Tests
         /// End-to-end test which validates a simple orchestrator function that waits for an external event
         /// raised by calling SendEvent and checks the OpenTelemetry trace information
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
         public async Task OpenTelemetry_ExternalEvent_SendEvent(bool enableExtendedSessions)

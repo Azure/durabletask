@@ -13,16 +13,17 @@
 
 namespace DurableTask.Samples
 {
+    using System.Collections.Generic;
     using CommandLine;
     using CommandLine.Text;
 
     internal class Options
     {
-        [Option('c', "create-hub", DefaultValue = false,
+        [Option('c', "create-hub", Default = false,
             HelpText = "Create Orchestration Hub.")]
         public bool CreateHub { get; set; }
 
-        [Option('s', "start-instance", DefaultValue = null,
+        [Option('s', "start-instance", Default = null,
             HelpText = "Start new instance.  Supported Orchestrations: 'Greetings, Cron, Average, ErrorHandling Signal'.")]
         public string StartInstance { get; set; }
 
@@ -30,20 +31,19 @@ namespace DurableTask.Samples
             HelpText = "Instance id for new orchestration instance.")]
         public string InstanceId { get; set; }
 
-        [OptionArray('p', "params",
+        [Option('p', "params",
             HelpText = "Parameters for new instance.")]
-        public string[] Parameters { get; set; }
+        public IEnumerable<string> Parameters { get; set; }
 
         [Option('n', "signal-name",
             HelpText = "Instance id to send signal")]
         public string Signal { get; set; }
 
-        [Option('w', "skip-worker", DefaultValue = false,
+        [Option('w', "skip-worker", Default = false,
             HelpText = "Don't start worker")]
         public bool SkipWorker { get; set; }
 
-        [HelpOption]
-        public string GetUsage()
+        public static string GetUsage(ParserResult<Options> options)
         {
             // this without using CommandLine.Text
             //  or using HelpText.AutoBuild
@@ -63,7 +63,7 @@ namespace DurableTask.Samples
             help.AddPreOptionsLine("Usage: DurableTaskSamples.exe -c -s SumOfSquares");
             help.AddPreOptionsLine("Usage: DurableTaskSamples.exe -c -s Signal -i 1");
             help.AddPreOptionsLine("Usage: DurableTaskSamples.exe -w -n User -i 1 -p MyName");
-            help.AddOptions(this);
+            help.AddOptions(options);
             return help;
         }
     }
