@@ -26,6 +26,8 @@ namespace DurableTask.AzureServiceFabric
     /// </summary>
     public sealed class FabricOrchestrationProviderSettings
     {
+        ISerializationBinder jsonSerializationBinder = new AllowedTypesSerializationBinder();
+
         /// <summary>
         /// Constructor. Initializes all settings to their default values.
         /// </summary>
@@ -66,9 +68,13 @@ namespace DurableTask.AzureServiceFabric
         /// <para>
         /// Defaults to <see cref="AllowedTypesSerializationBinder"/>, which permits only known
         /// DurableTask and core system types. Set a custom <see cref="ISerializationBinder"/> to
-        /// override, or set to <c>null</c> to disable type restrictions (not recommended).
+        /// override. Setting this property to <c>null</c> restores the default binder.
         /// </para>
         /// </summary>
-        public ISerializationBinder JsonSerializationBinder { get; set; } = new AllowedTypesSerializationBinder();
+        public ISerializationBinder JsonSerializationBinder
+        {
+            get => this.jsonSerializationBinder;
+            set => this.jsonSerializationBinder = value ?? new AllowedTypesSerializationBinder();
+        }
     }
 }
