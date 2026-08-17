@@ -154,6 +154,71 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        [TestMethod]
+        public async Task ParentMetadataIsReturnedForFastCompletingChild()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
+                enableExtendedSessions: false,
+                modifySettingsAction: settings => settings.TaskHubName = "pmf" + Guid.NewGuid().ToString("N").Substring(0, 12)))
+            {
+                string parentInstanceId = $"parent-{Guid.NewGuid():N}";
+                string childInstanceId = parentInstanceId + ":child";
+                await host.StartAsync();
+
+                var client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.ParentOfInlineChild),
+                    "input",
+                    parentInstanceId);
+                OrchestrationState completed = await client.WaitForCompletionAsync(StandardTimeout);
+
+                Assert.AreEqual(OrchestrationStatus.Completed, completed?.OrchestrationStatus);
+
+                OrchestrationState parent = await host.service.GetOrchestrationStateAsync(parentInstanceId, executionId: null);
+                OrchestrationState child = await host.service.GetOrchestrationStateAsync(childInstanceId, executionId: null);
+                Assert.IsNull(parent.ParentInstance);
+                Assert.AreEqual(parentInstanceId, child.ParentInstance?.OrchestrationInstance.InstanceId);
+
+                DurableStatusQueryResult queryResult = await host.service.GetOrchestrationStateAsync(
+                    new OrchestrationInstanceStatusQueryCondition { InstanceIdPrefix = parentInstanceId },
+                    top: 10,
+                    continuationToken: null);
+                OrchestrationState queriedChild = queryResult.OrchestrationState.Single(state =>
+                    state.OrchestrationInstance.InstanceId == childInstanceId);
+                Assert.AreEqual(parentInstanceId, queriedChild.ParentInstance?.OrchestrationInstance.InstanceId);
+                OrchestrationState queriedParent = queryResult.OrchestrationState.Single(state =>
+                    state.OrchestrationInstance.InstanceId == parentInstanceId);
+                Assert.IsNull(queriedParent.ParentInstance);
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task ParentMetadataSurvivesChildContinueAsNew()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
+                enableExtendedSessions: false,
+                modifySettingsAction: settings => settings.TaskHubName = "pmc" + Guid.NewGuid().ToString("N").Substring(0, 12)))
+            {
+                string parentInstanceId = $"parent-{Guid.NewGuid():N}";
+                string childInstanceId = parentInstanceId + ":child";
+                await host.StartAsync();
+
+                var client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.ParentOfContinueAsNewChild),
+                    0,
+                    parentInstanceId);
+                OrchestrationState completed = await client.WaitForCompletionAsync(StandardTimeout);
+
+                Assert.AreEqual(OrchestrationStatus.Completed, completed?.OrchestrationStatus);
+                OrchestrationState child = await host.service.GetOrchestrationStateAsync(childInstanceId, executionId: null);
+                Assert.AreEqual(1, JToken.Parse(child.Input));
+                Assert.AreEqual(parentInstanceId, child.ParentInstance?.OrchestrationInstance.InstanceId);
+
+                await host.StopAsync();
+            }
+        }
+
         /// <summary>
         /// End-to-end test which runs a slow orchestrator that causes work item renewal
         /// </summary>
@@ -4872,6 +4937,51 @@ namespace DurableTask.AzureStorage.Tests
                 public override Task<int> RunTask(OrchestrationContext context, int input)
                 {
                     return context.CreateSubOrchestrationInstance<int>(typeof(Factorial), input);
+                }
+            }
+
+            [KnownType(typeof(InlineChild))]
+            internal class ParentOfInlineChild : TaskOrchestration<string, string>
+            {
+                public override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    return context.CreateSubOrchestrationInstance<string>(
+                        typeof(InlineChild),
+                        context.OrchestrationInstance.InstanceId + ":child",
+                        input);
+                }
+            }
+
+            internal class InlineChild : TaskOrchestration<string, string>
+            {
+                public override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    return Task.FromResult(input);
+                }
+            }
+
+            [KnownType(typeof(ContinueAsNewChild))]
+            internal class ParentOfContinueAsNewChild : TaskOrchestration<int, int>
+            {
+                public override Task<int> RunTask(OrchestrationContext context, int input)
+                {
+                    return context.CreateSubOrchestrationInstance<int>(
+                        typeof(ContinueAsNewChild),
+                        context.OrchestrationInstance.InstanceId + ":child",
+                        input);
+                }
+            }
+
+            internal class ContinueAsNewChild : TaskOrchestration<int, int>
+            {
+                public override Task<int> RunTask(OrchestrationContext context, int input)
+                {
+                    if (input == 0)
+                    {
+                        context.ContinueAsNew(1);
+                    }
+
+                    return Task.FromResult(input);
                 }
             }
 

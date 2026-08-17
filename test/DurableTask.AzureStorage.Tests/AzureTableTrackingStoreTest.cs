@@ -25,6 +25,8 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
+    using DurableTask.Core.History;
+    using DurableTask.Core.Tracking;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Moq;
 
@@ -66,16 +68,21 @@ namespace DurableTask.AzureStorage.Tests
             {
                 new OrchestrationInstanceStatus
                 {
+                    PartitionKey = "child",
+                    ParentInstanceId = "parent",
                     Name = "foo",
                     RuntimeStatus = "Running"
                 },
                 new OrchestrationInstanceStatus
                 {
+                    PartitionKey = "top-level",
+                    ParentInstanceId = "",
                     Name = "bar",
                     RuntimeStatus = "Completed"
                 },
                 new OrchestrationInstanceStatus
                 {
+                    PartitionKey = "legacy",
                     Name = "baz",
                     RuntimeStatus = "Failed"
                 }
@@ -111,6 +118,51 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(expected[i].Name, actual[i].Name);
                 Assert.AreEqual(Enum.Parse(typeof(OrchestrationStatus), expected[i].RuntimeStatus), actual[i].OrchestrationStatus);
             }
+
+            // Child rows resolve to their parent; rows written for a top-level orchestration store an
+            // empty value to clear any stale parent, and legacy rows omit the property entirely. The
+            // latter two must both surface as a null ParentInstance.
+            Assert.AreEqual("parent", actual[0].ParentInstance.OrchestrationInstance.InstanceId);
+            Assert.IsNull(actual[1].ParentInstance);
+            Assert.IsNull(actual[2].ParentInstance);
+        }
+
+        [TestMethod]
+        public async Task InstanceStoreBackedTrackingStore_PersistsParentOnCreation()
+        {
+            const string ParentInstanceId = "parent";
+            OrchestrationStateInstanceEntity writtenState = null;
+            var instanceStore = new Mock<IOrchestrationServiceInstanceStore>(MockBehavior.Strict);
+            instanceStore
+                .Setup(store => store.WriteEntitiesAsync(It.IsAny<IEnumerable<InstanceEntityBase>>()))
+                .Callback<IEnumerable<InstanceEntityBase>>(entities => writtenState = entities.Single() as OrchestrationStateInstanceEntity)
+                .ReturnsAsync(new object());
+
+            var trackingStore = new InstanceStoreBackedTrackingStore(instanceStore.Object);
+            var startedEvent = new ExecutionStartedEvent(0, null)
+            {
+                Name = "child",
+                OrchestrationInstance = new OrchestrationInstance
+                {
+                    InstanceId = "child",
+                    ExecutionId = "execution",
+                },
+                ParentInstance = new ParentInstance
+                {
+                    OrchestrationInstance = new OrchestrationInstance
+                    {
+                        InstanceId = ParentInstanceId,
+                        ExecutionId = "parent-execution",
+                    },
+                },
+            };
+
+            bool created = await trackingStore.SetNewExecutionAsync(startedEvent, null, null);
+
+            Assert.IsTrue(created);
+            Assert.IsNotNull(writtenState);
+            Assert.AreSame(startedEvent.ParentInstance, writtenState.State.ParentInstance);
+            Assert.AreEqual(ParentInstanceId, writtenState.State.ParentInstance.OrchestrationInstance.InstanceId);
         }
     }
 }
