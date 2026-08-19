@@ -6,7 +6,6 @@ trigger:
   branches:
     include:
     - main
-    - vabachu/v320-release
 
 # Run nightly to catch new CVEs and to report SDL often.
 schedules:
