@@ -486,7 +486,8 @@ namespace DurableTask.AzureStorage.Tracking
             var orchestrationState = new OrchestrationState();
             if (!Enum.TryParse(orchestrationInstanceStatus.RuntimeStatus, out orchestrationState.OrchestrationStatus))
             {
-                // This is not expected, but could happen if there is invalid data in the Instances table.
+                // This is not expected, but could happen if there is invalid data in the Instances table, or if this is a tombstone
+                // for a purged row when migration is active
                 orchestrationState.OrchestrationStatus = (OrchestrationStatus)(-1);
             }
 
@@ -1659,7 +1660,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             ETag? newEtag = null;
 
-            if (!this.settings.UseInstanceTableEtag)
+            if (!this.settings.UseInstanceTableEtag && !this.IsMigrationActive)
             {
                 await this.InstancesTable.InsertOrMergeEntityAsync(instanceEntity);
             }

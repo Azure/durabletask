@@ -74,6 +74,13 @@ namespace DurableTask.AzureStorage
         public long SequenceNumber { get; set; }
 
         /// <summary>
+        /// Gets or sets the identifier of this message's row in the shadow table,
+        /// if it has been stored there (used only during migrations)
+        /// </summary>
+        [DataMember(EmitDefaultValue = false)]
+        internal Guid? ShadowMessageId { get; set; }
+
+        /// <summary>
         /// The episode number of the orchestration which created this message.
         /// </summary>
         /// <remarks>

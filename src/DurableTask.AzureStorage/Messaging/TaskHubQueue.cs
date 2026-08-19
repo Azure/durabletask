@@ -34,6 +34,7 @@ namespace DurableTask.AzureStorage.Messaging
         protected readonly string storageAccountName;
         protected readonly AzureStorageOrchestrationServiceSettings settings;
         protected readonly BackoffPollingHelper backoffHelper;
+        readonly MessageShadowTable messageShadowTable;
 
         public TaskHubQueue(
             AzureStorageClient azureStorageClient,
@@ -46,6 +47,7 @@ namespace DurableTask.AzureStorage.Messaging
             this.settings = azureStorageClient.Settings;
 
             this.storageQueue = this.azureStorageClient.GetQueueReference(queueName);
+            this.messageShadowTable = new MessageShadowTable(azureStorageClient);
 
             TimeSpan minPollingDelay = TimeSpan.FromMilliseconds(50);
             TimeSpan maxPollingDelay = this.settings.MaxQueuePollingInterval;
@@ -74,7 +76,12 @@ namespace DurableTask.AzureStorage.Messaging
         /// <returns></returns>
         public Task AddMessageAsync(TaskMessage message, SessionBase sourceSession)
         {
-            return this.AddMessageAsync(message, sourceSession.Instance, sourceSession);
+            return this.AddMessageAsync(message, sourceSession.Instance, sourceSession, shadowMessage: false);
+        }
+
+        internal Task AddMessageWithShadowAsync(TaskMessage message, SessionBase sourceSession)
+        {
+            return this.AddMessageAsync(message, sourceSession.Instance, sourceSession, shadowMessage: true);
         }
 
         /// <summary>
@@ -85,10 +92,14 @@ namespace DurableTask.AzureStorage.Messaging
         /// <returns></returns>
         public Task<MessageData> AddMessageAsync(TaskMessage message, OrchestrationInstance sourceInstance)
         {
-            return this.AddMessageAsync(message, sourceInstance, session: null);
+            return this.AddMessageAsync(message, sourceInstance, session: null, shadowMessage: false);
         }
 
-        async Task<MessageData> AddMessageAsync(TaskMessage taskMessage, OrchestrationInstance sourceInstance, SessionBase? session)
+        async Task<MessageData> AddMessageAsync(
+            TaskMessage taskMessage,
+            OrchestrationInstance sourceInstance,
+            SessionBase? session,
+            bool shadowMessage)
         {
             MessageData data;
             try
@@ -102,12 +113,20 @@ namespace DurableTask.AzureStorage.Messaging
                     session?.GetCurrentEpisode(),
                     sourceInstance);
                 data.SequenceNumber = Interlocked.Increment(ref messageSequenceNumber);
+                if (shadowMessage)
+                {
+                    data.ShadowMessageId = Guid.NewGuid();
+                }
 
                 // Inject Correlation TraceContext on a queue.
                 CorrelationTraceClient.Propagate(
                     () => { data.SerializableTraceContext = GetSerializableTraceContext(taskMessage); });
                 
                 string rawContent = await this.messageManager.SerializeMessageDataAsync(data);
+                if (shadowMessage)
+                {
+                    await this.messageShadowTable.AddMessageAsync(data, rawContent);
+                }
 
                 this.settings.Logger.SendingMessage(
                     outboundTraceActivityId,
@@ -348,6 +367,7 @@ namespace DurableTask.AzureStorage.Messaging
             TaskMessage taskMessage = message.TaskMessage;
 
             bool haveRetried = false;
+            bool queueMessageDeleted = false;
             while (true)
             {
                 this.settings.Logger.DeletingMessage(
@@ -365,6 +385,7 @@ namespace DurableTask.AzureStorage.Messaging
                 try
                 {
                     await this.storageQueue.DeleteMessageAsync(message.OriginalQueueMessage, session?.TraceActivityId);
+                    queueMessageDeleted = true;
                 }
                 catch (Exception e)
                 {
@@ -386,6 +407,25 @@ namespace DurableTask.AzureStorage.Messaging
                 }
 
                 break;
+            }
+
+            if (queueMessageDeleted && message.ShadowMessageId.HasValue)
+            {
+                try
+                {
+                    await this.messageShadowTable.DeleteMessageAsync(
+                        this.storageQueue.Name,
+                        message.ShadowMessageId.Value);
+                }
+                catch (Exception e)
+                {
+                    this.settings.Logger.GeneralWarning(
+                        this.azureStorageClient.TableAccountName,
+                        this.settings.TaskHubName,
+                        $"Failed to delete message shadow row {message.ShadowMessageId.Value:N} for queue {this.storageQueue.Name}. " +
+                        $"The row will be retained and may cause duplicate processing during migration. Error: {e}",
+                        taskMessage.OrchestrationInstance.InstanceId);
+                }
             }
         }
 

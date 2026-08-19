@@ -18,11 +18,13 @@ namespace DurableTask.AzureStorage.Tests
     using System.Collections.Generic;
     using System.Linq;
     using System.Net;
+    using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
     using System.Runtime.Serialization;
     using Azure.Data.Tables;
     using Azure.Storage.Queues.Models;
+    using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
@@ -32,9 +34,9 @@ namespace DurableTask.AzureStorage.Tests
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     /// <summary>
-    /// Tests for the zero-downtime Azure Storage to DTS migration feature. Every test runs with
-    /// <see cref="AzureStorageOrchestrationServiceSettings.UseInstanceTableEtag"/> set to <c>true</c>, which is a
-    /// requirement for any customer performing a live migration.
+    /// Tests for the zero-downtime Azure Storage to DTS migration feature. Migration mode itself enables instance-table
+    /// optimistic concurrency and sequence-number tracking; tests leave
+    /// <see cref="AzureStorageOrchestrationServiceSettings.UseInstanceTableEtag"/> at its default value.
     /// </summary>
     [TestClass]
     public class MigrationTests
@@ -52,9 +54,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task RewindDuringMigration_BumpsSequenceNumberAndEnqueuesInstance()
         {
-            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
-                enableExtendedSessions: false,
-                modifySettingsAction: settings => settings.UseInstanceTableEtag = true);
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false);
 
             await host.StartAsync(MigrationMode.MigrationStarted);
 
@@ -72,7 +72,6 @@ namespace DurableTask.AzureStorage.Tests
 
             AzureStorageOrchestrationServiceSettings settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(
                 enableExtendedSessions: false);
-            settings.UseInstanceTableEtag = true;
             var azureStorageClient = new AzureStorageClient(settings);
 
             long? sequenceNumberBeforeRewind = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
@@ -111,9 +110,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task TerminatePendingDuringMigration_BumpsSequenceNumberAndEnqueuesInstance()
         {
-            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
-                enableExtendedSessions: false,
-                modifySettingsAction: settings => settings.UseInstanceTableEtag = true);
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false);
 
             await host.StartAsync(MigrationMode.MigrationStarted);
 
@@ -127,7 +124,6 @@ namespace DurableTask.AzureStorage.Tests
 
             AzureStorageOrchestrationServiceSettings settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(
                 enableExtendedSessions: false);
-            settings.UseInstanceTableEtag = true;
             var azureStorageClient = new AzureStorageClient(settings);
 
             // Read the pending instance's sequence number (assigned when it was created) as the baseline.
@@ -168,9 +164,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task CreateDuringMigration_SetsSequenceNumberToOneAndEnqueuesInstance()
         {
-            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
-                enableExtendedSessions: false,
-                modifySettingsAction: settings => settings.UseInstanceTableEtag = true);
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false);
 
             await host.StartAsync(MigrationMode.MigrationStarted);
 
@@ -185,7 +179,6 @@ namespace DurableTask.AzureStorage.Tests
 
             AzureStorageOrchestrationServiceSettings settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(
                 enableExtendedSessions: false);
-            settings.UseInstanceTableEtag = true;
             var azureStorageClient = new AzureStorageClient(settings);
 
             long? sequenceNumber = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
@@ -210,9 +203,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task RecreateDuringMigration_BumpsSequenceNumberAndEnqueuesInstance()
         {
-            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
-                enableExtendedSessions: false,
-                modifySettingsAction: settings => settings.UseInstanceTableEtag = true);
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false);
 
             await host.StartAsync(MigrationMode.MigrationStarted);
 
@@ -228,7 +219,6 @@ namespace DurableTask.AzureStorage.Tests
 
             AzureStorageOrchestrationServiceSettings settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(
                 enableExtendedSessions: false);
-            settings.UseInstanceTableEtag = true;
             var azureStorageClient = new AzureStorageClient(settings);
 
             long? sequenceNumberBeforeRecreate = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
@@ -271,7 +261,6 @@ namespace DurableTask.AzureStorage.Tests
                 enableExtendedSessions: false,
                 modifySettingsAction: settings =>
                 {
-                    settings.UseInstanceTableEtag = true;
                     settings.TaskHubName = taskHubName;
                 });
 
@@ -288,7 +277,6 @@ namespace DurableTask.AzureStorage.Tests
 
             AzureStorageOrchestrationServiceSettings settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(
                 enableExtendedSessions: false);
-            settings.UseInstanceTableEtag = true;
             settings.TaskHubName = taskHubName;
             var azureStorageClient = new AzureStorageClient(settings);
 
@@ -326,7 +314,6 @@ namespace DurableTask.AzureStorage.Tests
                 enableExtendedSessions: false,
                 modifySettingsAction: settings =>
                 {
-                    settings.UseInstanceTableEtag = true;
                     settings.TaskHubName = taskHubName;
                 });
 
@@ -341,7 +328,6 @@ namespace DurableTask.AzureStorage.Tests
 
             AzureStorageOrchestrationServiceSettings settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(
                 enableExtendedSessions: false);
-            settings.UseInstanceTableEtag = true;
             settings.TaskHubName = taskHubName;
             var azureStorageClient = new AzureStorageClient(settings);
 
@@ -400,7 +386,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// Confirms that in a split-brain situation (two workers completing the same work item) during a migration, the
         /// instance table and history sentinel sequence numbers stay aligned. Both workers derive the same next
-        /// sequence number from the same base, and the UseInstanceTableEtag guard rejects the losing worker's instance
+        /// sequence number from the same base, and migration mode's instance-table ETag guard rejects the losing worker's
         /// write, so the sentinel it commits still matches the instance value written by the winning worker. Uses the
         /// low-level lock/complete API, modeled on WorkerAttemptingToUpdateInstanceTableAfterStalling.
         /// </summary>
@@ -413,9 +399,6 @@ namespace DurableTask.AzureStorage.Tests
                 StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
                 TaskHubName = $"migrsplit{Guid.NewGuid():N}",
                 ExtendedSessionsEnabled = false,
-                // A migrating customer always runs with UseInstanceTableEtag = true, which is what makes the losing
-                // worker's stale instance write fail instead of silently overwriting the winner's.
-                UseInstanceTableEtag = true,
             };
 
             AzureStorageOrchestrationService? service = null;
@@ -510,7 +493,6 @@ namespace DurableTask.AzureStorage.Tests
                 StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
                 TaskHubName = $"migrend{Guid.NewGuid():N}",
                 ExtendedSessionsEnabled = false,
-                UseInstanceTableEtag = true,
             };
 
             AzureStorageOrchestrationService? service = null;
@@ -603,7 +585,6 @@ namespace DurableTask.AzureStorage.Tests
                 StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
                 TaskHubName = $"migrend{Guid.NewGuid():N}",
                 ExtendedSessionsEnabled = false,
-                UseInstanceTableEtag = true,
             };
 
             AzureStorageOrchestrationService? service = null;
@@ -660,7 +641,6 @@ namespace DurableTask.AzureStorage.Tests
                 enableExtendedSessions: false,
                 modifySettingsAction: settings =>
                 {
-                    settings.UseInstanceTableEtag = true;
                     settings.TaskHubName = taskHubName;
                 });
 
@@ -684,7 +664,6 @@ namespace DurableTask.AzureStorage.Tests
 
             AzureStorageOrchestrationServiceSettings settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(
                 enableExtendedSessions: false);
-            settings.UseInstanceTableEtag = true;
             settings.TaskHubName = taskHubName;
             var azureStorageClient = new AzureStorageClient(settings);
 
@@ -712,9 +691,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task PurgeInstanceDuringMigration_KeepsRowBumpsSequenceNumberAndEnqueuesInstance()
         {
-            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
-                enableExtendedSessions: false,
-                modifySettingsAction: settings => settings.UseInstanceTableEtag = true);
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false);
 
             await host.StartAsync(MigrationMode.MigrationStarted);
 
@@ -728,7 +705,6 @@ namespace DurableTask.AzureStorage.Tests
 
             AzureStorageOrchestrationServiceSettings settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(
                 enableExtendedSessions: false);
-            settings.UseInstanceTableEtag = true;
             var azureStorageClient = new AzureStorageClient(settings);
 
             long? sequenceNumberBeforePurge = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
@@ -770,7 +746,6 @@ namespace DurableTask.AzureStorage.Tests
                 enableExtendedSessions: false,
                 modifySettingsAction: settings =>
                 {
-                    settings.UseInstanceTableEtag = true;
                     settings.TaskHubName = taskHubName;
                 });
 
@@ -792,7 +767,6 @@ namespace DurableTask.AzureStorage.Tests
 
             AzureStorageOrchestrationServiceSettings settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(
                 enableExtendedSessions: false);
-            settings.UseInstanceTableEtag = true;
             settings.TaskHubName = taskHubName;
             var azureStorageClient = new AzureStorageClient(settings);
 
@@ -823,6 +797,293 @@ namespace DurableTask.AzureStorage.Tests
             List<OrchestrationInstance> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
             Assert.AreEqual(instanceCount, enqueued.Count, "Each purged instance should be enqueued exactly once.");
             CollectionAssert.AreEquivalent(instanceIds, enqueued.Select(instance => instance.InstanceId).ToList());
+        }
+
+        /// <summary>
+        /// Worker-generated activity and activity-response messages must remain in the shadow table until their
+        /// corresponding Azure Queue messages are successfully deleted.
+        /// </summary>
+        [TestMethod]
+        public async Task CompletionMessagesDuringMigration_FollowQueueLifecycleInShadowTable()
+        {
+            AzureStorageOrchestrationServiceSettings settings = CreateMessageShadowTestSettings();
+
+            AzureStorageOrchestrationService? service = null;
+            bool serviceStarted = false;
+            try
+            {
+                service = new AzureStorageOrchestrationService(settings);
+                await service.CreateAsync();
+                await service.StartAsync(MigrationMode.MigrationStarted);
+                serviceStarted = true;
+
+                var orchestrationInstance = new OrchestrationInstance
+                {
+                    InstanceId = "shadow-instance",
+                    ExecutionId = "shadow-execution",
+                };
+                var startedEvent = new ExecutionStartedEvent(-1, string.Empty)
+                {
+                    Name = "orchestration",
+                    Version = string.Empty,
+                    OrchestrationInstance = orchestrationInstance,
+                    ScheduledStartTime = DateTime.UtcNow,
+                };
+
+                await service.CreateTaskOrchestrationAsync(new TaskMessage
+                {
+                    OrchestrationInstance = orchestrationInstance,
+                    Event = startedEvent,
+                });
+
+                TaskOrchestrationWorkItem orchestrationWorkItem =
+                    await service.LockNextTaskOrchestrationWorkItemAsync(TimeSpan.FromMinutes(1), CancellationToken.None);
+                Assert.IsNotNull(orchestrationWorkItem);
+
+                var scheduledEvent = new TaskScheduledEvent(0, "activity");
+                OrchestrationRuntimeState runtimeState = orchestrationWorkItem.OrchestrationRuntimeState;
+                runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                runtimeState.AddEvent(startedEvent);
+                runtimeState.AddEvent(scheduledEvent);
+                runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+                await service.CompleteTaskOrchestrationWorkItemAsync(
+                    orchestrationWorkItem,
+                    runtimeState,
+                    new List<TaskMessage>
+                    {
+                        new TaskMessage
+                        {
+                            OrchestrationInstance = orchestrationInstance,
+                            Event = scheduledEvent,
+                        },
+                    },
+                    new List<TaskMessage>(),
+                    new List<TaskMessage>(),
+                    continuedAsNewMessage: null,
+                    CreateOrchestrationState(orchestrationInstance, OrchestrationStatus.Running));
+                await service.ReleaseTaskOrchestrationWorkItemAsync(orchestrationWorkItem);
+
+                var azureStorageClient = new AzureStorageClient(settings);
+                var messageManager = new MessageManager(
+                    settings,
+                    azureStorageClient,
+                    $"{settings.TaskHubName.ToLowerInvariant()}-largemessages");
+
+                List<TableEntity> shadowRows = await GetMessageShadowRowsAsync(azureStorageClient);
+                Assert.AreEqual(1, shadowRows.Count, "The pending activity message should have one shadow row.");
+                AssertShadowRow(
+                    shadowRows[0],
+                    AzureStorageOrchestrationService.GetWorkItemQueueName(settings.TaskHubName),
+                    EventType.TaskScheduled,
+                    messageManager);
+
+                TaskActivityWorkItem activityWorkItem =
+                    await service.LockNextTaskActivityWorkItem(TimeSpan.FromMinutes(1), CancellationToken.None);
+                Assert.IsNotNull(activityWorkItem);
+
+                var completedEvent = new TaskCompletedEvent(-1, scheduledEvent.EventId, "result");
+                await service.CompleteTaskActivityWorkItemAsync(
+                    activityWorkItem,
+                    new TaskMessage
+                    {
+                        OrchestrationInstance = orchestrationInstance,
+                        Event = completedEvent,
+                    });
+
+                shadowRows = await GetMessageShadowRowsAsync(azureStorageClient);
+                Assert.AreEqual(1, shadowRows.Count, "The activity row should be replaced by its pending response row.");
+                AssertShadowRow(
+                    shadowRows[0],
+                    AzureStorageOrchestrationService.GetControlQueueName(settings.TaskHubName, 0),
+                    EventType.TaskCompleted,
+                    messageManager);
+
+                orchestrationWorkItem =
+                    await service.LockNextTaskOrchestrationWorkItemAsync(TimeSpan.FromMinutes(1), CancellationToken.None);
+                Assert.IsNotNull(orchestrationWorkItem);
+
+                runtimeState = orchestrationWorkItem.OrchestrationRuntimeState;
+                runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                runtimeState.AddEvent(completedEvent);
+                runtimeState.AddEvent(new ExecutionCompletedEvent(1, "result", OrchestrationStatus.Completed));
+                runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+                await service.CompleteTaskOrchestrationWorkItemAsync(
+                    orchestrationWorkItem,
+                    runtimeState,
+                    new List<TaskMessage>(),
+                    new List<TaskMessage>(),
+                    new List<TaskMessage>(),
+                    continuedAsNewMessage: null,
+                    CreateOrchestrationState(orchestrationInstance, OrchestrationStatus.Completed));
+                await service.ReleaseTaskOrchestrationWorkItemAsync(orchestrationWorkItem);
+
+                shadowRows = await GetMessageShadowRowsAsync(azureStorageClient);
+                Assert.AreEqual(0, shadowRows.Count, "Deleting the activity response queue message should remove its shadow row.");
+            }
+            finally
+            {
+                if (service != null)
+                {
+                    if (serviceStarted)
+                    {
+                        await service.StopAsync(isForced: true);
+                    }
+
+                    await service.DeleteAsync();
+                }
+            }
+        }
+
+        /// <summary>
+        /// A queue-send failure after the shadow insert must leave the row available for migration.
+        /// </summary>
+        [TestMethod]
+        public async Task ShadowedMessage_InsertsShadowRow_BeforeQueueSend()
+        {
+            AzureStorageOrchestrationServiceSettings settings = CreateMessageShadowTestSettings();
+            var azureStorageClient = new AzureStorageClient(settings);
+            var messageShadowTable = new MessageShadowTable(azureStorageClient);
+            var queue = new WorkItemQueue(
+                azureStorageClient,
+                AzureStorageOrchestrationService.GetWorkItemQueueName(settings.TaskHubName),
+                new MessageManager(settings, azureStorageClient, $"{settings.TaskHubName.ToLowerInvariant()}-largemessages"));
+
+            await messageShadowTable.CreateIfNotExistsAsync();
+            // Queue doesn't exist so adding to it will fail
+            await queue.DeleteIfExistsAsync();
+
+            try
+            {
+                (TaskMessage message, TestSession session) = CreateShadowTestMessage(settings, azureStorageClient);
+
+                await Assert.ThrowsExceptionAsync<DurableTaskStorageException>(
+                    () => queue.AddMessageWithShadowAsync(message, session));
+
+                List<TableEntity> shadowRows = await GetMessageShadowRowsAsync(azureStorageClient);
+                Assert.AreEqual(1, shadowRows.Count, "The row must be inserted before the queue send and retained when that send fails.");
+            }
+            finally
+            {
+                await messageShadowTable.DeleteIfExistsAsync();
+            }
+        }
+
+        /// <summary>
+        /// A queue-delete response that does not confirm deletion must not remove the shadow row.
+        /// </summary>
+        [TestMethod]
+        public async Task ShadowedMessage_QueueDeleteIsAmbiguous_RetainsShadowRow()
+        {
+            AzureStorageOrchestrationServiceSettings settings = CreateMessageShadowTestSettings();
+            var azureStorageClient = new AzureStorageClient(settings);
+            var messageShadowTable = new MessageShadowTable(azureStorageClient);
+            var queue = new WorkItemQueue(
+                azureStorageClient,
+                AzureStorageOrchestrationService.GetWorkItemQueueName(settings.TaskHubName),
+                new MessageManager(settings, azureStorageClient, $"{settings.TaskHubName.ToLowerInvariant()}-largemessages"));
+
+            await Task.WhenAll(
+                messageShadowTable.CreateIfNotExistsAsync(),
+                queue.CreateIfNotExistsAsync());
+
+            try
+            {
+                (TaskMessage message, TestSession session) = CreateShadowTestMessage(settings, azureStorageClient);
+                await queue.AddMessageWithShadowAsync(message, session);
+
+                using var timeoutSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                MessageData dequeuedMessage = await queue.GetMessageAsync(timeoutSource.Token);
+                Assert.IsNotNull(dequeuedMessage);
+
+                // Simulate another worker deleting the physical queue message. The subsequent 404 cannot prove which
+                // worker completed it, so this worker must retain the shadow row.
+                await queue.InnerQueue.DeleteMessageAsync(dequeuedMessage.OriginalQueueMessage);
+                await queue.DeleteMessageAsync(dequeuedMessage);
+
+                List<TableEntity> shadowRows = await GetMessageShadowRowsAsync(azureStorageClient);
+                Assert.AreEqual(1, shadowRows.Count, "An ambiguous queue delete must retain the shadow row.");
+            }
+            finally
+            {
+                await Task.WhenAll(
+                    queue.DeleteIfExistsAsync(),
+                    messageShadowTable.DeleteIfExistsAsync());
+            }
+        }
+
+        static AzureStorageOrchestrationServiceSettings CreateMessageShadowTestSettings()
+        {
+            return new AzureStorageOrchestrationServiceSettings
+            {
+                PartitionCount = 1,
+                StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                TaskHubName = $"migrshadow{Guid.NewGuid():N}",
+                ExtendedSessionsEnabled = false,
+            };
+        }
+
+        static (TaskMessage Message, TestSession Session) CreateShadowTestMessage(
+            AzureStorageOrchestrationServiceSettings settings,
+            AzureStorageClient azureStorageClient)
+        {
+            var instance = new OrchestrationInstance
+            {
+                InstanceId = "shadow-instance",
+                ExecutionId = "shadow-execution",
+            };
+            var message = new TaskMessage
+            {
+                OrchestrationInstance = instance,
+                Event = new GenericEvent(-1, "payload"),
+            };
+
+            return (message, new TestSession(settings, azureStorageClient.QueueAccountName, instance));
+        }
+
+        static OrchestrationState CreateOrchestrationState(
+            OrchestrationInstance instance,
+            OrchestrationStatus status)
+        {
+            return new OrchestrationState
+            {
+                CreatedTime = DateTime.UtcNow,
+                LastUpdatedTime = DateTime.UtcNow,
+                Name = "orchestration",
+                Version = string.Empty,
+                OrchestrationInstance = instance,
+                OrchestrationStatus = status,
+            };
+        }
+
+        static async Task<List<TableEntity>> GetMessageShadowRowsAsync(AzureStorageClient azureStorageClient)
+        {
+            Table table = azureStorageClient.GetTableReference(azureStorageClient.Settings.MessageShadowTableName);
+            var rows = new List<TableEntity>();
+            await foreach (TableEntity row in table.ExecuteQueryAsync<TableEntity>())
+            {
+                rows.Add(row);
+            }
+
+            return rows;
+        }
+
+        static void AssertShadowRow(
+            TableEntity row,
+            string expectedQueueName,
+            EventType expectedEventType,
+            MessageManager messageManager)
+        {
+            Assert.AreEqual(expectedQueueName, row.PartitionKey);
+            byte[] serializedMessage = (byte[])row[MessageShadowTable.MessageDataPropertyName];
+            MessageData messageData = messageManager.DeserializeMessageData(Encoding.UTF8.GetString(serializedMessage));
+            Assert.AreEqual(expectedEventType, messageData.TaskMessage.Event.EventType);
+            Assert.IsTrue(messageData.ShadowMessageId.HasValue);
+            Assert.AreEqual(
+                MessageShadowTable.GetRowKey(messageData.ShadowMessageId.Value),
+                row.RowKey,
+                "The queue envelope must carry the exact shadow row identifier.");
         }
 
         static async Task<bool> InstanceRowExistsAsync(AzureStorageClient azureStorageClient, string instanceId)
@@ -965,6 +1226,22 @@ namespace DurableTask.AzureStorage.Tests
             {
                 string first = await context.ScheduleTask<string>(typeof(RewindFailActivity), input);
                 return await context.ScheduleTask<string>(typeof(RewindFailActivity), first);
+            }
+        }
+
+        sealed class TestSession : SessionBase
+        {
+            public TestSession(
+                AzureStorageOrchestrationServiceSettings settings,
+                string storageAccountName,
+                OrchestrationInstance instance)
+                : base(settings, storageAccountName, instance, Guid.NewGuid())
+            {
+            }
+
+            public override int GetCurrentEpisode()
+            {
+                return 0;
             }
         }
     }

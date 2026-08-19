@@ -63,6 +63,7 @@ namespace DurableTask.AzureStorage
         readonly ConcurrentDictionary<string, ControlQueue> allControlQueues;
         readonly WorkItemQueue workItemQueue;
         readonly ModifiedInstancesQueue modifiedInstancesQueue;
+        readonly MessageShadowTable messageShadowTable;
         readonly ConcurrentDictionary<string, ActivitySession> activeActivitySessions;
         readonly MessageManager messageManager;
 
@@ -136,6 +137,7 @@ namespace DurableTask.AzureStorage
             this.workItemQueue = new WorkItemQueue(this.azureStorageClient, workItemQueueName, this.messageManager);
 
             this.modifiedInstancesQueue = new ModifiedInstancesQueue(this.azureStorageClient);
+            this.messageShadowTable = new MessageShadowTable(this.azureStorageClient);
 
             if (customInstanceStore == null)
             {
@@ -429,6 +431,7 @@ namespace DurableTask.AzureStorage
             }
 
             tasks.Add(this.workItemQueue.DeleteIfExistsAsync());
+            tasks.Add(this.messageShadowTable.DeleteIfExistsAsync());
 
             if (deleteInstanceStore)
             {
@@ -482,7 +485,9 @@ namespace DurableTask.AzureStorage
             {
                 if (migrationMode.Value == MigrationMode.MigrationStarted)
                 {
-                    await this.modifiedInstancesQueue.CreateIfNotExistsAsync();
+                    await Task.WhenAll(
+                        this.modifiedInstancesQueue.CreateIfNotExistsAsync(),
+                        this.messageShadowTable.CreateIfNotExistsAsync());
                 }
 
                 this.isMigrationEnding = migrationMode.Value == MigrationMode.MigrationEnding;
@@ -1508,7 +1513,14 @@ namespace DurableTask.AzureStorage
 
             await enqueueOperations.ParallelForEachAsync(
                 this.settings.MaxStorageOperationConcurrency,
-                op => op.Queue.AddMessageAsync(op.Message, session));
+                op => this.AddTaskHubMessageAsync(op.Queue, op.Message, session));
+        }
+
+        Task AddTaskHubMessageAsync(TaskHubQueue queue, TaskMessage message, SessionBase session)
+        {
+            return this.trackingStore.IsMigrationActive
+                ? queue.AddMessageWithShadowAsync(message, session)
+                : queue.AddMessageAsync(message, session);
         }
 
         async Task DeleteMessageBatchAsync(OrchestrationSession session, IList<MessageData> messagesToDelete)
@@ -1699,7 +1711,7 @@ namespace DurableTask.AzureStorage
 
             // First, send a response message back. If this fails, we'll try again later since we haven't deleted the
             // work item message yet (that happens next).
-            await controlQueue.AddMessageAsync(responseTaskMessage, session);
+            await this.AddTaskHubMessageAsync(controlQueue, responseTaskMessage, session);
 
             // RequestTelemetryTracking
             CorrelationTraceClient.Propagate(
