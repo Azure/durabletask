@@ -67,12 +67,12 @@ namespace DurableTask.AzureStorage.Tests
 
         /// <summary>
         /// Verifies that a no-parent write clears a parent ID left behind by a previous row with the same
-        /// instance ID. This is the merge-semantics case: <see cref="AzureTableTrackingStore"/> writes the
-        /// Instances row for a completed orchestration with InsertOrMerge, so a helper that skips the
-        /// property when there is no parent would leave the stale value in place.
+        /// instance ID. This covers the terminal-history repair write, which is unconditionally
+        /// InsertOrMerge, so a helper that skips the property when there is no parent would leave the
+        /// stale value in place.
         /// </summary>
         [TestMethod]
-        public async Task NoParentWrite_ClearsStaleParentInstanceId()
+        public async Task CompletedOrchestrationRepair_ClearsStaleParentInstanceId_WithInsertOrMerge()
         {
             string instanceId = $"stale-{Guid.NewGuid():N}";
 
@@ -96,28 +96,88 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
-        /// The same clearing behavior must hold for the ETag-based update path, which uses Merge rather
-        /// than InsertOrMerge. Both are merge operations, so both retain omitted properties.
+        /// The clearing behavior must also hold for the checkpoint write in
+        /// <see cref="AzureTableTrackingStore.UpdateStateAsync"/>, which routes through
+        /// UpdateInstanceTableAsync. That method picks InsertOrMerge when UseInstanceTableEtag is false and
+        /// Merge (with the supplied ETag) when it is true. Both are merge operations, so an omitted
+        /// property is retained and a previous parent would survive into an unrelated orchestration that
+        /// reused the instance ID. Seeding a row and passing its ETag is what makes the true case reach
+        /// MergeEntityAsync rather than the insert branch.
         /// </summary>
         [DataTestMethod]
         [DataRow(false)]
         [DataRow(true)]
-        public async Task NoParentWrite_ClearsStaleParentInstanceId_ForBothEtagModes(bool useInstanceTableEtag)
+        public async Task CheckpointWrite_ClearsStaleParentInstanceId_ForBothEtagModes(bool useInstanceTableEtag)
         {
             this.settings.UseInstanceTableEtag = useInstanceTableEtag;
             string instanceId = $"etag-{useInstanceTableEtag}-{Guid.NewGuid():N}";
 
             await this.SeedInstanceRowAsync(instanceId, "stale-parent");
+            Assert.AreEqual("stale-parent", await this.GetRawParentInstanceIdAsync(instanceId), "Seeded row should carry the stale parent.");
 
-            await this.trackingStore.UpdateInstanceStatusForCompletedOrchestrationAsync(
+            // Passing the seeded row's ETag forces the UseInstanceTableEtag=true case down the
+            // MergeEntityAsync branch; a null ETag there would insert instead of merging.
+            OrchestrationInstanceStatus seeded = await this.GetRawEntityAsync(instanceId);
+            var eTags = new OrchestrationETags
+            {
+                InstanceETag = useInstanceTableEtag ? new ETag(seeded.ETag.ToString()) : (ETag?)null,
+            };
+
+            var runtimeState = new OrchestrationRuntimeState();
+            runtimeState.AddEvent(CreateExecutionStartedEvent(instanceId, "execution-1", parentInstanceId: null));
+
+            await this.trackingStore.UpdateStateAsync(
+                runtimeState,
+                runtimeState,
                 instanceId,
-                executionId: "execution-1",
-                runtimeState: CreateCompletedRuntimeState(instanceId, "execution-1", parentInstanceId: null),
-                instanceEntityExists: true);
+                "execution-1",
+                eTags,
+                await this.GetTrackingStoreContextAsync(instanceId));
 
-            Assert.AreEqual(string.Empty, await this.GetRawParentInstanceIdAsync(instanceId));
+            Assert.AreEqual(
+                string.Empty,
+                await this.GetRawParentInstanceIdAsync(instanceId),
+                "The checkpoint write must clear the stored property, otherwise merge semantics retain the stale parent.");
+
             InstanceStatus status = await this.trackingStore.FetchInstanceStatusAsync(instanceId);
-            Assert.IsNull(status.State.ParentInstance);
+            Assert.IsNull(status.State.ParentInstance, "A cleared parent must read back as a null ParentInstance.");
+        }
+
+        /// <summary>
+        /// The checkpoint write must also persist a non-null parent, for both update modes.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task CheckpointWrite_PersistsParentInstanceId_ForBothEtagModes(bool useInstanceTableEtag)
+        {
+            this.settings.UseInstanceTableEtag = useInstanceTableEtag;
+            string parentInstanceId = $"parent-{Guid.NewGuid():N}";
+            string childInstanceId = $"{parentInstanceId}:child";
+
+            await this.SeedInstanceRowAsync(childInstanceId, parentInstanceId: null);
+
+            OrchestrationInstanceStatus seeded = await this.GetRawEntityAsync(childInstanceId);
+            var eTags = new OrchestrationETags
+            {
+                InstanceETag = useInstanceTableEtag ? new ETag(seeded.ETag.ToString()) : (ETag?)null,
+            };
+
+            var runtimeState = new OrchestrationRuntimeState();
+            runtimeState.AddEvent(CreateExecutionStartedEvent(childInstanceId, "execution-1", parentInstanceId));
+
+            await this.trackingStore.UpdateStateAsync(
+                runtimeState,
+                runtimeState,
+                childInstanceId,
+                "execution-1",
+                eTags,
+                await this.GetTrackingStoreContextAsync(childInstanceId));
+
+            Assert.AreEqual(parentInstanceId, await this.GetRawParentInstanceIdAsync(childInstanceId));
+
+            InstanceStatus status = await this.trackingStore.FetchInstanceStatusAsync(childInstanceId);
+            Assert.AreEqual(parentInstanceId, status.State.ParentInstance?.OrchestrationInstance.InstanceId);
         }
 
         /// <summary>
@@ -223,10 +283,25 @@ namespace DurableTask.AzureStorage.Tests
                 ["LastUpdatedTime"] = DateTime.UtcNow,
                 ["TaskHubName"] = this.taskHubName,
                 ["ExecutionId"] = "execution-0",
-                [ParentInstanceIdProperty] = parentInstanceId,
             };
 
+            // A null parent seeds a row with no property at all, which is also the legacy row shape.
+            if (parentInstanceId != null)
+            {
+                entity[ParentInstanceIdProperty] = parentInstanceId;
+            }
+
             await this.trackingStore.InstancesTable.InsertOrMergeEntityAsync(entity);
+        }
+
+        /// <summary>
+        /// UpdateStateAsync casts the tracking-store context to a private type, so the only legitimate way
+        /// to obtain one is from the production history read, which is exactly what the dispatcher does.
+        /// </summary>
+        async Task<object> GetTrackingStoreContextAsync(string instanceId)
+        {
+            OrchestrationHistory history = await this.trackingStore.GetHistoryEventsAsync(instanceId, expectedExecutionId: null);
+            return history.TrackingStoreContext;
         }
 
         async Task<OrchestrationInstanceStatus> GetRawEntityAsync(string instanceId)
