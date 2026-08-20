@@ -154,8 +154,15 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        /// <summary>
+        /// Verifies that the normal checkpoint write path records a child's parent, and that the value is
+        /// returned by both a direct instance lookup and a status query. This does not cover the
+        /// terminal-history repair path; see
+        /// <see cref="ParentInstanceIdTrackingStoreTests.CompletedOrchestrationRepair_PersistsParentInstanceId"/>
+        /// for that.
+        /// </summary>
         [TestMethod]
-        public async Task ParentMetadataIsReturnedForFastCompletingChild()
+        public async Task ParentMetadataIsReturnedByDirectGetAndQuery()
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
                 enableExtendedSessions: false,
