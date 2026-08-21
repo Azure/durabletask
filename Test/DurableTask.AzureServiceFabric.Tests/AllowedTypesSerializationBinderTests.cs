@@ -223,11 +223,11 @@ namespace DurableTask.AzureServiceFabric.Tests
         }
 
         [TestMethod]
-        public void Settings_BinderCanBeSetToNull()
+        public void Settings_NullBinderRestoresAllowedTypesBinder()
         {
             var providerSettings = new FabricOrchestrationProviderSettings();
             providerSettings.JsonSerializationBinder = null;
-            Assert.IsNull(providerSettings.JsonSerializationBinder);
+            Assert.IsInstanceOfType(providerSettings.JsonSerializationBinder, typeof(AllowedTypesSerializationBinder));
         }
 
         [TestMethod]
