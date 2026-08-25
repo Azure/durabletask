@@ -276,12 +276,16 @@ namespace DurableTask.AzureStorage.Tracking
             // REWIND ALGORITHM:
             // 1. Finds failed execution of specified orchestration instance to rewind
             // 2. Finds failure entities to clear and over-writes them (as well as corresponding trigger events)
-            // 3. Identifies sub-orchestration failure(s) from parent instance and calls RewindHistoryAsync recursively on failed sub-orchestration child instance(s)
-            // 4. Resets orchestration status of rewound instance in instance store table to prepare it to be restarted
-            // 5. Returns "failedLeaves", a list of the deepest failed instances on each failed branch to revive with RewindEvent messages
+            // 3. Over-writes everything the orchestrator scheduled at or after the episode in which it first observed a failure,
+            //    together with the entities carrying those results, since the replayed orchestrator can no longer reach them
+            // 4. Identifies sub-orchestration failure(s) from parent instance and calls RewindHistoryAsync recursively on failed sub-orchestration child instance(s)
+            // 5. Resets orchestration status of rewound instance in instance store table to prepare it to be restarted
+            // 6. Returns "failedLeaves", a list of the deepest failed instances on each failed branch to revive with RewindEvent messages
+            //
+            // NOTE: this must be kept in sync with TaskOrchestrationDispatcher.ProcessRewindOrchestrationDecision, which performs the
+            // equivalent scrub over an OrchestrationRuntimeState for backends that rewind at the SDK layer.
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-            bool hasFailedSubOrchestrations = false;
             string partitionFilter = AzureTableQueryFilter.PartitionKeyEquals(instanceId);
 
             string orchestratorStartedFilter = $"{partitionFilter} and {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.OrchestratorStarted)}'";
@@ -296,84 +300,174 @@ namespace DurableTask.AzureStorage.Tracking
             // Use parameterized filter to prevent OData injection via crafted execution IDs
             string executionIdFilter = AzureTableQueryFilter.ColumnEquals(nameof(OrchestrationInstance.ExecutionId), executionId);
 
-            var updateFilterBuilder = new StringBuilder();
-            updateFilterBuilder.Append($"{partitionFilter}");
-            updateFilterBuilder.Append($" and {executionIdFilter}");
-            updateFilterBuilder.Append(" and (");
-            updateFilterBuilder.Append($"{nameof(ExecutionCompletedEvent.OrchestrationStatus)} eq '{nameof(OrchestrationStatus.Failed)}'");
-            updateFilterBuilder.Append($" or {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.TaskFailed)}'");
-            updateFilterBuilder.Append($" or {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.SubOrchestrationInstanceFailed)}'");
-            updateFilterBuilder.Append(')');
+            // The full history of the current execution. Row keys are the chronological sequence number of the event formatted as
+            // fixed-width hex, and Azure Table Storage returns entities ordered by row key within a partition, so this list is in
+            // chronological order.
+            IReadOnlyList<TableEntity> historyEntities = await this.QueryHistoryAsync(
+                $"{partitionFilter} and {executionIdFilter}",
+                instanceId,
+                cancellationToken);
 
-            IReadOnlyList<TableEntity> entitiesToClear = await this.QueryHistoryAsync(updateFilterBuilder.ToString(), instanceId, cancellationToken);
-            foreach (TableEntity entity in entitiesToClear)
+            // Determine the task IDs of the failed tasks and suborchestrations, along with the earliest episode in which the
+            // orchestrator observed one of those failures. Episodes are delimited by OrchestratorStarted events.
+            var failedTaskIds = new HashSet<int>();
+            int failureEpisode = int.MaxValue;
+            int episode = -1;
+
+            foreach (TableEntity entity in historyEntities)
             {
-                if (entity.GetString(nameof(OrchestrationInstance.ExecutionId)) != executionId)
+                string eventType = entity.GetString(nameof(HistoryEvent.EventType));
+                if (eventType == nameof(EventType.OrchestratorStarted))
                 {
-                    // the remaining entities are from a previous generation and can be discarded.
-                    break;
+                    episode++;
                 }
+                else if (eventType == nameof(EventType.TaskFailed) || eventType == nameof(EventType.SubOrchestrationInstanceFailed))
+                {
+                    failedTaskIds.Add(entity.GetInt32(nameof(TaskFailedEvent.TaskScheduledId)).GetValueOrDefault());
+                    failureEpisode = Math.Min(failureEpisode, episode);
+                }
+            }
 
+            // Anything the orchestrator scheduled from the failure episode onwards was scheduled only because the orchestrator
+            // observed the failure (for example an activity invoked from a catch block, or the delay timer that RetryInterceptor
+            // creates between attempts). After the rewind the failure is no longer visible, so the replayed orchestrator can never
+            // reach those sequence IDs and would fail with a NonDeterministicOrchestrationException. Note that this deliberately
+            // errs on the side of removing too much: within the failure episode we cannot tell a consequence of the failure apart
+            // from unrelated work that happened to be batched into the same work item without replaying the orchestrator code. The
+            // cost is that a small number of already-successful tasks may be re-executed; the benefit is a history that replays.
+            var consequenceTaskIds = new HashSet<int>();
+            episode = -1;
+
+            foreach (TableEntity entity in historyEntities)
+            {
+                string eventType = entity.GetString(nameof(HistoryEvent.EventType));
+                if (eventType == nameof(EventType.OrchestratorStarted))
+                {
+                    episode++;
+                }
+                else if (episode >= failureEpisode && IsScheduledEventType(eventType))
+                {
+                    consequenceTaskIds.Add(entity.GetInt32(nameof(HistoryEvent.EventId)).GetValueOrDefault());
+                }
+            }
+
+            // Decide what to do with each entity before touching the table, so that no entity is written twice.
+            var entitiesToClear = new List<TableEntity>();
+            var failedSubOrchestrationEntities = new List<TableEntity>();
+
+            foreach (TableEntity entity in historyEntities)
+            {
                 if (entity.RowKey == SentinelRowKey)
                 {
                     continue;
                 }
 
-                int? taskScheduledId = entity.GetInt32(nameof(TaskCompletedEvent.TaskScheduledId));
-
-                var eventFilterBuilder = new StringBuilder();
-                eventFilterBuilder.Append($"{partitionFilter}");
-                eventFilterBuilder.Append($" and {executionIdFilter}");
-                eventFilterBuilder.Append($" and {nameof(HistoryEvent.EventId)} eq {taskScheduledId.GetValueOrDefault()}");
-
-                switch (entity.GetString(nameof(HistoryEvent.EventType)))
+                if (entity.GetString(nameof(OrchestrationInstance.ExecutionId)) != executionId)
                 {
-                    // delete TaskScheduled corresponding to TaskFailed event
-                    case nameof(EventType.TaskFailed):
-                        eventFilterBuilder.Append($" and {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.TaskScheduled)}'");
-                        IReadOnlyList<TableEntity> taskScheduledEntities = await this.QueryHistoryAsync(eventFilterBuilder.ToString(), instanceId, cancellationToken);
-
-                        TableEntity tsEntity = taskScheduledEntities[0];
-                        tsEntity[nameof(TaskFailedEvent.Reason)] = "Rewound: " + tsEntity.GetString(nameof(HistoryEvent.EventType));
-                        tsEntity[nameof(TaskFailedEvent.EventType)] = nameof(EventType.GenericEvent);
-                        await this.HistoryTable.ReplaceEntityAsync(tsEntity, tsEntity.ETag, cancellationToken);
-                        break;
-
-                    // delete SubOrchestratorCreated corresponding to SubOrchestraionInstanceFailed event
-                    case nameof(EventType.SubOrchestrationInstanceFailed):
-                        hasFailedSubOrchestrations = true;
-
-                        eventFilterBuilder.Append($" and {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.SubOrchestrationInstanceCreated)}'");
-                        IReadOnlyList<TableEntity> subOrchesratrationEntities = await this.QueryHistoryAsync(eventFilterBuilder.ToString(), instanceId, cancellationToken);
-
-                        // the SubOrchestrationCreatedEvent is still healthy and will not be overwritten, just marked as rewound
-                        TableEntity soEntity = subOrchesratrationEntities[0];
-                        soEntity[nameof(SubOrchestrationInstanceFailedEvent.Reason)] = "Rewound: " + soEntity.GetString(nameof(HistoryEvent.EventType));
-                        await this.HistoryTable.ReplaceEntityAsync(soEntity, soEntity.ETag, cancellationToken);
-
-                        // recursive call to clear out failure events on child instances
-                        await foreach (string childInstanceId in this.RewindHistoryAsync(soEntity.GetString(nameof(OrchestrationInstance.InstanceId)), cancellationToken))
-                        {
-                            yield return childInstanceId;
-                        }
-
-                        break;
+                    // the entity is from a previous generation and can be discarded.
+                    continue;
                 }
 
-                // "clear" failure event by making RewindEvent: replay ignores row while dummy event preserves rowKey
+                string eventType = entity.GetString(nameof(HistoryEvent.EventType));
+                int eventId = entity.GetInt32(nameof(HistoryEvent.EventId)).GetValueOrDefault();
+
+                // the failure events themselves, including the failed ExecutionCompleted event
+                if (eventType == nameof(EventType.TaskFailed)
+                    || eventType == nameof(EventType.SubOrchestrationInstanceFailed)
+                    || entity.GetString(nameof(ExecutionCompletedEvent.OrchestrationStatus)) == nameof(OrchestrationStatus.Failed))
+                {
+                    entitiesToClear.Add(entity);
+                }
+
+                // the TaskScheduled event corresponding to a TaskFailed event, so that the task gets rescheduled
+                else if (eventType == nameof(EventType.TaskScheduled) && failedTaskIds.Contains(eventId))
+                {
+                    entitiesToClear.Add(entity);
+                }
+
+                // the SubOrchestrationInstanceCreated event corresponding to a SubOrchestrationInstanceFailed event is still
+                // healthy and will not be overwritten, just marked as rewound, so long as it is not itself being removed
+                else if (eventType == nameof(EventType.SubOrchestrationInstanceCreated)
+                    && failedTaskIds.Contains(eventId)
+                    && !consequenceTaskIds.Contains(eventId))
+                {
+                    failedSubOrchestrationEntities.Add(entity);
+                }
+
+                // everything the orchestrator scheduled as a consequence of observing the failure
+                else if (IsScheduledEventType(eventType) && consequenceTaskIds.Contains(eventId))
+                {
+                    entitiesToClear.Add(entity);
+                }
+
+                // and the results of those scheduled events. Leaving them behind would allow a stale result to satisfy a different
+                // task that gets assigned the same sequence ID once the orchestration resumes.
+                else if (TryGetCompletedTaskId(entity, eventType, out int completedTaskId) && consequenceTaskIds.Contains(completedTaskId))
+                {
+                    entitiesToClear.Add(entity);
+                }
+            }
+
+            foreach (TableEntity entity in entitiesToClear)
+            {
+                // "clear" the event by making it a GenericEvent: replay ignores the row while the dummy event preserves the rowKey
                 entity[nameof(TaskFailedEvent.Reason)] = "Rewound: " + entity.GetString(nameof(HistoryEvent.EventType));
                 entity[nameof(TaskFailedEvent.EventType)] = nameof(EventType.GenericEvent);
 
                 await this.HistoryTable.ReplaceEntityAsync(entity, entity.ETag, cancellationToken);
             }
 
+            foreach (TableEntity entity in failedSubOrchestrationEntities)
+            {
+                entity[nameof(SubOrchestrationInstanceFailedEvent.Reason)] = "Rewound: " + entity.GetString(nameof(HistoryEvent.EventType));
+                await this.HistoryTable.ReplaceEntityAsync(entity, entity.ETag, cancellationToken);
+
+                // recursive call to clear out failure events on child instances
+                await foreach (string childInstanceId in this.RewindHistoryAsync(entity.GetString(nameof(OrchestrationInstance.InstanceId)), cancellationToken))
+                {
+                    yield return childInstanceId;
+                }
+            }
+
             // reset orchestration status in instance store table
             await this.UpdateStatusForRewindAsync(instanceId, cancellationToken);
 
-            if (!hasFailedSubOrchestrations)
+            if (failedSubOrchestrationEntities.Count == 0)
             {
                 yield return instanceId;
             }
+        }
+
+        /// <summary>
+        /// Determines whether the event type is one that replay matches against the orchestrator's sequence-ID counter. If one of
+        /// these events has no counterpart in the replayed execution, the orchestration fails with a
+        /// <see cref="Core.Exceptions.NonDeterministicOrchestrationException"/>.
+        /// </summary>
+        static bool IsScheduledEventType(string eventType) =>
+            eventType == nameof(EventType.TaskScheduled)
+            || eventType == nameof(EventType.SubOrchestrationInstanceCreated)
+            || eventType == nameof(EventType.TimerCreated)
+            || eventType == nameof(EventType.EventSent);
+
+        /// <summary>
+        /// Gets the sequence ID of the scheduled task whose result the entity carries.
+        /// </summary>
+        static bool TryGetCompletedTaskId(TableEntity entity, string eventType, out int taskId)
+        {
+            if (eventType == nameof(EventType.TaskCompleted) || eventType == nameof(EventType.SubOrchestrationInstanceCompleted))
+            {
+                taskId = entity.GetInt32(nameof(TaskCompletedEvent.TaskScheduledId)).GetValueOrDefault();
+                return true;
+            }
+
+            if (eventType == nameof(EventType.TimerFired))
+            {
+                taskId = entity.GetInt32(nameof(TimerFiredEvent.TimerId)).GetValueOrDefault();
+                return true;
+            }
+
+            taskId = -1;
+            return false;
         }
 
         /// <inheritdoc />

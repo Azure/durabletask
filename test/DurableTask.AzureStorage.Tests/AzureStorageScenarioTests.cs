@@ -1438,6 +1438,79 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        /// <summary>
+        /// End-to-end test which validates that an orchestration that schedules more work in response to an activity
+        /// failure can be rewound. Regression test for
+        /// https://github.com/Azure/azure-functions-durable-extension/issues/444.
+        /// </summary>
+        [TestMethod]
+        public async Task RewindActivityFailWithCleanupActivity()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
+            {
+                Activities.HelloFailCleanupActivity.ShouldFail = true;
+                await host.StartAsync();
+
+                string singletonInstanceId = $"Test_{Guid.NewGuid():N}";
+
+                var client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.SayHelloWithActivityFailAndCleanup),
+                    input: "World",
+                    instanceId: singletonInstanceId);
+
+                var statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Activities.HelloFailCleanupActivity.ShouldFail = false;
+
+                await client.RewindAsync("Rewind orchestrator that scheduled an activity from its catch block.");
+
+                var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                Assert.AreEqual("\"Hello, World!\"", statusRewind?.Output);
+
+                await host.StopAsync();
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates that an orchestration whose retried activity ultimately failed can be rewound.
+        /// The retry delay timers are also a consequence of the failure and must not survive the rewind.
+        /// </summary>
+        [TestMethod]
+        public async Task RewindActivityFailWithRetry()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
+            {
+                Activities.HelloFailRetryActivity.ShouldFail = true;
+                await host.StartAsync();
+
+                string singletonInstanceId = $"Test_{Guid.NewGuid():N}";
+
+                var client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.SayHelloWithActivityFailAndRetry),
+                    input: "World",
+                    instanceId: singletonInstanceId);
+
+                var statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                Activities.HelloFailRetryActivity.ShouldFail = false;
+
+                await client.RewindAsync("Rewind orchestrator with a retried activity.");
+
+                var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                Assert.AreEqual("\"Hello, World!\"", statusRewind?.Output);
+
+                await host.StopAsync();
+            }
+        }
+
         [TestMethod]
         public async Task RewindMultipleActivityFail()
         {
@@ -4303,6 +4376,38 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
+            [KnownType(typeof(Activities.HelloFailCleanupActivity))]
+            [KnownType(typeof(Activities.Hello))]
+            internal class SayHelloWithActivityFailAndCleanup : TaskOrchestration<string, string>
+            {
+                public override async Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    try
+                    {
+                        return await context.ScheduleTask<string>(typeof(Activities.HelloFailCleanupActivity), input);
+                    }
+                    catch (Exception)
+                    {
+                        // The cleanup activity exists only because the orchestrator observed the failure, so rewind has to
+                        // remove it from the history. See https://github.com/Azure/azure-functions-durable-extension/issues/444.
+                        await context.ScheduleTask<string>(typeof(Activities.Hello), "Cleanup");
+                        throw;
+                    }
+                }
+            }
+
+            [KnownType(typeof(Activities.HelloFailRetryActivity))]
+            internal class SayHelloWithActivityFailAndRetry : TaskOrchestration<string, string>
+            {
+                public override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    // Retries leave delay timers in the history, including one created after the final failed attempt, which
+                    // rewind has to remove along with the failed attempts themselves.
+                    var retryOptions = new RetryOptions(TimeSpan.FromSeconds(1), maxNumberOfAttempts: 2);
+                    return context.ScheduleWithRetry<string>(typeof(Activities.HelloFailRetryActivity), retryOptions, input);
+                }
+            }
+
             [KnownType(typeof(Activities.Multiply))]
             internal class Factorial : TaskOrchestration<long, int>
             {
@@ -5069,6 +5174,44 @@ namespace DurableTask.AzureStorage.Tests
         static class Activities
         {
             internal class HelloFailActivity : TaskActivity<string, string>
+            {
+                public static bool ShouldFail = true;
+                protected override string Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+
+                    if (ShouldFail)
+                    {
+                        throw new Exception("Simulating unhandled activity function failure...");
+                    }
+
+                    return $"Hello, {input}!";
+                }
+            }
+
+            internal class HelloFailCleanupActivity : TaskActivity<string, string>
+            {
+                public static bool ShouldFail = true;
+                protected override string Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+
+                    if (ShouldFail)
+                    {
+                        throw new Exception("Simulating unhandled activity function failure...");
+                    }
+
+                    return $"Hello, {input}!";
+                }
+            }
+
+            internal class HelloFailRetryActivity : TaskActivity<string, string>
             {
                 public static bool ShouldFail = true;
                 protected override string Execute(TaskContext context, string input)
