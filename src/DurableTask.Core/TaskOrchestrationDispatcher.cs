@@ -308,6 +308,24 @@ namespace DurableTask.Core
                 TraceHelper.TraceInstance(TraceEventType.Warning, "TaskOrchestrationDispatcher-ExecutionAborted", instance, "{0}", e.Message);
                 await this.orchestrationService.AbandonTaskOrchestrationWorkItemAsync(workItem);
             }
+            finally
+            {
+                // The session is over and the executor will never run again, so release the orchestrator
+                // continuations it abandoned while waiting on activities, sub-orchestrations, and timers.
+                // Leaving them pending leaks the whole orchestration object graph when a debugger is
+                // attached. See https://github.com/Azure/azure-functions-durable-extension/issues/340.
+                ReleaseCursor(ref workItem.Cursor);
+            }
+        }
+
+        /// <summary>
+        /// Retires the executor held by <paramref name="cursor"/> and clears the reference.
+        /// </summary>
+        static void ReleaseCursor(ref OrchestrationExecutionCursor? cursor)
+        {
+            OrchestrationExecutionCursor? retiredCursor = cursor;
+            cursor = null;
+            retiredCursor?.OrchestrationExecutor?.Dispose();
         }
 
         /// <summary>
@@ -669,7 +687,9 @@ namespace DurableTask.Core
                                 runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
                                 workItem.OrchestrationRuntimeState = runtimeState;
 
-                                workItem.Cursor = null;
+                                // The continued-as-new execution gets a brand new executor, so retire this
+                                // one instead of just dropping the reference.
+                                ReleaseCursor(ref workItem.Cursor);
 
                                 traceActivity = RestartTraceActivityForContinueAsNewIfNeeded(
                                     traceActivity,

@@ -28,7 +28,7 @@ namespace DurableTask.Core
     /// <summary>
     /// Utility for executing task orchestrators.
     /// </summary>
-    public class TaskOrchestrationExecutor
+    public class TaskOrchestrationExecutor : IDisposable
     {
         readonly TaskOrchestrationContext context;
         readonly TaskScheduler decisionScheduler;
@@ -133,6 +133,52 @@ namespace DurableTask.Core
             return this.ExecuteCore(
                 pastEvents: Enumerable.Empty<HistoryEvent>(),
                 newEvents: this.orchestrationRuntimeState.NewEvents);
+        }
+
+        /// <summary>
+        /// Releases the orchestrator continuations that this executor abandoned while waiting on
+        /// activities, sub-orchestrations, or timers.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Call this once the executor is guaranteed never to run again, i.e. when the orchestration
+        /// session ends. It must not be called between episodes of an extended session, because an open
+        /// task still needs to be able to receive its result on a later episode.
+        /// </para>
+        /// <para>
+        /// Skipping this call is not a correctness problem, but it leaks memory whenever a debugger is
+        /// attached: the CLR keeps every awaited task in a process-wide dictionary until that task
+        /// completes, so abandoned orchestrator awaits permanently root the orchestration object graph.
+        /// See https://github.com/Azure/azure-functions-durable-extension/issues/340.
+        /// </para>
+        /// </remarks>
+        public void Dispose()
+        {
+            SynchronizationContext prevCtx = SynchronizationContext.Current;
+            bool prevIsOrchestratorThread = OrchestrationContext.IsOrchestratorThread;
+
+            try
+            {
+                // Cancelling the open tasks resumes orchestrator code, so give it the same ambient
+                // environment it sees during a normal episode.
+                SynchronizationContext.SetSynchronizationContext(
+                    new TaskOrchestrationSynchronizationContext(this.decisionScheduler));
+                OrchestrationContext.IsOrchestratorThread = true;
+
+                this.context.ReleaseOpenTasks();
+            }
+            finally
+            {
+                SynchronizationContext.SetSynchronizationContext(prevCtx);
+                OrchestrationContext.IsOrchestratorThread = prevIsOrchestratorThread;
+
+                // Unwinding may have faulted the orchestrator's top-level task. Nothing observes it at this
+                // point, so observe it here to keep it from surfacing as an unobserved task exception.
+                if (this.result?.IsFaulted == true)
+                {
+                    _ = this.result.Exception;
+                }
+            }
         }
 
         OrchestratorExecutionResult ExecuteCore(IEnumerable<HistoryEvent> pastEvents, IEnumerable<HistoryEvent> newEvents)

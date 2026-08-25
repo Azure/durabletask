@@ -35,6 +35,7 @@ namespace DurableTask.Core
         private OrchestrationCompleteOrchestratorAction continueAsNew;
         private static readonly ContinueAsNewOptions DefaultContinueAsNewOptions = new ContinueAsNewOptions();
         private bool executionCompletedOrTerminated;
+        private bool isReleased;
         private int idCounter;
         private readonly Queue<HistoryEvent> eventsWhileSuspended;
         private readonly IDictionary<int, OrchestratorAction> suspendedActionsMap;
@@ -74,6 +75,76 @@ namespace DurableTask.Core
         public IEnumerable<OrchestratorAction> OrchestratorActions => this.orchestratorActionsMap.Values;
 
         public bool HasOpenTasks => this.openTasks.Count > 0;
+
+        /// <summary>
+        /// Cancels every open task so that the orchestrator's abandoned <c>await</c> continuations are released.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Orchestrator code parks on a <see cref="TaskCompletionSource{TResult}"/> for every activity,
+        /// sub-orchestration, and timer it is waiting on. When an episode ends, those tasks are simply
+        /// abandoned in a pending state, because their results are not yet known. That is harmless to the
+        /// garbage collector on its own, but when a debugger is attached the CLR records every awaited task
+        /// in the process-wide <c>Task.s_currentActiveTasks</c> dictionary and only removes the entry when
+        /// the awaited task completes. Abandoned tasks therefore stay rooted forever, and with them the
+        /// entire orchestration object graph (context, history, inputs, and outputs).
+        /// </para>
+        /// <para>
+        /// Cancelling the open tasks lets each awaiter continuation run and unregister itself, which is what
+        /// allows the graph to be collected. This is only safe once the executor is guaranteed never to be
+        /// used again, since a cancelled task can no longer receive a result on a subsequent episode.
+        /// </para>
+        /// </remarks>
+        internal void ReleaseOpenTasks()
+        {
+            if (this.isReleased)
+            {
+                return;
+            }
+
+            // Set this before cancelling anything: cancellation resumes orchestrator code, and that code must
+            // not be able to open new tasks that would leak in exactly the same way.
+            this.isReleased = true;
+
+            if (this.openTasks.Count == 0)
+            {
+                return;
+            }
+
+            // Resumed orchestrator code can mutate openTasks (for example via a timer cancellation callback),
+            // so cancel from a snapshot rather than while enumerating the live dictionary.
+            List<OpenTaskInfo> abandonedTasks = this.openTasks.Values.ToList();
+            this.openTasks.Clear();
+
+            foreach (OpenTaskInfo info in abandonedTasks)
+            {
+                try
+                {
+                    info.Result.TrySetCanceled();
+                }
+                catch (Exception e) when (!Utils.IsFatal(e))
+                {
+                    // Orchestrator code observed the cancellation and threw. The episode is already over and
+                    // its decisions have already been captured, so there is nothing to report. Swallow the
+                    // exception and keep going so the remaining tasks still get released.
+                    TraceHelper.TraceSession(
+                        TraceEventType.Warning,
+                        "TaskOrchestrationContext-ReleaseOpenTasks",
+                        OrchestrationInstance?.InstanceId,
+                        "Exception while releasing abandoned orchestrator tasks: {0}",
+                        e);
+                }
+            }
+        }
+
+        private void ThrowIfReleased()
+        {
+            if (this.isReleased)
+            {
+                throw new OperationCanceledException(
+                    "This orchestration episode has ended and the orchestration context can no longer schedule work.");
+            }
+        }
 
         internal void ClearPendingActions()
         {
@@ -126,6 +197,8 @@ namespace DurableTask.Core
         public async Task<object> ScheduleTaskInternal(string name, string version, string taskList, Type resultType,
             ScheduleTaskOptions options, params object[] parameters)
         {
+            ThrowIfReleased();
+
             int id = this.idCounter++;
             string serializedInput = this.MessageDataConverter.SerializeInternal(parameters);
             var scheduleTaskTaskAction = new ScheduleTaskOrchestratorAction
@@ -189,6 +262,8 @@ namespace DurableTask.Core
             object input,
             IDictionary<string, string> tags)
         {
+            ThrowIfReleased();
+
             int id = this.idCounter++;
             string serializedInput = this.MessageDataConverter.SerializeInternal(input);
 
@@ -294,6 +369,8 @@ namespace DurableTask.Core
                     "The state parameter cannot be a CancellationToken. Did you mean to use a different overload?",
                     paramName: nameof(state));
             }
+
+            ThrowIfReleased();
 
             int id = this.idCounter++;
             var createTimerOrchestratorAction = new CreateTimerOrchestratorAction
