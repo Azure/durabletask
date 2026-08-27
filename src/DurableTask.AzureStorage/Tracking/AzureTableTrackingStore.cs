@@ -956,6 +956,12 @@ namespace DurableTask.AzureStorage.Tracking
                 ["TaskHubName"] = this.settings.TaskHubName,
             };
 
+            // The parent is written on every checkpoint, not just the one carrying ExecutionStarted, so that
+            // it is always merged together with the ExecutionId above. Because the Instances row is keyed
+            // only by instance ID, a reused instance ID would otherwise end up advertising the current
+            // execution alongside a parent left behind by the previous orchestration.
+            SetParentInstanceId(instanceEntity, newRuntimeState.ParentInstance);
+
             // check if we are replacing a previous execution with blobs; those will be deleted from the store after the update. This could occur in a ContinueAsNew scenario
             List<string> blobsToDelete = null;
             if (oldRuntimeState != newRuntimeState && context.Blobs.Count > 0)
@@ -1002,7 +1008,6 @@ namespace DurableTask.AzureStorage.Tracking
                         instanceEntity["RuntimeStatus"] = OrchestrationStatus.Running.ToString();
                         instanceEntity["Tags"] = TagsSerializer.Serialize(executionStartedEvent.Tags);
                         instanceEntity["Generation"] = executionStartedEvent.Generation;
-                        SetParentInstanceId(instanceEntity, executionStartedEvent.ParentInstance);
                         if (executionStartedEvent.ScheduledStartTime.HasValue)
                         {
                             instanceEntity["ScheduledStartTime"] = executionStartedEvent.ScheduledStartTime;

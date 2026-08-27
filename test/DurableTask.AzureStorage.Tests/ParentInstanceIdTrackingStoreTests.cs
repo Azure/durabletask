@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage.Tests
 {
     using System;
+    using System.Linq;
     using System.Threading.Tasks;
     using Azure;
     using Azure.Data.Tables;
@@ -178,6 +179,63 @@ namespace DurableTask.AzureStorage.Tests
 
             InstanceStatus status = await this.trackingStore.FetchInstanceStatusAsync(childInstanceId);
             Assert.AreEqual(parentInstanceId, status.State.ParentInstance?.OrchestrationInstance.InstanceId);
+        }
+
+        /// <summary>
+        /// Verifies that a checkpoint whose NewEvents do not include the ExecutionStarted event still
+        /// writes the parent that belongs to the execution being checkpointed. Every instance-table write
+        /// merges a current ExecutionId, so a parent that is only written from the ExecutionStarted branch
+        /// would leave the row advertising a new execution alongside a parent carried over from a previous
+        /// orchestration that reused the same instance ID.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(false, false)]
+        [DataRow(false, true)]
+        [DataRow(true, false)]
+        [DataRow(true, true)]
+        public async Task CheckpointWithoutExecutionStarted_WritesParentForCurrentExecution(bool useInstanceTableEtag, bool hasParent)
+        {
+            this.settings.UseInstanceTableEtag = useInstanceTableEtag;
+            string instanceId = $"reuse-{useInstanceTableEtag}-{hasParent}-{Guid.NewGuid():N}";
+            string currentParentInstanceId = hasParent ? $"parent-{Guid.NewGuid():N}" : null;
+            const string CurrentExecutionId = "execution-2";
+
+            // The seeded row stands in for a previous orchestration that used this instance ID and had a
+            // different parent. SeedInstanceRowAsync writes ExecutionId "execution-0".
+            await this.SeedInstanceRowAsync(instanceId, "stale-parent");
+            Assert.AreEqual("stale-parent", await this.GetRawParentInstanceIdAsync(instanceId), "Seeded row should carry the stale parent.");
+
+            OrchestrationInstanceStatus seeded = await this.GetRawEntityAsync(instanceId);
+            var eTags = new OrchestrationETags
+            {
+                InstanceETag = useInstanceTableEtag ? new ETag(seeded.ETag.ToString()) : (ETag?)null,
+            };
+
+            // Putting ExecutionStarted in PastEvents reproduces a mid-orchestration checkpoint: the parent
+            // is known to the runtime state, but no ExecutionStarted event is being persisted in this batch.
+            var runtimeState = new OrchestrationRuntimeState(
+                new HistoryEvent[] { CreateExecutionStartedEvent(instanceId, CurrentExecutionId, currentParentInstanceId) });
+            runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+
+            Assert.AreEqual(0, runtimeState.NewEvents.Count(e => e is ExecutionStartedEvent), "The checkpoint under test must not contain an ExecutionStarted event.");
+
+            await this.trackingStore.UpdateStateAsync(
+                runtimeState,
+                runtimeState,
+                instanceId,
+                CurrentExecutionId,
+                eTags,
+                await this.GetTrackingStoreContextAsync(instanceId));
+
+            OrchestrationInstanceStatus updated = await this.GetRawEntityAsync(instanceId);
+            Assert.AreEqual(CurrentExecutionId, updated.ExecutionId, "The checkpoint should have merged the current execution ID.");
+            Assert.AreEqual(
+                currentParentInstanceId ?? string.Empty,
+                updated.ParentInstanceId,
+                "The stored parent must match the execution recorded on the same row, not the parent of the previous instance.");
+
+            InstanceStatus status = await this.trackingStore.FetchInstanceStatusAsync(instanceId);
+            Assert.AreEqual(currentParentInstanceId, status.State.ParentInstance?.OrchestrationInstance.InstanceId);
         }
 
         /// <summary>
