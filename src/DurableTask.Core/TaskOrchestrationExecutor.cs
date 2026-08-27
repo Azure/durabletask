@@ -157,6 +157,12 @@ namespace DurableTask.Core
         /// component that knows when an executor will never run again, so exposing this externally would
         /// add public surface that no caller outside this assembly can use correctly.
         /// </para>
+        /// <para>
+        /// This is not side-effect free: cancelling the open tasks resumes orchestrator code, so the
+        /// orchestrator's <c>catch</c> and <c>finally</c> blocks run. There is no supported way to drop the
+        /// CLR's active-task roots without running those continuations, so the dispatcher only calls this
+        /// when a debugger is attached, which is the only situation in which the leak exists.
+        /// </para>
         /// </remarks>
         internal void Release()
         {

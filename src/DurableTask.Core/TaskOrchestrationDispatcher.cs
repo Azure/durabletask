@@ -310,10 +310,10 @@ namespace DurableTask.Core
             }
             finally
             {
-                // The session is over and the executor will never run again, so release the orchestrator
-                // continuations it abandoned while waiting on activities, sub-orchestrations, and timers.
-                // Leaving them pending leaks the whole orchestration object graph when a debugger is
-                // attached. See https://github.com/Azure/azure-functions-durable-extension/issues/340.
+                // The session is over and the executor will never run again. Always drop the cursor; only tear
+                // down the abandoned orchestrator continuations when a debugger is attached, because that
+                // teardown necessarily runs user catch/finally blocks and the leak it prevents is
+                // debugger-only. See https://github.com/Azure/azure-functions-durable-extension/issues/340.
                 ReleaseCursor(ref workItem.Cursor);
             }
         }
@@ -321,10 +321,37 @@ namespace DurableTask.Core
         /// <summary>
         /// Retires the executor held by <paramref name="cursor"/> and clears the reference.
         /// </summary>
+        /// <remarks>
+        /// Continuation teardown is gated on <see cref="Debugger.IsAttached"/>. The leak this guards against
+        /// only exists when a debugger is attached, and the teardown is not free of side effects: cancelling
+        /// the abandoned tasks resumes orchestrator code, so user <c>catch</c> and <c>finally</c> blocks run.
+        /// There is no supported way to drop the CLR's active-task roots without running those continuations,
+        /// so the cost is confined to the situation that actually needs it.
+        /// </remarks>
         static void ReleaseCursor(ref OrchestrationExecutionCursor? cursor)
+        {
+            ReleaseCursor(ref cursor, runContinuationTeardown: Debugger.IsAttached);
+        }
+
+        /// <summary>
+        /// Retirement logic behind <see cref="ReleaseCursor(ref OrchestrationExecutionCursor?)"/>, with the
+        /// debugger check lifted into <paramref name="runContinuationTeardown"/> so both branches are testable.
+        /// </summary>
+        /// <param name="cursor">The cursor to retire. Always cleared, whatever the second argument is.</param>
+        /// <param name="runContinuationTeardown">
+        /// Whether to also cancel the executor's abandoned orchestrator continuations. When false the executor
+        /// is simply dropped, which is what this dispatcher did before the leak fix.
+        /// </param>
+        internal static void ReleaseCursor(ref OrchestrationExecutionCursor? cursor, bool runContinuationTeardown)
         {
             OrchestrationExecutionCursor? retiredCursor = cursor;
             cursor = null;
+
+            if (!runContinuationTeardown)
+            {
+                return;
+            }
+
             retiredCursor?.OrchestrationExecutor?.Release();
         }
 

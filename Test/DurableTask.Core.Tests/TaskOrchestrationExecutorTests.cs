@@ -32,7 +32,9 @@ namespace DurableTask.Core.Tests
     /// the episode ends. When a debugger is attached, the CLR keeps every awaited task in the process-wide
     /// <c>Task.s_currentActiveTasks</c> dictionary until the task completes, so abandoned awaits permanently
     /// root the orchestration object graph. Releasing the executor cancels the open tasks, which lets those
-    /// awaiter continuations run and unregister themselves.
+    /// awaiter continuations run and unregister themselves. The dispatcher only does that when a debugger is
+    /// attached, since the cancellation resumes user code; these tests drive the internal entry points
+    /// directly so both branches are covered without an attached debugger.
     /// Regression coverage for https://github.com/Azure/azure-functions-durable-extension/issues/340.
     /// </remarks>
     [TestClass]
@@ -146,10 +148,24 @@ namespace DurableTask.Core.Tests
 
             executor.Release();
 
+            // The first failure has to be an OperationCanceledException: that is simply what a cancelled
+            // TaskCompletionSource raises at the await that was abandoned.
+            Assert.IsInstanceOfType(
+                orchestration.FirstFailure,
+                typeof(OperationCanceledException),
+                "Releasing an open task must surface as cancellation at the await that was abandoned.");
+
+            // The retry must not. If retirement also looked like cancellation, the extremely common
+            // 'catch (OperationCanceledException) { retry; }' shape would treat a permanently retired
+            // executor as a transient failure and loop.
             Assert.IsInstanceOfType(
                 orchestration.RescheduleFailure,
-                typeof(OperationCanceledException),
+                typeof(InvalidOperationException),
                 "A released context must refuse to open new tasks, otherwise resumed orchestrator code can leak again.");
+            Assert.IsNotInstanceOfType(
+                orchestration.RescheduleFailure,
+                typeof(OperationCanceledException),
+                "Retirement must not be reported as cancellation, or cancellation-specific retry loops will spin.");
         }
 
         [TestMethod]
@@ -163,6 +179,43 @@ namespace DurableTask.Core.Tests
             executor.Release();
 
             Assert.AreEqual(2, orchestration.ReleasedTaskCount, "Repeated release should not resume continuations more than once.");
+        }
+
+        [TestMethod]
+        public void ReleaseCursor_WithTeardownEnabled_ClearsCursorAndResumesContinuations()
+        {
+            var orchestration = new FanOutOrchestration(fanOut: 3);
+            TaskOrchestrationExecutor executor = CreateExecutor(orchestration);
+            executor.Execute();
+
+            OrchestrationExecutionCursor cursor = CreateCursor(executor);
+            TaskOrchestrationDispatcher.ReleaseCursor(ref cursor, runContinuationTeardown: true);
+
+            Assert.IsNull(cursor, "Retiring a cursor must always clear the reference.");
+            Assert.AreEqual(
+                3,
+                orchestration.ReleasedTaskCount,
+                "With teardown enabled the abandoned awaits should be resumed so they can unregister themselves.");
+        }
+
+        [TestMethod]
+        public void ReleaseCursor_WithTeardownDisabled_ClearsCursorWithoutRunningContinuations()
+        {
+            // Teardown is gated on Debugger.IsAttached because cancelling the open tasks necessarily runs
+            // user catch/finally blocks. Without a debugger there is no leak to fix, so production keeps the
+            // pre-existing behavior: the executor is simply dropped and collected.
+            var orchestration = new FanOutOrchestration(fanOut: 3);
+            TaskOrchestrationExecutor executor = CreateExecutor(orchestration);
+            executor.Execute();
+
+            OrchestrationExecutionCursor cursor = CreateCursor(executor);
+            TaskOrchestrationDispatcher.ReleaseCursor(ref cursor, runContinuationTeardown: false);
+
+            Assert.IsNull(cursor, "The cursor must be cleared whether or not continuation teardown runs.");
+            Assert.AreEqual(
+                0,
+                orchestration.ReleasedTaskCount,
+                "With teardown disabled no orchestrator continuation may run, so user code is unaffected.");
         }
 
         [TestMethod]
@@ -194,6 +247,13 @@ namespace DurableTask.Core.Tests
 
         static TaskOrchestrationExecutor CreateExecutor(TaskOrchestration orchestration) =>
             new TaskOrchestrationExecutor(CreateRuntimeState(), orchestration, BehaviorOnContinueAsNew.Carryover);
+
+        static OrchestrationExecutionCursor CreateCursor(TaskOrchestrationExecutor executor) =>
+            new OrchestrationExecutionCursor(
+                CreateRuntimeState(),
+                orchestration: null,
+                executor: executor,
+                latestDecisions: Enumerable.Empty<OrchestratorAction>());
 
         static OrchestrationRuntimeState CreateRuntimeState()
         {
@@ -257,11 +317,14 @@ namespace DurableTask.Core.Tests
         }
 
         /// <summary>
-        /// Mimics orchestrator code with a catch-all handler: it swallows the cancellation raised while the
-        /// executor is being released and then tries to schedule more work.
+        /// Mimics orchestrator code that retries on cancellation: it catches the
+        /// <see cref="OperationCanceledException"/> raised while the executor is being released and then
+        /// tries to schedule more work.
         /// </summary>
         class SwallowsCancellationOrchestration : TaskOrchestration<string, string>
         {
+            public Exception FirstFailure { get; private set; }
+
             public Exception RescheduleFailure { get; private set; }
 
             public override async Task<string> RunTask(OrchestrationContext context, string input)
@@ -270,8 +333,10 @@ namespace DurableTask.Core.Tests
                 {
                     return await context.ScheduleTask<string>(ActivityName, string.Empty);
                 }
-                catch (Exception)
+                catch (OperationCanceledException firstFailure)
                 {
+                    this.FirstFailure = firstFailure;
+
                     try
                     {
                         return await context.ScheduleTask<string>(ActivityName, string.Empty);

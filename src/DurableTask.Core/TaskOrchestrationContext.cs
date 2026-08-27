@@ -94,6 +94,13 @@ namespace DurableTask.Core
         /// allows the graph to be collected. This is only safe once the executor is guaranteed never to be
         /// used again, since a cancelled task can no longer receive a result on a subsequent episode.
         /// </para>
+        /// <para>
+        /// Cancellation is not side-effect free: resuming an abandoned await runs the orchestrator's
+        /// <c>catch</c> and <c>finally</c> blocks. There is no supported way to drop the CLR's active-task
+        /// roots without running those continuations, so callers gate this on debugger presence rather than
+        /// paying the cost in production. See dotnet/runtime#26565 for the upstream proposal to make the
+        /// active-task table weak, which would remove the need for this teardown entirely.
+        /// </para>
         /// </remarks>
         internal void ReleaseOpenTasks()
         {
@@ -141,8 +148,12 @@ namespace DurableTask.Core
         {
             if (this.isReleased)
             {
-                throw new OperationCanceledException(
-                    "This orchestration episode has ended and the orchestration context can no longer schedule work.");
+                // Deliberately not an OperationCanceledException. The first cancellation surfaced at the
+                // abandoned await necessarily is one, and orchestrator code that catches it and retries would
+                // otherwise treat permanent retirement as a transient cancellation and loop.
+                throw new InvalidOperationException(
+                    "This orchestration executor has been retired and its context can no longer schedule work. " +
+                    "The orchestration episode has ended and any work scheduled now would never run.");
             }
         }
 
