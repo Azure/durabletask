@@ -28,7 +28,7 @@ namespace DurableTask.Core
     /// <summary>
     /// Utility for executing task orchestrators.
     /// </summary>
-    public class TaskOrchestrationExecutor : IDisposable
+    public class TaskOrchestrationExecutor
     {
         readonly TaskOrchestrationContext context;
         readonly TaskScheduler decisionScheduler;
@@ -151,8 +151,14 @@ namespace DurableTask.Core
         /// completes, so abandoned orchestrator awaits permanently root the orchestration object graph.
         /// See https://github.com/Azure/azure-functions-durable-extension/issues/340.
         /// </para>
+        /// <para>
+        /// This is intentionally internal rather than an <see cref="IDisposable"/> implementation.
+        /// Executor lifetime is owned by <see cref="TaskOrchestrationDispatcher"/>, which is the only
+        /// component that knows when an executor will never run again, so exposing this externally would
+        /// add public surface that no caller outside this assembly can use correctly.
+        /// </para>
         /// </remarks>
-        public void Dispose()
+        internal void Release()
         {
             SynchronizationContext prevCtx = SynchronizationContext.Current;
             bool prevIsOrchestratorThread = OrchestrationContext.IsOrchestratorThread;

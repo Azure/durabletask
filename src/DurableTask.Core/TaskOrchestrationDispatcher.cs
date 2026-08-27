@@ -325,7 +325,7 @@ namespace DurableTask.Core
         {
             OrchestrationExecutionCursor? retiredCursor = cursor;
             cursor = null;
-            retiredCursor?.OrchestrationExecutor?.Dispose();
+            retiredCursor?.OrchestrationExecutor?.Release();
         }
 
         /// <summary>

@@ -31,7 +31,7 @@ namespace DurableTask.Core.Tests
     /// sub-orchestration, and timer it is waiting on, and those tasks are abandoned in a pending state when
     /// the episode ends. When a debugger is attached, the CLR keeps every awaited task in the process-wide
     /// <c>Task.s_currentActiveTasks</c> dictionary until the task completes, so abandoned awaits permanently
-    /// root the orchestration object graph. Disposing the executor cancels the open tasks, which lets those
+    /// root the orchestration object graph. Releasing the executor cancels the open tasks, which lets those
     /// awaiter continuations run and unregister themselves.
     /// Regression coverage for https://github.com/Azure/azure-functions-durable-extension/issues/340.
     /// </remarks>
@@ -41,25 +41,25 @@ namespace DurableTask.Core.Tests
         const string ActivityName = "SayHello";
 
         [TestMethod]
-        public void Dispose_ResumesAbandonedOrchestratorContinuations()
+        public void Release_ResumesAbandonedOrchestratorContinuations()
         {
             var orchestration = new FanOutOrchestration(fanOut: 3);
-            using (var executor = CreateExecutor(orchestration))
-            {
-                executor.Execute();
+            TaskOrchestrationExecutor executor = CreateExecutor(orchestration);
+            executor.Execute();
 
-                Assert.AreEqual(3, orchestration.StartedTaskCount, "The orchestrator should have scheduled 3 activities.");
-                Assert.AreEqual(0, orchestration.ReleasedTaskCount, "Abandoned awaits should still be pending at the end of the episode.");
-            }
+            Assert.AreEqual(3, orchestration.StartedTaskCount, "The orchestrator should have scheduled 3 activities.");
+            Assert.AreEqual(0, orchestration.ReleasedTaskCount, "Abandoned awaits should still be pending at the end of the episode.");
+
+            executor.Release();
 
             Assert.AreEqual(
                 3,
                 orchestration.ReleasedTaskCount,
-                "Disposing the executor should resume every abandoned await so its continuation can unregister itself.");
+                "Releasing the executor should resume every abandoned await so its continuation can unregister itself.");
         }
 
         [TestMethod]
-        public void Dispose_WithAsyncDebuggingEnabled_DoesNotLeakActiveTasks()
+        public void Release_WithAsyncDebuggingEnabled_DoesNotLeakActiveTasks()
         {
             // This is the actual bug: with a debugger attached, every abandoned await stays in
             // Task.s_currentActiveTasks forever, which roots the entire orchestration object graph.
@@ -75,20 +75,20 @@ namespace DurableTask.Core.Tests
             using (AsyncDebuggingScope.Enable())
             {
                 // Warm up so that one-time allocations aren't counted against the measurement.
-                RunEpisodes(Episodes, SmallFanOut, dispose: true);
+                RunEpisodes(Episodes, SmallFanOut, release: true);
 
-                int leakySensitivity = MeasureFanOutSensitivity(Episodes, SmallFanOut, LargeFanOut, dispose: false);
+                int leakySensitivity = MeasureFanOutSensitivity(Episodes, SmallFanOut, LargeFanOut, release: false);
                 Assert.IsTrue(
                     leakySensitivity > Episodes * (LargeFanOut - SmallFanOut),
-                    "Undisposed executors are expected to leak one entry per abandoned await; if they no longer " +
+                    "Unreleased executors are expected to leak one entry per abandoned await; if they no longer " +
                     $"do, this test can no longer detect the regression. Measured {leakySensitivity}.");
 
-                int fixedSensitivity = MeasureFanOutSensitivity(Episodes, SmallFanOut, LargeFanOut, dispose: true);
+                int fixedSensitivity = MeasureFanOutSensitivity(Episodes, SmallFanOut, LargeFanOut, release: true);
                 Assert.IsTrue(
                     fixedSensitivity * 20 < leakySensitivity,
-                    "Disposing the executor must stop Task.s_currentActiveTasks from growing with the number of " +
+                    "Releasing the executor must stop Task.s_currentActiveTasks from growing with the number of " +
                     $"abandoned awaits, but growth was still {fixedSensitivity} against {leakySensitivity} when " +
-                    "the executors were left undisposed.");
+                    "the executors were left unreleased.");
             }
         }
 
@@ -97,23 +97,23 @@ namespace DurableTask.Core.Tests
         /// awaits per episode than it does for <paramref name="smallFanOut"/>. Constant per-episode overhead
         /// and unrelated test host activity cancel out, leaving only growth caused by abandoned awaits.
         /// </summary>
-        static int MeasureFanOutSensitivity(int episodes, int smallFanOut, int largeFanOut, bool dispose)
+        static int MeasureFanOutSensitivity(int episodes, int smallFanOut, int largeFanOut, bool release)
         {
-            int small = RunEpisodes(episodes, smallFanOut, dispose);
-            int large = RunEpisodes(episodes, largeFanOut, dispose);
+            int small = RunEpisodes(episodes, smallFanOut, release);
+            int large = RunEpisodes(episodes, largeFanOut, release);
             return large - small;
         }
 
-        static int RunEpisodes(int episodes, int fanOut, bool dispose)
+        static int RunEpisodes(int episodes, int fanOut, bool release)
         {
             int before = AsyncDebuggingScope.ActiveTaskCount;
             for (int i = 0; i < episodes; i++)
             {
                 TaskOrchestrationExecutor executor = CreateExecutor(new FanOutOrchestration(fanOut));
                 executor.Execute();
-                if (dispose)
+                if (release)
                 {
-                    executor.Dispose();
+                    executor.Release();
                 }
             }
 
@@ -121,31 +121,30 @@ namespace DurableTask.Core.Tests
         }
 
         [TestMethod]
-        public void Dispose_DoesNotChangeTheDecisionsAlreadyProduced()
+        public void Release_DoesNotChangeTheDecisionsAlreadyProduced()
         {
             var orchestration = new FanOutOrchestration(fanOut: 3);
-            using (var executor = CreateExecutor(orchestration))
-            {
-                OrchestratorExecutionResult result = executor.Execute();
-                List<OrchestratorAction> before = result.Actions.ToList();
+            TaskOrchestrationExecutor executor = CreateExecutor(orchestration);
 
-                executor.Dispose();
+            OrchestratorExecutionResult result = executor.Execute();
+            List<OrchestratorAction> before = result.Actions.ToList();
 
-                CollectionAssert.AreEqual(
-                    before,
-                    result.Actions.ToList(),
-                    "Releasing abandoned tasks must not add or remove orchestrator actions.");
-            }
+            executor.Release();
+
+            CollectionAssert.AreEqual(
+                before,
+                result.Actions.ToList(),
+                "Releasing abandoned tasks must not add or remove orchestrator actions.");
         }
 
         [TestMethod]
-        public void Dispose_OrchestratorThatSwallowsCancellation_CannotScheduleMoreWork()
+        public void Release_OrchestratorThatSwallowsCancellation_CannotScheduleMoreWork()
         {
             var orchestration = new SwallowsCancellationOrchestration();
-            using (var executor = CreateExecutor(orchestration))
-            {
-                executor.Execute();
-            }
+            TaskOrchestrationExecutor executor = CreateExecutor(orchestration);
+            executor.Execute();
+
+            executor.Release();
 
             Assert.IsInstanceOfType(
                 orchestration.RescheduleFailure,
@@ -154,16 +153,16 @@ namespace DurableTask.Core.Tests
         }
 
         [TestMethod]
-        public void Dispose_IsIdempotent()
+        public void Release_IsIdempotent()
         {
             var orchestration = new FanOutOrchestration(fanOut: 2);
-            var executor = CreateExecutor(orchestration);
+            TaskOrchestrationExecutor executor = CreateExecutor(orchestration);
             executor.Execute();
 
-            executor.Dispose();
-            executor.Dispose();
+            executor.Release();
+            executor.Release();
 
-            Assert.AreEqual(2, orchestration.ReleasedTaskCount, "Repeated disposal should not resume continuations more than once.");
+            Assert.AreEqual(2, orchestration.ReleasedTaskCount, "Repeated release should not resume continuations more than once.");
         }
 
         [TestMethod]
@@ -174,24 +173,23 @@ namespace DurableTask.Core.Tests
             var orchestration = new FanOutOrchestration(fanOut: 1);
             OrchestrationRuntimeState runtimeState = CreateRuntimeState();
 
-            using (var executor = new TaskOrchestrationExecutor(runtimeState, orchestration, BehaviorOnContinueAsNew.Carryover))
-            {
-                OrchestratorExecutionResult firstEpisode = executor.Execute();
-                Assert.AreEqual(1, firstEpisode.Actions.Count(), "The first episode should schedule the activity.");
-                Assert.IsFalse(executor.IsCompleted);
+            var executor = new TaskOrchestrationExecutor(runtimeState, orchestration, BehaviorOnContinueAsNew.Carryover);
 
-                runtimeState.NewEvents.Clear();
-                runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
-                runtimeState.AddEvent(new TaskCompletedEvent(-1, taskScheduledId: 0, result: JsonDataConverter.Default.Serialize("Hello")));
+            OrchestratorExecutionResult firstEpisode = executor.Execute();
+            Assert.AreEqual(1, firstEpisode.Actions.Count(), "The first episode should schedule the activity.");
+            Assert.IsFalse(executor.IsCompleted);
 
-                OrchestratorExecutionResult secondEpisode = executor.ExecuteNewEvents();
+            runtimeState.NewEvents.Clear();
+            runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+            runtimeState.AddEvent(new TaskCompletedEvent(-1, taskScheduledId: 0, result: JsonDataConverter.Default.Serialize("Hello")));
 
-                Assert.IsTrue(executor.IsCompleted, "The activity result should have been delivered to the still-open task.");
-                Assert.AreEqual(1, orchestration.ReleasedTaskCount, "The await should have been resumed by its result, not by cancellation.");
-                Assert.IsTrue(
-                    secondEpisode.Actions.OfType<OrchestrationCompleteOrchestratorAction>().Any(),
-                    "The orchestration should have completed on the second episode.");
-            }
+            OrchestratorExecutionResult secondEpisode = executor.ExecuteNewEvents();
+
+            Assert.IsTrue(executor.IsCompleted, "The activity result should have been delivered to the still-open task.");
+            Assert.AreEqual(1, orchestration.ReleasedTaskCount, "The await should have been resumed by its result, not by cancellation.");
+            Assert.IsTrue(
+                secondEpisode.Actions.OfType<OrchestrationCompleteOrchestratorAction>().Any(),
+                "The orchestration should have completed on the second episode.");
         }
 
         static TaskOrchestrationExecutor CreateExecutor(TaskOrchestration orchestration) =>
