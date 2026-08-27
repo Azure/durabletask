@@ -179,7 +179,7 @@ namespace DurableTask.AzureStorage.Tracking
         public override async Task UpdateStatusForTerminationAsync(
             string instanceId,
             ExecutionTerminatedEvent executionTerminatedEvent,
-            long? sequenceNumber /* not used */,
+            long sequenceNumber /* not used */,
             CancellationToken cancellationToken = default)
         {
             // Get the most recent execution and update its status to terminated
@@ -196,7 +196,7 @@ namespace DurableTask.AzureStorage.Tracking
             string executionId,
             OrchestrationRuntimeState runtimeState,
             bool instanceEntityExists,
-            long? sequenceNumber /* not used */,
+            long sequenceNumber /* not used */,
             CancellationToken cancellationToken = default)
         {
             if (runtimeState.OrchestrationStatus != OrchestrationStatus.Completed &&

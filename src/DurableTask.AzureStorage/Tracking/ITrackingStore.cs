@@ -126,9 +126,9 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="executionId">The execution ID of the orchestration.</param>
         /// <param name="runtimeState">The runtime state of the orchestration.</param>
         /// <param name="instanceEntityExists">Whether the instance entity already exists in the instance store.</param>
-        /// <param name="sequenceNumber">The migration sequence number to persist on the instance row, or <c>null</c> when not migrating.</param>
+        /// <param name="sequenceNumber">The sequence number to persist on the instance row when migrating.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        Task UpdateInstanceStatusForCompletedOrchestrationAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, bool instanceEntityExists, long? sequenceNumber, CancellationToken cancellationToken = default);
+        Task UpdateInstanceStatusForCompletedOrchestrationAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, bool instanceEntityExists, long sequenceNumber, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get The Orchestration State for querying all orchestration instances
@@ -178,7 +178,7 @@ namespace DurableTask.AzureStorage.Tracking
         /// Used to update a state in the tracking store to pending whenever a rewind is initiated from the client
         /// </summary>
         /// <param name="instanceId">The instance being rewound</param>
-        /// <param name="sequenceNumber">The migration sequence number to persist on the instance row, or <c>null</c> when not migrating.</param>
+        /// <param name="sequenceNumber">The sequence number to persist on the instance row when migrating.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         Task UpdateStatusForRewindAsync(string instanceId, long? sequenceNumber, CancellationToken cancellationToken = default);
 
@@ -187,9 +187,9 @@ namespace DurableTask.AzureStorage.Tracking
         /// </summary>
         /// <param name="instanceId">The instance being terminated</param>
         /// <param name="executionTerminatedEvent">The termination history event.</param>
-        /// <param name="sequenceNumber">The migration sequence number to persist on the instance row, or <c>null</c> when not migrating.</param>
+        /// <param name="sequenceNumber">The sequence number to persist on the instance row when migrating.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        Task UpdateStatusForTerminationAsync(string instanceId, ExecutionTerminatedEvent executionTerminatedEvent, long? sequenceNumber, CancellationToken cancellationToken = default);
+        Task UpdateStatusForTerminationAsync(string instanceId, ExecutionTerminatedEvent executionTerminatedEvent, long sequenceNumber, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Purge The History and state  which is older than thresholdDateTimeUtc based on the timestamp type specified by timeRangeFilterType
@@ -213,9 +213,8 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="createdTimeFrom">Start creation time for querying instances for purging</param>
         /// <param name="createdTimeTo">End creation time for querying instances for purging</param>
         /// <param name="runtimeStatus">List of runtime status for querying instances for purging. Only Completed, Terminated, Canceled, or Failed will be processed</param>
-        /// <param name="modifiedInstancesQueue">Queue to track modified instances during a migration.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <returns>Class containing number of storage requests sent, along with instances and rows deleted/purged</returns>
-        Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, ModifiedInstancesQueue modifiedInstancesQueue, CancellationToken cancellationToken = default);
+        Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default);
     }
 }

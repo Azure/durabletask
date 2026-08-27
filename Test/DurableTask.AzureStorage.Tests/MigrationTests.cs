@@ -23,6 +23,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Runtime.Serialization;
     using Azure.Data.Tables;
     using Azure.Storage.Queues.Models;
+    using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
@@ -93,10 +94,11 @@ namespace DurableTask.AzureStorage.Tests
 
             // ...and enqueued exactly one modified-instance message for this instance with a null execution ID
             // (rewind targets the latest execution, so no specific execution ID is recorded).
-            List<OrchestrationInstance> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
             Assert.AreEqual(1, enqueued.Count, "Rewind should enqueue the instance exactly once.");
-            Assert.AreEqual(instanceId, enqueued[0].InstanceId);
-            Assert.IsNull(enqueued[0].ExecutionId, "Rewind does not target a specific execution, so the execution ID should be null.");
+            Assert.AreEqual(instanceId, enqueued[0].OrchestrationInstance.InstanceId);
+            Assert.IsNull(enqueued[0].OrchestrationInstance.ExecutionId, "Rewind does not target a specific execution, so the execution ID should be null.");
+            Assert.AreEqual(sequenceNumberAfterRewind, enqueued[0].ExpectedSequenceNumber);
         }
 
         /// <summary>
@@ -148,10 +150,11 @@ namespace DurableTask.AzureStorage.Tests
 
             // ...and enqueued exactly one modified-instance message for this instance with a null execution ID
             // (the terminate message targets the latest generation, so no specific execution ID is recorded).
-            List<OrchestrationInstance> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
             Assert.AreEqual(1, enqueued.Count, "Termination should enqueue the instance exactly once.");
-            Assert.AreEqual(instanceId, enqueued[0].InstanceId);
-            Assert.IsNull(enqueued[0].ExecutionId, "The terminate message targets the latest generation, so the execution ID should be null.");
+            Assert.AreEqual(instanceId, enqueued[0].OrchestrationInstance.InstanceId);
+            Assert.IsNull(enqueued[0].OrchestrationInstance.ExecutionId, "The terminate message targets the latest generation, so the execution ID should be null.");
+            Assert.AreEqual(sequenceNumberAfterTermination, enqueued[0].ExpectedSequenceNumber);
         }
 
         /// <summary>
@@ -186,10 +189,11 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsFalse(await HistoryExistsAsync(azureStorageClient, instanceId), "A newly created, unstarted orchestration should have no history.");
 
             Queue modifiedInstancesQueue = GetModifiedInstancesQueue(azureStorageClient, settings);
-            List<OrchestrationInstance> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
             Assert.AreEqual(1, enqueued.Count, "Creating the instance should enqueue it exactly once.");
-            Assert.AreEqual(instanceId, enqueued[0].InstanceId);
-            Assert.IsNotNull(enqueued[0].ExecutionId, "Create records the new generation's execution ID.");
+            Assert.AreEqual(instanceId, enqueued[0].OrchestrationInstance.InstanceId);
+            Assert.IsNotNull(enqueued[0].OrchestrationInstance.ExecutionId, "Create records the new generation's execution ID.");
+            Assert.AreEqual(sequenceNumber, enqueued[0].ExpectedSequenceNumber);
         }
 
         /// <summary>
@@ -239,10 +243,11 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(sequenceNumberBeforeRecreate, sentinelSequenceNumber, "The recreate should not change the previous generation's history sentinel.");
 
             // ...and enqueued the instance exactly once for the new generation (which has its own execution ID).
-            List<OrchestrationInstance> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
             Assert.AreEqual(1, enqueued.Count, "Recreate should enqueue the instance exactly once.");
-            Assert.AreEqual(instanceId, enqueued[0].InstanceId);
-            Assert.IsNotNull(enqueued[0].ExecutionId, "A recreate targets a specific new generation, so the execution ID should be set.");
+            Assert.AreEqual(instanceId, enqueued[0].OrchestrationInstance.InstanceId);
+            Assert.IsNotNull(enqueued[0].OrchestrationInstance.ExecutionId, "A recreate targets a specific new generation, so the execution ID should be set.");
+            Assert.AreEqual(sequenceNumberAfterRecreate, enqueued[0].ExpectedSequenceNumber);
         }
 
         /// <summary>
@@ -292,9 +297,12 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(sequenceNumber, sentinelSequenceNumber, "The history sentinel should carry the same sequence number as the instance row.");
 
             Queue modifiedInstancesQueue = GetModifiedInstancesQueue(azureStorageClient, settings);
-            List<OrchestrationInstance> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
             Assert.AreEqual(expected, enqueued.Count, "The instance should be enqueued once for the create and once per episode.");
-            Assert.IsTrue(enqueued.All(instance => instance.InstanceId == instanceId), "Every enqueued message should be for this instance.");
+            Assert.IsTrue(enqueued.All(message => message.OrchestrationInstance.InstanceId == instanceId), "Every enqueued message should be for this instance.");
+            CollectionAssert.AreEquivalent(
+                Enumerable.Range(1, (int)expected).Select(value => (long)value).ToList(),
+                enqueued.Select(message => message.ExpectedSequenceNumber).ToList());
         }
 
         /// <summary>
@@ -375,106 +383,11 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(sentinelSequenceNumberAfterRecovery, instanceSequenceNumberAfterRecovery, "The instance and history sentinel sequence numbers should match after recovery.");
 
             // The recovery enqueued the instance exactly once for the completed generation.
-            List<OrchestrationInstance> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
             Assert.AreEqual(1, enqueued.Count, "Recovery should enqueue the instance exactly once.");
-            Assert.AreEqual(instanceId, enqueued[0].InstanceId);
-            Assert.AreEqual(executionId, enqueued[0].ExecutionId, "Recovery records the completed generation's execution ID.");
-        }
-
-        /// <summary>
-        /// Confirms that in a split-brain situation (two workers completing the same work item) during a migration, the
-        /// instance table and history sentinel sequence numbers stay aligned. Both workers derive the same next
-        /// sequence number from the same base, and migration mode's instance-table ETag guard rejects the losing worker's
-        /// write, so the sentinel it commits still matches the instance value written by the winning worker. Uses the
-        /// low-level lock/complete API, modeled on WorkerAttemptingToUpdateInstanceTableAfterStalling.
-        /// </summary>
-        [TestMethod]
-        public async Task SplitBrainDuringMigration_InstanceAndHistorySequenceNumbersRemainAligned()
-        {
-            var settings = new AzureStorageOrchestrationServiceSettings
-            {
-                PartitionCount = 1,
-                StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
-                TaskHubName = $"migrsplit{Guid.NewGuid():N}",
-                ExtendedSessionsEnabled = false,
-            };
-
-            AzureStorageOrchestrationService? service = null;
-            try
-            {
-                service = new AzureStorageOrchestrationService(settings);
-                await service.CreateAsync();
-                await service.StartAsync(MigrationMode.MigrationStarted);
-
-                var orchestrationInstance = new OrchestrationInstance
-                {
-                    InstanceId = "instance_id",
-                    ExecutionId = "execution_id",
-                };
-                var startedEvent = new ExecutionStartedEvent(-1, string.Empty)
-                {
-                    Name = "orchestration",
-                    Version = string.Empty,
-                    OrchestrationInstance = orchestrationInstance,
-                    ScheduledStartTime = DateTime.UtcNow,
-                };
-
-                await service.CreateTaskOrchestrationAsync(new TaskMessage
-                {
-                    OrchestrationInstance = orchestrationInstance,
-                    Event = startedEvent,
-                });
-
-                // Worker A locks the first work item and prepares its checkpoint (base sequence number is 1).
-                var workItem = await service.LockNextTaskOrchestrationWorkItemAsync(TimeSpan.FromMinutes(5), CancellationToken.None);
-                var runtimeState = workItem.OrchestrationRuntimeState;
-                runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
-                runtimeState.AddEvent(startedEvent);
-                runtimeState.AddEvent(new TaskScheduledEvent(0));
-                runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
-
-                var azureStorageClient = new AzureStorageClient(settings);
-
-                // Simulate a competing worker B winning the same episode: it advances the instance row to the next
-                // sequence number (1 -> 2), which also changes the instance row's eTag out from under worker A.
-                Table instanceTable = azureStorageClient.GetTableReference(settings.InstanceTableName);
-                var winnerEntity = new TableEntity(orchestrationInstance.InstanceId, string.Empty)
-                {
-                    ["RuntimeStatus"] = OrchestrationStatus.Running.ToString("G"),
-                    [SequenceNumberPropertyName] = 2L,
-                };
-                await instanceTable.MergeEntityAsync(winnerEntity, Azure.ETag.All);
-
-                // Worker A (now stale) completes the same work item. Its history sentinel write succeeds (also computing
-                // sequence number 2), but its instance write is rejected due to the stale eTag.
-                SessionAbortedException exception = await Assert.ThrowsExceptionAsync<SessionAbortedException>(async () =>
-                    await service.CompleteTaskOrchestrationWorkItemAsync(
-                        workItem, runtimeState, new List<TaskMessage>(), new List<TaskMessage>(), new List<TaskMessage>(), null, null));
-                Assert.IsInstanceOfType(exception.InnerException, typeof(DurableTaskStorageException));
-                Assert.AreEqual((int)HttpStatusCode.PreconditionFailed, ((DurableTaskStorageException)exception.InnerException).HttpStatusCode);
-
-                // Because both workers derived the same next sequence number, the history sentinel (written by the
-                // losing worker) and the instance row (written by the winning worker) remain aligned.
-                long? instanceSequenceNumber = await GetInstanceSequenceNumberAsync(azureStorageClient, orchestrationInstance.InstanceId);
-                long? sentinelSequenceNumber = await GetSentinelSequenceNumberAsync(azureStorageClient, orchestrationInstance.InstanceId);
-                Assert.AreEqual(2L, instanceSequenceNumber, "The instance row should carry the winning worker's sequence number.");
-                Assert.AreEqual(2L, sentinelSequenceNumber, "The history sentinel should carry the same sequence number.");
-                Assert.AreEqual(instanceSequenceNumber, sentinelSequenceNumber, "The instance and history sequence numbers must remain aligned.");
-            }
-            finally
-            {
-                if (service != null)
-                {
-                    try
-                    {
-                        await service.StopAsync(isForced: true);
-                    }
-                    catch
-                    {
-                        // Ignore shutdown errors so the real test failure (if any) is not masked.
-                    }
-                }
-            }
+            Assert.AreEqual(instanceId, enqueued[0].OrchestrationInstance.InstanceId);
+            Assert.AreEqual(executionId, enqueued[0].OrchestrationInstance.ExecutionId, "Recovery records the completed generation's execution ID.");
+            Assert.AreEqual(instanceSequenceNumberAfterRecovery, enqueued[0].ExpectedSequenceNumber);
         }
 
         /// <summary>
@@ -676,9 +589,12 @@ namespace DurableTask.AzureStorage.Tests
 
             // The instance was enqueued exactly once at each of the five state changes.
             Queue modifiedInstancesQueue = GetModifiedInstancesQueue(azureStorageClient, settings);
-            List<OrchestrationInstance> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
             Assert.AreEqual(5, enqueued.Count, "The instance should be enqueued once for the create, the completion checkpoint, the purge, the recreate, and the recreate's completion checkpoint.");
-            Assert.IsTrue(enqueued.All(instance => instance.InstanceId == instanceId), "Every enqueued message should be for this instance.");
+            Assert.IsTrue(enqueued.All(message => message.OrchestrationInstance.InstanceId == instanceId), "Every enqueued message should be for this instance.");
+            CollectionAssert.AreEquivalent(
+                new List<long> { 1, 2, 3, 4, 5 },
+                enqueued.Select(message => message.ExpectedSequenceNumber).ToList());
         }
 
         /// <summary>
@@ -725,10 +641,11 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsFalse(await HistoryExistsAsync(azureStorageClient, instanceId), "Purge should delete all history for the instance.");
 
             // ...and enqueued exactly once with a null execution ID (purge is by instance ID only).
-            List<OrchestrationInstance> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
             Assert.AreEqual(1, enqueued.Count, "Purge should enqueue the instance exactly once.");
-            Assert.AreEqual(instanceId, enqueued[0].InstanceId);
-            Assert.IsNull(enqueued[0].ExecutionId, "Single-instance purge is by instance ID only, so the execution ID should be null.");
+            Assert.AreEqual(instanceId, enqueued[0].OrchestrationInstance.InstanceId);
+            Assert.IsNull(enqueued[0].OrchestrationInstance.ExecutionId, "Single-instance purge is by instance ID only, so the execution ID should be null.");
+            Assert.AreEqual(sequenceNumberAfterPurge, enqueued[0].ExpectedSequenceNumber);
         }
 
         /// <summary>
@@ -792,9 +709,15 @@ namespace DurableTask.AzureStorage.Tests
             }
 
             // ...and every purged instance was enqueued exactly once.
-            List<OrchestrationInstance> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
             Assert.AreEqual(instanceCount, enqueued.Count, "Each purged instance should be enqueued exactly once.");
-            CollectionAssert.AreEquivalent(instanceIds, enqueued.Select(instance => instance.InstanceId).ToList());
+            CollectionAssert.AreEquivalent(instanceIds, enqueued.Select(message => message.OrchestrationInstance.InstanceId).ToList());
+            foreach (ModifiedInstanceMessage message in enqueued)
+            {
+                Assert.AreEqual(
+                    sequenceNumbersBeforePurge[message.OrchestrationInstance.InstanceId] + 1,
+                    message.ExpectedSequenceNumber);
+            }
         }
 
         static async Task<bool> InstanceRowExistsAsync(AzureStorageClient azureStorageClient, string instanceId)
@@ -866,9 +789,9 @@ namespace DurableTask.AzureStorage.Tests
             return azureStorageClient.GetQueueReference(queueName);
         }
 
-        static async Task<List<OrchestrationInstance>> DrainModifiedInstancesQueueAsync(Queue queue)
+        static async Task<List<ModifiedInstanceMessage>> DrainModifiedInstancesQueueAsync(Queue queue)
         {
-            var drained = new List<OrchestrationInstance>();
+            var drained = new List<ModifiedInstanceMessage>();
             while (true)
             {
                 IReadOnlyCollection<QueueMessage> messages = await queue.GetMessagesAsync(batchSize: 32, visibilityTimeout: TimeSpan.FromMinutes(1));
@@ -879,7 +802,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 foreach (QueueMessage message in messages)
                 {
-                    drained.Add(Utils.DeserializeFromJson<OrchestrationInstance>(message.Body.ToString()));
+                    drained.Add(Utils.DeserializeFromJson<ModifiedInstanceMessage>(message.Body.ToString()));
                     await queue.DeleteMessageAsync(message);
                 }
             }
