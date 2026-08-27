@@ -1529,6 +1529,94 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        /// <summary>
+        /// End-to-end test which validates that an orchestration that creates a sub-orchestration in response to an activity
+        /// failure can be rewound. This covers the <see cref="EventType.SubOrchestrationInstanceCreated"/> branch of the
+        /// Azure Storage scrub, which is a separate implementation from the one in DurableTask.Core.
+        /// </summary>
+        [TestMethod]
+        public async Task RewindActivityFailWithCleanupSubOrchestration()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
+            {
+                bool originalShouldFail = Activities.HelloFailCleanupSubOrchestrationActivity.ShouldFail;
+                try
+                {
+                    Activities.HelloFailCleanupSubOrchestrationActivity.ShouldFail = true;
+                    await host.StartAsync();
+
+                    string singletonInstanceId = $"Test_{Guid.NewGuid():N}";
+
+                    var client = await host.StartOrchestrationAsync(
+                        typeof(Orchestrations.SayHelloWithActivityFailAndCleanupSubOrchestration),
+                        input: "World",
+                        instanceId: singletonInstanceId);
+
+                    var statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                    Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                    Activities.HelloFailCleanupSubOrchestrationActivity.ShouldFail = false;
+
+                    await client.RewindAsync("Rewind orchestrator that created a sub-orchestration from its catch block.");
+
+                    var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                    Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                    Assert.AreEqual("\"Hello, World!\"", statusRewind?.Output);
+                }
+                finally
+                {
+                    Activities.HelloFailCleanupSubOrchestrationActivity.ShouldFail = originalShouldFail;
+                    await host.StopAsync();
+                }
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates that an orchestration that sends an event in response to an activity failure can be
+        /// rewound. This covers the <see cref="EventType.EventSent"/> branch of the Azure Storage scrub, which is a separate
+        /// implementation from the one in DurableTask.Core.
+        /// </summary>
+        [TestMethod]
+        public async Task RewindActivityFailWithSendEvent()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
+            {
+                bool originalShouldFail = Activities.HelloFailSendEventActivity.ShouldFail;
+                try
+                {
+                    Activities.HelloFailSendEventActivity.ShouldFail = true;
+                    await host.StartAsync();
+
+                    string singletonInstanceId = $"Test_{Guid.NewGuid():N}";
+
+                    var client = await host.StartOrchestrationAsync(
+                        typeof(Orchestrations.SayHelloWithActivityFailAndSendEvent),
+                        input: "World",
+                        instanceId: singletonInstanceId);
+
+                    var statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                    Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                    Activities.HelloFailSendEventActivity.ShouldFail = false;
+
+                    await client.RewindAsync("Rewind orchestrator that sent an event from its catch block.");
+
+                    var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                    Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                    Assert.AreEqual("\"Hello, World!\"", statusRewind?.Output);
+                }
+                finally
+                {
+                    Activities.HelloFailSendEventActivity.ShouldFail = originalShouldFail;
+                    await host.StopAsync();
+                }
+            }
+        }
+
         [TestMethod]
         public async Task RewindMultipleActivityFail()
         {
@@ -4426,6 +4514,58 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
+            [KnownType(typeof(Activities.HelloFailCleanupSubOrchestrationActivity))]
+            [KnownType(typeof(CleanupChildWorkflow))]
+            internal class SayHelloWithActivityFailAndCleanupSubOrchestration : TaskOrchestration<string, string>
+            {
+                public override async Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    try
+                    {
+                        return await context.ScheduleTask<string>(typeof(Activities.HelloFailCleanupSubOrchestrationActivity), input);
+                    }
+                    catch (Exception)
+                    {
+                        // The sub-orchestration exists only because the orchestrator observed the failure, so rewind has to
+                        // remove its SubOrchestrationInstanceCreated event (and its result) from the history.
+                        await context.CreateSubOrchestrationInstance<string>(typeof(CleanupChildWorkflow), "Cleanup");
+                        throw;
+                    }
+                }
+            }
+
+            internal class CleanupChildWorkflow : TaskOrchestration<string, string>
+            {
+                public override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    // Deliberately schedules no work of its own. The events this test cares about
+                    // (SubOrchestrationInstanceCreated and its result) live in the *parent's* history and are produced
+                    // regardless of what the child does, so keeping the child trivial avoids depending on activity
+                    // registration, which TestOrchestrationHost only resolves one KnownType level deep.
+                    return Task.FromResult($"Cleaned up {input}");
+                }
+            }
+
+            [KnownType(typeof(Activities.HelloFailSendEventActivity))]
+            internal class SayHelloWithActivityFailAndSendEvent : TaskOrchestration<string, string>
+            {
+                public override async Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    try
+                    {
+                        return await context.ScheduleTask<string>(typeof(Activities.HelloFailSendEventActivity), input);
+                    }
+                    catch (Exception)
+                    {
+                        // The event is sent only because the orchestrator observed the failure, so rewind has to remove the
+                        // resulting EventSent event from the history. It is addressed to this same instance so that the test
+                        // does not depend on the lifetime of some other orchestration.
+                        context.SendEvent(context.OrchestrationInstance, "ActivityFailed", "cleanup");
+                        throw;
+                    }
+                }
+            }
+
             [KnownType(typeof(Activities.Multiply))]
             internal class Factorial : TaskOrchestration<long, int>
             {
@@ -5211,6 +5351,44 @@ namespace DurableTask.AzureStorage.Tests
             }
 
             internal class HelloFailCleanupActivity : TaskActivity<string, string>
+            {
+                public static bool ShouldFail = true;
+                protected override string Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+
+                    if (ShouldFail)
+                    {
+                        throw new Exception("Simulating unhandled activity function failure...");
+                    }
+
+                    return $"Hello, {input}!";
+                }
+            }
+
+            internal class HelloFailCleanupSubOrchestrationActivity : TaskActivity<string, string>
+            {
+                public static bool ShouldFail = true;
+                protected override string Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+
+                    if (ShouldFail)
+                    {
+                        throw new Exception("Simulating unhandled activity function failure...");
+                    }
+
+                    return $"Hello, {input}!";
+                }
+            }
+
+            internal class HelloFailSendEventActivity : TaskActivity<string, string>
             {
                 public static bool ShouldFail = true;
                 protected override string Execute(TaskContext context, string input)
