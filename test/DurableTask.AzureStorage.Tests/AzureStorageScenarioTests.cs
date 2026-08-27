@@ -1448,30 +1448,39 @@ namespace DurableTask.AzureStorage.Tests
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
             {
-                Activities.HelloFailCleanupActivity.ShouldFail = true;
-                await host.StartAsync();
+                bool originalShouldFail = Activities.HelloFailCleanupActivity.ShouldFail;
+                try
+                {
+                    Activities.HelloFailCleanupActivity.ShouldFail = true;
+                    await host.StartAsync();
 
-                string singletonInstanceId = $"Test_{Guid.NewGuid():N}";
+                    string singletonInstanceId = $"Test_{Guid.NewGuid():N}";
 
-                var client = await host.StartOrchestrationAsync(
-                    typeof(Orchestrations.SayHelloWithActivityFailAndCleanup),
-                    input: "World",
-                    instanceId: singletonInstanceId);
+                    var client = await host.StartOrchestrationAsync(
+                        typeof(Orchestrations.SayHelloWithActivityFailAndCleanup),
+                        input: "World",
+                        instanceId: singletonInstanceId);
 
-                var statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                    var statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
-                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+                    Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
 
-                Activities.HelloFailCleanupActivity.ShouldFail = false;
+                    Activities.HelloFailCleanupActivity.ShouldFail = false;
 
-                await client.RewindAsync("Rewind orchestrator that scheduled an activity from its catch block.");
+                    await client.RewindAsync("Rewind orchestrator that scheduled an activity from its catch block.");
 
-                var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+                    var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
 
-                Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
-                Assert.AreEqual("\"Hello, World!\"", statusRewind?.Output);
-
-                await host.StopAsync();
+                    Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                    Assert.AreEqual("\"Hello, World!\"", statusRewind?.Output);
+                }
+                finally
+                {
+                    // Restore the shared flag and stop the host even if an assertion above threw, so that
+                    // a failure here cannot cascade into unrelated tests.
+                    Activities.HelloFailCleanupActivity.ShouldFail = originalShouldFail;
+                    await host.StopAsync();
+                }
             }
         }
 
@@ -1484,30 +1493,39 @@ namespace DurableTask.AzureStorage.Tests
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
             {
-                Activities.HelloFailRetryActivity.ShouldFail = true;
-                await host.StartAsync();
+                bool originalShouldFail = Activities.HelloFailRetryActivity.ShouldFail;
+                try
+                {
+                    Activities.HelloFailRetryActivity.ShouldFail = true;
+                    await host.StartAsync();
 
-                string singletonInstanceId = $"Test_{Guid.NewGuid():N}";
+                    string singletonInstanceId = $"Test_{Guid.NewGuid():N}";
 
-                var client = await host.StartOrchestrationAsync(
-                    typeof(Orchestrations.SayHelloWithActivityFailAndRetry),
-                    input: "World",
-                    instanceId: singletonInstanceId);
+                    var client = await host.StartOrchestrationAsync(
+                        typeof(Orchestrations.SayHelloWithActivityFailAndRetry),
+                        input: "World",
+                        instanceId: singletonInstanceId);
 
-                var statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+                    var statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
 
-                Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+                    Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
 
-                Activities.HelloFailRetryActivity.ShouldFail = false;
+                    Activities.HelloFailRetryActivity.ShouldFail = false;
 
-                await client.RewindAsync("Rewind orchestrator with a retried activity.");
+                    await client.RewindAsync("Rewind orchestrator with a retried activity.");
 
-                var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+                    var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
 
-                Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
-                Assert.AreEqual("\"Hello, World!\"", statusRewind?.Output);
-
-                await host.StopAsync();
+                    Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                    Assert.AreEqual("\"Hello, World!\"", statusRewind?.Output);
+                }
+                finally
+                {
+                    // Restore the shared flag and stop the host even if an assertion above threw, so that
+                    // a failure here cannot cascade into unrelated tests.
+                    Activities.HelloFailRetryActivity.ShouldFail = originalShouldFail;
+                    await host.StopAsync();
+                }
             }
         }
 

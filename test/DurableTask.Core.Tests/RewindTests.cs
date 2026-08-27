@@ -53,12 +53,19 @@ namespace DurableTask.Core.Tests
             AssertReplayable(result);
 
             // 'Cleanup' was scheduled from the catch block, so neither it nor its result may survive.
+            // The sequence ID is read back from the pre-rewind history rather than hard-coded so that
+            // the assertion keeps testing the cleanup activity even if the history layout changes.
+            int cleanupTaskId = result.HistoryAtFailure
+                .OfType<TaskScheduledEvent>()
+                .Single(e => e.Name == "Cleanup")
+                .EventId;
+
             Assert.IsFalse(
                 result.RewoundHistory.OfType<TaskScheduledEvent>().Any(e => e.Name == "Cleanup"),
                 "The activity scheduled from the catch block should have been removed from the history.");
             Assert.AreEqual(
                 0,
-                result.RewoundHistory.OfType<TaskCompletedEvent>().Count(e => e.TaskScheduledId == 3),
+                result.RewoundHistory.OfType<TaskCompletedEvent>().Count(e => e.TaskScheduledId == cleanupTaskId),
                 "The result of the activity scheduled from the catch block should have been removed too.");
 
             // The two activities that succeeded before the failure are retained, so only the failed
@@ -366,6 +373,64 @@ namespace DurableTask.Core.Tests
                 result.ReplayFailureReason,
                 "Replaying the rewound history should not fail the orchestration. Actual failure: "
                     + result.ReplayFailureReason);
+
+            AssertNoOrphanedResultEvents(result.RewoundHistory);
+        }
+
+        /// <summary>
+        /// Asserts that every result event in the rewound history still refers to a scheduling event
+        /// that survived the scrub. An orphaned result event is dangerous rather than merely untidy:
+        /// during replay it can satisfy a completely different task that happens to be assigned the
+        /// same sequence ID, silently feeding the orchestrator a result it never asked for.
+        /// </summary>
+        static void AssertNoOrphanedResultEvents(List<HistoryEvent> history)
+        {
+            AssertNoOrphans(
+                history.OfType<TaskScheduledEvent>().Select(e => e.EventId),
+                history.OfType<TaskCompletedEvent>().Select(e => e.TaskScheduledId),
+                nameof(TaskCompletedEvent),
+                nameof(TaskScheduledEvent));
+
+            AssertNoOrphans(
+                history.OfType<TaskScheduledEvent>().Select(e => e.EventId),
+                history.OfType<TaskFailedEvent>().Select(e => e.TaskScheduledId),
+                nameof(TaskFailedEvent),
+                nameof(TaskScheduledEvent));
+
+            AssertNoOrphans(
+                history.OfType<SubOrchestrationInstanceCreatedEvent>().Select(e => e.EventId),
+                history.OfType<SubOrchestrationInstanceCompletedEvent>().Select(e => e.TaskScheduledId),
+                nameof(SubOrchestrationInstanceCompletedEvent),
+                nameof(SubOrchestrationInstanceCreatedEvent));
+
+            AssertNoOrphans(
+                history.OfType<SubOrchestrationInstanceCreatedEvent>().Select(e => e.EventId),
+                history.OfType<SubOrchestrationInstanceFailedEvent>().Select(e => e.TaskScheduledId),
+                nameof(SubOrchestrationInstanceFailedEvent),
+                nameof(SubOrchestrationInstanceCreatedEvent));
+
+            AssertNoOrphans(
+                history.OfType<TimerCreatedEvent>().Select(e => e.EventId),
+                history.OfType<TimerFiredEvent>().Select(e => e.TimerId),
+                nameof(TimerFiredEvent),
+                nameof(TimerCreatedEvent));
+        }
+
+        static void AssertNoOrphans(
+            IEnumerable<int> scheduledIds,
+            IEnumerable<int> resultIds,
+            string resultEventName,
+            string schedulingEventName)
+        {
+            var surviving = new HashSet<int>(scheduledIds);
+            int[] orphans = resultIds.Where(id => !surviving.Contains(id)).ToArray();
+
+            Assert.AreEqual(
+                0,
+                orphans.Length,
+                $"Found {resultEventName} event(s) with no matching {schedulingEventName} in the rewound "
+                    + $"history (sequence ID(s): {string.Join(", ", orphans)}). A stale result event can be "
+                    + "mistaken for the result of a different task assigned the same sequence ID on replay.");
         }
 
         static RewindResult RunRewindTest(Func<TaskOrchestration> orchestrationFactory)
