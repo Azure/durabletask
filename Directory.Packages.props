@@ -22,7 +22,7 @@
     <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="8.0.0" />
     <PackageVersion Include="Microsoft.CSharp" Version="4.7.0" />
     <PackageVersion Include="Microsoft.Data.Services.Client" Version="5.8.5" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="2.1.1" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="2.2.0" />
     <PackageVersion Include="Microsoft.ServiceFabric" Version="6.4.617" />
     <PackageVersion Include="Microsoft.ServiceFabric.Data" Version="3.3.617" />
     <PackageVersion Include="Microsoft.ServiceFabric.Services" Version="3.3.617" />
