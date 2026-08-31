@@ -409,15 +409,11 @@ namespace DurableTask.AzureStorage.Tracking
                 }
             }
 
-            foreach (TableEntity entity in entitiesToClear)
-            {
-                // "clear" the event by making it a GenericEvent: replay ignores the row while the dummy event preserves the rowKey
-                entity[nameof(TaskFailedEvent.Reason)] = "Rewound: " + entity.GetString(nameof(HistoryEvent.EventType));
-                entity[nameof(TaskFailedEvent.EventType)] = nameof(EventType.GenericEvent);
-
-                await this.HistoryTable.ReplaceEntityAsync(entity, entity.ETag, cancellationToken);
-            }
-
+            // Rewind the failed children before clearing this orchestration's own failure rows. The two loops touch disjoint
+            // entities, but the ordering matters for retryability: the SubOrchestrationInstanceFailed rows are what identify the
+            // children that still need rewinding, so if a child rewind fails part way through, leaving those rows intact lets a
+            // retry rediscover the children. Clearing them first would let a retry mistake this orchestration for a leaf and
+            // revive it while a child is still failed, leaving it waiting forever on the retained sub-orchestration creation.
             foreach (TableEntity entity in failedSubOrchestrationEntities)
             {
                 entity[nameof(SubOrchestrationInstanceFailedEvent.Reason)] = "Rewound: " + entity.GetString(nameof(HistoryEvent.EventType));
@@ -428,6 +424,15 @@ namespace DurableTask.AzureStorage.Tracking
                 {
                     yield return childInstanceId;
                 }
+            }
+
+            foreach (TableEntity entity in entitiesToClear)
+            {
+                // "clear" the event by making it a GenericEvent: replay ignores the row while the dummy event preserves the rowKey
+                entity[nameof(TaskFailedEvent.Reason)] = "Rewound: " + entity.GetString(nameof(HistoryEvent.EventType));
+                entity[nameof(TaskFailedEvent.EventType)] = nameof(EventType.GenericEvent);
+
+                await this.HistoryTable.ReplaceEntityAsync(entity, entity.ETag, cancellationToken);
             }
 
             // reset orchestration status in instance store table

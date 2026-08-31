@@ -1717,6 +1717,14 @@ namespace DurableTask.AzureStorage.Tests
 
                     Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
 
+                    // A sub-orchestration created without an explicit instance ID is assigned "<parent execution ID>:<sequence
+                    // ID>", and the cleanup child is the first one the orchestrator creates, so it occupies sequence ID 1.
+                    string reusedChildInstanceId = $"{statusFail.OrchestrationInstance.ExecutionId}:1";
+                    Assert.AreNotEqual(
+                        0,
+                        (await client.GetOrchestrationHistoryAsync(reusedChildInstanceId)).Count,
+                        $"The cleanup sub-orchestration did not run as '{reusedChildInstanceId}', so the failed attempt did not set up the instance ID collision this test exists to cover.");
+
                     Activities.HelloFailSubOrchestrationIdReuseActivity.ShouldFail = false;
 
                     await client.RewindAsync("Rewind orchestrator whose success path reuses the cleanup child's sequence ID.");
@@ -1724,23 +1732,15 @@ namespace DurableTask.AzureStorage.Tests
                     var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
 
                     Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
-                    Assert.AreEqual("\"Hello, World! Child says World.\"", statusRewind?.Output);
 
-                    // Guard the premise of this test: if the two sub-orchestrations ever stop colliding on the same default
-                    // instance ID, the scenario is no longer covered and the assertions above would pass for the wrong reason.
-                    Assert.IsNotNull(
-                        Orchestrations.IdReuseCleanupChildWorkflow.LastInstanceId,
-                        "The cleanup sub-orchestration never ran, so the failed attempt did not set up the ID collision.");
-                    Assert.AreEqual(
-                        Orchestrations.IdReuseCleanupChildWorkflow.LastInstanceId,
-                        Orchestrations.IdReuseSuccessChildWorkflow.LastInstanceId,
-                        "The two sub-orchestrations were assigned different instance IDs, so this test no longer covers child instance ID reuse across a rewind.");
+                    // The success child returns its own instance ID, so this asserts both that it ran to completion and that it
+                    // was assigned the instance ID the cleanup child already occupied. Had its start message been dropped or
+                    // deferred as a duplicate, the parent would still be awaiting it and the test would have timed out above.
+                    Assert.AreEqual($"\"Hello, World! {reusedChildInstanceId}\"", statusRewind?.Output);
                 }
                 finally
                 {
                     Activities.HelloFailSubOrchestrationIdReuseActivity.ShouldFail = originalShouldFail;
-                    Orchestrations.IdReuseCleanupChildWorkflow.LastInstanceId = null;
-                    Orchestrations.IdReuseSuccessChildWorkflow.LastInstanceId = null;
                     await host.StopAsync();
                 }
             }
@@ -4725,23 +4725,18 @@ namespace DurableTask.AzureStorage.Tests
 
             internal class IdReuseCleanupChildWorkflow : TaskOrchestration<string, string>
             {
-                public static string LastInstanceId;
-
                 public override Task<string> RunTask(OrchestrationContext context, string input)
                 {
-                    LastInstanceId = context.OrchestrationInstance.InstanceId;
                     return Task.FromResult($"Cleaned up {input}");
                 }
             }
 
             internal class IdReuseSuccessChildWorkflow : TaskOrchestration<string, string>
             {
-                public static string LastInstanceId;
-
                 public override Task<string> RunTask(OrchestrationContext context, string input)
                 {
-                    LastInstanceId = context.OrchestrationInstance.InstanceId;
-                    return Task.FromResult($"Child says {input}.");
+                    // Returning the instance ID lets the test observe which instance actually ran without any shared state.
+                    return Task.FromResult(context.OrchestrationInstance.InstanceId);
                 }
             }
 
