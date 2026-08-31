@@ -1617,6 +1617,63 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        /// <summary>
+        /// End-to-end test which validates that rewinding an orchestration whose catch block created a sub-orchestration leaves
+        /// the orchestrator able to create a *different* sub-orchestration at the same sequence ID on the success path. Because
+        /// the Azure Storage rewind keeps the parent's execution ID, the replayed child is assigned the default instance ID
+        /// "&lt;parent execution ID&gt;:&lt;sequence ID&gt;", which the cleanup child from the failed attempt already occupies.
+        /// </summary>
+        [TestMethod]
+        public async Task RewindActivityFailWithSubOrchestrationIdReuse()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
+            {
+                bool originalShouldFail = Activities.HelloFailSubOrchestrationIdReuseActivity.ShouldFail;
+                try
+                {
+                    Activities.HelloFailSubOrchestrationIdReuseActivity.ShouldFail = true;
+                    await host.StartAsync();
+
+                    string singletonInstanceId = $"Test_{Guid.NewGuid():N}";
+
+                    var client = await host.StartOrchestrationAsync(
+                        typeof(Orchestrations.SayHelloWithActivityFailAndSubOrchestrationIdReuse),
+                        input: "World",
+                        instanceId: singletonInstanceId);
+
+                    var statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                    Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                    Activities.HelloFailSubOrchestrationIdReuseActivity.ShouldFail = false;
+
+                    await client.RewindAsync("Rewind orchestrator whose success path reuses the cleanup child's sequence ID.");
+
+                    var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                    Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                    Assert.AreEqual("\"Hello, World! Child says World.\"", statusRewind?.Output);
+
+                    // Guard the premise of this test: if the two sub-orchestrations ever stop colliding on the same default
+                    // instance ID, the scenario is no longer covered and the assertions above would pass for the wrong reason.
+                    Assert.IsNotNull(
+                        Orchestrations.IdReuseCleanupChildWorkflow.LastInstanceId,
+                        "The cleanup sub-orchestration never ran, so the failed attempt did not set up the ID collision.");
+                    Assert.AreEqual(
+                        Orchestrations.IdReuseCleanupChildWorkflow.LastInstanceId,
+                        Orchestrations.IdReuseSuccessChildWorkflow.LastInstanceId,
+                        "The two sub-orchestrations were assigned different instance IDs, so this test no longer covers child instance ID reuse across a rewind.");
+                }
+                finally
+                {
+                    Activities.HelloFailSubOrchestrationIdReuseActivity.ShouldFail = originalShouldFail;
+                    Orchestrations.IdReuseCleanupChildWorkflow.LastInstanceId = null;
+                    Orchestrations.IdReuseSuccessChildWorkflow.LastInstanceId = null;
+                    await host.StopAsync();
+                }
+            }
+        }
+
         [TestMethod]
         public async Task RewindMultipleActivityFail()
         {
@@ -4566,6 +4623,56 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
+            [KnownType(typeof(Activities.HelloFailSubOrchestrationIdReuseActivity))]
+            [KnownType(typeof(IdReuseCleanupChildWorkflow))]
+            [KnownType(typeof(IdReuseSuccessChildWorkflow))]
+            internal class SayHelloWithActivityFailAndSubOrchestrationIdReuse : TaskOrchestration<string, string>
+            {
+                public override async Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    string greeting;
+                    try
+                    {
+                        greeting = await context.ScheduleTask<string>(typeof(Activities.HelloFailSubOrchestrationIdReuseActivity), input);
+                    }
+                    catch (Exception)
+                    {
+                        // Consequence sub-orchestration. It takes sequence ID 1, so its default child instance ID is
+                        // "<parent execution ID>:1".
+                        await context.CreateSubOrchestrationInstance<string>(typeof(IdReuseCleanupChildWorkflow), "Cleanup");
+                        throw;
+                    }
+
+                    // On the post-rewind success path this is the first sub-orchestration, so it also takes sequence ID 1 and
+                    // therefore the same default child instance ID that the cleanup child already occupies. Rewind must leave the
+                    // parent able to start this child anyway.
+                    string child = await context.CreateSubOrchestrationInstance<string>(typeof(IdReuseSuccessChildWorkflow), input);
+                    return $"{greeting} {child}";
+                }
+            }
+
+            internal class IdReuseCleanupChildWorkflow : TaskOrchestration<string, string>
+            {
+                public static string LastInstanceId;
+
+                public override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    LastInstanceId = context.OrchestrationInstance.InstanceId;
+                    return Task.FromResult($"Cleaned up {input}");
+                }
+            }
+
+            internal class IdReuseSuccessChildWorkflow : TaskOrchestration<string, string>
+            {
+                public static string LastInstanceId;
+
+                public override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    LastInstanceId = context.OrchestrationInstance.InstanceId;
+                    return Task.FromResult($"Child says {input}.");
+                }
+            }
+
             [KnownType(typeof(Activities.Multiply))]
             internal class Factorial : TaskOrchestration<long, int>
             {
@@ -5389,6 +5496,25 @@ namespace DurableTask.AzureStorage.Tests
             }
 
             internal class HelloFailSendEventActivity : TaskActivity<string, string>
+            {
+                public static bool ShouldFail = true;
+                protected override string Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+
+                    if (ShouldFail)
+                    {
+                        throw new Exception("Simulating unhandled activity function failure...");
+                    }
+
+                    return $"Hello, {input}!";
+                }
+            }
+
+            internal class HelloFailSubOrchestrationIdReuseActivity : TaskActivity<string, string>
             {
                 public static bool ShouldFail = true;
                 protected override string Execute(TaskContext context, string input)
