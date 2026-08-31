@@ -1715,7 +1715,8 @@ namespace DurableTask.AzureStorage.Tests
 
                     var statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
 
-                    Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+                    Assert.IsNotNull(statusFail, "The orchestration did not complete within the timeout, so no status was returned.");
+                    Assert.AreEqual(OrchestrationStatus.Failed, statusFail.OrchestrationStatus);
 
                     // A sub-orchestration created without an explicit instance ID is assigned "<parent execution ID>:<sequence
                     // ID>", and the cleanup child is the first one the orchestrator creates, so it occupies sequence ID 1.
