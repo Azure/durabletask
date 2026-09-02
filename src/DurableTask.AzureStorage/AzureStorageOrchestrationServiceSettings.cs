@@ -15,7 +15,6 @@ namespace DurableTask.AzureStorage
 {
     using System;
     using System.Runtime.Serialization;
-    using Azure.Data.Tables;
     using DurableTask.AzureStorage.Logging;
     using DurableTask.AzureStorage.Partitioning;
     using DurableTask.Core;
@@ -311,5 +310,40 @@ namespace DurableTask.AzureStorage
         /// table must now be read before processing every orchestration work item to obtain the latest etag.
         /// </remarks>
         public bool UseInstanceTableEtag { get; set; } = false;
+
+        /// <summary>
+        /// Gets or sets a flag whether poison message storage is enabled.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// If enabled, orchestration, entity, and activity messages that have been dequeued for processing
+        /// more than <see cref="MaxDequeueCount"/> times will be moved to poison message storage in Azure Blob
+        /// Storage and deleted from their source queue.
+        /// This may leave orchestrations permanently as <see cref="OrchestrationStatus.Running"/> (or any other
+        /// non-terminal state) if the message(s) necessary for them make to progress are deemed "poisoned" and deleted.
+        /// </para>
+        /// </remarks>
+        public bool IsPoisonMessageStorageEnabled { get; set; } = true;
+
+        /// <summary>
+        /// Gets or sets the number of times a message is dequeued for processing before it is considered "poisoned",
+        /// moved to poison message storage, and deleted from the source queue. The default value is 5,000, chosen with
+        /// the intent that only very pathological cases will be handled automatically.
+        /// </summary>
+        /// <remarks>
+        /// This setting is applicable when <see cref="IsPoisonMessageStorageEnabled"/> is set to <c>true</c>.
+        /// </remarks>
+        public long MaxDequeueCount { get; set; } = 5000;
+
+        /// <summary>
+        /// Gets or sets the Azure Blob Storage container name suffix to use for poison message storage.
+        /// A container will be created with this suffix in the format "{taskhubname}-{suffix}".
+        /// The container name must adhere to the Azure Blob Storage container naming rules:
+        /// https://learn.microsoft.com/en-us/rest/api/storageservices/Naming-and-Referencing-Containers--Blobs--and-Metadata#directory-names
+        /// In particular, this means the total length of the name must not exceed 63 characters, the name can only contain lowercase letters,
+        /// numbers, and hyphens, must start and end with a letter or number, and cannot contain consecutive hyphens.
+        /// If not specified, the default value "poison-messages" will be used.
+        /// </summary>
+        public string PoisonMessageStorageContainerNameSuffix { get; set; } = "poison-messages";
     }
 }

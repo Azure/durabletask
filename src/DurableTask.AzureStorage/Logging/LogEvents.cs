@@ -666,7 +666,8 @@ namespace DurableTask.AzureStorage.Logging
                 string instanceId,
                 string executionId,
                 string partitionId,
-                long dequeueCount)
+                long dequeueCount,
+                string blobName)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
@@ -677,6 +678,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId = executionId;
                 this.PartitionId = partitionId;
                 this.DequeueCount = dequeueCount;
+                this.BlobName = blobName;
             }
 
             [StructuredLogField]
@@ -706,18 +708,27 @@ namespace DurableTask.AzureStorage.Logging
             [StructuredLogField]
             public long DequeueCount { get; }
 
+            [StructuredLogField]
+            public string BlobName { get; }
+
             public override EventId EventId => new EventId(
                 EventIds.PoisonMessageDetected,
                 nameof(EventIds.PoisonMessageDetected));
 
             public override LogLevel Level => LogLevel.Warning;
 
-            protected override string CreateLogMessage() => string.Format(
-                "{0}: Message {1} with ID {2} has been dequeued {3} times and is now considered poison",
-                this.InstanceId,
-                GetEventDescription(this.EventType, this.TaskEventId),
-                this.MessageId,
-                this.DequeueCount);
+            protected override string CreateLogMessage()
+            {
+                string message = string.Format(
+                    "{0}: Message {1} with ID {2} has been dequeued {3} times and is now considered poison, stored in blob {4}",
+                    this.InstanceId,
+                    GetEventDescription(this.EventType, this.TaskEventId),
+                    this.MessageId,
+                    this.DequeueCount,
+                    this.BlobName);
+
+                return message;
+            }
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.PoisonMessageDetected(
                 this.Account,
@@ -729,6 +740,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.ExecutionId,
                 this.PartitionId,
                 this.DequeueCount,
+                this.BlobName,
                 Utils.AppName,
                 Utils.ExtensionVersion);
         }

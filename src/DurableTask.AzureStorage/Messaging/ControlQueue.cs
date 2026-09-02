@@ -125,9 +125,28 @@ namespace DurableTask.AzureStorage.Messaging
                                     0 /* TaskEventId */,
                                     e.ToString());
 
+                                if (await this.CheckForAndHandlePoisonMessageAsync(
+                                    blobNamePrefix: "instance-messages/",
+                                    queueMessage,
+                                    linkedCts.Token))
+                                {
+                                    return;
+                                }
+
                                 // Abandon the message so we can try it again later.
                                 // Note: We will fetch the message again from the queue before retrying, so no need to read the receipt
                                 _ = await this.AbandonMessageAsync(queueMessage);
+                                return;
+                            }
+
+                            if (await this.CheckForAndHandlePoisonMessageAsync(
+                                blobNamePrefix: "instance-messages/",
+                                queueMessage,
+                                linkedCts.Token,
+                                messageData.TaskMessage.OrchestrationInstance,
+                                messageData.TaskMessage.Event.EventType.ToString(),
+                                Utils.GetTaskEventId(messageData.TaskMessage.Event)))
+                            {
                                 return;
                             }
 
