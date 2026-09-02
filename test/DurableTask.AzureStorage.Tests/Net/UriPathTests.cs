@@ -18,7 +18,7 @@ namespace DurableTask.AzureStorage.Net
     [TestClass]
     public class UriPathTests
     {
-        [DataTestMethod]
+        [TestMethod]
         [DataRow("", "", "")]
         [DataRow("", "bar/baz", "bar/baz")]
         [DataRow("foo", "", "foo")]

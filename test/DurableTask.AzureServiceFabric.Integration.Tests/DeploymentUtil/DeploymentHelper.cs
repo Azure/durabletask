@@ -54,7 +54,11 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests.DeploymentUtil
                     var replicas = (await client.QueryManager.GetDeployedReplicaListAsync(node.NodeName, application.ApplicationName)).OfType<DeployedStatefulServiceReplica>();
                     foreach (var replica in replicas)
                     {
-                        await client.ServiceManager.RemoveReplicaAsync(node.NodeName, replica.Partitionid, replica.ReplicaId);
+                        await client.ServiceManager.RemoveReplicaAsync(
+                            node.NodeName,
+                            replica.Partitionid,
+                            replica.ReplicaId,
+                            new RemoveReplicaOptions());
                     }
                 }
             }

@@ -23,7 +23,7 @@ namespace DurableTask.AzureStorage.Tests
     [TestClass]
     public class MessageManagerTests
     {
-        [DataTestMethod]
+        [TestMethod]
         [DataRow("System.Collections.Generic.Dictionary`2[[System.String, System.Private.CoreLib],[System.String, System.Private.CoreLib]]")]
         [DataRow("System.Collections.Generic.Dictionary`2[[System.String, mscorlib],[System.String, mscorlib]]")]
         public void DeserializesStandardTypes(string dictionaryType)
@@ -49,7 +49,7 @@ namespace DurableTask.AzureStorage.Tests
             var messageManager = SetupMessageManager(new KnownTypeBinder());
 
             // When/Then
-            Assert.ThrowsException<JsonSerializationException>(() => messageManager.DeserializeMessageData(message));
+            Assert.ThrowsExactly<JsonSerializationException>(() => messageManager.DeserializeMessageData(message));
         }
 
 
@@ -69,7 +69,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual("tagValue", startedEvent.Tags["tag1"]);
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow("blob.bin", "blob.bin")]
         [DataRow("@#$%!", "%40%23%24%25%21")]
         [DataRow("foo/bar/b@z.tar.gz", "foo/bar/b%40z.tar.gz")]

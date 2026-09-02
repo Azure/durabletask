@@ -39,8 +39,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Newtonsoft.Json" />
     <PackageReference Include="System.Diagnostics.DiagnosticSource" />
-    <PackageReference Include="System.Reactive.Core" />
-    <PackageReference Include="System.Reactive.Compatibility" />
+    <PackageReference Include="System.Reactive" />
     <PackageReference Include="Castle.Core" />
   </ItemGroup>
 

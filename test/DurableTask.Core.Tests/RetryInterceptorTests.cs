@@ -28,10 +28,10 @@ namespace DurableTask.Core.Tests
             var interceptor = new RetryInterceptor<object>(this.context, new RetryOptions(TimeSpan.FromMilliseconds(100), 1), () => throw new IOException());
             async Task Invoke() => await interceptor.Invoke();
 
-            await Assert.ThrowsExceptionAsync<IOException>(Invoke, "Interceptor should throw the original exception after exceeding max retry attempts.");
+            await Assert.ThrowsExactlyAsync<IOException>(Invoke, "Interceptor should throw the original exception after exceeding max retry attempts.");
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(1)]
         [DataRow(2)]
         [DataRow(3)]
@@ -59,7 +59,7 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual(maxAttempts, callCount, 0, $"There should be {maxAttempts} function calls for {maxAttempts} max attempts.");
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(1)]
         [DataRow(2)]
         [DataRow(3)]

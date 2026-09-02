@@ -44,7 +44,7 @@ services.TryAddEnumerable(
 
 ## Prerequisites
 
-- .NET 6.0 SDK or later
+- .NET 8.0 SDK or later
 - Azure Storage Emulator (Azurite) or Azure Storage account
 - (Optional) Application Insights resource
 - (Optional) Zipkin instance for OpenTelemetry sample

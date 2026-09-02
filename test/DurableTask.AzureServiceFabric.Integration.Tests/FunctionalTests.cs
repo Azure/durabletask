@@ -376,7 +376,6 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
         }
 
         [TestMethod]
-        [ExpectedException(typeof(OrchestrationAlreadyExistsException))]
         public async Task Duplicate_Orchestration_Instance_Fails_With_OrchestrationAlreadyExistsException()
         {
             var instanceId = nameof(Duplicate_Orchestration_Instance_Fails_With_OrchestrationAlreadyExistsException);
@@ -389,8 +388,9 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
                 DelayUnit = TimeSpan.FromSeconds(1),
             };
 
-            var instance = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), instanceId, input);
-            var instance2 = await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), instanceId, input);
+            await this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), instanceId, input);
+            await Assert.ThrowsExactlyAsync<OrchestrationAlreadyExistsException>(
+                () => this.taskHubClient.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), instanceId, input));
         }
 
         [TestMethod]
@@ -476,7 +476,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
 
             var reason = "Testing terminatiom of already finished orchestration";
 
-            await Assert.ThrowsExceptionAsync<RemoteServiceException>(() => this.taskHubClient.TerminateInstanceAsync(instance, reason));
+            await Assert.ThrowsExactlyAsync<RemoteServiceException>(() => this.taskHubClient.TerminateInstanceAsync(instance, reason));
         }
 
         [TestMethod]
@@ -586,7 +586,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
         public async Task ScheduledStartTest_NotSupported()
         {
             var expectedStartTime = DateTime.UtcNow.AddSeconds(30);
-            await Assert.ThrowsExceptionAsync<RemoteServiceException>(() => this.taskHubClient.CreateScheduledOrchestrationInstanceAsync(typeof(SimpleOrchestrationWithTasks), null, expectedStartTime));
+            await Assert.ThrowsExactlyAsync<RemoteServiceException>(() => this.taskHubClient.CreateScheduledOrchestrationInstanceAsync(typeof(SimpleOrchestrationWithTasks), null, expectedStartTime));
         }
 
         [TestMethod]
@@ -612,7 +612,7 @@ namespace DurableTask.AzureServiceFabric.Integration.Tests
                 serviceClient.HttpClient = httpClient;
             });
 
-            await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(async () =>
+            await Assert.ThrowsExactlyAsync<OrchestrationAlreadyExistsException>(async () =>
             {
                 await taskHubClient.CreateOrchestrationInstanceAsync(typeof(TestOrchestration), new TestOrchestrationData());
             });

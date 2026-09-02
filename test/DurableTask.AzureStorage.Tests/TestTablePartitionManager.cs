@@ -702,7 +702,7 @@ namespace DurableTask.AzureStorage.Tests
             // read the partition table
             var results = partitionTable.ExecuteQueryAsync<TablePartitionLease>();
             var numResults = await results.CountAsync();
-            Assert.AreEqual(numResults, 1); // there should only be 1 partition
+            Assert.AreEqual(1, numResults); // there should only be 1 partition
 
             // We want to test that worker 0 starts listening to the control queue without claiming the lease.
             // Therefore, we force the table to be in a state where worker 0 is still the current owner of the partition.
@@ -716,8 +716,8 @@ namespace DurableTask.AzureStorage.Tests
             // guarantee table is corrrectly updated
             results = partitionTable.ExecuteQueryAsync<TablePartitionLease>();
             numResults = await results.CountAsync();
-            Assert.AreEqual(numResults, 1); // there should only be 1 partition
-            Assert.AreEqual((await results.FirstAsync()).CurrentOwner, "0"); // ensure current owner is partition "0"
+            Assert.AreEqual(1, numResults); // there should only be 1 partition
+            Assert.AreEqual("0", (await results.FirstAsync()).CurrentOwner); // ensure current owner is partition "0"
 
             // create and start new worker with the same settings, ensure it is actively listening to the queue
             worker = new TaskHubWorker(service);

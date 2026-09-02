@@ -10,11 +10,6 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' != 'net48'">
-    <!-- Increasing Azure.Monitor.OpenTelemetry.Exporter to 1.0.0-beta.5 or beyond brings Systems.DiagnosticSource 7.x, which is uncompatible with netcoreapp3.1.
-    The warning reads:
-	  "System.Diagnostics.DiagnosticSource 7.0.0-rc.1.22426.10 doesn't support netcoreapp3.1 and has not been tested with it
-	  Consider upgrading your TargetFramework to net6.0 or later. You may also set <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings> 
-	  in the project file to ignore this warning and attempt to run in this unsupported configuration at your own risk."-->
     <PackageReference Include="Azure.Monitor.OpenTelemetry.Exporter" />
     <PackageReference Include="System.Configuration.ConfigurationManager" />
   </ItemGroup>
@@ -34,6 +29,12 @@
 	Since this is just a test project, and to prevent "warning fatigue" so real CVEs stand out, we choose to upgrade the dependency explicitly to remove the false alarm.-->
     <PackageReference Include="System.Data.SqlClient" /> <!-- Version 4.3.1 was detected by default-->
     <PackageReference Include="Microsoft.Data.Services.Client" /> <!-- Without this, we resolve Microsoft.Data.OData 5.8.2, which is flagged-->
+    <PackageReference Include="System.Text.RegularExpressions" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+    <!-- Pin patched versions of vulnerable dependencies pulled in by WindowsAzure.Storage 9.x. -->
+    <PackageReference Include="System.Net.Http" />
   </ItemGroup>
 
   <ItemGroup>
@@ -49,10 +50,6 @@
 
   <ItemGroup>
     <Service Include="{82a7f48d-3b50-4b1e-b82e-3ada8210c358}" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
-    <PackageReference Include="System.Text.RegularExpressions" />
   </ItemGroup>
 
   <ItemGroup>

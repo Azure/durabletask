@@ -21,7 +21,7 @@ namespace DurableTask.AzureStorage.Tests
     {
         // PartitionKeyEquals applies KeySanitation.EscapePartitionKey (storage-key characters) and then
         // OData quote-escaping (single quotes doubled).
-        [DataTestMethod]
+        [TestMethod]
         [DataRow("instance1", "PartitionKey eq 'instance1'")]
         [DataRow("inst'ance", "PartitionKey eq 'inst''ance'")]
         [DataRow("in#st'ance", "PartitionKey eq 'in^2st''ance'")]
@@ -31,7 +31,7 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         // ColumnEquals OData-escapes the value (single quotes doubled); the column name is literal text.
-        [DataTestMethod]
+        [TestMethod]
         [DataRow("ExecutionId", "abc", "ExecutionId eq 'abc'")]
         [DataRow("ExecutionId", "a'b", "ExecutionId eq 'a''b'")]
         [DataRow("RowKey", "", "RowKey eq ''")]
@@ -40,7 +40,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(expectedFilter, AzureTableQueryFilter.ColumnEquals(columnName, value));
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow("prefix", "PartitionKey ge 'prefix'")]
         [DataRow("pre'fix", "PartitionKey ge 'pre''fix'")]
         public void PartitionKeyGreaterOrEqual(string sanitizedPartitionKey, string expectedFilter)
@@ -48,7 +48,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(expectedFilter, AzureTableQueryFilter.PartitionKeyGreaterOrEqual(sanitizedPartitionKey));
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow("prefix", "PartitionKey lt 'prefix'")]
         [DataRow("pre'fix", "PartitionKey lt 'pre''fix'")]
         public void PartitionKeyLessThan(string sanitizedPartitionKey, string expectedFilter)

@@ -22,6 +22,7 @@ namespace DurableTask.Samples
     using System.IO;
     using System.Linq;
     using System.Threading;
+    using CommandLine;
     using DurableTask.AzureStorage;
     using DurableTask.Core;
     using DurableTask.Core.Tracing;
@@ -38,7 +39,6 @@ namespace DurableTask.Samples
 
     internal class Program
     {
-        static readonly Options ArgumentOptions = new Options();
         static ObservableEventListener eventListener;
 
         [STAThread]
@@ -48,8 +48,15 @@ namespace DurableTask.Samples
             eventListener.LogToConsole();
             eventListener.EnableEvents(DefaultEventSource.Log, EventLevel.LogAlways);
 
-            if (CommandLine.Parser.Default.ParseArgumentsStrict(args, ArgumentOptions))
+            Options argumentOptions = null;
+            ParserResult<Options> parserResult = Parser.Default.ParseArguments<Options>(args);
+            parserResult
+                .WithParsed(options => argumentOptions = options)
+                .WithNotParsed(errors => Console.Error.WriteLine(Options.GetUsage(parserResult)));
+
+            if (argumentOptions != null)
             {
+                string[] parameters = argumentOptions.Parameters?.ToArray();
                 string storageConnectionString = GetSetting("StorageConnectionString");
                 string taskHubName = ConfigurationManager.AppSettings["taskHubName"];
 
@@ -63,44 +70,44 @@ namespace DurableTask.Samples
                 var taskHubClient = new TaskHubClient(orchestrationServiceAndClient);
                 var taskHubWorker = new TaskHubWorker(orchestrationServiceAndClient);
                 
-                if (ArgumentOptions.CreateHub)
+                if (argumentOptions.CreateHub)
                 {
                     orchestrationServiceAndClient.CreateIfNotExistsAsync().Wait();
                 }
 
                 OrchestrationInstance instance = null;
 
-                if (!string.IsNullOrWhiteSpace(ArgumentOptions.StartInstance))
+                if (!string.IsNullOrWhiteSpace(argumentOptions.StartInstance))
                 {
-                    string instanceId = ArgumentOptions.InstanceId ?? Guid.NewGuid().ToString();
-                    Console.WriteLine($"Start Orchestration: {ArgumentOptions.StartInstance}");
-                    switch (ArgumentOptions.StartInstance)
+                    string instanceId = argumentOptions.InstanceId ?? Guid.NewGuid().ToString();
+                    Console.WriteLine($"Start Orchestration: {argumentOptions.StartInstance}");
+                    switch (argumentOptions.StartInstance)
                     {
                         case "Greetings":
                             instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(GreetingsOrchestration), instanceId, null).Result;
                             break;
                         case "Greetings2":
-                            if (ArgumentOptions.Parameters == null || ArgumentOptions.Parameters.Length != 1)
+                            if (parameters == null || parameters.Length != 1)
                             {
                                 throw new ArgumentException("parameters");
                             }
 
                             instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(GreetingsOrchestration2), instanceId, 
-                                int.Parse(ArgumentOptions.Parameters[0])).Result;
+                                int.Parse(parameters[0])).Result;
                             break;
                         case "Cron":
                             // Sample Input: "0 12 * */2 Mon"
                             instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(CronOrchestration), instanceId, 
-                                (ArgumentOptions.Parameters != null && ArgumentOptions.Parameters.Length > 0) ? ArgumentOptions.Parameters[0] : null).Result;
+                                (parameters != null && parameters.Length > 0) ? parameters[0] : null).Result;
                             break;
                         case "Average":
                             // Sample Input: "1 50 10"
-                            if (ArgumentOptions.Parameters == null || ArgumentOptions.Parameters.Length != 3)
+                            if (parameters == null || parameters.Length != 3)
                             {
                                 throw new ArgumentException("parameters");
                             }
 
-                            int[] input = ArgumentOptions.Parameters.Select(p => int.Parse(p)).ToArray();
+                            int[] input = parameters.Select(p => int.Parse(p)).ToArray();
                             instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(AverageCalculatorOrchestration), instanceId, input).Result;
                             break;
                         case "ErrorHandling":
@@ -118,46 +125,46 @@ namespace DurableTask.Samples
                             instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(SignalOrchestration), instanceId, null).Result;
                             break;
                         case "SignalAndRaise":
-                            if (ArgumentOptions.Parameters == null || ArgumentOptions.Parameters.Length != 1)
+                            if (parameters == null || parameters.Length != 1)
                             {
                                 throw new ArgumentException("parameters");
                             }
 
-                            instance = taskHubClient.CreateOrchestrationInstanceWithRaisedEventAsync(typeof(SignalOrchestration), instanceId, null, ArgumentOptions.Signal, ArgumentOptions.Parameters[0]).Result;
+                            instance = taskHubClient.CreateOrchestrationInstanceWithRaisedEventAsync(typeof(SignalOrchestration), instanceId, null, argumentOptions.Signal, parameters[0]).Result;
                             break;
                         case "Replat":
                             instance = taskHubClient.CreateOrchestrationInstanceAsync(typeof(MigrateOrchestration), instanceId,
                                 new MigrateOrchestrationData { SubscriptionId = "03a1cd39-47ac-4a57-9ff5-a2c2a2a76088", IsDisabled = false }).Result;
                             break;
                         default:
-                            throw new Exception("Unsupported Orchestration Name: " + ArgumentOptions.StartInstance);
+                            throw new Exception("Unsupported Orchestration Name: " + argumentOptions.StartInstance);
                     }
 
                     Console.WriteLine("Workflow Instance Started: " + instance);
                 }
-                else if (!string.IsNullOrWhiteSpace(ArgumentOptions.Signal))
+                else if (!string.IsNullOrWhiteSpace(argumentOptions.Signal))
                 {
                     Console.WriteLine("Run RaiseEvent");
 
-                    if (string.IsNullOrWhiteSpace(ArgumentOptions.InstanceId)) 
+                    if (string.IsNullOrWhiteSpace(argumentOptions.InstanceId))
                     {
                         throw new ArgumentException("instanceId");
                     }
 
-                    if (ArgumentOptions.Parameters == null || ArgumentOptions.Parameters.Length != 1)
+                    if (parameters == null || parameters.Length != 1)
                     {
                         throw new ArgumentException("parameters");
                     }
 
-                    string instanceId = ArgumentOptions.InstanceId;
+                    string instanceId = argumentOptions.InstanceId;
                     instance = new OrchestrationInstance { InstanceId = instanceId };
-                    taskHubClient.RaiseEventAsync(instance, ArgumentOptions.Signal, ArgumentOptions.Parameters[0]).Wait();
+                    taskHubClient.RaiseEventAsync(instance, argumentOptions.Signal, parameters[0]).Wait();
 
                     Console.WriteLine("Press any key to quit.");
                     Console.ReadLine();
                 }
 
-                if (!ArgumentOptions.SkipWorker)
+                if (!argumentOptions.SkipWorker)
                 {
                     try
                     {

@@ -67,13 +67,13 @@ namespace DurableTask.ServiceBus.Tests
             bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
             OrchestrationState runtimeState = await this.client.GetOrchestrationStateAsync(id);
-            Assert.AreEqual(runtimeState.OrchestrationStatus, OrchestrationStatus.Completed);
-            Assert.AreEqual(runtimeState.OrchestrationInstance.InstanceId, id.InstanceId);
-            Assert.AreEqual(runtimeState.OrchestrationInstance.ExecutionId, id.ExecutionId);
+            Assert.AreEqual(OrchestrationStatus.Completed, runtimeState.OrchestrationStatus);
+            Assert.AreEqual(id.InstanceId, runtimeState.OrchestrationInstance.InstanceId);
+            Assert.AreEqual(id.ExecutionId, runtimeState.OrchestrationInstance.ExecutionId);
             Assert.AreEqual("DurableTask.ServiceBus.Tests.OrchestrationHubTableClientTests+InstanceStoreTestOrchestration", runtimeState.Name);
-            Assert.AreEqual(runtimeState.Version, string.Empty);
-            Assert.AreEqual(runtimeState.Input, "\"DONT_THROW\"");
-            Assert.AreEqual(runtimeState.Output, "\"Spartacus\"");
+            Assert.AreEqual(string.Empty, runtimeState.Version);
+            Assert.AreEqual("\"DONT_THROW\"", runtimeState.Input);
+            Assert.AreEqual("\"Spartacus\"", runtimeState.Output);
 
             string history = await this.client.GetOrchestrationHistoryAsync(id);
             Assert.IsTrue(!string.IsNullOrWhiteSpace(history));
@@ -147,14 +147,14 @@ namespace DurableTask.ServiceBus.Tests
             Assert.AreEqual(id.InstanceId, runtimeState.OrchestrationInstance.InstanceId);
             Assert.AreEqual(id.ExecutionId, runtimeState.OrchestrationInstance.ExecutionId);
             Assert.AreEqual("DurableTask.ServiceBus.Tests.OrchestrationHubTableClientTests+InstanceStoreTestOrchestration", runtimeState.Name);
-            Assert.AreEqual(runtimeState.Version, string.Empty);
-            Assert.AreEqual(runtimeState.Input, "\"WAIT\"");
-            Assert.AreEqual(runtimeState.Output, null);
+            Assert.AreEqual(string.Empty, runtimeState.Version);
+            Assert.AreEqual("\"WAIT\"", runtimeState.Input);
+            Assert.IsNull(runtimeState.Output);
 
             bool isCompleted = await TestHelpers.WaitForInstanceAsync(this.client, id, 60);
             Assert.IsTrue(isCompleted, TestHelpers.GetInstanceNotCompletedMessage(this.client, id, 60));
             runtimeState = await this.client.GetOrchestrationStateAsync(id);
-            Assert.AreEqual(runtimeState.OrchestrationStatus, OrchestrationStatus.Completed);
+            Assert.AreEqual(OrchestrationStatus.Completed, runtimeState.OrchestrationStatus);
         }
 
         [TestMethod]

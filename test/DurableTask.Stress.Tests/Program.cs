@@ -150,6 +150,7 @@ namespace DurableTask.Stress.Tests
     using System.Configuration;
     using System.Diagnostics;
     using System.Diagnostics.Tracing;
+    using CommandLine;
     using DurableTask.AzureStorage;
     using DurableTask.Core;
     using DurableTask.Core.Tracing;
@@ -158,7 +159,6 @@ namespace DurableTask.Stress.Tests
 
     internal class Program
     {
-        static readonly Options ArgumentOptions = new Options();
         static ObservableEventListener eventListener;
 
         // ReSharper disable once UnusedMember.Local
@@ -170,7 +170,13 @@ namespace DurableTask.Stress.Tests
 
             string tableConnectionString = ConfigurationManager.AppSettings["StorageConnectionString"];
 
-            if (CommandLine.Parser.Default.ParseArgumentsStrict(args, ArgumentOptions))
+            Options argumentOptions = null;
+            ParserResult<Options> parserResult = Parser.Default.ParseArguments<Options>(args);
+            parserResult
+                .WithParsed(options => argumentOptions = options)
+                .WithNotParsed(errors => Console.Error.WriteLine(Options.GetUsage(parserResult)));
+
+            if (argumentOptions != null)
             {
                 string connectionString = ConfigurationManager.ConnectionStrings["AzureStorage"].ConnectionString;
                 var settings = new AzureStorageOrchestrationServiceSettings
@@ -186,13 +192,13 @@ namespace DurableTask.Stress.Tests
                 var taskHubClient = new TaskHubClient(orchestrationServiceAndClient);
                 var taskHub = new TaskHubWorker(orchestrationServiceAndClient);
 
-                if (ArgumentOptions.CreateHub)
+                if (argumentOptions.CreateHub)
                 {
                     orchestrationServiceAndClient.CreateIfNotExistsAsync().Wait();
                 }
 
                 OrchestrationInstance instance;
-                string instanceId = ArgumentOptions.StartInstance;
+                string instanceId = argumentOptions.StartInstance;
 
                 if (!string.IsNullOrWhiteSpace(instanceId))
                 {
@@ -212,7 +218,7 @@ namespace DurableTask.Stress.Tests
                 }
                 else
                 {
-                    instance = new OrchestrationInstance { InstanceId = ArgumentOptions.InstanceId };
+                    instance = new OrchestrationInstance { InstanceId = argumentOptions.InstanceId };
                 }
 
                 Console.WriteLine($"Orchestration starting: {DateTime.Now}");

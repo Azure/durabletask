@@ -81,14 +81,14 @@ namespace DurableTask.AzureServiceFabric.Tests
         [TestMethod]
         public void BindToType_RejectsArbitraryAssembly()
         {
-            Assert.ThrowsException<InvalidOperationException>(() =>
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
                 this.binder.BindToType("Evil.Assembly", "Evil.PwnedDescriptor"));
         }
 
         [TestMethod]
         public void BindToType_RejectsQualifiedArbitraryAssembly()
         {
-            Assert.ThrowsException<InvalidOperationException>(() =>
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
                 this.binder.BindToType("Evil.Assembly, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null", "Evil.PwnedDescriptor"));
         }
 
@@ -97,7 +97,7 @@ namespace DurableTask.AzureServiceFabric.Tests
         {
             // A common gadget type — must be rejected
             var type = typeof(System.Diagnostics.Process);
-            Assert.ThrowsException<InvalidOperationException>(() =>
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
                 this.binder.BindToType(type.Assembly.GetName().Name, type.FullName));
         }
 
@@ -105,7 +105,7 @@ namespace DurableTask.AzureServiceFabric.Tests
         public void BindToType_RejectsNonAllowlistedMscorlibType()
         {
             // System.Type is from mscorlib but not in the type allowlist
-            Assert.ThrowsException<InvalidOperationException>(() =>
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
                 this.binder.BindToType("mscorlib", typeof(Type).FullName));
         }
 
@@ -113,7 +113,7 @@ namespace DurableTask.AzureServiceFabric.Tests
         public void BindToType_RejectsUnresolvableType()
         {
             // A type name that cannot be resolved should throw a controlled exception, not NullReferenceException
-            var ex = Assert.ThrowsException<JsonSerializationException>(() =>
+            var ex = Assert.ThrowsExactly<JsonSerializationException>(() =>
                 this.binder.BindToType("DurableTask.Core", "DurableTask.Core.NonExistentType"));
             StringAssert.Contains(ex.Message, "NonExistentType");
         }
@@ -123,7 +123,7 @@ namespace DurableTask.AzureServiceFabric.Tests
         {
             // TaskOrchestration is a DurableTask.Core type but not in the proxy endpoint allowlist
             var type = typeof(TaskOrchestration);
-            Assert.ThrowsException<InvalidOperationException>(() =>
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
                 this.binder.BindToType(type.Assembly.GetName().Name, type.FullName));
         }
 
@@ -208,7 +208,7 @@ namespace DurableTask.AzureServiceFabric.Tests
             };
 
             // Newtonsoft wraps the binder's InvalidOperationException in a JsonSerializationException
-            var ex = Assert.ThrowsException<JsonSerializationException>(() =>
+            var ex = Assert.ThrowsExactly<JsonSerializationException>(() =>
                 JsonConvert.DeserializeObject<object>(maliciousJson, settings));
             Assert.IsInstanceOfType(ex.InnerException, typeof(InvalidOperationException));
             StringAssert.Contains(ex.InnerException.Message, "is not allowed");
