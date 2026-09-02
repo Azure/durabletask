@@ -1510,6 +1510,243 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        /// <summary>
+        /// End-to-end test which validates that an orchestration that schedules more work in response to an activity
+        /// failure can be rewound. Regression test for
+        /// https://github.com/Azure/azure-functions-durable-extension/issues/444.
+        /// </summary>
+        [TestMethod]
+        public async Task RewindActivityFailWithCleanupActivity()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
+            {
+                bool originalShouldFail = Activities.HelloFailCleanupActivity.ShouldFail;
+                try
+                {
+                    Activities.HelloFailCleanupActivity.ShouldFail = true;
+                    await host.StartAsync();
+
+                    string singletonInstanceId = $"Test_{Guid.NewGuid():N}";
+
+                    var client = await host.StartOrchestrationAsync(
+                        typeof(Orchestrations.SayHelloWithActivityFailAndCleanup),
+                        input: "World",
+                        instanceId: singletonInstanceId);
+
+                    var statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                    Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                    Activities.HelloFailCleanupActivity.ShouldFail = false;
+
+                    await client.RewindAsync("Rewind orchestrator that scheduled an activity from its catch block.");
+
+                    var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+
+                    Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                    Assert.AreEqual("\"Hello, World!\"", statusRewind?.Output);
+                }
+                finally
+                {
+                    // Restore the shared flag and stop the host even if an assertion above threw, so that
+                    // a failure here cannot cascade into unrelated tests.
+                    Activities.HelloFailCleanupActivity.ShouldFail = originalShouldFail;
+                    await host.StopAsync();
+                }
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates that an orchestration whose retried activity ultimately failed can be rewound.
+        /// The retry delay timers are also a consequence of the failure and must not survive the rewind.
+        /// </summary>
+        [TestMethod]
+        public async Task RewindActivityFailWithRetry()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
+            {
+                bool originalShouldFail = Activities.HelloFailRetryActivity.ShouldFail;
+                try
+                {
+                    Activities.HelloFailRetryActivity.ShouldFail = true;
+                    await host.StartAsync();
+
+                    string singletonInstanceId = $"Test_{Guid.NewGuid():N}";
+
+                    var client = await host.StartOrchestrationAsync(
+                        typeof(Orchestrations.SayHelloWithActivityFailAndRetry),
+                        input: "World",
+                        instanceId: singletonInstanceId);
+
+                    var statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                    Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                    Activities.HelloFailRetryActivity.ShouldFail = false;
+
+                    await client.RewindAsync("Rewind orchestrator with a retried activity.");
+
+                    var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                    Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                    Assert.AreEqual("\"Hello, World!\"", statusRewind?.Output);
+                }
+                finally
+                {
+                    // Restore the shared flag and stop the host even if an assertion above threw, so that
+                    // a failure here cannot cascade into unrelated tests.
+                    Activities.HelloFailRetryActivity.ShouldFail = originalShouldFail;
+                    await host.StopAsync();
+                }
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates that an orchestration that creates a sub-orchestration in response to an activity
+        /// failure can be rewound. This covers the <see cref="EventType.SubOrchestrationInstanceCreated"/> branch of the
+        /// Azure Storage scrub, which is a separate implementation from the one in DurableTask.Core.
+        /// </summary>
+        [TestMethod]
+        public async Task RewindActivityFailWithCleanupSubOrchestration()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
+            {
+                bool originalShouldFail = Activities.HelloFailCleanupSubOrchestrationActivity.ShouldFail;
+                try
+                {
+                    Activities.HelloFailCleanupSubOrchestrationActivity.ShouldFail = true;
+                    await host.StartAsync();
+
+                    string singletonInstanceId = $"Test_{Guid.NewGuid():N}";
+
+                    var client = await host.StartOrchestrationAsync(
+                        typeof(Orchestrations.SayHelloWithActivityFailAndCleanupSubOrchestration),
+                        input: "World",
+                        instanceId: singletonInstanceId);
+
+                    var statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                    Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                    Activities.HelloFailCleanupSubOrchestrationActivity.ShouldFail = false;
+
+                    await client.RewindAsync("Rewind orchestrator that created a sub-orchestration from its catch block.");
+
+                    var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                    Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                    Assert.AreEqual("\"Hello, World!\"", statusRewind?.Output);
+                }
+                finally
+                {
+                    Activities.HelloFailCleanupSubOrchestrationActivity.ShouldFail = originalShouldFail;
+                    await host.StopAsync();
+                }
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates that an orchestration that sends an event in response to an activity failure can be
+        /// rewound. This covers the <see cref="EventType.EventSent"/> branch of the Azure Storage scrub, which is a separate
+        /// implementation from the one in DurableTask.Core.
+        /// </summary>
+        [TestMethod]
+        public async Task RewindActivityFailWithSendEvent()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
+            {
+                bool originalShouldFail = Activities.HelloFailSendEventActivity.ShouldFail;
+                try
+                {
+                    Activities.HelloFailSendEventActivity.ShouldFail = true;
+                    await host.StartAsync();
+
+                    string singletonInstanceId = $"Test_{Guid.NewGuid():N}";
+
+                    var client = await host.StartOrchestrationAsync(
+                        typeof(Orchestrations.SayHelloWithActivityFailAndSendEvent),
+                        input: "World",
+                        instanceId: singletonInstanceId);
+
+                    var statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                    Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
+
+                    Activities.HelloFailSendEventActivity.ShouldFail = false;
+
+                    await client.RewindAsync("Rewind orchestrator that sent an event from its catch block.");
+
+                    var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                    Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+                    Assert.AreEqual("\"Hello, World!\"", statusRewind?.Output);
+                }
+                finally
+                {
+                    Activities.HelloFailSendEventActivity.ShouldFail = originalShouldFail;
+                    await host.StopAsync();
+                }
+            }
+        }
+
+        /// <summary>
+        /// End-to-end test which validates that rewinding an orchestration whose catch block created a sub-orchestration leaves
+        /// the orchestrator able to create a *different* sub-orchestration at the same sequence ID on the success path. Because
+        /// the Azure Storage rewind keeps the parent's execution ID, the replayed child is assigned the default instance ID
+        /// "&lt;parent execution ID&gt;:&lt;sequence ID&gt;", which the cleanup child from the failed attempt already occupies.
+        /// </summary>
+        [TestMethod]
+        public async Task RewindActivityFailWithSubOrchestrationIdReuse()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: true))
+            {
+                bool originalShouldFail = Activities.HelloFailSubOrchestrationIdReuseActivity.ShouldFail;
+                try
+                {
+                    Activities.HelloFailSubOrchestrationIdReuseActivity.ShouldFail = true;
+                    await host.StartAsync();
+
+                    string singletonInstanceId = $"Test_{Guid.NewGuid():N}";
+
+                    var client = await host.StartOrchestrationAsync(
+                        typeof(Orchestrations.SayHelloWithActivityFailAndSubOrchestrationIdReuse),
+                        input: "World",
+                        instanceId: singletonInstanceId);
+
+                    var statusFail = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                    Assert.IsNotNull(statusFail, "The orchestration did not complete within the timeout, so no status was returned.");
+                    Assert.AreEqual(OrchestrationStatus.Failed, statusFail.OrchestrationStatus);
+
+                    // A sub-orchestration created without an explicit instance ID is assigned "<parent execution ID>:<sequence
+                    // ID>", and the cleanup child is the first one the orchestrator creates, so it occupies sequence ID 1.
+                    string reusedChildInstanceId = $"{statusFail.OrchestrationInstance.ExecutionId}:1";
+                    Assert.AreNotEqual(
+                        0,
+                        (await client.GetOrchestrationHistoryAsync(reusedChildInstanceId)).Count,
+                        $"The cleanup sub-orchestration did not run as '{reusedChildInstanceId}', so the failed attempt did not set up the instance ID collision this test exists to cover.");
+
+                    Activities.HelloFailSubOrchestrationIdReuseActivity.ShouldFail = false;
+
+                    await client.RewindAsync("Rewind orchestrator whose success path reuses the cleanup child's sequence ID.");
+
+                    var statusRewind = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+
+                    Assert.AreEqual(OrchestrationStatus.Completed, statusRewind?.OrchestrationStatus);
+
+                    // The success child returns its own instance ID, so this asserts both that it ran to completion and that it
+                    // was assigned the instance ID the cleanup child already occupied. Had its start message been dropped or
+                    // deferred as a duplicate, the parent would still be awaiting it and the test would have timed out above.
+                    Assert.AreEqual($"\"Hello, World! {reusedChildInstanceId}\"", statusRewind?.Output);
+                }
+                finally
+                {
+                    Activities.HelloFailSubOrchestrationIdReuseActivity.ShouldFail = originalShouldFail;
+                    await host.StopAsync();
+                }
+            }
+        }
+
         [TestMethod]
         public async Task RewindMultipleActivityFail()
         {
@@ -4375,6 +4612,135 @@ namespace DurableTask.AzureStorage.Tests
                 }
             }
 
+            [KnownType(typeof(Activities.HelloFailCleanupActivity))]
+            [KnownType(typeof(Activities.Hello))]
+            internal class SayHelloWithActivityFailAndCleanup : TaskOrchestration<string, string>
+            {
+                public override async Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    try
+                    {
+                        return await context.ScheduleTask<string>(typeof(Activities.HelloFailCleanupActivity), input);
+                    }
+                    catch (Exception)
+                    {
+                        // The cleanup activity exists only because the orchestrator observed the failure, so rewind has to
+                        // remove it from the history. See https://github.com/Azure/azure-functions-durable-extension/issues/444.
+                        await context.ScheduleTask<string>(typeof(Activities.Hello), "Cleanup");
+                        throw;
+                    }
+                }
+            }
+
+            [KnownType(typeof(Activities.HelloFailRetryActivity))]
+            internal class SayHelloWithActivityFailAndRetry : TaskOrchestration<string, string>
+            {
+                public override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    // Retries leave delay timers in the history, including one created after the final failed attempt, which
+                    // rewind has to remove along with the failed attempts themselves.
+                    var retryOptions = new RetryOptions(TimeSpan.FromSeconds(1), maxNumberOfAttempts: 2);
+                    return context.ScheduleWithRetry<string>(typeof(Activities.HelloFailRetryActivity), retryOptions, input);
+                }
+            }
+
+            [KnownType(typeof(Activities.HelloFailCleanupSubOrchestrationActivity))]
+            [KnownType(typeof(CleanupChildWorkflow))]
+            internal class SayHelloWithActivityFailAndCleanupSubOrchestration : TaskOrchestration<string, string>
+            {
+                public override async Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    try
+                    {
+                        return await context.ScheduleTask<string>(typeof(Activities.HelloFailCleanupSubOrchestrationActivity), input);
+                    }
+                    catch (Exception)
+                    {
+                        // The sub-orchestration exists only because the orchestrator observed the failure, so rewind has to
+                        // remove its SubOrchestrationInstanceCreated event (and its result) from the history.
+                        await context.CreateSubOrchestrationInstance<string>(typeof(CleanupChildWorkflow), "Cleanup");
+                        throw;
+                    }
+                }
+            }
+
+            internal class CleanupChildWorkflow : TaskOrchestration<string, string>
+            {
+                public override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    // Deliberately schedules no work of its own. The events this test cares about
+                    // (SubOrchestrationInstanceCreated and its result) live in the *parent's* history and are produced
+                    // regardless of what the child does, so keeping the child trivial avoids depending on activity
+                    // registration, which TestOrchestrationHost only resolves one KnownType level deep.
+                    return Task.FromResult($"Cleaned up {input}");
+                }
+            }
+
+            [KnownType(typeof(Activities.HelloFailSendEventActivity))]
+            internal class SayHelloWithActivityFailAndSendEvent : TaskOrchestration<string, string>
+            {
+                public override async Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    try
+                    {
+                        return await context.ScheduleTask<string>(typeof(Activities.HelloFailSendEventActivity), input);
+                    }
+                    catch (Exception)
+                    {
+                        // The event is sent only because the orchestrator observed the failure, so rewind has to remove the
+                        // resulting EventSent event from the history. It is addressed to this same instance so that the test
+                        // does not depend on the lifetime of some other orchestration.
+                        context.SendEvent(context.OrchestrationInstance, "ActivityFailed", "cleanup");
+                        throw;
+                    }
+                }
+            }
+
+            [KnownType(typeof(Activities.HelloFailSubOrchestrationIdReuseActivity))]
+            [KnownType(typeof(IdReuseCleanupChildWorkflow))]
+            [KnownType(typeof(IdReuseSuccessChildWorkflow))]
+            internal class SayHelloWithActivityFailAndSubOrchestrationIdReuse : TaskOrchestration<string, string>
+            {
+                public override async Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    string greeting;
+                    try
+                    {
+                        greeting = await context.ScheduleTask<string>(typeof(Activities.HelloFailSubOrchestrationIdReuseActivity), input);
+                    }
+                    catch (Exception)
+                    {
+                        // Consequence sub-orchestration. It takes sequence ID 1, so its default child instance ID is
+                        // "<parent execution ID>:1".
+                        await context.CreateSubOrchestrationInstance<string>(typeof(IdReuseCleanupChildWorkflow), "Cleanup");
+                        throw;
+                    }
+
+                    // On the post-rewind success path this is the first sub-orchestration, so it also takes sequence ID 1 and
+                    // therefore the same default child instance ID that the cleanup child already occupies. Rewind must leave the
+                    // parent able to start this child anyway.
+                    string child = await context.CreateSubOrchestrationInstance<string>(typeof(IdReuseSuccessChildWorkflow), input);
+                    return $"{greeting} {child}";
+                }
+            }
+
+            internal class IdReuseCleanupChildWorkflow : TaskOrchestration<string, string>
+            {
+                public override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    return Task.FromResult($"Cleaned up {input}");
+                }
+            }
+
+            internal class IdReuseSuccessChildWorkflow : TaskOrchestration<string, string>
+            {
+                public override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    // Returning the instance ID lets the test observe which instance actually ran without any shared state.
+                    return Task.FromResult(context.OrchestrationInstance.InstanceId);
+                }
+            }
+
             [KnownType(typeof(Activities.Multiply))]
             internal class Factorial : TaskOrchestration<long, int>
             {
@@ -5186,6 +5552,101 @@ namespace DurableTask.AzureStorage.Tests
         static class Activities
         {
             internal class HelloFailActivity : TaskActivity<string, string>
+            {
+                public static bool ShouldFail = true;
+                protected override string Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+
+                    if (ShouldFail)
+                    {
+                        throw new Exception("Simulating unhandled activity function failure...");
+                    }
+
+                    return $"Hello, {input}!";
+                }
+            }
+
+            internal class HelloFailCleanupActivity : TaskActivity<string, string>
+            {
+                public static bool ShouldFail = true;
+                protected override string Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+
+                    if (ShouldFail)
+                    {
+                        throw new Exception("Simulating unhandled activity function failure...");
+                    }
+
+                    return $"Hello, {input}!";
+                }
+            }
+
+            internal class HelloFailCleanupSubOrchestrationActivity : TaskActivity<string, string>
+            {
+                public static bool ShouldFail = true;
+                protected override string Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+
+                    if (ShouldFail)
+                    {
+                        throw new Exception("Simulating unhandled activity function failure...");
+                    }
+
+                    return $"Hello, {input}!";
+                }
+            }
+
+            internal class HelloFailSendEventActivity : TaskActivity<string, string>
+            {
+                public static bool ShouldFail = true;
+                protected override string Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+
+                    if (ShouldFail)
+                    {
+                        throw new Exception("Simulating unhandled activity function failure...");
+                    }
+
+                    return $"Hello, {input}!";
+                }
+            }
+
+            internal class HelloFailSubOrchestrationIdReuseActivity : TaskActivity<string, string>
+            {
+                public static bool ShouldFail = true;
+                protected override string Execute(TaskContext context, string input)
+                {
+                    if (string.IsNullOrEmpty(input))
+                    {
+                        throw new ArgumentNullException(nameof(input));
+                    }
+
+                    if (ShouldFail)
+                    {
+                        throw new Exception("Simulating unhandled activity function failure...");
+                    }
+
+                    return $"Hello, {input}!";
+                }
+            }
+
+            internal class HelloFailRetryActivity : TaskActivity<string, string>
             {
                 public static bool ShouldFail = true;
                 protected override string Execute(TaskContext context, string input)

@@ -551,7 +551,7 @@ namespace DurableTask.Core
                                     isCompleted = !continuedAsNew;
                                     break;
                                 case OrchestratorActionType.RewindOrchestration:
-                                    this.ProcessRewindOrchestrationDecision(
+                                    ProcessRewindOrchestrationDecision(
                                         runtimeState,
                                         out List<TaskMessage> subOrchestrationRewindMessages,
                                         out OrchestrationRuntimeState newRuntimeState);
@@ -1379,7 +1379,57 @@ namespace DurableTask.Core
             };
         }
 
-        void ProcessRewindOrchestrationDecision(
+        /// <summary>
+        /// Gets the sequence ID of a history event that the orchestrator matches against its own
+        /// sequence-ID counter during replay. If one of these events has no counterpart in the
+        /// replayed execution, <see cref="TaskOrchestrationContext"/> throws a
+        /// <see cref="Exceptions.NonDeterministicOrchestrationException"/>.
+        /// </summary>
+        static bool TryGetScheduledTaskId(HistoryEvent historyEvent, out int taskId)
+        {
+            switch (historyEvent)
+            {
+                case TaskScheduledEvent taskScheduledEvent:
+                    taskId = taskScheduledEvent.EventId;
+                    return true;
+                case SubOrchestrationInstanceCreatedEvent subOrchestrationInstanceCreatedEvent:
+                    taskId = subOrchestrationInstanceCreatedEvent.EventId;
+                    return true;
+                case TimerCreatedEvent timerCreatedEvent:
+                    taskId = timerCreatedEvent.EventId;
+                    return true;
+                case EventSentEvent eventSentEvent:
+                    taskId = eventSentEvent.EventId;
+                    return true;
+                default:
+                    taskId = -1;
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// Gets the sequence ID of the scheduled task that a history event carries the result of.
+        /// </summary>
+        static bool TryGetCompletedTaskId(HistoryEvent historyEvent, out int taskId)
+        {
+            switch (historyEvent)
+            {
+                case TaskCompletedEvent taskCompletedEvent:
+                    taskId = taskCompletedEvent.TaskScheduledId;
+                    return true;
+                case SubOrchestrationInstanceCompletedEvent subOrchestrationInstanceCompletedEvent:
+                    taskId = subOrchestrationInstanceCompletedEvent.TaskScheduledId;
+                    return true;
+                case TimerFiredEvent timerFiredEvent:
+                    taskId = timerFiredEvent.TimerId;
+                    return true;
+                default:
+                    taskId = -1;
+                    return false;
+            }
+        }
+
+        internal static void ProcessRewindOrchestrationDecision(
             OrchestrationRuntimeState runtimeState,
             out List<TaskMessage> subOrchestrationRewindMessages,
             out OrchestrationRuntimeState newRuntimeState)
@@ -1388,9 +1438,15 @@ namespace DurableTask.Core
             /* WARNING!!!:
              * If any changes are made to how this method modifies the orchestration's history, then corresponding changes *must* 
              * be made in the backend implementations that rely on this method for executing a rewind.
+             *
+             * The rewind is "episode-aware": history is divided into episodes delimited by OrchestratorStartedEvent, and every
+             * task the orchestrator scheduled at or after the episode in which a failure was first observed is removed along with
+             * the failure itself. Backends replicating this logic must remove all four of the event types that replay matches
+             * against the orchestrator's sequence-ID counter (TaskScheduled, SubOrchestrationInstanceCreated, TimerCreated and
+             * EventSent), plus their result events. See AzureTableTrackingStore.RewindHistoryAsync for the equivalent
+             * implementation over Azure Table rows.
              */
 
-            HashSet<int> failedTaskIds = new();
             subOrchestrationRewindMessages = new();
 
             newRuntimeState = new()
@@ -1398,16 +1454,50 @@ namespace DurableTask.Core
                 Status = runtimeState.Status
             };
 
-            // Determine the task IDs of the failed tasks and suborchestrations
+            // Determine the task IDs of the failed tasks and suborchestrations, along with the earliest episode in which the
+            // orchestrator observed one of those failures.
+            HashSet<int> failedTaskIds = new();
+            int failureEpisode = int.MaxValue;
+            int episode = -1;
+
             foreach (var evt in runtimeState.Events)
             {
-                if (evt is TaskFailedEvent taskFailedEvent)
+                if (evt is OrchestratorStartedEvent)
+                {
+                    episode++;
+                }
+                else if (evt is TaskFailedEvent taskFailedEvent)
                 {
                     failedTaskIds.Add(taskFailedEvent.TaskScheduledId);
+                    failureEpisode = Math.Min(failureEpisode, episode);
                 }
                 else if (evt is SubOrchestrationInstanceFailedEvent subOrchestrationInstanceFailedEvent)
                 {
                     failedTaskIds.Add(subOrchestrationInstanceFailedEvent.TaskScheduledId);
+                    failureEpisode = Math.Min(failureEpisode, episode);
+                }
+            }
+
+            // Anything the orchestrator scheduled from the failure episode onwards was scheduled only because the orchestrator
+            // observed the failure (for example an activity invoked from a catch block, or the delay timer that
+            // RetryInterceptor creates between attempts). After the rewind the failure is no longer visible, so the replayed
+            // orchestrator can never reach those sequence IDs and would fail with a NonDeterministicOrchestrationException.
+            // Note that this deliberately errs on the side of removing too much: within the failure episode we cannot tell a
+            // consequence of the failure apart from unrelated work that happened to be batched into the same work item without
+            // replaying the orchestrator code, which the rewind path (and the backends replicating it) cannot do. The cost is
+            // that a small number of already-successful tasks may be re-executed; the benefit is a history that always replays.
+            HashSet<int> consequenceTaskIds = new();
+            episode = -1;
+
+            foreach (var evt in runtimeState.Events)
+            {
+                if (evt is OrchestratorStartedEvent)
+                {
+                    episode++;
+                }
+                else if (episode >= failureEpisode && TryGetScheduledTaskId(evt, out int scheduledTaskId))
+                {
+                    consequenceTaskIds.Add(scheduledTaskId);
                 }
             }
 
@@ -1417,74 +1507,87 @@ namespace DurableTask.Core
             // Copy the existing history, removing the failed task/suborchestration events and generating rewind events for each of the failed suborchestrations.
             foreach (var evt in runtimeState.Events)
             {
-                // Do not add the TaskScheduledEvents for the failed tasks so that they get rescheduled, and do not add any of
-                // the failed task/suborchestration/execution events to the new history.
-                if (!(evt is TaskScheduledEvent taskScheduledEvent && failedTaskIds.Contains(taskScheduledEvent.EventId))
-                    && evt is not TaskFailedEvent
-                    && evt is not SubOrchestrationInstanceFailedEvent
-                    && evt is not ExecutionCompletedEvent)
+                // Do not add any of the failed task/suborchestration/execution events to the new history.
+                if (evt is TaskFailedEvent || evt is SubOrchestrationInstanceFailedEvent || evt is ExecutionCompletedEvent)
                 {
-                    HistoryEvent eventToAdd = evt;
-
-                    if (evt is ExecutionStartedEvent executionStartedEvent)
-                    {
-                        // Copy all information from the old ExecutionStartedEvent except for the ExecutionId, since we create a new one
-                        var newExecutionStartedEvent = new ExecutionStartedEvent(executionStartedEvent);
-                        newExecutionStartedEvent.OrchestrationInstance.ExecutionId = newExecutionId;
-
-                        // If this is a suborchestration, we also need to update the ParentInstance's ExecutionId to match the new ExecutionId of the rewinding parent orchestration
-                        if (!string.IsNullOrEmpty(executionRewoundEvent.ParentExecutionId))
-                        {
-                            newExecutionStartedEvent.ParentInstance.OrchestrationInstance.ExecutionId = executionRewoundEvent.ParentExecutionId;
-                        }
-                        eventToAdd = newExecutionStartedEvent;
-                    }
-
-                    // For each of the failed suborchestrations, generate a rewind event
-                    else if (evt is SubOrchestrationInstanceCreatedEvent subOrchestrationInstanceCreatedEvent
-                        && failedTaskIds.Contains(subOrchestrationInstanceCreatedEvent.EventId))
-                    {   
-                        var childExecutionRewoundEvent = new ExecutionRewoundEvent(-1, executionRewoundEvent!.Reason)
-                        {
-                            ParentExecutionId = newExecutionId,
-                            InstanceId = subOrchestrationInstanceCreatedEvent.InstanceId
-                        };
-
-                        if (runtimeState.ExecutionStartedEvent.TryGetParentTraceContext(out ActivityContext parentTraceContext))
-                        {
-                            // We set a new client span ID here so that the execution of the rewound suborchestration is not tied to the 
-                            // old parent.
-                            var newClientSpanId = ActivitySpanId.CreateRandom();
-                            var newSubOrchestrationInstanceCreatedEvent = new SubOrchestrationInstanceCreatedEvent(subOrchestrationInstanceCreatedEvent)
-                            {
-                                ClientSpanId = newClientSpanId.ToString()
-                            };
-                            eventToAdd = newSubOrchestrationInstanceCreatedEvent;
-
-                            ActivityContext childActivityContext = new(
-                                parentTraceContext.TraceId,
-                                newClientSpanId,
-                                parentTraceContext.TraceFlags,
-                                parentTraceContext.TraceState);
-                            childExecutionRewoundEvent.SetParentTraceContext(childActivityContext);
-                        }
-
-                        subOrchestrationRewindMessages.Add
-                            (
-                                new TaskMessage
-                                {
-                                    Event = childExecutionRewoundEvent,
-                                    OrchestrationInstance = new OrchestrationInstance
-                                    {
-                                        InstanceId = subOrchestrationInstanceCreatedEvent.InstanceId
-                                    },
-                                }
-                            );
-                    }
-
-                    // Finally, add the event to the new history
-                    newRuntimeState.AddEvent(eventToAdd);
+                    continue;
                 }
+
+                // Do not add the TaskScheduledEvents for the failed tasks so that they get rescheduled, and do not add anything
+                // the orchestrator scheduled as a consequence of observing the failure.
+                if (TryGetScheduledTaskId(evt, out int taskId)
+                    && (consequenceTaskIds.Contains(taskId) || (evt is TaskScheduledEvent && failedTaskIds.Contains(taskId))))
+                {
+                    continue;
+                }
+
+                // Do not add the results of the removed tasks either. Leaving them behind would allow a stale result to satisfy
+                // a different task that gets assigned the same sequence ID once the orchestration resumes.
+                if (TryGetCompletedTaskId(evt, out int completedTaskId) && consequenceTaskIds.Contains(completedTaskId))
+                {
+                    continue;
+                }
+
+                HistoryEvent eventToAdd = evt;
+
+                if (evt is ExecutionStartedEvent executionStartedEvent)
+                {
+                    // Copy all information from the old ExecutionStartedEvent except for the ExecutionId, since we create a new one
+                    var newExecutionStartedEvent = new ExecutionStartedEvent(executionStartedEvent);
+                    newExecutionStartedEvent.OrchestrationInstance.ExecutionId = newExecutionId;
+
+                    // If this is a suborchestration, we also need to update the ParentInstance's ExecutionId to match the new ExecutionId of the rewinding parent orchestration
+                    if (!string.IsNullOrEmpty(executionRewoundEvent.ParentExecutionId))
+                    {
+                        newExecutionStartedEvent.ParentInstance.OrchestrationInstance.ExecutionId = executionRewoundEvent.ParentExecutionId;
+                    }
+                    eventToAdd = newExecutionStartedEvent;
+                }
+
+                // For each of the failed suborchestrations we are keeping, generate a rewind event
+                else if (evt is SubOrchestrationInstanceCreatedEvent subOrchestrationInstanceCreatedEvent
+                    && failedTaskIds.Contains(subOrchestrationInstanceCreatedEvent.EventId))
+                {   
+                    var childExecutionRewoundEvent = new ExecutionRewoundEvent(-1, executionRewoundEvent!.Reason)
+                    {
+                        ParentExecutionId = newExecutionId,
+                        InstanceId = subOrchestrationInstanceCreatedEvent.InstanceId
+                    };
+
+                    if (runtimeState.ExecutionStartedEvent.TryGetParentTraceContext(out ActivityContext parentTraceContext))
+                    {
+                        // We set a new client span ID here so that the execution of the rewound suborchestration is not tied to the 
+                        // old parent.
+                        var newClientSpanId = ActivitySpanId.CreateRandom();
+                        var newSubOrchestrationInstanceCreatedEvent = new SubOrchestrationInstanceCreatedEvent(subOrchestrationInstanceCreatedEvent)
+                        {
+                            ClientSpanId = newClientSpanId.ToString()
+                        };
+                        eventToAdd = newSubOrchestrationInstanceCreatedEvent;
+
+                        ActivityContext childActivityContext = new(
+                            parentTraceContext.TraceId,
+                            newClientSpanId,
+                            parentTraceContext.TraceFlags,
+                            parentTraceContext.TraceState);
+                        childExecutionRewoundEvent.SetParentTraceContext(childActivityContext);
+                    }
+
+                    subOrchestrationRewindMessages.Add
+                        (
+                            new TaskMessage
+                            {
+                                Event = childExecutionRewoundEvent,
+                                OrchestrationInstance = new OrchestrationInstance
+                                {
+                                    InstanceId = subOrchestrationInstanceCreatedEvent.InstanceId
+                                },
+                            }
+                        );
+                }
+
+                // Finally, add the event to the new history
+                newRuntimeState.AddEvent(eventToAdd);
             }
 
             // If this is a "terminal leaf" with no suborchestrations, we need to add an outbound message to it to force it to rerun.
