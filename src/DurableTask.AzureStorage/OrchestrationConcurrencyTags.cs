@@ -21,7 +21,6 @@ namespace DurableTask.AzureStorage
 
         internal ETag? HistoryETag { get; set; }
 
-        // Current instance sequence number, read alongside the instance eTag; reused during migration to avoid a second read.
         internal long? InstanceSequenceNumber { get; set; }
     }
 }

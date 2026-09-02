@@ -33,9 +33,8 @@ namespace DurableTask.AzureStorage.Tests
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     /// <summary>
-    /// Tests for the zero-downtime Azure Storage to DTS migration feature. Migration mode itself enables instance-table
-    /// optimistic concurrency and sequence-number tracking; tests leave
-    /// <see cref="AzureStorageOrchestrationServiceSettings.UseInstanceTableEtag"/> at its default value.
+    /// Tests for the zero-downtime Azure Storage to DTS migration feature and its interaction with instance-table
+    /// optimistic concurrency.
     /// </summary>
     [TestClass]
     public class MigrationTests
@@ -43,6 +42,44 @@ namespace DurableTask.AzureStorage.Tests
         const string SequenceNumberPropertyName = "SequenceNumber";
         const string SentinelRowKey = "sentinel";
         const string ModifiedInstancesQueueSuffix = "modifiedinstances";
+
+        /// <summary>
+        /// Instance-table ETag concurrency outside migration mode must not introduce migration sequence metadata.
+        /// </summary>
+        [TestMethod]
+        public async Task UseInstanceTableEtagWithoutMigration_DoesNotWriteSequenceNumbers()
+        {
+            string taskHubName = $"etagnomigration{Guid.NewGuid():N}";
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
+                enableExtendedSessions: false,
+                modifySettingsAction: settings =>
+                {
+                    settings.TaskHubName = taskHubName;
+                    settings.UseInstanceTableEtag = true;
+                });
+
+            await host.StartAsync();
+
+            TestOrchestrationClient client = await host.StartOrchestrationAsync(
+                typeof(SimpleOrchestration),
+                input: "world");
+            OrchestrationState? status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+            Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+            await host.StopAsync();
+
+            AzureStorageOrchestrationServiceSettings settings =
+                TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(enableExtendedSessions: false);
+            settings.TaskHubName = taskHubName;
+            var azureStorageClient = new AzureStorageClient(settings);
+
+            Assert.IsNull(
+                await GetInstanceSequenceNumberAsync(azureStorageClient, client.InstanceId),
+                "ETag-only mode should not add migration sequence metadata to the instance row.");
+            Assert.IsNull(
+                await GetSentinelSequenceNumberAsync(azureStorageClient, client.InstanceId),
+                "ETag-only mode should not add migration sequence metadata to the history sentinel.");
+        }
 
         /// <summary>
         /// Rewinding an orchestration while a migration is active must bump the instance's sequence number (and stamp

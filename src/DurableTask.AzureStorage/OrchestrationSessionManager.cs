@@ -61,7 +61,9 @@ namespace DurableTask.AzureStorage
 
         internal IEnumerable<ControlQueue> Queues => this.ownedControlQueues.Values;
 
-        bool AttachInstanceTableMetadata => this.settings.UseInstanceTableEtag || this.trackingStore.IsMigrationActive;
+        bool AttachInstanceTableETag => this.settings.UseInstanceTableEtag || this.trackingStore.IsMigrationActive;
+
+        bool AttachInstanceTableSequenceNumber => this.trackingStore.IsMigrationActive;
 
         public void AddQueue(string partitionId, ControlQueue controlQueue, CancellationToken cancellationToken)
         {
@@ -290,7 +292,7 @@ namespace DurableTask.AzureStorage
                 {
                     // Happy path: The message matches the table status. Alternatively, if the table doesn't have an ExecutionId field (older clients, pre-v1.8.5),
                     // then we have no way of knowing if it's a duplicate. Either way, allow it to run.
-                    if (this.AttachInstanceTableMetadata)
+                    if (this.AttachInstanceTableETag)
                     {
                         message.MessageMetadata = remoteInstance;
                     }
@@ -486,10 +488,13 @@ namespace DurableTask.AzureStorage
                     if (targetBatch == null)
                     {
                         targetBatch = new PendingMessageBatch(controlQueue, instanceId, executionId);
-                        if (this.AttachInstanceTableMetadata && data.MessageMetadata is InstanceStatus instanceStatus)
+                        if (this.AttachInstanceTableETag && data.MessageMetadata is InstanceStatus instanceStatus)
                         {
                             targetBatch.ConcurrencyTags.InstanceETag = instanceStatus.ETag;
-                            targetBatch.ConcurrencyTags.InstanceSequenceNumber = instanceStatus.SequenceNumber ?? 0;
+                            if (this.AttachInstanceTableSequenceNumber)
+                            {
+                                targetBatch.ConcurrencyTags.InstanceSequenceNumber = instanceStatus.SequenceNumber ?? 0;
+                            }
                         }
                         node = this.pendingOrchestrationMessageBatches.AddLast(targetBatch);
 
@@ -538,10 +543,9 @@ namespace DurableTask.AzureStorage
                     batch.LastCheckpointTime = history.LastCheckpointTime;
                     batch.TrackingStoreContext = history.TrackingStoreContext;
 
-                    // Try to get the instance ETag from the tracking store if it wasn't already provided
-                    // Note that it is sufficient to check just that the instance etag is null, since both the etag
-                    // and sequence number are set together
-                    if (this.AttachInstanceTableMetadata && batch.ConcurrencyTags.InstanceETag == null)
+                    // Try to get the instance ETag and, during migration, its sequence number if they were not
+                    // already provided with the dequeued message.
+                    if (this.AttachInstanceTableETag && batch.ConcurrencyTags.InstanceETag == null)
                     {
                         InstanceStatus? instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(
                             batch.OrchestrationInstanceId,
@@ -549,7 +553,10 @@ namespace DurableTask.AzureStorage
                         // The instance could not exist in the case that these messages are for the first execution of a suborchestration,
                         // or an entity-started orchestration, for example
                         batch.ConcurrencyTags.InstanceETag = instanceStatus?.ETag;
-                        batch.ConcurrencyTags.InstanceSequenceNumber = instanceStatus?.SequenceNumber ?? 0;
+                        if (this.AttachInstanceTableSequenceNumber)
+                        {
+                            batch.ConcurrencyTags.InstanceSequenceNumber = instanceStatus?.SequenceNumber ?? 0;
+                        }
                     }
                 }
 
