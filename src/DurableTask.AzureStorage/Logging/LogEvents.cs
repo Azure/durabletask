@@ -336,7 +336,8 @@ namespace DurableTask.AzureStorage.Logging
                 string partitionId,
                 long sequenceNumber,
                 string popReceipt,
-                int visibilityTimeoutSeconds)
+                int visibilityTimeoutSeconds,
+                string details)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
@@ -349,6 +350,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.SequenceNumber = sequenceNumber;
                 this.PopReceipt = popReceipt;
                 this.VisibilityTimeoutSeconds = visibilityTimeoutSeconds;
+                this.Details = details;
             }
 
             [StructuredLogField]
@@ -384,6 +386,9 @@ namespace DurableTask.AzureStorage.Logging
             [StructuredLogField]
             public int VisibilityTimeoutSeconds { get; }
 
+            [StructuredLogField]
+            public string Details { get; }
+
             public override EventId EventId => new EventId(
                 EventIds.AbandoningMessage,
                 nameof(EventIds.AbandoningMessage));
@@ -391,11 +396,12 @@ namespace DurableTask.AzureStorage.Logging
             public override LogLevel Level => LogLevel.Warning;
 
             protected override string CreateLogMessage() => string.Format(
-                "{0}: Abandoning {1} message back to {2} and setting a visibility delay of {3}ms",
+                "{0}: Abandoning {1} message back to {2} and setting a visibility delay of {3}ms: {4}",
                 this.InstanceId,
                 GetEventDescription(this.EventType, this.TaskEventId),
                 this.PartitionId,
-                this.VisibilityTimeoutSeconds);
+                this.VisibilityTimeoutSeconds,
+                this.Details);
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.AbandoningMessage(
                 this.Account,
@@ -410,7 +416,8 @@ namespace DurableTask.AzureStorage.Logging
                 this.PopReceipt,
                 this.VisibilityTimeoutSeconds,
                 Utils.AppName,
-                Utils.ExtensionVersion);
+                Utils.ExtensionVersion,
+                this.Details);
         }
 
         internal class AssertFailure : StructuredLogEvent, IEventSourceEvent

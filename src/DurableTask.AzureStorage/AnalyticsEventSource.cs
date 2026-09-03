@@ -165,7 +165,7 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(EventIds.AbandoningMessage, Level = EventLevel.Warning, Version = 7)]
+        [Event(EventIds.AbandoningMessage, Level = EventLevel.Warning, Version = 8)]
         public void AbandoningMessage(
             string Account,
             string TaskHub,
@@ -179,7 +179,8 @@ namespace DurableTask.AzureStorage
             string PopReceipt,
             int VisibilityTimeoutSeconds,
             string AppName,
-            string ExtensionVersion)
+            string ExtensionVersion,
+            string Details)
         {
             this.WriteEvent(
                 EventIds.AbandoningMessage,
@@ -195,7 +196,8 @@ namespace DurableTask.AzureStorage
                 PopReceipt ?? string.Empty,
                 VisibilityTimeoutSeconds,
                 AppName,
-                ExtensionVersion);
+                ExtensionVersion,
+                Details);
         }
 
         [Event(EventIds.AssertFailure, Level = EventLevel.Warning, Message = "An unexpected condition was detected: {2}", Version = 2)]
