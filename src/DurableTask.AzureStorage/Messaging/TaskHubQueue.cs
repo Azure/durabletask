@@ -244,7 +244,7 @@ namespace DurableTask.AzureStorage.Messaging
             OrchestrationInstance? instance,
             Guid? traceActivityId,
             long sequenceNumber,
-            string abandonmentDetails)
+            string details)
         {
             string instanceId = instance?.InstanceId ?? string.Empty;
             string executionId = instance?.ExecutionId ?? string.Empty;
@@ -283,7 +283,7 @@ namespace DurableTask.AzureStorage.Messaging
                 sequenceNumber,
                 queueMessage.PopReceipt,
                 numSecondsToWait,
-                abandonmentDetails);
+                details);
 
             try
             {

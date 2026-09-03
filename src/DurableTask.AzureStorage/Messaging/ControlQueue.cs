@@ -203,7 +203,7 @@ namespace DurableTask.AzureStorage.Messaging
                 instance: null,
                 traceActivityId: null,
                 sequenceNumber: -1,
-                abandonmentDetails: details);
+                details: details);
         }
 
         public override Task AbandonMessageAsync(
