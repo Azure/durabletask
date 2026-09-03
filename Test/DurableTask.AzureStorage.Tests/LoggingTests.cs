@@ -94,6 +94,37 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
+        public void AbandoningMessage_WriteEventSourceWritesDetailsToFinalPayloadSlot()
+        {
+            const string details = "The dispatcher abandoned the work item.";
+            const string messageId = "event-source-test-message-id";
+            var logEvent = new LogEvents.AbandoningMessage(
+                "test-account",
+                "test-hub",
+                "TaskScheduled",
+                42,
+                messageId,
+                "instance-id",
+                "execution-id",
+                "control-queue",
+                17,
+                "pop-receipt",
+                30,
+                details);
+
+            using (var listener = new AbandoningMessageEventListener(messageId))
+            {
+                listener.Enable();
+                ((IEventSourceEvent)logEvent).WriteEventSource();
+
+                Assert.AreEqual(EventIds.AbandoningMessage, listener.EventId);
+                Assert.AreEqual("Details", listener.PayloadNames.Last());
+                Assert.AreEqual(Utils.ExtensionVersion, listener.Payload[listener.Payload.Count - 2]);
+                Assert.AreEqual(details, listener.Payload.Last());
+            }
+        }
+
+        [TestMethod]
         public void AbandoningMessage_LogHelperPropagatesDetails()
         {
             var logger = new CapturingLogger();
@@ -133,6 +164,46 @@ namespace DurableTask.AzureStorage.Tests
                 Func<TState, Exception, string> formatter)
             {
                 this.State = state;
+            }
+        }
+
+        sealed class AbandoningMessageEventListener : EventListener
+        {
+            readonly string messageId;
+
+            public AbandoningMessageEventListener(string messageId)
+            {
+                this.messageId = messageId;
+            }
+
+            public int EventId { get; private set; } = -1;
+
+            public IReadOnlyList<string> PayloadNames { get; private set; } = Array.Empty<string>();
+
+            public IReadOnlyList<object> Payload { get; private set; } = Array.Empty<object>();
+
+            public void Enable()
+            {
+                this.EnableEvents(AnalyticsEventSource.Log, EventLevel.Verbose);
+            }
+
+            public override void Dispose()
+            {
+                this.DisableEvents(AnalyticsEventSource.Log);
+                base.Dispose();
+            }
+
+            protected override void OnEventWritten(EventWrittenEventArgs eventData)
+            {
+                if (eventData.EventSource == AnalyticsEventSource.Log &&
+                    eventData.EventId == EventIds.AbandoningMessage &&
+                    eventData.Payload.Count == 14 &&
+                    Equals(eventData.Payload[4], this.messageId))
+                {
+                    this.EventId = eventData.EventId;
+                    this.PayloadNames = eventData.PayloadNames.ToArray();
+                    this.Payload = eventData.Payload.ToArray();
+                }
             }
         }
 

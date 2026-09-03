@@ -214,7 +214,7 @@ namespace DurableTask.AzureStorage.Messaging
 
         public virtual async Task AbandonMessageAsync(
             MessageData message,
-            string details,
+            string abandonmentDetails,
             SessionBase? session = null)
         {
             QueueMessage queueMessage = message.OriginalQueueMessage;
@@ -228,7 +228,7 @@ namespace DurableTask.AzureStorage.Messaging
                 instance,
                 session?.TraceActivityId,
                 sequenceNumber,
-                details);
+                abandonmentDetails);
 
             // If we've successfully abandoned the message, update the pop receipt
             // (even though we'll likely no longer interact with this message)
