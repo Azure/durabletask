@@ -276,11 +276,13 @@ namespace DurableTask.AzureStorage
         }
 
         // We always leave the dispatcher counts at one unless we can find a customer workload that requires more.
+        // A count of zero disables the corresponding dispatcher entirely, which is how a worker is restricted
+        // to only orchestrations or only activities via <see cref="WorkerDispatchMode"/>.
         /// <inheritdoc />
-        public int TaskActivityDispatcherCount { get; } = 1;
+        public int TaskActivityDispatcherCount => this.settings.WorkerDispatchMode == WorkerDispatchMode.Orchestrator ? 0 : 1;
 
         /// <inheritdoc />
-        public int TaskOrchestrationDispatcherCount { get; } = 1;
+        public int TaskOrchestrationDispatcherCount => this.settings.WorkerDispatchMode == WorkerDispatchMode.Activity ? 0 : 1;
 
         #region IEntityOrchestrationService
 
@@ -462,7 +464,12 @@ namespace DurableTask.AzureStorage
             this.shutdownSource = new CancellationTokenSource();
             this.statsLoop = Task.Run(() => this.ReportStatsLoop(this.shutdownSource.Token));
 
-            await this.appLeaseManager.StartAsync();
+            // Activity-only workers never lease a control-queue partition, so the partition manager
+            // (started via the app lease manager) is skipped entirely.
+            if (this.settings.WorkerDispatchMode != WorkerDispatchMode.Activity)
+            {
+                await this.appLeaseManager.StartAsync();
+            }
 
             this.isStarted = true;
         }
@@ -487,7 +494,12 @@ namespace DurableTask.AzureStorage
                 this.orchestrationSessionManager.AbortAllSessions();
             }
 
-            await this.appLeaseManager.StopAsync();
+            // Symmetric with StartAsync: activity-only workers never started the partition manager.
+            if (this.settings.WorkerDispatchMode != WorkerDispatchMode.Activity)
+            {
+                await this.appLeaseManager.StopAsync();
+            }
+
             this.isStarted = false;
         }
 
@@ -690,6 +702,20 @@ namespace DurableTask.AzureStorage
 
         #endregion
 
+        // When a dispatcher is disabled for this worker's WorkerDispatchMode, its fetch loop (if it runs at all)
+        // should idle rather than spin. This waits for the normal polling interval and swallows cancellation.
+        async Task BackoffAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                await Task.Delay(this.settings.MaxQueuePollingInterval, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // Shutting down; fall through to return no work item.
+            }
+        }
+
         #region Orchestration Work Item Methods
         /// <inheritdoc />
         public Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(
@@ -705,6 +731,13 @@ namespace DurableTask.AzureStorage
 
         async Task<TaskOrchestrationWorkItem> LockNextTaskOrchestrationWorkItemAsync(bool entitiesOnly, CancellationToken cancellationToken)
         {
+            // Safety net: an activity-only worker must never dispatch orchestrations or entities.
+            if (this.settings.WorkerDispatchMode == WorkerDispatchMode.Activity)
+            {
+                await this.BackoffAsync(cancellationToken);
+                return null;
+            }
+
             Guid traceActivityId = StartNewLogicalTraceScope(useExisting: true);
 
             await this.EnsureTaskHubAsync();
@@ -1540,6 +1573,13 @@ namespace DurableTask.AzureStorage
             TimeSpan receiveTimeout,
             CancellationToken cancellationToken)
         {
+            // Safety net: an orchestrator-only worker must never dequeue the work-item queue.
+            if (this.settings.WorkerDispatchMode == WorkerDispatchMode.Orchestrator)
+            {
+                await this.BackoffAsync(cancellationToken);
+                return null;
+            }
+
             await this.EnsureTaskHubAsync();
 
             using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.shutdownSource.Token))

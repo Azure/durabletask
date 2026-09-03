@@ -296,6 +296,13 @@ namespace DurableTask.AzureStorage
         public QueueClientMessageEncoding QueueClientMessageEncoding { get; set; } = QueueClientMessageEncoding.UTF8;
 
         /// <summary>
+        /// Gets or sets which kinds of work this worker instance dispatches, allowing orchestrations
+        /// and activities to be scaled independently across separate deployments on the same task hub.
+        /// The default is <see cref="WorkerDispatchMode.Both"/>, which preserves the historical behavior.
+        /// </summary>
+        public WorkerDispatchMode WorkerDispatchMode { get; set; } = WorkerDispatchMode.Both;
+
+        /// <summary>
         /// When true, an etag is used when attempting to make instance table updates upon completing an orchestration work item.
         /// </summary>
         /// <remarks>
