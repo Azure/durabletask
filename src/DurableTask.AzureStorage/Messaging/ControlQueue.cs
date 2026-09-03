@@ -127,7 +127,9 @@ namespace DurableTask.AzureStorage.Messaging
 
                                 // Abandon the message so we can try it again later.
                                 // Note: We will fetch the message again from the queue before retrying, so no need to read the receipt
-                                _ = await this.AbandonMessageAsync(queueMessage);
+                                _ = await this.AbandonMessageAsync(
+                                    queueMessage,
+                                    "Message deserialization failed.");
                                 return;
                             }
 
@@ -192,7 +194,7 @@ namespace DurableTask.AzureStorage.Messaging
         }
 
         // This overload is intended for cases where we aren't able to deserialize an instance of MessageData.
-        public Task<UpdateReceipt?> AbandonMessageAsync(QueueMessage queueMessage)
+        public Task<UpdateReceipt?> AbandonMessageAsync(QueueMessage queueMessage, string details)
         {
             this.stats.PendingOrchestratorMessages.TryRemove(queueMessage.MessageId, out _);
             return base.AbandonMessageAsync(
@@ -200,13 +202,17 @@ namespace DurableTask.AzureStorage.Messaging
                 taskMessage: null,
                 instance: null,
                 traceActivityId: null,
-                sequenceNumber: -1);
+                sequenceNumber: -1,
+                details: details);
         }
 
-        public override Task AbandonMessageAsync(MessageData message, SessionBase? session = null)
+        public override Task AbandonMessageAsync(
+            MessageData message,
+            string abandonmentDetails,
+            SessionBase? session = null)
         {
             this.stats.PendingOrchestratorMessages.TryRemove(message.OriginalQueueMessage.MessageId, out _);
-            return base.AbandonMessageAsync(message, session);
+            return base.AbandonMessageAsync(message, abandonmentDetails, session);
         }
 
         public override Task DeleteMessageAsync(MessageData message, SessionBase? session = null)
