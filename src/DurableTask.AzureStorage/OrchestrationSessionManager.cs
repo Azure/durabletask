@@ -63,7 +63,7 @@ namespace DurableTask.AzureStorage
 
         bool AttachInstanceTableETag => this.settings.UseInstanceTableEtag || this.trackingStore.IsMigrationActive;
 
-        bool AttachInstanceTableSequenceNumber => this.trackingStore.IsMigrationActive;
+        bool AttachSequenceNumber => this.trackingStore.IsMigrationActive;
 
         public void AddQueue(string partitionId, ControlQueue controlQueue, CancellationToken cancellationToken)
         {
@@ -491,9 +491,9 @@ namespace DurableTask.AzureStorage
                         if (this.AttachInstanceTableETag && data.MessageMetadata is InstanceStatus instanceStatus)
                         {
                             targetBatch.ConcurrencyTags.InstanceETag = instanceStatus.ETag;
-                            if (this.AttachInstanceTableSequenceNumber)
+                            if (this.AttachSequenceNumber)
                             {
-                                targetBatch.ConcurrencyTags.InstanceSequenceNumber = instanceStatus.SequenceNumber ?? 0;
+                                targetBatch.ConcurrencyTags.SequenceNumber = instanceStatus.SequenceNumber ?? 0;
                             }
                         }
                         node = this.pendingOrchestrationMessageBatches.AddLast(targetBatch);
@@ -543,8 +543,17 @@ namespace DurableTask.AzureStorage
                     batch.LastCheckpointTime = history.LastCheckpointTime;
                     batch.TrackingStoreContext = history.TrackingStoreContext;
 
-                    // Try to get the instance ETag and, during migration, its sequence number if they were not
-                    // already provided with the dequeued message.
+                    // We want to store whatever the higher of the history or instance sequence number is.
+                    // The history sequence number can be higher in a split-brain scenario when another worker has
+                    // updated the history table but not the instance table yet, and this worker is processing a work
+                    // item for the same orchestration.
+                    if (this.AttachSequenceNumber && history.SequenceNumber.HasValue)
+                    {
+                        batch.ConcurrencyTags.SequenceNumber = Math.Max(
+                            batch.ConcurrencyTags.SequenceNumber.GetValueOrDefault(),
+                            history.SequenceNumber.Value);
+                    }
+
                     if (this.AttachInstanceTableETag && batch.ConcurrencyTags.InstanceETag == null)
                     {
                         InstanceStatus? instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(
@@ -553,9 +562,11 @@ namespace DurableTask.AzureStorage
                         // The instance could not exist in the case that these messages are for the first execution of a suborchestration,
                         // or an entity-started orchestration, for example
                         batch.ConcurrencyTags.InstanceETag = instanceStatus?.ETag;
-                        if (this.AttachInstanceTableSequenceNumber)
+                        if (this.AttachSequenceNumber)
                         {
-                            batch.ConcurrencyTags.InstanceSequenceNumber = instanceStatus?.SequenceNumber ?? 0;
+                            batch.ConcurrencyTags.SequenceNumber = Math.Max(
+                                batch.ConcurrencyTags.SequenceNumber.GetValueOrDefault(),
+                                instanceStatus?.SequenceNumber ?? 0);
                         }
                     }
                 }

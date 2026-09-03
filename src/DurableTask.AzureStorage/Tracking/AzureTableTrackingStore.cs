@@ -244,7 +244,13 @@ namespace DurableTask.AzureStorage.Tracking
                 checkpointCompletionTime,
                 string.Join(",", historyEvents.Skip(Math.Max(0, historyEvents.Count - 10)).Select(e => e.EventType.ToString())));
 
-            return new OrchestrationHistory(historyEvents, checkpointCompletionTime, eTagValue, trackingStoreContext);
+            long? sequenceNumber = sentinel?.GetInt64(SequenceNumberProperty);
+            return new OrchestrationHistory(
+                historyEvents,
+                checkpointCompletionTime,
+                eTagValue,
+                trackingStoreContext,
+                sequenceNumber);
         }
 
         TableQueryResponse<TableEntity> GetHistoryEntitiesResponseInfoAsync(string instanceId, string expectedExecutionId, IList<string> projectionColumns, CancellationToken cancellationToken)
@@ -322,10 +328,8 @@ namespace DurableTask.AzureStorage.Tracking
             if (this.IsMigrationActive)
             {
                 newSequenceNumber = await this.GetNextSequenceNumberAsync(sanitizedInstanceId, cancellationToken);
-                // Rewind targets the latest execution, so no specific execution ID is available here.
                 await this.modifiedInstancesQueue.AddInstanceAsync(
                     instanceId,
-                    executionId: null,
                     newSequenceNumber.Value,
                     cancellationToken);
             }
@@ -660,7 +664,6 @@ namespace DurableTask.AzureStorage.Tracking
                                     long expectedSequenceNumber = (inst.SequenceNumber ?? 0) + 1;
                                     await this.modifiedInstancesQueue.AddInstanceAsync(
                                         instanceId,
-                                        inst.ExecutionId,
                                         expectedSequenceNumber,
                                         effectiveToken);
                                 }
@@ -820,10 +823,8 @@ namespace DurableTask.AzureStorage.Tracking
                 if (this.IsMigrationActive)
                 {
                     long expectedSequenceNumber = (orchestrationInstanceStatus.SequenceNumber ?? 0) + 1;
-                    // Single-instance purge is by instance ID only, so no specific execution ID is available here.
                     await this.modifiedInstancesQueue.AddInstanceAsync(
                         instanceId,
-                        executionId: null,
                         expectedSequenceNumber,
                         cancellationToken);
                 }
@@ -908,7 +909,6 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 await this.modifiedInstancesQueue.AddInstanceAsync(
                     executionStartedEvent.OrchestrationInstance.InstanceId,
-                    executionStartedEvent.OrchestrationInstance.ExecutionId,
                     expectedSequenceNumber,
                     cancellationToken);
             }
@@ -1014,7 +1014,6 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 await this.modifiedInstancesQueue.AddInstanceAsync(
                     instanceId,
-                    executionId: null,
                     sequenceNumber,
                     cancellationToken);
             }
@@ -1143,13 +1142,12 @@ namespace DurableTask.AzureStorage.Tracking
             // UploadHistoryBatch) so the two can be reconciled.
             if (this.IsMigrationActive)
             {
-                concurrencyTags.InstanceSequenceNumber =
-                    concurrencyTags.InstanceSequenceNumber.GetValueOrDefault() + 1;
-                instanceEntity[SequenceNumberProperty] = concurrencyTags.InstanceSequenceNumber;
+                concurrencyTags.SequenceNumber =
+                    concurrencyTags.SequenceNumber.GetValueOrDefault() + 1;
+                instanceEntity[SequenceNumberProperty] = concurrencyTags.SequenceNumber;
                 await this.modifiedInstancesQueue.AddInstanceAsync(
                     instanceId,
-                    executionId,
-                    concurrencyTags.InstanceSequenceNumber.Value,
+                    concurrencyTags.SequenceNumber.Value,
                     cancellationToken);
             }
 
@@ -1283,7 +1281,7 @@ namespace DurableTask.AzureStorage.Tracking
                         episodeNumber,
                         estimatedBytes,
                         concurrencyTags.HistoryETag,
-                        concurrencyTags.InstanceSequenceNumber,
+                        concurrencyTags.SequenceNumber,
                         isFinalBatch: isFinalEvent,
                         cancellationToken: cancellationToken);
 
@@ -1307,7 +1305,7 @@ namespace DurableTask.AzureStorage.Tracking
                     episodeNumber,
                     estimatedBytes,
                     concurrencyTags.HistoryETag,
-                    concurrencyTags.InstanceSequenceNumber,
+                    concurrencyTags.SequenceNumber,
                     isFinalBatch: true,
                     cancellationToken: cancellationToken);
             }
@@ -1347,7 +1345,6 @@ namespace DurableTask.AzureStorage.Tracking
             {
                 await this.modifiedInstancesQueue.AddInstanceAsync(
                     instanceId,
-                    executionId,
                     sequenceNumber,
                     cancellationToken);
             }
@@ -1641,8 +1638,6 @@ namespace DurableTask.AzureStorage.Tracking
                 sentinelEntity[CheckpointCompletedTimestampProperty] = DateTime.UtcNow;
             }
 
-            // During a live migration, stamp the sentinel row with the same per-instance sequence number written to
-            // the instance table so that the two tables can be reconciled by the migration process.
             if (migrationSequenceNumber.HasValue)
             {
                 sentinelEntity[SequenceNumberProperty] = migrationSequenceNumber.Value;

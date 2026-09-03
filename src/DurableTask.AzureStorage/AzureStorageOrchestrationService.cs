@@ -1136,7 +1136,7 @@ namespace DurableTask.AzureStorage
                         await this.trackingStore.UpdateStatusForTerminationAsync(
                             instanceId,
                             executionTerminatedEvent,
-                            concurrencyTags.InstanceSequenceNumber.GetValueOrDefault() + 1,
+                            concurrencyTags.SequenceNumber.GetValueOrDefault() + 1,
                             cancellationToken);
 
                         return $"Instance is {OrchestrationStatus.Terminated}";

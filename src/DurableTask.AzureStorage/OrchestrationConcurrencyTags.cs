@@ -21,6 +21,6 @@ namespace DurableTask.AzureStorage
 
         internal ETag? HistoryETag { get; set; }
 
-        internal long? InstanceSequenceNumber { get; set; }
+        internal long? SequenceNumber { get; set; }
     }
 }

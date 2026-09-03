@@ -16,12 +16,11 @@ namespace DurableTask.AzureStorage.Messaging
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Storage;
-    using DurableTask.Core;
 
     /// <summary>
     /// Encapsulates the Azure Storage queue used to record instances whose data has been modified after a
-    /// migration away from the Azure Storage backend has started. Each message carries the orchestration instance
-    /// identity and the sequence number that the source write is expected to produce.
+    /// migration away from the Azure Storage backend has started. Each message carries the instance ID and the
+    /// sequence number that the source write is expected to produce.
     /// </summary>
     class ModifiedInstancesQueue
     {
@@ -44,22 +43,17 @@ namespace DurableTask.AzureStorage.Messaging
         }
 
         /// <summary>
-        /// Adds the specified orchestration instance identity and expected sequence number to the modified-instances queue.
+        /// Adds the specified instance ID and sequence number to the modified-instances queue.
         /// </summary>
         public Task AddInstanceAsync(
             string instanceId,
-            string? executionId,
-            long expectedSequenceNumber,
+            long sequenceNumber,
             CancellationToken cancellationToken = default)
         {
             string message = Utils.SerializeToJson(new ModifiedInstanceMessage
             {
-                OrchestrationInstance = new OrchestrationInstance
-                {
-                    InstanceId = instanceId,
-                    ExecutionId = executionId,
-                },
-                ExpectedSequenceNumber = expectedSequenceNumber,
+                InstanceId = instanceId,
+                SequenceNumber = sequenceNumber,
             });
 
             return this.queue.AddMessageAsync(message, visibilityDelay: null, cancellationToken: cancellationToken);
@@ -68,8 +62,8 @@ namespace DurableTask.AzureStorage.Messaging
 
     class ModifiedInstanceMessage
     {
-        public OrchestrationInstance OrchestrationInstance { get; set; } = new OrchestrationInstance();
+        public string InstanceId { get; set; } = string.Empty;
 
-        public long ExpectedSequenceNumber { get; set; }
+        public long SequenceNumber { get; set; }
     }
 }
