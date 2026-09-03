@@ -42,6 +42,7 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly Blob appLeaseInfoBlob;
         readonly string appLeaseId;
         readonly AsyncManualResetEvent shutdownCompletedEvent;
+        readonly AppLeaseOwnershipSignal ownershipSignal;
 
         bool isLeaseOwner;
         int appLeaseIsStarted;
@@ -78,12 +79,20 @@ namespace DurableTask.AzureStorage.Partitioning
 
             this.isLeaseOwner = false;
             this.shutdownCompletedEvent = new AsyncManualResetEvent();
+            this.ownershipSignal = new AppLeaseOwnershipSignal();
+        }
+
+        public Task<AppLeaseOwnershipSignal.AppLeaseOwnership> WaitForOwnershipAsync(
+            CancellationToken cancellationToken)
+        {
+            return this.ownershipSignal.WaitAsync(cancellationToken);
         }
 
         public async Task StartAsync()
         {
             if (!this.appLeaseIsEnabled)
             {
+                this.ownershipSignal.Set();
                 this.starterTokenSource = new CancellationTokenSource();
 
                 await Task.Factory.StartNew(() => this.PartitionManagerStarter(this.starterTokenSource.Token));
@@ -138,7 +147,7 @@ namespace DurableTask.AzureStorage.Partitioning
             {
                 try
                 {
-                    while (!await this.TryAcquireAppLeaseAsync())
+                    while (!await this.TryAcquireAppLeaseAsync(cancellationToken))
                     {
                         await Task.Delay(this.settings.AppLeaseOptions.AcquireInterval, cancellationToken);
                     }
@@ -165,6 +174,8 @@ namespace DurableTask.AzureStorage.Partitioning
 
         public async Task StopAsync()
         {
+            this.ownershipSignal.Reset();
+
             if (this.starterTokenSource != null)
             {
                 this.starterTokenSource.Cancel();
@@ -250,50 +261,94 @@ namespace DurableTask.AzureStorage.Partitioning
                 throw new InvalidOperationException("AppLeaseManager has already started");
             }
 
+            this.shutdownCompletedEvent.Reset();
             this.leaseRenewerCancellationTokenSource = new CancellationTokenSource();
 
-            await this.partitionManager.StartAsync();
-
-            this.shutdownCompletedEvent.Reset();
-
-            this.renewTask = await Task.Factory.StartNew(() => this.LeaseRenewer(leaseRenewerCancellationTokenSource.Token));
+            try
+            {
+                await this.partitionManager.StartAsync();
+                this.ownershipSignal.Set();
+                this.renewTask = await Task.Factory.StartNew(
+                    () => this.LeaseRenewer(this.leaseRenewerCancellationTokenSource.Token));
+            }
+            catch
+            {
+                this.ownershipSignal.Reset();
+                this.isLeaseOwner = false;
+                Interlocked.Exchange(ref this.appLeaseIsStarted, 0);
+                this.leaseRenewerCancellationTokenSource.Dispose();
+                this.leaseRenewerCancellationTokenSource = null;
+                this.shutdownCompletedEvent.Set();
+                throw;
+            }
         }
 
-        async Task StopAppLeaseAsync()
+        async Task StopAppLeaseAsync(bool calledFromLeaseRenewer = false)
         {
-            if (Interlocked.CompareExchange(ref this.appLeaseIsStarted, 0, 1) != 1)
+            int previousState = Interlocked.CompareExchange(ref this.appLeaseIsStarted, 2, 1);
+            if (previousState != 1)
             {
-                //idempotent
+                if (previousState == 2 && !calledFromLeaseRenewer)
+                {
+                    await this.shutdownCompletedEvent.WaitAsync(
+                        Timeout.InfiniteTimeSpan,
+                        CancellationToken.None);
+                }
+
                 return;
             }
 
-            await this.partitionManager.StopAsync();
+            CancellationTokenSource renewerCancellation = this.leaseRenewerCancellationTokenSource;
+            Task renewer = this.renewTask;
 
-            if (this.renewTask != null)
+            try
             {
-                this.leaseRenewerCancellationTokenSource.Cancel();
-                await this.renewTask;
+                this.ownershipSignal.Reset();
+
+                if (!calledFromLeaseRenewer && renewer != null)
+                {
+                    renewerCancellation.Cancel();
+                    await renewer;
+                }
+
+                await this.partitionManager.StopAsync();
             }
+            finally
+            {
+                this.isLeaseOwner = false;
 
-            this.isLeaseOwner = false;
+                renewerCancellation?.Dispose();
+                this.leaseRenewerCancellationTokenSource = null;
+                this.renewTask = null;
 
-            this.shutdownCompletedEvent.Set();
-
-            this.leaseRenewerCancellationTokenSource?.Dispose();
+                Interlocked.Exchange(ref this.appLeaseIsStarted, 0);
+                this.shutdownCompletedEvent.Set();
+            }
         }
 
-        async Task<bool> TryAcquireAppLeaseAsync()
+        async Task<bool> TryAcquireAppLeaseAsync(CancellationToken cancellationToken)
         {
             AppLeaseInfo appLeaseInfo = await this.GetAppLeaseInfoAsync();
 
             bool leaseAcquired;
             if (appLeaseInfo.DesiredSwapId == this.appLeaseId)
             {
-                leaseAcquired = await this.ChangeLeaseAsync(appLeaseInfo.OwnerId);
+                leaseAcquired = await this.ChangeLeaseAsync(appLeaseInfo.OwnerId, cancellationToken);
             }
             else
             {
                 leaseAcquired = await this.TryAcquireLeaseAsync();
+            }
+
+            if (leaseAcquired)
+            {
+                AppLeaseInfo currentAppLeaseInfo = await this.GetAppLeaseInfoAsync();
+                TimeSpan transitionDelay =
+                    currentAppLeaseInfo.TransitionUntilUtc.GetValueOrDefault() - DateTime.UtcNow;
+                if (transitionDelay > TimeSpan.Zero)
+                {
+                    await Task.Delay(transitionDelay, cancellationToken);
+                }
             }
 
             this.isLeaseOwner = leaseAcquired;
@@ -301,7 +356,9 @@ namespace DurableTask.AzureStorage.Partitioning
             return leaseAcquired;
         }
 
-        async Task<bool> ChangeLeaseAsync(string currentLeaseId)
+        async Task<bool> ChangeLeaseAsync(
+            string currentLeaseId,
+            CancellationToken cancellationToken)
         {
             this.settings.Logger.PartitionManagerInfo(
                 this.storageAccountName,
@@ -323,12 +380,18 @@ namespace DurableTask.AzureStorage.Partitioning
 
                 await this.appLeaseContainer.ChangeLeaseAsync(this.appLeaseId, currentLeaseId);
 
+                DateTime transitionUntilUtc = DateTime.UtcNow.Add(this.options.RenewInterval);
                 var appLeaseInfo = new AppLeaseInfo()
                 {
                     OwnerId = this.appLeaseId,
+                    TransitionUntilUtc = transitionUntilUtc,
                 };
 
                 await this.UpdateAppLeaseInfoBlob(appLeaseInfo);
+
+                // Give the previous app's renewers time to observe the changed lease and stop
+                // dequeueing work before this app begins processing.
+                await Task.Delay(this.options.RenewInterval, cancellationToken);
                 leaseAcquired = true;
 
                 this.settings.Logger.LeaseAcquisitionSucceeded(
@@ -337,14 +400,6 @@ namespace DurableTask.AzureStorage.Partitioning
                     this.workerName,
                     this.appLeaseContainerName,
                     LeaseType);
-
-                // When changing the lease over to another app, the paritions will still be listened to on the first app until the AppLeaseManager
-                // renew task fails to renew the lease. To avoid potential split brain we must delay before the new lease holder can start
-                // listening to the partitions.
-                if (this.settings.UseLegacyPartitionManagement == true)
-                {
-                    await Task.Delay(this.settings.AppLeaseOptions.RenewInterval);
-                }
             }
             catch (DurableTaskStorageException e)
             {
@@ -428,7 +483,7 @@ namespace DurableTask.AzureStorage.Partitioning
                         break;
                     }
 
-                    await Task.Delay(this.options.RenewInterval, this.leaseRenewerCancellationTokenSource.Token);
+                    await Task.Delay(this.options.RenewInterval, cancellationToken);
                 }
                 catch (OperationCanceledException)
                 {
@@ -459,7 +514,22 @@ namespace DurableTask.AzureStorage.Partitioning
                 this.appLeaseContainerName,
                 "Lease renewer task completing. Stopping AppLeaseManager.");
 
-            await this.StopAppLeaseAsync();
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await this.StopAppLeaseAsync(calledFromLeaseRenewer: true);
+                }
+                catch (Exception ex)
+                {
+                    this.settings.Logger.PartitionManagerError(
+                        this.storageAccountName,
+                        this.taskHub,
+                        this.workerName,
+                        this.appLeaseContainerName,
+                        $"Failed to stop AppLeaseManager after losing the app lease. AppLeaseId: {this.appLeaseId} Exception: {ex}");
+                }
+            }
         }
 
         async Task<bool> RenewLeaseAsync()
@@ -491,6 +561,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 {
                     renewed = false;
                     this.isLeaseOwner = false;
+                    this.ownershipSignal.Reset();
 
                     this.settings.Logger.LeaseRenewalFailed(
                         this.storageAccountName,
@@ -577,6 +648,7 @@ namespace DurableTask.AzureStorage.Partitioning
         {
             public string OwnerId { get; set; }
             public string DesiredSwapId { get; set; }
+            public DateTime? TransitionUntilUtc { get; set; }
         }
     }
 }

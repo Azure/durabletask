@@ -152,7 +152,9 @@ namespace DurableTask.AzureStorage
         public TimeSpan MaxQueuePollingInterval { get; set; } = DefaultMaxQueuePollingInterval;
 
         /// <summary>
-        /// If true, takes a lease on the task hub container, allowing for only one app to process messages in a task hub at a time.
+        /// If true, takes a lease on the task hub container so that only workers with the lease-owning
+        /// <see cref="AppName"/> process orchestration, entity, or activity messages.
+        /// Workers that share the same <see cref="AppName"/> may process messages concurrently.
         /// </summary>
         public bool UseAppLease { get; set; } = true;
 
