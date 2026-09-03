@@ -1544,55 +1544,77 @@ namespace DurableTask.AzureStorage
 
             using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.shutdownSource.Token))
             {
-                MessageData message = await this.workItemQueue.GetMessageAsync(linkedCts.Token);
-
-                if (message == null)
+                AppLeaseOwnershipSignal.AppLeaseOwnership ownership;
+                try
                 {
-                    // shutting down
+                    ownership = await this.appLeaseManager.WaitForOwnershipAsync(linkedCts.Token);
+                }
+                catch (OperationCanceledException)
+                {
                     return null;
                 }
 
-
-                Guid traceActivityId = Guid.NewGuid();
-                var session = new ActivitySession(this.settings, this.azureStorageClient.QueueAccountName, message, traceActivityId);
-                session.StartNewLogicalTraceScope();
-
-                // correlation 
-                TraceContextBase requestTraceContext = null;
-                CorrelationTraceClient.Propagate(
-                    () =>
+                using (ownership)
+                {
+                    using (var receiveCts = CancellationTokenSource.CreateLinkedTokenSource(
+                        linkedCts.Token,
+                        ownership.LostToken))
                     {
-                        string name = $"{TraceConstants.Activity} {Utils.GetTargetClassName(((TaskScheduledEvent)session.MessageData.TaskMessage.Event)?.Name)}";
-                        requestTraceContext = TraceContextFactory.Create(name);
+                        MessageData message = await this.workItemQueue.GetMessageAsync(receiveCts.Token);
 
-                        TraceContextBase parentTraceContextBase = TraceContextBase.Restore(session.MessageData.SerializableTraceContext);
-                        requestTraceContext.SetParentAndStart(parentTraceContextBase);
-                    });
+                        if (message == null)
+                        {
+                            // shutting down, canceled, or app lease ownership was lost
+                            return null;
+                        }
 
-                TraceMessageReceived(this.settings, session.MessageData, this.azureStorageClient.QueueAccountName);
-                session.TraceProcessingMessage(message, isExtendedSession: false, this.workItemQueue.Name);
+                        Guid traceActivityId = Guid.NewGuid();
+                        var session = new ActivitySession(this.settings, this.azureStorageClient.QueueAccountName, message, traceActivityId);
+                        session.StartNewLogicalTraceScope();
 
-                if (!this.activeActivitySessions.TryAdd(message.Id, session))
-                {
-                    // This means we're already processing this message. This is never expected since the message
-                    // should be kept invisible via background calls to RenewTaskActivityWorkItemLockAsync.
-                    this.settings.Logger.AssertFailure(
-                        this.azureStorageClient.QueueAccountName,
-                        this.settings.TaskHubName,
-                        $"Work item queue message with ID = {message.Id} is being processed multiple times concurrently.");
-                    return null;
+                        TraceContextBase requestTraceContext = null;
+                        CorrelationTraceClient.Propagate(
+                            () =>
+                            {
+                                string name = $"{TraceConstants.Activity} {Utils.GetTargetClassName(((TaskScheduledEvent)session.MessageData.TaskMessage.Event)?.Name)}";
+                                requestTraceContext = TraceContextFactory.Create(name);
+
+                                TraceContextBase parentTraceContextBase = TraceContextBase.Restore(session.MessageData.SerializableTraceContext);
+                                requestTraceContext.SetParentAndStart(parentTraceContextBase);
+                            });
+
+                        TraceMessageReceived(this.settings, session.MessageData, this.azureStorageClient.QueueAccountName);
+                        session.TraceProcessingMessage(message, isExtendedSession: false, this.workItemQueue.Name);
+
+                        if (!ownership.TryBeginDispatch())
+                        {
+                            await this.workItemQueue.AbandonMessageAsync(message);
+                            return null;
+                        }
+
+                        if (!this.activeActivitySessions.TryAdd(message.Id, session))
+                        {
+                            // This means we're already processing this message. This is never expected since the message
+                            // should be kept invisible via background calls to RenewTaskActivityWorkItemLockAsync.
+                            this.settings.Logger.AssertFailure(
+                                this.azureStorageClient.QueueAccountName,
+                                this.settings.TaskHubName,
+                                $"Work item queue message with ID = {message.Id} is being processed multiple times concurrently.");
+                            return null;
+                        }
+
+                        this.stats.ActiveActivityExecutions.Increment();
+
+                        return new TaskActivityWorkItem
+                        {
+                            Id = message.Id,
+                            TaskMessage = session.MessageData.TaskMessage,
+                            LockedUntilUtc = message.OriginalQueueMessage.NextVisibleOn.Value.UtcDateTime,
+
+                            TraceContextBase = requestTraceContext
+                        };
+                    }
                 }
-
-                this.stats.ActiveActivityExecutions.Increment();
-
-                return new TaskActivityWorkItem
-                {
-                    Id = message.Id,
-                    TaskMessage = session.MessageData.TaskMessage,
-                    LockedUntilUtc = message.OriginalQueueMessage.NextVisibleOn.Value.UtcDateTime,
-
-                    TraceContextBase = requestTraceContext
-                };
             }
         }
 
