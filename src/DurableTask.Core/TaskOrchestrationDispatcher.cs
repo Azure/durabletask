@@ -26,6 +26,7 @@ namespace DurableTask.Core
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Globalization;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
@@ -438,8 +439,10 @@ namespace DurableTask.Core
                             TraceEventType.Verbose,
                             "TaskOrchestrationDispatcher-ExecuteUserOrchestration-Begin",
                             runtimeState.OrchestrationInstance!,
-                            "Executing user orchestration: {0}",
-                            JsonDataConverter.Default.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true));
+                            () => string.Format(
+                                CultureInfo.InvariantCulture,
+                                "Executing user orchestration: {0}",
+                                JsonDataConverter.Default.Serialize(runtimeState.GetOrchestrationRuntimeStateDump(), true)));
 
                         if (!versioningFailed)
                         {
@@ -472,9 +475,11 @@ namespace DurableTask.Core
                             TraceEventType.Information,
                             "TaskOrchestrationDispatcher-ExecuteUserOrchestration-End",
                             runtimeState.OrchestrationInstance!,
-                            "Executed user orchestration. Received {0} orchestrator actions: {1}",
-                            decisions.Count,
-                            string.Join(", ", decisions.Select(d => d.Id + ":" + d.OrchestratorActionType)));
+                            () => string.Format(
+                                CultureInfo.InvariantCulture,
+                                "Executed user orchestration. Received {0} orchestrator actions: {1}",
+                                decisions.Count,
+                                string.Join(", ", decisions.Select(d => d.Id + ":" + d.OrchestratorActionType))));
 
                         // TODO: Exception handling for invalid decisions, which is increasingly likely
                         //       when custom middleware is involved (e.g. out-of-process scenarios).
