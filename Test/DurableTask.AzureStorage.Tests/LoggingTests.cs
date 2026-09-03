@@ -27,7 +27,7 @@ namespace DurableTask.AzureStorage.Tests
     public class LoggingTests
     {
         [TestMethod]
-        public void AbandoningMessage_HasExpectedStructuredFieldsAndMessage()
+        public void AbandoningMessage_HasExpectedStructuredFieldsAndPreservesMessage()
         {
             var logEvent = new LogEvents.AbandoningMessage(
                 "test-account",
@@ -60,7 +60,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(EventIds.AbandoningMessage, logEvent.EventId.Id);
             Assert.AreEqual(nameof(EventIds.AbandoningMessage), logEvent.EventId.Name);
             Assert.AreEqual(
-                "instance-id: Abandoning [TaskScheduled#42] message back to control-queue and setting a visibility delay of 30ms: The activity work item could not be processed.",
+                "instance-id: Abandoning [TaskScheduled#42] message back to control-queue and setting a visibility delay of 30ms",
                 ((ILogEvent)logEvent).FormattedMessage);
         }
 

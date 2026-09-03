@@ -396,12 +396,11 @@ namespace DurableTask.AzureStorage.Logging
             public override LogLevel Level => LogLevel.Warning;
 
             protected override string CreateLogMessage() => string.Format(
-                "{0}: Abandoning {1} message back to {2} and setting a visibility delay of {3}ms: {4}",
+                "{0}: Abandoning {1} message back to {2} and setting a visibility delay of {3}ms",
                 this.InstanceId,
                 GetEventDescription(this.EventType, this.TaskEventId),
                 this.PartitionId,
-                this.VisibilityTimeoutSeconds,
-                this.Details);
+                this.VisibilityTimeoutSeconds);
 
             void IEventSourceEvent.WriteEventSource() => AnalyticsEventSource.Log.AbandoningMessage(
                 this.Account,
