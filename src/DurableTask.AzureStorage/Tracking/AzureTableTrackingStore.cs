@@ -856,15 +856,23 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task UpdateStatusForRewindAsync(string instanceId, CancellationToken cancellationToken = default)
         {
-            string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
-            TableEntity entity = new TableEntity(sanitizedInstanceId, "")
+            string filter = $"{AzureTableQueryFilter.PartitionKeyEquals(instanceId)} and {AzureTableQueryFilter.ColumnEquals(RowKeyProperty, string.Empty)}";
+            TableEntity entity = await this.InstancesTable
+                .ExecuteQueryAsync<TableEntity>(filter, 1, cancellationToken: cancellationToken)
+                .FirstOrDefaultAsync();
+
+            if (entity == null)
             {
-                ["RuntimeStatus"] = OrchestrationStatus.Pending.ToString("G"),
-                ["LastUpdatedTime"] = DateTime.UtcNow,
-            };
+                throw new DurableTaskStorageException($"The orchestration instance '{instanceId}' does not exist.");
+            }
+
+            // Merge cannot remove a table property, so replace the complete row using its current ETag.
+            entity.Remove(OutputProperty);
+            entity["RuntimeStatus"] = OrchestrationStatus.Pending.ToString("G");
+            entity["LastUpdatedTime"] = DateTime.UtcNow;
 
             Stopwatch stopwatch = Stopwatch.StartNew();
-            await this.InstancesTable.MergeEntityAsync(entity, ETag.All, cancellationToken);
+            await this.InstancesTable.ReplaceEntityAsync(entity, entity.ETag, cancellationToken);
 
             // We don't have enough information to get the episode number.
             // It's also not important to have for this particular trace.
