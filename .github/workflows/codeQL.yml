@@ -14,6 +14,8 @@ on:
   workflow_call: # allows to be invoked as part of a larger workflow
   workflow_dispatch: # allows for the workflow to run manually see: https://docs.github.com/en/actions/using-workflows/manually-running-a-workflow
 
+permissions: {}
+
 env:
   solution: DurableTask.sln
   config: Release
