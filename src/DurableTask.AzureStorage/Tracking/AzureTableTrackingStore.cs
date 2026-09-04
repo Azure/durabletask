@@ -283,6 +283,7 @@ namespace DurableTask.AzureStorage.Tracking
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
             bool hasFailedSubOrchestrations = false;
+            var blobsToDelete = new List<string>();
             string partitionFilter = AzureTableQueryFilter.PartitionKeyEquals(instanceId);
 
             string orchestratorStartedFilter = $"{partitionFilter} and {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.OrchestratorStarted)}'";
@@ -361,6 +362,13 @@ namespace DurableTask.AzureStorage.Tracking
                         break;
                 }
 
+                if (entity.GetString(nameof(HistoryEvent.EventType)) == nameof(EventType.ExecutionCompleted))
+                {
+                    // GenericEvent replay ignores the terminal payload, so remove its blob references in the same ETag-guarded replace.
+                    RemovePropertyAndTrackBlob(entity, nameof(ExecutionCompletedEvent.Result), blobsToDelete);
+                    RemovePropertyAndTrackBlob(entity, nameof(ExecutionCompletedEvent.FailureDetails), blobsToDelete);
+                }
+
                 // "clear" failure event by making RewindEvent: replay ignores row while dummy event preserves rowKey
                 entity[nameof(TaskFailedEvent.Reason)] = "Rewound: " + entity.GetString(nameof(HistoryEvent.EventType));
                 entity[nameof(TaskFailedEvent.EventType)] = nameof(EventType.GenericEvent);
@@ -370,6 +378,9 @@ namespace DurableTask.AzureStorage.Tracking
 
             // reset orchestration status in instance store table
             await this.UpdateStatusForRewindAsync(instanceId, cancellationToken);
+
+            // Delete only after both the history pointers and the Instances-table Output reference are gone.
+            await Task.WhenAll(blobsToDelete.Select(blobName => this.messageManager.DeleteBlobAsync(blobName, cancellationToken)));
 
             if (!hasFailedSubOrchestrations)
             {
@@ -1384,6 +1395,20 @@ namespace DurableTask.AzureStorage.Tracking
         {
             // WARNING: Changing this is a breaking change!
             return originalPropertyName + "BlobName";
+        }
+
+        static void RemovePropertyAndTrackBlob(TableEntity entity, string propertyName, List<string> blobsToDelete)
+        {
+            string blobPropertyName = GetBlobPropertyName(propertyName);
+            if (entity.TryGetValue(blobPropertyName, out object value) &&
+                value is string blobName &&
+                !string.IsNullOrEmpty(blobName))
+            {
+                blobsToDelete.Add(blobName);
+            }
+
+            entity.Remove(propertyName);
+            entity.Remove(blobPropertyName);
         }
 
         static string GetBlobName(TableEntity entity, string property)
