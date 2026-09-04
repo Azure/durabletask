@@ -18,6 +18,11 @@ steps:
       find "$(System.DefaultWorkingDirectory)/tests" -name '*Test*.dll'
     displayName: 'List Test DLLs'
 
+  - task: npmAuthenticate@0
+    displayName: 'Authenticate npm'
+    inputs:
+      workingFile: '$(Build.SourcesDirectory)/eng/templates/.npmrc'
+
   # Install Azurite
   - bash: |
       echo "Installing azurite"
@@ -28,6 +33,8 @@ steps:
       echo "azurite started"
       sleep 5
     displayName: 'Install and Run Azurite'
+    env:
+      NPM_CONFIG_USERCONFIG: '$(Build.SourcesDirectory)/eng/templates/.npmrc'
 
   # Run tests
   - task: VSTest@2

@@ -92,6 +92,24 @@ namespace DurableTask.Core.Tracing
         /// </summary>
         public bool IsCriticalEnabled => IsEnabled(EventLevel.Critical, Keywords.Diagnostics);
 
+        [NonEvent]
+        internal bool IsEventEnabled(TraceEventType eventLevel)
+        {
+            switch (eventLevel)
+            {
+                case TraceEventType.Critical:
+                    return IsCriticalEnabled;
+                case TraceEventType.Error:
+                    return IsErrorEnabled;
+                case TraceEventType.Warning:
+                    return IsWarningEnabled;
+                case TraceEventType.Information:
+                    return IsInfoEnabled;
+                default:
+                    return IsTraceEnabled;
+            }
+        }
+
         /// <summary>
         /// Trace an event for the supplied event type and parameters
         /// </summary>
