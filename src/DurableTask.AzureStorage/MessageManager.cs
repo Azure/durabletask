@@ -253,10 +253,21 @@ namespace DurableTask.AzureStorage
             return DownloadAndDecompressAsBytesAsync(blob, cancellationToken);
         }
 
-        public Task<bool> DeleteBlobAsync(string blobName, CancellationToken cancellationToken = default)
+        public async Task<bool> DeleteBlobAsync(string blobName, CancellationToken cancellationToken = default)
         {
             Blob blob = this.blobContainer.GetBlobReference(blobName);
-            return blob.DeleteIfExistsAsync(cancellationToken);
+            try
+            {
+                return await blob.DeleteIfExistsAsync(cancellationToken);
+            }
+            catch (AggregateException ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new DurableTaskStorageException("Azure Storage retries failed while deleting a blob.", ex);
+            }
+            catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new DurableTaskStorageException("Azure Storage timed out while deleting a blob.", ex);
+            }
         }
 
         private async Task<string> DownloadAndDecompressAsBytesAsync(Blob blob, CancellationToken cancellationToken = default)

@@ -283,6 +283,7 @@ namespace DurableTask.AzureStorage.Tracking
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
             bool hasFailedSubOrchestrations = false;
+            var blobsToDelete = new List<string>();
             string partitionFilter = AzureTableQueryFilter.PartitionKeyEquals(instanceId);
 
             string orchestratorStartedFilter = $"{partitionFilter} and {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.OrchestratorStarted)}'";
@@ -361,6 +362,13 @@ namespace DurableTask.AzureStorage.Tracking
                         break;
                 }
 
+                if (entity.GetString(nameof(HistoryEvent.EventType)) == nameof(EventType.ExecutionCompleted))
+                {
+                    // GenericEvent replay ignores the terminal payload, so remove its blob references in the same ETag-guarded replace.
+                    RemovePropertyAndTrackBlob(entity, nameof(ExecutionCompletedEvent.Result), blobsToDelete);
+                    RemovePropertyAndTrackBlob(entity, nameof(ExecutionCompletedEvent.FailureDetails), blobsToDelete);
+                }
+
                 // "clear" failure event by making RewindEvent: replay ignores row while dummy event preserves rowKey
                 entity[nameof(TaskFailedEvent.Reason)] = "Rewound: " + entity.GetString(nameof(HistoryEvent.EventType));
                 entity[nameof(TaskFailedEvent.EventType)] = nameof(EventType.GenericEvent);
@@ -371,10 +379,38 @@ namespace DurableTask.AzureStorage.Tracking
             // reset orchestration status in instance store table
             await this.UpdateStatusForRewindAsync(instanceId, cancellationToken);
 
+            // Delete only after both the history pointers and the Instances-table Output reference are gone.
+            await this.DeleteRewindBlobsAsync(instanceId, blobsToDelete, cancellationToken);
+
             if (!hasFailedSubOrchestrations)
             {
                 yield return instanceId;
             }
+        }
+
+        async Task DeleteRewindBlobsAsync(string instanceId, IEnumerable<string> blobNames, CancellationToken cancellationToken)
+        {
+            foreach (string blobName in blobNames)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                try
+                {
+                    await this.messageManager.DeleteBlobAsync(blobName, cancellationToken);
+                }
+                catch (DurableTaskStorageException ex)
+                {
+                    this.settings.Logger.GeneralWarning(
+                        this.azureStorageClient.BlobAccountName,
+                        this.settings.TaskHubName,
+                        $"Failed to delete unreferenced rewind blob '{blobName}'. The blob will remain until the orchestration is purged. " +
+                        $"Storage status code: {ex.HttpStatusCode}; error code: '{ex.ErrorCode}'.",
+                        instanceId,
+                        ex);
+                }
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
         }
 
         /// <inheritdoc />
@@ -856,15 +892,23 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task UpdateStatusForRewindAsync(string instanceId, CancellationToken cancellationToken = default)
         {
-            string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
-            TableEntity entity = new TableEntity(sanitizedInstanceId, "")
+            string filter = $"{AzureTableQueryFilter.PartitionKeyEquals(instanceId)} and {AzureTableQueryFilter.ColumnEquals(RowKeyProperty, string.Empty)}";
+            TableEntity entity = await this.InstancesTable
+                .ExecuteQueryAsync<TableEntity>(filter, 1, cancellationToken: cancellationToken)
+                .FirstOrDefaultAsync();
+
+            if (entity == null)
             {
-                ["RuntimeStatus"] = OrchestrationStatus.Pending.ToString("G"),
-                ["LastUpdatedTime"] = DateTime.UtcNow,
-            };
+                throw new DurableTaskStorageException($"The orchestration instance '{instanceId}' does not exist.");
+            }
+
+            // Merge cannot remove a table property, so replace the complete row using its current ETag.
+            entity.Remove(OutputProperty);
+            entity["RuntimeStatus"] = OrchestrationStatus.Pending.ToString("G");
+            entity["LastUpdatedTime"] = DateTime.UtcNow;
 
             Stopwatch stopwatch = Stopwatch.StartNew();
-            await this.InstancesTable.MergeEntityAsync(entity, ETag.All, cancellationToken);
+            await this.InstancesTable.ReplaceEntityAsync(entity, entity.ETag, cancellationToken);
 
             // We don't have enough information to get the episode number.
             // It's also not important to have for this particular trace.
@@ -1376,6 +1420,20 @@ namespace DurableTask.AzureStorage.Tracking
         {
             // WARNING: Changing this is a breaking change!
             return originalPropertyName + "BlobName";
+        }
+
+        static void RemovePropertyAndTrackBlob(TableEntity entity, string propertyName, List<string> blobsToDelete)
+        {
+            string blobPropertyName = GetBlobPropertyName(propertyName);
+            if (entity.TryGetValue(blobPropertyName, out object value) &&
+                value is string blobName &&
+                !string.IsNullOrEmpty(blobName))
+            {
+                blobsToDelete.Add(blobName);
+            }
+
+            entity.Remove(propertyName);
+            entity.Remove(blobPropertyName);
         }
 
         static string GetBlobName(TableEntity entity, string property)
