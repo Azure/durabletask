@@ -13,12 +13,15 @@
 #nullable enable
 namespace DurableTask.AzureStorage.Tests
 {
+    using Azure.Storage.Blobs;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core.History;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Newtonsoft.Json;
     using System;
     using System.Collections.Generic;
+    using System.Threading;
+    using System.Threading.Tasks;
 
     [TestClass]
     public class MessageManagerTests
@@ -87,6 +90,28 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(expected, manager.GetBlobUrl(blob));
         }
 
+        [TestMethod]
+        public async Task DeleteBlobAsync_NormalizesRetryExhaustion()
+        {
+            MessageManager manager = SetupUnavailableBlobMessageManager();
+
+            DurableTaskStorageException failure = await Assert.ThrowsExceptionAsync<DurableTaskStorageException>(
+                async () => await manager.DeleteBlobAsync("blob"));
+
+            Assert.IsInstanceOfType(failure.InnerException, typeof(AggregateException));
+        }
+
+        [TestMethod]
+        public async Task DeleteBlobAsync_PropagatesCallerCancellation()
+        {
+            MessageManager manager = SetupUnavailableBlobMessageManager();
+            using var cancellation = new CancellationTokenSource();
+            cancellation.Cancel();
+
+            await Assert.ThrowsExceptionAsync<TaskCanceledException>(
+                async () => await manager.DeleteBlobAsync("blob", cancellation.Token));
+        }
+
         private string GetMessage(string dictionaryType)
             => "{\"$type\":\"DurableTask.AzureStorage.MessageData\",\"ActivityId\":\"5406d369-4369-4673-afae-6671a2fa1e57\",\"TaskMessage\":{\"$type\":\"DurableTask.Core.TaskMessage\",\"Event\":{\"$type\":\"DurableTask.Core.History.ExecutionStartedEvent\",\"OrchestrationInstance\":{\"$type\":\"DurableTask.Core.OrchestrationInstance\",\"InstanceId\":\"2.2-34a2c9d4-306e-4467-8470-a8018b2e4f11\",\"ExecutionId\":\"aae324dcc8f943e490b37ec5e5bbf9da\"},\"EventType\":0,\"ParentInstance\":null,\"Name\":\"OrchestrationName\",\"Version\":\"2.0\",\"Input\":\"input\",\"Tags\":{\"$type\":\""
             + dictionaryType
@@ -105,6 +130,35 @@ namespace DurableTask.AzureStorage.Tests
                 azureStorageClient,
                 "$root");
         }
+
+        static MessageManager SetupUnavailableBlobMessageManager()
+        {
+            var developmentStorage = new StorageAccountClientProvider("UseDevelopmentStorage=true");
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider(
+                    new UnavailableBlobServiceClientProvider(),
+                    developmentStorage.Queue,
+                    developmentStorage.Table),
+            };
+
+            return new MessageManager(settings, new AzureStorageClient(settings), "unavailable");
+        }
+    }
+
+    sealed class UnavailableBlobServiceClientProvider : IStorageServiceClientProvider<BlobServiceClient, BlobClientOptions>
+    {
+        public BlobClientOptions CreateOptions()
+        {
+            var options = new BlobClientOptions();
+            options.Retry.MaxRetries = 1;
+            options.Retry.Delay = TimeSpan.FromMilliseconds(10);
+            options.Retry.NetworkTimeout = TimeSpan.FromSeconds(1);
+            return options;
+        }
+
+        public BlobServiceClient CreateClient(BlobClientOptions options) =>
+            new BlobServiceClient(new Uri("http://127.0.0.1:1"), options);
     }
 
     internal class KnownTypeBinder : ICustomTypeBinder

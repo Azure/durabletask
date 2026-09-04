@@ -16,6 +16,8 @@ namespace DurableTask.AzureStorage.Tests
     using Azure.Data.Tables;
     using Azure.Storage.Blobs;
     using Azure.Storage.Blobs.Models;
+    using Azure.Storage.Blobs.Specialized;
+    using DurableTask.AzureStorage.Logging;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
@@ -23,6 +25,7 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.Core.History;
     using DurableTask.Core.Settings;
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging.Utility;
+    using Microsoft.Extensions.Logging;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Moq;
     using Newtonsoft.Json;
@@ -1510,10 +1513,20 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        [TestMethod]
-        public async Task RewindLargeFailure_RemovesPersistedOutputAndBlobs()
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task RewindLargeFailure_HandlesBlobDeletionFailure(bool failBlobDeletion)
         {
-            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            var logger = new Mock<ILogger>();
+            var loggerFactory = new Mock<ILoggerFactory>();
+            loggerFactory
+                .Setup(factory => factory.CreateLogger(It.IsAny<string>()))
+                .Returns(logger.Object);
+
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
+                enableExtendedSessions: false,
+                modifySettingsAction: settings => settings.LoggerFactory = loggerFactory.Object))
             {
                 Orchestrations.RewindLargeFailure.ShouldFail = true;
                 host.ErrorPropagationMode = ErrorPropagationMode.UseFailureDetails;
@@ -1524,7 +1537,8 @@ namespace DurableTask.AzureStorage.Tests
                     typeof(Orchestrations.RewindLargeFailure),
                     input: failureMessage);
                 OrchestrationState failed = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
-                Assert.AreEqual(OrchestrationStatus.Failed, failed?.OrchestrationStatus);
+                Assert.IsNotNull(failed);
+                Assert.AreEqual(OrchestrationStatus.Failed, failed.OrchestrationStatus);
 
                 var trackingStore = (AzureTableTrackingStore)host.service.TrackingStore;
                 string instanceFilter = $"{AzureTableQueryFilter.PartitionKeyEquals(client.InstanceId)} and " +
@@ -1560,35 +1574,103 @@ namespace DurableTask.AzureStorage.Tests
                     Assert.IsTrue((await container.GetBlobClient(blobName).ExistsAsync()).Value);
                 }
 
-                Orchestrations.RewindLargeFailure.ShouldFail = false;
-                CollectionAssert.AreEqual(
-                    new[] { client.InstanceId },
-                    await trackingStore.RewindHistoryAsync(client.InstanceId).ToListAsync());
-
-                TableEntity rewoundInstance = await trackingStore.InstancesTable
-                    .ExecuteQueryAsync<TableEntity>(instanceFilter, 1)
-                    .FirstOrDefaultAsync();
-                Assert.AreEqual(OrchestrationStatus.Pending.ToString(), rewoundInstance.GetString("RuntimeStatus"));
-                Assert.IsFalse(rewoundInstance.ContainsKey("Output"));
-
-                string historyFilter = $"{AzureTableQueryFilter.PartitionKeyEquals(client.InstanceId)} and " +
-                    $"{AzureTableQueryFilter.ColumnEquals(nameof(ITableEntity.RowKey), failedCompletion.RowKey)}";
-                TableEntity rewoundCompletion = (await trackingStore.HistoryTable
-                    .ExecuteQueryAsync<TableEntity>(historyFilter)
-                    .ToListAsync())
-                    .Single();
-
-                Assert.AreEqual(nameof(EventType.GenericEvent), rewoundCompletion.GetString(nameof(HistoryEvent.EventType)));
-                Assert.IsFalse(rewoundCompletion.ContainsKey("Result"));
-                Assert.IsFalse(rewoundCompletion.ContainsKey("ResultBlobName"));
-                Assert.IsFalse(rewoundCompletion.ContainsKey("FailureDetails"));
-                Assert.IsFalse(rewoundCompletion.ContainsKey("FailureDetailsBlobName"));
-                foreach (string blobName in outputBlobNames)
+                if (!failBlobDeletion)
                 {
-                    Assert.IsFalse((await container.GetBlobClient(blobName).ExistsAsync()).Value);
+                    using var canceled = new CancellationTokenSource();
+                    canceled.Cancel();
+                    await Assert.ThrowsExceptionAsync<TaskCanceledException>(
+                        async () => await trackingStore.RewindHistoryAsync(client.InstanceId, canceled.Token).ToListAsync());
+
+                    TableEntity instanceAfterCancellation = await trackingStore.InstancesTable
+                        .ExecuteQueryAsync<TableEntity>(instanceFilter, 1)
+                        .FirstOrDefaultAsync();
+                    Assert.AreEqual(OrchestrationStatus.Failed.ToString(), instanceAfterCancellation.GetString("RuntimeStatus"));
+                    Assert.AreEqual(outputBlobUrl, instanceAfterCancellation.GetString("Output"));
                 }
 
-                await client.RewindAsync("Retry the persisted-output cleanup.");
+                BlobClient resultBlob = container.GetBlobClient(resultBlobName);
+                BlobLeaseClient resultBlobLease = null;
+                if (failBlobDeletion)
+                {
+                    resultBlobLease = resultBlob.GetBlobLeaseClient();
+                    await resultBlobLease.AcquireAsync(TimeSpan.FromSeconds(15));
+                }
+
+                Orchestrations.RewindLargeFailure.ShouldFail = false;
+                try
+                {
+                    if (failBlobDeletion)
+                    {
+                        await client.RewindAsync("Retry despite the persisted-output cleanup failure.");
+                    }
+                    else
+                    {
+                        CollectionAssert.AreEqual(
+                            new[] { client.InstanceId },
+                            await trackingStore.RewindHistoryAsync(client.InstanceId).ToListAsync());
+                    }
+
+                    TableEntity rewoundInstance = await trackingStore.InstancesTable
+                        .ExecuteQueryAsync<TableEntity>(instanceFilter, 1)
+                        .FirstOrDefaultAsync();
+                    if (failBlobDeletion)
+                    {
+                        Assert.AreNotEqual(outputBlobUrl, rewoundInstance.GetString("Output"));
+                    }
+                    else
+                    {
+                        Assert.AreEqual(OrchestrationStatus.Pending.ToString(), rewoundInstance.GetString("RuntimeStatus"));
+                        Assert.IsFalse(rewoundInstance.ContainsKey("Output"));
+                    }
+
+                    string historyFilter = $"{AzureTableQueryFilter.PartitionKeyEquals(client.InstanceId)} and " +
+                        $"{AzureTableQueryFilter.ColumnEquals(nameof(ITableEntity.RowKey), failedCompletion.RowKey)}";
+                    TableEntity rewoundCompletion = (await trackingStore.HistoryTable
+                        .ExecuteQueryAsync<TableEntity>(historyFilter)
+                        .ToListAsync())
+                        .Single();
+
+                    Assert.AreEqual(nameof(EventType.GenericEvent), rewoundCompletion.GetString(nameof(HistoryEvent.EventType)));
+                    Assert.IsFalse(rewoundCompletion.ContainsKey("Result"));
+                    Assert.IsFalse(rewoundCompletion.ContainsKey("ResultBlobName"));
+                    Assert.IsFalse(rewoundCompletion.ContainsKey("FailureDetails"));
+                    Assert.IsFalse(rewoundCompletion.ContainsKey("FailureDetailsBlobName"));
+
+                    Assert.AreEqual(failBlobDeletion, (await resultBlob.ExistsAsync()).Value);
+                    Assert.IsFalse((await container.GetBlobClient(failureDetailsBlobName).ExistsAsync()).Value);
+
+                    var cleanupWarnings = logger.Invocations
+                        .Where(invocation => invocation.Arguments.Count > 2)
+                        .Where(invocation => invocation.Arguments[2] is LogEvents.GeneralWarning warning &&
+                            warning.Details.Contains(resultBlobName))
+                        .ToList();
+                    if (failBlobDeletion)
+                    {
+                        Assert.AreEqual(1, cleanupWarnings.Count);
+                        var cleanupWarning = (LogEvents.GeneralWarning)cleanupWarnings[0].Arguments[2];
+                        Assert.AreEqual(client.InstanceId, cleanupWarning.InstanceId);
+                        StringAssert.Contains(cleanupWarning.Details, "LeaseIdMissing");
+                        Assert.IsInstanceOfType(cleanupWarnings[0].Arguments[3], typeof(DurableTaskStorageException));
+                    }
+                    else
+                    {
+                        Assert.AreEqual(0, cleanupWarnings.Count);
+                    }
+                }
+                finally
+                {
+                    if (resultBlobLease != null)
+                    {
+                        await resultBlobLease.ReleaseAsync();
+                        await resultBlob.DeleteIfExistsAsync();
+                    }
+                }
+
+                if (!failBlobDeletion)
+                {
+                    await client.RewindAsync("Retry the persisted-output cleanup.");
+                }
+
                 OrchestrationState completed = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
                 Assert.AreEqual(OrchestrationStatus.Completed, completed?.OrchestrationStatus);
                 Assert.AreEqual("\"Done\"", completed?.Output);

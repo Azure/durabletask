@@ -759,14 +759,15 @@ namespace DurableTask.AzureStorage.Logging
             string account,
             string taskHub,
             string details,
-            string instanceId = null)
+            string instanceId = null,
+            Exception exception = null)
         {
             var logEvent = new LogEvents.GeneralWarning(
                 account,
                 taskHub,
                 details,
                 instanceId ?? string.Empty);
-            this.WriteStructuredLog(logEvent);
+            this.WriteStructuredLog(logEvent, exception);
         }
 
         internal void SplitBrainDetected(

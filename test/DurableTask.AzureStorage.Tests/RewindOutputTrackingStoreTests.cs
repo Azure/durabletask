@@ -123,7 +123,7 @@ namespace DurableTask.AzureStorage.Tests
 
             bool created = await this.trackingStore.SetNewExecutionAsync(
                 CreateExecutionStartedEvent(instanceId, "execution-2"),
-                new ETag(existing.ETag.ToString()),
+                existing.ETag,
                 inputPayloadOverride: null);
 
             Assert.IsTrue(created);

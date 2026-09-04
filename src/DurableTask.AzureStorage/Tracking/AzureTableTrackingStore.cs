@@ -380,12 +380,37 @@ namespace DurableTask.AzureStorage.Tracking
             await this.UpdateStatusForRewindAsync(instanceId, cancellationToken);
 
             // Delete only after both the history pointers and the Instances-table Output reference are gone.
-            await Task.WhenAll(blobsToDelete.Select(blobName => this.messageManager.DeleteBlobAsync(blobName, cancellationToken)));
+            await this.DeleteRewindBlobsAsync(instanceId, blobsToDelete, cancellationToken);
 
             if (!hasFailedSubOrchestrations)
             {
                 yield return instanceId;
             }
+        }
+
+        async Task DeleteRewindBlobsAsync(string instanceId, IEnumerable<string> blobNames, CancellationToken cancellationToken)
+        {
+            foreach (string blobName in blobNames)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                try
+                {
+                    await this.messageManager.DeleteBlobAsync(blobName, cancellationToken);
+                }
+                catch (DurableTaskStorageException ex)
+                {
+                    this.settings.Logger.GeneralWarning(
+                        this.azureStorageClient.BlobAccountName,
+                        this.settings.TaskHubName,
+                        $"Failed to delete unreferenced rewind blob '{blobName}'. The blob will remain until the orchestration is purged. " +
+                        $"Storage status code: {ex.HttpStatusCode}; error code: '{ex.ErrorCode}'.",
+                        instanceId,
+                        ex);
+                }
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
         }
 
         /// <inheritdoc />
