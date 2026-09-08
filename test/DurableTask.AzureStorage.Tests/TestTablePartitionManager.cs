@@ -726,6 +726,95 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(1, service.OwnedControlQueues.Count());
         }
 
+        [TestMethod]
+        public async Task ForcedCancellationCompletesStopAndAllowsWorkAfterRestart()
+        {
+            string taskHubName =
+                "forcecancel" + Guid.NewGuid().ToString("N").Substring(0, 12);
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider(this.connection),
+                TaskHubName = taskHubName,
+                PartitionCount = 1,
+                LeaseAcquireInterval = TimeSpan.FromMilliseconds(200),
+                MaxQueuePollingInterval = TimeSpan.FromMilliseconds(50),
+                WorkerId = "0",
+                UseAppLease = false,
+                UseTablePartitionManagement = true,
+            };
+            var service = new AzureStorageOrchestrationService(settings);
+            var client = new TaskHubClient(service);
+
+            await service.StartAsync();
+            await WaitForConditionAsync(
+                TimeSpan.FromSeconds(5),
+                t => new ValueTask<bool>(service.OwnedControlQueues.Any()));
+
+            OrchestrationInstance instance =
+                await client.CreateOrchestrationInstanceAsync(
+                    typeof(HelloOrchestrator),
+                    input: null);
+            using var lockCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            TaskOrchestrationWorkItem workItem =
+                await service.LockNextTaskOrchestrationWorkItemAsync(
+                    TimeSpan.FromSeconds(10),
+                    lockCancellation.Token);
+            Assert.IsNotNull(workItem);
+
+            Task stopTask = service.StopAsync(isForced: false);
+            await WaitForConditionAsync(
+                TimeSpan.FromSeconds(5),
+                t => new ValueTask<bool>(
+                    service.OwnedControlQueues.Single().IsReleased));
+            Assert.IsFalse(
+                stopTask.IsCompleted,
+                "Graceful stop should wait for the locked orchestration work item to drain.");
+
+            service.KillPartitionManagerLoop();
+
+            Task completedTask =
+                await Task.WhenAny(stopTask, Task.Delay(TimeSpan.FromSeconds(5)));
+            Assert.AreSame(
+                stopTask,
+                completedTask,
+                "Forceful cancellation did not complete the timed-out stop.");
+            await Assert.ThrowsExceptionAsync<TimeoutException>(() => stopTask);
+
+            await service.AbandonTaskOrchestrationWorkItemAsync(workItem);
+            await service.ReleaseTaskOrchestrationWorkItemAsync(workItem);
+            await WaitForConditionAsync(
+                TimeSpan.FromSeconds(5),
+                t => new ValueTask<bool>(!service.OwnedControlQueues.Any()));
+
+            Task secondStopTask = service.StopAsync(isForced: false);
+            completedTask =
+                await Task.WhenAny(
+                    secondStopTask,
+                    Task.Delay(TimeSpan.FromSeconds(5)));
+            Assert.AreSame(
+                secondStopTask,
+                completedTask,
+                "A repeated stop did not observe termination of the old partition manager loop.");
+            await secondStopTask;
+
+            var worker = new TaskHubWorker(service);
+            worker.AddTaskOrchestrations(typeof(HelloOrchestrator));
+            worker.AddTaskActivities(typeof(Hello));
+            await worker.StartAsync();
+
+            OrchestrationState state =
+                await client.WaitForOrchestrationAsync(
+                    instance,
+                    TimeSpan.FromSeconds(30));
+
+            Assert.IsNotNull(state);
+            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+            Assert.AreEqual("\"Hello, world!\"", state.Output);
+
+            await worker.StopAsync(isForced: true);
+            await service.DeleteAsync();
+        }
+
         [KnownType(typeof(Hello))]
         internal class HelloOrchestrator : TaskOrchestration<string, string>
         {
