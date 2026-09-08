@@ -180,6 +180,10 @@ namespace DurableTask.AzureStorage.Partitioning
 
                     consecutiveFailureCount = 0;
                 }
+                catch (OperationCanceledException) when (forcefulShutdownToken.IsCancellationRequested)
+                {
+                    break;
+                }
                 // Exception Status 412 represents an out of date ETag. We already logged this.
                 catch (DurableTaskStorageException ex) when (ex.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
                 {
@@ -231,6 +235,10 @@ namespace DurableTask.AzureStorage.Partitioning
                         // Normal case: the amount of time we sleep varies depending on the situation.
                         await Task.Delay(timeToSleep, gracefulShutdownToken);
                     }
+                }
+                catch (OperationCanceledException) when (forcefulShutdownToken.IsCancellationRequested)
+                {
+                    break;
                 }
                 catch (OperationCanceledException) when (gracefulShutdownToken.IsCancellationRequested)
                 {
