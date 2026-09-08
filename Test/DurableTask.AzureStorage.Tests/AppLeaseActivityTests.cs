@@ -243,6 +243,80 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
+        public async Task PreviousOwnerProcessesOrchestrationAfterReacquiringAppLease()
+        {
+            string taskHubName = GetTaskHubName();
+            AzureStorageOrchestrationServiceSettings firstSettings =
+                CreateSettings(taskHubName, "FirstApp", useAppLease: true);
+            AzureStorageOrchestrationServiceSettings secondSettings =
+                CreateSettings(taskHubName, "SecondApp", useAppLease: true);
+            firstSettings.LeaseAcquireInterval = TimeSpan.FromMilliseconds(200);
+            secondSettings.LeaseAcquireInterval = TimeSpan.FromMilliseconds(200);
+
+            var firstService = new AzureStorageOrchestrationService(firstSettings);
+            var secondService = new AzureStorageOrchestrationService(secondSettings);
+            var firstWorker = new TaskHubWorker(firstService);
+            var secondWorker = new TaskHubWorker(secondService);
+            firstWorker.AddTaskOrchestrations(typeof(WaitForSignalOrchestration));
+            secondWorker.AddTaskOrchestrations(typeof(WaitForSignalOrchestration));
+
+            bool firstWorkerStarted = false;
+            bool secondWorkerStarted = false;
+
+            try
+            {
+                await firstService.CreateAsync();
+                await firstWorker.StartAsync();
+                firstWorkerStarted = true;
+                await WaitForOwnerAsync(firstService);
+
+                var client = new TaskHubClient(firstService);
+                OrchestrationInstance instance =
+                    await client.CreateOrchestrationInstanceAsync(
+                        typeof(WaitForSignalOrchestration),
+                        input: null);
+                await WaitForOrchestrationStatusAsync(
+                    client,
+                    instance,
+                    OrchestrationStatus.Running);
+
+                await secondWorker.StartAsync();
+                secondWorkerStarted = true;
+                await secondService.ForceChangeAppLeaseAsync();
+                await WaitForOwnerAsync(secondService, secondSettings, instance.InstanceId);
+
+                await secondWorker.StopAsync(isForced: true);
+                secondWorkerStarted = false;
+                await WaitForAppLeaseOwnerAsync(firstSettings, AutomaticFailoverTimeout);
+                await WaitForOwnerAsync(
+                    firstService,
+                    firstSettings,
+                    instance.InstanceId,
+                    AutomaticFailoverTimeout);
+                await client.RaiseEventAsync(instance, "complete", "done");
+
+                OrchestrationState state =
+                    await client.WaitForOrchestrationAsync(instance, TestTimeout);
+
+                Assert.IsNotNull(state);
+                Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+                Assert.AreEqual("\"done\"", state.Output);
+            }
+            finally
+            {
+                if (secondWorkerStarted)
+                {
+                    await secondWorker.StopAsync(isForced: true);
+                }
+
+                if (firstWorkerStarted)
+                {
+                    await firstWorker.StopAsync(isForced: true);
+                }
+            }
+        }
+
+        [TestMethod]
         public async Task AppLeaseManagerCanRestartAfterPartitionManagerStopFails()
         {
             string taskHubName = GetTaskHubName();
@@ -418,6 +492,89 @@ namespace DurableTask.AzureStorage.Tests
                 TestTimeout);
         }
 
+        static async Task WaitForOwnerAsync(
+            AzureStorageOrchestrationService service,
+            AzureStorageOrchestrationServiceSettings settings,
+            string instanceId,
+            TimeSpan? timeout = null)
+        {
+            uint partitionIndex =
+                Fnv1aHashHelper.ComputeHash(instanceId) % (uint)settings.PartitionCount;
+            string queueName =
+                AzureStorageOrchestrationService.GetControlQueueName(
+                    settings.TaskHubName,
+                    (int)partitionIndex);
+
+            await TestHelpers.WaitFor(
+                () => service.OwnedControlQueues.Any(queue => queue.Name == queueName),
+                timeout ?? TestTimeout);
+        }
+
+        static async Task WaitForAppLeaseOwnerAsync(
+            AzureStorageOrchestrationServiceSettings settings,
+            TimeSpan? timeout = null)
+        {
+            string taskHubName = settings.TaskHubName.ToLowerInvariant();
+            Blob appLeaseInfoBlob = new AzureStorageClient(settings)
+                .GetBlobContainerReference(taskHubName + "-applease")
+                .GetBlobReference(taskHubName + "-appleaseinfo");
+            byte[] appLeaseIdBytes =
+                BitConverter.GetBytes(Fnv1aHashHelper.ComputeHash(settings.AppName));
+            Array.Resize(ref appLeaseIdBytes, 16);
+            string expectedOwnerId = new Guid(appLeaseIdBytes).ToString();
+
+            using (var cancellation = new CancellationTokenSource(timeout ?? TestTimeout))
+            {
+                try
+                {
+                    while (true)
+                    {
+                        string json = await appLeaseInfoBlob.DownloadTextAsync();
+                        var info = Utils.DeserializeFromJson<TestAppLeaseInfo>(json);
+                        if (info.OwnerId == expectedOwnerId)
+                        {
+                            return;
+                        }
+
+                        await Task.Delay(TimeSpan.FromMilliseconds(100), cancellation.Token);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    Assert.Fail("The previous owner did not reacquire the app lease.");
+                }
+            }
+        }
+
+        static async Task WaitForOrchestrationStatusAsync(
+            TaskHubClient client,
+            OrchestrationInstance instance,
+            OrchestrationStatus expectedStatus)
+        {
+            using (var cancellation = new CancellationTokenSource(TestTimeout))
+            {
+                try
+                {
+                    while (true)
+                    {
+                        OrchestrationState state =
+                            await client.GetOrchestrationStateAsync(instance);
+                        if (state?.OrchestrationStatus == expectedStatus)
+                        {
+                            return;
+                        }
+
+                        await Task.Delay(TimeSpan.FromMilliseconds(100), cancellation.Token);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    Assert.Fail(
+                        $"The orchestration did not reach {expectedStatus} before the test timeout.");
+                }
+            }
+        }
+
         static async Task WaitForOwnershipAsync(AppLeaseManager manager)
         {
             using (await GetOwnershipAsync(manager))
@@ -534,6 +691,35 @@ namespace DurableTask.AzureStorage.Tests
                 await Task.CompletedTask;
                 yield break;
             }
+        }
+
+        sealed class WaitForSignalOrchestration : TaskOrchestration<string, string>
+        {
+            TaskCompletionSource<string> signal;
+
+            public override async Task<string> RunTask(
+                OrchestrationContext context,
+                string input)
+            {
+                this.signal = new TaskCompletionSource<string>();
+                return await this.signal.Task;
+            }
+
+            public override void OnEvent(
+                OrchestrationContext context,
+                string name,
+                string input)
+            {
+                if (name == "complete")
+                {
+                    this.signal?.TrySetResult(input);
+                }
+            }
+        }
+
+        sealed class TestAppLeaseInfo
+        {
+            public string OwnerId { get; set; }
         }
     }
 }
