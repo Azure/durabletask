@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage.Tests
 {
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Linq;
     using System.Runtime.CompilerServices;
@@ -23,6 +24,7 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
     using DurableTask.Core.History;
+    using Microsoft.Extensions.Logging;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
@@ -187,26 +189,26 @@ namespace DurableTask.AzureStorage.Tests
             AppLeaseManager newManager = CreateAppLeaseManager(
                 newSettings,
                 new TestPartitionManager());
-            AppLeaseOwnershipSignal.AppLeaseOwnership oldOwnership = null;
-            AppLeaseOwnershipSignal.AppLeaseOwnership newOwnership = null;
-
             try
             {
                 await oldManager.CreateContainerIfNotExistsAsync();
                 await oldManager.StartAsync();
-                oldOwnership = await GetOwnershipAsync(oldManager);
-                await newManager.StartAsync();
+                using (AppLeaseOwnershipSignal.AppLeaseOwnership oldOwnership =
+                    await GetOwnershipAsync(oldManager))
+                {
+                    await newManager.StartAsync();
 
-                await newManager.ForceChangeAppLeaseAsync();
-                newOwnership = await GetOwnershipAsync(newManager);
-
-                Assert.IsTrue(oldOwnership.LostToken.IsCancellationRequested);
-                Assert.IsFalse(oldOwnership.TryBeginDispatch());
+                    await newManager.ForceChangeAppLeaseAsync();
+                    using (AppLeaseOwnershipSignal.AppLeaseOwnership newOwnership =
+                        await GetOwnershipAsync(newManager))
+                    {
+                        Assert.IsTrue(oldOwnership.LostToken.IsCancellationRequested);
+                        Assert.IsFalse(oldOwnership.TryBeginDispatch());
+                    }
+                }
             }
             finally
             {
-                newOwnership?.Dispose();
-                oldOwnership?.Dispose();
                 await newManager.StopAsync();
                 await oldManager.StopAsync();
             }
@@ -381,7 +383,11 @@ namespace DurableTask.AzureStorage.Tests
                     oldReceivingQueues.Length,
                     $"The previous app resumed receiving from released partitions: {string.Join(", ", oldReceivingQueues)}. " +
                     $"New orchestration output: {secondOwnerState?.Output ?? "<not completed>"}.");
-                Assert.IsNotNull(secondOwnerState);
+                if (secondOwnerState == null)
+                {
+                    Assert.Fail("The new owner did not complete the orchestration.");
+                }
+
                 Assert.AreEqual(OrchestrationStatus.Completed, secondOwnerState.OrchestrationStatus);
                 Assert.AreEqual("\"SecondApp\"", secondOwnerState.Output);
 
@@ -447,6 +453,33 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
+        public async Task ForceChangeBeforeFirstOwnerAcquiresLease()
+        {
+            string taskHubName = GetTaskHubName();
+            AzureStorageOrchestrationServiceSettings settings =
+                CreateSettings(taskHubName, "PrimaryApp", useAppLease: true);
+            var partitionManager = new TestPartitionManager();
+            AppLeaseManager manager = CreateAppLeaseManager(settings, partitionManager);
+
+            try
+            {
+                await manager.CreateContainerIfNotExistsAsync();
+
+                await manager.ForceChangeAppLeaseAsync();
+
+                using (var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(3)))
+                using (await manager.WaitForOwnershipAsync(cancellation.Token))
+                {
+                    Assert.AreEqual(1, partitionManager.StartCount);
+                }
+            }
+            finally
+            {
+                await manager.StopAsync();
+            }
+        }
+
+        [TestMethod]
         public async Task LeaseLossDoesNotCancelDispatchedActivity()
         {
             string taskHubName = GetTaskHubName();
@@ -481,18 +514,46 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public async Task OwnershipLossAfterDequeuePreventsDispatch()
+        public async Task OwnershipLossAfterDequeueDoesNotStartProcessingTrace()
         {
-            var ownershipSignal = new AppLeaseOwnershipSignal();
-            ownershipSignal.Set();
+            string taskHubName = GetTaskHubName();
+            var loggerFactory = new RecordingLoggerFactory();
+            AzureStorageOrchestrationServiceSettings oldSettings =
+                CreateSettings(taskHubName, "OldApp", useAppLease: true);
+            oldSettings.LoggerFactory = loggerFactory;
+            AzureStorageOrchestrationService oldOwner =
+                new AzureStorageOrchestrationService(oldSettings);
+            AzureStorageOrchestrationService newOwner =
+                CreateService(taskHubName, "NewApp", useAppLease: true);
 
-            using (AppLeaseOwnershipSignal.AppLeaseOwnership ownership =
-                await ownershipSignal.WaitAsync(CancellationToken.None))
+            try
             {
-                ownershipSignal.Reset();
+                await oldOwner.CreateAsync();
+                await oldOwner.StartAsync();
+                await WaitForOwnerAsync(oldOwner);
+                await newOwner.StartAsync();
+                await EnqueueActivityAsync(oldOwner, "ownership-race");
 
-                Assert.IsTrue(ownership.LostToken.IsCancellationRequested);
-                Assert.IsFalse(ownership.TryBeginDispatch());
+                oldOwner.OnActivityMessageDequeued = async () =>
+                {
+                    oldOwner.OnActivityMessageDequeued = null;
+                    await newOwner.ForceChangeAppLeaseAsync();
+                    await WaitForOwnerAsync(newOwner);
+                };
+
+                TaskActivityWorkItem rejectedWorkItem = await LockActivityAsync(oldOwner);
+
+                Assert.IsNull(rejectedWorkItem);
+                Assert.IsFalse(loggerFactory.HasEvent("ProcessingMessage"));
+
+                TaskActivityWorkItem newOwnerWorkItem = await LockActivityAsync(newOwner);
+                Assert.IsNotNull(newOwnerWorkItem);
+                await newOwner.AbandonTaskActivityWorkItemAsync(newOwnerWorkItem);
+            }
+            finally
+            {
+                await StopAsync(newOwner);
+                await StopAsync(oldOwner);
             }
         }
 
@@ -860,7 +921,13 @@ namespace DurableTask.AzureStorage.Tests
 
         sealed class TestPartitionManager : IPartitionManager
         {
-            public Task StartAsync() => Task.CompletedTask;
+            public int StartCount { get; private set; }
+
+            public Task StartAsync()
+            {
+                this.StartCount++;
+                return Task.CompletedTask;
+            }
 
             public Task StopAsync() => Task.CompletedTask;
 
@@ -876,6 +943,53 @@ namespace DurableTask.AzureStorage.Tests
             {
                 await Task.CompletedTask;
                 yield break;
+            }
+        }
+
+        sealed class RecordingLoggerFactory : ILoggerFactory
+        {
+            readonly ConcurrentQueue<EventId> events = new ConcurrentQueue<EventId>();
+
+            public void AddProvider(ILoggerProvider provider)
+            {
+            }
+
+            public ILogger CreateLogger(string categoryName)
+            {
+                return new RecordingLogger(this.events);
+            }
+
+            public void Dispose()
+            {
+            }
+
+            public bool HasEvent(string name)
+            {
+                return this.events.Any(e => e.Name == name);
+            }
+
+            sealed class RecordingLogger : ILogger
+            {
+                readonly ConcurrentQueue<EventId> events;
+
+                public RecordingLogger(ConcurrentQueue<EventId> events)
+                {
+                    this.events = events;
+                }
+
+                public IDisposable BeginScope<TState>(TState state) => null;
+
+                public bool IsEnabled(LogLevel logLevel) => true;
+
+                public void Log<TState>(
+                    LogLevel logLevel,
+                    EventId eventId,
+                    TState state,
+                    Exception exception,
+                    Func<TState, Exception, string> formatter)
+                {
+                    this.events.Enqueue(eventId);
+                }
             }
         }
 

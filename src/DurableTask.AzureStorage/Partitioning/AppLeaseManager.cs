@@ -307,6 +307,12 @@ namespace DurableTask.AzureStorage.Partitioning
 
                 if (!calledFromLeaseRenewer && renewer != null)
                 {
+                    if (renewerCancellation == null)
+                    {
+                        throw new InvalidOperationException(
+                            "The app lease renewer has no cancellation source.");
+                    }
+
                     renewerCancellation.Cancel();
                     await renewer;
                 }
@@ -331,7 +337,8 @@ namespace DurableTask.AzureStorage.Partitioning
             AppLeaseInfo appLeaseInfo = await this.GetAppLeaseInfoAsync();
 
             bool leaseAcquired;
-            if (appLeaseInfo.DesiredSwapId == this.appLeaseId)
+            if (appLeaseInfo.DesiredSwapId == this.appLeaseId
+                && !string.IsNullOrEmpty(appLeaseInfo.OwnerId))
             {
                 leaseAcquired = await this.ChangeLeaseAsync(appLeaseInfo.OwnerId, cancellationToken);
             }

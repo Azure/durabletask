@@ -198,6 +198,9 @@ namespace DurableTask.AzureStorage
 
         internal ITrackingStore TrackingStore => this.trackingStore;
 
+        // Intended only for use by tests that need to coordinate the post-dequeue ownership race.
+        internal Func<Task> OnActivityMessageDequeued { get; set; }
+
         internal static string GetControlQueueName(string taskHub, int partitionIndex)
         {
             return GetQueueName(taskHub, $"control-{partitionIndex:00}");
@@ -1568,6 +1571,18 @@ namespace DurableTask.AzureStorage
                             return null;
                         }
 
+                        Func<Task> onActivityMessageDequeued = this.OnActivityMessageDequeued;
+                        if (onActivityMessageDequeued != null)
+                        {
+                            await onActivityMessageDequeued();
+                        }
+
+                        if (!ownership.TryBeginDispatch())
+                        {
+                            await this.workItemQueue.AbandonMessageAsync(message);
+                            return null;
+                        }
+
                         Guid traceActivityId = Guid.NewGuid();
                         var session = new ActivitySession(this.settings, this.azureStorageClient.QueueAccountName, message, traceActivityId);
                         session.StartNewLogicalTraceScope();
@@ -1585,12 +1600,6 @@ namespace DurableTask.AzureStorage
 
                         TraceMessageReceived(this.settings, session.MessageData, this.azureStorageClient.QueueAccountName);
                         session.TraceProcessingMessage(message, isExtendedSession: false, this.workItemQueue.Name);
-
-                        if (!ownership.TryBeginDispatch())
-                        {
-                            await this.workItemQueue.AbandonMessageAsync(message);
-                            return null;
-                        }
 
                         if (!this.activeActivitySessions.TryAdd(message.Id, session))
                         {
