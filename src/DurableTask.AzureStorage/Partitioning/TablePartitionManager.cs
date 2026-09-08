@@ -524,16 +524,8 @@ namespace DurableTask.AzureStorage.Partitioning
                             throw;
                         }
 
-                        // Ensure worker is listening to the control queue iff either:
-                        // 1) worker just claimed the lease,
-                        // 2) worker was already the owner in the partitions table and is not actively draining the queue.
-                        //    Note that during draining, we renew the lease but do not want to listen to new messages.
-                        //    Otherwise, we'll never finish draining our in-memory messages.
-                        // When draining completes, and the worker may decide to release the lease. In that moment,
-                        // IsDrainingPartition can still be true but renewedLease can be false — without checking
-                        // !releasedLease, the worker could incorrectly resume listening just before releasing the lease.
-                        bool isRenewingToDrainQueue = renewedLease && response.IsDrainingPartition && !releasedLease;
-                        if (claimedLease || !isRenewingToDrainQueue)
+                        // Only an owner of this non-draining partition should listen to its control queue.
+                        if (partition.CurrentOwner == this.workerName && !partition.IsDraining)
                         {
                             // Notify the orchestration session manager that we acquired a lease for one of the partitions.
                             // This will cause it to start reading control queue messages for that partition.
@@ -598,6 +590,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 if (partition.NextOwner == null)
                 {
                     // We still own the lease and nobody is trying to steal it.
+                    partition.IsDraining = false;
                     ownershipLeaseCount++;
                     this.RenewLease(partition);
                     renewedLease = true;

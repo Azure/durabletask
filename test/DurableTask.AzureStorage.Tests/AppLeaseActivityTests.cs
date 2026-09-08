@@ -317,6 +317,113 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
+        public async Task ReleasedPartitionsDoNotResumeListeningBeforeFailback()
+        {
+            string taskHubName = GetTaskHubName();
+            AzureStorageOrchestrationServiceSettings firstSettings =
+                CreateSettings(taskHubName, "FirstApp", useAppLease: true);
+            AzureStorageOrchestrationServiceSettings secondSettings =
+                CreateSettings(taskHubName, "SecondApp", useAppLease: true);
+            firstSettings.PartitionCount = 4;
+            firstSettings.LeaseAcquireInterval = TimeSpan.FromMilliseconds(200);
+            secondSettings.PartitionCount = 4;
+            secondSettings.LeaseAcquireInterval = TimeSpan.FromMilliseconds(200);
+            secondSettings.ControlQueueBufferThreshold = 0;
+
+            var firstService = new AzureStorageOrchestrationService(firstSettings);
+            var secondService = new AzureStorageOrchestrationService(secondSettings);
+            var firstWorker = new TaskHubWorker(firstService);
+            var secondWorker = new TaskHubWorker(secondService);
+            firstWorker.AddTaskOrchestrations(
+                new WorkerIdentityOrchestrationCreator("FirstApp"));
+            secondWorker.AddTaskOrchestrations(
+                new WorkerIdentityOrchestrationCreator("SecondApp"));
+
+            bool firstWorkerStarted = false;
+            bool secondWorkerStarted = false;
+
+            try
+            {
+                await firstService.CreateAsync();
+                await firstWorker.StartAsync();
+                firstWorkerStarted = true;
+                await WaitForAppLeaseOwnerAsync(firstSettings);
+                await WaitForTableOwnershipAsync(firstService, firstSettings);
+                await WaitForReceivingQueueCountAsync(firstService, firstSettings.PartitionCount);
+
+                await secondWorker.StartAsync();
+                secondWorkerStarted = true;
+                await secondService.ForceChangeAppLeaseAsync();
+                await WaitForAppLeaseOwnerAsync(secondSettings);
+                await WaitForTableOwnershipAsync(secondService, secondSettings);
+                await WaitForReceivingQueueCountAsync(secondService, secondSettings.PartitionCount);
+
+                string[] oldReceivingQueues = firstService.OwnedControlQueues
+                    .Where(queue => !queue.IsReleased)
+                    .Select(queue => queue.Name)
+                    .ToArray();
+                if (oldReceivingQueues.Length == 0)
+                {
+                    secondSettings.ControlQueueBufferThreshold = 1000;
+                }
+
+                var client = new TaskHubClient(firstService);
+                OrchestrationInstance secondOwnerInstance =
+                    await client.CreateOrchestrationInstanceAsync(
+                        WorkerIdentityOrchestrationCreator.OrchestrationName,
+                        version: string.Empty,
+                        input: null);
+                OrchestrationState secondOwnerState =
+                    await client.WaitForOrchestrationAsync(secondOwnerInstance, TestTimeout);
+
+                Assert.AreEqual(
+                    0,
+                    oldReceivingQueues.Length,
+                    $"The previous app resumed receiving from released partitions: {string.Join(", ", oldReceivingQueues)}. " +
+                    $"New orchestration output: {secondOwnerState?.Output ?? "<not completed>"}.");
+                Assert.IsNotNull(secondOwnerState);
+                Assert.AreEqual(OrchestrationStatus.Completed, secondOwnerState.OrchestrationStatus);
+                Assert.AreEqual("\"SecondApp\"", secondOwnerState.Output);
+
+                await secondWorker.StopAsync(isForced: true);
+                secondWorkerStarted = false;
+                await WaitForAppLeaseOwnerAsync(firstSettings, AutomaticFailoverTimeout);
+                await WaitForTableOwnershipAsync(
+                    firstService,
+                    firstSettings,
+                    AutomaticFailoverTimeout);
+                await WaitForReceivingQueueCountAsync(
+                    firstService,
+                    firstSettings.PartitionCount,
+                    AutomaticFailoverTimeout);
+
+                OrchestrationInstance firstOwnerInstance =
+                    await client.CreateOrchestrationInstanceAsync(
+                        WorkerIdentityOrchestrationCreator.OrchestrationName,
+                        version: string.Empty,
+                        input: null);
+                OrchestrationState firstOwnerState =
+                    await client.WaitForOrchestrationAsync(firstOwnerInstance, TestTimeout);
+
+                Assert.IsNotNull(firstOwnerState);
+                Assert.AreEqual(OrchestrationStatus.Completed, firstOwnerState.OrchestrationStatus);
+                Assert.AreEqual("\"FirstApp\"", firstOwnerState.Output);
+            }
+            finally
+            {
+                if (secondWorkerStarted)
+                {
+                    await secondWorker.StopAsync(isForced: true);
+                }
+
+                if (firstWorkerStarted)
+                {
+                    await firstWorker.StopAsync(isForced: true);
+                }
+            }
+        }
+
+        [TestMethod]
         public async Task AppLeaseManagerCanRestartAfterPartitionManagerStopFails()
         {
             string taskHubName = GetTaskHubName();
@@ -546,6 +653,49 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        static async Task WaitForTableOwnershipAsync(
+            AzureStorageOrchestrationService service,
+            AzureStorageOrchestrationServiceSettings settings,
+            TimeSpan? timeout = null)
+        {
+            using (var cancellation = new CancellationTokenSource(timeout ?? TestTimeout))
+            {
+                try
+                {
+                    while (true)
+                    {
+                        List<TablePartitionLease> leases =
+                            await service.ListTableLeasesAsync().ToListAsync();
+                        if (leases.Count == settings.PartitionCount &&
+                            leases.All(
+                                lease =>
+                                    lease.CurrentOwner == settings.WorkerId &&
+                                    !lease.IsDraining))
+                        {
+                            return;
+                        }
+
+                        await Task.Delay(TimeSpan.FromMilliseconds(100), cancellation.Token);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    Assert.Fail(
+                        $"Worker {settings.WorkerId} did not own all non-draining table partitions.");
+                }
+            }
+        }
+
+        static Task WaitForReceivingQueueCountAsync(
+            AzureStorageOrchestrationService service,
+            int expectedCount,
+            TimeSpan? timeout = null)
+        {
+            return TestHelpers.WaitFor(
+                () => service.OwnedControlQueues.Count(queue => !queue.IsReleased) == expectedCount,
+                timeout ?? TestTimeout);
+        }
+
         static async Task WaitForOrchestrationStatusAsync(
             TaskHubClient client,
             OrchestrationInstance instance,
@@ -669,6 +819,42 @@ namespace DurableTask.AzureStorage.Tests
             {
                 await Task.CompletedTask;
                 yield break;
+            }
+        }
+
+        sealed class WorkerIdentityOrchestrationCreator : ObjectCreator<TaskOrchestration>
+        {
+            public const string OrchestrationName = "AppLeaseWorkerIdentity";
+
+            readonly string workerIdentity;
+
+            public WorkerIdentityOrchestrationCreator(string workerIdentity)
+            {
+                this.workerIdentity = workerIdentity;
+                this.Name = OrchestrationName;
+                this.Version = string.Empty;
+            }
+
+            public override TaskOrchestration Create()
+            {
+                return new WorkerIdentityOrchestration(this.workerIdentity);
+            }
+        }
+
+        sealed class WorkerIdentityOrchestration : TaskOrchestration<string, string>
+        {
+            readonly string workerIdentity;
+
+            public WorkerIdentityOrchestration(string workerIdentity)
+            {
+                this.workerIdentity = workerIdentity;
+            }
+
+            public override Task<string> RunTask(
+                OrchestrationContext context,
+                string input)
+            {
+                return Task.FromResult(this.workerIdentity);
             }
         }
 
