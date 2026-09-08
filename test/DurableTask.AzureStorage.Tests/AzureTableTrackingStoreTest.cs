@@ -133,6 +133,7 @@ namespace DurableTask.AzureStorage.Tests
             const string TableName = "MockTable";
             const string ConnectionString = "UseDevelopmentStorage=true";
             const string InstanceId = "rewind-instance";
+            const string ExecutionId = "execution-1";
             const string PreservedProperty = "preserved";
             using var tokenSource = new CancellationTokenSource();
 
@@ -150,6 +151,7 @@ namespace DurableTask.AzureStorage.Tests
             var storedEntity = new TableEntity(InstanceId, string.Empty)
             {
                 ETag = new ETag("current-etag"),
+                ["ExecutionId"] = ExecutionId,
                 ["RuntimeStatus"] = OrchestrationStatus.Failed.ToString(),
                 ["Output"] = "stale output",
                 ["PreservedProperty"] = PreservedProperty,
@@ -189,7 +191,11 @@ namespace DurableTask.AzureStorage.Tests
             var table = new Table(azureStorageClient, tableServiceClient.Object, TableName);
             var trackingStore = new AzureTableTrackingStore(new AzureStorageOrchestrationServiceStats(), table);
 
-            await trackingStore.UpdateStatusForRewindAsync(InstanceId, tokenSource.Token);
+            await trackingStore.UpdateStatusForRewindAsync(
+                InstanceId,
+                ExecutionId,
+                storedEntity.ETag,
+                tokenSource.Token);
 
             Assert.AreEqual(TableUpdateMode.Replace, updateMode);
             Assert.AreEqual(storedEntity.ETag, replaceEtag);
@@ -198,12 +204,217 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsFalse(replacedEntity.ContainsKey("Output"));
         }
 
-        [TestMethod]
-        public async Task UpdateStatusForRewind_PropagatesEtagConflict()
+        [DataTestMethod]
+        [DataRow(OrchestrationStatus.Pending)]
+        [DataRow(OrchestrationStatus.Running)]
+        [DataRow(OrchestrationStatus.Suspended)]
+        public async Task UpdateStatusForRewind_ResetsUnchangedPreFailureProjection(
+            OrchestrationStatus currentStatus)
         {
             const string TableName = "MockTable";
             const string ConnectionString = "UseDevelopmentStorage=true";
             const string InstanceId = "rewind-instance";
+            const string ExecutionId = "execution-1";
+            using var tokenSource = new CancellationTokenSource();
+
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider(ConnectionString),
+            };
+            var azureStorageClient = new AzureStorageClient(settings);
+            var tableServiceClient = new Mock<TableServiceClient>(MockBehavior.Strict, ConnectionString);
+            var tableClient = new Mock<TableClient>(MockBehavior.Loose, ConnectionString, TableName);
+            tableClient.Setup(t => t.Name).Returns(TableName);
+            tableServiceClient.Setup(t => t.GetTableClient(TableName)).Returns(tableClient.Object);
+
+            var currentEntity = new TableEntity(InstanceId, string.Empty)
+            {
+                ETag = new ETag("rewind-start-etag"),
+                ["ExecutionId"] = ExecutionId,
+                ["RuntimeStatus"] = currentStatus.ToString(),
+            };
+            if (currentStatus != OrchestrationStatus.Pending)
+            {
+                currentEntity["Output"] = "pre-failure output";
+            }
+
+            tableClient
+                .Setup(t => t.QueryAsync<TableEntity>(
+                    It.IsAny<string>(),
+                    It.IsAny<int?>(),
+                    It.IsAny<IEnumerable<string>>(),
+                    tokenSource.Token))
+                .Returns(AsyncPageableFromEntity(currentEntity));
+
+            TableEntity replacedEntity = null;
+            tableClient
+                .Setup(t => t.UpdateEntityAsync(
+                    It.IsAny<TableEntity>(),
+                    currentEntity.ETag,
+                    TableUpdateMode.Replace,
+                    tokenSource.Token))
+                .Callback<TableEntity, ETag, TableUpdateMode, CancellationToken>(
+                    (entity, _, _, _) => replacedEntity = entity)
+                .ReturnsAsync(new Mock<Response>().Object);
+
+            var table = new Table(azureStorageClient, tableServiceClient.Object, TableName);
+            var trackingStore = new AzureTableTrackingStore(new AzureStorageOrchestrationServiceStats(), table);
+
+            await trackingStore.UpdateStatusForRewindAsync(
+                InstanceId,
+                ExecutionId,
+                currentEntity.ETag,
+                tokenSource.Token);
+
+            Assert.IsNotNull(replacedEntity);
+            Assert.AreEqual(OrchestrationStatus.Pending.ToString(), replacedEntity["RuntimeStatus"]);
+            Assert.IsFalse(replacedEntity.ContainsKey("Output"));
+        }
+
+        [DataTestMethod]
+        [DataRow(OrchestrationStatus.Pending, true, false)]
+        [DataRow(OrchestrationStatus.Running, true, true)]
+        [DataRow(OrchestrationStatus.Suspended, true, true)]
+        [DataRow(OrchestrationStatus.Completed, true, true)]
+        [DataRow(OrchestrationStatus.Completed, false, true)]
+        [DataRow(OrchestrationStatus.ContinuedAsNew, true, true)]
+        [DataRow(OrchestrationStatus.ContinuedAsNew, false, true)]
+        [DataRow(OrchestrationStatus.Canceled, true, true)]
+        [DataRow(OrchestrationStatus.Canceled, false, true)]
+        [DataRow(OrchestrationStatus.Terminated, true, true)]
+        [DataRow(OrchestrationStatus.Terminated, false, true)]
+        public async Task UpdateStatusForRewind_PreservesAdvancedState(
+            OrchestrationStatus currentStatus,
+            bool changedSinceRewindStarted,
+            bool hasOutput)
+        {
+            const string TableName = "MockTable";
+            const string ConnectionString = "UseDevelopmentStorage=true";
+            const string InstanceId = "rewind-instance";
+            const string ExecutionId = "execution-1";
+            var rewindStartETag = new ETag("rewind-start-etag");
+            using var tokenSource = new CancellationTokenSource();
+
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider(ConnectionString),
+            };
+            var azureStorageClient = new AzureStorageClient(settings);
+            var tableServiceClient = new Mock<TableServiceClient>(MockBehavior.Strict, ConnectionString);
+            var tableClient = new Mock<TableClient>(MockBehavior.Loose, ConnectionString, TableName);
+            tableClient.Setup(t => t.Name).Returns(TableName);
+            tableServiceClient.Setup(t => t.GetTableClient(TableName)).Returns(tableClient.Object);
+
+            var currentEntity = new TableEntity(InstanceId, string.Empty)
+            {
+                ETag = changedSinceRewindStarted ? new ETag("advanced-etag") : rewindStartETag,
+                ["ExecutionId"] = ExecutionId,
+                ["RuntimeStatus"] = currentStatus.ToString(),
+            };
+            if (hasOutput)
+            {
+                currentEntity["Output"] = "new output";
+            }
+
+            tableClient
+                .Setup(t => t.QueryAsync<TableEntity>(
+                    It.IsAny<string>(),
+                    It.IsAny<int?>(),
+                    It.IsAny<IEnumerable<string>>(),
+                    tokenSource.Token))
+                .Returns(AsyncPageableFromEntity(currentEntity));
+
+            var table = new Table(azureStorageClient, tableServiceClient.Object, TableName);
+            var trackingStore = new AzureTableTrackingStore(new AzureStorageOrchestrationServiceStats(), table);
+
+            await trackingStore.UpdateStatusForRewindAsync(
+                InstanceId,
+                ExecutionId,
+                rewindStartETag,
+                tokenSource.Token);
+
+            Assert.AreEqual(hasOutput, currentEntity.ContainsKey("Output"));
+            tableClient.Verify(
+                t => t.UpdateEntityAsync(
+                    It.IsAny<TableEntity>(),
+                    It.IsAny<ETag>(),
+                    It.IsAny<TableUpdateMode>(),
+                    It.IsAny<CancellationToken>()),
+                Times.Never);
+        }
+
+        [DataTestMethod]
+        [DataRow(OrchestrationStatus.Failed)]
+        [DataRow(OrchestrationStatus.Pending)]
+        public async Task UpdateStatusForRewind_ResetsChangedNonEquivalentProjection(
+            OrchestrationStatus currentStatus)
+        {
+            const string TableName = "MockTable";
+            const string ConnectionString = "UseDevelopmentStorage=true";
+            const string InstanceId = "rewind-instance";
+            const string ExecutionId = "execution-1";
+            var rewindStartETag = new ETag("rewind-start-etag");
+            using var tokenSource = new CancellationTokenSource();
+
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider(ConnectionString),
+            };
+            var azureStorageClient = new AzureStorageClient(settings);
+            var tableServiceClient = new Mock<TableServiceClient>(MockBehavior.Strict, ConnectionString);
+            var tableClient = new Mock<TableClient>(MockBehavior.Loose, ConnectionString, TableName);
+            tableClient.Setup(t => t.Name).Returns(TableName);
+            tableServiceClient.Setup(t => t.GetTableClient(TableName)).Returns(tableClient.Object);
+
+            var currentEntity = new TableEntity(InstanceId, string.Empty)
+            {
+                ETag = new ETag("changed-etag"),
+                ["ExecutionId"] = ExecutionId,
+                ["RuntimeStatus"] = currentStatus.ToString(),
+                ["Output"] = "concurrent output",
+            };
+            tableClient
+                .Setup(t => t.QueryAsync<TableEntity>(
+                    It.IsAny<string>(),
+                    It.IsAny<int?>(),
+                    It.IsAny<IEnumerable<string>>(),
+                    tokenSource.Token))
+                .Returns(AsyncPageableFromEntity(currentEntity));
+            TableEntity replacedEntity = null;
+            tableClient
+                .Setup(t => t.UpdateEntityAsync(
+                    It.IsAny<TableEntity>(),
+                    currentEntity.ETag,
+                    TableUpdateMode.Replace,
+                    tokenSource.Token))
+                .Callback<TableEntity, ETag, TableUpdateMode, CancellationToken>(
+                    (entity, _, _, _) => replacedEntity = entity)
+                .ReturnsAsync(new Mock<Response>().Object);
+
+            var table = new Table(azureStorageClient, tableServiceClient.Object, TableName);
+            var trackingStore = new AzureTableTrackingStore(new AzureStorageOrchestrationServiceStats(), table);
+
+            await trackingStore.UpdateStatusForRewindAsync(
+                InstanceId,
+                ExecutionId,
+                rewindStartETag,
+                tokenSource.Token);
+
+            Assert.IsNotNull(replacedEntity);
+            Assert.AreEqual(OrchestrationStatus.Pending.ToString(), replacedEntity["RuntimeStatus"]);
+            Assert.IsFalse(replacedEntity.ContainsKey("Output"));
+        }
+
+        [DataTestMethod]
+        [DataRow(OrchestrationStatus.Failed)]
+        [DataRow(OrchestrationStatus.Pending)]
+        public async Task UpdateStatusForRewind_PropagatesEtagConflict(
+            OrchestrationStatus currentStatus)
+        {
+            const string TableName = "MockTable";
+            const string ConnectionString = "UseDevelopmentStorage=true";
+            const string InstanceId = "rewind-instance";
+            const string ExecutionId = "execution-1";
             using var tokenSource = new CancellationTokenSource();
 
             var settings = new AzureStorageOrchestrationServiceSettings
@@ -217,30 +428,32 @@ namespace DurableTask.AzureStorage.Tests
             tableClient.Setup(t => t.Name).Returns(TableName);
             tableServiceClient.Setup(t => t.GetTableClient(TableName)).Returns(tableClient.Object);
 
-            var storedEntity = new TableEntity(InstanceId, string.Empty)
+            var staleEntity = new TableEntity(InstanceId, string.Empty)
             {
                 ETag = new ETag("stale-etag"),
+                ["ExecutionId"] = ExecutionId,
                 ["RuntimeStatus"] = OrchestrationStatus.Failed.ToString(),
                 ["Output"] = "stale output",
             };
+            var currentEntity = new TableEntity(InstanceId, string.Empty)
+            {
+                ETag = new ETag("current-etag"),
+                ["ExecutionId"] = ExecutionId,
+                ["RuntimeStatus"] = currentStatus.ToString(),
+                ["Output"] = "current failure output",
+            };
             tableClient
-                .Setup(t => t.QueryAsync<TableEntity>(
+                .SetupSequence(t => t.QueryAsync<TableEntity>(
                     It.IsAny<string>(),
                     It.IsAny<int?>(),
                     It.IsAny<IEnumerable<string>>(),
                     tokenSource.Token))
-                .Returns(AsyncPageable<TableEntity>.FromPages(
-                    new[]
-                    {
-                        Page<TableEntity>.FromValues(
-                            new[] { storedEntity },
-                            continuationToken: null,
-                            new Mock<Response>().Object),
-                    }));
+                .Returns(AsyncPageableFromEntity(staleEntity))
+                .Returns(AsyncPageableFromEntity(currentEntity));
             tableClient
                 .Setup(t => t.UpdateEntityAsync(
                     It.IsAny<TableEntity>(),
-                    storedEntity.ETag,
+                    staleEntity.ETag,
                     TableUpdateMode.Replace,
                     tokenSource.Token))
                 .ThrowsAsync(new RequestFailedException(412, "The entity changed."));
@@ -249,11 +462,15 @@ namespace DurableTask.AzureStorage.Tests
             var trackingStore = new AzureTableTrackingStore(new AzureStorageOrchestrationServiceStats(), table);
 
             await Assert.ThrowsExceptionAsync<DurableTaskStorageException>(
-                () => trackingStore.UpdateStatusForRewindAsync(InstanceId, tokenSource.Token));
+                () => trackingStore.UpdateStatusForRewindAsync(
+                    InstanceId,
+                    ExecutionId,
+                    staleEntity.ETag,
+                    tokenSource.Token));
             tableClient.Verify(
                 t => t.UpdateEntityAsync(
                     It.IsAny<TableEntity>(),
-                    storedEntity.ETag,
+                    staleEntity.ETag,
                     TableUpdateMode.Replace,
                     tokenSource.Token),
                 Times.Once);
@@ -264,6 +481,213 @@ namespace DurableTask.AzureStorage.Tests
                     It.IsAny<TableUpdateMode>(),
                     It.IsAny<CancellationToken>()),
                 Times.Never);
+        }
+
+        [TestMethod]
+        public async Task UpdateStatusForRewind_RejectsDifferentExecutionBeforeWrite()
+        {
+            const string TableName = "MockTable";
+            const string ConnectionString = "UseDevelopmentStorage=true";
+            const string InstanceId = "rewind-instance";
+            const string ExpectedExecutionId = "execution-1";
+            const string CurrentExecutionId = "execution-2";
+            using var tokenSource = new CancellationTokenSource();
+
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider(ConnectionString),
+            };
+            var azureStorageClient = new AzureStorageClient(settings);
+            var tableServiceClient = new Mock<TableServiceClient>(MockBehavior.Strict, ConnectionString);
+            var tableClient = new Mock<TableClient>(MockBehavior.Loose, ConnectionString, TableName);
+            tableClient.Setup(t => t.Name).Returns(TableName);
+            tableServiceClient.Setup(t => t.GetTableClient(TableName)).Returns(tableClient.Object);
+
+            var currentEntity = new TableEntity(InstanceId, string.Empty)
+            {
+                ETag = new ETag("current-etag"),
+                ["ExecutionId"] = CurrentExecutionId,
+                ["RuntimeStatus"] = OrchestrationStatus.Completed.ToString(),
+                ["Output"] = "new output",
+            };
+            tableClient
+                .Setup(t => t.QueryAsync<TableEntity>(
+                    It.IsAny<string>(),
+                    It.IsAny<int?>(),
+                    It.IsAny<IEnumerable<string>>(),
+                    tokenSource.Token))
+                .Returns(AsyncPageableFromEntity(currentEntity));
+
+            var table = new Table(azureStorageClient, tableServiceClient.Object, TableName);
+            var trackingStore = new AzureTableTrackingStore(new AzureStorageOrchestrationServiceStats(), table);
+
+            DurableTaskStorageException conflict =
+                await Assert.ThrowsExceptionAsync<DurableTaskStorageException>(
+                    () => trackingStore.UpdateStatusForRewindAsync(
+                        InstanceId,
+                        ExpectedExecutionId,
+                        new ETag("rewind-start-etag"),
+                        tokenSource.Token));
+
+            StringAssert.Contains(conflict.Message, ExpectedExecutionId);
+            StringAssert.Contains(conflict.Message, CurrentExecutionId);
+            tableClient.Verify(
+                t => t.UpdateEntityAsync(
+                    It.IsAny<TableEntity>(),
+                    It.IsAny<ETag>(),
+                    It.IsAny<TableUpdateMode>(),
+                    It.IsAny<CancellationToken>()),
+                Times.Never);
+        }
+
+        [DataTestMethod]
+        [DataRow(OrchestrationStatus.Pending, false)]
+        [DataRow(OrchestrationStatus.Running, true)]
+        [DataRow(OrchestrationStatus.Completed, true)]
+        public async Task UpdateStatusForRewind_AcceptsEquivalentEtagConflict(
+            OrchestrationStatus currentStatus,
+            bool hasNewOutput)
+        {
+            const string TableName = "MockTable";
+            const string ConnectionString = "UseDevelopmentStorage=true";
+            const string InstanceId = "rewind-instance";
+            const string ExecutionId = "execution-1";
+            using var tokenSource = new CancellationTokenSource();
+
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider(ConnectionString),
+            };
+            var azureStorageClient = new AzureStorageClient(settings);
+            var tableServiceClient = new Mock<TableServiceClient>(MockBehavior.Strict, ConnectionString);
+            var tableClient = new Mock<TableClient>(MockBehavior.Loose, ConnectionString, TableName);
+            tableClient.Setup(t => t.Name).Returns(TableName);
+            tableServiceClient.Setup(t => t.GetTableClient(TableName)).Returns(tableClient.Object);
+
+            var staleEntity = new TableEntity(InstanceId, string.Empty)
+            {
+                ETag = new ETag("stale-etag"),
+                ["ExecutionId"] = ExecutionId,
+                ["RuntimeStatus"] = OrchestrationStatus.Failed.ToString(),
+                ["Output"] = "stale output",
+            };
+            var currentEntity = new TableEntity(InstanceId, string.Empty)
+            {
+                ETag = new ETag("current-etag"),
+                ["ExecutionId"] = ExecutionId,
+                ["RuntimeStatus"] = currentStatus.ToString(),
+            };
+            if (hasNewOutput)
+            {
+                currentEntity["Output"] = "new output";
+            }
+
+            tableClient
+                .SetupSequence(t => t.QueryAsync<TableEntity>(
+                    It.IsAny<string>(),
+                    It.IsAny<int?>(),
+                    It.IsAny<IEnumerable<string>>(),
+                    tokenSource.Token))
+                .Returns(AsyncPageableFromEntity(staleEntity))
+                .Returns(AsyncPageableFromEntity(currentEntity));
+            tableClient
+                .Setup(t => t.UpdateEntityAsync(
+                    It.IsAny<TableEntity>(),
+                    staleEntity.ETag,
+                    TableUpdateMode.Replace,
+                    tokenSource.Token))
+                .ThrowsAsync(new RequestFailedException(412, "The entity changed."));
+
+            var table = new Table(azureStorageClient, tableServiceClient.Object, TableName);
+            var trackingStore = new AzureTableTrackingStore(new AzureStorageOrchestrationServiceStats(), table);
+
+            await trackingStore.UpdateStatusForRewindAsync(
+                InstanceId,
+                ExecutionId,
+                staleEntity.ETag,
+                tokenSource.Token);
+
+            Assert.AreEqual(hasNewOutput, currentEntity.ContainsKey("Output"));
+            tableClient.Verify(
+                t => t.UpdateEntityAsync(
+                    It.IsAny<TableEntity>(),
+                    It.IsAny<ETag>(),
+                    It.IsAny<TableUpdateMode>(),
+                    It.IsAny<CancellationToken>()),
+                Times.Once);
+        }
+
+        [TestMethod]
+        public async Task UpdateStatusForRewind_RejectsExecutionChangeAfterEtagConflict()
+        {
+            const string TableName = "MockTable";
+            const string ConnectionString = "UseDevelopmentStorage=true";
+            const string InstanceId = "rewind-instance";
+            const string ExpectedExecutionId = "execution-1";
+            const string CurrentExecutionId = "execution-2";
+            using var tokenSource = new CancellationTokenSource();
+
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider(ConnectionString),
+            };
+            var azureStorageClient = new AzureStorageClient(settings);
+            var tableServiceClient = new Mock<TableServiceClient>(MockBehavior.Strict, ConnectionString);
+            var tableClient = new Mock<TableClient>(MockBehavior.Loose, ConnectionString, TableName);
+            tableClient.Setup(t => t.Name).Returns(TableName);
+            tableServiceClient.Setup(t => t.GetTableClient(TableName)).Returns(tableClient.Object);
+
+            var staleEntity = new TableEntity(InstanceId, string.Empty)
+            {
+                ETag = new ETag("stale-etag"),
+                ["ExecutionId"] = ExpectedExecutionId,
+                ["RuntimeStatus"] = OrchestrationStatus.Failed.ToString(),
+                ["Output"] = "stale output",
+            };
+            var currentEntity = new TableEntity(InstanceId, string.Empty)
+            {
+                ETag = new ETag("current-etag"),
+                ["ExecutionId"] = CurrentExecutionId,
+                ["RuntimeStatus"] = OrchestrationStatus.Completed.ToString(),
+                ["Output"] = "new output",
+            };
+            tableClient
+                .SetupSequence(t => t.QueryAsync<TableEntity>(
+                    It.IsAny<string>(),
+                    It.IsAny<int?>(),
+                    It.IsAny<IEnumerable<string>>(),
+                    tokenSource.Token))
+                .Returns(AsyncPageableFromEntity(staleEntity))
+                .Returns(AsyncPageableFromEntity(currentEntity));
+            tableClient
+                .Setup(t => t.UpdateEntityAsync(
+                    It.IsAny<TableEntity>(),
+                    staleEntity.ETag,
+                    TableUpdateMode.Replace,
+                    tokenSource.Token))
+                .ThrowsAsync(new RequestFailedException(412, "The entity changed."));
+
+            var table = new Table(azureStorageClient, tableServiceClient.Object, TableName);
+            var trackingStore = new AzureTableTrackingStore(new AzureStorageOrchestrationServiceStats(), table);
+
+            DurableTaskStorageException conflict =
+                await Assert.ThrowsExceptionAsync<DurableTaskStorageException>(
+                    () => trackingStore.UpdateStatusForRewindAsync(
+                        InstanceId,
+                        ExpectedExecutionId,
+                        staleEntity.ETag,
+                        tokenSource.Token));
+
+            StringAssert.Contains(conflict.Message, ExpectedExecutionId);
+            StringAssert.Contains(conflict.Message, CurrentExecutionId);
+            Assert.AreEqual("new output", currentEntity["Output"]);
+            tableClient.Verify(
+                t => t.UpdateEntityAsync(
+                    It.IsAny<TableEntity>(),
+                    It.IsAny<ETag>(),
+                    It.IsAny<TableUpdateMode>(),
+                    It.IsAny<CancellationToken>()),
+                Times.Once);
         }
 
         [TestMethod]
@@ -302,6 +726,18 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsNotNull(writtenState);
             Assert.AreSame(startedEvent.ParentInstance, writtenState.State.ParentInstance);
             Assert.AreEqual(ParentInstanceId, writtenState.State.ParentInstance.OrchestrationInstance.InstanceId);
+        }
+
+        static AsyncPageable<TableEntity> AsyncPageableFromEntity(TableEntity entity)
+        {
+            return AsyncPageable<TableEntity>.FromPages(
+                new[]
+                {
+                    Page<TableEntity>.FromValues(
+                        new[] { entity },
+                        continuationToken: null,
+                        new Mock<Response>().Object),
+                });
         }
     }
 }

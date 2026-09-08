@@ -67,7 +67,10 @@ namespace DurableTask.AzureStorage.Tests
             TableEntity failed = await this.GetRawEntityAsync(instanceId);
             Assert.AreEqual("old failure", failed["Output"]);
 
-            await this.trackingStore.UpdateStatusForRewindAsync(instanceId);
+            await this.trackingStore.UpdateStatusForRewindAsync(
+                instanceId,
+                "execution-1",
+                failed.ETag);
 
             TableEntity rewound = await this.GetRawEntityAsync(instanceId);
             Assert.AreEqual(OrchestrationStatus.Pending.ToString(), rewound["RuntimeStatus"]);
@@ -81,8 +84,16 @@ namespace DurableTask.AzureStorage.Tests
             string instanceId = $"missing-{Guid.NewGuid():N}";
             await this.SeedInstanceRowAsync(instanceId, OrchestrationStatus.Failed, output: null);
 
-            await this.trackingStore.UpdateStatusForRewindAsync(instanceId);
-            await this.trackingStore.UpdateStatusForRewindAsync(instanceId);
+            TableEntity failed = await this.GetRawEntityAsync(instanceId);
+            await this.trackingStore.UpdateStatusForRewindAsync(
+                instanceId,
+                "execution-1",
+                failed.ETag);
+            TableEntity pending = await this.GetRawEntityAsync(instanceId);
+            await this.trackingStore.UpdateStatusForRewindAsync(
+                instanceId,
+                "execution-1",
+                pending.ETag);
 
             TableEntity rewound = await this.GetRawEntityAsync(instanceId);
             Assert.AreEqual(OrchestrationStatus.Pending.ToString(), rewound["RuntimeStatus"]);
@@ -97,7 +108,8 @@ namespace DurableTask.AzureStorage.Tests
             string instanceId = $"complete-{Guid.NewGuid():N}";
             const string ExecutionId = "execution-1";
             await this.SeedInstanceRowAsync(instanceId, OrchestrationStatus.Failed, output: "old failure");
-            await this.trackingStore.UpdateStatusForRewindAsync(instanceId);
+            TableEntity failed = await this.GetRawEntityAsync(instanceId);
+            await this.trackingStore.UpdateStatusForRewindAsync(instanceId, ExecutionId, failed.ETag);
 
             var runtimeState = new OrchestrationRuntimeState();
             runtimeState.AddEvent(CreateExecutionStartedEvent(instanceId, ExecutionId));
