@@ -319,8 +319,8 @@ namespace DurableTask.AzureStorage.Partitioning
 
                 try
                 {
-                    Task completedTask = await Task.WhenAny(this.partitionManagerTask, timeoutTask);
-                    if (completedTask == timeoutTask)
+                    await Task.WhenAny(this.partitionManagerTask, timeoutTask);
+                    if (timeoutTask.IsCompleted)
                     {
                         throw new TimeoutException(
                             $"Timed-out waiting for the partition manager to shut down. Timeout duration: {timeout}",

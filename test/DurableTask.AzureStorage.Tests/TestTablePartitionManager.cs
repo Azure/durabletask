@@ -815,6 +815,38 @@ namespace DurableTask.AzureStorage.Tests
             await service.DeleteAsync();
         }
 
+        [TestMethod]
+        public async Task ForceSignalStillReportsTimeoutAfterLoopStops()
+        {
+            string taskHubName =
+                "forcetimeout" + Guid.NewGuid().ToString("N").Substring(0, 12);
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider(this.connection),
+                TaskHubName = taskHubName,
+                PartitionCount = 1,
+                LeaseAcquireInterval = TimeSpan.FromMilliseconds(200),
+                WorkerId = "0",
+                UseAppLease = false,
+                UseTablePartitionManagement = true,
+            };
+            var service = new AzureStorageOrchestrationService(settings);
+
+            await service.StartAsync();
+            await WaitForConditionAsync(
+                TimeSpan.FromSeconds(5),
+                t => new ValueTask<bool>(service.OwnedControlQueues.Any()));
+
+            service.KillPartitionManagerLoop();
+            await Task.Delay(TimeSpan.FromSeconds(1));
+
+            await Assert.ThrowsExceptionAsync<TimeoutException>(
+                () => service.StopAsync(isForced: false));
+
+            await service.StopAsync(isForced: false);
+            await service.DeleteAsync();
+        }
+
         [KnownType(typeof(Hello))]
         internal class HelloOrchestrator : TaskOrchestration<string, string>
         {
