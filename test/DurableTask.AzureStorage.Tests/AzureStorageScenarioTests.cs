@@ -1528,7 +1528,9 @@ namespace DurableTask.AzureStorage.Tests
                     typeof(Orchestrations.RewindLargeFailure),
                     input: failureMessage);
                 OrchestrationState failed = await client.WaitForCompletionAsync(StandardTimeout);
-                Assert.AreEqual(OrchestrationStatus.Failed, failed?.OrchestrationStatus);
+                Assert.IsNotNull(failed);
+                Assert.IsNotNull(failed.OrchestrationInstance);
+                Assert.AreEqual(OrchestrationStatus.Failed, failed.OrchestrationStatus);
 
                 var trackingStore = (AzureTableTrackingStore)host.service.TrackingStore;
                 string instanceFilter = $"{AzureTableQueryFilter.PartitionKeyEquals(client.InstanceId)} and " +
@@ -1610,11 +1612,13 @@ namespace DurableTask.AzureStorage.Tests
         {
             string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
             var defaultProvider = new StorageAccountClientProvider(connectionString);
-            var blobBarrier = new OneShotRequestBarrierHandler();
-            var provider = new StorageAccountClientProvider(
+            using var blobBarrier = new OneShotRequestBarrierHandler();
+            using var blobClientProvider =
                 new TransportClientProvider<BlobServiceClient, BlobClientOptions>(
                     defaultProvider.Blob,
-                    blobBarrier),
+                    blobBarrier);
+            var provider = new StorageAccountClientProvider(
+                blobClientProvider,
                 defaultProvider.Queue,
                 defaultProvider.Table);
 
@@ -1631,7 +1635,9 @@ namespace DurableTask.AzureStorage.Tests
                     typeof(Orchestrations.RewindLargeFailure),
                     input: failureMessage);
                 OrchestrationState failed = await client.WaitForCompletionAsync(StandardTimeout);
-                Assert.AreEqual(OrchestrationStatus.Failed, failed?.OrchestrationStatus);
+                Assert.IsNotNull(failed);
+                Assert.IsNotNull(failed.OrchestrationInstance);
+                Assert.AreEqual(OrchestrationStatus.Failed, failed.OrchestrationStatus);
 
                 var trackingStore = (AzureTableTrackingStore)host.service.TrackingStore;
                 string instanceFilter = $"{AzureTableQueryFilter.PartitionKeyEquals(client.InstanceId)} and " +
@@ -1686,13 +1692,15 @@ namespace DurableTask.AzureStorage.Tests
         {
             string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
             var defaultProvider = new StorageAccountClientProvider(connectionString);
-            var tableBarrier = new OneShotRequestBarrierHandler();
+            using var tableBarrier = new OneShotRequestBarrierHandler();
+            using var tableClientProvider =
+                new TransportClientProvider<TableServiceClient, TableClientOptions>(
+                    defaultProvider.Table,
+                    tableBarrier);
             var provider = new StorageAccountClientProvider(
                 defaultProvider.Blob,
                 defaultProvider.Queue,
-                new TransportClientProvider<TableServiceClient, TableClientOptions>(
-                    defaultProvider.Table,
-                    tableBarrier));
+                tableClientProvider);
 
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
                 enableExtendedSessions: false,
@@ -1709,7 +1717,9 @@ namespace DurableTask.AzureStorage.Tests
                     input: this.GenerateMediumRandomStringPayload().ToString(),
                     instanceId: instanceId);
                 OrchestrationState firstFailure = await firstClient.WaitForCompletionAsync(StandardTimeout);
-                Assert.AreEqual(OrchestrationStatus.Failed, firstFailure?.OrchestrationStatus);
+                Assert.IsNotNull(firstFailure);
+                Assert.IsNotNull(firstFailure.OrchestrationInstance);
+                Assert.AreEqual(OrchestrationStatus.Failed, firstFailure.OrchestrationStatus);
 
                 var trackingStore = (AzureTableTrackingStore)host.service.TrackingStore;
                 string instanceFilter = $"{AzureTableQueryFilter.PartitionKeyEquals(instanceId)} and " +
@@ -1731,7 +1741,9 @@ namespace DurableTask.AzureStorage.Tests
                     input: "second execution",
                     instanceId: instanceId);
                 OrchestrationState secondCompletion = await secondClient.WaitForCompletionAsync(StandardTimeout);
-                Assert.AreEqual(OrchestrationStatus.Completed, secondCompletion?.OrchestrationStatus);
+                Assert.IsNotNull(secondCompletion);
+                Assert.IsNotNull(secondCompletion.OrchestrationInstance);
+                Assert.AreEqual(OrchestrationStatus.Completed, secondCompletion.OrchestrationStatus);
                 Assert.AreNotEqual(
                     firstFailure.OrchestrationInstance.ExecutionId,
                     secondCompletion.OrchestrationInstance.ExecutionId);
@@ -1773,16 +1785,20 @@ namespace DurableTask.AzureStorage.Tests
         {
             string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
             var defaultProvider = new StorageAccountClientProvider(connectionString);
-            var tableBarrier = new OneShotRequestBarrierHandler();
-            var queueRecorder = new RecordingRequestHandler();
-            var provider = new StorageAccountClientProvider(
-                defaultProvider.Blob,
+            using var tableBarrier = new OneShotRequestBarrierHandler();
+            using var queueRecorder = new RecordingRequestHandler();
+            using var queueClientProvider =
                 new TransportClientProvider<QueueServiceClient, QueueClientOptions>(
                     defaultProvider.Queue,
-                    queueRecorder),
+                    queueRecorder);
+            using var tableClientProvider =
                 new TransportClientProvider<TableServiceClient, TableClientOptions>(
                     defaultProvider.Table,
-                    tableBarrier));
+                    tableBarrier);
+            var provider = new StorageAccountClientProvider(
+                defaultProvider.Blob,
+                queueClientProvider,
+                tableClientProvider);
             AzureStorageOrchestrationServiceSettings settings = null;
 
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
@@ -1901,16 +1917,20 @@ namespace DurableTask.AzureStorage.Tests
         {
             string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
             var defaultProvider = new StorageAccountClientProvider(connectionString);
-            var tableBarrier = new OneShotRequestBarrierHandler();
-            var queueBarrier = new OneShotRequestBarrierHandler();
-            var provider = new StorageAccountClientProvider(
-                defaultProvider.Blob,
+            using var tableBarrier = new OneShotRequestBarrierHandler();
+            using var queueBarrier = new OneShotRequestBarrierHandler();
+            using var queueClientProvider =
                 new TransportClientProvider<QueueServiceClient, QueueClientOptions>(
                     defaultProvider.Queue,
-                    queueBarrier),
+                    queueBarrier);
+            using var tableClientProvider =
                 new TransportClientProvider<TableServiceClient, TableClientOptions>(
                     defaultProvider.Table,
-                    tableBarrier));
+                    tableBarrier);
+            var provider = new StorageAccountClientProvider(
+                defaultProvider.Blob,
+                queueClientProvider,
+                tableClientProvider);
             AzureStorageOrchestrationServiceSettings settings = null;
 
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
@@ -2044,7 +2064,8 @@ namespace DurableTask.AzureStorage.Tests
 
                     OrchestrationState parentCompletion =
                         await parentClient.WaitForCompletionAsync(StandardTimeout);
-                    Assert.AreEqual(OrchestrationStatus.Completed, parentCompletion?.OrchestrationStatus);
+                    Assert.IsNotNull(parentCompletion);
+                    Assert.AreEqual(OrchestrationStatus.Completed, parentCompletion.OrchestrationStatus);
                     Assert.AreEqual("\"Hello, lagging!\"", parentCompletion.Output);
 
                     TableEntity completedChild = await WaitForInstanceStatusAsync(
@@ -4905,13 +4926,15 @@ namespace DurableTask.AzureStorage.Tests
             TableEntity afterRewind,
             string propertyName)
         {
+            bool beforeContainsProperty = beforeRewind.TryGetValue(propertyName, out object beforeValue);
+            bool afterContainsProperty = afterRewind.TryGetValue(propertyName, out object afterValue);
             Assert.AreEqual(
-                beforeRewind.ContainsKey(propertyName),
-                afterRewind.ContainsKey(propertyName),
+                beforeContainsProperty,
+                afterContainsProperty,
                 $"The presence of history property '{propertyName}' changed during rewind.");
-            if (beforeRewind.ContainsKey(propertyName))
+            if (beforeContainsProperty)
             {
-                Assert.AreEqual(beforeRewind[propertyName], afterRewind[propertyName]);
+                Assert.AreEqual(beforeValue, afterValue);
             }
         }
 
@@ -4966,28 +4989,36 @@ namespace DurableTask.AzureStorage.Tests
             return null;
         }
 
-        sealed class TransportClientProvider<TClient, TOptions> : IStorageServiceClientProvider<TClient, TOptions>
+        sealed class TransportClientProvider<TClient, TOptions> :
+            IStorageServiceClientProvider<TClient, TOptions>,
+            IDisposable
             where TOptions : ClientOptions
         {
             readonly IStorageServiceClientProvider<TClient, TOptions> inner;
-            readonly HttpMessageHandler handler;
+            readonly HttpClientTransport transport;
 
             public TransportClientProvider(
                 IStorageServiceClientProvider<TClient, TOptions> inner,
                 HttpMessageHandler handler)
             {
                 this.inner = inner;
-                this.handler = handler;
+                this.transport = new HttpClientTransport(
+                    new HttpClient(handler, disposeHandler: false));
             }
 
             public TOptions CreateOptions()
             {
                 TOptions options = this.inner.CreateOptions();
-                options.Transport = new HttpClientTransport(new HttpClient(this.handler, disposeHandler: false));
+                options.Transport = this.transport;
                 return options;
             }
 
             public TClient CreateClient(TOptions options) => this.inner.CreateClient(options);
+
+            public void Dispose()
+            {
+                this.transport.Dispose();
+            }
         }
 
         sealed class OneShotRequestBarrierHandler : DelegatingHandler
@@ -5028,8 +5059,8 @@ namespace DurableTask.AzureStorage.Tests
                     blockedTask = this.blocked.Task;
                 }
 
-                Task completed = await Task.WhenAny(blockedTask, Task.Delay(StandardTimeout));
-                Assert.AreSame(blockedTask, completed, "The expected storage request did not reach the barrier.");
+                Task completedTask = await Task.WhenAny(blockedTask, Task.Delay(StandardTimeout));
+                Assert.AreSame(blockedTask, completedTask, "The expected storage request did not reach the barrier.");
                 await blockedTask;
             }
 
@@ -5052,6 +5083,16 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     this.release?.TrySetResult(null);
                 }
+            }
+
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing)
+                {
+                    this.Release();
+                }
+
+                base.Dispose(disposing);
             }
 
             protected override async Task<HttpResponseMessage> SendAsync(
