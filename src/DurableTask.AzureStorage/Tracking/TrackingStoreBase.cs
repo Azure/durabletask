@@ -108,12 +108,6 @@ namespace DurableTask.AzureStorage.Tracking
         public abstract Task StartAsync(CancellationToken cancellationToken = default);
 
         /// <inheritdoc />
-        public virtual Task SetMigrationModeAsync(MigrationMode mode, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        /// <inheritdoc />
         public virtual bool IsMigrationActive => false;
 
         /// <inheritdoc />

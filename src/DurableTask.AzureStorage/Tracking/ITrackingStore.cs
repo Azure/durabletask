@@ -18,7 +18,6 @@ namespace DurableTask.AzureStorage.Tracking
     using System.Threading;
     using System.Threading.Tasks;
     using Azure;
-    using DurableTask.AzureStorage.Messaging;
     using DurableTask.Core;
     using DurableTask.Core.History;
 
@@ -50,14 +49,6 @@ namespace DurableTask.AzureStorage.Tracking
         /// </summary>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         Task StartAsync(CancellationToken cancellationToken = default);
-
-        /// <summary>
-        /// Applies the live-migration mode supplied at startup. For <see cref="MigrationMode.MigrationEnding"/> a durable
-        /// marker is recorded in storage. The mode is stored and reflected by <see cref="IsMigrationActive"/>.
-        /// </summary>
-        /// <param name="mode">The migration mode to apply.</param>
-        /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        Task SetMigrationModeAsync(MigrationMode mode, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Gets a value indicating whether a live migration is in progress (started, not ended).

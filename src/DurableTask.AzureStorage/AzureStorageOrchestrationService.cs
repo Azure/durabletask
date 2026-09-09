@@ -489,7 +489,6 @@ namespace DurableTask.AzureStorage
                 }
 
                 this.isMigrationEnding = migrationMode.Value == MigrationMode.MigrationEnding;
-                await this.trackingStore.SetMigrationModeAsync(migrationMode.Value);
             }
 
             // Disable nagling to improve storage access latency:

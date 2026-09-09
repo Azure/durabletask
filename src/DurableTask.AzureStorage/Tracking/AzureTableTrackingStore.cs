@@ -1053,29 +1053,6 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override bool IsMigrationActive => this.migrationMode == MigrationMode.MigrationStarted;
 
-        /// <inheritdoc />
-        public override async Task SetMigrationModeAsync(MigrationMode mode, CancellationToken cancellationToken = default)
-        {
-            if (mode == MigrationMode.MigrationEnding)
-            {
-                await this.RecordMigrationEndingMarkerAsync(cancellationToken);
-            }
-
-            this.migrationMode = mode;
-        }
-
-        async Task RecordMigrationEndingMarkerAsync(CancellationToken cancellationToken)
-        {
-            await this.migrationTable.CreateIfNotExistsAsync(cancellationToken);
-
-            var marker = new TableEntity(MigrationMarkerPartitionKey, MigrationMarkerRowKey)
-            {
-                [MigrationStateProperty] = MigrationMode.MigrationEnding.ToString(),
-            };
-
-            await this.migrationTable.InsertOrReplaceEntityAsync(marker, cancellationToken);
-        }
-
         /// <summary>
         /// Returns the next per-instance sequence number to persist on the instance and history tables while a
         /// migration is active. Enqueuing the instance into the modified-instances queue is the responsibility of
