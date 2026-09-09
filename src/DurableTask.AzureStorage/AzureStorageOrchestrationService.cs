@@ -198,9 +198,6 @@ namespace DurableTask.AzureStorage
 
         internal ITrackingStore TrackingStore => this.trackingStore;
 
-        // Intended only for use by tests that need to coordinate the post-dequeue ownership race.
-        internal Func<Task> OnActivityMessageDequeued { get; set; }
-
         internal static string GetControlQueueName(string taskHub, int partitionIndex)
         {
             return GetQueueName(taskHub, $"control-{partitionIndex:00}");
@@ -1560,26 +1557,16 @@ namespace DurableTask.AzureStorage
 
                 if (message == null)
                 {
-                    // shutting down or canceled
+                    // shutting down
                     return null;
                 }
 
-                Func<Task> onActivityMessageDequeued = this.OnActivityMessageDequeued;
-                if (onActivityMessageDequeued != null)
-                {
-                    await onActivityMessageDequeued();
-                }
-
-                if (!this.appLeaseManager.HasActivityOwnership)
-                {
-                    await this.workItemQueue.AbandonMessageAsync(message);
-                    return null;
-                }
 
                 Guid traceActivityId = Guid.NewGuid();
                 var session = new ActivitySession(this.settings, this.azureStorageClient.QueueAccountName, message, traceActivityId);
                 session.StartNewLogicalTraceScope();
 
+                // correlation 
                 TraceContextBase requestTraceContext = null;
                 CorrelationTraceClient.Propagate(
                     () =>

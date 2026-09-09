@@ -14,7 +14,6 @@
 namespace DurableTask.AzureStorage.Tests
 {
     using System;
-    using System.Collections.Concurrent;
     using System.Linq;
     using System.Reflection;
     using System.Threading;
@@ -23,8 +22,6 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.AzureStorage.Partitioning;
     using DurableTask.Core;
     using DurableTask.Core.History;
-    using DurableTask.Core.Settings;
-    using Microsoft.Extensions.Logging;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
@@ -134,39 +131,6 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public async Task ClosedGatePreventsNewActivityReceive()
-        {
-            string taskHubName = GetTaskHubName();
-            AzureStorageOrchestrationService service =
-                CreateService(taskHubName, "PrimaryApp", useAppLease: true);
-
-            try
-            {
-                await service.CreateAsync();
-                await service.StartAsync();
-                await WaitForOwnerAsync(service);
-                await EnqueueActivityAsync(service, "blocked");
-                GetAppLeaseManager(service).SetActivityOwnership(ownsLease: false);
-
-                using (var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(250)))
-                {
-                    TaskActivityWorkItem blockedWorkItem =
-                        await service.LockNextTaskActivityWorkItem(TestTimeout, cancellation.Token);
-                    Assert.IsNull(blockedWorkItem);
-                }
-
-                GetAppLeaseManager(service).SetActivityOwnership(ownsLease: true);
-                TaskActivityWorkItem recoveredWorkItem = await LockActivityAsync(service);
-                Assert.IsNotNull(recoveredWorkItem);
-                await service.AbandonTaskActivityWorkItemAsync(recoveredWorkItem);
-            }
-            finally
-            {
-                await StopAsync(service);
-            }
-        }
-
-        [TestMethod]
         public async Task OwnershipLossDoesNotCancelPendingReceive()
         {
             string taskHubName = GetTaskHubName();
@@ -193,8 +157,20 @@ namespace DurableTask.AzureStorage.Tests
                     completionAfterLoss,
                     "Ownership loss alone must not cancel a receive that already started.");
 
-                await EnqueueActivityAsync(service, "rejected-while-closed");
-                Assert.IsNull(await WithTimeoutAsync(pendingReceive));
+                await EnqueueActivityAsync(service, "received-after-loss");
+                TaskActivityWorkItem workItem = await WithTimeoutAsync(pendingReceive);
+                Assert.IsNotNull(
+                    workItem,
+                    "A receive that started while owned may admit a message after ownership is lost.");
+                await service.AbandonTaskActivityWorkItemAsync(workItem);
+
+                await EnqueueActivityAsync(service, "blocked-next-receive");
+                using (var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(250)))
+                {
+                    TaskActivityWorkItem blockedWorkItem =
+                        await service.LockNextTaskActivityWorkItem(TestTimeout, cancellation.Token);
+                    Assert.IsNull(blockedWorkItem, "The next receive must wait while ownership is closed.");
+                }
 
                 GetAppLeaseManager(service).SetActivityOwnership(ownsLease: true);
                 TaskActivityWorkItem recoveredWorkItem = await LockActivityAsync(service);
@@ -204,94 +180,6 @@ namespace DurableTask.AzureStorage.Tests
             finally
             {
                 await StopAsync(service);
-            }
-        }
-
-        [TestMethod]
-        public async Task OwnershipRegainAllowsPendingReceiveToDispatch()
-        {
-            string taskHubName = GetTaskHubName();
-            AzureStorageOrchestrationService service =
-                CreateService(taskHubName, "PrimaryApp", useAppLease: true);
-
-            try
-            {
-                await service.CreateAsync();
-                await service.StartAsync();
-                await WaitForOwnerAsync(service);
-
-                Task<TaskActivityWorkItem> pendingReceive =
-                    service.LockNextTaskActivityWorkItem(TestTimeout, CancellationToken.None);
-                Assert.IsFalse(pendingReceive.IsCompleted);
-
-                AppLeaseManager appLeaseManager = GetAppLeaseManager(service);
-                appLeaseManager.SetActivityOwnership(ownsLease: false);
-                appLeaseManager.SetActivityOwnership(ownsLease: true);
-
-                await EnqueueActivityAsync(service, "accepted-after-regain");
-                TaskActivityWorkItem workItem = await WithTimeoutAsync(pendingReceive);
-                Assert.IsNotNull(workItem);
-                await service.AbandonTaskActivityWorkItemAsync(workItem);
-            }
-            finally
-            {
-                await StopAsync(service);
-            }
-        }
-
-        [TestMethod]
-        public async Task OwnershipLossAfterDequeueAbandonsWithoutStartingTrace()
-        {
-            string taskHubName = GetTaskHubName();
-            var loggerFactory = new RecordingLoggerFactory();
-            AzureStorageOrchestrationServiceSettings ownerSettings =
-                CreateSettings(taskHubName, "PrimaryApp", useAppLease: true);
-            ownerSettings.LoggerFactory = loggerFactory;
-            AzureStorageOrchestrationService owner =
-                new AzureStorageOrchestrationService(ownerSettings);
-            AzureStorageOrchestrationService recoveryReader =
-                CreateService(taskHubName, "RecoveryReader", useAppLease: false);
-            CorrelationSettings previousCorrelationSettings = CorrelationSettings.Current;
-
-            try
-            {
-                CorrelationSettings.Current = new CorrelationSettings
-                {
-                    EnableDistributedTracing = true,
-                    Protocol = Protocol.W3CTraceContext,
-                };
-                CorrelationTraceContext.Current = null;
-
-                await owner.CreateAsync();
-                await owner.StartAsync();
-                await WaitForOwnerAsync(owner);
-                await EnqueueActivityAsync(owner, "ownership-race");
-
-                owner.OnActivityMessageDequeued = async () =>
-                {
-                    owner.OnActivityMessageDequeued = null;
-                    await StopAsync(owner);
-                };
-
-                TaskActivityWorkItem rejectedWorkItem = await LockActivityAsync(owner);
-                owner = null;
-
-                Assert.IsNull(rejectedWorkItem);
-                Assert.IsNull(CorrelationTraceContext.Current);
-                Assert.IsFalse(loggerFactory.HasEvent("ReceivedMessage"));
-                Assert.IsFalse(loggerFactory.HasEvent("ProcessingMessage"));
-
-                await recoveryReader.StartAsync();
-                TaskActivityWorkItem recoveredWorkItem = await LockActivityAsync(recoveryReader);
-                Assert.IsNotNull(recoveredWorkItem);
-                await recoveryReader.AbandonTaskActivityWorkItemAsync(recoveredWorkItem);
-            }
-            finally
-            {
-                CorrelationTraceContext.Current = null;
-                CorrelationSettings.Current = previousCorrelationSettings;
-                await StopAsync(recoveryReader);
-                await StopAsync(owner);
             }
         }
 
@@ -467,51 +355,5 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        sealed class RecordingLoggerFactory : ILoggerFactory
-        {
-            readonly ConcurrentQueue<EventId> events = new ConcurrentQueue<EventId>();
-
-            public void AddProvider(ILoggerProvider provider)
-            {
-            }
-
-            public ILogger CreateLogger(string categoryName)
-            {
-                return new RecordingLogger(this.events);
-            }
-
-            public void Dispose()
-            {
-            }
-
-            public bool HasEvent(string name)
-            {
-                return this.events.Any(e => e.Name == name);
-            }
-
-            sealed class RecordingLogger : ILogger
-            {
-                readonly ConcurrentQueue<EventId> events;
-
-                public RecordingLogger(ConcurrentQueue<EventId> events)
-                {
-                    this.events = events;
-                }
-
-                public IDisposable BeginScope<TState>(TState state) => null;
-
-                public bool IsEnabled(LogLevel logLevel) => true;
-
-                public void Log<TState>(
-                    LogLevel logLevel,
-                    EventId eventId,
-                    TState state,
-                    Exception exception,
-                    Func<TState, Exception, string> formatter)
-                {
-                    this.events.Enqueue(eventId);
-                }
-            }
-        }
     }
 }

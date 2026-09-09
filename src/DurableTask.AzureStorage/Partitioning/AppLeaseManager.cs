@@ -135,17 +135,6 @@ namespace DurableTask.AzureStorage.Partitioning
             ownershipAvailable?.TrySetResult(null);
         }
 
-        internal bool HasActivityOwnership
-        {
-            get
-            {
-                lock (this.activityOwnershipLock)
-                {
-                    return this.hasActivityOwnership;
-                }
-            }
-        }
-
         static TaskCompletionSource<object> CreateActivityOwnershipSignal()
         {
             return new TaskCompletionSource<object>(
