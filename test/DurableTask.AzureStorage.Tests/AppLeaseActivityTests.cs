@@ -16,6 +16,7 @@ namespace DurableTask.AzureStorage.Tests
     using System;
     using System.Collections.Concurrent;
     using System.Linq;
+    using System.Reflection;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Messaging;
@@ -133,35 +134,44 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public async Task OwnershipResetCancelsOldEpochAndBlocksNewWaiters()
-        {
-            var ownershipSignal = new AppLeaseOwnershipSignal();
-            ownershipSignal.Set();
-
-            using (AppLeaseOwnershipSignal.AppLeaseOwnership ownership =
-                await ownershipSignal.WaitAsync(CancellationToken.None))
-            {
-                ownershipSignal.Reset();
-
-                Assert.IsTrue(ownership.LostToken.IsCancellationRequested);
-                Assert.IsFalse(ownership.TryBeginDispatch());
-
-                using (var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(100)))
-                {
-                    await Assert.ThrowsExceptionAsync<OperationCanceledException>(
-                        () => ownershipSignal.WaitAsync(cancellation.Token));
-                }
-            }
-        }
-
-        [TestMethod]
-        public async Task OwnershipLossCancelsPendingQueueReceive()
+        public async Task ClosedGatePreventsNewActivityReceive()
         {
             string taskHubName = GetTaskHubName();
             AzureStorageOrchestrationService service =
                 CreateService(taskHubName, "PrimaryApp", useAppLease: true);
-            var ownershipSignal = new AppLeaseOwnershipSignal();
-            ownershipSignal.Set();
+
+            try
+            {
+                await service.CreateAsync();
+                await service.StartAsync();
+                await WaitForOwnerAsync(service);
+                await EnqueueActivityAsync(service, "blocked");
+                GetAppLeaseManager(service).SetActivityOwnership(ownsLease: false);
+
+                using (var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(250)))
+                {
+                    TaskActivityWorkItem blockedWorkItem =
+                        await service.LockNextTaskActivityWorkItem(TestTimeout, cancellation.Token);
+                    Assert.IsNull(blockedWorkItem);
+                }
+
+                GetAppLeaseManager(service).SetActivityOwnership(ownsLease: true);
+                TaskActivityWorkItem recoveredWorkItem = await LockActivityAsync(service);
+                Assert.IsNotNull(recoveredWorkItem);
+                await service.AbandonTaskActivityWorkItemAsync(recoveredWorkItem);
+            }
+            finally
+            {
+                await StopAsync(service);
+            }
+        }
+
+        [TestMethod]
+        public async Task OwnershipLossDoesNotCancelPendingReceive()
+        {
+            string taskHubName = GetTaskHubName();
+            AzureStorageOrchestrationService service =
+                CreateService(taskHubName, "PrimaryApp", useAppLease: true);
 
             try
             {
@@ -169,18 +179,59 @@ namespace DurableTask.AzureStorage.Tests
                 await service.StartAsync();
                 await WaitForOwnerAsync(service);
 
-                using (AppLeaseOwnershipSignal.AppLeaseOwnership ownership =
-                    await ownershipSignal.WaitAsync(CancellationToken.None))
-                using (var receiveCancellation =
-                    CancellationTokenSource.CreateLinkedTokenSource(ownership.LostToken))
-                {
-                    Task<MessageData> pendingReceive =
-                        service.WorkItemQueue.GetMessageAsync(receiveCancellation.Token);
+                Task<TaskActivityWorkItem> pendingReceive =
+                    service.LockNextTaskActivityWorkItem(TestTimeout, CancellationToken.None);
+                Assert.IsFalse(pendingReceive.IsCompleted);
 
-                    ownershipSignal.Reset();
+                GetAppLeaseManager(service).SetActivityOwnership(ownsLease: false);
 
-                    Assert.IsNull(await WithTimeoutAsync(pendingReceive));
-                }
+                Task completionAfterLoss = await Task.WhenAny(
+                    pendingReceive,
+                    Task.Delay(TimeSpan.FromMilliseconds(500)));
+                Assert.AreNotSame(
+                    pendingReceive,
+                    completionAfterLoss,
+                    "Ownership loss alone must not cancel a receive that already started.");
+
+                await EnqueueActivityAsync(service, "rejected-while-closed");
+                Assert.IsNull(await WithTimeoutAsync(pendingReceive));
+
+                GetAppLeaseManager(service).SetActivityOwnership(ownsLease: true);
+                TaskActivityWorkItem recoveredWorkItem = await LockActivityAsync(service);
+                Assert.IsNotNull(recoveredWorkItem);
+                await service.AbandonTaskActivityWorkItemAsync(recoveredWorkItem);
+            }
+            finally
+            {
+                await StopAsync(service);
+            }
+        }
+
+        [TestMethod]
+        public async Task OwnershipRegainAllowsPendingReceiveToDispatch()
+        {
+            string taskHubName = GetTaskHubName();
+            AzureStorageOrchestrationService service =
+                CreateService(taskHubName, "PrimaryApp", useAppLease: true);
+
+            try
+            {
+                await service.CreateAsync();
+                await service.StartAsync();
+                await WaitForOwnerAsync(service);
+
+                Task<TaskActivityWorkItem> pendingReceive =
+                    service.LockNextTaskActivityWorkItem(TestTimeout, CancellationToken.None);
+                Assert.IsFalse(pendingReceive.IsCompleted);
+
+                AppLeaseManager appLeaseManager = GetAppLeaseManager(service);
+                appLeaseManager.SetActivityOwnership(ownsLease: false);
+                appLeaseManager.SetActivityOwnership(ownsLease: true);
+
+                await EnqueueActivityAsync(service, "accepted-after-regain");
+                TaskActivityWorkItem workItem = await WithTimeoutAsync(pendingReceive);
+                Assert.IsNotNull(workItem);
+                await service.AbandonTaskActivityWorkItemAsync(workItem);
             }
             finally
             {
@@ -373,6 +424,18 @@ namespace DurableTask.AzureStorage.Tests
             await TestHelpers.WaitFor(
                 () => service.OwnedControlQueues.Any(),
                 TestTimeout);
+        }
+
+        static AppLeaseManager GetAppLeaseManager(AzureStorageOrchestrationService service)
+        {
+            FieldInfo field = typeof(AzureStorageOrchestrationService).GetField(
+                "appLeaseManager",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(field);
+
+            var appLeaseManager = field.GetValue(service) as AppLeaseManager;
+            Assert.IsNotNull(appLeaseManager);
+            return appLeaseManager;
         }
 
         static async Task<TaskActivityWorkItem> LockActivityAsync(

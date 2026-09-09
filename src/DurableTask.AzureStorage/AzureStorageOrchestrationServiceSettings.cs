@@ -154,8 +154,10 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// If true, workers wait for their <see cref="AppName"/> to own the app lease before receiving
         /// new activity messages. Workers sharing that app name may receive activities concurrently.
-        /// Observed lease loss stops pending activity receives and rejects dequeued activities before
-        /// dispatch; already dispatched activities are not canceled. Orchestration and entity message
+        /// Ownership loss does not cancel an activity receive that already started, which may continue
+        /// polling until it gets a message or caller or service-shutdown cancellation occurs. Current
+        /// ownership is checked again before dispatch; rejected messages are abandoned before tracing
+        /// starts. Already dispatched activities are not canceled. Orchestration and entity message
         /// processing retain their existing behavior.
         /// </summary>
         public bool UseAppLease { get; set; } = true;

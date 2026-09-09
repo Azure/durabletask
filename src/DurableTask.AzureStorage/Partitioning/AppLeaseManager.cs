@@ -42,8 +42,10 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly Blob appLeaseInfoBlob;
         readonly string appLeaseId;
         readonly AsyncManualResetEvent shutdownCompletedEvent;
-        readonly AppLeaseOwnershipSignal ownershipSignal;
+        readonly object activityOwnershipLock = new object();
 
+        TaskCompletionSource<object> activityOwnershipAvailable;
+        bool hasActivityOwnership;
         bool isLeaseOwner;
         int appLeaseIsStarted;
         Task renewTask;
@@ -79,20 +81,82 @@ namespace DurableTask.AzureStorage.Partitioning
 
             this.isLeaseOwner = false;
             this.shutdownCompletedEvent = new AsyncManualResetEvent();
-            this.ownershipSignal = new AppLeaseOwnershipSignal();
+            this.activityOwnershipAvailable = CreateActivityOwnershipSignal();
         }
 
-        public Task<AppLeaseOwnershipSignal.AppLeaseOwnership> WaitForOwnershipAsync(
+        public async Task WaitForActivityOwnershipAsync(
             CancellationToken cancellationToken)
         {
-            return this.ownershipSignal.WaitAsync(cancellationToken);
+            while (true)
+            {
+                Task ownershipAvailableTask;
+                lock (this.activityOwnershipLock)
+                {
+                    if (this.hasActivityOwnership)
+                    {
+                        return;
+                    }
+
+                    ownershipAvailableTask = this.activityOwnershipAvailable.Task;
+                }
+
+                var canceled = new TaskCompletionSource<object>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+                using (cancellationToken.Register(() => canceled.TrySetResult(null)))
+                {
+                    await Task.WhenAny(ownershipAvailableTask, canceled.Task);
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+        }
+
+        internal void SetActivityOwnership(bool ownsLease)
+        {
+            TaskCompletionSource<object> ownershipAvailable = null;
+            lock (this.activityOwnershipLock)
+            {
+                if (this.hasActivityOwnership == ownsLease)
+                {
+                    return;
+                }
+
+                this.hasActivityOwnership = ownsLease;
+                if (ownsLease)
+                {
+                    ownershipAvailable = this.activityOwnershipAvailable;
+                }
+                else
+                {
+                    this.activityOwnershipAvailable = CreateActivityOwnershipSignal();
+                }
+            }
+
+            ownershipAvailable?.TrySetResult(null);
+        }
+
+        internal bool HasActivityOwnership
+        {
+            get
+            {
+                lock (this.activityOwnershipLock)
+                {
+                    return this.hasActivityOwnership;
+                }
+            }
+        }
+
+        static TaskCompletionSource<object> CreateActivityOwnershipSignal()
+        {
+            return new TaskCompletionSource<object>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
         }
 
         public async Task StartAsync()
         {
             if (!this.appLeaseIsEnabled)
             {
-                this.ownershipSignal.Set();
+                this.SetActivityOwnership(ownsLease: true);
                 this.starterTokenSource = new CancellationTokenSource();
 
                 await Task.Factory.StartNew(() => this.PartitionManagerStarter(this.starterTokenSource.Token));
@@ -174,7 +238,7 @@ namespace DurableTask.AzureStorage.Partitioning
 
         public async Task StopAsync()
         {
-            this.ownershipSignal.Reset();
+            this.SetActivityOwnership(ownsLease: false);
 
             if (this.starterTokenSource != null)
             {
@@ -264,7 +328,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.leaseRenewerCancellationTokenSource = new CancellationTokenSource();
 
             await this.partitionManager.StartAsync();
-            this.ownershipSignal.Set();
+            this.SetActivityOwnership(ownsLease: true);
 
             this.shutdownCompletedEvent.Reset();
 
@@ -279,7 +343,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 return;
             }
 
-            this.ownershipSignal.Reset();
+            this.SetActivityOwnership(ownsLease: false);
 
             await this.partitionManager.StopAsync();
 
@@ -505,7 +569,7 @@ namespace DurableTask.AzureStorage.Partitioning
                 {
                     renewed = false;
                     this.isLeaseOwner = false;
-                    this.ownershipSignal.Reset();
+                    this.SetActivityOwnership(ownsLease: false);
 
                     this.settings.Logger.LeaseRenewalFailed(
                         this.storageAccountName,

@@ -1547,83 +1547,74 @@ namespace DurableTask.AzureStorage
 
             using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.shutdownSource.Token))
             {
-                AppLeaseOwnershipSignal.AppLeaseOwnership ownership;
                 try
                 {
-                    ownership = await this.appLeaseManager.WaitForOwnershipAsync(linkedCts.Token);
+                    await this.appLeaseManager.WaitForActivityOwnershipAsync(linkedCts.Token);
                 }
                 catch (OperationCanceledException)
                 {
                     return null;
                 }
 
-                using (ownership)
+                MessageData message = await this.workItemQueue.GetMessageAsync(linkedCts.Token);
+
+                if (message == null)
                 {
-                    using (var receiveCts = CancellationTokenSource.CreateLinkedTokenSource(
-                        linkedCts.Token,
-                        ownership.LostToken))
-                    {
-                        MessageData message = await this.workItemQueue.GetMessageAsync(receiveCts.Token);
-
-                        if (message == null)
-                        {
-                            // shutting down, canceled, or app lease ownership was lost
-                            return null;
-                        }
-
-                        Func<Task> onActivityMessageDequeued = this.OnActivityMessageDequeued;
-                        if (onActivityMessageDequeued != null)
-                        {
-                            await onActivityMessageDequeued();
-                        }
-
-                        if (!ownership.TryBeginDispatch())
-                        {
-                            await this.workItemQueue.AbandonMessageAsync(message);
-                            return null;
-                        }
-
-                        Guid traceActivityId = Guid.NewGuid();
-                        var session = new ActivitySession(this.settings, this.azureStorageClient.QueueAccountName, message, traceActivityId);
-                        session.StartNewLogicalTraceScope();
-
-                        TraceContextBase requestTraceContext = null;
-                        CorrelationTraceClient.Propagate(
-                            () =>
-                            {
-                                string name = $"{TraceConstants.Activity} {Utils.GetTargetClassName(((TaskScheduledEvent)session.MessageData.TaskMessage.Event)?.Name)}";
-                                requestTraceContext = TraceContextFactory.Create(name);
-
-                                TraceContextBase parentTraceContextBase = TraceContextBase.Restore(session.MessageData.SerializableTraceContext);
-                                requestTraceContext.SetParentAndStart(parentTraceContextBase);
-                            });
-
-                        TraceMessageReceived(this.settings, session.MessageData, this.azureStorageClient.QueueAccountName);
-                        session.TraceProcessingMessage(message, isExtendedSession: false, this.workItemQueue.Name);
-
-                        if (!this.activeActivitySessions.TryAdd(message.Id, session))
-                        {
-                            // This means we're already processing this message. This is never expected since the message
-                            // should be kept invisible via background calls to RenewTaskActivityWorkItemLockAsync.
-                            this.settings.Logger.AssertFailure(
-                                this.azureStorageClient.QueueAccountName,
-                                this.settings.TaskHubName,
-                                $"Work item queue message with ID = {message.Id} is being processed multiple times concurrently.");
-                            return null;
-                        }
-
-                        this.stats.ActiveActivityExecutions.Increment();
-
-                        return new TaskActivityWorkItem
-                        {
-                            Id = message.Id,
-                            TaskMessage = session.MessageData.TaskMessage,
-                            LockedUntilUtc = message.OriginalQueueMessage.NextVisibleOn.Value.UtcDateTime,
-
-                            TraceContextBase = requestTraceContext
-                        };
-                    }
+                    // shutting down or canceled
+                    return null;
                 }
+
+                Func<Task> onActivityMessageDequeued = this.OnActivityMessageDequeued;
+                if (onActivityMessageDequeued != null)
+                {
+                    await onActivityMessageDequeued();
+                }
+
+                if (!this.appLeaseManager.HasActivityOwnership)
+                {
+                    await this.workItemQueue.AbandonMessageAsync(message);
+                    return null;
+                }
+
+                Guid traceActivityId = Guid.NewGuid();
+                var session = new ActivitySession(this.settings, this.azureStorageClient.QueueAccountName, message, traceActivityId);
+                session.StartNewLogicalTraceScope();
+
+                TraceContextBase requestTraceContext = null;
+                CorrelationTraceClient.Propagate(
+                    () =>
+                    {
+                        string name = $"{TraceConstants.Activity} {Utils.GetTargetClassName(((TaskScheduledEvent)session.MessageData.TaskMessage.Event)?.Name)}";
+                        requestTraceContext = TraceContextFactory.Create(name);
+
+                        TraceContextBase parentTraceContextBase = TraceContextBase.Restore(session.MessageData.SerializableTraceContext);
+                        requestTraceContext.SetParentAndStart(parentTraceContextBase);
+                    });
+
+                TraceMessageReceived(this.settings, session.MessageData, this.azureStorageClient.QueueAccountName);
+                session.TraceProcessingMessage(message, isExtendedSession: false, this.workItemQueue.Name);
+
+                if (!this.activeActivitySessions.TryAdd(message.Id, session))
+                {
+                    // This means we're already processing this message. This is never expected since the message
+                    // should be kept invisible via background calls to RenewTaskActivityWorkItemLockAsync.
+                    this.settings.Logger.AssertFailure(
+                        this.azureStorageClient.QueueAccountName,
+                        this.settings.TaskHubName,
+                        $"Work item queue message with ID = {message.Id} is being processed multiple times concurrently.");
+                    return null;
+                }
+
+                this.stats.ActiveActivityExecutions.Increment();
+
+                return new TaskActivityWorkItem
+                {
+                    Id = message.Id,
+                    TaskMessage = session.MessageData.TaskMessage,
+                    LockedUntilUtc = message.OriginalQueueMessage.NextVisibleOn.Value.UtcDateTime,
+
+                    TraceContextBase = requestTraceContext
+                };
             }
         }
 
