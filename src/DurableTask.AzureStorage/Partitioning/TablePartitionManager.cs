@@ -40,17 +40,14 @@ namespace DurableTask.AzureStorage.Partitioning
         readonly AzureStorageClient azureStorageClient;
         readonly AzureStorageOrchestrationService service;
         readonly AzureStorageOrchestrationServiceSettings settings;
-        readonly SemaphoreSlim lifecycleLock;
+        readonly CancellationTokenSource gracefulShutdownTokenSource;
+        readonly CancellationTokenSource forcefulShutdownTokenSource;
         readonly string storageAccountName;
         readonly Table partitionTable;
         readonly TableLeaseManager tableLeaseManager;
         readonly LeaseCollectionBalancerOptions options;
 
-        CancellationTokenSource? gracefulShutdownTokenSource;
-        CancellationTokenSource? forcefulShutdownTokenSource;
         Task partitionManagerTask;
-        bool isStarted;
-        bool isStopping;
 
         /// <summary>
         /// Constructor to initiate new instances of TablePartitionManager.
@@ -71,7 +68,8 @@ namespace DurableTask.AzureStorage.Partitioning
                 LeaseInterval = this.settings.LeaseInterval,
                 ShouldStealLeases = true
             };
-            this.lifecycleLock = new SemaphoreSlim(1, 1);
+            this.gracefulShutdownTokenSource = new CancellationTokenSource();
+            this.forcefulShutdownTokenSource = new CancellationTokenSource();
             this.partitionTable = azureStorageClient.GetTableReference(this.settings.PartitionTableName);
             this.tableLeaseManager = new TableLeaseManager(this.partitionTable, this.service, this.settings, this.storageAccountName, this.options);
             this.partitionManagerTask = Task.CompletedTask;
@@ -81,52 +79,19 @@ namespace DurableTask.AzureStorage.Partitioning
         /// <summary>
         /// Starts the partition management loop for the current worker.
         /// </summary>
-        async Task IPartitionManager.StartAsync()
+        Task IPartitionManager.StartAsync()
         {
-            await this.lifecycleLock.WaitAsync();
-            try
-            {
-                if (this.isStarted)
-                {
-                    throw new InvalidOperationException(
-                        $"{nameof(TablePartitionManager)} has already started");
-                }
-
-                if (this.isStopping)
-                {
-                    try
-                    {
-                        await this.partitionManagerTask;
-                    }
-                    finally
-                    {
-                        if (this.partitionManagerTask.IsCompleted)
-                        {
-                            this.DisposeRun();
-                        }
-                    }
-                }
-
-                var gracefulShutdown = new CancellationTokenSource();
-                var forcefulShutdown = new CancellationTokenSource();
-                this.gracefulShutdownTokenSource = gracefulShutdown;
-                this.forcefulShutdownTokenSource = forcefulShutdown;
-                this.partitionManagerTask = this.PartitionManagerLoop(
-                    gracefulShutdown.Token,
-                    forcefulShutdown.Token);
-                this.isStarted = true;
-
-                this.settings.Logger.PartitionManagerInfo(
-                    this.storageAccountName,
-                    this.settings.TaskHubName,
-                    this.settings.WorkerId,
-                    partitionId: NotApplicable,
-                    details: $"Started the background partition manager loop to acquire and balance partitions.");
-            }
-            finally
-            {
-                this.lifecycleLock.Release();
-            }
+            // Run the partition manager loop in the background
+            this.partitionManagerTask = this.PartitionManagerLoop(
+                this.gracefulShutdownTokenSource.Token,
+                this.forcefulShutdownTokenSource.Token);
+            this.settings.Logger.PartitionManagerInfo(
+                this.storageAccountName,
+                this.settings.TaskHubName,
+                this.settings.WorkerId,
+                partitionId: NotApplicable,
+                details: $"Started the background partition manager loop to acquire and balance partitions.");
+            return Task.CompletedTask;
         }
 
 
@@ -180,10 +145,6 @@ namespace DurableTask.AzureStorage.Partitioning
 
                     consecutiveFailureCount = 0;
                 }
-                catch (OperationCanceledException) when (forcefulShutdownToken.IsCancellationRequested)
-                {
-                    break;
-                }
                 // Exception Status 412 represents an out of date ETag. We already logged this.
                 catch (DurableTaskStorageException ex) when (ex.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
                 {
@@ -236,10 +197,6 @@ namespace DurableTask.AzureStorage.Partitioning
                         await Task.Delay(timeToSleep, gracefulShutdownToken);
                     }
                 }
-                catch (OperationCanceledException) when (forcefulShutdownToken.IsCancellationRequested)
-                {
-                    break;
-                }
                 catch (OperationCanceledException) when (gracefulShutdownToken.IsCancellationRequested)
                 {
                     // Shutdown requested, but we still need to release all leases
@@ -272,93 +229,36 @@ namespace DurableTask.AzureStorage.Partitioning
         /// </summary>
         async Task IPartitionManager.StopAsync()
         {
-            await this.lifecycleLock.WaitAsync();
-            try
+            this.gracefulShutdownTokenSource.Cancel();
+            this.settings.Logger.PartitionManagerInfo(
+                this.storageAccountName,
+                this.settings.TaskHubName,
+                this.settings.WorkerId,
+                partitionId: NotApplicable,
+                "Started draining the in-memory messages of all owned control queues for shutdown.");
+
+            // Wait 10 minutes for the partition manager to shutdown gracefully. Otherwise force a shutdown.
+            var timeout = TimeSpan.FromMinutes(10);
+            var timeoutTask = Task.Delay(Timeout.Infinite, this.forcefulShutdownTokenSource.Token);
+            this.forcefulShutdownTokenSource.CancelAfter(timeout);
+            await Task.WhenAny(this.partitionManagerTask, timeoutTask);
+
+            if (timeoutTask.IsCompleted)
             {
-                if (!this.isStarted)
-                {
-                    if (this.isStopping)
-                    {
-                        try
-                        {
-                            await this.partitionManagerTask;
-                        }
-                        finally
-                        {
-                            if (this.partitionManagerTask.IsCompleted)
-                            {
-                                this.DisposeRun();
-                            }
-                        }
-                    }
-
-                    return;
-                }
-
-                this.isStarted = false;
-                this.isStopping = true;
-                CancellationTokenSource gracefulShutdown =
-                    this.gracefulShutdownTokenSource
-                    ?? throw new InvalidOperationException("The graceful shutdown token source is missing.");
-                CancellationTokenSource forcefulShutdown =
-                    this.forcefulShutdownTokenSource
-                    ?? throw new InvalidOperationException("The forceful shutdown token source is missing.");
-
-                gracefulShutdown.Cancel();
-                this.settings.Logger.PartitionManagerInfo(
-                    this.storageAccountName,
-                    this.settings.TaskHubName,
-                    this.settings.WorkerId,
-                    partitionId: NotApplicable,
-                    "Started draining the in-memory messages of all owned control queues for shutdown.");
-
-                // Wait 10 minutes for the partition manager to shutdown gracefully. Otherwise force a shutdown.
-                var timeout = TimeSpan.FromMinutes(10);
-                var timeoutTask = Task.Delay(Timeout.Infinite, forcefulShutdown.Token);
-                forcefulShutdown.CancelAfter(timeout);
-
-                try
-                {
-                    await Task.WhenAny(this.partitionManagerTask, timeoutTask);
-                    if (timeoutTask.IsCompleted)
-                    {
-                        throw new TimeoutException(
-                            $"Timed-out waiting for the partition manager to shut down. Timeout duration: {timeout}",
-                            timeoutTask.Exception?.InnerException);
-                    }
-
-                    // Surface any unhandled exceptions
-                    await this.partitionManagerTask;
-
-                    this.settings.Logger.PartitionManagerInfo(
-                        this.storageAccountName,
-                        this.settings.TaskHubName,
-                        this.settings.WorkerId,
-                        partitionId: NotApplicable,
-                        "Table partition manager stopped successfully.");
-                }
-                finally
-                {
-                    if (this.partitionManagerTask.IsCompleted)
-                    {
-                        this.DisposeRun();
-                    }
-                }
+                throw new TimeoutException(
+                    $"Timed-out waiting for the partition manager to shut down. Timeout duration: {timeout}",
+                    timeoutTask.Exception?.InnerException);
             }
-            finally
-            {
-                this.lifecycleLock.Release();
-            }
-        }
 
-        void DisposeRun()
-        {
-            this.gracefulShutdownTokenSource?.Dispose();
-            this.forcefulShutdownTokenSource?.Dispose();
-            this.gracefulShutdownTokenSource = null;
-            this.forcefulShutdownTokenSource = null;
-            this.partitionManagerTask = Task.CompletedTask;
-            this.isStopping = false;
+            // Surface any unhandled exceptions
+            await this.partitionManagerTask;
+
+            this.settings.Logger.PartitionManagerInfo(
+                this.storageAccountName,
+                this.settings.TaskHubName,
+                this.settings.WorkerId,
+                partitionId: NotApplicable,
+                "Table partition manager stopped successfully.");
         }
 
         async Task IPartitionManager.CreateLeaseStore()
@@ -524,8 +424,16 @@ namespace DurableTask.AzureStorage.Partitioning
                             throw;
                         }
 
-                        // Only an owner of this non-draining partition should listen to its control queue.
-                        if (partition.CurrentOwner == this.workerName && !partition.IsDraining)
+                        // Ensure worker is listening to the control queue iff either:
+                        // 1) worker just claimed the lease,
+                        // 2) worker was already the owner in the partitions table and is not actively draining the queue.
+                        //    Note that during draining, we renew the lease but do not want to listen to new messages.
+                        //    Otherwise, we'll never finish draining our in-memory messages.
+                        // When draining completes, and the worker may decide to release the lease. In that moment,
+                        // IsDrainingPartition can still be true but renewedLease can be false — without checking
+                        // !releasedLease, the worker could incorrectly resume listening just before releasing the lease.
+                        bool isRenewingToDrainQueue = renewedLease && response.IsDrainingPartition && !releasedLease;
+                        if (claimedLease || !isRenewingToDrainQueue)
                         {
                             // Notify the orchestration session manager that we acquired a lease for one of the partitions.
                             // This will cause it to start reading control queue messages for that partition.
@@ -590,7 +498,6 @@ namespace DurableTask.AzureStorage.Partitioning
                 if (partition.NextOwner == null)
                 {
                     // We still own the lease and nobody is trying to steal it.
-                    partition.IsDraining = false;
                     ownershipLeaseCount++;
                     this.RenewLease(partition);
                     renewedLease = true;
@@ -988,14 +895,13 @@ namespace DurableTask.AzureStorage.Partitioning
         // used for internal testing
         internal void KillLoop()
         {
-            this.forcefulShutdownTokenSource?.Cancel();
+            this.forcefulShutdownTokenSource.Cancel();
         }
 
         public void Dispose()
         {
-            this.gracefulShutdownTokenSource?.Dispose();
-            this.forcefulShutdownTokenSource?.Dispose();
-            this.lifecycleLock.Dispose();
+            this.gracefulShutdownTokenSource.Dispose();
+            this.forcefulShutdownTokenSource.Dispose();
         }
     }
 }

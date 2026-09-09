@@ -152,9 +152,11 @@ namespace DurableTask.AzureStorage
         public TimeSpan MaxQueuePollingInterval { get; set; } = DefaultMaxQueuePollingInterval;
 
         /// <summary>
-        /// If true, takes a lease on the task hub container so that only workers with the lease-owning
-        /// <see cref="AppName"/> process orchestration, entity, or activity messages.
-        /// Workers that share the same <see cref="AppName"/> may process messages concurrently.
+        /// If true, workers wait for their <see cref="AppName"/> to own the app lease before receiving
+        /// new activity messages. Workers sharing that app name may receive activities concurrently.
+        /// Observed lease loss stops pending activity receives and rejects dequeued activities before
+        /// dispatch; already dispatched activities are not canceled. Orchestration and entity message
+        /// processing retain their existing behavior.
         /// </summary>
         public bool UseAppLease { get; set; } = true;
 
