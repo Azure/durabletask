@@ -1877,7 +1877,7 @@ namespace DurableTask.AzureStorage.Tests
                     .OrderBy(instanceId => instanceId)
                     .ToArray();
                 CollectionAssert.AreEqual(
-                    new[] { childInstanceId, parentInstanceId }.OrderBy(instanceId => instanceId).ToArray(),
+                    new[] { childInstanceId },
                     queuedRewindTargets);
 
                 var resumeService = new AzureStorageOrchestrationService(settings);
@@ -1907,6 +1907,380 @@ namespace DurableTask.AzureStorage.Tests
 
                 Orchestrations.ChildWorkflowSubOrchestrationFail.ShouldFail1 = true;
                 Orchestrations.ChildWorkflowSubOrchestrationFail.ShouldFail2 = true;
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(1, false)]
+        [DataRow(3, false)]
+        [DataRow(1, true)]
+        public async Task TerminalRepairConflicts_PreserveChildForParentRetry(
+            int conflictCount,
+            bool repairChildAfterReset)
+        {
+            string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
+            var defaultProvider = new StorageAccountClientProvider(connectionString);
+            using var tableBarrier = new OneShotRequestBarrierHandler();
+            using var queueRecorder = new RecordingRequestHandler();
+            using var queueClientProvider =
+                new TransportClientProvider<QueueServiceClient, QueueClientOptions>(
+                    defaultProvider.Queue,
+                    queueRecorder);
+            using var tableClientProvider =
+                new TransportClientProvider<TableServiceClient, TableClientOptions>(
+                    defaultProvider.Table,
+                    tableBarrier);
+            var provider = new StorageAccountClientProvider(
+                defaultProvider.Blob,
+                queueClientProvider,
+                tableClientProvider);
+            AzureStorageOrchestrationServiceSettings settings = null;
+
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
+                enableExtendedSessions: false,
+                modifySettingsAction: configuredSettings =>
+                {
+                    configuredSettings.PartitionCount = 1;
+                    configuredSettings.StorageAccountClientProvider = provider;
+                    settings = configuredSettings;
+                }))
+            {
+                Orchestrations.ChildWorkflowSubOrchestrationFail.ShouldFail1 = true;
+                Orchestrations.ChildWorkflowSubOrchestrationFail.ShouldFail2 = true;
+                await host.StartAsync();
+
+                try
+                {
+                    string parentInstanceId = $"parent-repair-race-{Guid.NewGuid():N}";
+                    TestOrchestrationClient parentClient = await host.StartOrchestrationAsync(
+                        typeof(Orchestrations.ParentWorkflowSubOrchestrationFail),
+                        input: true,
+                        instanceId: parentInstanceId);
+                    OrchestrationState parentFailure = await parentClient.WaitForCompletionAsync(StandardTimeout);
+                    Assert.IsNotNull(parentFailure);
+                    Assert.IsNotNull(parentFailure.OrchestrationInstance);
+                    Assert.AreEqual(OrchestrationStatus.Failed, parentFailure.OrchestrationStatus);
+
+                    var trackingStore = (AzureTableTrackingStore)host.service.TrackingStore;
+                    string parentExecutionId = parentFailure.OrchestrationInstance.ExecutionId;
+                    OrchestrationHistory failedParentHistory =
+                        await trackingStore.GetHistoryEventsAsync(parentInstanceId, parentExecutionId);
+                    var capturedFailedRuntimeState =
+                        new OrchestrationRuntimeState(failedParentHistory.Events);
+                    Assert.AreEqual(OrchestrationStatus.Failed, capturedFailedRuntimeState.OrchestrationStatus);
+                    Assert.AreEqual(
+                        parentExecutionId,
+                        capturedFailedRuntimeState.OrchestrationInstance.ExecutionId);
+
+                    string childCreatedFilter =
+                        $"{AzureTableQueryFilter.PartitionKeyEquals(parentInstanceId)} and " +
+                        $"{AzureTableQueryFilter.ColumnEquals(nameof(HistoryEvent.EventType), nameof(EventType.SubOrchestrationInstanceCreated))}";
+                    TableEntity childCreated = (await trackingStore.HistoryTable
+                        .ExecuteQueryAsync<TableEntity>(childCreatedFilter)
+                        .ToListAsync())
+                        .Single();
+                    string childInstanceId = childCreated.GetString(nameof(OrchestrationInstance.InstanceId));
+                    string childInstanceFilter =
+                        $"{AzureTableQueryFilter.PartitionKeyEquals(childInstanceId)} and " +
+                        $"{AzureTableQueryFilter.ColumnEquals(nameof(ITableEntity.RowKey), string.Empty)}";
+                    string parentInstanceFilter =
+                        $"{AzureTableQueryFilter.PartitionKeyEquals(parentInstanceId)} and " +
+                        $"{AzureTableQueryFilter.ColumnEquals(nameof(ITableEntity.RowKey), string.Empty)}";
+                    string rewoundChildMarkerFilter =
+                        $"{AzureTableQueryFilter.PartitionKeyEquals(parentInstanceId)} and " +
+                        $"{AzureTableQueryFilter.ColumnEquals(nameof(HistoryEvent.EventType), nameof(EventType.GenericEvent))} and " +
+                        $"{AzureTableQueryFilter.ColumnEquals(nameof(SubOrchestrationInstanceFailedEvent.Reason), "Rewound: " + nameof(EventType.SubOrchestrationInstanceFailed))}";
+                    TableEntity failedChild = await trackingStore.InstancesTable
+                        .ExecuteQueryAsync<TableEntity>(childInstanceFilter, 1)
+                        .FirstOrDefaultAsync();
+                    string childExecutionId = failedChild.GetString("ExecutionId");
+                    OrchestrationHistory failedChildHistory =
+                        await trackingStore.GetHistoryEventsAsync(childInstanceId, childExecutionId);
+                    var capturedFailedChildRuntimeState =
+                        new OrchestrationRuntimeState(failedChildHistory.Events);
+                    Assert.AreEqual(
+                        OrchestrationStatus.Failed,
+                        capturedFailedChildRuntimeState.OrchestrationStatus);
+
+                    Orchestrations.ChildWorkflowSubOrchestrationFail.ShouldFail1 = false;
+                    Orchestrations.ChildWorkflowSubOrchestrationFail.ShouldFail2 = false;
+                    await host.StopAsync();
+                    string controlQueueName = AzureStorageOrchestrationService.GetControlQueueName(host.TaskHub, 0);
+                    queueRecorder.Clear();
+
+                    Func<HttpRequestMessage, bool> isParentInstanceReplace = request =>
+                        request.Method == HttpMethod.Put &&
+                        request.RequestUri.AbsolutePath.IndexOf(
+                            trackingStore.InstancesTable.Name,
+                            StringComparison.OrdinalIgnoreCase) >= 0 &&
+                        Uri.UnescapeDataString(request.RequestUri.AbsoluteUri).Contains(parentInstanceId);
+
+                    for (int conflict = 0; conflict < conflictCount; conflict++)
+                    {
+                        tableBarrier.Arm(isParentInstanceReplace);
+                        Task rewind = parentClient.RewindAsync(
+                            $"Rewind with terminal-state repair conflict {conflict + 1}.");
+                        await tableBarrier.WaitUntilBlockedAsync();
+
+                        TableEntity pendingChild = await trackingStore.InstancesTable
+                            .ExecuteQueryAsync<TableEntity>(childInstanceFilter, 1)
+                            .FirstOrDefaultAsync();
+                        Assert.AreEqual(
+                            OrchestrationStatus.Pending.ToString(),
+                            pendingChild.GetString("RuntimeStatus"));
+                        Assert.IsFalse(pendingChild.ContainsKey("Output"));
+
+                        TableEntity parentBeforeRepair = await trackingStore.InstancesTable
+                            .ExecuteQueryAsync<TableEntity>(parentInstanceFilter, 1)
+                            .FirstOrDefaultAsync();
+                        Assert.AreEqual(
+                            OrchestrationStatus.Failed.ToString(),
+                            parentBeforeRepair.GetString("RuntimeStatus"));
+
+                        await trackingStore.UpdateInstanceStatusForCompletedOrchestrationAsync(
+                            parentInstanceId,
+                            parentExecutionId,
+                            capturedFailedRuntimeState,
+                            instanceEntityExists: true);
+
+                        TableEntity parentAfterRepair = await trackingStore.InstancesTable
+                            .ExecuteQueryAsync<TableEntity>(parentInstanceFilter, 1)
+                            .FirstOrDefaultAsync();
+                        Assert.AreEqual(
+                            OrchestrationStatus.Failed.ToString(),
+                            parentAfterRepair.GetString("RuntimeStatus"));
+                        Assert.AreNotEqual(
+                            parentBeforeRepair.ETag.ToString(),
+                            parentAfterRepair.ETag.ToString(),
+                            "The production terminal-state repair must advance the parent Instances ETag.");
+
+                        tableBarrier.Release();
+                        HttpStatusCode resetStatus = await tableBarrier.WaitUntilCompletedAsync();
+                        DurableTaskStorageException rewindFailure =
+                            await Assert.ThrowsExceptionAsync<DurableTaskStorageException>(() => rewind);
+                        Assert.AreEqual(HttpStatusCode.PreconditionFailed, resetStatus);
+                        Assert.AreEqual(
+                            (int)HttpStatusCode.PreconditionFailed,
+                            rewindFailure.HttpStatusCode);
+                        Assert.AreEqual(
+                            0,
+                            queueRecorder.GetQueueMessageBodies(controlQueueName).Count,
+                            "A failed rewind must not enqueue targets before the whole tree is reset.");
+                        Assert.AreEqual(
+                            1,
+                            (await trackingStore.HistoryTable
+                                .ExecuteQueryAsync<TableEntity>(rewoundChildMarkerFilter)
+                                .ToListAsync())
+                                .Count,
+                            "The converted child-failure marker must remain recoverable.");
+                    }
+
+                    if (repairChildAfterReset)
+                    {
+                        await trackingStore.UpdateInstanceStatusForCompletedOrchestrationAsync(
+                            childInstanceId,
+                            childExecutionId,
+                            capturedFailedChildRuntimeState,
+                            instanceEntityExists: true);
+                        TableEntity repairedChild = await trackingStore.InstancesTable
+                            .ExecuteQueryAsync<TableEntity>(childInstanceFilter, 1)
+                            .FirstOrDefaultAsync();
+                        Assert.AreEqual(
+                            OrchestrationStatus.Failed.ToString(),
+                            repairedChild.GetString("RuntimeStatus"));
+                        Assert.IsTrue(repairedChild.ContainsKey("Output"));
+                    }
+
+                    await parentClient.RewindAsync("Retry after terminal-state repair conflicts stop.");
+
+                    var messageManager = new MessageManager(
+                        settings,
+                        new AzureStorageClient(settings),
+                        $"{host.TaskHub.ToLowerInvariant()}-largemessages");
+                    string[] retryTargets = queueRecorder
+                        .GetQueueMessageBodies(controlQueueName)
+                        .Select(body => DeserializeQueueMessageBody(messageManager, body))
+                        .Where(message => message.TaskMessage.Event is GenericEvent)
+                        .Select(message => message.TaskMessage.OrchestrationInstance.InstanceId)
+                        .Distinct()
+                        .OrderBy(instanceId => instanceId)
+                        .ToArray();
+                    CollectionAssert.AreEqual(new[] { childInstanceId }, retryTargets);
+
+                    var resumeService = new AzureStorageOrchestrationService(settings);
+                    using var resumeWorker = new TaskHubWorker(
+                        resumeService,
+                        loggerFactory: settings.LoggerFactory);
+                    resumeWorker.AddTaskOrchestrations(
+                        typeof(Orchestrations.ParentWorkflowSubOrchestrationFail),
+                        typeof(Orchestrations.ChildWorkflowSubOrchestrationFail));
+                    resumeWorker.AddTaskActivities(typeof(Activities.Hello));
+                    await resumeWorker.StartAsync();
+                    try
+                    {
+                        TableEntity completedParent = await WaitForInstanceStatusAsync(
+                            trackingStore.InstancesTable,
+                            parentInstanceFilter,
+                            OrchestrationStatus.Completed);
+                        TableEntity completedChild = await WaitForInstanceStatusAsync(
+                            trackingStore.InstancesTable,
+                            childInstanceFilter,
+                            OrchestrationStatus.Completed);
+                        Assert.IsTrue(completedParent.ContainsKey("Output"));
+                        Assert.IsTrue(completedChild.ContainsKey("Output"));
+                    }
+                    finally
+                    {
+                        await resumeWorker.StopAsync(isForced: true);
+                    }
+                }
+                finally
+                {
+                    tableBarrier.Release();
+                    Orchestrations.ChildWorkflowSubOrchestrationFail.ShouldFail1 = true;
+                    Orchestrations.ChildWorkflowSubOrchestrationFail.ShouldFail2 = true;
+                }
+            }
+        }
+
+        [TestMethod]
+        public async Task RewindAfterLaterChildFailure_DoesNotReviveCompletedChild()
+        {
+            string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
+            var defaultProvider = new StorageAccountClientProvider(connectionString);
+            using var queueRecorder = new RecordingRequestHandler();
+            using var queueClientProvider =
+                new TransportClientProvider<QueueServiceClient, QueueClientOptions>(
+                    defaultProvider.Queue,
+                    queueRecorder);
+            var provider = new StorageAccountClientProvider(
+                defaultProvider.Blob,
+                queueClientProvider,
+                defaultProvider.Table);
+            AzureStorageOrchestrationServiceSettings settings = null;
+
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
+                enableExtendedSessions: false,
+                modifySettingsAction: configuredSettings =>
+                {
+                    configuredSettings.PartitionCount = 1;
+                    configuredSettings.StorageAccountClientProvider = provider;
+                    settings = configuredSettings;
+                }))
+            {
+                Orchestrations.RewindSequentialChild.FailingInput = 0;
+                await host.StartAsync();
+
+                try
+                {
+                    string parentInstanceId = $"parent-sequential-{Guid.NewGuid():N}";
+                    TestOrchestrationClient parentClient = await host.StartOrchestrationAsync(
+                        typeof(Orchestrations.RewindSequentialParent),
+                        input: 2,
+                        instanceId: parentInstanceId);
+                    OrchestrationState firstFailure =
+                        await parentClient.WaitForCompletionAsync(StandardTimeout);
+                    Assert.IsNotNull(firstFailure);
+                    Assert.AreEqual(OrchestrationStatus.Failed, firstFailure.OrchestrationStatus);
+
+                    var trackingStore = (AzureTableTrackingStore)host.service.TrackingStore;
+                    string childCreatedFilter =
+                        $"{AzureTableQueryFilter.PartitionKeyEquals(parentInstanceId)} and " +
+                        $"{AzureTableQueryFilter.ColumnEquals(nameof(HistoryEvent.EventType), nameof(EventType.SubOrchestrationInstanceCreated))}";
+
+                    Orchestrations.RewindSequentialChild.FailingInput = 1;
+                    await parentClient.RewindAsync("Allow the first child and fail the second child.");
+                    OrchestrationState secondFailure =
+                        await parentClient.WaitForCompletionAsync(StandardTimeout);
+                    Assert.IsNotNull(secondFailure);
+                    Assert.AreEqual(OrchestrationStatus.Failed, secondFailure.OrchestrationStatus);
+
+                    TableEntity[] childCreated = (await trackingStore.HistoryTable
+                        .ExecuteQueryAsync<TableEntity>(childCreatedFilter)
+                        .ToListAsync())
+                        .OrderBy(entity => entity.RowKey)
+                        .ToArray();
+                    Assert.AreEqual(2, childCreated.Length);
+                    string completedChildInstanceId =
+                        childCreated[0].GetString(nameof(OrchestrationInstance.InstanceId));
+                    string failedChildInstanceId =
+                        childCreated[1].GetString(nameof(OrchestrationInstance.InstanceId));
+                    string completedChildFilter =
+                        $"{AzureTableQueryFilter.PartitionKeyEquals(completedChildInstanceId)} and " +
+                        $"{AzureTableQueryFilter.ColumnEquals(nameof(ITableEntity.RowKey), string.Empty)}";
+                    string failedChildFilter =
+                        $"{AzureTableQueryFilter.PartitionKeyEquals(failedChildInstanceId)} and " +
+                        $"{AzureTableQueryFilter.ColumnEquals(nameof(ITableEntity.RowKey), string.Empty)}";
+                    string parentInstanceFilter =
+                        $"{AzureTableQueryFilter.PartitionKeyEquals(parentInstanceId)} and " +
+                        $"{AzureTableQueryFilter.ColumnEquals(nameof(ITableEntity.RowKey), string.Empty)}";
+
+                    TableEntity completedChildBefore = await trackingStore.InstancesTable
+                        .ExecuteQueryAsync<TableEntity>(completedChildFilter, 1)
+                        .FirstOrDefaultAsync();
+                    Assert.AreEqual(
+                        OrchestrationStatus.Completed.ToString(),
+                        completedChildBefore.GetString("RuntimeStatus"));
+                    Assert.AreEqual("\"0\"", completedChildBefore.GetString("Output"));
+
+                    await host.StopAsync();
+                    queueRecorder.Clear();
+                    Orchestrations.RewindSequentialChild.FailingInput = -1;
+                    await parentClient.RewindAsync("Recover only the later failed child.");
+
+                    var messageManager = new MessageManager(
+                        settings,
+                        new AzureStorageClient(settings),
+                        $"{host.TaskHub.ToLowerInvariant()}-largemessages");
+                    string[] retryTargets = queueRecorder
+                        .GetQueueMessageBodies(
+                            AzureStorageOrchestrationService.GetControlQueueName(host.TaskHub, 0))
+                        .Select(body => DeserializeQueueMessageBody(messageManager, body))
+                        .Where(message => message.TaskMessage.Event is GenericEvent)
+                        .Select(message => message.TaskMessage.OrchestrationInstance.InstanceId)
+                        .Distinct()
+                        .ToArray();
+                    CollectionAssert.AreEqual(new[] { failedChildInstanceId }, retryTargets);
+
+                    TableEntity completedChildAfter = await trackingStore.InstancesTable
+                        .ExecuteQueryAsync<TableEntity>(completedChildFilter, 1)
+                        .FirstOrDefaultAsync();
+                    Assert.AreEqual(completedChildBefore.ETag, completedChildAfter.ETag);
+                    Assert.AreEqual(
+                        OrchestrationStatus.Completed.ToString(),
+                        completedChildAfter.GetString("RuntimeStatus"));
+                    Assert.AreEqual("\"0\"", completedChildAfter.GetString("Output"));
+
+                    var resumeService = new AzureStorageOrchestrationService(settings);
+                    using var resumeWorker = new TaskHubWorker(
+                        resumeService,
+                        loggerFactory: settings.LoggerFactory);
+                    resumeWorker.AddTaskOrchestrations(
+                        typeof(Orchestrations.RewindSequentialParent),
+                        typeof(Orchestrations.RewindSequentialChild));
+                    await resumeWorker.StartAsync();
+                    try
+                    {
+                        TableEntity completedParent = await WaitForInstanceStatusAsync(
+                            trackingStore.InstancesTable,
+                            parentInstanceFilter,
+                            OrchestrationStatus.Completed);
+                        TableEntity completedLaterChild = await WaitForInstanceStatusAsync(
+                            trackingStore.InstancesTable,
+                            failedChildFilter,
+                            OrchestrationStatus.Completed);
+                        Assert.AreEqual("\"0,1\"", completedParent.GetString("Output"));
+                        Assert.AreEqual("\"1\"", completedLaterChild.GetString("Output"));
+                    }
+                    finally
+                    {
+                        await resumeWorker.StopAsync(isForced: true);
+                    }
+                }
+                finally
+                {
+                    Orchestrations.RewindSequentialChild.FailingInput = 0;
+                }
             }
         }
 
@@ -5479,6 +5853,43 @@ namespace DurableTask.AzureStorage.Tests
                 public string ChildInstanceId { get; set; }
 
                 public bool SuspendBeforeFailure { get; set; }
+            }
+
+            [KnownType(typeof(RewindSequentialChild))]
+            public class RewindSequentialParent : TaskOrchestration<string, int>
+            {
+                public override async Task<string> RunTask(
+                    OrchestrationContext context,
+                    int childCount)
+                {
+                    var results = new string[childCount];
+                    for (int i = 0; i < childCount; i++)
+                    {
+                        results[i] = await context.CreateSubOrchestrationInstance<string>(
+                            typeof(RewindSequentialChild),
+                            i);
+                    }
+
+                    return string.Join(",", results);
+                }
+            }
+
+            [KnownType(typeof(RewindSequentialParent))]
+            public class RewindSequentialChild : TaskOrchestration<string, int>
+            {
+                public static int FailingInput = 0;
+
+                public override Task<string> RunTask(
+                    OrchestrationContext context,
+                    int input)
+                {
+                    if (input == FailingInput)
+                    {
+                        throw new Exception($"Simulating child {input} failure.");
+                    }
+
+                    return Task.FromResult(input.ToString());
+                }
             }
 
             [KnownType(typeof(Orchestrations.ParentWorkflowSubOrchestrationActivityFail))]

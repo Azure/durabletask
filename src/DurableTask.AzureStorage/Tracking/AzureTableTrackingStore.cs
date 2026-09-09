@@ -48,6 +48,9 @@ namespace DurableTask.AzureStorage.Tracking
         const string SentinelRowKey = "sentinel";
         const string IsCheckpointCompleteProperty = "IsCheckpointComplete";
         const string CheckpointCompletedTimestampProperty = "CheckpointCompletedTimestamp";
+        const string RewoundReasonPrefix = "Rewound: ";
+        const string RewoundExecutionCompletedReason = RewoundReasonPrefix + nameof(EventType.ExecutionCompleted);
+        const string RewoundSubOrchestrationFailedReason = RewoundReasonPrefix + nameof(EventType.SubOrchestrationInstanceFailed);
 
         // See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-the-table-service-data-model#property-types
         const int MaxTablePropertySizeInBytes = 60 * 1024; // 60KB to give buffer
@@ -72,6 +75,74 @@ namespace DurableTask.AzureStorage.Tracking
         readonly AzureStorageOrchestrationServiceStats stats;
         readonly IReadOnlyDictionary<EventType, Type> eventTypeMap;
         readonly MessageManager messageManager;
+
+        readonly struct RewindRecoveryEdge : IEquatable<RewindRecoveryEdge>
+        {
+            public RewindRecoveryEdge(
+                string parentInstanceId,
+                string parentExecutionId,
+                int taskScheduleId,
+                string childInstanceId,
+                string childExecutionId)
+            {
+                this.ParentInstanceId = parentInstanceId;
+                this.ParentExecutionId = parentExecutionId;
+                this.TaskScheduleId = taskScheduleId;
+                this.ChildInstanceId = childInstanceId;
+                this.ChildExecutionId = childExecutionId;
+            }
+
+            string ParentInstanceId { get; }
+
+            string ParentExecutionId { get; }
+
+            int TaskScheduleId { get; }
+
+            string ChildInstanceId { get; }
+
+            string ChildExecutionId { get; }
+
+            public bool Equals(RewindRecoveryEdge other)
+            {
+                return string.Equals(this.ParentInstanceId, other.ParentInstanceId, StringComparison.Ordinal) &&
+                    string.Equals(this.ParentExecutionId, other.ParentExecutionId, StringComparison.Ordinal) &&
+                    this.TaskScheduleId == other.TaskScheduleId &&
+                    string.Equals(this.ChildInstanceId, other.ChildInstanceId, StringComparison.Ordinal) &&
+                    string.Equals(this.ChildExecutionId, other.ChildExecutionId, StringComparison.Ordinal);
+            }
+
+            public override bool Equals(object obj)
+            {
+                return obj is RewindRecoveryEdge other && this.Equals(other);
+            }
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    int hash = 17;
+                    hash = (hash * 31) + StringComparer.Ordinal.GetHashCode(this.ParentInstanceId ?? string.Empty);
+                    hash = (hash * 31) + StringComparer.Ordinal.GetHashCode(this.ParentExecutionId ?? string.Empty);
+                    hash = (hash * 31) + this.TaskScheduleId;
+                    hash = (hash * 31) + StringComparer.Ordinal.GetHashCode(this.ChildInstanceId ?? string.Empty);
+                    hash = (hash * 31) + StringComparer.Ordinal.GetHashCode(this.ChildExecutionId ?? string.Empty);
+                    return hash;
+                }
+            }
+        }
+
+        sealed class RewindRecoveryState
+        {
+            public RewindRecoveryState(bool suppressesParent, IEnumerable<string> emittedTargets)
+            {
+                this.SuppressesParent = suppressesParent;
+                this.EmittedTargets = new HashSet<string>(emittedTargets, StringComparer.Ordinal);
+            }
+
+            public bool SuppressesParent { get; set; }
+
+            public HashSet<string> EmittedTargets { get; }
+        }
 
         public AzureTableTrackingStore(
             AzureStorageClient azureStorageClient,
@@ -271,7 +342,24 @@ namespace DurableTask.AzureStorage.Tracking
             return entities;
         }
 
-        public override async IAsyncEnumerable<string> RewindHistoryAsync(string instanceId, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        public override IAsyncEnumerable<string> RewindHistoryAsync(
+            string instanceId,
+            CancellationToken cancellationToken = default)
+        {
+            return this.RewindHistoryAsync(
+                instanceId,
+                rewindStartEntity: null,
+                resetCurrentInstance: true,
+                handledEdges: new Dictionary<RewindRecoveryEdge, RewindRecoveryState>(),
+                cancellationToken);
+        }
+
+        async IAsyncEnumerable<string> RewindHistoryAsync(
+            string instanceId,
+            TableEntity rewindStartEntity,
+            bool resetCurrentInstance,
+            Dictionary<RewindRecoveryEdge, RewindRecoveryState> handledEdges,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             // REWIND ALGORITHM:
@@ -296,7 +384,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             // Capture the instance version before changing history so the reset can fence a lagging
             // failure write without overwriting a state advanced by another rewind.
-            TableEntity rewindStartEntity = await this.GetInstanceEntityForRewindAsync(instanceId, cancellationToken);
+            rewindStartEntity ??= await this.GetInstanceEntityForRewindAsync(instanceId, cancellationToken);
             EnsureRewindExecutionMatches(rewindStartEntity, instanceId, executionId);
             ETag rewindStartETag = rewindStartEntity.ETag;
 
@@ -306,11 +394,23 @@ namespace DurableTask.AzureStorage.Tracking
             var updateFilterBuilder = new StringBuilder();
             updateFilterBuilder.Append($"{partitionFilter}");
             updateFilterBuilder.Append($" and {executionIdFilter}");
-            updateFilterBuilder.Append(" and (");
-            updateFilterBuilder.Append($"{nameof(ExecutionCompletedEvent.OrchestrationStatus)} eq '{nameof(OrchestrationStatus.Failed)}'");
-            updateFilterBuilder.Append($" or {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.TaskFailed)}'");
-            updateFilterBuilder.Append($" or {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.SubOrchestrationInstanceFailed)}'");
-            updateFilterBuilder.Append(')');
+            if (resetCurrentInstance)
+            {
+                updateFilterBuilder.Append(" and (");
+                updateFilterBuilder.Append($"{nameof(ExecutionCompletedEvent.OrchestrationStatus)} eq '{nameof(OrchestrationStatus.Failed)}'");
+                updateFilterBuilder.Append($" or {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.TaskFailed)}'");
+                updateFilterBuilder.Append($" or {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.SubOrchestrationInstanceFailed)}'");
+                updateFilterBuilder.Append(
+                    $" or ({AzureTableQueryFilter.ColumnEquals(nameof(HistoryEvent.EventType), nameof(EventType.GenericEvent))}" +
+                    $" and {AzureTableQueryFilter.ColumnEquals(nameof(SubOrchestrationInstanceFailedEvent.Reason), RewoundSubOrchestrationFailedReason)})");
+                updateFilterBuilder.Append(')');
+            }
+            else
+            {
+                updateFilterBuilder.Append(
+                    $" and {AzureTableQueryFilter.ColumnEquals(nameof(HistoryEvent.EventType), nameof(EventType.GenericEvent))}" +
+                    $" and {AzureTableQueryFilter.ColumnEquals(nameof(SubOrchestrationInstanceFailedEvent.Reason), RewoundSubOrchestrationFailedReason)}");
+            }
 
             IReadOnlyList<TableEntity> entitiesToClear = await this.QueryHistoryAsync(updateFilterBuilder.ToString(), instanceId, cancellationToken);
             foreach (TableEntity entity in entitiesToClear)
@@ -327,6 +427,10 @@ namespace DurableTask.AzureStorage.Tracking
                 }
 
                 int? taskScheduledId = entity.GetInt32(nameof(TaskCompletedEvent.TaskScheduledId));
+                string eventType = entity.GetString(nameof(HistoryEvent.EventType));
+                bool isRewoundSubOrchestrationFailure =
+                    eventType == nameof(EventType.GenericEvent) &&
+                    entity.GetString(nameof(SubOrchestrationInstanceFailedEvent.Reason)) == RewoundSubOrchestrationFailedReason;
 
                 var eventFilterBuilder = new StringBuilder();
                 eventFilterBuilder.Append($"{partitionFilter}");
@@ -341,46 +445,267 @@ namespace DurableTask.AzureStorage.Tracking
                         IReadOnlyList<TableEntity> taskScheduledEntities = await this.QueryHistoryAsync(eventFilterBuilder.ToString(), instanceId, cancellationToken);
 
                         TableEntity tsEntity = taskScheduledEntities[0];
-                        tsEntity[nameof(TaskFailedEvent.Reason)] = "Rewound: " + tsEntity.GetString(nameof(HistoryEvent.EventType));
+                        tsEntity[nameof(TaskFailedEvent.Reason)] =
+                            RewoundReasonPrefix + tsEntity.GetString(nameof(HistoryEvent.EventType));
                         tsEntity[nameof(TaskFailedEvent.EventType)] = nameof(EventType.GenericEvent);
                         await this.HistoryTable.ReplaceEntityAsync(tsEntity, tsEntity.ETag, cancellationToken);
                         break;
 
                     // delete SubOrchestratorCreated corresponding to SubOrchestraionInstanceFailed event
                     case nameof(EventType.SubOrchestrationInstanceFailed):
-                        hasFailedSubOrchestrations = true;
-
                         eventFilterBuilder.Append($" and {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.SubOrchestrationInstanceCreated)}'");
                         IReadOnlyList<TableEntity> subOrchesratrationEntities = await this.QueryHistoryAsync(eventFilterBuilder.ToString(), instanceId, cancellationToken);
 
-                        // the SubOrchestrationCreatedEvent is still healthy and will not be overwritten, just marked as rewound
                         TableEntity soEntity = subOrchesratrationEntities[0];
-                        soEntity[nameof(SubOrchestrationInstanceFailedEvent.Reason)] = "Rewound: " + soEntity.GetString(nameof(HistoryEvent.EventType));
+                        string childInstanceId = soEntity.GetString(nameof(OrchestrationInstance.InstanceId));
+                        // The SubOrchestrationCreatedEvent is still healthy and will not be overwritten, just marked as rewound.
+                        soEntity[nameof(SubOrchestrationInstanceFailedEvent.Reason)] =
+                            RewoundReasonPrefix + soEntity.GetString(nameof(HistoryEvent.EventType));
                         await this.HistoryTable.ReplaceEntityAsync(soEntity, soEntity.ETag, cancellationToken);
 
-                        // recursive call to clear out failure events on child instances
-                        await foreach (string childInstanceId in this.RewindHistoryAsync(soEntity.GetString(nameof(OrchestrationInstance.InstanceId)), cancellationToken))
+                        TableEntity liveChildRewindStartEntity =
+                            await this.GetInstanceEntityForRewindAsync(childInstanceId, cancellationToken);
+                        var liveEdge = new RewindRecoveryEdge(
+                            instanceId,
+                            executionId,
+                            taskScheduledId.GetValueOrDefault(),
+                            childInstanceId,
+                            liveChildRewindStartEntity.GetString(nameof(OrchestrationInstance.ExecutionId)));
+                        handledEdges.TryGetValue(liveEdge, out RewindRecoveryState liveEdgeState);
+                        var previouslyEmittedTargets = liveEdgeState == null
+                            ? new HashSet<string>(StringComparer.Ordinal)
+                            : new HashSet<string>(liveEdgeState.EmittedTargets, StringComparer.Ordinal);
+
+                        var liveTargets = new List<string>();
+                        await foreach (string failedLeafInstanceId in this.RewindHistoryAsync(
+                            childInstanceId,
+                            liveChildRewindStartEntity,
+                            resetCurrentInstance: true,
+                            handledEdges,
+                            cancellationToken))
                         {
-                            yield return childInstanceId;
+                            liveTargets.Add(failedLeafInstanceId);
+                        }
+
+                        // A live child failure suppresses the parent even if its recursive branch
+                        // unexpectedly produces no target, preserving the existing rewind behavior.
+                        if (liveEdgeState == null)
+                        {
+                            liveEdgeState = new RewindRecoveryState(
+                                suppressesParent: true,
+                                emittedTargets: liveTargets);
+                            handledEdges.Add(liveEdge, liveEdgeState);
+                        }
+                        else
+                        {
+                            liveEdgeState.SuppressesParent = true;
+                            liveEdgeState.EmittedTargets.UnionWith(liveTargets);
+                        }
+
+                        hasFailedSubOrchestrations = true;
+                        foreach (string liveTarget in liveTargets)
+                        {
+                            if (!previouslyEmittedTargets.Contains(liveTarget))
+                            {
+                                yield return liveTarget;
+                            }
                         }
 
                         break;
+
+                    case nameof(EventType.GenericEvent) when isRewoundSubOrchestrationFailure:
+                        if (!taskScheduledId.HasValue)
+                        {
+                            continue;
+                        }
+
+                        eventFilterBuilder.Append($" and {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.SubOrchestrationInstanceCreated)}'");
+                        IReadOnlyList<TableEntity> rewoundSubOrchestrationEntities =
+                            await this.QueryHistoryAsync(eventFilterBuilder.ToString(), instanceId, cancellationToken);
+
+                        TableEntity rewoundSubOrchestration = rewoundSubOrchestrationEntities[0];
+                        string rewoundChildInstanceId =
+                            rewoundSubOrchestration.GetString(nameof(OrchestrationInstance.InstanceId));
+                        (TableEntity childRewindStartEntity, bool resetChildInstance) =
+                            await this.GetRewindRecoveryContextAsync(
+                                rewoundChildInstanceId,
+                                instanceId,
+                                executionId,
+                                taskScheduledId.Value,
+                                cancellationToken);
+                        if (childRewindStartEntity == null)
+                        {
+                            continue;
+                        }
+
+                        var recoveredEdge = new RewindRecoveryEdge(
+                            instanceId,
+                            executionId,
+                            taskScheduledId.Value,
+                            rewoundChildInstanceId,
+                            childRewindStartEntity.GetString(nameof(OrchestrationInstance.ExecutionId)));
+                        if (handledEdges.TryGetValue(recoveredEdge, out RewindRecoveryState recoveredEdgeState))
+                        {
+                            hasFailedSubOrchestrations |= recoveredEdgeState.SuppressesParent;
+                            continue;
+                        }
+
+                        // Buffer this recovery branch so an active intermediate with no stranded
+                        // descendants does not suppress reviving the current parent.
+                        var recoveredTargets = new List<string>();
+                        await foreach (string recoveredTarget in this.RewindHistoryAsync(
+                            rewoundChildInstanceId,
+                            childRewindStartEntity,
+                            resetChildInstance,
+                            handledEdges,
+                            cancellationToken))
+                        {
+                            recoveredTargets.Add(recoveredTarget);
+                        }
+
+                        handledEdges.Add(
+                            recoveredEdge,
+                            new RewindRecoveryState(
+                                suppressesParent: recoveredTargets.Count > 0,
+                                emittedTargets: recoveredTargets));
+                        if (recoveredTargets.Count == 0)
+                        {
+                            continue;
+                        }
+
+                        hasFailedSubOrchestrations = true;
+                        foreach (string recoveredTarget in recoveredTargets)
+                        {
+                            yield return recoveredTarget;
+                        }
+
+                        // Keep the existing marker idempotent so another ancestor retry can recover it.
+                        continue;
+                }
+
+                if (eventType == nameof(EventType.GenericEvent) &&
+                    entity.GetString(nameof(TaskFailedEvent.Reason))?.StartsWith(RewoundReasonPrefix, StringComparison.Ordinal) == true)
+                {
+                    continue;
                 }
 
                 // "clear" failure event by making RewindEvent: replay ignores row while dummy event preserves rowKey
-                entity[nameof(TaskFailedEvent.Reason)] = "Rewound: " + entity.GetString(nameof(HistoryEvent.EventType));
+                entity[nameof(TaskFailedEvent.Reason)] = RewoundReasonPrefix + eventType;
                 entity[nameof(TaskFailedEvent.EventType)] = nameof(EventType.GenericEvent);
 
                 await this.HistoryTable.ReplaceEntityAsync(entity, entity.ETag, cancellationToken);
             }
 
-            // reset orchestration status in instance store table
-            await this.UpdateStatusForRewindAsync(instanceId, executionId, rewindStartETag, cancellationToken);
-
-            if (!hasFailedSubOrchestrations)
+            if (resetCurrentInstance)
             {
-                yield return instanceId;
+                // reset orchestration status in instance store table
+                await this.UpdateStatusForRewindAsync(instanceId, executionId, rewindStartETag, cancellationToken);
+
+                if (!hasFailedSubOrchestrations)
+                {
+                    yield return instanceId;
+                }
             }
+        }
+
+        async Task<(TableEntity RewindStartEntity, bool ResetCurrentInstance)> GetRewindRecoveryContextAsync(
+            string instanceId,
+            string expectedParentInstanceId,
+            string expectedParentExecutionId,
+            int expectedTaskScheduleId,
+            CancellationToken cancellationToken)
+        {
+            string instanceFilter =
+                $"{AzureTableQueryFilter.PartitionKeyEquals(instanceId)} and " +
+                $"{AzureTableQueryFilter.ColumnEquals(RowKeyProperty, string.Empty)}";
+            TableEntity instanceEntity = await this.InstancesTable
+                .ExecuteQueryAsync<TableEntity>(instanceFilter, 1, cancellationToken: cancellationToken)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (instanceEntity == null)
+            {
+                return default;
+            }
+
+            string executionId = instanceEntity.GetString(nameof(OrchestrationInstance.ExecutionId));
+            if (string.IsNullOrEmpty(executionId))
+            {
+                return default;
+            }
+
+            string runtimeStatus = instanceEntity.GetString("RuntimeStatus");
+            bool isPending =
+                runtimeStatus == nameof(OrchestrationStatus.Pending) &&
+                !instanceEntity.ContainsKey(OutputProperty);
+            bool isFailed = runtimeStatus == nameof(OrchestrationStatus.Failed);
+            bool isActive =
+                runtimeStatus == nameof(OrchestrationStatus.Running) ||
+                runtimeStatus == nameof(OrchestrationStatus.Suspended);
+            if (!isPending && !isFailed && !isActive)
+            {
+                return default;
+            }
+
+            string rewoundCompletionFilter =
+                $"{AzureTableQueryFilter.PartitionKeyEquals(instanceId)} and " +
+                $"{AzureTableQueryFilter.ColumnEquals(nameof(OrchestrationInstance.ExecutionId), executionId)} and " +
+                $"{AzureTableQueryFilter.ColumnEquals(nameof(HistoryEvent.EventType), nameof(EventType.GenericEvent))} and " +
+                $"{AzureTableQueryFilter.ColumnEquals(nameof(TaskFailedEvent.Reason), RewoundExecutionCompletedReason)} and " +
+                $"{AzureTableQueryFilter.ColumnEquals(nameof(ExecutionCompletedEvent.OrchestrationStatus), nameof(OrchestrationStatus.Failed))}";
+            IReadOnlyList<TableEntity> rewoundCompletions =
+                await this.QueryHistoryAsync(rewoundCompletionFilter, instanceId, cancellationToken);
+            if (rewoundCompletions.Count == 0)
+            {
+                return default;
+            }
+
+            string executionStartedFilter =
+                $"{AzureTableQueryFilter.PartitionKeyEquals(instanceId)} and " +
+                $"{AzureTableQueryFilter.ColumnEquals(nameof(OrchestrationInstance.ExecutionId), executionId)} and " +
+                $"{AzureTableQueryFilter.ColumnEquals(nameof(HistoryEvent.EventType), nameof(EventType.ExecutionStarted))}";
+            IReadOnlyList<TableEntity> executionStartedEntities =
+                await this.QueryHistoryAsync(executionStartedFilter, instanceId, cancellationToken);
+            if (executionStartedEntities.Count != 1)
+            {
+                return default;
+            }
+
+            var executionStarted = (ExecutionStartedEvent)TableEntityConverter.Deserialize(
+                executionStartedEntities[0],
+                typeof(ExecutionStartedEvent));
+            ParentInstance parent = executionStarted.ParentInstance;
+            if (!string.Equals(
+                    executionStarted.OrchestrationInstance?.InstanceId,
+                    instanceId,
+                    StringComparison.Ordinal) ||
+                !string.Equals(
+                    executionStarted.OrchestrationInstance?.ExecutionId,
+                    executionId,
+                    StringComparison.Ordinal) ||
+                !string.Equals(
+                    parent?.OrchestrationInstance?.InstanceId,
+                    expectedParentInstanceId,
+                    StringComparison.Ordinal) ||
+                !string.Equals(
+                    parent?.OrchestrationInstance?.ExecutionId,
+                    expectedParentExecutionId,
+                    StringComparison.Ordinal) ||
+                parent.TaskScheduleId != expectedTaskScheduleId)
+            {
+                return default;
+            }
+
+            string currentCompletionFilter =
+                $"{AzureTableQueryFilter.PartitionKeyEquals(instanceId)} and " +
+                $"{AzureTableQueryFilter.ColumnEquals(nameof(OrchestrationInstance.ExecutionId), executionId)} and " +
+                $"{AzureTableQueryFilter.ColumnEquals(nameof(HistoryEvent.EventType), nameof(EventType.ExecutionCompleted))}";
+            IReadOnlyList<TableEntity> currentCompletions =
+                await this.QueryHistoryAsync(currentCompletionFilter, instanceId, cancellationToken);
+            if (currentCompletions.Count > 0)
+            {
+                return default;
+            }
+
+            return (instanceEntity, !isActive);
         }
 
         /// <inheritdoc />
