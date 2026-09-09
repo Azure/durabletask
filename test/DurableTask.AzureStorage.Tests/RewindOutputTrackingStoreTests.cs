@@ -69,13 +69,18 @@ namespace DurableTask.AzureStorage.Tests
         [TestCleanup]
         public async Task Cleanup()
         {
-            if (this.trackingStore != null)
+            try
             {
-                await this.trackingStore.DeleteAsync();
+                if (this.trackingStore != null)
+                {
+                    await this.trackingStore.DeleteAsync();
+                }
             }
-
-            this.tableClientProvider?.Dispose();
-            this.tableRequestRecorder?.Dispose();
+            finally
+            {
+                this.tableClientProvider?.Dispose();
+                this.tableRequestRecorder?.Dispose();
+            }
         }
 
         [TestMethod]

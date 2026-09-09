@@ -689,7 +689,7 @@ namespace DurableTask.AzureStorage.Tracking
                     parent?.OrchestrationInstance?.ExecutionId,
                     expectedParentExecutionId,
                     StringComparison.Ordinal) ||
-                parent.TaskScheduleId != expectedTaskScheduleId)
+                parent?.TaskScheduleId != expectedTaskScheduleId)
             {
                 return default;
             }
