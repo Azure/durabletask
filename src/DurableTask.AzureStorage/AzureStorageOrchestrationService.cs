@@ -830,7 +830,11 @@ namespace DurableTask.AzureStorage
                         // If no messages have a matching execution ID, then delete all of them. This means all the
                         // messages are external (external events, termination, etc.) and were sent to an instance that
                         // doesn't exist or is no longer in a running state.
-                        if (messagesToDiscard.Count == 0)
+                        // This is only safe to do if the session's execution ID is itself null, otherwise the history
+                        // could be missing due to trying to fetch a particular execution ID that no longer exists for
+                        // example due to a continue-as-new. In that case we do not want to delete the external messages
+                        // but rather retry them on the current execution
+                        if (messagesToDiscard.Count == 0 && session.Instance.ExecutionId == null)
                         {
                             messagesToDiscard.AddRange(messagesToAbandon);
                             messagesToAbandon.Clear();
@@ -841,21 +845,24 @@ namespace DurableTask.AzureStorage
                         // the next time they are picked up.
                         messagesToAbandon.ForEach(session.DeferMessage);
 
-                        var eventListBuilder = new StringBuilder(orchestrationWorkItem.NewMessages.Count * 40);
-                        foreach (MessageData msg in messagesToDiscard)
+                        if (messagesToDiscard.Count > 0)
                         {
-                            eventListBuilder.Append(msg.TaskMessage.Event.EventType.ToString()).Append(',');
-                        }
+                            var eventListBuilder = new StringBuilder(orchestrationWorkItem.NewMessages.Count * 40);
+                            foreach (MessageData msg in messagesToDiscard)
+                            {
+                                eventListBuilder.Append(msg.TaskMessage.Event.EventType.ToString()).Append(',');
+                            }
 
-                        this.settings.Logger.DiscardingWorkItem(
-                            this.azureStorageClient.QueueAccountName,
-                            this.settings.TaskHubName,
-                            session.Instance.InstanceId,
-                            session.Instance.ExecutionId,
-                            orchestrationWorkItem.NewMessages.Count,
-                            session.RuntimeState.Events.Count,
-                            eventListBuilder.ToString(0, eventListBuilder.Length - 1) /* remove trailing comma */,
-                            warningMessage);
+                            this.settings.Logger.DiscardingWorkItem(
+                                this.azureStorageClient.QueueAccountName,
+                                this.settings.TaskHubName,
+                                session.Instance.InstanceId,
+                                session.Instance.ExecutionId,
+                                orchestrationWorkItem.NewMessages.Count,
+                                session.RuntimeState.Events.Count,
+                                eventListBuilder.ToString(0, eventListBuilder.Length - 1) /* remove trailing comma */,
+                                warningMessage);
+                        }
 
                         // The instance has already completed or never existed. Delete this message batch.
                         await this.DeleteMessageBatchAsync(session, messagesToDiscard);

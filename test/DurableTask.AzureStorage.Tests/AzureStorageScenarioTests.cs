@@ -3950,6 +3950,171 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        [TestMethod]
+        public async Task WorkerDoesNotDiscardExternalEventBatchedWithMessageForMissingExecution()
+        {
+            AzureStorageOrchestrationService service = null;
+            AzureStorageOrchestrationService retryService = null;
+            bool serviceStarted = false;
+            bool retryServiceStarted = false;
+
+            string instanceId = Guid.NewGuid().ToString();
+            string currentExecutionId = Guid.NewGuid().ToString();
+            string futureExecutionId = Guid.NewGuid().ToString();
+            DateTime fireAt = DateTime.UtcNow;
+
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                PartitionCount = 1,
+                StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                TaskHubName = "MixedBatch" + Guid.NewGuid().ToString("N").Substring(0, 12),
+                ExtendedSessionsEnabled = false,
+                ControlQueueVisibilityTimeout = TimeSpan.FromSeconds(5),
+                UseAppLease = false,
+            };
+
+            try
+            {
+                service = new AzureStorageOrchestrationService(settings);
+                await service.CreateAsync();
+
+                OrchestrationHistory emptyHistory = await service.TrackingStore.GetHistoryEventsAsync(
+                    instanceId,
+                    currentExecutionId);
+                var currentRuntimeState = new OrchestrationRuntimeState();
+                currentRuntimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                currentRuntimeState.AddEvent(new ExecutionStartedEvent(-1, string.Empty)
+                {
+                    Name = "orchestration",
+                    Version = string.Empty,
+                    OrchestrationInstance = new OrchestrationInstance
+                    {
+                        InstanceId = instanceId,
+                        ExecutionId = currentExecutionId,
+                    },
+                });
+                currentRuntimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+                await service.TrackingStore.UpdateStateAsync(
+                    currentRuntimeState,
+                    new OrchestrationRuntimeState(),
+                    instanceId,
+                    currentExecutionId,
+                    new OrchestrationETags { HistoryETag = emptyHistory.ETag },
+                    emptyHistory.TrackingStoreContext);
+
+                var controlQueue = service.AllControlQueues.Single();
+                var sourceInstance = new OrchestrationInstance
+                {
+                    InstanceId = "source",
+                    ExecutionId = "source-execution",
+                };
+
+                await controlQueue.AddMessageAsync(
+                    new TaskMessage
+                    {
+                        OrchestrationInstance = new OrchestrationInstance
+                        {
+                            InstanceId = instanceId,
+                            ExecutionId = futureExecutionId,
+                        },
+                        Event = new TimerFiredEvent(-1, fireAt) { TimerId = 0 },
+                    },
+                    sourceInstance);
+                await controlQueue.AddMessageAsync(
+                    new TaskMessage
+                    {
+                        OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
+                        Event = new EventRaisedEvent(-1, string.Empty) { Name = "event" },
+                    },
+                    sourceInstance);
+
+                await service.StartAsync();
+                serviceStarted = true;
+
+                using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
+                {
+                    TaskOrchestrationWorkItem workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                        TimeSpan.FromSeconds(30),
+                        timeout.Token);
+                    Assert.IsNull(workItem);
+                }
+
+                Assert.AreEqual(
+                    2,
+                    await controlQueue.InnerQueue.GetApproximateMessagesCountAsync(),
+                    "The out-of-order timer and execution-independent event should both remain on the queue.");
+
+                await service.StopAsync(isForced: true);
+                serviceStarted = false;
+
+                OrchestrationHistory currentHistory = await service.TrackingStore.GetHistoryEventsAsync(
+                    instanceId,
+                    currentExecutionId);
+                var futureRuntimeState = new OrchestrationRuntimeState();
+                futureRuntimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                futureRuntimeState.AddEvent(new ExecutionStartedEvent(-1, string.Empty)
+                {
+                    Name = "orchestration",
+                    Version = string.Empty,
+                    OrchestrationInstance = new OrchestrationInstance
+                    {
+                        InstanceId = instanceId,
+                        ExecutionId = futureExecutionId,
+                    },
+                });
+                futureRuntimeState.AddEvent(new TimerCreatedEvent(0, fireAt));
+                futureRuntimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+                await service.TrackingStore.UpdateStateAsync(
+                    futureRuntimeState,
+                    new OrchestrationRuntimeState(currentHistory.Events),
+                    instanceId,
+                    futureExecutionId,
+                    new OrchestrationETags { HistoryETag = currentHistory.ETag },
+                    currentHistory.TrackingStoreContext);
+
+                await Task.Delay(settings.ControlQueueVisibilityTimeout + TimeSpan.FromSeconds(1));
+
+                retryService = new AzureStorageOrchestrationService(settings);
+                await retryService.StartAsync();
+                retryServiceStarted = true;
+
+                using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
+                {
+                    TaskOrchestrationWorkItem workItem = await retryService.LockNextTaskOrchestrationWorkItemAsync(
+                        TimeSpan.FromSeconds(30),
+                        timeout.Token);
+
+                    Assert.IsNotNull(workItem);
+                    Assert.AreEqual(futureExecutionId, workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId);
+                    Assert.AreEqual(2, workItem.NewMessages.Count);
+                    Assert.IsTrue(workItem.NewMessages.Any(message => message.Event is TimerFiredEvent));
+                    Assert.IsTrue(workItem.NewMessages.Any(message => message.Event is EventRaisedEvent));
+                }
+            }
+            finally
+            {
+                if (retryServiceStarted)
+                {
+                    await retryService.StopAsync(isForced: true);
+                }
+
+                if (serviceStarted)
+                {
+                    await service.StopAsync(isForced: true);
+                }
+
+                if (service != null)
+                {
+                    await service.DeleteAsync();
+                }
+
+                retryService?.Dispose();
+                service?.Dispose();
+            }
+        }
+
         [DataTestMethod]
         [DataRow(true, true)]
         [DataRow(false, true)]
