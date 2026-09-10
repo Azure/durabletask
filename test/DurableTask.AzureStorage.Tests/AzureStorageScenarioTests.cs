@@ -4037,9 +4037,10 @@ namespace DurableTask.AzureStorage.Tests
 
                 // Now confirm that both messages remain on the queue, even though no history was fetched for the
                 // "future" execution ID attached to the TimerFired that has not yet been committed to the history table.
-                // Critically, we want to abandon both the TimerFired *and* the EventRaisedEvent even though the latter has
+                // Critically, we want to abandon both the TimerFired *and* the EventRaisedEvent even though the latter
                 // targets no specific execution ID.
-                // No work item is generated since no history was fetched, but both messages will be retried again after the visibility timeout expires.
+                // No work item is generated since no history was fetched, but both messages will be retried again after
+                // the visibility timeout expires.
                 using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
                 {
                     TaskOrchestrationWorkItem workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
