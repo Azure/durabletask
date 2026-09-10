@@ -3978,6 +3978,7 @@ namespace DurableTask.AzureStorage.Tests
                 service = new AzureStorageOrchestrationService(settings);
                 await service.CreateAsync();
 
+                // First manually generate a history for a particular "old" execution ID
                 OrchestrationHistory emptyHistory = await service.TrackingStore.GetHistoryEventsAsync(
                     instanceId,
                     currentExecutionId);
@@ -4010,6 +4011,8 @@ namespace DurableTask.AzureStorage.Tests
                     ExecutionId = "source-execution",
                 };
 
+                // Next, enqueue two messages - one is a TimerFired targeting a "future" execution that has
+                // not been committed yet, and another is a generic EventRaisedEvent that is execution-independent
                 await controlQueue.AddMessageAsync(
                     new TaskMessage
                     {
@@ -4032,6 +4035,11 @@ namespace DurableTask.AzureStorage.Tests
                 await service.StartAsync();
                 serviceStarted = true;
 
+                // Now confirm that both messages remain on the queue, even though no history was fetched for the
+                // "future" execution ID attached to the TimerFired that has not yet been committed to the history table.
+                // Critically, we want to abandon both the TimerFired *and* the EventRaisedEvent even though the latter has
+                // targets no specific execution ID.
+                // No work item is generated since no history was fetched, but both messages will be retried again after the visibility timeout expires.
                 using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
                 {
                     TaskOrchestrationWorkItem workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
@@ -4048,6 +4056,7 @@ namespace DurableTask.AzureStorage.Tests
                 await service.StopAsync(isForced: true);
                 serviceStarted = false;
 
+                // Now manually update the history to have the "future" execution ID
                 OrchestrationHistory currentHistory = await service.TrackingStore.GetHistoryEventsAsync(
                     instanceId,
                     currentExecutionId);
@@ -4080,6 +4089,8 @@ namespace DurableTask.AzureStorage.Tests
                 await retryService.StartAsync();
                 retryServiceStarted = true;
 
+                // This time when the history is fetched for the execution ID attached to the TimerFired, there *is*
+                // a stored history, so both messages can be processed and attached to the work item
                 using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
                 {
                     TaskOrchestrationWorkItem workItem = await retryService.LockNextTaskOrchestrationWorkItemAsync(
