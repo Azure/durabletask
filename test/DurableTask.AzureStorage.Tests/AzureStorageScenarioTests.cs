@@ -657,6 +657,13 @@ namespace DurableTask.AzureStorage.Tests
             return await containerClient.GetBlobsAsync(traits: BlobTraits.Metadata, states: BlobStates.None, prefix: directoryName, cancellationToken: default).CountAsync();
         }
 
+        static async Task<int> GetControlQueueMessageCountAsync(AzureStorageOrchestrationService service)
+        {
+            int[] messageCounts = await Task.WhenAll(
+                service.AllControlQueues.Select(queue => queue.InnerQueue.GetApproximateMessagesCountAsync()));
+            return messageCounts.Sum();
+        }
+
 
         [TestMethod]
         public async Task PurgeMultipleInstancesHistoryByTimePeriod_ScalabilityValidation()
@@ -2947,6 +2954,13 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(OrchestrationStatus.Completed, status.OrchestrationStatus);
                 Assert.AreEqual(input, JToken.Parse(status.Output).ToString());
                 Assert.AreEqual(input, JToken.Parse(status.Input).ToString());
+                if (!terminate)
+                {
+                    Assert.AreEqual(
+                        0,
+                        await GetControlQueueMessageCountAsync(host.service),
+                        "The external event sent to the completed orchestration should be deleted.");
+                }
 
                 // Now simulate there being no instance entity (which can be the case for suborchestrations that complete in one execution), and try again
                 await instanceTable.DeleteEntityAsync(entity, Azure.ETag.All);
@@ -2972,6 +2986,13 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.IsTrue(status.Name.Contains(nameof(Orchestrations.Echo)));
                 Assert.IsTrue(status.Tags.Contains(new KeyValuePair<string, string>("key", "value")));
                 Assert.AreEqual(executionId, status.OrchestrationInstance.ExecutionId);
+                if (!terminate)
+                {
+                    Assert.AreEqual(
+                        0,
+                        await GetControlQueueMessageCountAsync(host.service),
+                        "The external event sent after deleting the completed orchestration's instance row should be deleted.");
+                }
 
                 await host.StopAsync();
             }
@@ -3806,9 +3827,13 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [DataTestMethod]
-        [DataRow(true)]
-        [DataRow(false)]
-        public async Task WorkerAttemptingToDequeueMessageForNonExistentInstance(bool extendedSessionsEnabled)
+        [DataRow(true, false)]
+        [DataRow(false, false)]
+        [DataRow(true, true)]
+        [DataRow(false, true)]
+        public async Task WorkerAttemptingToDequeueMessageForNonExistentInstance(
+            bool extendedSessionsEnabled,
+            bool sendExternalEvent)
         {
             AzureStorageOrchestrationService service = null;
             try
@@ -3825,8 +3850,25 @@ namespace DurableTask.AzureStorage.Tests
                 await service.CreateAsync();
                 await service.StartAsync();
 
-                await service.SendTaskOrchestrationMessageAsync(
-                    new TaskMessage
+                TaskMessage message;
+                if (sendExternalEvent)
+                {
+                    message = new TaskMessage
+                    {
+                        OrchestrationInstance = new OrchestrationInstance
+                        {
+                            InstanceId = "instance_id",
+                            ExecutionId = null,
+                        },
+                        Event = new EventRaisedEvent(-1, string.Empty)
+                        {
+                            Name = "event",
+                        },
+                    };
+                }
+                else
+                {
+                    message = new TaskMessage
                     {
                         OrchestrationInstance = new OrchestrationInstance
                         {
@@ -3836,10 +3878,17 @@ namespace DurableTask.AzureStorage.Tests
                         Event = new TaskCompletedEvent(-1, 0, string.Empty)
                         {
                             Timestamp = DateTime.UtcNow - TimeSpan.FromMinutes(1),
-                        }
-                    });
+                        },
+                    };
+                }
 
-                for (int i = 0; i < 6; i++)
+                await service.SendTaskOrchestrationMessageAsync(
+                    message);
+
+                // Task responses are given five benefit-of-the-doubt abandonments before deletion. External events are
+                // not out-of-order messages, so an event for a nonexistent instance should be deleted immediately.
+                int dequeueAttempts = sendExternalEvent ? 1 : 6;
+                for (int i = 0; i < dequeueAttempts; i++)
                 {
                     var workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
                         TimeSpan.FromMinutes(1),
@@ -3847,9 +3896,10 @@ namespace DurableTask.AzureStorage.Tests
                     Assert.IsNull(workItem);
                 }
 
-                // On the last attempt, the message should have been deleted since we have exceeded the maximum abandonment count
-                // for a message to a nonexistent instance (5)
-                Assert.IsNull(await service.OwnedControlQueues.Single().InnerQueue.PeekMessageAsync());
+                Assert.AreEqual(
+                    0,
+                    await GetControlQueueMessageCountAsync(service),
+                    "The message for the nonexistent orchestration should be deleted rather than abandoned.");
             }
             finally
             {
@@ -4123,6 +4173,122 @@ namespace DurableTask.AzureStorage.Tests
                 }
 
                 retryService?.Dispose();
+                service?.Dispose();
+            }
+        }
+
+        [TestMethod]
+        public async Task WorkerDiscardsExecutionIndependentMessagesWhenPendingInstanceIsTerminated()
+        {
+            AzureStorageOrchestrationService service = null;
+            bool serviceStarted = false;
+
+            string instanceId = Guid.NewGuid().ToString();
+            string executionId = Guid.NewGuid().ToString();
+
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                PartitionCount = 1,
+                StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                TaskHubName = "PendingTermination" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                ExtendedSessionsEnabled = false,
+                ControlQueueVisibilityTimeout = TimeSpan.FromSeconds(5),
+                UseAppLease = false,
+            };
+
+            try
+            {
+                service = new AzureStorageOrchestrationService(settings);
+                await service.CreateAsync();
+
+                var orchestrationInstance = new OrchestrationInstance
+                {
+                    InstanceId = instanceId,
+                    ExecutionId = executionId,
+                };
+                var executionStartedEvent = new ExecutionStartedEvent(-1, string.Empty)
+                {
+                    Name = "orchestration",
+                    Version = string.Empty,
+                    OrchestrationInstance = orchestrationInstance,
+                };
+
+                // Create only the pending instance row, without committing any history or enqueueing its start message.
+                Assert.IsTrue(await service.TrackingStore.SetNewExecutionAsync(executionStartedEvent, null, null));
+                InstanceStatus status = await service.TrackingStore.FetchInstanceStatusAsync(instanceId);
+                Assert.AreEqual(OrchestrationStatus.Pending, status.State.OrchestrationStatus);
+                Assert.AreEqual(
+                    0,
+                    (await service.TrackingStore.GetHistoryEventsAsync(instanceId, executionId)).Events.Count);
+
+                var controlQueue = service.AllControlQueues.Single();
+                var sourceInstance = new OrchestrationInstance
+                {
+                    InstanceId = "source",
+                    ExecutionId = "source-execution",
+                };
+
+                // Now terminate the pending orchestration
+                await controlQueue.AddMessageAsync(
+                    new TaskMessage
+                    {
+                        OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
+                        Event = new ExecutionTerminatedEvent(-1, "terminate"),
+                    },
+                    sourceInstance);
+
+                await service.StartAsync();
+                serviceStarted = true;
+
+                using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
+                {
+                    TaskOrchestrationWorkItem workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                        TimeSpan.FromSeconds(30),
+                        timeout.Token);
+                    Assert.IsNull(workItem);
+                }
+
+                status = await service.TrackingStore.FetchInstanceStatusAsync(instanceId);
+                Assert.AreEqual(OrchestrationStatus.Terminated, status.State.OrchestrationStatus);
+                Assert.AreEqual(
+                    0,
+                    await controlQueue.InnerQueue.GetApproximateMessagesCountAsync(),
+                    "The termination message should be deleted after terminating the pending instance.");
+
+                // Now try to send an external event to the terminated pending instance. It should be deleted rather than abandoned.
+                await controlQueue.AddMessageAsync(
+                    new TaskMessage
+                    {
+                        OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
+                        Event = new EventRaisedEvent(-1, string.Empty) { Name = "event" },
+                    },
+                    sourceInstance);
+
+                using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
+                {
+                    TaskOrchestrationWorkItem workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                        TimeSpan.FromSeconds(30),
+                        timeout.Token);
+                    Assert.IsNull(workItem);
+                }
+
+                Assert.AreEqual(
+                    0,
+                    await controlQueue.InnerQueue.GetApproximateMessagesCountAsync(),
+                    "The external event sent to the terminated pending instance should be deleted.");
+            }
+            finally
+            {
+                if (serviceStarted)
+                {
+                    await service.StopAsync(isForced: true);
+                }
+
+                if (service != null)
+                {
+                    await service.DeleteAsync();
+                }
+
                 service?.Dispose();
             }
         }
