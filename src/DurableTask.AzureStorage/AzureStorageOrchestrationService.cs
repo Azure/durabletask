@@ -827,17 +827,11 @@ namespace DurableTask.AzureStorage
                             }
                         }
 
-                        // If no messages have a matching execution ID, then delete all of them. This means all the
-                        // messages are external (external events, termination, etc.) and were sent to an instance that
-                        // doesn't exist or is no longer in a running state:
-                        // - If the session's ExecutionId is null, that means no history exists for this instance at all
-                        // (since the session adopts whatever ExecutionId it finds in history, if it was not already set)
-                        // - If the ExecutionId is non-null, then either there exists state for a terminal instance, or
-                        // some of the messages in the batch had an execution ID with no matching history. In the first case,
-                        // we want to delete the message, in the second case we want to abandon it. To distinguish between the two,
-                        // IsExecutableInstanceAsync explicitly reports whether the instance is known to be terminal.
-                        if (messagesToDiscard.Count == 0 &&
-                            (session.Instance.ExecutionId == null || isKnownTerminalInstance))
+                        // If the instance is known to be terminal, delete all messages.
+                        // We don't necessarily want to do this for an instance with an empty history, because it
+                        // could be that there is no history for the specific execution attached to session.Instance.ExecutionId.
+                        // In this case, we would want to retry any external events that do not target a specific execution ID.
+                        if (isKnownTerminalInstance)
                         {
                             messagesToDiscard.AddRange(messagesToAbandon);
                             messagesToAbandon.Clear();
