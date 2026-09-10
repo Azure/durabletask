@@ -197,7 +197,7 @@ namespace DurableTask.AzureStorage
                 VisibilityTimeoutSeconds,
                 AppName,
                 ExtensionVersion,
-                Details);
+                Details ?? string.Empty);
         }
 
         [Event(EventIds.AssertFailure, Level = EventLevel.Warning, Message = "An unexpected condition was detected: {2}", Version = 2)]

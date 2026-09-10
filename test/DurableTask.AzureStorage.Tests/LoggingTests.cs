@@ -59,6 +59,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(LogLevel.Warning, logEvent.Level);
             Assert.AreEqual(EventIds.AbandoningMessage, logEvent.EventId.Id);
             Assert.AreEqual(nameof(EventIds.AbandoningMessage), logEvent.EventId.Name);
+            // Preserve the legacy unit label for customers that parse formatted log messages.
             Assert.AreEqual(
                 "instance-id: Abandoning [TaskScheduled#42] message back to control-queue and setting a visibility delay of 30ms",
                 ((ILogEvent)logEvent).FormattedMessage);
@@ -93,10 +94,12 @@ namespace DurableTask.AzureStorage.Tests
                 parameterNames);
         }
 
-        [TestMethod]
-        public void AbandoningMessage_WriteEventSourceWritesDetailsToFinalPayloadSlot()
+        [DataTestMethod]
+        [DataRow("The dispatcher abandoned the work item.", "The dispatcher abandoned the work item.")]
+        [DataRow("", "")]
+        [DataRow(null, "")]
+        public void AbandoningMessage_WriteEventSourceWritesDetailsToFinalPayloadSlot(string details, string expectedDetails)
         {
-            const string details = "The dispatcher abandoned the work item.";
             const string messageId = "event-source-test-message-id";
             var logEvent = new LogEvents.AbandoningMessage(
                 "test-account",
@@ -120,7 +123,7 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(EventIds.AbandoningMessage, listener.EventId);
                 Assert.AreEqual("Details", listener.PayloadNames.Last());
                 Assert.AreEqual(Utils.ExtensionVersion, listener.Payload[listener.Payload.Count - 2]);
-                Assert.AreEqual(details, listener.Payload.Last());
+                Assert.AreEqual(expectedDetails, listener.Payload.Last());
             }
         }
 
