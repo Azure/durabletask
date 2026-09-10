@@ -26,7 +26,8 @@ namespace DurableTask.Core
         MigrationStarted,
 
         /// <summary>
-        /// A migration has ended. On startup the backend records a durable marker and then runs normally.
+        /// A migration is ending. The backend stops accepting and dispatching work so the migration process can
+        /// complete the cutover.
         /// </summary>
         MigrationEnding,
     }

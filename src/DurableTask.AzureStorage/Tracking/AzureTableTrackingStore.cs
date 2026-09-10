@@ -50,11 +50,6 @@ namespace DurableTask.AzureStorage.Tracking
         const string CheckpointCompletedTimestampProperty = "CheckpointCompletedTimestamp";
         const string SequenceNumberProperty = "SequenceNumber";
 
-        // Well-known partition/row key and column for the single-row durable migration marker.
-        const string MigrationMarkerPartitionKey = "";
-        const string MigrationMarkerRowKey = "";
-        const string MigrationStateProperty = "State";
-
         // See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-the-table-service-data-model#property-types
         const int MaxTablePropertySizeInBytes = 60 * 1024; // 60KB to give buffer
 
@@ -79,7 +74,6 @@ namespace DurableTask.AzureStorage.Tracking
         readonly IReadOnlyDictionary<EventType, Type> eventTypeMap;
         readonly MessageManager messageManager;
         readonly ModifiedInstancesQueue modifiedInstancesQueue;
-        readonly Table migrationTable;
 
         // The live-migration mode supplied at startup, or null when not migrating. Set once before dispatch begins.
         MigrationMode? migrationMode;
@@ -103,8 +97,6 @@ namespace DurableTask.AzureStorage.Tracking
 
             this.HistoryTable = this.azureStorageClient.GetTableReference(historyTableName);
             this.InstancesTable = this.azureStorageClient.GetTableReference(instancesTableName);
-
-            this.migrationTable = this.azureStorageClient.GetTableReference(settings.MigrationTableName);
 
             // Use reflection to learn all the different event types supported by DTFx.
             // This could have been hardcoded, but I generally try to avoid hardcoding of point-in-time DTFx knowledge.
@@ -1042,8 +1034,9 @@ namespace DurableTask.AzureStorage.Tracking
 
 
         /// <inheritdoc />
-        public override Task StartAsync(CancellationToken cancellationToken = default)
+        public override Task StartAsync(MigrationMode? migrationMode = null, CancellationToken cancellationToken = default)
         {
+            this.migrationMode = migrationMode;
             ServicePointManager.FindServicePoint(this.HistoryTable.Uri).UseNagleAlgorithm = false;
             ServicePointManager.FindServicePoint(this.InstancesTable.Uri).UseNagleAlgorithm = false;
 

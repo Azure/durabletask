@@ -105,7 +105,7 @@ namespace DurableTask.AzureStorage.Tracking
         public abstract Task UpdateStatusForTerminationAsync(string instanceId, ExecutionTerminatedEvent executionTerminatedEvent, long sequenceNumber, CancellationToken cancellationToken = default);
 
         /// <inheritdoc />
-        public abstract Task StartAsync(CancellationToken cancellationToken = default);
+        public abstract Task StartAsync(MigrationMode? migrationMode = null, CancellationToken cancellationToken = default);
 
         /// <inheritdoc />
         public virtual bool IsMigrationActive => false;

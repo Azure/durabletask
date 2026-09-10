@@ -462,8 +462,8 @@ namespace DurableTask.AzureStorage
         /// <summary>
         /// Starts the orchestration service in the specified live-migration mode. For
         /// <see cref="MigrationMode.MigrationStarted"/> the modified-instances queue is created and modified instances
-        /// are recorded while running; for <see cref="MigrationMode.MigrationEnding"/> a durable marker is recorded and
-        /// all subsequent client requests are rejected.
+        /// are recorded while running; for <see cref="MigrationMode.MigrationEnding"/> all subsequent client requests
+        /// are rejected.
         /// </summary>
         /// <param name="migrationMode">The live-migration mode to run in.</param>
         public Task StartAsync(MigrationMode migrationMode)
@@ -478,18 +478,15 @@ namespace DurableTask.AzureStorage
                 throw new InvalidOperationException("The orchestration service has already started.");
             }
             await this.CreateIfNotExistsAsync();
-            await this.trackingStore.StartAsync();
+
+            if (migrationMode == MigrationMode.MigrationStarted)
+            {
+                await this.modifiedInstancesQueue.CreateIfNotExistsAsync();
+            }
 
             // Apply the migration mode before any dispatch begins so the flag is observed by all subsequent writes.
-            if (migrationMode.HasValue)
-            {
-                if (migrationMode.Value == MigrationMode.MigrationStarted)
-                {
-                    await this.modifiedInstancesQueue.CreateIfNotExistsAsync();
-                }
-
-                this.isMigrationEnding = migrationMode.Value == MigrationMode.MigrationEnding;
-            }
+            await this.trackingStore.StartAsync(migrationMode);
+            this.isMigrationEnding = migrationMode == MigrationMode.MigrationEnding;
 
             // Disable nagling to improve storage access latency:
             // https://blogs.msdn.microsoft.com/windowsazurestorage/2010/06/25/nagles-algorithm-is-not-friendly-towards-small-requests/
