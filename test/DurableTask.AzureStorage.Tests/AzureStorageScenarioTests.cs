@@ -33,6 +33,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.IO;
     using System.Linq;
     using System.Net;
+    using System.Reflection;
     using System.Runtime.Serialization;
     using System.Text;
     using System.Threading;
@@ -655,6 +656,13 @@ namespace DurableTask.AzureStorage.Tests
             await containerClient.CreateIfNotExistsAsync();
 
             return await containerClient.GetBlobsAsync(traits: BlobTraits.Metadata, states: BlobStates.None, prefix: directoryName, cancellationToken: default).CountAsync();
+        }
+
+        static async Task<int> GetControlQueueMessageCountAsync(AzureStorageOrchestrationService service)
+        {
+            int[] messageCounts = await Task.WhenAll(
+                service.AllControlQueues.Select(queue => queue.InnerQueue.GetApproximateMessagesCountAsync()));
+            return messageCounts.Sum();
         }
 
 
@@ -3163,6 +3171,378 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        [DataTestMethod]
+        [DataRow(OrchestrationStatus.Completed, false)]
+        [DataRow(OrchestrationStatus.Failed, false)]
+        [DataRow(OrchestrationStatus.Terminated, false)]
+        [DataRow(OrchestrationStatus.Completed, true)]
+        [DataRow(OrchestrationStatus.Failed, true)]
+        [DataRow(OrchestrationStatus.Terminated, true)]
+        public async Task WorkerDeletesMessagesForTerminalOrchestration(
+            OrchestrationStatus terminalStatus,
+            bool includeExecutionSpecificMessage)
+        {
+            AzureStorageOrchestrationService service = null;
+            bool serviceStarted = false;
+
+            string instanceId = Guid.NewGuid().ToString();
+            string executionId = Guid.NewGuid().ToString();
+            var orchestrationInstance = new OrchestrationInstance
+            {
+                InstanceId = instanceId,
+                ExecutionId = executionId,
+            };
+
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                PartitionCount = 1,
+                StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                TaskHubName = "TerminalMessages" + Guid.NewGuid().ToString("N").Substring(0, 10),
+                ExtendedSessionsEnabled = false,
+                UseAppLease = false,
+            };
+
+            try
+            {
+                service = new AzureStorageOrchestrationService(settings);
+                await service.CreateAsync();
+
+                // Create a completed orchestration history with the specific terminal status
+                OrchestrationHistory emptyHistory = await service.TrackingStore.GetHistoryEventsAsync(
+                    instanceId,
+                    executionId);
+                var runtimeState = new OrchestrationRuntimeState();
+                runtimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                runtimeState.AddEvent(new ExecutionStartedEvent(-1, string.Empty)
+                {
+                    Name = "orchestration",
+                    Version = string.Empty,
+                    OrchestrationInstance = orchestrationInstance,
+                });
+                if (includeExecutionSpecificMessage)
+                {
+                    runtimeState.AddEvent(new TaskScheduledEvent(0));
+                }
+
+                runtimeState.AddEvent(new ExecutionCompletedEvent(1, "output", terminalStatus));
+                runtimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+                await service.TrackingStore.UpdateStateAsync(
+                    runtimeState,
+                    new OrchestrationRuntimeState(),
+                    instanceId,
+                    executionId,
+                    new OrchestrationETags { HistoryETag = emptyHistory.ETag },
+                    emptyHistory.TrackingStoreContext);
+
+                var controlQueue = service.AllControlQueues.Single();
+                var sourceInstance = new OrchestrationInstance
+                {
+                    InstanceId = "source",
+                    ExecutionId = "source-execution",
+                };
+
+                // Enqueue an external event that targets no specific execution ID and potentially an
+                // event that does target the specific execution ID of the terminal orchestration
+                if (includeExecutionSpecificMessage)
+                {
+                    await controlQueue.AddMessageAsync(
+                        new TaskMessage
+                        {
+                            OrchestrationInstance = orchestrationInstance,
+                            Event = new TaskCompletedEvent(-1, 0, "result"),
+                        },
+                        sourceInstance);
+                }
+
+                await controlQueue.AddMessageAsync(
+                    new TaskMessage
+                    {
+                        OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
+                        Event = new EventRaisedEvent(-1, string.Empty) { Name = "event" },
+                    },
+                    sourceInstance);
+
+                await service.StartAsync();
+                serviceStarted = true;
+
+                int dequeueAttempts = includeExecutionSpecificMessage ? 2 : 1;
+                for (int i = 0; i < dequeueAttempts; i++)
+                {
+                    using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
+                    {
+                        TaskOrchestrationWorkItem workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                            TimeSpan.FromSeconds(30),
+                            timeout.Token);
+                        Assert.IsNull(workItem);
+                    }
+                }
+
+                // Confirm all messages are deleted.
+                Assert.AreEqual(
+                    0,
+                    await GetControlQueueMessageCountAsync(service),
+                    "All messages sent to the terminal orchestration should be deleted.");
+            }
+            finally
+            {
+                if (serviceStarted)
+                {
+                    await service.StopAsync(isForced: true);
+                }
+
+                if (service != null)
+                {
+                    await service.DeleteAsync();
+                }
+
+                service?.Dispose();
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public async Task WorkerDoesNotDiscardExternalEventBatchedWithStaleTerminalMessageDuringInstanceReuse(
+            bool includeTaskScheduledEvent)
+        {
+            AzureStorageOrchestrationService service = null;
+            bool serviceStarted = false;
+
+            string instanceId = Guid.NewGuid().ToString();
+            string oldExecutionId = Guid.NewGuid().ToString();
+            string newExecutionId = Guid.NewGuid().ToString();
+
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                PartitionCount = 1,
+                StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                TaskHubName = "ReusedInstance" + Guid.NewGuid().ToString("N").Substring(0, 10),
+                ExtendedSessionsEnabled = false,
+                UseAppLease = false,
+            };
+
+            try
+            {
+                service = new AzureStorageOrchestrationService(settings);
+                await service.CreateAsync();
+
+                var oldInstance = new OrchestrationInstance
+                {
+                    InstanceId = instanceId,
+                    ExecutionId = oldExecutionId,
+                };
+
+                // First create a terminal orchestration with the old execution ID
+                OrchestrationHistory emptyHistory = await service.TrackingStore.GetHistoryEventsAsync(
+                    instanceId,
+                    oldExecutionId);
+                var oldRuntimeState = new OrchestrationRuntimeState();
+                oldRuntimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                oldRuntimeState.AddEvent(new ExecutionStartedEvent(-1, string.Empty)
+                {
+                    Name = "orchestration",
+                    Version = string.Empty,
+                    OrchestrationInstance = oldInstance,
+                });
+                if (includeTaskScheduledEvent)
+                {
+                    oldRuntimeState.AddEvent(new TaskScheduledEvent(0));
+                }
+
+                oldRuntimeState.AddEvent(new ExecutionCompletedEvent(1, "output", OrchestrationStatus.Completed));
+                oldRuntimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+                await service.TrackingStore.UpdateStateAsync(
+                    oldRuntimeState,
+                    new OrchestrationRuntimeState(),
+                    instanceId,
+                    oldExecutionId,
+                    new OrchestrationETags { HistoryETag = emptyHistory.ETag },
+                    emptyHistory.TrackingStoreContext);
+
+                var newInstance = new OrchestrationInstance
+                {
+                    InstanceId = instanceId,
+                    ExecutionId = newExecutionId,
+                };
+                var newExecutionStartedEvent = new ExecutionStartedEvent(-1, string.Empty)
+                {
+                    Name = "orchestration",
+                    Version = string.Empty,
+                    OrchestrationInstance = newInstance,
+                    Generation = 1,
+                };
+
+                InstanceStatus oldInstanceStatus = await service.TrackingStore.FetchInstanceStatusAsync(instanceId);
+                Assert.IsNotNull(oldInstanceStatus);
+                Assert.IsTrue(await service.TrackingStore.SetNewExecutionAsync(
+                    newExecutionStartedEvent,
+                    oldInstanceStatus.ETag,
+                    inputPayloadOverride: null));
+
+                InstanceStatus pendingInstance = await service.TrackingStore.FetchInstanceStatusAsync(instanceId);
+                Assert.IsNotNull(pendingInstance);
+                Assert.AreEqual(newExecutionId, pendingInstance.State.OrchestrationInstance.ExecutionId);
+                Assert.AreEqual(OrchestrationStatus.Pending, pendingInstance.State.OrchestrationStatus);
+
+                var controlQueue = service.AllControlQueues.Single();
+                var sourceInstance = new OrchestrationInstance
+                {
+                    InstanceId = "source",
+                    ExecutionId = "source-execution",
+                };
+
+                // A delayed message for the old execution can arrive after the new ExecutionStarted message.
+                // The execution-independent event then joins the newer message batch targeting the old execution
+                // rather than the message batch containing the ExecutionStarted event for the new execution.
+                await controlQueue.AddMessageAsync(
+                    new TaskMessage
+                    {
+                        OrchestrationInstance = oldInstance,
+                        Event = new TaskCompletedEvent(-1, 0, "result"),
+                    },
+                    sourceInstance);
+                await controlQueue.AddMessageAsync(
+                    new TaskMessage
+                    {
+                        OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
+                        Event = new EventRaisedEvent(-1, string.Empty) { Name = "event" },
+                    },
+                    sourceInstance);
+                await controlQueue.AddMessageAsync(
+                    new TaskMessage
+                    {
+                        OrchestrationInstance = newInstance,
+                        Event = newExecutionStartedEvent,
+                    },
+                    sourceInstance);
+
+                // Fetch the messages directly so their pending-batch assignment is deterministic. The new
+                // ExecutionStarted message was enqueued after the stale messages and must form its own batch,
+                // while the external event joins the batch created by the stale TaskCompleted message.
+                var queuedMessages = new List<MessageData>();
+                using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
+                {
+                    while (queuedMessages.Count < 3)
+                    {
+                        queuedMessages.AddRange(await controlQueue.GetMessagesAsync(timeout.Token));
+                    }
+                }
+
+                Assert.AreEqual(3, queuedMessages.Count);
+                MessageData executionStartedMessage = queuedMessages.Single(
+                    message => message.TaskMessage.Event is ExecutionStartedEvent);
+                MessageData staleTaskCompletedMessage = queuedMessages.Single(
+                    message => message.TaskMessage.Event is TaskCompletedEvent);
+                MessageData externalEventMessage = queuedMessages.Single(
+                    message => message.TaskMessage.Event is EventRaisedEvent);
+
+                // Initialize the service lifecycle without allowing its queue listener to compete with
+                // the messages that this test assigns to pending batches explicitly.
+                settings.ControlQueueBufferThreshold = 0;
+                await service.StartAsync();
+                serviceStarted = true;
+
+                var sessionManagerField = typeof(AzureStorageOrchestrationService).GetField(
+                    "orchestrationSessionManager",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.IsNotNull(sessionManagerField);
+                var sessionManager = (OrchestrationSessionManager)sessionManagerField.GetValue(service);
+
+                Guid traceActivityId = Guid.NewGuid();
+                sessionManager.AddMessageToPendingOrchestration(
+                    controlQueue,
+                    new[] { staleTaskCompletedMessage, externalEventMessage },
+                    traceActivityId,
+                    CancellationToken.None);
+                sessionManager.AddMessageToPendingOrchestration(
+                    controlQueue,
+                    new[] { executionStartedMessage },
+                    traceActivityId,
+                    CancellationToken.None);
+
+                bool externalEventDelivered = false;
+                bool staleTerminalBatchProcessed = false;
+                for (int attempt = 0; attempt < 3 && !externalEventDelivered; attempt++)
+                {
+                    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                    TaskOrchestrationWorkItem workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                        TimeSpan.FromSeconds(30),
+                        timeout.Token);
+
+                    // The stale terminal batch does not produce a work item. The TaskCompleted event is either
+                    // discarded or removed as out of order, and the EventRaised event is abandoned and retried.
+                    if (workItem == null)
+                    {
+                        staleTerminalBatchProcessed = true;
+                        continue;
+                    }
+
+                    if (workItem.NewMessages.Any(message => message.Event is EventRaisedEvent))
+                    {
+                        // Either the ExecutionStartedEvent batch was committed first, in which case the execution ID is
+                        // already part of the orchestration runtime state and this EventRaisedEvent is retried by itself
+                        // after the work item with the stale TaskCompletedEvent is abandoned.
+                        // Or the ExecutionStartedEvent batch was dequeued second, in which case the EventRaisedEvent has
+                        // already been abandoned and is retried with the ExecutionStartedEvent as part of the new messages too
+                        string executionId = workItem.OrchestrationRuntimeState.OrchestrationInstance?.ExecutionId ??
+                            workItem.NewMessages.Single(message => message.Event is ExecutionStartedEvent)
+                                .OrchestrationInstance.ExecutionId;
+
+                        Assert.AreEqual(newExecutionId, executionId);
+                        Assert.IsFalse(workItem.NewMessages.Any(message => message.Event is TaskCompletedEvent));
+                        externalEventDelivered = true;
+                        await service.AbandonTaskOrchestrationWorkItemAsync(workItem);
+                        await service.ReleaseTaskOrchestrationWorkItemAsync(workItem);
+                        break;
+                    }
+
+                    // If the new ExecutionStarted batch is dequeued first, commit it so that the deferred
+                    // external event can subsequently be loaded against the new execution's history.
+                    Assert.AreEqual(1, workItem.NewMessages.Count);
+                    Assert.IsInstanceOfType(workItem.NewMessages.Single().Event, typeof(ExecutionStartedEvent));
+                    Assert.AreEqual(newExecutionId, workItem.NewMessages.Single().OrchestrationInstance.ExecutionId);
+
+                    OrchestrationRuntimeState newRuntimeState = workItem.OrchestrationRuntimeState;
+                    newRuntimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                    newRuntimeState.AddEvent(newExecutionStartedEvent);
+                    newRuntimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+                    await service.CompleteTaskOrchestrationWorkItemAsync(
+                        workItem,
+                        newRuntimeState,
+                        new List<TaskMessage>(),
+                        new List<TaskMessage>(),
+                        new List<TaskMessage>(),
+                        null,
+                        null);
+                    await service.ReleaseTaskOrchestrationWorkItemAsync(workItem);
+                }
+
+                Assert.IsTrue(
+                    staleTerminalBatchProcessed,
+                    "The stale execution-specific message should be processed against the old terminal history.");
+                Assert.IsTrue(
+                    externalEventDelivered,
+                    "The execution-independent event should be delivered to the recreated execution.");
+            }
+            finally
+            {
+                if (serviceStarted)
+                {
+                    await service.StopAsync(isForced: true);
+                }
+
+                if (service != null)
+                {
+                    await service.DeleteAsync();
+                }
+
+                service?.Dispose();
+            }
+        }
+
         /// <summary>
         /// Same as <see cref="TestWorkerFailingDuringCompleteWorkItemCallCompletedOrchestration"/> but for an orchestration with large input
         /// and output, which will need to be stored in blob storage.
@@ -3806,9 +4186,13 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [DataTestMethod]
-        [DataRow(true)]
-        [DataRow(false)]
-        public async Task WorkerAttemptingToDequeueMessageForNonExistentInstance(bool extendedSessionsEnabled)
+        [DataRow(true, false)]
+        [DataRow(false, false)]
+        [DataRow(true, true)]
+        [DataRow(false, true)]
+        public async Task WorkerAttemptingToDequeueMessageForNonExistentInstance(
+            bool extendedSessionsEnabled,
+            bool sendExternalEvent)
         {
             AzureStorageOrchestrationService service = null;
             try
@@ -3825,8 +4209,25 @@ namespace DurableTask.AzureStorage.Tests
                 await service.CreateAsync();
                 await service.StartAsync();
 
-                await service.SendTaskOrchestrationMessageAsync(
-                    new TaskMessage
+                TaskMessage message;
+                if (sendExternalEvent)
+                {
+                    message = new TaskMessage
+                    {
+                        OrchestrationInstance = new OrchestrationInstance
+                        {
+                            InstanceId = "instance_id",
+                            ExecutionId = null,
+                        },
+                        Event = new EventRaisedEvent(-1, string.Empty)
+                        {
+                            Name = "event",
+                        },
+                    };
+                }
+                else
+                {
+                    message = new TaskMessage
                     {
                         OrchestrationInstance = new OrchestrationInstance
                         {
@@ -3836,10 +4237,17 @@ namespace DurableTask.AzureStorage.Tests
                         Event = new TaskCompletedEvent(-1, 0, string.Empty)
                         {
                             Timestamp = DateTime.UtcNow - TimeSpan.FromMinutes(1),
-                        }
-                    });
+                        },
+                    };
+                }
 
-                for (int i = 0; i < 6; i++)
+                await service.SendTaskOrchestrationMessageAsync(
+                    message);
+
+                // Task responses are given five benefit-of-the-doubt abandonments before deletion. External events are
+                // not out-of-order messages, so an event for a nonexistent instance should be deleted immediately.
+                int dequeueAttempts = sendExternalEvent ? 1 : 6;
+                for (int i = 0; i < dequeueAttempts; i++)
                 {
                     var workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
                         TimeSpan.FromMinutes(1),
@@ -3847,9 +4255,10 @@ namespace DurableTask.AzureStorage.Tests
                     Assert.IsNull(workItem);
                 }
 
-                // On the last attempt, the message should have been deleted since we have exceeded the maximum abandonment count
-                // for a message to a nonexistent instance (5)
-                Assert.IsNull(await service.OwnedControlQueues.Single().InnerQueue.PeekMessageAsync());
+                Assert.AreEqual(
+                    0,
+                    await GetControlQueueMessageCountAsync(service),
+                    "The message for the nonexistent orchestration should be deleted rather than abandoned.");
             }
             finally
             {
@@ -3947,6 +4356,299 @@ namespace DurableTask.AzureStorage.Tests
             finally
             {
                 await service?.StopAsync(isForced: true);
+            }
+        }
+
+        [TestMethod]
+        public async Task WorkerDoesNotDiscardExternalEventBatchedWithMessageForMissingExecution()
+        {
+            AzureStorageOrchestrationService service = null;
+            AzureStorageOrchestrationService retryService = null;
+            bool serviceStarted = false;
+            bool retryServiceStarted = false;
+
+            string instanceId = Guid.NewGuid().ToString();
+            string currentExecutionId = Guid.NewGuid().ToString();
+            string futureExecutionId = Guid.NewGuid().ToString();
+            DateTime fireAt = DateTime.UtcNow;
+
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                PartitionCount = 1,
+                StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                TaskHubName = "MixedBatch" + Guid.NewGuid().ToString("N").Substring(0, 12),
+                ExtendedSessionsEnabled = false,
+                ControlQueueVisibilityTimeout = TimeSpan.FromSeconds(5),
+                UseAppLease = false,
+            };
+
+            try
+            {
+                service = new AzureStorageOrchestrationService(settings);
+                await service.CreateAsync();
+
+                // First manually generate a history for a particular "old" execution ID
+                OrchestrationHistory emptyHistory = await service.TrackingStore.GetHistoryEventsAsync(
+                    instanceId,
+                    currentExecutionId);
+                var currentRuntimeState = new OrchestrationRuntimeState();
+                currentRuntimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                currentRuntimeState.AddEvent(new ExecutionStartedEvent(-1, string.Empty)
+                {
+                    Name = "orchestration",
+                    Version = string.Empty,
+                    OrchestrationInstance = new OrchestrationInstance
+                    {
+                        InstanceId = instanceId,
+                        ExecutionId = currentExecutionId,
+                    },
+                });
+                currentRuntimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+                await service.TrackingStore.UpdateStateAsync(
+                    currentRuntimeState,
+                    new OrchestrationRuntimeState(),
+                    instanceId,
+                    currentExecutionId,
+                    new OrchestrationETags { HistoryETag = emptyHistory.ETag },
+                    emptyHistory.TrackingStoreContext);
+
+                var controlQueue = service.AllControlQueues.Single();
+                var sourceInstance = new OrchestrationInstance
+                {
+                    InstanceId = "source",
+                    ExecutionId = "source-execution",
+                };
+
+                // Next, enqueue two messages - one is a TimerFired targeting a "future" execution that has
+                // not been committed yet, and another is a generic EventRaisedEvent that is execution-independent
+                await controlQueue.AddMessageAsync(
+                    new TaskMessage
+                    {
+                        OrchestrationInstance = new OrchestrationInstance
+                        {
+                            InstanceId = instanceId,
+                            ExecutionId = futureExecutionId,
+                        },
+                        Event = new TimerFiredEvent(-1, fireAt) { TimerId = 0 },
+                    },
+                    sourceInstance);
+                await controlQueue.AddMessageAsync(
+                    new TaskMessage
+                    {
+                        OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
+                        Event = new EventRaisedEvent(-1, string.Empty) { Name = "event" },
+                    },
+                    sourceInstance);
+
+                await service.StartAsync();
+                serviceStarted = true;
+
+                // Now confirm that both messages remain on the queue, even though no history was fetched for the
+                // "future" execution ID attached to the TimerFired that has not yet been committed to the history table.
+                // Critically, we want to abandon both the TimerFired *and* the EventRaisedEvent even though the latter
+                // targets no specific execution ID.
+                // No work item is generated since no history was fetched, but both messages will be retried again after
+                // the visibility timeout expires.
+                using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
+                {
+                    TaskOrchestrationWorkItem workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                        TimeSpan.FromSeconds(30),
+                        timeout.Token);
+                    Assert.IsNull(workItem);
+                }
+
+                Assert.AreEqual(
+                    2,
+                    await controlQueue.InnerQueue.GetApproximateMessagesCountAsync(),
+                    "The out-of-order timer and execution-independent event should both remain on the queue.");
+
+                await service.StopAsync(isForced: true);
+                serviceStarted = false;
+
+                // Now manually update the history to have the "future" execution ID
+                OrchestrationHistory currentHistory = await service.TrackingStore.GetHistoryEventsAsync(
+                    instanceId,
+                    currentExecutionId);
+                var futureRuntimeState = new OrchestrationRuntimeState();
+                futureRuntimeState.AddEvent(new OrchestratorStartedEvent(-1));
+                futureRuntimeState.AddEvent(new ExecutionStartedEvent(-1, string.Empty)
+                {
+                    Name = "orchestration",
+                    Version = string.Empty,
+                    OrchestrationInstance = new OrchestrationInstance
+                    {
+                        InstanceId = instanceId,
+                        ExecutionId = futureExecutionId,
+                    },
+                });
+                futureRuntimeState.AddEvent(new TimerCreatedEvent(0, fireAt));
+                futureRuntimeState.AddEvent(new OrchestratorCompletedEvent(-1));
+
+                await service.TrackingStore.UpdateStateAsync(
+                    futureRuntimeState,
+                    new OrchestrationRuntimeState(currentHistory.Events),
+                    instanceId,
+                    futureExecutionId,
+                    new OrchestrationETags { HistoryETag = currentHistory.ETag },
+                    currentHistory.TrackingStoreContext);
+
+                await Task.Delay(settings.ControlQueueVisibilityTimeout + TimeSpan.FromSeconds(1));
+
+                retryService = new AzureStorageOrchestrationService(settings);
+                await retryService.StartAsync();
+                retryServiceStarted = true;
+
+                // This time when the history is fetched for the execution ID attached to the TimerFired, there *is*
+                // a stored history, so both messages can be processed and attached to the work item
+                using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
+                {
+                    TaskOrchestrationWorkItem workItem = await retryService.LockNextTaskOrchestrationWorkItemAsync(
+                        TimeSpan.FromSeconds(30),
+                        timeout.Token);
+
+                    Assert.IsNotNull(workItem);
+                    Assert.AreEqual(futureExecutionId, workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId);
+                    Assert.AreEqual(2, workItem.NewMessages.Count);
+                    Assert.IsTrue(workItem.NewMessages.Any(message => message.Event is TimerFiredEvent));
+                    Assert.IsTrue(workItem.NewMessages.Any(message => message.Event is EventRaisedEvent));
+                }
+            }
+            finally
+            {
+                if (retryServiceStarted)
+                {
+                    await retryService.StopAsync(isForced: true);
+                }
+
+                if (serviceStarted)
+                {
+                    await service.StopAsync(isForced: true);
+                }
+
+                if (service != null)
+                {
+                    await service.DeleteAsync();
+                }
+
+                retryService?.Dispose();
+                service?.Dispose();
+            }
+        }
+
+        [TestMethod]
+        public async Task WorkerDiscardsExecutionIndependentMessagesWhenPendingInstanceIsTerminated()
+        {
+            AzureStorageOrchestrationService service = null;
+            bool serviceStarted = false;
+
+            string instanceId = Guid.NewGuid().ToString();
+            string executionId = Guid.NewGuid().ToString();
+
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                PartitionCount = 1,
+                StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                TaskHubName = "PendingTermination" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                ExtendedSessionsEnabled = false,
+                ControlQueueVisibilityTimeout = TimeSpan.FromSeconds(5),
+                UseAppLease = false,
+            };
+
+            try
+            {
+                service = new AzureStorageOrchestrationService(settings);
+                await service.CreateAsync();
+
+                var orchestrationInstance = new OrchestrationInstance
+                {
+                    InstanceId = instanceId,
+                    ExecutionId = executionId,
+                };
+                var executionStartedEvent = new ExecutionStartedEvent(-1, string.Empty)
+                {
+                    Name = "orchestration",
+                    Version = string.Empty,
+                    OrchestrationInstance = orchestrationInstance,
+                };
+
+                // Create only the pending instance row, without committing any history or enqueueing its start message.
+                Assert.IsTrue(await service.TrackingStore.SetNewExecutionAsync(executionStartedEvent, null, null));
+                InstanceStatus status = await service.TrackingStore.FetchInstanceStatusAsync(instanceId);
+                Assert.AreEqual(OrchestrationStatus.Pending, status.State.OrchestrationStatus);
+                Assert.AreEqual(
+                    0,
+                    (await service.TrackingStore.GetHistoryEventsAsync(instanceId, executionId)).Events.Count);
+
+                var controlQueue = service.AllControlQueues.Single();
+                var sourceInstance = new OrchestrationInstance
+                {
+                    InstanceId = "source",
+                    ExecutionId = "source-execution",
+                };
+
+                // Now terminate the pending orchestration
+                await controlQueue.AddMessageAsync(
+                    new TaskMessage
+                    {
+                        OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
+                        Event = new ExecutionTerminatedEvent(-1, "terminate"),
+                    },
+                    sourceInstance);
+
+                await service.StartAsync();
+                serviceStarted = true;
+
+                using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
+                {
+                    TaskOrchestrationWorkItem workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                        TimeSpan.FromSeconds(30),
+                        timeout.Token);
+                    Assert.IsNull(workItem);
+                }
+
+                status = await service.TrackingStore.FetchInstanceStatusAsync(instanceId);
+                Assert.AreEqual(OrchestrationStatus.Terminated, status.State.OrchestrationStatus);
+                Assert.AreEqual(
+                    0,
+                    await controlQueue.InnerQueue.GetApproximateMessagesCountAsync(),
+                    "The termination message should be deleted after terminating the pending instance.");
+
+                // Now try to send an external event to the terminated pending instance. It should be deleted rather than abandoned.
+                await controlQueue.AddMessageAsync(
+                    new TaskMessage
+                    {
+                        OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
+                        Event = new EventRaisedEvent(-1, string.Empty) { Name = "event" },
+                    },
+                    sourceInstance);
+
+                using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
+                {
+                    TaskOrchestrationWorkItem workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                        TimeSpan.FromSeconds(30),
+                        timeout.Token);
+                    Assert.IsNull(workItem);
+                }
+
+                Assert.AreEqual(
+                    0,
+                    await controlQueue.InnerQueue.GetApproximateMessagesCountAsync(),
+                    "The external event sent to the terminated pending instance should be deleted.");
+            }
+            finally
+            {
+                if (serviceStarted)
+                {
+                    await service.StopAsync(isForced: true);
+                }
+
+                if (service != null)
+                {
+                    await service.DeleteAsync();
+                }
+
+                service?.Dispose();
             }
         }
 
