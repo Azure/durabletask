@@ -152,7 +152,13 @@ namespace DurableTask.AzureStorage
         public TimeSpan MaxQueuePollingInterval { get; set; } = DefaultMaxQueuePollingInterval;
 
         /// <summary>
-        /// If true, takes a lease on the task hub container, allowing for only one app to process messages in a task hub at a time.
+        /// If true, workers wait for their <see cref="AppName"/> to own the app lease before starting
+        /// each new activity receive. Workers sharing that app name may receive activities concurrently.
+        /// Ownership loss does not cancel an activity receive that already started, which may continue
+        /// polling and execute a returned activity after ownership is lost. The next receive waits for
+        /// ownership. This local gate is cooperative, not an atomic or exactly-once ownership boundary.
+        /// Already dispatched activities are not canceled. Orchestration and entity message processing
+        /// retain their existing behavior.
         /// </summary>
         public bool UseAppLease { get; set; } = true;
 
