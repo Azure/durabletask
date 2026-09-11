@@ -835,8 +835,7 @@ namespace DurableTask.AzureStorage
                         // is safe to discard all remaining messages if the instance is not deemed executable.
                         // Otherwise, preserve execution-independent messages because there may be a valid history for
                         // another execution ID stored.
-                        if (messagesToDiscard.Count == 0 &&
-                            !matchingExecutionMessageWasAbandoned)
+                        if (messagesToDiscard.Count == 0 && !matchingExecutionMessageWasAbandoned)
                         {
                             messagesToDiscard.AddRange(messagesToAbandon);
                             messagesToAbandon.Clear();
