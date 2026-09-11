@@ -22,6 +22,7 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using DurableTask.Core.Settings;
+    using DurableTask.Core.Tracing;
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging.Utility;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Moq;
@@ -4831,6 +4832,268 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(createOrchestration.TraceId.ToString(), taskExecution.TraceId.ToString(), taskCompleted.TraceId.ToString(), orchestrationExecution.TraceId.ToString());
         }
 
+        [TestMethod]
+        public async Task OpenTelemetry_ForeignParentSurvivesStorageRestart()
+        {
+            const string foreignTraceId = "0af7651916cd43dd8448eb211c80319c";
+            const string foreignSpanId = "b7ad6b7169203331";
+            var processor = new Mock<BaseProcessor<Activity>>();
+            var settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(enableExtendedSessions: false);
+            settings.TaskHubName = $"OtelParent{Guid.NewGuid():N}".Substring(0, 20);
+
+            var serviceBeforeRestart = new AzureStorageOrchestrationService(settings);
+            AzureStorageOrchestrationService serviceAfterRestart = null;
+            TaskHubWorker worker = null;
+
+            await serviceBeforeRestart.CreateAsync();
+
+            try
+            {
+                using (Sdk.CreateTracerProviderBuilder()
+                    .AddSource("DurableTask.Core")
+                    .AddProcessor(processor.Object)
+                    .Build())
+                {
+                    var instance = new OrchestrationInstance
+                    {
+                        InstanceId = Guid.NewGuid().ToString("N"),
+                        ExecutionId = Guid.NewGuid().ToString("N"),
+                    };
+                    var startedEvent = new ExecutionStartedEvent(-1, JsonConvert.SerializeObject("World"))
+                    {
+                        Name = NameVersionHelper.GetDefaultName(typeof(Orchestrations.SayHelloWithActivity)),
+                        Version = NameVersionHelper.GetDefaultVersion(typeof(Orchestrations.SayHelloWithActivity)),
+                        OrchestrationInstance = instance,
+                        ParentTraceContext = new DistributedTraceContext(
+                            $"00-{foreignTraceId}-{foreignSpanId}-01",
+                            "vendor=value"),
+                    };
+
+                    await serviceBeforeRestart.CreateTaskOrchestrationAsync(new TaskMessage
+                    {
+                        OrchestrationInstance = instance,
+                        Event = startedEvent,
+                    });
+
+                    serviceAfterRestart = new AzureStorageOrchestrationService(settings);
+                    var client = new TaskHubClient(serviceAfterRestart);
+                    worker = new TaskHubWorker(serviceAfterRestart);
+                    worker.AddTaskOrchestrations(typeof(Orchestrations.SayHelloWithActivity));
+                    worker.AddTaskActivities(typeof(Activities.Hello));
+                    await worker.StartAsync();
+
+                    OrchestrationState state = await client.WaitForOrchestrationAsync(instance, StandardTimeout);
+                    Assert.IsNotNull(state);
+                    Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+                    Assert.AreEqual("\"Hello, World!\"", state.Output);
+
+                    await worker.StopAsync();
+                    worker = null;
+
+                    List<Activity> endedActivities = GetEndedActivities(processor, instance.InstanceId);
+                    Assert.AreEqual(3, endedActivities.Count);
+
+                    Activity orchestration = GetActivity(
+                        endedActivities,
+                        ActivityKind.Server,
+                        "orchestration",
+                        startedEvent.Name);
+                    Activity activityClient = GetActivity(
+                        endedActivities,
+                        ActivityKind.Client,
+                        "activity",
+                        NameVersionHelper.GetDefaultName(typeof(Activities.Hello)));
+                    Activity activityServer = GetActivity(
+                        endedActivities,
+                        ActivityKind.Server,
+                        "activity",
+                        NameVersionHelper.GetDefaultName(typeof(Activities.Hello)));
+
+                    Assert.AreEqual(foreignTraceId, orchestration.TraceId.ToString());
+                    Assert.AreEqual(foreignSpanId, orchestration.ParentSpanId.ToString());
+                    Assert.AreEqual(orchestration.SpanId, activityClient.ParentSpanId);
+                    Assert.AreEqual(activityClient.SpanId, activityServer.ParentSpanId);
+
+                    foreach (Activity activity in endedActivities)
+                    {
+                        Assert.AreEqual(foreignTraceId, activity.TraceId.ToString());
+                        Assert.AreEqual("vendor=value", activity.TraceStateString);
+                    }
+                }
+            }
+            finally
+            {
+                if (worker != null)
+                {
+                    await worker.StopAsync();
+                }
+
+                if (serviceAfterRestart != null)
+                {
+                    await serviceAfterRestart.DeleteAsync();
+                }
+                else
+                {
+                    await serviceBeforeRestart.DeleteAsync();
+                }
+            }
+        }
+
+        [TestMethod]
+        public async Task OpenTelemetry_ActivityRetryCreatesDistinctAttemptSpans()
+        {
+            var processor = new Mock<BaseProcessor<Activity>>();
+            Activities.HelloRetryOnce.Reset();
+
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            using (Sdk.CreateTracerProviderBuilder()
+                .AddSource("DurableTask.Core")
+                .AddProcessor(processor.Object)
+                .Build())
+            {
+                await host.StartAsync();
+                TestOrchestrationClient client;
+                try
+                {
+                    client = await host.StartOrchestrationAsync(typeof(Orchestrations.SayHelloWithRetryActivity), "World");
+                    OrchestrationState state = await client.WaitForCompletionAsync(StandardTimeout);
+
+                    Assert.IsNotNull(state);
+                    Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+                    Assert.AreEqual("\"Hello, World!\"", state.Output);
+                }
+                finally
+                {
+                    await host.StopAsync();
+                }
+
+                List<Activity> endedActivities = GetEndedActivities(processor, client.InstanceId);
+                string orchestrationName = NameVersionHelper.GetDefaultName(typeof(Orchestrations.SayHelloWithRetryActivity));
+                string activityName = NameVersionHelper.GetDefaultName(typeof(Activities.HelloRetryOnce));
+
+                Activity create = GetActivity(endedActivities, ActivityKind.Producer, "orchestration", orchestrationName);
+                Activity orchestration = GetActivity(endedActivities, ActivityKind.Server, "orchestration", orchestrationName);
+                List<Activity> activityClients = GetActivities(endedActivities, ActivityKind.Client, "activity", activityName);
+                List<Activity> activityServers = GetActivities(endedActivities, ActivityKind.Server, "activity", activityName);
+
+                Assert.AreEqual(2, activityClients.Count);
+                Assert.AreEqual(2, activityServers.Count);
+                Assert.AreEqual(2, activityClients.Select(a => a.SpanId).Distinct().Count());
+                Assert.AreEqual(2, activityServers.Select(a => a.SpanId).Distinct().Count());
+                Assert.AreEqual(1, activityClients.Count(a => a.Status == ActivityStatusCode.Error));
+                Assert.AreEqual(1, activityServers.Count(a => a.Status == ActivityStatusCode.Error));
+
+                foreach (Activity activityClient in activityClients)
+                {
+                    Assert.AreEqual(orchestration.SpanId, activityClient.ParentSpanId);
+                    Assert.AreEqual(create.TraceId, activityClient.TraceId);
+                    Activity activityServer = activityServers.Single(a => a.ParentSpanId == activityClient.SpanId);
+                    Assert.AreEqual(activityClient.TraceId, activityServer.TraceId);
+                }
+
+                Assert.AreEqual(create.TraceId, orchestration.TraceId);
+                Assert.AreEqual(create.SpanId, orchestration.ParentSpanId);
+            }
+        }
+
+        [TestMethod]
+        public async Task OpenTelemetry_SubOrchestrationLinksClientAndServerSpans()
+        {
+            var processor = new Mock<BaseProcessor<Activity>>();
+
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            using (Sdk.CreateTracerProviderBuilder()
+                .AddSource("DurableTask.Core")
+                .AddProcessor(processor.Object)
+                .Build())
+            {
+                await host.StartAsync();
+                TestOrchestrationClient client;
+                try
+                {
+                    client = await host.StartOrchestrationAsync(typeof(Orchestrations.ParentWithSubOrchestration), "World");
+                    OrchestrationState state = await client.WaitForCompletionAsync(StandardTimeout);
+
+                    Assert.IsNotNull(state);
+                    Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+                    Assert.AreEqual("\"Hello, World!\"", state.Output);
+                }
+                finally
+                {
+                    await host.StopAsync();
+                }
+
+                List<Activity> allEndedActivities = GetEndedActivities(processor);
+                string parentName = NameVersionHelper.GetDefaultName(typeof(Orchestrations.ParentWithSubOrchestration));
+                Activity create = GetActivity(
+                    allEndedActivities.Where(a => GetTag(a, "durabletask.task.instance_id") == client.InstanceId),
+                    ActivityKind.Producer,
+                    "orchestration",
+                    parentName);
+                List<Activity> endedActivities = allEndedActivities
+                    .Where(a => a.TraceId == create.TraceId)
+                    .ToList();
+                Assert.AreEqual(4, endedActivities.Count);
+
+                string childName = NameVersionHelper.GetDefaultName(typeof(Orchestrations.ChildSayHelloInline));
+                Activity parent = GetActivity(endedActivities, ActivityKind.Server, "orchestration", parentName);
+                Activity childClient = GetActivity(endedActivities, ActivityKind.Client, "orchestration", childName);
+                Activity childServer = GetActivity(endedActivities, ActivityKind.Server, "orchestration", childName);
+
+                Assert.AreEqual(create.SpanId, parent.ParentSpanId);
+                Assert.AreEqual(parent.SpanId, childClient.ParentSpanId);
+                Assert.AreEqual(childClient.SpanId, childServer.ParentSpanId);
+                Assert.AreEqual(client.InstanceId, GetTag(childClient, "durabletask.task.instance_id"));
+                Assert.AreNotEqual(client.InstanceId, GetTag(childServer, "durabletask.task.instance_id"));
+
+                foreach (Activity activity in endedActivities)
+                {
+                    Assert.AreEqual(create.TraceId, activity.TraceId);
+                }
+            }
+        }
+
+        static List<Activity> GetEndedActivities(Mock<BaseProcessor<Activity>> processor, string instanceId = null)
+        {
+            IEnumerable<Activity> activities = processor.Invocations
+                .Where(i => i.Method.Name == "OnEnd")
+                .Select(i => (Activity)i.Arguments[0]);
+
+            if (instanceId != null)
+            {
+                activities = activities.Where(a => GetTag(a, "durabletask.task.instance_id") == instanceId);
+            }
+
+            return activities.ToList();
+        }
+
+        static Activity GetActivity(
+            IEnumerable<Activity> activities,
+            ActivityKind kind,
+            string taskType,
+            string taskName)
+        {
+            return GetActivities(activities, kind, taskType, taskName).Single();
+        }
+
+        static List<Activity> GetActivities(
+            IEnumerable<Activity> activities,
+            ActivityKind kind,
+            string taskType,
+            string taskName)
+        {
+            return activities
+                .Where(a => a.Kind == kind)
+                .Where(a => GetTag(a, "durabletask.type") == taskType)
+                .Where(a => GetTag(a, "durabletask.task.name") == taskName)
+                .ToList();
+        }
+
+        static string GetTag(Activity activity, string name)
+        {
+            return Convert.ToString(activity.GetTagItem(name));
+        }
+
         /// <summary>
         /// End-to-end test which validates a simple orchestrator function that waits for an external event
         /// raised through the RaiseEvent API and checks the OpenTelemetry trace information
@@ -5065,6 +5328,33 @@ namespace DurableTask.AzureStorage.Tests
                 public override Task<string> RunTask(OrchestrationContext context, string input)
                 {
                     return context.ScheduleTask<string>(typeof(Activities.Hello), input);
+                }
+            }
+
+            [KnownType(typeof(Activities.HelloRetryOnce))]
+            internal class SayHelloWithRetryActivity : TaskOrchestration<string, string>
+            {
+                public override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    var retryOptions = new RetryOptions(TimeSpan.FromMilliseconds(10), 2);
+                    return context.ScheduleWithRetry<string>(typeof(Activities.HelloRetryOnce), retryOptions, input);
+                }
+            }
+
+            [KnownType(typeof(ChildSayHelloInline))]
+            internal class ParentWithSubOrchestration : TaskOrchestration<string, string>
+            {
+                public override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    return context.CreateSubOrchestrationInstance<string>(typeof(ChildSayHelloInline), input);
+                }
+            }
+
+            internal class ChildSayHelloInline : TaskOrchestration<string, string>
+            {
+                public override Task<string> RunTask(OrchestrationContext context, string input)
+                {
+                    return Task.FromResult($"Hello, {input}!");
                 }
             }
 
@@ -5994,6 +6284,26 @@ namespace DurableTask.AzureStorage.Tests
                     {
                         throw new ArgumentNullException(nameof(input));
                     }
+                    return $"Hello, {input}!";
+                }
+            }
+
+            internal class HelloRetryOnce : TaskActivity<string, string>
+            {
+                static int attemptCount;
+
+                internal static void Reset()
+                {
+                    Volatile.Write(ref attemptCount, 0);
+                }
+
+                protected override string Execute(TaskContext context, string input)
+                {
+                    if (Interlocked.Increment(ref attemptCount) == 1)
+                    {
+                        throw new InvalidOperationException("Failing the first activity attempt.");
+                    }
+
                     return $"Hello, {input}!";
                 }
             }
