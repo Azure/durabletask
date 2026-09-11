@@ -832,9 +832,9 @@ namespace DurableTask.AzureStorage
 
                         // If no remaining or abandoned message targeted the session's execution, then no message
                         // pinned the history lookup to a specific execution and the latest history was fetched, so it
-                        // is safe to discard all remaining messages.
+                        // is safe to discard all remaining messages if the instance is not deemed executable.
                         // Otherwise, preserve execution-independent messages because there may be a valid history for
-                        // another execution ID committed.
+                        // another execution ID stored.
                         if (messagesToDiscard.Count == 0 &&
                             !matchingExecutionMessageWasAbandoned)
                         {
