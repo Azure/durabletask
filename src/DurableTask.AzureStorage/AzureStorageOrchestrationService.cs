@@ -802,7 +802,7 @@ namespace DurableTask.AzureStorage
                         TraceContext = currentRequestTraceContext,
                     };
 
-                    (string warningMessage, bool isKnownTerminalInstance) = await this.IsExecutableInstanceAsync(
+                    string warningMessage = await this.IsExecutableInstanceAsync(
                         session.RuntimeState,
                         orchestrationWorkItem.NewMessages,
                         settings.AllowReplayingTerminalInstances,
@@ -827,11 +827,16 @@ namespace DurableTask.AzureStorage
                             }
                         }
 
-                        // If the instance is known to be terminal, delete all messages.
-                        // We don't necessarily want to do this for an instance with an empty history, because it
-                        // could be that there is no history for the specific execution attached to session.Instance.ExecutionId.
-                        // In this case, we would want to retry any external events that do not target a specific execution ID.
-                        if (isKnownTerminalInstance)
+                        bool matchingExecutionMessageWasAbandoned = outOfOrderMessages?.Any(
+                            msg => msg.TaskMessage.OrchestrationInstance.ExecutionId == session.Instance.ExecutionId) == true;
+
+                        // If no remaining or abandoned message targeted the session's execution, then no message
+                        // pinned the history lookup to a specific execution and the latest history was fetched, so it
+                        // is safe to discard all remaining messages.
+                        // Otherwise, preserve execution-independent messages because there may be a valid history for
+                        // another execution ID committed.
+                        if (messagesToDiscard.Count == 0 &&
+                            !matchingExecutionMessageWasAbandoned)
                         {
                             messagesToDiscard.AddRange(messagesToAbandon);
                             messagesToAbandon.Clear();
@@ -1067,7 +1072,7 @@ namespace DurableTask.AzureStorage
                 data.Episode.GetValueOrDefault(-1));
         }
 
-        async Task<(string WarningMessage, bool IsKnownTerminalInstance)> IsExecutableInstanceAsync(
+        async Task<string> IsExecutableInstanceAsync(
             OrchestrationRuntimeState runtimeState,
             IList<TaskMessage> newMessages,
             bool allowReplayingTerminalInstances,
@@ -1079,7 +1084,7 @@ namespace DurableTask.AzureStorage
 
                 if (DurableTask.Core.Common.Entities.AutoStart(instanceId, newMessages))
                 {
-                    return (null, false);
+                    return null;
                 }
                 else
                 {
@@ -1090,7 +1095,7 @@ namespace DurableTask.AzureStorage
                         await this.trackingStore.UpdateStatusForTerminationAsync(
                             instanceId,
                             executionTerminatedEvent);
-                        return ($"Instance is {OrchestrationStatus.Terminated}", true);
+                        return $"Instance is {OrchestrationStatus.Terminated}";
                     }
 
                     // A non-zero event count usually happens when an instance's history is overwritten by a
@@ -1100,9 +1105,7 @@ namespace DurableTask.AzureStorage
                     // the old history and we receive a message from the old instance (this happens frequently
                     // with canceled durable timer messages) we'll end up loading just the history that hasn't
                     // been fully overwritten. We know it's invalid because it's missing the ExecutionStartedEvent.
-                    return (
-                        runtimeState.Events.Count == 0 ? "No such instance" : "Invalid history (may have been overwritten by a newer instance)",
-                        false);
+                    return runtimeState.Events.Count == 0 ? "No such instance" : "Invalid history (may have been overwritten by a newer instance)";
                 }
             }
 
@@ -1124,11 +1127,11 @@ namespace DurableTask.AzureStorage
                 }
                 if (!allowReplayingTerminalInstances)
                 {
-                    return ($"Instance is {runtimeState.OrchestrationStatus}", true);
+                    return $"Instance is {runtimeState.OrchestrationStatus}";
                 }
             }
 
-            return (null, false);
+            return null;
         }
 
         async Task AbandonAndReleaseSessionAsync(OrchestrationSession session)
