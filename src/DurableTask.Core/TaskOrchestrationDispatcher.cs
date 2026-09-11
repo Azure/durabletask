@@ -135,6 +135,8 @@ namespace DurableTask.Core
         /// </summary>
         public bool EntitiesEnabled { get; set; }
 
+        internal bool FailOnDuplicateSubOrchestrationInstanceIds { get; set; }
+
         /// <summary>
         /// Method to get the next work item to process within supplied timeout
         /// </summary>
@@ -464,6 +466,21 @@ namespace DurableTask.Core
                                     await this.ResumeOrchestrationAsync(workItem);
                                 }
                                 decisions = workItem.Cursor.LatestDecisions.ToList();
+                            }
+                        }
+
+                        if (this.FailOnDuplicateSubOrchestrationInstanceIds)
+                        {
+                            OrchestrationCompleteOrchestratorAction? failure =
+                                SubOrchestrationInstanceIdValidator.GetFailure(
+                                    runtimeState.OrchestrationInstance!.InstanceId,
+                                    runtimeState.Events,
+                                    decisions);
+                            if (failure != null)
+                            {
+                                // Validate the whole batch before creating any history or outbound messages,
+                                // including when the provider would otherwise split the batch across episodes.
+                                decisions = new[] { failure };
                             }
                         }
 
