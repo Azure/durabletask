@@ -236,7 +236,8 @@ namespace DurableTask.AzureStorage.Logging
             string instanceId,
             string executionId,
             string partitionId,
-            long dequeueCount)
+            long dequeueCount,
+            string blobName)
         {
             var logEvent = new LogEvents.PoisonMessageDetected(
                 account,
@@ -247,7 +248,8 @@ namespace DurableTask.AzureStorage.Logging
                 instanceId,
                 executionId,
                 partitionId,
-                dequeueCount);
+                dequeueCount,
+                blobName);
             this.WriteStructuredLog(logEvent);
         }
 
