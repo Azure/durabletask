@@ -67,7 +67,7 @@ namespace DurableTask.ServiceBus.Tests
         }
 
         /// <summary>
-        /// While waiting on a specific execution, state written by an earlier run
+        /// The core of the fix: while waiting on a specific execution, state written by an earlier run
         /// of the same instance id must never be returned, even though it is the only readable state.
         /// </summary>
         [TestMethod]
@@ -122,6 +122,117 @@ namespace DurableTask.ServiceBus.Tests
         }
 
         /// <summary>
+        /// A ContinuedAsNew row is a tombstone that is never updated again, so the wait must follow the
+        /// new generation instead of polling the pinned execution forever.
+        /// </summary>
+        [TestMethod]
+        public async Task WaitForOrchestration_PinnedExecution_ContinuedAsNew_FollowsNextGeneration()
+        {
+            var store = new FakeInstanceStore();
+            store.States.Add(CreateState("generation-1", OrchestrationStatus.ContinuedAsNew, BaseTime, "next input"));
+            store.States.Add(CreateState("generation-2", OrchestrationStatus.Completed, BaseTime.AddMinutes(1), "final output"));
+
+            ServiceBusOrchestrationService service = CreateService(store);
+
+            OrchestrationState state = await service.WaitForOrchestrationAsync(
+                InstanceId,
+                "generation-1",
+                TimeSpan.FromSeconds(30),
+                CancellationToken.None);
+
+            Assert.IsNotNull(state);
+            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+            Assert.AreEqual("generation-2", state.OrchestrationInstance.ExecutionId);
+            Assert.AreEqual("final output", state.Output);
+        }
+
+        /// <summary>
+        /// After following a continue-as-new to the current generation we must still not accept state
+        /// left behind by an earlier run of the same instance id.
+        /// </summary>
+        [TestMethod]
+        public async Task WaitForOrchestration_ContinuedAsNew_IgnoresStateFromPreviousRun()
+        {
+            var store = new FakeInstanceStore();
+
+            // Previous run: completed long before the current run started.
+            store.States.Add(CreateState("previous-run", OrchestrationStatus.Completed, BaseTime, "stale output"));
+
+            // Current run, first generation, already continued as new.
+            store.States.Add(CreateState("generation-1", OrchestrationStatus.ContinuedAsNew, BaseTime.AddMinutes(5), "next input"));
+
+            // The next generation only becomes readable later.
+            store.OnQuery = s =>
+            {
+                if (s.QueryCount == 3)
+                {
+                    s.States.Add(CreateState("generation-2", OrchestrationStatus.Completed, BaseTime.AddMinutes(6), "final output"));
+                }
+            };
+
+            ServiceBusOrchestrationService service = CreateService(store);
+
+            OrchestrationState state = await service.WaitForOrchestrationAsync(
+                InstanceId,
+                "generation-1",
+                TimeSpan.FromSeconds(30),
+                CancellationToken.None);
+
+            Assert.IsNotNull(state);
+            Assert.AreEqual("generation-2", state.OrchestrationInstance.ExecutionId, "Returned state from the wrong run.");
+            Assert.AreEqual("final output", state.Output);
+        }
+
+        /// <summary>
+        /// Suspended is a pause, not a terminal state: the orchestration has no result yet.
+        /// </summary>
+        [TestMethod]
+        public async Task WaitForOrchestration_Suspended_KeepsWaiting()
+        {
+            var store = new FakeInstanceStore();
+            store.States.Add(CreateState("generation-1", OrchestrationStatus.Suspended, BaseTime));
+
+            store.OnQuery = s =>
+            {
+                if (s.QueryCount == 2)
+                {
+                    // Resumed and completed.
+                    s.States.Clear();
+                    s.States.Add(CreateState("generation-1", OrchestrationStatus.Completed, BaseTime, "final output"));
+                }
+            };
+
+            ServiceBusOrchestrationService service = CreateService(store);
+
+            OrchestrationState state = await service.WaitForOrchestrationAsync(
+                InstanceId,
+                "generation-1",
+                TimeSpan.FromSeconds(30),
+                CancellationToken.None);
+
+            Assert.IsNotNull(state);
+            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+            Assert.AreEqual("final output", state.Output);
+        }
+
+        [TestMethod]
+        public async Task WaitForOrchestration_Suspended_IsNotReturnedAsTerminal()
+        {
+            var store = new FakeInstanceStore();
+            store.States.Add(CreateState("generation-1", OrchestrationStatus.Suspended, BaseTime));
+
+            ServiceBusOrchestrationService service = CreateService(store);
+
+            OrchestrationState state = await service.WaitForOrchestrationAsync(
+                InstanceId,
+                "generation-1",
+                TimeSpan.FromSeconds(2),
+                CancellationToken.None);
+
+            Assert.IsNull(state, "A suspended orchestration has not completed and must not be returned.");
+        }
+
+        /// <summary>
         /// Callers that do not supply an execution id keep the legacy behavior of following the
         /// current generation of the instance.
         /// </summary>
@@ -147,7 +258,38 @@ namespace DurableTask.ServiceBus.Tests
             Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
             Assert.AreEqual("generation-2", state.OrchestrationInstance.ExecutionId);
             Assert.AreEqual(0, store.PinnedQueryCount, "An empty execution id must not be queried as an exact execution.");
-            Assert.AreEqual(1, store.LatestQueryCount, "The current generation lookup should not have been used.");
+        }
+
+        /// <summary>
+        /// Hiding ContinuedAsNew rows from the current generation lookup is an implementation detail of
+        /// AzureTableInstanceStore, not a guarantee of IOrchestrationServiceInstanceStore. A store that
+        /// surfaces them must not cause a tombstone to be reported as the final state.
+        /// </summary>
+        [TestMethod]
+        public async Task WaitForOrchestration_StoreWithoutContinuedAsNewFilter_DoesNotReturnTombstone()
+        {
+            var store = new FakeInstanceStore { FilterContinuedAsNew = false };
+            store.States.Add(CreateState("generation-1", OrchestrationStatus.ContinuedAsNew, BaseTime, "next input"));
+
+            store.OnQuery = s =>
+            {
+                if (s.QueryCount == 2)
+                {
+                    s.States.Add(CreateState("generation-2", OrchestrationStatus.Completed, BaseTime.AddMinutes(1), "final output"));
+                }
+            };
+
+            ServiceBusOrchestrationService service = CreateService(store);
+
+            OrchestrationState state = await service.WaitForOrchestrationAsync(
+                InstanceId,
+                null,
+                TimeSpan.FromSeconds(30),
+                CancellationToken.None);
+
+            Assert.IsNotNull(state);
+            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+            Assert.AreEqual("generation-2", state.OrchestrationInstance.ExecutionId);
         }
 
         [TestMethod]

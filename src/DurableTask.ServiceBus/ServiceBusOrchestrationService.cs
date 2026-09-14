@@ -62,7 +62,7 @@ namespace DurableTask.ServiceBus
         // as every fetched message also creates a tracking message which counts towards this limit.
         const int MaxMessageCount = 80;
         const int SessionStreamWarningSizeInBytes = 150 * 1024;
-        const int StatusPollingIntervalInSeconds = 2;
+        static readonly TimeSpan StatusPollingInterval = TimeSpan.FromSeconds(2);
         const int DuplicateDetectionWindowInHours = 4;
 
         /// <summary>
@@ -1222,9 +1222,10 @@ namespace DurableTask.ServiceBus
         /// <summary>
         ///     Wait for an orchestration to reach any terminal state within the given timeout
         /// </summary>
-        /// <param name="executionId">The execution id of the orchestration</param>
+        /// <param name="executionId">The execution id of the orchestration. When specified, only that execution is
+        /// tracked; if it has <see cref="OrchestrationStatus.ContinuedAsNew"/>, the current generation of the instance is followed instead.</param>
         /// <param name="instanceId">Instance to wait for</param>
-        /// <param name="timeout">Max timeout to wait</param>
+        /// <param name="timeout">Max timeout to wait. Only positive <see cref="TimeSpan"/> values, <see cref="TimeSpan.Zero"/>, or <see cref="Timeout.InfiniteTimeSpan"/> are allowed.</param>
         /// <param name="cancellationToken">Task cancellation token</param>
         public async Task<OrchestrationState> WaitForOrchestrationAsync(
             string instanceId,
@@ -1239,20 +1240,65 @@ namespace DurableTask.ServiceBus
                 throw new ArgumentException("instanceId");
             }
 
-            double timeoutSeconds = timeout.TotalSeconds;
-
-            while (!cancellationToken.IsCancellationRequested && timeoutSeconds > 0)
+            bool isInfiniteTimeSpan = timeout == Timeout.InfiniteTimeSpan;
+            if (timeout < TimeSpan.Zero && !isInfiniteTimeSpan)
             {
-                OrchestrationState state = !string.IsNullOrWhiteSpace(executionId)
+                throw new ArgumentException($"The parameter {nameof(timeout)} cannot be negative." +
+                    $" The value for {nameof(timeout)} was '{timeout}'." +
+                    $" Please provide either a positive timeout value or Timeout.InfiniteTimeSpan.");
+            }
+
+            bool pinnedToExecution = !string.IsNullOrWhiteSpace(executionId);
+
+            // Once we stop tracking a specific execution we must not accept state left behind by an
+            // earlier run of the same instance id, otherwise we reintroduce the race that querying by
+            // execution id is meant to avoid.
+            DateTime minimumCreatedTime = DateTimeUtils.MinDateTime;
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                OrchestrationState state = pinnedToExecution
                     ? await GetOrchestrationStateAsync(instanceId, executionId)
                     : (await GetOrchestrationStateAsync(instanceId, false))?.FirstOrDefault();
 
+                // A pinned execution that continued-as-new is only a tombstone: the live orchestration
+                // moved on to a new execution id, so stop pinning and follow the current generation.
+                if (pinnedToExecution && state?.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)
+                {
+                    pinnedToExecution = false;
+                    minimumCreatedTime = state.CreatedTime;
+                    continue;
+                }
+
+                if (state?.CreatedTime < minimumCreatedTime)
+                {
+                    // State from a previous run of this instance id; the current generation is not readable yet.
+                    state = null;
+                }
+
+                // ContinuedAsNew is never a final state: a new generation always follows it. The built-in
+                // AzureTableInstanceStore hides these rows from the non-pinned lookup, but that is not
+                // guaranteed by IOrchestrationServiceInstanceStore, so keep polling if one surfaces.
                 if (state == null
                     || (state.OrchestrationStatus == OrchestrationStatus.Running)
-                    || (state.OrchestrationStatus == OrchestrationStatus.Pending))
+                    || (state.OrchestrationStatus == OrchestrationStatus.Pending)
+                    || (state.OrchestrationStatus == OrchestrationStatus.Suspended)
+                    || (state.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew))
                 {
-                    await Task.Delay(StatusPollingIntervalInSeconds * 1000, cancellationToken);
-                    timeoutSeconds -= StatusPollingIntervalInSeconds;
+                    if (!isInfiniteTimeSpan)
+                    {
+                        timeout -= StatusPollingInterval;
+
+                        // For a user-provided timeout of `TimeSpan.Zero`,
+                        // we want to check the status of the orchestration once and then return.
+                        // Therefore, we check the timeout condition after the status check.
+                        if (timeout <= TimeSpan.Zero)
+                        {
+                            break;
+                        }
+                    }
+
+                    await Task.Delay(StatusPollingInterval, cancellationToken);
                 }
                 else
                 {
