@@ -488,23 +488,35 @@ namespace DurableTask.ServiceBus.Tests
 
             ServiceBusOrchestrationService service = CreateService(store);
 
+            // The timeout is kept far below the 2 second polling interval so the three possible
+            // behaviours are widely separated in time and the assertions below do not depend on
+            // precise scheduling: clamping the delay takes about 200ms, delaying for a whole
+            // interval takes about 2s, and charging the budget before the delay returns instantly.
+            TimeSpan timeout = TimeSpan.FromMilliseconds(200);
+
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
             OrchestrationState state = await service.WaitForOrchestrationAsync(
                 InstanceId,
                 "generation-1",
-                TimeSpan.FromSeconds(1),
+                timeout,
                 CancellationToken.None);
 
             stopwatch.Stop();
 
             Assert.IsNull(state, "The orchestration never completed, so the wait must time out.");
+            Assert.AreEqual(2, store.QueryCount, "The wait must check once, wait out its window, then check again.");
+
+            // Task.Delay never returns early, so this only fails if the wait did not delay at all.
             Assert.IsTrue(
-                stopwatch.Elapsed >= TimeSpan.FromMilliseconds(900),
+                stopwatch.Elapsed >= TimeSpan.FromMilliseconds(150),
                 $"The wait must use its window instead of returning immediately, took {stopwatch.ElapsedMilliseconds}ms.");
+
+            // Well clear of the ~200ms a clamped delay needs, and well below the 2s a full polling
+            // interval would take.
             Assert.IsTrue(
-                stopwatch.Elapsed < TimeSpan.FromMilliseconds(1800),
-                $"The wait must not delay for a whole polling interval past its timeout, took {stopwatch.ElapsedMilliseconds}ms.");
+                stopwatch.Elapsed < TimeSpan.FromMilliseconds(1500),
+                $"The wait must clamp its delay to the remaining timeout instead of waiting a whole polling interval, took {stopwatch.ElapsedMilliseconds}ms.");
         }
 
         /// <summary>
