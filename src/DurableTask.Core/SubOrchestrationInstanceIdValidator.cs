@@ -17,16 +17,16 @@ namespace DurableTask.Core
     using System;
     using System.Collections.Generic;
     using DurableTask.Core.Command;
-    using DurableTask.Core.History;
 
     internal static class SubOrchestrationInstanceIdValidator
     {
         internal static OrchestrationCompleteOrchestratorAction? GetFailure(
             string parentInstanceId,
-            IEnumerable<HistoryEvent> history,
+            OrchestrationRuntimeState runtimeState,
             IEnumerable<OrchestratorAction> decisions)
         {
-            Dictionary<string, int>? pendingInstances = null;
+            SubOrchestrationInstanceIdIndex? pendingInstances = null;
+            Dictionary<string, int>? batchInstances = null;
             foreach (OrchestratorAction decision in decisions)
             {
                 if (decision is not CreateSubOrchestrationAction action
@@ -36,9 +36,9 @@ namespace DurableTask.Core
                     continue;
                 }
 
-                // Most episodes do not start awaited children, so only scan history when needed.
-                pendingInstances ??= GetPendingInstances(history);
-                if (pendingInstances.TryGetValue(action.InstanceId, out int priorTaskId))
+                pendingInstances ??= runtimeState.GetSubOrchestrationInstanceIdIndex();
+                if (pendingInstances.TryGetPendingTaskId(action.InstanceId, out int priorTaskId)
+                    || (batchInstances != null && batchInstances.TryGetValue(action.InstanceId, out priorTaskId)))
                 {
                     string message = $"Orchestration '{parentInstanceId}' attempted to start sub-orchestration "
                         + $"'{action.InstanceId}' with task ID {action.Id}, but task ID {priorTaskId} is still pending "
@@ -54,40 +54,12 @@ namespace DurableTask.Core
                     };
                 }
 
-                pendingInstances.Add(action.InstanceId, action.Id);
+                // Proposed actions are not accepted history: a rejected or split batch may never send them.
+                batchInstances ??= new Dictionary<string, int>(StringComparer.Ordinal);
+                batchInstances.Add(action.InstanceId, action.Id);
             }
 
             return null;
-        }
-
-        static Dictionary<string, int> GetPendingInstances(IEnumerable<HistoryEvent> history)
-        {
-            var pendingTasks = new Dictionary<int, string>();
-            foreach (HistoryEvent historyEvent in history)
-            {
-                switch (historyEvent)
-                {
-                    case SubOrchestrationInstanceCreatedEvent created
-                        when created.InstanceId != null && !OrchestrationTags.IsTaggedAsFireAndForget(created.Tags):
-                        pendingTasks[created.EventId] = created.InstanceId;
-                        break;
-                    case SubOrchestrationInstanceCompletedEvent completed:
-                        pendingTasks.Remove(completed.TaskScheduledId);
-                        break;
-                    case SubOrchestrationInstanceFailedEvent failed:
-                        pendingTasks.Remove(failed.TaskScheduledId);
-                        break;
-                }
-            }
-
-            // Legacy history may already contain duplicate IDs. Only a new conflicting start is rejected.
-            var pendingInstances = new Dictionary<string, int>(StringComparer.Ordinal);
-            foreach (KeyValuePair<int, string> pendingTask in pendingTasks)
-            {
-                pendingInstances[pendingTask.Value] = pendingTask.Key;
-            }
-
-            return pendingInstances;
         }
     }
 }

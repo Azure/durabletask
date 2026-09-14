@@ -243,6 +243,10 @@ This is a terminal orchestration-level failure, not an exception that the offend
 
 Detection does not check fire-and-forget starts or uniqueness across parents. Existing duplicate history without a new conflicting start is not rejected, and already stranded orchestrations are not automatically repaired. This is a Core worker option; downstream hosts such as Azure Functions must separately expose and enable it in a release that includes this capability.
 
+The guard lazily indexes accepted child history once per runtime-state load, then maintains the pending index as events are accepted. Cold initialization reduces completed history before allocating index entries for the remaining pending children. Reused runtime states, including extended sessions, validate new batches without rescanning old history or copying all pending children. Cold loads and ordinary uncached orchestration replay still process history; this option does not eliminate those costs. Proposed actions are tracked separately until they are accepted into history, and a drained fan-out releases its index capacity.
+
+Custom middleware or providers that rewrite history should construct a new `OrchestrationRuntimeState`. If they instead directly edit `Events` or mutate accepted event IDs, child instance IDs, completion/failure task schedule IDs, or fire-and-forget tags, they must call `InvalidateSubOrchestrationInstanceIdIndex()` before the next guarded validation. Normal `AddEvent` calls maintain the index automatically. Arbitrary external mutations are not detected automatically, and invalidating this derived index does not repair other runtime-state metadata.
+
 ### Naming Conventions
 
 ```csharp

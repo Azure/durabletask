@@ -474,7 +474,7 @@ namespace DurableTask.Core
                             OrchestrationCompleteOrchestratorAction? failure =
                                 SubOrchestrationInstanceIdValidator.GetFailure(
                                     runtimeState.OrchestrationInstance!.InstanceId,
-                                    runtimeState.Events,
+                                    runtimeState,
                                     decisions);
                             if (failure != null)
                             {

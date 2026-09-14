@@ -16,6 +16,7 @@ namespace DurableTask.Core.Tests
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
+    using System.IO;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
@@ -24,6 +25,7 @@ namespace DurableTask.Core.Tests
     using DurableTask.Core.History;
     using DurableTask.Core.Logging;
     using DurableTask.Core.Middleware;
+    using DurableTask.Core.Tracing;
     using DurableTask.Emulator;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -213,6 +215,8 @@ namespace DurableTask.Core.Tests
             });
             workItem.NewMessages = new[] { Message(workItem, new EventRaisedEvent(-1, null) { Name = "continue" }) };
             string previousExecutionId = workItem.OrchestrationRuntimeState.OrchestrationInstance.ExecutionId;
+            Assert.IsNotNull(SubOrchestrationInstanceIdValidator.GetFailure(
+                "parent-id", workItem.OrchestrationRuntimeState, new[] { Child(1, "same-child") }));
 
             Assert.AreEqual(duplicateInNewGeneration, await dispatcher.ProcessAsync(workItem));
             Checkpoint checkpoint = service.Checkpoints.Single();
@@ -220,6 +224,100 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual(duplicateInNewGeneration ? OrchestrationStatus.Failed : OrchestrationStatus.Running, checkpoint.Status);
             Assert.AreEqual(duplicateInNewGeneration ? 0 : 1, checkpoint.Messages.Length);
             Assert.AreEqual(duplicateInNewGeneration ? 0 : 1, checkpoint.Events.OfType<SubOrchestrationInstanceCreatedEvent>().Count());
+        }
+
+        [TestMethod]
+        public async Task RewindRebuildsPendingIndexFromRewrittenHistory()
+        {
+            using var service = new RecordingService { ForwardCompletions = false };
+            var dispatcher = new TestDispatcher(service, new DispatchMiddlewarePipeline());
+            TaskOrchestrationWorkItem workItem = NewWorkItem();
+            var started = (ExecutionStartedEvent)workItem.NewMessages[0].Event;
+            started.ParentTraceContext = new DistributedTraceContext("00-0123456789abcdef0123456789abcdef-0123456789abcdef-01");
+            workItem.OrchestrationRuntimeState = new OrchestrationRuntimeState(new HistoryEvent[]
+            {
+                started,
+                new SubOrchestrationInstanceCreatedEvent(0) { InstanceId = "rewound-child" },
+                new SubOrchestrationInstanceFailedEvent(-1, 0, "child failed", null),
+                new ExecutionCompletedEvent(1, "failed", OrchestrationStatus.Failed),
+            });
+            OrchestrationRuntimeState failedState = workItem.OrchestrationRuntimeState;
+            Assert.IsNull(SubOrchestrationInstanceIdValidator.GetFailure(
+                "parent-id", failedState, new[] { Child(2, "rewound-child") }));
+            workItem.NewMessages = new[] { Message(workItem, new ExecutionRewoundEvent(-1, "retry")) };
+            Assert.IsTrue(await dispatcher.ProcessAsync(workItem));
+            Assert.AreNotSame(failedState, workItem.OrchestrationRuntimeState);
+            Assert.AreEqual(OrchestrationStatus.Running, workItem.OrchestrationRuntimeState.OrchestrationStatus);
+            Assert.IsFalse(workItem.OrchestrationRuntimeState.Events.OfType<SubOrchestrationInstanceFailedEvent>().Any());
+            Assert.IsNotNull(SubOrchestrationInstanceIdValidator.GetFailure(
+                "parent-id", workItem.OrchestrationRuntimeState, new[] { Child(2, "rewound-child") }));
+            Assert.IsTrue(service.Checkpoints.Single().Messages.Single().Event is ExecutionRewoundEvent);
+        }
+
+        [TestMethod]
+        public async Task SplitBatchOnlyIndexesActuallyScheduledChildren()
+        {
+            using var service = new RecordingService { ForwardCompletions = false, MaxMessages = 1 };
+            var pipeline = new DispatchMiddlewarePipeline();
+            pipeline.Add((context, next) =>
+            {
+                var state = context.GetProperty<OrchestrationRuntimeState>();
+                context.SetProperty(new OrchestratorExecutionResult
+                {
+                    Actions = state.Events.OfType<SubOrchestrationInstanceCreatedEvent>().Any()
+                        ? new[] { Child(1, "second") }
+                        : new[] { Child(0, "first"), Child(1, "second") },
+                });
+                return Task.CompletedTask;
+            });
+            var dispatcher = new TestDispatcher(service, pipeline);
+            TaskOrchestrationWorkItem workItem = NewWorkItem();
+            Assert.IsTrue(await dispatcher.ProcessAsync(workItem));
+            Assert.AreEqual(1, workItem.OrchestrationRuntimeState.Events.OfType<SubOrchestrationInstanceCreatedEvent>().Count());
+            Assert.IsNull(SubOrchestrationInstanceIdValidator.GetFailure(
+                "parent-id", workItem.OrchestrationRuntimeState, new[] { Child(1, "second") }));
+            service.MaxMessages = null;
+            Advance(workItem, true, new TimerFiredEvent(-1) { TimerId = FrameworkConstants.FakeTimerIdToSplitDecision });
+            Assert.IsFalse(await dispatcher.ProcessAsync(workItem));
+            Assert.AreEqual(2, workItem.OrchestrationRuntimeState.Events.OfType<SubOrchestrationInstanceCreatedEvent>().Count());
+            Assert.AreEqual(OrchestrationStatus.Running, service.Checkpoints.Last().Status);
+        }
+
+        [TestMethod]
+        public async Task AbandonedCheckpointDoesNotPoisonRetriedWorkItem()
+        {
+            using var service = new RecordingService { FailNextCheckpoint = true };
+            using var worker = new TaskHubWorker(service) { FailOnDuplicateSubOrchestrationInstanceIds = true };
+            worker.AddOrchestrationDispatcherMiddleware((context, next) =>
+            {
+                context.SetProperty(new OrchestratorExecutionResult
+                {
+                    Actions = context.GetProperty<OrchestrationRuntimeState>().Name == "parent"
+                        ? new OrchestratorAction[]
+                        {
+                            Child(0, "child"),
+                            new OrchestrationCompleteOrchestratorAction { Id = 1, OrchestrationStatus = OrchestrationStatus.Completed },
+                        }
+                        : Array.Empty<OrchestratorAction>(),
+                });
+                return Task.CompletedTask;
+            });
+            await worker.StartAsync();
+            try
+            {
+                var client = new TaskHubClient(service);
+                OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync("parent", "", null);
+                OrchestrationState state = await client.WaitForOrchestrationAsync(instance, TimeSpan.FromSeconds(15));
+                Assert.IsNotNull(state);
+                Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus, state.Output);
+                Assert.AreEqual(1, service.Abandonments);
+                Checkpoint checkpoint = await service.FirstCheckpointAsync(instance.InstanceId);
+                Assert.AreEqual(1, checkpoint.Events.OfType<SubOrchestrationInstanceCreatedEvent>().Count());
+            }
+            finally
+            {
+                await worker.StopAsync(true);
+            }
         }
 
         [DataTestMethod]
@@ -287,8 +385,10 @@ namespace DurableTask.Core.Tests
                 Checkpoint guarded = await service.FirstCheckpointAsync("guarded-child-id");
                 Assert.AreEqual(OrchestrationStatus.Failed, guarded.Status);
                 Assert.AreEqual(1, guarded.Messages.Length);
-                var notification = guarded.Messages[0].Event as SubOrchestrationInstanceFailedEvent;
-                Assert.IsNotNull(notification);
+                if (guarded.Messages[0].Event is not SubOrchestrationInstanceFailedEvent notification)
+                {
+                    throw new AssertFailedException("Expected a sub-orchestration failure notification.");
+                }
                 Assert.AreEqual(0, notification.TaskScheduledId);
                 Assert.AreEqual(instance.InstanceId, guarded.Messages[0].OrchestrationInstance.InstanceId);
                 AssertFailure(notification.FailureDetails);
@@ -494,6 +594,16 @@ namespace DurableTask.Core.Tests
 
             public int? MaxMessages { get; set; }
 
+            public bool FailNextCheckpoint { get; set; }
+
+            public int Abandonments { get; private set; }
+
+            public new Task AbandonTaskOrchestrationWorkItemAsync(TaskOrchestrationWorkItem workItem)
+            {
+                this.Abandonments++;
+                return base.AbandonTaskOrchestrationWorkItemAsync(workItem);
+            }
+
             public new bool IsMaxMessageCountExceeded(int currentMessageCount, OrchestrationRuntimeState runtimeState)
                 => this.MaxMessages.HasValue
                     ? currentMessageCount >= this.MaxMessages.Value
@@ -515,6 +625,12 @@ namespace DurableTask.Core.Tests
                 TaskMessage continuedAsNewMessage,
                 OrchestrationState state)
             {
+                if (this.FailNextCheckpoint)
+                {
+                    this.FailNextCheckpoint = false;
+                    throw new IOException("Simulated checkpoint failure before persistence.");
+                }
+
                 var checkpoint = new Checkpoint
                 {
                     InstanceId = workItem.InstanceId,
