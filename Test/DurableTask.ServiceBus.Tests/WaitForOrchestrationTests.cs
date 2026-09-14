@@ -184,37 +184,9 @@ namespace DurableTask.ServiceBus.Tests
         }
 
         /// <summary>
-        /// Suspended is a pause, not a terminal state: the orchestration has no result yet.
+        /// Suspended is a pause, not a terminal state: an orchestration that is never resumed has no
+        /// result, so the wait must time out rather than report it as finished.
         /// </summary>
-        [TestMethod]
-        public async Task WaitForOrchestration_Suspended_KeepsWaiting()
-        {
-            var store = new FakeInstanceStore();
-            store.States.Add(CreateState("generation-1", OrchestrationStatus.Suspended, BaseTime));
-
-            store.OnQuery = s =>
-            {
-                if (s.QueryCount == 2)
-                {
-                    // Resumed and completed.
-                    s.States.Clear();
-                    s.States.Add(CreateState("generation-1", OrchestrationStatus.Completed, BaseTime, "final output"));
-                }
-            };
-
-            ServiceBusOrchestrationService service = CreateService(store);
-
-            OrchestrationState state = await service.WaitForOrchestrationAsync(
-                InstanceId,
-                "generation-1",
-                TimeSpan.FromSeconds(30),
-                CancellationToken.None);
-
-            Assert.IsNotNull(state);
-            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
-            Assert.AreEqual("final output", state.Output);
-        }
-
         [TestMethod]
         public async Task WaitForOrchestration_Suspended_IsNotReturnedAsTerminal()
         {
@@ -310,6 +282,201 @@ namespace DurableTask.ServiceBus.Tests
             Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
             Assert.AreEqual(1, store.PinnedQueryCount, "The pinned lookup should have been used.");
             Assert.AreEqual(0, store.LatestQueryCount, "The current generation lookup should not have been used.");
+        }
+
+        /// <summary>
+        /// A suspended orchestration that is resumed and then runs to completion must return the
+        /// final state, not stop at the intermediate Suspended or Running rows.
+        /// </summary>
+        [TestMethod]
+        public async Task WaitForOrchestration_Suspended_ResumedAndCompleted_ReturnsFinalState()
+        {
+            var store = new FakeInstanceStore();
+            store.States.Add(CreateState("generation-1", OrchestrationStatus.Suspended, BaseTime));
+
+            // Suspended -> Running (resumed) -> Completed, one transition per poll.
+            store.OnQuery = s =>
+            {
+                OrchestrationStatus? next = s.QueryCount == 2 ? OrchestrationStatus.Running
+                    : s.QueryCount == 3 ? OrchestrationStatus.Completed
+                    : (OrchestrationStatus?)null;
+
+                if (next != null)
+                {
+                    s.States.Clear();
+                    s.States.Add(CreateState(
+                        "generation-1",
+                        next.Value,
+                        BaseTime,
+                        next == OrchestrationStatus.Completed ? "final output" : null));
+                }
+            };
+
+            ServiceBusOrchestrationService service = CreateService(store);
+
+            OrchestrationState state = await service.WaitForOrchestrationAsync(
+                InstanceId,
+                "generation-1",
+                TimeSpan.FromSeconds(30),
+                CancellationToken.None);
+
+            Assert.IsNotNull(state, "The resumed orchestration completed and must be returned.");
+            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+            Assert.AreEqual("final output", state.Output);
+            Assert.AreEqual(3, store.QueryCount, "The wait should have polled through Suspended and Running.");
+        }
+
+        /// <summary>
+        /// Negative timeouts are a caller bug. Timeout.InfiniteTimeSpan is itself negative (-1ms), so it
+        /// must be excluded from this check; values adjacent to it must still be rejected.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(-2)]
+        [DataRow(-1000)]
+        [DataRow(-60000)]
+        public async Task WaitForOrchestration_Timeout_Negative_Throws(int timeoutMilliseconds)
+        {
+            var store = new FakeInstanceStore();
+            store.States.Add(CreateState("generation-1", OrchestrationStatus.Completed, BaseTime, "final output"));
+
+            ServiceBusOrchestrationService service = CreateService(store);
+
+            await Assert.ThrowsExceptionAsync<ArgumentException>(
+                () => service.WaitForOrchestrationAsync(
+                    InstanceId,
+                    "generation-1",
+                    TimeSpan.FromMilliseconds(timeoutMilliseconds),
+                    CancellationToken.None),
+                $"A timeout of {timeoutMilliseconds}ms should be rejected.");
+
+            Assert.AreEqual(0, store.QueryCount, "The timeout should be validated before any lookup.");
+        }
+
+        /// <summary>
+        /// A zero timeout means "check once and return", so a state that is already terminal is returned.
+        /// </summary>
+        [TestMethod]
+        public async Task WaitForOrchestration_Timeout_Zero_ChecksOnceAndReturnsTerminalState()
+        {
+            var store = new FakeInstanceStore();
+            store.States.Add(CreateState("generation-1", OrchestrationStatus.Completed, BaseTime, "final output"));
+
+            ServiceBusOrchestrationService service = CreateService(store);
+
+            OrchestrationState state = await service.WaitForOrchestrationAsync(
+                InstanceId,
+                "generation-1",
+                TimeSpan.Zero,
+                CancellationToken.None);
+
+            Assert.IsNotNull(state, "A zero timeout must still perform one status check.");
+            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+            Assert.AreEqual(1, store.QueryCount);
+        }
+
+        /// <summary>
+        /// A zero timeout must not wait: if the orchestration is not yet terminal it returns null after
+        /// a single check rather than polling.
+        /// </summary>
+        [TestMethod]
+        public async Task WaitForOrchestration_Timeout_Zero_DoesNotPollWhenNotComplete()
+        {
+            var store = new FakeInstanceStore();
+            store.States.Add(CreateState("generation-1", OrchestrationStatus.Running, BaseTime));
+
+            ServiceBusOrchestrationService service = CreateService(store);
+
+            OrchestrationState state = await service.WaitForOrchestrationAsync(
+                InstanceId,
+                "generation-1",
+                TimeSpan.Zero,
+                CancellationToken.None);
+
+            Assert.IsNull(state);
+            Assert.AreEqual(1, store.QueryCount, "A zero timeout must check exactly once and not poll.");
+        }
+
+        /// <summary>
+        /// A positive timeout polls until it elapses, then gives up and returns null.
+        /// </summary>
+        [TestMethod]
+        public async Task WaitForOrchestration_Timeout_Positive_PollsThenReturnsNull()
+        {
+            var store = new FakeInstanceStore();
+            store.States.Add(CreateState("generation-1", OrchestrationStatus.Running, BaseTime));
+
+            ServiceBusOrchestrationService service = CreateService(store);
+
+            OrchestrationState state = await service.WaitForOrchestrationAsync(
+                InstanceId,
+                "generation-1",
+                TimeSpan.FromSeconds(4),
+                CancellationToken.None);
+
+            Assert.IsNull(state, "The orchestration never completed, so the wait must time out.");
+            Assert.IsTrue(store.QueryCount > 1, $"A 4 second timeout should poll more than once, polled {store.QueryCount} time(s).");
+        }
+
+        /// <summary>
+        /// Timeout.InfiniteTimeSpan is negative, so a naive remaining-time check would treat it as already
+        /// elapsed and return null on the first poll instead of waiting.
+        /// </summary>
+        [TestMethod]
+        public async Task WaitForOrchestration_Timeout_Infinite_WaitsForCompletion()
+        {
+            var store = new FakeInstanceStore();
+            store.States.Add(CreateState("generation-1", OrchestrationStatus.Running, BaseTime));
+
+            store.OnQuery = s =>
+            {
+                if (s.QueryCount == 2)
+                {
+                    s.States.Clear();
+                    s.States.Add(CreateState("generation-1", OrchestrationStatus.Completed, BaseTime, "final output"));
+                }
+            };
+
+            ServiceBusOrchestrationService service = CreateService(store);
+
+            OrchestrationState state = await service.WaitForOrchestrationAsync(
+                InstanceId,
+                "generation-1",
+                Timeout.InfiniteTimeSpan,
+                CancellationToken.None);
+
+            Assert.IsNotNull(state, "An infinite timeout must keep waiting instead of giving up immediately.");
+            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+            Assert.AreEqual("final output", state.Output);
+        }
+
+        /// <summary>
+        /// An infinite wait must still observe cancellation, otherwise it can never be stopped.
+        /// </summary>
+        [TestMethod]
+        public async Task WaitForOrchestration_Timeout_Infinite_HonorsCancellation()
+        {
+            var store = new FakeInstanceStore();
+            store.States.Add(CreateState("generation-1", OrchestrationStatus.Running, BaseTime));
+
+            using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3)))
+            {
+                ServiceBusOrchestrationService service = CreateService(store);
+
+                try
+                {
+                    OrchestrationState state = await service.WaitForOrchestrationAsync(
+                        InstanceId,
+                        "generation-1",
+                        Timeout.InfiniteTimeSpan,
+                        cts.Token);
+
+                    Assert.IsNull(state, "A cancelled wait must not return a state.");
+                }
+                catch (OperationCanceledException)
+                {
+                    // Also acceptable: the polling delay observes the token directly.
+                }
+            }
         }
 
         /// <summary>
