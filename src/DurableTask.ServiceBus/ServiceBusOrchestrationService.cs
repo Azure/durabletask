@@ -1243,7 +1243,10 @@ namespace DurableTask.ServiceBus
 
             while (!cancellationToken.IsCancellationRequested && timeoutSeconds > 0)
             {
-                OrchestrationState state = (await GetOrchestrationStateAsync(instanceId, false))?.FirstOrDefault();
+                OrchestrationState state = !string.IsNullOrWhiteSpace(executionId)
+                    ? await GetOrchestrationStateAsync(instanceId, executionId)
+                    : (await GetOrchestrationStateAsync(instanceId, false))?.FirstOrDefault();
+
                 if (state == null
                     || (state.OrchestrationStatus == OrchestrationStatus.Running)
                     || (state.OrchestrationStatus == OrchestrationStatus.Pending))
