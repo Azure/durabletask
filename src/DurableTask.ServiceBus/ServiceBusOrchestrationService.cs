@@ -1222,8 +1222,10 @@ namespace DurableTask.ServiceBus
         /// <summary>
         ///     Wait for an orchestration to reach any terminal state within the given timeout
         /// </summary>
-        /// <param name="executionId">The execution id of the orchestration. When specified, only that execution is
-        /// tracked; if it has <see cref="OrchestrationStatus.ContinuedAsNew"/>, the current generation of the instance is followed instead.</param>
+        /// <param name="executionId">The execution id of the orchestration to wait for. When null, empty, or
+        /// whitespace, the current generation of the instance is followed. Otherwise only that execution is
+        /// tracked, except for a <see cref="OrchestrationStatus.ContinuedAsNew"/> execution,
+        /// where the current generation of the instance is followed instead.</param>
         /// <param name="instanceId">Instance to wait for</param>
         /// <param name="timeout">Max timeout to wait. Only positive <see cref="TimeSpan"/> values, <see cref="TimeSpan.Zero"/>, or <see cref="Timeout.InfiniteTimeSpan"/> are allowed.</param>
         /// <param name="cancellationToken">Task cancellation token</param>
