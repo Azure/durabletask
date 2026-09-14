@@ -1239,15 +1239,16 @@ namespace DurableTask.ServiceBus
 
             if (string.IsNullOrWhiteSpace(instanceId))
             {
-                throw new ArgumentException("instanceId");
+                throw new ArgumentException("The instance id cannot be null, empty, or whitespace.", nameof(instanceId));
             }
 
             bool isInfiniteTimeSpan = timeout == Timeout.InfiniteTimeSpan;
             if (timeout < TimeSpan.Zero && !isInfiniteTimeSpan)
             {
-                throw new ArgumentException($"The parameter {nameof(timeout)} cannot be negative." +
+                throw new ArgumentException($"The parameter {nameof(timeout)} cannot be negative unless it is Timeout.InfiniteTimeSpan." +
                     $" The value for {nameof(timeout)} was '{timeout}'." +
-                    $" Please provide either a positive timeout value or Timeout.InfiniteTimeSpan.");
+                    $" Please provide a positive timeout value, TimeSpan.Zero or Timeout.InfiniteTimeSpan.",
+                    nameof(timeout));
             }
 
             bool pinnedToExecution = !string.IsNullOrWhiteSpace(executionId);

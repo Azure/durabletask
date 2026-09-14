@@ -552,20 +552,33 @@ namespace DurableTask.ServiceBus.Tests
             {
                 ServiceBusOrchestrationService service = CreateService(store);
 
+                Task<OrchestrationState> waitTask = service.WaitForOrchestrationAsync(
+                    InstanceId,
+                    "generation-1",
+                    Timeout.InfiniteTimeSpan,
+                    cts.Token);
+
+                // An infinite wait that ignores its token would never complete, so bound the await to
+                // fail the test instead of hanging the run.
+                Task finished = await Task.WhenAny(waitTask, Task.Delay(TimeSpan.FromSeconds(30)));
+
+                Assert.AreSame(waitTask, finished, "An infinite wait must stop once its token is cancelled.");
+
                 try
                 {
-                    OrchestrationState state = await service.WaitForOrchestrationAsync(
-                        InstanceId,
-                        "generation-1",
-                        Timeout.InfiniteTimeSpan,
-                        cts.Token);
-
-                    Assert.IsNull(state, "A cancelled wait must not return a state.");
+                    Assert.IsNull(await waitTask, "A cancelled wait must not return a state.");
                 }
                 catch (OperationCanceledException)
                 {
                     // Also acceptable: the polling delay observes the token directly.
                 }
+
+                // Whichever path ends the wait, it must have kept polling until cancellation rather
+                // than treating the negative Timeout.InfiniteTimeSpan as an elapsed budget and
+                // bailing out after the first lookup.
+                Assert.IsTrue(
+                    store.QueryCount > 1,
+                    $"An infinite wait must poll until cancelled, polled {store.QueryCount} time(s).");
             }
         }
 
