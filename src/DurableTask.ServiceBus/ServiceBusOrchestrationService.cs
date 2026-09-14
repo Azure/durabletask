@@ -1265,11 +1265,12 @@ namespace DurableTask.ServiceBus
 
                 // A pinned execution that continued-as-new is only a tombstone: the live orchestration
                 // moved on to a new execution id, so stop pinning and follow the current generation.
+                // The tombstone still counts as this iteration's status check, so fall through to the
+                // timeout accounting below rather than re-querying immediately.
                 if (pinnedToExecution && state?.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)
                 {
                     pinnedToExecution = false;
                     minimumCreatedTime = state.CreatedTime;
-                    continue;
                 }
 
                 if (state?.CreatedTime < minimumCreatedTime)

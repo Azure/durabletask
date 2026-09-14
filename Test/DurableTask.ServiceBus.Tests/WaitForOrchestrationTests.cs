@@ -147,6 +147,30 @@ namespace DurableTask.ServiceBus.Tests
         }
 
         /// <summary>
+        /// Un-pinning after a ContinuedAsNew tombstone must not re-query within the same iteration:
+        /// the tombstone was itself this iteration's status check, so a zero timeout still performs
+        /// exactly one lookup rather than reaching the next generation for free.
+        /// </summary>
+        [TestMethod]
+        public async Task WaitForOrchestration_Timeout_Zero_ContinuedAsNew_ChecksOnceAndDoesNotFollowNextGeneration()
+        {
+            var store = new FakeInstanceStore();
+            store.States.Add(CreateState("generation-1", OrchestrationStatus.ContinuedAsNew, BaseTime, "next input"));
+            store.States.Add(CreateState("generation-2", OrchestrationStatus.Completed, BaseTime.AddMinutes(1), "final output"));
+
+            ServiceBusOrchestrationService service = CreateService(store);
+
+            OrchestrationState state = await service.WaitForOrchestrationAsync(
+                InstanceId,
+                "generation-1",
+                TimeSpan.Zero,
+                CancellationToken.None);
+
+            Assert.IsNull(state, "A zero timeout must not reach the next generation after un-pinning.");
+            Assert.AreEqual(1, store.QueryCount, "A zero timeout must perform exactly one lookup.");
+        }
+
+        /// <summary>
         /// After following a continue-as-new to the current generation we must still not accept state
         /// left behind by an earlier run of the same instance id.
         /// </summary>
