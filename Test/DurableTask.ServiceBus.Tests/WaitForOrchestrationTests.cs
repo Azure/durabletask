@@ -442,6 +442,72 @@ namespace DurableTask.ServiceBus.Tests
         }
 
         /// <summary>
+        /// The whole timeout window must be polled. Charging a full polling interval against the budget
+        /// before the delay is awaited would abandon the wait about halfway through and miss an
+        /// orchestration that completes late in the window.
+        /// </summary>
+        [TestMethod]
+        public async Task WaitForOrchestration_Timeout_Positive_PollsForTheFullTimeout()
+        {
+            var store = new FakeInstanceStore();
+            store.States.Add(CreateState("generation-1", OrchestrationStatus.Running, BaseTime));
+
+            // With a 2 second polling interval a 4 second timeout allows checks at roughly t=0, t=2
+            // and t=4, so state that only becomes terminal on the third check is still observed.
+            store.OnQuery = s =>
+            {
+                if (s.QueryCount == 3)
+                {
+                    s.States.Clear();
+                    s.States.Add(CreateState("generation-1", OrchestrationStatus.Completed, BaseTime, "final output"));
+                }
+            };
+
+            ServiceBusOrchestrationService service = CreateService(store);
+
+            OrchestrationState state = await service.WaitForOrchestrationAsync(
+                InstanceId,
+                "generation-1",
+                TimeSpan.FromSeconds(4),
+                CancellationToken.None);
+
+            Assert.IsNotNull(state, "The orchestration completed within the timeout and must be returned.");
+            Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+            Assert.AreEqual("final output", state.Output);
+        }
+
+        /// <summary>
+        /// A timeout shorter than the polling interval must wait out its window rather than returning on
+        /// the first check, but must not overshoot it by delaying for a whole polling interval.
+        /// </summary>
+        [TestMethod]
+        public async Task WaitForOrchestration_Timeout_ShorterThanPollingInterval_WaitsWithoutOvershooting()
+        {
+            var store = new FakeInstanceStore();
+            store.States.Add(CreateState("generation-1", OrchestrationStatus.Running, BaseTime));
+
+            ServiceBusOrchestrationService service = CreateService(store);
+
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+            OrchestrationState state = await service.WaitForOrchestrationAsync(
+                InstanceId,
+                "generation-1",
+                TimeSpan.FromSeconds(1),
+                CancellationToken.None);
+
+            stopwatch.Stop();
+
+            Assert.IsNull(state, "The orchestration never completed, so the wait must time out.");
+            Assert.IsTrue(
+                stopwatch.Elapsed >= TimeSpan.FromMilliseconds(900),
+                $"The wait must use its window instead of returning immediately, took {stopwatch.ElapsedMilliseconds}ms.");
+            Assert.IsTrue(
+                stopwatch.Elapsed < TimeSpan.FromMilliseconds(1800),
+                $"The wait must not delay for a whole polling interval past its timeout, took {stopwatch.ElapsedMilliseconds}ms.");
+        }
+
+        /// <summary>
         /// Timeout.InfiniteTimeSpan is negative, so a naive remaining-time check would treat it as already
         /// elapsed and return null on the first poll instead of waiting.
         /// </summary>

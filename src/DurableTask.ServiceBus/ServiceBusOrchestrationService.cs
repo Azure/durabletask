@@ -1288,20 +1288,30 @@ namespace DurableTask.ServiceBus
                     || (state.OrchestrationStatus == OrchestrationStatus.Suspended)
                     || (state.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew))
                 {
+                    TimeSpan delay = StatusPollingInterval;
+
                     if (!isInfiniteTimeSpan)
                     {
-                        timeout -= StatusPollingInterval;
-
-                        // For a user-provided timeout of `TimeSpan.Zero`,
-                        // we want to check the status of the orchestration once and then return.
-                        // Therefore, we check the timeout condition after the status check.
+                        // The timeout condition is checked after the status check so that a user-provided
+                        // timeout of `TimeSpan.Zero` still checks the status of the orchestration once
+                        // before returning.
                         if (timeout <= TimeSpan.Zero)
                         {
                             break;
                         }
+
+                        // Only the time actually spent waiting is charged against the budget, and the
+                        // last delay is clamped to what remains, so the full timeout window is polled
+                        // before giving up.
+                        if (timeout < delay)
+                        {
+                            delay = timeout;
+                        }
+
+                        timeout -= delay;
                     }
 
-                    await Task.Delay(StatusPollingInterval, cancellationToken);
+                    await Task.Delay(delay, cancellationToken);
                 }
                 else
                 {
