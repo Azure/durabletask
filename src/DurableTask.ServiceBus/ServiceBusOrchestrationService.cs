@@ -1257,6 +1257,7 @@ namespace DurableTask.ServiceBus
             // earlier run of the same instance id, otherwise we reintroduce the race that querying by
             // execution id is meant to avoid.
             DateTime minimumCreatedTime = DateTimeUtils.MinDateTime;
+            DateTime minimumLastUpdatedTime = DateTimeUtils.MinDateTime;
 
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -1272,11 +1273,19 @@ namespace DurableTask.ServiceBus
                 {
                     pinnedToExecution = false;
                     minimumCreatedTime = state.CreatedTime;
+                    minimumLastUpdatedTime = state.LastUpdatedTime;
                 }
 
-                if (state?.CreatedTime < minimumCreatedTime)
+                // State from a previous run of this instance id; the current generation is not readable yet.
+                // CreatedTime comes from a HistoryEvent timestamp and is not guaranteed unique, so it cannot
+                // separate the two on its own. When it ties, fall back to LastUpdatedTime: a previous run
+                // necessarily stopped being updated no later than the continue-as-new that wrote the
+                // tombstone, while the generation that follows the tombstone is updated at or after it.
+                if (state != null
+                    && (state.CreatedTime < minimumCreatedTime
+                        || (state.CreatedTime == minimumCreatedTime && state.LastUpdatedTime < minimumLastUpdatedTime)))
+
                 {
-                    // State from a previous run of this instance id; the current generation is not readable yet.
                     state = null;
                 }
 
