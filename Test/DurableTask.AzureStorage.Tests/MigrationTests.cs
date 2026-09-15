@@ -82,10 +82,10 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
-        /// Rewinding an orchestration while a migration is active must bump the instance's sequence number (and stamp
-        /// the same value on the history sentinel row) and record the instance in the modified-instances queue so the
-        /// migration process re-copies it. The rewind's effects are inspected immediately after the rewind (with the
-        /// worker stopped) so the assertions are deterministic.
+        /// Rewinding an orchestration while a migration is active must assign a new execution ID, bump the instance's
+        /// sequence number (and stamp the same value on the history sentinel row), and record the instance in the
+        /// modified-instances queue so the migration process re-copies it. The rewind's effects are inspected
+        /// immediately after the rewind (with the worker stopped) so the assertions are deterministic.
         /// </summary>
         [TestMethod]
         public async Task RewindDuringMigration_BumpsSequenceNumberAndEnqueuesInstance()
@@ -101,6 +101,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(OrchestrationStatus.Failed, failedStatus?.OrchestrationStatus);
 
             string instanceId = client.InstanceId;
+            string failedExecutionId = failedStatus!.OrchestrationInstance.ExecutionId;
 
             // Stop the worker so no further work items are processed. This makes the state observed immediately after
             // the rewind deterministic (otherwise the revived orchestration would keep bumping the sequence number).
@@ -121,6 +122,18 @@ namespace DurableTask.AzureStorage.Tests
             RewindFailOrchestration.ShouldFail = false;
             await client.RewindAsync("rewind for migration test");
 
+            // Assert: rewind creates a new execution identity in both the instance row and the embedded
+            // ExecutionStarted event.
+            string? rewoundExecutionId = await GetInstanceExecutionIdAsync(azureStorageClient, instanceId);
+            Assert.IsNotNull(rewoundExecutionId);
+            Assert.AreNotEqual(failedExecutionId, rewoundExecutionId);
+            Assert.AreEqual(
+                rewoundExecutionId,
+                await GetExecutionStartedEventExecutionIdAsync(azureStorageClient, instanceId));
+            CollectionAssert.AreEquivalent(
+                new[] { rewoundExecutionId },
+                (await GetHistoryExecutionIdsAsync(azureStorageClient, instanceId)).Distinct().ToArray());
+
             // Assert: the rewind bumped the instance sequence number by exactly one...
             long? sequenceNumberAfterRewind = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
             Assert.AreEqual(sequenceNumberBeforeRewind + 1, sequenceNumberAfterRewind, "Rewind should bump the instance sequence number by one.");
@@ -134,6 +147,103 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(1, enqueued.Count, "Rewind should enqueue the instance exactly once.");
             Assert.AreEqual(instanceId, enqueued[0].InstanceId);
             Assert.AreEqual(sequenceNumberAfterRewind, enqueued[0].SequenceNumber);
+        }
+
+        /// <summary>
+        /// Rewind preserves the existing execution identity when storage migration is not active.
+        /// </summary>
+        [TestMethod]
+        public async Task RewindOutsideMigration_PreservesExecutionId()
+        {
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false);
+
+            await host.StartAsync();
+
+            TestOrchestrationClient client = await host.StartOrchestrationAsync(
+                typeof(AlwaysFailingRewindOrchestration),
+                input: "world");
+            OrchestrationState? failedStatus = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+            Assert.AreEqual(OrchestrationStatus.Failed, failedStatus?.OrchestrationStatus);
+
+            await host.StopAsync();
+
+            AzureStorageOrchestrationServiceSettings settings =
+                TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(enableExtendedSessions: false);
+            var azureStorageClient = new AzureStorageClient(settings);
+            string instanceId = client.InstanceId;
+            string? executionIdBeforeRewind = await GetInstanceExecutionIdAsync(azureStorageClient, instanceId);
+            Assert.IsNotNull(executionIdBeforeRewind);
+
+            await client.RewindAsync("rewind outside migration");
+
+            string? executionIdAfterRewind = await GetInstanceExecutionIdAsync(azureStorageClient, instanceId);
+            Assert.IsNotNull(executionIdAfterRewind);
+            Assert.AreEqual(executionIdBeforeRewind, executionIdAfterRewind);
+            Assert.AreEqual(
+                executionIdAfterRewind,
+                await GetExecutionStartedEventExecutionIdAsync(azureStorageClient, instanceId));
+            CollectionAssert.AreEquivalent(
+                new[] { executionIdAfterRewind },
+                (await GetHistoryExecutionIdsAsync(azureStorageClient, instanceId)).Distinct().ToArray());
+        }
+
+        /// <summary>
+        /// Migration-mode rewind gives both a parent and its failed child new execution identities and updates the
+        /// child's parent link to the parent's new execution.
+        /// </summary>
+        [TestMethod]
+        public async Task RewindSubOrchestrationDuringMigration_UpdatesExecutionIdsAndParentLink()
+        {
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false);
+
+            await host.StartAsync(MigrationMode.MigrationStarted);
+
+            string parentInstanceId = $"rewind-parent-{Guid.NewGuid():N}";
+            string childInstanceId = $"rewind-child-{Guid.NewGuid():N}";
+            TestOrchestrationClient client = await host.StartOrchestrationAsync(
+                typeof(FailingRewindParentOrchestration),
+                input: childInstanceId,
+                instanceId: parentInstanceId);
+            OrchestrationState? failedStatus = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+            Assert.AreEqual(OrchestrationStatus.Failed, failedStatus?.OrchestrationStatus);
+
+            await host.StopAsync();
+
+            AzureStorageOrchestrationServiceSettings settings =
+                TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(enableExtendedSessions: false);
+            var azureStorageClient = new AzureStorageClient(settings);
+            string? parentExecutionIdBeforeRewind =
+                await GetInstanceExecutionIdAsync(azureStorageClient, parentInstanceId);
+            string? childExecutionIdBeforeRewind =
+                await GetInstanceExecutionIdAsync(azureStorageClient, childInstanceId);
+            Assert.IsNotNull(parentExecutionIdBeforeRewind);
+            Assert.IsNotNull(childExecutionIdBeforeRewind);
+
+            await client.RewindAsync("rewind parent and child during migration");
+
+            string? parentExecutionIdAfterRewind =
+                await GetInstanceExecutionIdAsync(azureStorageClient, parentInstanceId);
+            string? childExecutionIdAfterRewind =
+                await GetInstanceExecutionIdAsync(azureStorageClient, childInstanceId);
+            Assert.IsNotNull(parentExecutionIdAfterRewind);
+            Assert.IsNotNull(childExecutionIdAfterRewind);
+            Assert.AreNotEqual(parentExecutionIdBeforeRewind, parentExecutionIdAfterRewind);
+            Assert.AreNotEqual(childExecutionIdBeforeRewind, childExecutionIdAfterRewind);
+            Assert.AreEqual(
+                parentExecutionIdAfterRewind,
+                await GetExecutionStartedEventExecutionIdAsync(azureStorageClient, parentInstanceId));
+            Assert.AreEqual(
+                childExecutionIdAfterRewind,
+                await GetExecutionStartedEventExecutionIdAsync(azureStorageClient, childInstanceId));
+            Assert.AreEqual(
+                parentExecutionIdAfterRewind,
+                await GetExecutionStartedEventParentExecutionIdAsync(azureStorageClient, childInstanceId));
+            CollectionAssert.AreEquivalent(
+                new[] { parentExecutionIdAfterRewind },
+                (await GetHistoryExecutionIdsAsync(azureStorageClient, parentInstanceId)).Distinct().ToArray());
+            CollectionAssert.AreEquivalent(
+                new[] { childExecutionIdAfterRewind },
+                (await GetHistoryExecutionIdsAsync(azureStorageClient, childInstanceId)).Distinct().ToArray());
         }
 
         /// <summary>
@@ -815,6 +925,61 @@ namespace DurableTask.AzureStorage.Tests
             return null;
         }
 
+        static async Task<string?> GetInstanceExecutionIdAsync(AzureStorageClient azureStorageClient, string instanceId)
+        {
+            Table instanceTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName);
+            string filter = AzureTableQueryFilter.PartitionKeyEquals(instanceId);
+            await foreach (TableEntity entity in instanceTable.ExecuteQueryAsync<TableEntity>(filter))
+            {
+                return entity.GetString(nameof(OrchestrationInstance.ExecutionId));
+            }
+
+            return null;
+        }
+
+        static async Task<string?> GetExecutionStartedEventExecutionIdAsync(AzureStorageClient azureStorageClient, string instanceId)
+        {
+            Table historyTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.HistoryTableName);
+            string filter = $"{AzureTableQueryFilter.PartitionKeyEquals(instanceId)} and " +
+                $"{AzureTableQueryFilter.ColumnEquals(nameof(HistoryEvent.EventType), nameof(EventType.ExecutionStarted))}";
+            await foreach (TableEntity entity in historyTable.ExecuteQueryAsync<TableEntity>(filter))
+            {
+                ExecutionStartedEvent executionStartedEvent =
+                    (ExecutionStartedEvent)TableEntityConverter.Deserialize(entity, typeof(ExecutionStartedEvent));
+                return executionStartedEvent.OrchestrationInstance.ExecutionId;
+            }
+
+            return null;
+        }
+
+        static async Task<string?> GetExecutionStartedEventParentExecutionIdAsync(AzureStorageClient azureStorageClient, string instanceId)
+        {
+            Table historyTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.HistoryTableName);
+            string filter = $"{AzureTableQueryFilter.PartitionKeyEquals(instanceId)} and " +
+                $"{AzureTableQueryFilter.ColumnEquals(nameof(HistoryEvent.EventType), nameof(EventType.ExecutionStarted))}";
+            await foreach (TableEntity entity in historyTable.ExecuteQueryAsync<TableEntity>(filter))
+            {
+                ExecutionStartedEvent executionStartedEvent =
+                    (ExecutionStartedEvent)TableEntityConverter.Deserialize(entity, typeof(ExecutionStartedEvent));
+                return executionStartedEvent.ParentInstance?.OrchestrationInstance.ExecutionId;
+            }
+
+            return null;
+        }
+
+        static async Task<List<string>> GetHistoryExecutionIdsAsync(AzureStorageClient azureStorageClient, string instanceId)
+        {
+            Table historyTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.HistoryTableName);
+            string filter = AzureTableQueryFilter.PartitionKeyEquals(instanceId);
+            var executionIds = new List<string>();
+            await foreach (TableEntity entity in historyTable.ExecuteQueryAsync<TableEntity>(filter))
+            {
+                executionIds.Add(entity.GetString(nameof(OrchestrationInstance.ExecutionId)));
+            }
+
+            return executionIds;
+        }
+
         static async Task<long?> GetSentinelSequenceNumberAsync(AzureStorageClient azureStorageClient, string instanceId)
         {
             Table historyTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.HistoryTableName);
@@ -875,6 +1040,26 @@ namespace DurableTask.AzureStorage.Tests
                 }
 
                 return result;
+            }
+        }
+
+        sealed class AlwaysFailingRewindOrchestration : TaskOrchestration<string, string>
+        {
+            public override Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                throw new InvalidOperationException("Simulating an orchestration failure before rewind.");
+            }
+        }
+
+        [KnownType(typeof(AlwaysFailingRewindOrchestration))]
+        sealed class FailingRewindParentOrchestration : TaskOrchestration<string, string>
+        {
+            public override Task<string> RunTask(OrchestrationContext context, string childInstanceId)
+            {
+                return context.CreateSubOrchestrationInstance<string>(
+                    typeof(AlwaysFailingRewindOrchestration),
+                    childInstanceId,
+                    "child");
             }
         }
 
