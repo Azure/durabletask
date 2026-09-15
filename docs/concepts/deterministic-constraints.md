@@ -10,7 +10,6 @@ Durable operations include:
 
 - `ScheduleTask` / `ScheduleWithRetry`
 - `CreateTimer`
-- `WaitForExternalEvent`
 - `CreateSubOrchestrationInstance`
 - `ContinueAsNew`
 

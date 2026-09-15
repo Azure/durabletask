@@ -15,6 +15,7 @@ namespace DurableTask.AzureStorage.Tests
 {
     using System;
     using System.Collections.Generic;
+    using System.Linq;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -106,6 +107,29 @@ namespace DurableTask.AzureStorage.Tests
         {
             var condition = new OrchestrationInstanceStatusQueryCondition();
             Assert.IsTrue(string.IsNullOrWhiteSpace(condition.ToOData().Filter));
+        }
+
+        /// <summary>
+        /// When inputs and outputs are excluded, the query switches from "select everything" to an explicit
+        /// column projection. ParentInstanceId must stay in that projection, otherwise status queries that
+        /// omit inputs/outputs would silently return a null ParentInstance.
+        /// </summary>
+        [TestMethod]
+        public void OrchestrationInstanceQuery_ProjectionRetainsParentInstanceId()
+        {
+            var condition = new OrchestrationInstanceStatusQueryCondition
+            {
+                RuntimeStatus = new OrchestrationStatus[] { OrchestrationStatus.Running },
+                FetchInput = false,
+                FetchOutput = false,
+            };
+
+            IEnumerable<string> select = condition.ToOData().Select;
+
+            Assert.IsNotNull(select, "Excluding input and output should produce an explicit projection.");
+            CollectionAssert.Contains(select.ToList(), nameof(OrchestrationInstanceStatus.ParentInstanceId));
+            CollectionAssert.DoesNotContain(select.ToList(), nameof(OrchestrationInstanceStatus.Input));
+            CollectionAssert.DoesNotContain(select.ToList(), nameof(OrchestrationInstanceStatus.Output));
         }
 
         [TestMethod]

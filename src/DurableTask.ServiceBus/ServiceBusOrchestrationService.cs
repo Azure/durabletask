@@ -550,7 +550,7 @@ namespace DurableTask.ServiceBus
                 TraceEventType.Information,
                 "ServiceBusOrchestrationService-LockNextTaskOrchestrationWorkItem-MessageToProcess",
                 session.SessionId,
-                GetFormattedLog(
+                () => GetFormattedLog(
                     $@"{newMessages.Count} new messages to process: {
                             string.Join(",", newMessages.Select(m => m.MessageId))}, max latency: {
                             newMessages.Max(message => message.DeliveryLatency())}ms"));
@@ -1364,7 +1364,7 @@ namespace DurableTask.ServiceBus
                 TraceEventType.Information,
                 "ServiceBusOrchestrationService-FetchTrackingWorkItem-Messages",
                 session.SessionId,
-                GetFormattedLog($"{newMessages.Count} new tracking messages to process: {string.Join(",", newMessages.Select(m => m.MessageId))}"));
+                () => GetFormattedLog($"{newMessages.Count} new tracking messages to process: {string.Join(",", newMessages.Select(m => m.MessageId))}"));
 
             ServiceBusUtils.CheckAndLogDeliveryCount(newMessages, this.Settings.MaxTrackingDeliveryCount);
 
@@ -1579,7 +1579,7 @@ namespace DurableTask.ServiceBus
                 TraceEventType.Information,
                 "ServiceBusOrchestrationService-SentMessageLog",
                 session.SessionId,
-            GetFormattedLog($@"{messages.Count.ToString()} messages queued for {messageType}: {
+                () => GetFormattedLog($@"{messages.Count.ToString()} messages queued for {messageType}: {
                         string.Join(",", messages.Select(m =>
                         {
                             string scheduledTime = m.Message.ScheduledEnqueueTimeUtc > DateTime.MinValue

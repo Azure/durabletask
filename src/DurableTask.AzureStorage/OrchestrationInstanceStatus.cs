@@ -23,6 +23,7 @@ namespace DurableTask.AzureStorage
     class OrchestrationInstanceStatus : ITableEntity
     {
         public string ExecutionId { get; set; }
+        public string ParentInstanceId { get; set; }
         public string Name { get; set; }
         public string Version { get; set; }
         public string Input { get; set; }

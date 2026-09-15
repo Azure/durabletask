@@ -712,6 +712,11 @@ namespace DurableTask.Core.Tracing
         /// </summary>
         public static void Trace(TraceEventType eventLevel, string eventType, Func<string> generateMessage)
         {
+            if (!DefaultEventSource.Log.IsEventEnabled(eventLevel))
+            {
+                return;
+            }
+
             ExceptionHandlingWrapper(
                 () => DefaultEventSource.Log.TraceEvent(eventLevel, Source, string.Empty, string.Empty, string.Empty, generateMessage(), eventType));
         }
@@ -721,6 +726,11 @@ namespace DurableTask.Core.Tracing
         /// </summary>
         public static void Trace(TraceEventType eventLevel, string eventType, string format, params object[] args)
         {
+            if (!DefaultEventSource.Log.IsEventEnabled(eventLevel))
+            {
+                return;
+            }
+
             ExceptionHandlingWrapper(
                 () => DefaultEventSource.Log.TraceEvent(eventLevel, Source, string.Empty, string.Empty, string.Empty, FormatString(format, args), eventType));
         }
@@ -730,6 +740,11 @@ namespace DurableTask.Core.Tracing
         /// </summary>
         public static void TraceSession(TraceEventType eventLevel, string eventType, string sessionId, Func<string> generateMessage)
         {
+            if (!DefaultEventSource.Log.IsEventEnabled(eventLevel))
+            {
+                return;
+            }
+
             ExceptionHandlingWrapper(
                 () => DefaultEventSource.Log.TraceEvent(eventLevel, Source, string.Empty, string.Empty, sessionId, generateMessage(), eventType));
         }
@@ -739,6 +754,11 @@ namespace DurableTask.Core.Tracing
         /// </summary>
         public static void TraceSession(TraceEventType eventLevel, string eventType, string sessionId, string format, params object[] args)
         {
+            if (!DefaultEventSource.Log.IsEventEnabled(eventLevel))
+            {
+                return;
+            }
+
             ExceptionHandlingWrapper(
                 () => DefaultEventSource.Log.TraceEvent(eventLevel, Source, string.Empty, string.Empty, sessionId, FormatString(format, args), eventType));
         }
@@ -749,6 +769,11 @@ namespace DurableTask.Core.Tracing
         public static void TraceInstance(TraceEventType eventLevel, string eventType, OrchestrationInstance orchestrationInstance,
             string format, params object[] args)
         {
+            if (!DefaultEventSource.Log.IsEventEnabled(eventLevel))
+            {
+                return;
+            }
+
             ExceptionHandlingWrapper(
                 () => DefaultEventSource.Log.TraceEvent(
                     eventLevel,
@@ -766,6 +791,11 @@ namespace DurableTask.Core.Tracing
         public static void TraceInstance(TraceEventType eventLevel, string eventType, OrchestrationInstance orchestrationInstance,
             Func<string> generateMessage)
         {
+            if (!DefaultEventSource.Log.IsEventEnabled(eventLevel))
+            {
+                return;
+            }
+
             ExceptionHandlingWrapper(
                 () => DefaultEventSource.Log.TraceEvent(
                     eventLevel,
@@ -880,6 +910,11 @@ namespace DurableTask.Core.Tracing
         static ExceptionDispatchInfo TraceExceptionCore(TraceEventType eventLevel, string eventType, string iid, string eid, ExceptionDispatchInfo exceptionDispatchInfo,
             string format, params object[] args)
         {
+            if (!DefaultEventSource.Log.IsEventEnabled(eventLevel))
+            {
+                return exceptionDispatchInfo;
+            }
+
             Exception exception = exceptionDispatchInfo.SourceException;
 
             string newFormat = format + "\nException: " + exception.GetType() + " : " + exception.Message + "\n\t" +
@@ -895,6 +930,11 @@ namespace DurableTask.Core.Tracing
         static Exception TraceExceptionCore(TraceEventType eventLevel, string eventType, string iid, string eid, Exception exception,
             Func<string> generateMessage)
         {
+            if (!DefaultEventSource.Log.IsEventEnabled(eventLevel))
+            {
+                return exception;
+            }
+
             string newFormat = generateMessage() + "\nException: " + exception.GetType() + " : " + exception.Message +
                                "\n\t" + exception.StackTrace + "\nInner Exception: " +
                                exception.InnerException?.ToString();
