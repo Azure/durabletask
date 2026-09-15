@@ -31,6 +31,7 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.Core.History;
     using DurableTask.Core.Query;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using Newtonsoft.Json.Linq;
 
     /// <summary>
     /// Tests for the zero-downtime Azure Storage to DTS migration feature and its interaction with instance-table
@@ -133,6 +134,18 @@ namespace DurableTask.AzureStorage.Tests
             CollectionAssert.AreEquivalent(
                 new[] { rewoundExecutionId },
                 (await GetHistoryExecutionIdsAsync(azureStorageClient, instanceId)).Distinct().ToArray());
+
+            JArray rewoundHistory = await GetHistoryAsync(host.service, instanceId, rewoundExecutionId);
+            AssertHistoryEventTypes(
+                rewoundHistory,
+                EventType.ExecutionStarted,
+                EventType.TaskScheduled,
+                EventType.TaskCompleted,
+                EventType.GenericEvent);
+            Assert.AreEqual(
+                0,
+                (await GetHistoryAsync(host.service, instanceId, failedExecutionId)).Count,
+                "The superseded execution ID should no longer resolve to the rewound generation's history.");
 
             // Assert: the rewind bumped the instance sequence number by exactly one...
             long? sequenceNumberAfterRewind = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
@@ -268,6 +281,31 @@ namespace DurableTask.AzureStorage.Tests
             CollectionAssert.AreEquivalent(
                 new[] { childExecutionIdAfterRewind },
                 (await GetHistoryExecutionIdsAsync(azureStorageClient, childInstanceId)).Distinct().ToArray());
+
+            JArray rewoundParentHistory =
+                await GetHistoryAsync(host.service, parentInstanceId, parentExecutionIdAfterRewind);
+            AssertHistoryEventTypes(
+                rewoundParentHistory,
+                EventType.ExecutionStarted,
+                EventType.SubOrchestrationInstanceCreated,
+                EventType.GenericEvent,
+                EventType.GenericEvent);
+
+            JArray rewoundChildHistory =
+                await GetHistoryAsync(host.service, childInstanceId, childExecutionIdAfterRewind);
+            AssertHistoryEventTypes(
+                rewoundChildHistory,
+                EventType.ExecutionStarted,
+                EventType.GenericEvent);
+
+            Assert.AreEqual(
+                0,
+                (await GetHistoryAsync(host.service, parentInstanceId, parentExecutionIdBeforeRewind)).Count,
+                "The superseded parent execution ID should no longer resolve to history.");
+            Assert.AreEqual(
+                0,
+                (await GetHistoryAsync(host.service, childInstanceId, childExecutionIdBeforeRewind)).Count,
+                "The superseded child execution ID should no longer resolve to history.");
 
             OrchestrationState? rewoundChildStatus =
                 await host.service.GetOrchestrationStateAsync(childInstanceId, childExecutionIdAfterRewind);
@@ -1027,6 +1065,37 @@ namespace DurableTask.AzureStorage.Tests
             }
 
             return executionIds;
+        }
+
+        static async Task<JArray> GetHistoryAsync(
+            AzureStorageOrchestrationService service,
+            string instanceId,
+            string executionId)
+        {
+            string history = await service.GetOrchestrationHistoryAsync(instanceId, executionId);
+            return JArray.Parse(history);
+        }
+
+        static void AssertHistoryEventTypes(JArray history, params EventType[] expectedEventTypes)
+        {
+            EventType[] actualEventTypes = history
+                .Select(GetHistoryEventType)
+                .Where(eventType =>
+                    eventType != EventType.OrchestratorStarted &&
+                    eventType != EventType.OrchestratorCompleted)
+                .ToArray();
+
+            CollectionAssert.AreEqual(
+                expectedEventTypes,
+                actualEventTypes,
+                $"Unexpected history: {string.Join(", ", actualEventTypes)}");
+        }
+
+        static EventType GetHistoryEventType(JToken historyEvent)
+        {
+            JToken? eventType = historyEvent[nameof(HistoryEvent.EventType)];
+            Assert.IsNotNull(eventType);
+            return eventType.ToObject<EventType>();
         }
 
         static async Task<long?> GetSentinelSequenceNumberAsync(AzureStorageClient azureStorageClient, string instanceId)
