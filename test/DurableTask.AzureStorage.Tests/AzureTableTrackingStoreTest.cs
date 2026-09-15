@@ -157,7 +157,7 @@ namespace DurableTask.AzureStorage.Tests
                 },
             };
 
-            bool created = await trackingStore.SetNewExecutionAsync(startedEvent, null, null);
+            bool created = await trackingStore.SetNewExecutionAsync(startedEvent, null, null, sequenceNumber: 0);
 
             Assert.IsTrue(created);
             Assert.IsNotNull(writtenState);

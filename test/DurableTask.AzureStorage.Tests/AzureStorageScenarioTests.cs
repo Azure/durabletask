@@ -3232,7 +3232,7 @@ namespace DurableTask.AzureStorage.Tests
                     new OrchestrationRuntimeState(),
                     instanceId,
                     executionId,
-                    new OrchestrationETags { HistoryETag = emptyHistory.ETag },
+                    new OrchestrationConcurrencyTags { HistoryETag = emptyHistory.ETag },
                     emptyHistory.TrackingStoreContext);
 
                 var controlQueue = service.AllControlQueues.Single();
@@ -3358,7 +3358,7 @@ namespace DurableTask.AzureStorage.Tests
                     new OrchestrationRuntimeState(),
                     instanceId,
                     oldExecutionId,
-                    new OrchestrationETags { HistoryETag = emptyHistory.ETag },
+                    new OrchestrationConcurrencyTags { HistoryETag = emptyHistory.ETag },
                     emptyHistory.TrackingStoreContext);
 
                 var newInstance = new OrchestrationInstance
@@ -3379,7 +3379,8 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.IsTrue(await service.TrackingStore.SetNewExecutionAsync(
                     newExecutionStartedEvent,
                     oldInstanceStatus.ETag,
-                    inputPayloadOverride: null));
+                    inputPayloadOverride: null,
+                    sequenceNumber: oldInstanceStatus.SequenceNumber.GetValueOrDefault()));
 
                 InstanceStatus pendingInstance = await service.TrackingStore.FetchInstanceStatusAsync(instanceId);
                 Assert.IsNotNull(pendingInstance);
@@ -4410,7 +4411,7 @@ namespace DurableTask.AzureStorage.Tests
                     new OrchestrationRuntimeState(),
                     instanceId,
                     currentExecutionId,
-                    new OrchestrationETags { HistoryETag = emptyHistory.ETag },
+                    new OrchestrationConcurrencyTags { HistoryETag = emptyHistory.ETag },
                     emptyHistory.TrackingStoreContext);
 
                 var controlQueue = service.AllControlQueues.Single();
@@ -4490,7 +4491,7 @@ namespace DurableTask.AzureStorage.Tests
                     new OrchestrationRuntimeState(currentHistory.Events),
                     instanceId,
                     futureExecutionId,
-                    new OrchestrationETags { HistoryETag = currentHistory.ETag },
+                    new OrchestrationConcurrencyTags { HistoryETag = currentHistory.ETag },
                     currentHistory.TrackingStoreContext);
 
                 await Task.Delay(settings.ControlQueueVisibilityTimeout + TimeSpan.FromSeconds(1));
@@ -4573,7 +4574,11 @@ namespace DurableTask.AzureStorage.Tests
                 };
 
                 // Create only the pending instance row, without committing any history or enqueueing its start message.
-                Assert.IsTrue(await service.TrackingStore.SetNewExecutionAsync(executionStartedEvent, null, null));
+                Assert.IsTrue(await service.TrackingStore.SetNewExecutionAsync(
+                    executionStartedEvent,
+                    eTag: null,
+                    inputPayloadOverride: null,
+                    sequenceNumber: 0));
                 InstanceStatus status = await service.TrackingStore.FetchInstanceStatusAsync(instanceId);
                 Assert.AreEqual(OrchestrationStatus.Pending, status.State.OrchestrationStatus);
                 Assert.AreEqual(

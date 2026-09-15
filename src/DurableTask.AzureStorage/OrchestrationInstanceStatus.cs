@@ -24,6 +24,7 @@ namespace DurableTask.AzureStorage
     {
         public string ExecutionId { get; set; }
         public string ParentInstanceId { get; set; }
+        public string ParentExecutionId { get; set; }
         public string Name { get; set; }
         public string Version { get; set; }
         public string Input { get; set; }

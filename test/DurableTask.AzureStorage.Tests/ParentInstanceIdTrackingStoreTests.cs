@@ -18,6 +18,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Threading.Tasks;
     using Azure;
     using Azure.Data.Tables;
+    using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
@@ -35,6 +36,8 @@ namespace DurableTask.AzureStorage.Tests
     public class ParentInstanceIdTrackingStoreTests
     {
         const string ParentInstanceIdProperty = "ParentInstanceId";
+        const string ParentExecutionIdProperty = "ParentExecutionId";
+        const string ParentExecutionId = "parent-execution";
 
         string taskHubName;
         AzureStorageOrchestrationServiceSettings settings;
@@ -52,7 +55,8 @@ namespace DurableTask.AzureStorage.Tests
 
             this.azureStorageClient = new AzureStorageClient(this.settings);
             var messageManager = new MessageManager(this.settings, this.azureStorageClient, $"{this.taskHubName}-largemessages".ToLowerInvariant());
-            this.trackingStore = new AzureTableTrackingStore(this.azureStorageClient, messageManager);
+            var modifiedInstancesQueue = new ModifiedInstancesQueue(this.azureStorageClient);
+            this.trackingStore = new AzureTableTrackingStore(this.azureStorageClient, messageManager, modifiedInstancesQueue);
             await this.trackingStore.CreateAsync();
         }
 
@@ -85,12 +89,17 @@ namespace DurableTask.AzureStorage.Tests
                 instanceId,
                 executionId: "execution-1",
                 runtimeState: CreateCompletedRuntimeState(instanceId, "execution-1", parentInstanceId: null),
-                instanceEntityExists: true);
+                instanceEntityExists: true,
+                sequenceNumber: 0);
 
             Assert.AreEqual(
                 string.Empty,
                 await this.GetRawParentInstanceIdAsync(instanceId),
                 "A no-parent write must clear the stored property, otherwise merge semantics retain the stale parent.");
+            Assert.AreEqual(
+                string.Empty,
+                await this.GetRawParentExecutionIdAsync(instanceId),
+                "A no-parent write must clear the stored parent execution ID.");
 
             InstanceStatus status = await this.trackingStore.FetchInstanceStatusAsync(instanceId);
             Assert.IsNull(status.State.ParentInstance, "A cleared parent must read back as a null ParentInstance.");
@@ -119,7 +128,7 @@ namespace DurableTask.AzureStorage.Tests
             // Passing the seeded row's ETag forces the UseInstanceTableEtag=true case down the
             // MergeEntityAsync branch; a null ETag there would insert instead of merging.
             OrchestrationInstanceStatus seeded = await this.GetRawEntityAsync(instanceId);
-            var eTags = new OrchestrationETags
+            var eTags = new OrchestrationConcurrencyTags
             {
                 InstanceETag = useInstanceTableEtag ? new ETag(seeded.ETag.ToString()) : (ETag?)null,
             };
@@ -139,6 +148,10 @@ namespace DurableTask.AzureStorage.Tests
                 string.Empty,
                 await this.GetRawParentInstanceIdAsync(instanceId),
                 "The checkpoint write must clear the stored property, otherwise merge semantics retain the stale parent.");
+            Assert.AreEqual(
+                string.Empty,
+                await this.GetRawParentExecutionIdAsync(instanceId),
+                "The checkpoint write must clear the stored parent execution ID.");
 
             InstanceStatus status = await this.trackingStore.FetchInstanceStatusAsync(instanceId);
             Assert.IsNull(status.State.ParentInstance, "A cleared parent must read back as a null ParentInstance.");
@@ -159,7 +172,7 @@ namespace DurableTask.AzureStorage.Tests
             await this.SeedInstanceRowAsync(childInstanceId, parentInstanceId: null);
 
             OrchestrationInstanceStatus seeded = await this.GetRawEntityAsync(childInstanceId);
-            var eTags = new OrchestrationETags
+            var eTags = new OrchestrationConcurrencyTags
             {
                 InstanceETag = useInstanceTableEtag ? new ETag(seeded.ETag.ToString()) : (ETag?)null,
             };
@@ -176,9 +189,11 @@ namespace DurableTask.AzureStorage.Tests
                 await this.GetTrackingStoreContextAsync(childInstanceId));
 
             Assert.AreEqual(parentInstanceId, await this.GetRawParentInstanceIdAsync(childInstanceId));
+            Assert.AreEqual(ParentExecutionId, await this.GetRawParentExecutionIdAsync(childInstanceId));
 
             InstanceStatus status = await this.trackingStore.FetchInstanceStatusAsync(childInstanceId);
             Assert.AreEqual(parentInstanceId, status.State.ParentInstance?.OrchestrationInstance.InstanceId);
+            Assert.AreEqual(ParentExecutionId, status.State.ParentInstance?.OrchestrationInstance.ExecutionId);
         }
 
         /// <summary>
@@ -206,7 +221,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual("stale-parent", await this.GetRawParentInstanceIdAsync(instanceId), "Seeded row should carry the stale parent.");
 
             OrchestrationInstanceStatus seeded = await this.GetRawEntityAsync(instanceId);
-            var eTags = new OrchestrationETags
+            var eTags = new OrchestrationConcurrencyTags
             {
                 InstanceETag = useInstanceTableEtag ? new ETag(seeded.ETag.ToString()) : (ETag?)null,
             };
@@ -233,9 +248,16 @@ namespace DurableTask.AzureStorage.Tests
                 currentParentInstanceId ?? string.Empty,
                 updated.ParentInstanceId,
                 "The stored parent must match the execution recorded on the same row, not the parent of the previous instance.");
+            Assert.AreEqual(
+                hasParent ? ParentExecutionId : string.Empty,
+                updated.ParentExecutionId,
+                "The stored parent execution must match the parent recorded for the current execution.");
 
             InstanceStatus status = await this.trackingStore.FetchInstanceStatusAsync(instanceId);
             Assert.AreEqual(currentParentInstanceId, status.State.ParentInstance?.OrchestrationInstance.InstanceId);
+            Assert.AreEqual(
+                hasParent ? ParentExecutionId : null,
+                status.State.ParentInstance?.OrchestrationInstance.ExecutionId);
         }
 
         /// <summary>
@@ -255,12 +277,15 @@ namespace DurableTask.AzureStorage.Tests
                 childInstanceId,
                 executionId: "execution-1",
                 runtimeState: CreateCompletedRuntimeState(childInstanceId, "execution-1", parentInstanceId),
-                instanceEntityExists: false);
+                instanceEntityExists: false,
+                sequenceNumber: 0);
 
             Assert.AreEqual(parentInstanceId, await this.GetRawParentInstanceIdAsync(childInstanceId));
+            Assert.AreEqual(ParentExecutionId, await this.GetRawParentExecutionIdAsync(childInstanceId));
 
             InstanceStatus status = await this.trackingStore.FetchInstanceStatusAsync(childInstanceId);
             Assert.AreEqual(parentInstanceId, status.State.ParentInstance?.OrchestrationInstance.InstanceId);
+            Assert.AreEqual(ParentExecutionId, status.State.ParentInstance?.OrchestrationInstance.ExecutionId);
         }
 
         /// <summary>
@@ -278,9 +303,11 @@ namespace DurableTask.AzureStorage.Tests
                 childInstanceId,
                 executionId: "execution-1",
                 runtimeState: CreateCompletedRuntimeState(childInstanceId, "execution-1", parentInstanceId),
-                instanceEntityExists: true);
+                instanceEntityExists: true,
+                sequenceNumber: 0);
 
             Assert.AreEqual(parentInstanceId, await this.GetRawParentInstanceIdAsync(childInstanceId));
+            Assert.AreEqual(ParentExecutionId, await this.GetRawParentExecutionIdAsync(childInstanceId));
         }
 
         /// <summary>
@@ -297,13 +324,16 @@ namespace DurableTask.AzureStorage.Tests
             bool created = await this.trackingStore.SetNewExecutionAsync(
                 CreateExecutionStartedEvent(childInstanceId, "execution-1", parentInstanceId),
                 eTag: null,
-                inputPayloadOverride: null);
+                inputPayloadOverride: null,
+                sequenceNumber: 0);
 
             Assert.IsTrue(created);
             Assert.AreEqual(parentInstanceId, await this.GetRawParentInstanceIdAsync(childInstanceId));
+            Assert.AreEqual(ParentExecutionId, await this.GetRawParentExecutionIdAsync(childInstanceId));
 
             InstanceStatus status = await this.trackingStore.FetchInstanceStatusAsync(childInstanceId);
             Assert.AreEqual(parentInstanceId, status.State.ParentInstance?.OrchestrationInstance.InstanceId);
+            Assert.AreEqual(ParentExecutionId, status.State.ParentInstance?.OrchestrationInstance.ExecutionId);
         }
 
         /// <summary>
@@ -321,10 +351,12 @@ namespace DurableTask.AzureStorage.Tests
             bool created = await this.trackingStore.SetNewExecutionAsync(
                 CreateExecutionStartedEvent(instanceId, "execution-2", parentInstanceId: null),
                 eTag: new ETag(seeded.ETag.ToString()),
-                inputPayloadOverride: null);
+                inputPayloadOverride: null,
+                sequenceNumber: 0);
 
             Assert.IsTrue(created);
             Assert.AreEqual(string.Empty, await this.GetRawParentInstanceIdAsync(instanceId));
+            Assert.AreEqual(string.Empty, await this.GetRawParentExecutionIdAsync(instanceId));
         }
 
         /// <summary>
@@ -347,6 +379,7 @@ namespace DurableTask.AzureStorage.Tests
             if (parentInstanceId != null)
             {
                 entity[ParentInstanceIdProperty] = parentInstanceId;
+                entity[ParentExecutionIdProperty] = "stale-parent-execution";
             }
 
             await this.trackingStore.InstancesTable.InsertOrMergeEntityAsync(entity);
@@ -384,6 +417,13 @@ namespace DurableTask.AzureStorage.Tests
             return entity.ParentInstanceId;
         }
 
+        async Task<string> GetRawParentExecutionIdAsync(string instanceId)
+        {
+            OrchestrationInstanceStatus entity = await this.GetRawEntityAsync(instanceId);
+            Assert.IsNotNull(entity, $"Expected an Instances row for '{instanceId}'.");
+            return entity.ParentExecutionId;
+        }
+
         static ExecutionStartedEvent CreateExecutionStartedEvent(string instanceId, string executionId, string parentInstanceId)
         {
             var executionStartedEvent = new ExecutionStartedEvent(-1, "input")
@@ -404,7 +444,7 @@ namespace DurableTask.AzureStorage.Tests
                     OrchestrationInstance = new OrchestrationInstance
                     {
                         InstanceId = parentInstanceId,
-                        ExecutionId = "parent-execution",
+                        ExecutionId = ParentExecutionId,
                     },
                     Name = "ParentOrchestration",
                     Version = string.Empty,

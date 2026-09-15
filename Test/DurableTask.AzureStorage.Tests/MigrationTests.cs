@@ -147,10 +147,21 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(1, enqueued.Count, "Rewind should enqueue the instance exactly once.");
             Assert.AreEqual(instanceId, enqueued[0].InstanceId);
             Assert.AreEqual(sequenceNumberAfterRewind, enqueued[0].SequenceNumber);
+
+            var completionService = new AzureStorageOrchestrationService(settings);
+            using var completionWorker = new TaskHubWorker(completionService, loggerFactory: settings.LoggerFactory);
+            completionWorker.AddTaskOrchestrations(typeof(RewindFailOrchestration));
+            completionWorker.AddTaskActivities(typeof(RewindFailActivity));
+            await completionWorker.StartAsync(MigrationMode.MigrationStarted);
+            OrchestrationState? completedStatus = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+            Assert.AreEqual(OrchestrationStatus.Completed, completedStatus?.OrchestrationStatus);
+            Assert.AreEqual(rewoundExecutionId, completedStatus?.OrchestrationInstance.ExecutionId);
+            await completionWorker.StopAsync();
         }
 
         /// <summary>
-        /// Rewind preserves the existing execution identity when storage migration is not active.
+        /// Rewind preserves the existing execution identity when storage migration is not active and the rewound
+        /// orchestration completes successfully.
         /// </summary>
         [TestMethod]
         public async Task RewindOutsideMigration_PreservesExecutionId()
@@ -159,8 +170,9 @@ namespace DurableTask.AzureStorage.Tests
 
             await host.StartAsync();
 
+            RewindFailOnceOrchestration.ShouldFail = true;
             TestOrchestrationClient client = await host.StartOrchestrationAsync(
-                typeof(AlwaysFailingRewindOrchestration),
+                typeof(RewindFailOnceOrchestration),
                 input: "world");
             OrchestrationState? failedStatus = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
             Assert.AreEqual(OrchestrationStatus.Failed, failedStatus?.OrchestrationStatus);
@@ -174,6 +186,7 @@ namespace DurableTask.AzureStorage.Tests
             string? executionIdBeforeRewind = await GetInstanceExecutionIdAsync(azureStorageClient, instanceId);
             Assert.IsNotNull(executionIdBeforeRewind);
 
+            RewindFailOnceOrchestration.ShouldFail = false;
             await client.RewindAsync("rewind outside migration");
 
             string? executionIdAfterRewind = await GetInstanceExecutionIdAsync(azureStorageClient, instanceId);
@@ -185,11 +198,20 @@ namespace DurableTask.AzureStorage.Tests
             CollectionAssert.AreEquivalent(
                 new[] { executionIdAfterRewind },
                 (await GetHistoryExecutionIdsAsync(azureStorageClient, instanceId)).Distinct().ToArray());
+
+            var completionService = new AzureStorageOrchestrationService(settings);
+            using var completionWorker = new TaskHubWorker(completionService, loggerFactory: settings.LoggerFactory);
+            completionWorker.AddTaskOrchestrations(typeof(RewindFailOnceOrchestration));
+            await completionWorker.StartAsync();
+            OrchestrationState? completedStatus = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+            Assert.AreEqual(OrchestrationStatus.Completed, completedStatus?.OrchestrationStatus);
+            Assert.AreEqual(executionIdAfterRewind, completedStatus?.OrchestrationInstance.ExecutionId);
+            await completionWorker.StopAsync();
         }
 
         /// <summary>
         /// Migration-mode rewind gives both a parent and its failed child new execution identities and updates the
-        /// child's parent link to the parent's new execution.
+        /// child's parent link to the parent's new execution so both can complete successfully.
         /// </summary>
         [TestMethod]
         public async Task RewindSubOrchestrationDuringMigration_UpdatesExecutionIdsAndParentLink()
@@ -198,6 +220,7 @@ namespace DurableTask.AzureStorage.Tests
 
             await host.StartAsync(MigrationMode.MigrationStarted);
 
+            RewindFailOnceOrchestration.ShouldFail = true;
             string parentInstanceId = $"rewind-parent-{Guid.NewGuid():N}";
             string childInstanceId = $"rewind-child-{Guid.NewGuid():N}";
             TestOrchestrationClient client = await host.StartOrchestrationAsync(
@@ -219,6 +242,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsNotNull(parentExecutionIdBeforeRewind);
             Assert.IsNotNull(childExecutionIdBeforeRewind);
 
+            RewindFailOnceOrchestration.ShouldFail = false;
             await client.RewindAsync("rewind parent and child during migration");
 
             string? parentExecutionIdAfterRewind =
@@ -244,6 +268,31 @@ namespace DurableTask.AzureStorage.Tests
             CollectionAssert.AreEquivalent(
                 new[] { childExecutionIdAfterRewind },
                 (await GetHistoryExecutionIdsAsync(azureStorageClient, childInstanceId)).Distinct().ToArray());
+
+            OrchestrationState? rewoundChildStatus =
+                await host.service.GetOrchestrationStateAsync(childInstanceId, childExecutionIdAfterRewind);
+            Assert.IsNotNull(rewoundChildStatus);
+            Assert.AreEqual(OrchestrationStatus.Pending, rewoundChildStatus.OrchestrationStatus);
+            Assert.AreEqual(parentInstanceId, rewoundChildStatus.ParentInstance.OrchestrationInstance.InstanceId);
+            Assert.AreEqual(parentExecutionIdAfterRewind, rewoundChildStatus.ParentInstance.OrchestrationInstance.ExecutionId);
+
+            var completionService = new AzureStorageOrchestrationService(settings);
+            using var completionWorker = new TaskHubWorker(completionService, loggerFactory: settings.LoggerFactory);
+            completionWorker.AddTaskOrchestrations(
+                typeof(FailingRewindParentOrchestration),
+                typeof(RewindFailOnceOrchestration));
+            await completionWorker.StartAsync(MigrationMode.MigrationStarted);
+            OrchestrationState? completedParentStatus = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+            Assert.AreEqual(OrchestrationStatus.Completed, completedParentStatus?.OrchestrationStatus);
+            Assert.AreEqual(parentExecutionIdAfterRewind, completedParentStatus?.OrchestrationInstance.ExecutionId);
+
+            OrchestrationState? completedChildStatus =
+                await host.service.GetOrchestrationStateAsync(childInstanceId, childExecutionIdAfterRewind);
+            Assert.IsNotNull(completedChildStatus);
+            Assert.AreEqual(OrchestrationStatus.Completed, completedChildStatus.OrchestrationStatus);
+            Assert.AreEqual(parentInstanceId, completedChildStatus.ParentInstance.OrchestrationInstance.InstanceId);
+            Assert.AreEqual(parentExecutionIdAfterRewind, completedChildStatus.ParentInstance.OrchestrationInstance.ExecutionId);
+            await completionWorker.StopAsync();
         }
 
         /// <summary>
@@ -1043,21 +1092,28 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
-        sealed class AlwaysFailingRewindOrchestration : TaskOrchestration<string, string>
+        sealed class RewindFailOnceOrchestration : TaskOrchestration<string, string>
         {
+            public static bool ShouldFail = true;
+
             public override Task<string> RunTask(OrchestrationContext context, string input)
             {
-                throw new InvalidOperationException("Simulating an orchestration failure before rewind.");
+                if (ShouldFail)
+                {
+                    throw new InvalidOperationException("Simulating an orchestration failure before rewind.");
+                }
+
+                return Task.FromResult(input);
             }
         }
 
-        [KnownType(typeof(AlwaysFailingRewindOrchestration))]
+        [KnownType(typeof(RewindFailOnceOrchestration))]
         sealed class FailingRewindParentOrchestration : TaskOrchestration<string, string>
         {
             public override Task<string> RunTask(OrchestrationContext context, string childInstanceId)
             {
                 return context.CreateSubOrchestrationInstance<string>(
-                    typeof(AlwaysFailingRewindOrchestration),
+                    typeof(RewindFailOnceOrchestration),
                     childInstanceId,
                     "child");
             }
