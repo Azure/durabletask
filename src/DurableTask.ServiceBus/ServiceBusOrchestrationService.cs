@@ -1259,10 +1259,6 @@ namespace DurableTask.ServiceBus
             DateTime minimumCreatedTime = DateTimeUtils.MinDateTime;
             DateTime minimumLastUpdatedTime = DateTimeUtils.MinDateTime;
 
-            // Once a generation floor is established, state left behind by an earlier run is rejected
-            // by the floor check alone, so the full execution history no longer has to be consulted.
-            bool hasGenerationFloor = false;
-
             while (!cancellationToken.IsCancellationRequested)
             {
                 OrchestrationState state = pinnedToExecution
@@ -1278,7 +1274,6 @@ namespace DurableTask.ServiceBus
                     pinnedToExecution = false;
                     minimumCreatedTime = state.CreatedTime;
                     minimumLastUpdatedTime = state.LastUpdatedTime;
-                    hasGenerationFloor = true;
                 }
 
                 // State from a previous run of this instance id; the current generation is not readable yet.
@@ -1289,40 +1284,19 @@ namespace DurableTask.ServiceBus
                 if (state != null
                     && (state.CreatedTime < minimumCreatedTime
                         || (state.CreatedTime == minimumCreatedTime && state.LastUpdatedTime < minimumLastUpdatedTime)))
+
                 {
                     state = null;
-                }
-
-                // The current-generation lookup only sees rows the store chooses to expose.
-                // AzureTableInstanceStore hides ContinuedAsNew tombstones from it, so at a
-                // continue-as-new boundary -- the tombstone hidden, the next generation not readable
-                // yet -- the newest surviving row can be a terminal state left by an earlier run of
-                // this instance id. Before accepting a terminal state, confirm against the full
-                // execution history that no newer row exists. Only needed until a generation floor
-                // exists: past that point nothing older than the floor is accepted anyway.
-                if (state != null && !pinnedToExecution && !hasGenerationFloor && !IsNonTerminalStatus(state.OrchestrationStatus))
-                {
-                    // allExecutions carries no ordering guarantee, so pick the newest row here.
-                    OrchestrationState newest = (await GetOrchestrationStateAsync(instanceId, true))
-                        ?.OrderByDescending(s => s.LastUpdatedTime)
-                        .FirstOrDefault();
-
-                    if (newest != null && newest.LastUpdatedTime > state.LastUpdatedTime)
-                    {
-                        // A newer generation exists but is not visible to the current generation
-                        // lookup yet. Raise the floor so the stale row stops being a candidate, and
-                        // keep polling until the newer generation becomes readable.
-                        minimumCreatedTime = newest.CreatedTime;
-                        minimumLastUpdatedTime = newest.LastUpdatedTime;
-                        hasGenerationFloor = true;
-                        state = null;
-                    }
                 }
 
                 // ContinuedAsNew is never a final state: a new generation always follows it. The built-in
                 // AzureTableInstanceStore hides these rows from the non-pinned lookup, but that is not
                 // guaranteed by IOrchestrationServiceInstanceStore, so keep polling if one surfaces.
-                if (state == null || IsNonTerminalStatus(state.OrchestrationStatus))
+                if (state == null
+                    || (state.OrchestrationStatus == OrchestrationStatus.Running)
+                    || (state.OrchestrationStatus == OrchestrationStatus.Pending)
+                    || (state.OrchestrationStatus == OrchestrationStatus.Suspended)
+                    || (state.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew))
                 {
                     TimeSpan delay = StatusPollingInterval;
 
@@ -1356,19 +1330,6 @@ namespace DurableTask.ServiceBus
             }
 
             return null;
-        }
-
-        /// <summary>
-        /// Determines whether an orchestration status can still change. Suspended is a pause rather
-        /// than an outcome, and ContinuedAsNew is only a handoff to the next generation, so neither
-        /// is a result a caller can wait on.
-        /// </summary>
-        static bool IsNonTerminalStatus(OrchestrationStatus status)
-        {
-            return status == OrchestrationStatus.Running
-                || status == OrchestrationStatus.Pending
-                || status == OrchestrationStatus.Suspended
-                || status == OrchestrationStatus.ContinuedAsNew;
         }
 
         /// <summary>
