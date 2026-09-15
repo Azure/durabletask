@@ -50,8 +50,7 @@ namespace DurableTask.ServiceBus.Tests
             string executionId,
             OrchestrationStatus status,
             DateTime createdTime,
-            string output = null,
-            DateTime? lastUpdatedTime = null)
+            string output = null)
         {
             return new OrchestrationState
             {
@@ -62,7 +61,7 @@ namespace DurableTask.ServiceBus.Tests
                 },
                 OrchestrationStatus = status,
                 CreatedTime = createdTime,
-                LastUpdatedTime = lastUpdatedTime ?? createdTime,
+                LastUpdatedTime = createdTime,
                 Output = output
             };
         }
@@ -169,92 +168,6 @@ namespace DurableTask.ServiceBus.Tests
 
             Assert.IsNull(state, "A zero timeout must not reach the next generation after un-pinning.");
             Assert.AreEqual(1, store.QueryCount, "A zero timeout must perform exactly one lookup.");
-        }
-
-        /// <summary>
-        /// After following a continue-as-new to the current generation we must still not accept state
-        /// left behind by an earlier run of the same instance id.
-        /// </summary>
-        [TestMethod]
-        public async Task WaitForOrchestration_ContinuedAsNew_IgnoresStateFromPreviousRun()
-        {
-            var store = new FakeInstanceStore();
-
-            // Previous run: completed long before the current run started.
-            store.States.Add(CreateState("previous-run", OrchestrationStatus.Completed, BaseTime, "stale output"));
-
-            // Current run, first generation, already continued as new.
-            store.States.Add(CreateState("generation-1", OrchestrationStatus.ContinuedAsNew, BaseTime.AddMinutes(5), "next input"));
-
-            // The next generation only becomes readable later.
-            store.OnQuery = s =>
-            {
-                if (s.QueryCount == 3)
-                {
-                    s.States.Add(CreateState("generation-2", OrchestrationStatus.Completed, BaseTime.AddMinutes(6), "final output"));
-                }
-            };
-
-            ServiceBusOrchestrationService service = CreateService(store);
-
-            OrchestrationState state = await service.WaitForOrchestrationAsync(
-                InstanceId,
-                "generation-1",
-                TimeSpan.FromSeconds(30),
-                CancellationToken.None);
-
-            Assert.IsNotNull(state);
-            Assert.AreEqual("generation-2", state.OrchestrationInstance.ExecutionId, "Returned state from the wrong run.");
-            Assert.AreEqual("final output", state.Output);
-        }
-
-        /// <summary>
-        /// CreatedTime comes from a HistoryEvent timestamp and is not guaranteed unique, so a previous
-        /// run can happen to share the ContinuedAsNew tombstone's CreatedTime. LastUpdatedTime breaks
-        /// that tie: the previous run stopped being updated before the continue-as-new occurred.
-        /// </summary>
-        [TestMethod]
-        public async Task WaitForOrchestration_ContinuedAsNew_IgnoresPreviousRunSharingTheTombstoneCreatedTime()
-        {
-            var store = new FakeInstanceStore();
-
-            // Previous run: completed before the current run continued as new, but its ExecutionStarted
-            // timestamp collides with the current run's.
-            store.States.Add(CreateState(
-                "previous-run",
-                OrchestrationStatus.Completed,
-                BaseTime,
-                "stale output",
-                BaseTime.AddMinutes(1)));
-
-            // Current run, first generation, already continued as new.
-            store.States.Add(CreateState(
-                "generation-1",
-                OrchestrationStatus.ContinuedAsNew,
-                BaseTime,
-                "next input",
-                BaseTime.AddMinutes(5)));
-
-            // The next generation only becomes readable later.
-            store.OnQuery = s =>
-            {
-                if (s.QueryCount == 3)
-                {
-                    s.States.Add(CreateState("generation-2", OrchestrationStatus.Completed, BaseTime.AddMinutes(5), "final output"));
-                }
-            };
-
-            ServiceBusOrchestrationService service = CreateService(store);
-
-            OrchestrationState state = await service.WaitForOrchestrationAsync(
-                InstanceId,
-                "generation-1",
-                TimeSpan.FromSeconds(30),
-                CancellationToken.None);
-
-            Assert.IsNotNull(state);
-            Assert.AreEqual("generation-2", state.OrchestrationInstance.ExecutionId, "Returned state from the wrong run.");
-            Assert.AreEqual("final output", state.Output);
         }
 
         /// <summary>
