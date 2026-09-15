@@ -37,6 +37,20 @@ namespace DurableTask.Core
         public string? CustomStatus { get; set; }
 
         /// <summary>
+        /// The number of tasks that the orchestration is currently waiting on.
+        /// This is used for diagnostic purposes and is not serialized.
+        /// </summary>
+        [JsonIgnore]
+        internal int OpenTaskCount { get; set; }
+
+        /// <summary>
+        /// A summary of the open tasks the orchestration is waiting on (e.g., "GetData#3, Timer#5").
+        /// This is used for diagnostic purposes and is not serialized.
+        /// </summary>
+        [JsonIgnore]
+        internal string OpenTaskNames { get; set; } = string.Empty;
+
+        /// <summary>
         /// Creates an orchestrator failure result with a specified message and exception.
         /// </summary>
         /// <param name="message">The simple failure message.</param>
