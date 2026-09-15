@@ -307,6 +307,63 @@ namespace DurableTask.ServiceBus.Tests
         }
 
         /// <summary>
+        /// Without an execution id the wait depends on the store's current generation lookup, which
+        /// AzureTableInstanceStore builds by hiding ContinuedAsNew rows. At a continue-as-new boundary
+        /// the current run's tombstone is hidden and the next generation is not readable yet, so the
+        /// newest surviving row is a completed state left by an earlier run of the same instance id.
+        /// The wait must consult the full execution history before accepting that as the result.
+        /// </summary>
+        [TestMethod]
+        public async Task WaitForOrchestration_WithoutExecutionId_IgnoresPreviousRunWhileCurrentGenerationIsTombstoned()
+        {
+            var store = new FakeInstanceStore();
+
+            // Previous run of this instance id, completed long ago. Added first so that insertion
+            // order does not match recency: the all-executions lookup carries no ordering guarantee,
+            // so the wait has to sort by itself to find the tombstone.
+            store.States.Add(CreateState(
+                "previous-run",
+                OrchestrationStatus.Completed,
+                BaseTime,
+                "stale output",
+                BaseTime.AddMinutes(1)));
+
+            // Current run, mid continue-as-new: the tombstone is hidden from the current generation
+            // lookup, so only the previous run's completed row is visible.
+            store.States.Add(CreateState(
+                "generation-1",
+                OrchestrationStatus.ContinuedAsNew,
+                BaseTime.AddMinutes(5),
+                "next input"));
+
+            // The next generation only becomes readable later.
+            store.OnQuery = s =>
+            {
+                if (s.QueryCount == 3)
+                {
+                    s.States.Add(CreateState("generation-2", OrchestrationStatus.Completed, BaseTime.AddMinutes(6), "final output"));
+                }
+            };
+
+            ServiceBusOrchestrationService service = CreateService(store);
+
+            OrchestrationState state = await service.WaitForOrchestrationAsync(
+                InstanceId,
+                null,
+                TimeSpan.FromSeconds(30),
+                CancellationToken.None);
+
+            Assert.IsNotNull(state);
+            Assert.AreEqual("generation-2", state.OrchestrationInstance.ExecutionId, "Returned state from the wrong run.");
+            Assert.AreEqual("final output", state.Output);
+            Assert.AreEqual(0, store.PinnedQueryCount, "A null execution id must not be queried as an exact execution.");
+            Assert.AreEqual(
+                3,
+                store.QueryCount,
+                "The full history should be consulted once, to establish the generation floor, and not again.");
+        }
+
+        /// <summary>
         /// Hiding ContinuedAsNew rows from the current generation lookup is an implementation detail of
         /// AzureTableInstanceStore, not a guarantee of IOrchestrationServiceInstanceStore. A store that
         /// surfaces them must not cause a tombstone to be reported as the final state.
