@@ -18,6 +18,9 @@ namespace DurableTask.AzureStorage.Tests
     using System.Reflection;
     using System.Threading;
     using System.Threading.Tasks;
+    using Azure.Storage.Blobs;
+    using Azure.Storage.Blobs.Models;
+    using Azure.Storage.Blobs.Specialized;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Partitioning;
     using DurableTask.Core;
@@ -61,6 +64,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 await StopAsync(passive);
                 await StopAsync(owner);
+                await DeleteAndDisposeAsync(taskHubName, owner, passive, owner);
             }
         }
 
@@ -95,6 +99,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 await StopAsync(worker2);
                 await StopAsync(worker1);
+                await DeleteAndDisposeAsync(taskHubName, worker1, worker2, worker1);
             }
         }
 
@@ -127,6 +132,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 await StopAsync(worker2);
                 await StopAsync(worker1);
+                await DeleteAndDisposeAsync(taskHubName, worker1, worker2, worker1);
             }
         }
 
@@ -180,6 +186,7 @@ namespace DurableTask.AzureStorage.Tests
             finally
             {
                 await StopAsync(service);
+                await DeleteAndDisposeAsync(taskHubName, service, service);
             }
         }
 
@@ -189,6 +196,7 @@ namespace DurableTask.AzureStorage.Tests
             string taskHubName = GetTaskHubName();
             AzureStorageOrchestrationService owner =
                 CreateService(taskHubName, "PrimaryApp", useAppLease: true);
+            AzureStorageOrchestrationService cleanupOwner = owner;
 
             try
             {
@@ -210,6 +218,7 @@ namespace DurableTask.AzureStorage.Tests
             finally
             {
                 await StopAsync(owner);
+                await DeleteAndDisposeAsync(taskHubName, cleanupOwner, cleanupOwner);
             }
         }
 
@@ -219,6 +228,7 @@ namespace DurableTask.AzureStorage.Tests
             string taskHubName = GetTaskHubName();
             AzureStorageOrchestrationService owner = CreateService(taskHubName, "PrimaryApp", useAppLease: true);
             AzureStorageOrchestrationService passive = CreateService(taskHubName, "SecondaryApp", useAppLease: true);
+            AzureStorageOrchestrationService cleanupPassive = passive;
 
             try
             {
@@ -247,6 +257,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 await StopAsync(passive);
                 await StopAsync(owner);
+                await DeleteAndDisposeAsync(taskHubName, owner, cleanupPassive, owner);
             }
         }
 
@@ -352,6 +363,42 @@ namespace DurableTask.AzureStorage.Tests
                 Task completedTask = await Task.WhenAny(stopTask, Task.Delay(TestTimeout));
                 Assert.AreSame(stopTask, completedTask, "Service shutdown did not complete before the test timeout.");
                 await stopTask;
+            }
+        }
+
+        static async Task DeleteAndDisposeAsync(
+            string taskHubName,
+            AzureStorageOrchestrationService hubService,
+            params AzureStorageOrchestrationService[] services)
+        {
+            try
+            {
+                if (hubService != null)
+                {
+                    var appLeaseContainer = new BlobContainerClient(
+                        TestHelpers.GetTestStorageAccountConnectionString(),
+                        taskHubName.ToLowerInvariant() + "-applease");
+                    if (await appLeaseContainer.ExistsAsync())
+                    {
+                        BlobContainerProperties properties =
+                            (await appLeaseContainer.GetPropertiesAsync()).Value;
+                        if (properties.LeaseStatus == LeaseStatus.Locked)
+                        {
+                            await appLeaseContainer
+                                .GetBlobLeaseClient()
+                                .BreakAsync(TimeSpan.Zero);
+                        }
+                    }
+
+                    await hubService.DeleteAsync();
+                }
+            }
+            finally
+            {
+                foreach (AzureStorageOrchestrationService service in services)
+                {
+                    service?.Dispose();
+                }
             }
         }
 
