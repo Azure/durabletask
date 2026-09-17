@@ -84,7 +84,7 @@ namespace DurableTask.AzureStorage.Partitioning
             this.activityOwnershipAvailable = CreateActivityOwnershipSignal();
         }
 
-        public async Task WaitForActivityOwnershipAsync(
+        internal async Task WaitForActivityOwnershipAsync(
             CancellationToken cancellationToken)
         {
             while (true)
