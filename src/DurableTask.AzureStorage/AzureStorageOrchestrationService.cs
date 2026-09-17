@@ -1552,6 +1552,15 @@ namespace DurableTask.AzureStorage
 
             using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.shutdownSource.Token))
             {
+                try
+                {
+                    await this.appLeaseManager.WaitForActivityOwnershipAsync(linkedCts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    return null;
+                }
+
                 MessageData message = await this.workItemQueue.GetMessageAsync(linkedCts.Token);
 
                 if (message == null)
