@@ -49,6 +49,12 @@ namespace DurableTask.AzureStorage.Tests
 
         public string TaskHub => this.settings.TaskHubName;
 
+        public ErrorPropagationMode ErrorPropagationMode
+        {
+            get => this.worker.ErrorPropagationMode;
+            set => this.worker.ErrorPropagationMode = value;
+        }
+
         public void Dispose()
         {
             this.worker.Dispose();
