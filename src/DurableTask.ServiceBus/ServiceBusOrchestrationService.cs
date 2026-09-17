@@ -62,7 +62,7 @@ namespace DurableTask.ServiceBus
         // as every fetched message also creates a tracking message which counts towards this limit.
         const int MaxMessageCount = 80;
         const int SessionStreamWarningSizeInBytes = 150 * 1024;
-        const int StatusPollingIntervalInSeconds = 2;
+        static readonly TimeSpan StatusPollingInterval = TimeSpan.FromSeconds(2);
         const int DuplicateDetectionWindowInHours = 4;
 
         /// <summary>
@@ -1222,9 +1222,12 @@ namespace DurableTask.ServiceBus
         /// <summary>
         ///     Wait for an orchestration to reach any terminal state within the given timeout
         /// </summary>
-        /// <param name="executionId">The execution id of the orchestration</param>
+        /// <param name="executionId">The execution id of the orchestration to wait for. When null, empty, or
+        /// whitespace, the current generation of the instance is followed. Otherwise only that execution is
+        /// tracked, except for a <see cref="OrchestrationStatus.ContinuedAsNew"/> execution,
+        /// where the current generation of the instance is followed instead.</param>
         /// <param name="instanceId">Instance to wait for</param>
-        /// <param name="timeout">Max timeout to wait</param>
+        /// <param name="timeout">Max timeout to wait. Only positive <see cref="TimeSpan"/> values, <see cref="TimeSpan.Zero"/>, or <see cref="Timeout.InfiniteTimeSpan"/> are allowed.</param>
         /// <param name="cancellationToken">Task cancellation token</param>
         public async Task<OrchestrationState> WaitForOrchestrationAsync(
             string instanceId,
@@ -1236,20 +1239,88 @@ namespace DurableTask.ServiceBus
 
             if (string.IsNullOrWhiteSpace(instanceId))
             {
-                throw new ArgumentException("instanceId");
+                throw new ArgumentException("The instance id cannot be null, empty, or whitespace.", nameof(instanceId));
             }
 
-            double timeoutSeconds = timeout.TotalSeconds;
-
-            while (!cancellationToken.IsCancellationRequested && timeoutSeconds > 0)
+            bool isInfiniteTimeSpan = timeout == Timeout.InfiniteTimeSpan;
+            if (timeout < TimeSpan.Zero && !isInfiniteTimeSpan)
             {
-                OrchestrationState state = (await GetOrchestrationStateAsync(instanceId, false))?.FirstOrDefault();
+                throw new ArgumentException($"The parameter {nameof(timeout)} cannot be negative unless it is Timeout.InfiniteTimeSpan." +
+                    $" The value for {nameof(timeout)} was '{timeout}'." +
+                    $" Please provide a positive timeout value, TimeSpan.Zero or Timeout.InfiniteTimeSpan.",
+                    nameof(timeout));
+            }
+
+            bool pinnedToExecution = !string.IsNullOrWhiteSpace(executionId);
+
+            // Once we stop tracking a specific execution we must not accept state left behind by an
+            // earlier run of the same instance id.
+            DateTime minimumCreatedTime = DateTimeUtils.MinDateTime;
+            DateTime minimumLastUpdatedTime = DateTimeUtils.MinDateTime;
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                OrchestrationState state = pinnedToExecution
+                    ? await GetOrchestrationStateAsync(instanceId, executionId)
+                    : (await GetOrchestrationStateAsync(instanceId, false))?.FirstOrDefault();
+
+                // A pinned execution that continued-as-new is only a tombstone: the live orchestration
+                // moved on to a new execution id, so stop pinning and follow the current generation.
+                // The tombstone still counts as this iteration's status check, so fall through to the
+                // timeout accounting below rather than re-querying immediately.
+                if (pinnedToExecution && state?.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)
+                {
+                    pinnedToExecution = false;
+                    minimumCreatedTime = state.CreatedTime;
+                    minimumLastUpdatedTime = state.LastUpdatedTime;
+                }
+
+                // State from a previous run of this instance id; the current generation is not readable yet.
+                // CreatedTime comes from a HistoryEvent timestamp and is not guaranteed unique, so it cannot
+                // separate the two on its own. When it ties, fall back to LastUpdatedTime: a previous run
+                // necessarily stopped being updated no later than the continue-as-new that wrote the
+                // tombstone, while the generation that follows the tombstone is updated at or after it.
+                if (state != null
+                    && (state.CreatedTime < minimumCreatedTime
+                        || (state.CreatedTime == minimumCreatedTime && state.LastUpdatedTime < minimumLastUpdatedTime)))
+
+                {
+                    state = null;
+                }
+
+                // ContinuedAsNew is never a final state: a new generation always follows it. The built-in
+                // AzureTableInstanceStore hides these rows from the non-pinned lookup, but that is not
+                // guaranteed by IOrchestrationServiceInstanceStore, so keep polling if one surfaces.
                 if (state == null
                     || (state.OrchestrationStatus == OrchestrationStatus.Running)
-                    || (state.OrchestrationStatus == OrchestrationStatus.Pending))
+                    || (state.OrchestrationStatus == OrchestrationStatus.Pending)
+                    || (state.OrchestrationStatus == OrchestrationStatus.Suspended)
+                    || (state.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew))
                 {
-                    await Task.Delay(StatusPollingIntervalInSeconds * 1000, cancellationToken);
-                    timeoutSeconds -= StatusPollingIntervalInSeconds;
+                    TimeSpan delay = StatusPollingInterval;
+
+                    if (!isInfiniteTimeSpan)
+                    {
+                        // The timeout condition is checked after the status check so that a user-provided
+                        // timeout of `TimeSpan.Zero` still checks the status of the orchestration once
+                        // before returning.
+                        if (timeout <= TimeSpan.Zero)
+                        {
+                            break;
+                        }
+
+                        // Only the time actually spent waiting is charged against the budget, and the
+                        // last delay is clamped to what remains, so the full timeout window is polled
+                        // before giving up.
+                        if (timeout < delay)
+                        {
+                            delay = timeout;
+                        }
+
+                        timeout -= delay;
+                    }
+
+                    await Task.Delay(delay, cancellationToken);
                 }
                 else
                 {
