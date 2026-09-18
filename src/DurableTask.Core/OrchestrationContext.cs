@@ -15,6 +15,7 @@ namespace DurableTask.Core
 {
     using System;
     using System.Collections.Generic;
+    using System.Globalization;
     using System.Threading;
     using System.Threading.Tasks;
     using Castle.DynamicProxy;
@@ -204,10 +205,31 @@ namespace DurableTask.Core
         /// <param name="retryOptions">Retry policy</param>
         /// <param name="parameters">Parameters for the TaskActivity.Execute method</param>
         /// <returns>Task that represents the execution of the specified TaskActivity</returns>
+        /// <remarks>
+        ///     Per-attempt retry metadata is injected into the scheduled task's <see cref="ScheduleTaskOptions.Tags"/>
+        ///     under the reserved <c>dt.retry.*</c> tag namespace (<c>dt.retry.attempt</c>, <c>dt.retry.maxAttempts</c>).
+        ///     These tags flow through <c>ScheduleTaskOrchestratorAction.Tags</c> into the persisted
+        ///     <c>TaskScheduledEvent.Tags</c>, where consumers (Functions extension, DTS Dashboard) can read them.
+        ///     Backends that do not roundtrip <c>TaskScheduledEvent.Tags</c>
+        ///     simply drop the tags at persistence; consumers fall back to a "metadata unavailable" path with no error.
+        ///     The attempt counter is closure-local, so each call site builds its own counter; deterministic replay
+        ///     reproduces the same per-attempt values because <see cref="RetryInterceptor{T}.Invoke"/> invokes the
+        ///     closure the same number of times in the same order on replay.
+        /// </remarks>
         public virtual Task<T> ScheduleWithRetry<T>(string name, string version, RetryOptions retryOptions,
             params object[] parameters)
         {
-            Task<T> RetryCall() => ScheduleTask<T>(name, version, parameters);
+            int attempt = 0;
+            Task<T> RetryCall()
+            {
+                attempt++;
+                ScheduleTaskOptions options = ScheduleTaskOptions.CreateBuilder()
+                    .AddTag(RetryTags.Attempt, attempt.ToString(CultureInfo.InvariantCulture))
+                    .AddTag(RetryTags.MaxAttempts, retryOptions.MaxNumberOfAttempts.ToString(CultureInfo.InvariantCulture))
+                    .Build();
+                return ScheduleTask<T>(name, version, options, parameters);
+            }
+
             var retryInterceptor = new RetryInterceptor<T>(this, retryOptions, RetryCall);
             return retryInterceptor.Invoke();
         }
