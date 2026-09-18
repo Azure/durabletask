@@ -2645,7 +2645,8 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
-        /// Tests the behavior of <see cref="SessionAbortedException"/> from orchestrations and activities.
+        /// Tests the behavior of <see cref="SessionAbortedException"/> from orchestrations and activities,
+        /// including the delivery attempt of the redelivered activity message.
         /// </summary>
         [DataTestMethod]
         [DataRow(true)]
@@ -5840,10 +5841,12 @@ namespace DurableTask.AzureStorage.Tests
                     {
                         if (!abortedActivity)
                         {
+                            Assert.AreEqual(1L, context.DeliveryAttempt);
                             abortedActivity = true;
                             throw new SessionAbortedException();
                         }
 
+                        Assert.AreEqual(2L, context.DeliveryAttempt);
                         return input;
                     }
                 }
