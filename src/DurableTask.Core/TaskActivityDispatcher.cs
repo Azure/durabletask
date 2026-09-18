@@ -172,7 +172,7 @@ namespace DurableTask.Core
                 dispatchContext.SetProperty(new WorkItemMetadata(
                     isExtendedSession: false,
                     includeState: true,
-                    deliveryAttempt: workItem.DeliveryAttempt));
+                    deliveryAttempt: deliveryAttempt));
 
                 // In transitionary phase (activity queued from old code, accessed in new code) context can be null.
                 if (taskMessage.OrchestrationExecutionContext != null)
