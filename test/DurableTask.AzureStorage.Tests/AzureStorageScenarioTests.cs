@@ -2655,6 +2655,13 @@ namespace DurableTask.AzureStorage.Tests
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions))
             {
+                var deliveryAttempts = new List<long?>();
+                host.AddActivityDispatcherMiddleware(async (context, next) =>
+                {
+                    deliveryAttempts.Add(context.GetProperty<WorkItemMetadata>().DeliveryAttempt);
+                    await next();
+                });
+
                 await host.StartAsync();
 
                 string input = Guid.NewGuid().ToString();
@@ -2664,6 +2671,7 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
                 Assert.IsNotNull(status.Output);
                 Assert.AreEqual("True", JToken.Parse(status.Output));
+                CollectionAssert.AreEqual(new long?[] { 1, 2 }, deliveryAttempts);
                 await host.StopAsync();
             }
         }
