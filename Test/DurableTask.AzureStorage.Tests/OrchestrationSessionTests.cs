@@ -22,6 +22,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
+    using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Moq;
@@ -222,6 +223,83 @@ namespace DurableTask.AzureStorage.Tests
 
             manager.GetStats(out _, out _, out int count);
             Assert.AreEqual(0, count, "Should still have no active sessions");
+        }
+
+        [TestMethod]
+        public async Task GetNextSessionAsync_DrainedReadyQueueNode_IsIgnored()
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider("UseDevelopmentStorage=true"),
+            };
+            var stats = new AzureStorageOrchestrationServiceStats();
+            var trackingStore = new Mock<ITrackingStore>();
+
+            using var manager = new OrchestrationSessionManager(
+                "testaccount",
+                settings,
+                stats,
+                trackingStore.Object);
+
+            var storageClient = new AzureStorageClient(settings);
+            var messageManager = new MessageManager(settings, storageClient, settings.TaskHubName);
+            var controlQueue = new ControlQueue(storageClient, "partition-0", messageManager);
+
+            object pendingBatch = CreatePendingBatch(controlQueue);
+            object node = AddPendingBatchNode(manager, pendingBatch);
+            RemovePendingBatchNode(manager, node);
+            EnqueueReadyForProcessingNode(manager, node);
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+            try
+            {
+                await manager.GetNextSessionAsync(entitiesOnly: false, cts.Token);
+                Assert.Fail("Expected cancellation after the drained node was skipped.");
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        static object CreatePendingBatch(ControlQueue controlQueue)
+        {
+            Type pendingBatchType = typeof(OrchestrationSessionManager)
+                .GetNestedType("PendingMessageBatch", BindingFlags.NonPublic);
+
+            return Activator.CreateInstance(
+                pendingBatchType,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                binder: null,
+                args: new object[] { controlQueue, "instance1", "execution1" },
+                culture: null);
+        }
+
+        static object AddPendingBatchNode(OrchestrationSessionManager manager, object pendingBatch)
+        {
+            object pendingBatches = GetPrivateField(manager, "pendingOrchestrationMessageBatches");
+            MethodInfo addLast = pendingBatches.GetType().GetMethod("AddLast", new[] { pendingBatch.GetType() });
+            return addLast.Invoke(pendingBatches, new[] { pendingBatch });
+        }
+
+        static void RemovePendingBatchNode(OrchestrationSessionManager manager, object node)
+        {
+            object pendingBatches = GetPrivateField(manager, "pendingOrchestrationMessageBatches");
+            MethodInfo remove = pendingBatches.GetType().GetMethod("Remove", new[] { node.GetType() });
+            remove.Invoke(pendingBatches, new[] { node });
+        }
+
+        static void EnqueueReadyForProcessingNode(OrchestrationSessionManager manager, object node)
+        {
+            object readyQueue = GetPrivateField(manager, "orchestrationsReadyForProcessingQueue");
+            MethodInfo enqueue = readyQueue.GetType().GetMethod("Enqueue");
+            enqueue.Invoke(readyQueue, new[] { node });
+        }
+
+        static object GetPrivateField(object target, string fieldName)
+        {
+            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.IsNotNull(field);
+            return field.GetValue(target);
         }
     }
 }
