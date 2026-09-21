@@ -19,9 +19,15 @@ namespace DurableTask.Core
     public class WorkItemMetadata
     {
         internal WorkItemMetadata(bool isExtendedSession, bool includeState)
+            : this(isExtendedSession, includeState, deliveryAttempt: null)
+        {
+        }
+
+        internal WorkItemMetadata(bool isExtendedSession, bool includeState, long? deliveryAttempt)
         {
             this.IsExtendedSession = isExtendedSession;
             this.IncludeState = includeState;
+            this.DeliveryAttempt = deliveryAttempt;
         }
 
         /// <summary>
@@ -35,5 +41,15 @@ namespace DurableTask.Core
         /// the instance state from a previous execution, so it does not need to be included again.
         /// </summary>
         public bool IncludeState { get; private set; }
+
+        /// <summary>
+        /// Gets or sets the one-based delivery attempt number for the current work item.
+        /// </summary>
+        /// <remarks>
+        /// This value does not represent the attempt number of a Durable Task retry policy, and
+        /// does not necessarily reflect the amount of times user code has been executed.
+        /// A value of <c>null</c> indicates that the delivery attempt number is not available.
+        /// </remarks>
+        public long? DeliveryAttempt { get; private set; }
     }
 }

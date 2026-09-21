@@ -1607,6 +1607,7 @@ namespace DurableTask.AzureStorage
                     Id = message.Id,
                     TaskMessage = session.MessageData.TaskMessage,
                     LockedUntilUtc = message.OriginalQueueMessage.NextVisibleOn.Value.UtcDateTime,
+                    DeliveryAttempt = message.OriginalQueueMessage.DequeueCount,
 
                     TraceContextBase = requestTraceContext
                 };
