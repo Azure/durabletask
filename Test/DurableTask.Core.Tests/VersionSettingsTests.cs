@@ -20,6 +20,33 @@ namespace DurableTask.Core.Tests
     public class VersionSettingsTests
     {
         [TestMethod]
+        public void ExcludedOrchestrationNamesAreEmptyAndInstanceScopedByDefault()
+        {
+            var settings = new VersioningSettings();
+            var otherSettings = new VersioningSettings();
+
+            Assert.AreEqual(0, settings.ExcludedOrchestrationNames.Count);
+            settings.ExcludedOrchestrationNames.Add("Internal.Orchestration");
+
+            Assert.AreEqual(0, otherSettings.ExcludedOrchestrationNames.Count);
+            Assert.AreEqual(string.Empty, settings.Version);
+            Assert.AreEqual(VersioningSettings.VersionMatchStrategy.None, settings.MatchStrategy);
+            Assert.AreEqual(VersioningSettings.VersionFailureStrategy.Reject, settings.FailureStrategy);
+        }
+
+        [TestMethod]
+        public void ExcludedOrchestrationNamesUseExactOrdinalMatching()
+        {
+            var settings = new VersioningSettings();
+            Assert.IsTrue(settings.ExcludedOrchestrationNames.Add("Internal.Orchestration"));
+            Assert.IsFalse(settings.ExcludedOrchestrationNames.Add("Internal.Orchestration"));
+
+            Assert.IsTrue(settings.ExcludedOrchestrationNames.Contains("Internal.Orchestration"));
+            Assert.IsFalse(settings.ExcludedOrchestrationNames.Contains("internal.orchestration"));
+            Assert.IsFalse(settings.ExcludedOrchestrationNames.Contains("Internal.Orchestration.Child"));
+        }
+
+        [TestMethod]
         [DataRow("1.0.0", "1.0.0", 0)]
         [DataRow("1.1.0", "1.0.0", 1)]
         [DataRow("1.0.0", "1.1.0", -1)]
