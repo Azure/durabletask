@@ -411,6 +411,31 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
+        public async Task ExplicitInitializationDoesNotRediscoverWorkerMetadata()
+        {
+            string hub = NewHub();
+            var policy = new FailMetadataReadPolicy { Fail = false };
+            var options = new QueueClientOptions();
+            options.AddPolicy(policy, HttpPipelinePosition.PerCall);
+            var settings = this.Settings(hub, 4, "Table");
+            settings.StorageAccountClientProvider = new StorageAccountClientProvider(
+                StorageServiceClientProvider.ForBlob(this.connection),
+                StorageServiceClientProvider.ForQueue(this.connection, options),
+                StorageServiceClientProvider.ForTable(this.connection));
+            using var service = new AzureStorageOrchestrationService(settings);
+            try
+            {
+                await service.CreateIfNotExistsAsync();
+                policy.Fail = true;
+                Assert.IsNull(await new TaskHubClient(service).GetOrchestrationStateAsync("missing"));
+            }
+            finally
+            {
+                await this.CleanupAsync(hub, "Table");
+            }
+        }
+
+        [TestMethod]
         public async Task DiscoveredClientQueuesDoNotBecomeRecreatedWorkerLeases()
         {
             string hub = NewHub();

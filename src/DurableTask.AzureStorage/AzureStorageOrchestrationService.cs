@@ -362,7 +362,8 @@ namespace DurableTask.AzureStorage
                 Utils.SerializeToJson(GetTaskHubInfo(this.settings.TaskHubName, this.settings.PartitionCount));
             await queue.SetMetadataAsync(metadata);
             await this.EnsureTaskHubCreatedAsync();
-            this.clientTaskHubInitializer.Reset();
+            // Worker admission must not be delayed by rediscovery after explicit initialization.
+            this.clientTaskHubInitializer.Reset(Task.FromResult(this.settings.PartitionCount));
         }
 
         async Task EnsureTaskHubAsync()
@@ -2364,6 +2365,11 @@ namespace DurableTask.AzureStorage
             public void Reset()
             {
                 this.lazy = new Lazy<T>(this.valueFactory, this.threadSafetyMode);
+            }
+
+            public void Reset(T value)
+            {
+                this.lazy = new Lazy<T>(() => value, this.threadSafetyMode);
             }
         }
 
