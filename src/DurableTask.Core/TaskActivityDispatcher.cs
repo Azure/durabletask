@@ -164,10 +164,15 @@ namespace DurableTask.Core
                         renewCancellationTokenSource.Token);
                 }
 
+                long? deliveryAttempt = workItem.DeliveryAttempt;
                 var dispatchContext = new DispatchMiddlewareContext();
                 dispatchContext.SetProperty(taskMessage.OrchestrationInstance);
                 dispatchContext.SetProperty(taskActivity);
                 dispatchContext.SetProperty(scheduledEvent);
+                dispatchContext.SetProperty(new WorkItemMetadata(
+                    isExtendedSession: false,
+                    includeState: true,
+                    deliveryAttempt: deliveryAttempt));
 
                 // In transitionary phase (activity queued from old code, accessed in new code) context can be null.
                 if (taskMessage.OrchestrationExecutionContext != null)
@@ -200,7 +205,10 @@ namespace DurableTask.Core
                             taskMessage.OrchestrationInstance,
                             scheduledEvent.Name,
                             scheduledEvent.Version,
-                            scheduledEvent.EventId);
+                            scheduledEvent.EventId)
+                        {
+                            DeliveryAttempt = deliveryAttempt,
+                        };
                         context.ErrorPropagationMode = this.errorPropagationMode;
                         context.ExceptionPropertiesProvider = this.exceptionPropertiesProvider;
 
