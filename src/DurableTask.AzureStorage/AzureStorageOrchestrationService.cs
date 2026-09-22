@@ -48,6 +48,8 @@ namespace DurableTask.AzureStorage
         IOrchestrationServicePurgeClient,
         IEntityOrchestrationService
     {
+        const string WorkerTaskHubInfoMetadataKey = "durabletask_taskhub";
+
         static readonly HistoryEvent[] EmptyHistoryEventList = new HistoryEvent[0];
 
         static readonly OrchestrationInstance EmptySourceInstance = new OrchestrationInstance
@@ -67,6 +69,7 @@ namespace DurableTask.AzureStorage
         readonly ITrackingStore trackingStore;
 
         readonly ResettableLazy<Task> taskHubCreator;
+        readonly ResettableLazy<Task<int>> clientTaskHubInitializer;
         readonly BlobPartitionLeaseManager leaseManager;
         readonly AppLeaseManager appLeaseManager;
         readonly OrchestrationSessionManager orchestrationSessionManager;
@@ -120,12 +123,7 @@ namespace DurableTask.AzureStorage
             this.messageManager = new MessageManager(this.settings, this.azureStorageClient, compressedMessageBlobContainerName);
 
             this.allControlQueues = new ConcurrentDictionary<string, ControlQueue>();
-            for (int index = 0; index < this.settings.PartitionCount; index++)
-            {
-                var controlQueueName = GetControlQueueName(this.settings.TaskHubName, index);
-                ControlQueue controlQueue = new ControlQueue(this.azureStorageClient, controlQueueName, this.messageManager);
-                this.allControlQueues.TryAdd(controlQueue.Name, controlQueue);
-            }
+            this.InitializeControlQueues();
 
             var workItemQueueName = GetWorkItemQueueName(this.settings.TaskHubName);
             this.workItemQueue = new WorkItemQueue(this.azureStorageClient, workItemQueueName, this.messageManager);
@@ -144,6 +142,9 @@ namespace DurableTask.AzureStorage
             this.hubCreationLock = new object();
             this.taskHubCreator = new ResettableLazy<Task>(
                 this.GetTaskHubCreatorTask,
+                LazyThreadSafetyMode.ExecutionAndPublication);
+            this.clientTaskHubInitializer = new ResettableLazy<Task<int>>(
+                this.InitializeClientTaskHubAsync,
                 LazyThreadSafetyMode.ExecutionAndPublication);
 
             this.leaseManager = GetBlobLeaseManager(
@@ -191,6 +192,16 @@ namespace DurableTask.AzureStorage
         internal string WorkerId => this.settings.WorkerId;
 
         internal IEnumerable<ControlQueue> AllControlQueues => this.allControlQueues.Values;
+
+        void InitializeControlQueues()
+        {
+            this.allControlQueues.Clear();
+            for (int index = 0; index < this.settings.PartitionCount; index++)
+            {
+                string name = GetControlQueueName(this.settings.TaskHubName, index);
+                this.allControlQueues.TryAdd(name, new ControlQueue(this.azureStorageClient, name, this.messageManager));
+            }
+        }
 
         internal IEnumerable<ControlQueue> OwnedControlQueues => this.orchestrationSessionManager.Queues;
 
@@ -334,18 +345,84 @@ namespace DurableTask.AzureStorage
         public async Task CreateAsync()
         {
             await this.DeleteAsync();
-            await this.EnsureTaskHubAsync();
+            await this.CreateIfNotExistsAsync();
         }
 
         /// <summary>
         /// Creates the necessary Azure Storage resources for the orchestration service if they don't already exist.
         /// </summary>
-        public Task CreateIfNotExistsAsync()
+        public async Task CreateIfNotExistsAsync()
         {
-            return this.EnsureTaskHubAsync();
+            // Publish the worker's complete topology before leases are created individually.
+            // Queue deletion removes this metadata, including when performed by older versions.
+            Queue queue = GetWorkItemQueue(this.azureStorageClient);
+            await queue.CreateIfNotExistsAsync();
+            IDictionary<string, string> metadata = await queue.GetMetadataAsync();
+            metadata[WorkerTaskHubInfoMetadataKey] =
+                Utils.SerializeToJson(GetTaskHubInfo(this.settings.TaskHubName, this.settings.PartitionCount));
+            await queue.SetMetadataAsync(metadata);
+            await this.EnsureTaskHubCreatedAsync();
+            this.clientTaskHubInitializer.Reset();
         }
 
         async Task EnsureTaskHubAsync()
+        {
+            await this.GetClientPartitionCountAsync();
+        }
+
+        async Task<int> GetClientPartitionCountAsync()
+        {
+            try
+            {
+                return await this.clientTaskHubInitializer.Value;
+            }
+            catch (Exception e)
+            {
+                this.settings.Logger.GeneralError(
+                    this.azureStorageClient.QueueAccountName,
+                    this.settings.TaskHubName,
+                    $"Failed to initialize the task hub client: {e}");
+                this.clientTaskHubInitializer.Reset();
+                throw;
+            }
+        }
+
+        async Task<int> InitializeClientTaskHubAsync()
+        {
+            Queue queue = GetWorkItemQueue(this.azureStorageClient);
+            IDictionary<string, string> metadata = await queue.ExistsAsync() ? await queue.GetMetadataAsync() : null;
+            if (metadata == null || !metadata.TryGetValue(WorkerTaskHubInfoMetadataKey, out string serializedHubInfo))
+            {
+                // Older workers do not publish topology. Preserve their initialization contract
+                // rather than treating a partially populated partition table as authoritative.
+                await this.EnsureTaskHubCreatedAsync();
+                return this.settings.PartitionCount;
+            }
+
+            TaskHubInfo hubInfo = Utils.DeserializeFromJson<TaskHubInfo>(serializedHubInfo);
+            if (hubInfo == null ||
+                !string.Equals(hubInfo.TaskHubName, this.settings.TaskHubName, StringComparison.OrdinalIgnoreCase) ||
+                hubInfo.PartitionCount < 1 || hubInfo.PartitionCount > 16)
+            {
+                throw new InvalidOperationException($"Task hub '{this.settings.TaskHubName}' has invalid worker partition metadata.");
+            }
+
+            // Clients may finish creating resources after an interrupted worker initialization,
+            // but must not create leases or overwrite the worker's partition configuration.
+            var tasks = new List<Task>
+            {
+                this.trackingStore.CreateAsync(),
+                this.workItemQueue.CreateIfNotExistsAsync(),
+            };
+            for (int i = 0; i < hubInfo.PartitionCount; i++)
+            {
+                tasks.Add(this.azureStorageClient.GetQueueReference(GetControlQueueName(this.settings.TaskHubName, i)).CreateIfNotExistsAsync());
+            }
+            await Task.WhenAll(tasks);
+            return hubInfo.PartitionCount;
+        }
+
+        async Task EnsureTaskHubCreatedAsync()
         {
             try
             {
@@ -378,8 +455,11 @@ namespace DurableTask.AzureStorage
 
             tasks.Add(this.workItemQueue.CreateIfNotExistsAsync());
 
-            foreach (ControlQueue controlQueue in this.allControlQueues.Values)
+            for (int index = 0; index < this.settings.PartitionCount; index++)
             {
+                string name = GetControlQueueName(this.settings.TaskHubName, index);
+                ControlQueue controlQueue = this.allControlQueues.GetOrAdd(
+                    name, queueName => new ControlQueue(this.azureStorageClient, queueName, this.messageManager));
                 tasks.Add(controlQueue.CreateIfNotExistsAsync());
                 tasks.Add(this.partitionManager.CreateLease(controlQueue.Name));
             }
@@ -405,7 +485,7 @@ namespace DurableTask.AzureStorage
                 this.taskHubCreator.Reset();
             }
 
-            await this.taskHubCreator.Value;
+            await this.CreateIfNotExistsAsync();
         }
 
         /// <inheritdoc />
@@ -436,6 +516,8 @@ namespace DurableTask.AzureStorage
 
             await Task.WhenAll(tasks.ToArray());
             this.taskHubCreator.Reset();
+            this.clientTaskHubInitializer.Reset();
+            this.InitializeControlQueues();
         }
 
         private Task DeleteTrackingStore()
@@ -2170,7 +2252,8 @@ namespace DurableTask.AzureStorage
         //       be supported: https://github.com/Azure/azure-functions-durable-extension/issues/1
         async Task<ControlQueue?> GetControlQueueAsync(string instanceId)
         {
-            uint partitionIndex = Fnv1aHashHelper.ComputeHash(instanceId) % (uint)this.settings.PartitionCount;
+            int partitionCount = await this.GetClientPartitionCountAsync();
+            uint partitionIndex = Fnv1aHashHelper.ComputeHash(instanceId) % (uint)partitionCount;
             string queueName = GetControlQueueName(this.settings.TaskHubName, (int)partitionIndex);
 
             ControlQueue cachedQueue;

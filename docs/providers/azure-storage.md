@@ -151,6 +151,7 @@ The Azure Storage provider creates these resources:
 | **Instances Table** | `{taskhub}Instances` | Instance metadata |
 | **Partitions Table** | `{taskhub}Partitions` | Partition leases (table manager) |
 | **Lease Blobs** | `{taskhub}-leases/` | Partition leases (blob manager) |
+| **Worker Partition Metadata** | `durabletask_taskhub` metadata on `{taskhub}-workitems` | Complete partition configuration published during explicit hub initialization |
 
 ### Partitioning
 
@@ -227,6 +228,16 @@ The work item queue is a simple, non-partitioned queue for activity function mes
 
 > [!IMPORTANT]
 > Partition count **cannot be changed** after task hub creation. Set it high enough to accommodate future scale-out needs. The maximum number of workers that can process orchestrations concurrently equals the partition count. Note that higher partition counts increase Azure Storage costs due to more queue and table operations.
+
+#### Clients targeting another worker's hub
+
+Explicit hub initialization (`CreateIfNotExistsAsync`, `CreateAsync`, or worker startup) publishes the worker's configured partition count before creating partition leases. Client operations use that published count for queue initialization and message routing, rather than applying the caller's `PartitionCount` to an existing target hub. Clients do not publish this metadata or modify partition leases.
+
+Upgrade and initialize the target worker before creating clients that rely on partition discovery. Both the worker and client must use a version that supports this metadata. Clients cache initialization, so recreate clients that were already used before the target worker was upgraded.
+
+For compatibility, an absent metadata entry retains the previous behavior: client operations use their configured partition count and automatically create missing hub resources. Hubs initialized only by older workers therefore still require matching client and worker partition counts. The client does not infer a count from partition-table rows, which can be incomplete while a worker is starting. Invalid or unreadable metadata causes an error rather than falling back to a potentially incorrect count.
+
+The hub creation APIs remain administrative operations that apply their configured worker settings; they should not be used to discover another worker's configuration. Hub deletion removes the metadata along with the existing work-item queue, including when deletion is performed by an older provider. Unlike best-effort app-lease cleanup, work-item queue deletion failures are propagated.
 
 ### Lease Management
 
