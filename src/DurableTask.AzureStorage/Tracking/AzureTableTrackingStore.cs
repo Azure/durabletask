@@ -808,9 +808,11 @@ namespace DurableTask.AzureStorage.Tracking
                 purgedInstanceEntity = new TableEntity(orchestrationInstanceStatus.PartitionKey, string.Empty)
                 {
                     [SequenceNumberProperty] = newSequenceNumber,
-                    // Retain the execution ID in case the orchestration is recreated so that OrchestrationSessionManager.DedupeExecutionStartedMessagesAsync does not
-                    // allow the ExecutionStartedMessage to go through before the instance table is updated with the new instance
+                    // Retain the execution ID and generation in case the orchestration is recreated so that
+                    // OrchestrationSessionManager.DedupeExecutionStartedMessagesAsync does not allow the
+                    // ExecutionStartedMessage through before the instance table is updated with the new instance.
                     ["ExecutionId"] = orchestrationInstanceStatus.ExecutionId,
+                    ["Generation"] = orchestrationInstanceStatus.Generation,
                 };
 
             }

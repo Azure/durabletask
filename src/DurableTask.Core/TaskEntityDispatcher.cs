@@ -924,6 +924,7 @@ namespace DurableTask.Core
                 },
                 Name = action.Name,
                 Version = action.Version,
+                Generation = 0,
             };
 
             // We only want to create a trace activity for an entity starting an orchestration in the case that we can successfully parse the parent trace context of the start orchestration request.

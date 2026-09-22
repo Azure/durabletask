@@ -221,6 +221,7 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(OrchestrationStatus.Completed, completed?.OrchestrationStatus);
                 OrchestrationState child = await host.service.GetOrchestrationStateAsync(childInstanceId, executionId: null);
                 Assert.AreEqual(1, JToken.Parse(child.Input));
+                Assert.AreEqual(0, child.Generation);
                 Assert.AreEqual(parentInstanceId, child.ParentInstance?.OrchestrationInstance.InstanceId);
 
                 await host.StopAsync();

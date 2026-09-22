@@ -1080,6 +1080,7 @@ namespace DurableTask.Core
                     Version = completeOrchestratorAction.NewVersion ?? runtimeState.Version,
                     // Signal that the next generation should start a fresh distributed trace
                     GenerateNewTrace = completeOrchestratorAction.ContinueAsNewTraceBehavior == ContinueAsNewTraceBehavior.StartNewTrace,
+                    Generation = runtimeState.ExecutionStartedEvent!.Generation ?? 0,
                 };
 
                 taskMessage.OrchestrationInstance = startedEvent.OrchestrationInstance;
@@ -1311,6 +1312,7 @@ namespace DurableTask.Core
                 Name = createSubOrchestrationAction.Name,
                 Version = createSubOrchestrationAction.Version,
                 Tags = mergedTags,
+                Generation = 0,
             };
 
             // If a parent trace context was provided via the CreateSubOrchestrationAction.Tags, we will use this as the parent trace context of the suborchestration execution Activity rather than Activity.Current.Context.

@@ -83,6 +83,7 @@ namespace DurableTask.Core.Tests
             // The resulting event should contain a fire and forget tag
             bool hasFireAndForgetTag = executionStartedEvent.Tags.ContainsKey(OrchestrationTags.FireAndForget);
             Assert.IsTrue(hasFireAndForgetTag);
+            Assert.AreEqual(0, executionStartedEvent.Generation);
         }
     }
 }
