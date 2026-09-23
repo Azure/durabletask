@@ -713,6 +713,12 @@ namespace DurableTask.Core
 
         public void CompleteOrchestration(string result, string details, OrchestrationStatus orchestrationStatus, FailureDetails failureDetails = null)
         {
+            // A terminal action takes precedence over a pending ContinueAsNew.
+            if (this.executionCompletedOrTerminated)
+            {
+                return;
+            }
+
             int id = this.idCounter++;
             OrchestrationCompleteOrchestratorAction completedOrchestratorAction;
             if (orchestrationStatus == OrchestrationStatus.Completed && this.continueAsNew != null)
@@ -721,11 +727,6 @@ namespace DurableTask.Core
             }
             else
             {
-                if (this.executionCompletedOrTerminated)
-                {
-                    return;
-                }
-
                 this.executionCompletedOrTerminated = true;
 
                 completedOrchestratorAction = new OrchestrationCompleteOrchestratorAction();
