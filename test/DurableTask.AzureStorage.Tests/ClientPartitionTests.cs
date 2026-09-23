@@ -17,6 +17,7 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
 
     [TestClass]
@@ -191,12 +192,12 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [DataTestMethod]
-        [DataRow("null")]
-        [DataRow("{broken")]
-        [DataRow("{\"TaskHubName\":\"wrong\",\"PartitionCount\":4}")]
-        [DataRow("{\"PartitionCount\":0}")]
-        [DataRow("{\"PartitionCount\":17}")]
-        public async Task InvalidWorkerMetadataIsNotReplacedAndCanBeRetried(string metadata)
+        [DataRow("null", false)]
+        [DataRow("{broken", true)]
+        [DataRow("{\"TaskHubName\":\"wrong\",\"PartitionCount\":4}", false)]
+        [DataRow("{\"PartitionCount\":0}", false)]
+        [DataRow("{\"PartitionCount\":17}", false)]
+        public async Task InvalidWorkerMetadataIsNotReplacedAndCanBeRetried(string metadata, bool invalidJson)
         {
             string hub = NewHub();
             using var target = new AzureStorageOrchestrationService(this.Settings(hub, 4, "Table"));
@@ -205,21 +206,20 @@ namespace DurableTask.AzureStorage.Tests
             {
                 await target.CreateIfNotExistsAsync();
                 await this.WriteWorkerMetadataAsync(hub, metadata);
-                Exception failure = null;
-                try
+                var client = new TaskHubClient(service);
+                if (invalidJson)
                 {
-                    await new TaskHubClient(service).GetOrchestrationStateAsync("missing");
+                    await Assert.ThrowsExceptionAsync<JsonReaderException>(() => client.GetOrchestrationStateAsync("missing"));
                 }
-                catch (Exception e)
+                else
                 {
-                    failure = e;
+                    await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => client.GetOrchestrationStateAsync("missing"));
                 }
-                Assert.IsNotNull(failure, "Malformed metadata must not be interpreted as an absent hub.");
                 Assert.AreEqual(metadata, await this.ReadWorkerMetadataAsync(hub));
                 Assert.AreEqual(4, (await this.QueueNamesAsync(hub)).Length);
 
                 await this.WriteWorkerMetadataAsync(hub, $"{{\"TaskHubName\":\"{hub}\",\"PartitionCount\":4}}");
-                await new TaskHubClient(service).GetOrchestrationStateAsync("missing");
+                await client.GetOrchestrationStateAsync("missing");
                 Assert.AreEqual(4, (await this.QueueNamesAsync(hub)).Length);
             }
             finally
@@ -490,6 +490,93 @@ namespace DurableTask.AzureStorage.Tests
                 await service.CreateIfNotExistsAsync();
                 policy.Fail = true;
                 Assert.IsNull(await new TaskHubClient(service).GetOrchestrationStateAsync("missing"));
+            }
+            finally
+            {
+                await this.CleanupAsync(hub, "Table");
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(4, 16, "Table", false)]
+        [DataRow(4, 16, "Table", true)]
+        [DataRow(16, 4, "Table", false)]
+        [DataRow(16, 4, "Table", true)]
+        [DataRow(4, 4, "Table", false)]
+        [DataRow(4, 4, "Table", true)]
+        [DataRow(4, 16, "Safe", false)]
+        [DataRow(4, 16, "Safe", true)]
+        [DataRow(16, 4, "Safe", false)]
+        [DataRow(16, 4, "Safe", true)]
+        [DataRow(4, 4, "Safe", false)]
+        [DataRow(4, 4, "Safe", true)]
+        [DataRow(4, 16, "Legacy", false)]
+        [DataRow(4, 16, "Legacy", true)]
+        [DataRow(16, 4, "Legacy", false)]
+        [DataRow(16, 4, "Legacy", true)]
+        [DataRow(4, 4, "Legacy", false)]
+        [DataRow(4, 4, "Legacy", true)]
+        public async Task ClientDeletionRemovesEntireDiscoveredTopology(
+            int clientPartitions, int targetPartitions, string manager, bool send)
+        {
+            string hub = NewHub();
+            using var target = new AzureStorageOrchestrationService(this.Settings(hub, targetPartitions, manager));
+            using var service = new AzureStorageOrchestrationService(this.Settings(hub, clientPartitions, manager));
+            var client = new TaskHubClient(service);
+            try
+            {
+                await target.CreateIfNotExistsAsync();
+                Assert.AreEqual(targetPartitions, (await this.QueueNamesAsync(hub)).Length);
+                Assert.IsNull(await client.GetOrchestrationStateAsync("missing"));
+                if (send)
+                {
+                    await client.CreateOrchestrationInstanceAsync("Probe", string.Empty, "partition-probe", "hello");
+                }
+
+                await service.DeleteAsync();
+                Assert.AreEqual(0, (await this.QueueNamesAsync(hub)).Length,
+                    "Deletion must include every discovered control queue, not only configured or routed queues.");
+                await this.AssertMissingMetadataRejectedAsync(client, hub);
+                await service.CreateIfNotExistsAsync();
+                CollectionAssert.AreEqual(
+                    Enumerable.Range(0, clientPartitions).Select(i => AzureStorageOrchestrationService.GetControlQueueName(hub, i)).ToArray(),
+                    await this.QueueNamesAsync(hub));
+                Assert.AreEqual(clientPartitions, await this.PartitionCountAsync(hub, manager));
+                Assert.AreEqual(clientPartitions, service.AllControlQueues.Count());
+                await client.CreateOrchestrationInstanceAsync("Probe", string.Empty, "partition-probe", "hello");
+            }
+            finally
+            {
+                await this.CleanupAsync(hub, manager);
+            }
+        }
+
+        [TestMethod]
+        public async Task FailedClientInitializationRetainsDiscoveredQueuesForRetryAndDeletion()
+        {
+            string hub = NewHub();
+            using var target = new AzureStorageOrchestrationService(this.Settings(hub, 16, "Table"));
+            var failure = new FailControlQueueCreationPolicy();
+            var queueOptions = new QueueClientOptions();
+            queueOptions.AddPolicy(failure, HttpPipelinePosition.PerCall);
+            var settings = this.Settings(hub, 4, "Table");
+            settings.StorageAccountClientProvider = new StorageAccountClientProvider(
+                StorageServiceClientProvider.ForBlob(this.connection),
+                StorageServiceClientProvider.ForQueue(this.connection, queueOptions),
+                StorageServiceClientProvider.ForTable(this.connection));
+            using var service = new AzureStorageOrchestrationService(settings);
+            var client = new TaskHubClient(service);
+            try
+            {
+                await target.CreateIfNotExistsAsync();
+                await Assert.ThrowsExceptionAsync<DurableTaskStorageException>(() => client.GetOrchestrationStateAsync("missing"));
+                Assert.AreEqual(16, service.AllControlQueues.Count(),
+                    "References created before an initialization failure must remain available for cleanup.");
+                failure.Fail = false;
+                Assert.IsNull(await client.GetOrchestrationStateAsync("missing"));
+                await service.DeleteAsync();
+                Assert.AreEqual(0, (await this.QueueNamesAsync(hub)).Length);
+                Assert.AreEqual(4, service.AllControlQueues.Count());
             }
             finally
             {
@@ -828,6 +915,24 @@ namespace DurableTask.AzureStorage.Tests
                 if (this.Fail && message.Request.Uri.ToUri().AbsolutePath.EndsWith("-workitems", StringComparison.Ordinal))
                 {
                     throw new Azure.RequestFailedException(403, "Injected metadata authorization failure.");
+                }
+                return ProcessNextAsync(message, pipeline);
+            }
+        }
+
+        class FailControlQueueCreationPolicy : HttpPipelinePolicy
+        {
+            public bool Fail { get; set; } = true;
+
+            public override void Process(HttpMessage message, ReadOnlyMemory<HttpPipelinePolicy> pipeline) =>
+                throw new NotSupportedException("Tests use asynchronous queue operations.");
+
+            public override ValueTask ProcessAsync(HttpMessage message, ReadOnlyMemory<HttpPipelinePolicy> pipeline)
+            {
+                if (this.Fail && message.Request.Method == RequestMethod.Put &&
+                    message.Request.Uri.ToUri().AbsolutePath.EndsWith("-control-15", StringComparison.Ordinal))
+                {
+                    throw new Azure.RequestFailedException(500, "Injected control-queue initialization failure.");
                 }
                 return ProcessNextAsync(message, pipeline);
             }

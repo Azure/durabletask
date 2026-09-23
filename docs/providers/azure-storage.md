@@ -244,6 +244,8 @@ Both worker and client binaries must be upgraded to benefit from this behavior. 
 
 The hub creation APIs remain administrative operations that apply their configured worker settings; they should not be used to discover another worker's configuration. Hub deletion removes the metadata along with the existing work-item queue, including when deletion is performed by an older provider. Unlike best-effort app-lease cleanup, work-item queue deletion failures are propagated.
 
+Client initialization retains references to every discovered control queue. Deleting the hub through that service therefore removes the full discovered topology, including queues the client has never sent to, even when the caller's configured partition count is smaller.
+
 ### Lease Management
 
 Workers compete for partition ownership using one of two partition managers:

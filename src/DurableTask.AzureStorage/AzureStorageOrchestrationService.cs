@@ -417,7 +417,10 @@ namespace DurableTask.AzureStorage
             };
             for (int i = 0; i < hubInfo.PartitionCount; i++)
             {
-                tasks.Add(this.azureStorageClient.GetQueueReference(GetControlQueueName(this.settings.TaskHubName, i)).CreateIfNotExistsAsync());
+                string name = GetControlQueueName(this.settings.TaskHubName, i);
+                ControlQueue controlQueue = this.allControlQueues.GetOrAdd(
+                    name, queueName => new ControlQueue(this.azureStorageClient, queueName, this.messageManager));
+                tasks.Add(controlQueue.CreateIfNotExistsAsync());
             }
             await Task.WhenAll(tasks);
             return hubInfo.PartitionCount;
