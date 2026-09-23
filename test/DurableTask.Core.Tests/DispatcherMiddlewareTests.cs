@@ -40,6 +40,8 @@ namespace DurableTask.Core.Tests
     {
         TaskHubWorker worker = null!;
         TaskHubClient client = null!;
+        DeliveryAttemptOrchestrationService service = null!;
+        DeliveryAttemptActivity deliveryAttemptActivity = null!;
 
         [TestInitialize]
         public void InitializeTests()
@@ -50,8 +52,9 @@ namespace DurableTask.Core.Tests
             {
                 builder.AddConsole().SetMinimumLevel(LogLevel.Trace);
             });
-            var service = new LocalOrchestrationService();
-            this.worker = new TaskHubWorker(service, loggerFactory);
+            this.service = new DeliveryAttemptOrchestrationService();
+            this.deliveryAttemptActivity = new DeliveryAttemptActivity();
+            this.worker = new TaskHubWorker(this.service, loggerFactory);
 
             // We use `GetAwaiter().GetResult()` because otherwise this method will fail with:
             // "X has wrong signature. The method must be non-static, public, does not return a value and should not take any parameter."
@@ -60,14 +63,16 @@ namespace DurableTask.Core.Tests
                     typeof(SimplestGreetingsOrchestration),
                     typeof(ParentWorkflow),
                     typeof(ChildWorkflow),
-                    typeof(ActivityStatusResetOrchestration))
+                    typeof(ActivityStatusResetOrchestration),
+                    typeof(DeliveryAttemptOrchestration))
                 .AddTaskActivities(
                     typeof(SimplestGetUserTask),
                     typeof(SimplestSendGreetingTask),
                     typeof(ActivityStatusResetActivity))
+                .AddTaskActivities(this.deliveryAttemptActivity)
                 .StartAsync().GetAwaiter().GetResult();
 
-            this.client = new TaskHubClient(service);
+            this.client = new TaskHubClient(this.service);
         }
 
         [TestCleanup]
@@ -128,6 +133,68 @@ namespace DurableTask.Core.Tests
 
             Assert.AreNotSame(instance1, instance2);
             Assert.AreEqual(instance1!.InstanceId, instance2!.InstanceId);
+        }
+
+        [TestMethod]
+        public void TaskActivityDeliveryAttemptDefaultsToNull()
+        {
+            var workItem = new TaskActivityWorkItem();
+            var context = new TaskContext(new OrchestrationInstance());
+            var metadata = new WorkItemMetadata(
+                isExtendedSession: false,
+                includeState: true);
+
+            Assert.IsNull(workItem.DeliveryAttempt);
+            Assert.IsNull(context.DeliveryAttempt);
+            Assert.IsNull(metadata.DeliveryAttempt);
+        }
+
+        [TestMethod]
+        public async Task TaskActivityDeliveryAttemptFlowsToTaskContextAndMiddleware()
+        {
+            const long deliveryAttempt = 42;
+            long? middlewareDeliveryAttempt = null;
+            this.service.ActivityDeliveryAttempt = deliveryAttempt;
+
+            this.worker.AddActivityDispatcherMiddleware((context, next) =>
+            {
+                middlewareDeliveryAttempt = context.GetProperty<WorkItemMetadata>().DeliveryAttempt;
+                return next();
+            });
+
+            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(
+                typeof(DeliveryAttemptOrchestration),
+                null);
+
+            TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 10);
+            await this.client.WaitForOrchestrationAsync(instance, timeout);
+
+            Assert.AreEqual(deliveryAttempt, middlewareDeliveryAttempt);
+            Assert.AreEqual(deliveryAttempt, this.deliveryAttemptActivity.DeliveryAttempt);
+        }
+
+        [TestMethod]
+        public async Task TaskActivityMiddlewareAlwaysReceivesWorkItemMetadata()
+        {
+            WorkItemMetadata? middlewareMetadata = null;
+
+            this.worker.AddActivityDispatcherMiddleware((context, next) =>
+            {
+                middlewareMetadata = context.GetProperty<WorkItemMetadata>();
+                return next();
+            });
+
+            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(
+                typeof(DeliveryAttemptOrchestration),
+                null);
+
+            TimeSpan timeout = TimeSpan.FromSeconds(Debugger.IsAttached ? 1000 : 10);
+            await this.client.WaitForOrchestrationAsync(instance, timeout);
+
+            Assert.IsNotNull(middlewareMetadata);
+            Assert.IsFalse(middlewareMetadata.IsExtendedSession);
+            Assert.IsTrue(middlewareMetadata.IncludeState);
+            Assert.IsNull(middlewareMetadata.DeliveryAttempt);
         }
 
         [TestMethod]
@@ -535,6 +602,45 @@ namespace DurableTask.Core.Tests
             {
                 Activity.Current?.SetStatus(TraceActivityStatusCode.Error, "activity instrumentation error");
                 return input ?? "ok";
+            }
+        }
+
+        private sealed class DeliveryAttemptOrchestration : TaskOrchestration<string, string>
+        {
+            public override Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                return context.ScheduleTask<string>(typeof(DeliveryAttemptActivity), input);
+            }
+        }
+
+        private sealed class DeliveryAttemptActivity : TaskActivity<string, string>
+        {
+            public long? DeliveryAttempt { get; private set; }
+
+            protected override string Execute(TaskContext context, string input)
+            {
+                this.DeliveryAttempt = context.DeliveryAttempt;
+                return input;
+            }
+        }
+
+        private sealed class DeliveryAttemptOrchestrationService : LocalOrchestrationService, IOrchestrationService
+        {
+            public long? ActivityDeliveryAttempt { get; set; }
+
+            public new async Task<TaskActivityWorkItem> LockNextTaskActivityWorkItem(
+                TimeSpan receiveTimeout,
+                System.Threading.CancellationToken cancellationToken)
+            {
+                TaskActivityWorkItem workItem =
+                    await base.LockNextTaskActivityWorkItem(receiveTimeout, cancellationToken);
+
+                if (workItem != null)
+                {
+                    workItem.DeliveryAttempt = this.ActivityDeliveryAttempt;
+                }
+
+                return workItem!;
             }
         }
     }
