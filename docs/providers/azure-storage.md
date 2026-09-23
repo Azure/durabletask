@@ -266,6 +266,8 @@ When `UseTablePartitionManagement = false`:
 - Uses Azure Blob leases for concurrency control
 - Available in "safe" (`UseLegacyPartitionManagement = false`) and "legacy" (`UseLegacyPartitionManagement = true`) variants
 
+Safe-mode intent and ownership leases use different prefixes in the same container. Hub deletion deletes that shared container once, not once per prefix. An already-absent container is handled idempotently; other storage deletion failures are propagated.
+
 #### Partition lifecycle
 
 1. Workers acquire leases to claim partition ownership
