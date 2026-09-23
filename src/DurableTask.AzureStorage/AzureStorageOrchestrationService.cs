@@ -310,7 +310,7 @@ namespace DurableTask.AzureStorage
            => new EntityTrackingStoreQueries(
                 this.messageManager,
                 this.trackingStore,
-                this.EnsureClientTaskHubInitializedAsync,
+                this.EnsureTaskHubInitializedAsync,
                 ((IEntityOrchestrationService)this).EntityBackendProperties,
                 this.SendTaskOrchestrationMessageAsync);
 
@@ -366,7 +366,7 @@ namespace DurableTask.AzureStorage
             this.clientTaskHubInitializer.Reset(Task.FromResult(this.settings.PartitionCount));
         }
 
-        async Task EnsureClientTaskHubInitializedAsync()
+        async Task EnsureTaskHubInitializedAsync()
         {
             await this.GetClientPartitionCountAsync();
         }
@@ -793,7 +793,7 @@ namespace DurableTask.AzureStorage
         {
             Guid traceActivityId = StartNewLogicalTraceScope(useExisting: true);
 
-            await this.EnsureClientTaskHubInitializedAsync();
+            await this.EnsureTaskHubInitializedAsync();
 
             using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.shutdownSource.Token))
             {
@@ -1634,7 +1634,7 @@ namespace DurableTask.AzureStorage
             TimeSpan receiveTimeout,
             CancellationToken cancellationToken)
         {
-            await this.EnsureClientTaskHubInitializedAsync();
+            await this.EnsureTaskHubInitializedAsync();
 
             using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.shutdownSource.Token))
             {
@@ -1850,7 +1850,7 @@ namespace DurableTask.AzureStorage
 
             Utils.ConvertDateTimeInHistoryEventsToUTC(creationMessage.Event);
 
-            await this.EnsureClientTaskHubInitializedAsync();
+            await this.EnsureTaskHubInitializedAsync();
 
             InstanceStatus existingInstance = await this.trackingStore.FetchInstanceStatusAsync(
                 creationMessage.OrchestrationInstance.InstanceId);
@@ -1918,7 +1918,7 @@ namespace DurableTask.AzureStorage
         /// <param name="message">The message to send.</param>
         public async Task SendTaskOrchestrationMessageAsync(TaskMessage message)
         {
-            await this.EnsureClientTaskHubInitializedAsync();
+            await this.EnsureTaskHubInitializedAsync();
             ControlQueue controlQueue = await this.GetControlQueueAsync(message.OrchestrationInstance.InstanceId);
             await this.SendTaskOrchestrationMessageInternalAsync(EmptySourceInstance, controlQueue, message);
         }
@@ -1939,7 +1939,7 @@ namespace DurableTask.AzureStorage
         /// <returns>List of <see cref="OrchestrationState"/> objects that represent the list of orchestrations.</returns>
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
-            await this.EnsureClientTaskHubInitializedAsync();
+            await this.EnsureTaskHubInitializedAsync();
             return new OrchestrationState[]
             {
                 await this.trackingStore.GetStateAsync(instanceId, allExecutions, fetchInput: true).FirstOrDefaultAsync(),
@@ -1954,7 +1954,7 @@ namespace DurableTask.AzureStorage
         /// <returns>The <see cref="OrchestrationState"/> object that represents the orchestration.</returns>
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
-            await this.EnsureClientTaskHubInitializedAsync();
+            await this.EnsureTaskHubInitializedAsync();
             return await this.trackingStore.GetStateAsync(instanceId, executionId, fetchInput: true);
         }
 
@@ -1968,7 +1968,7 @@ namespace DurableTask.AzureStorage
         /// <returns>List of <see cref="OrchestrationState"/> objects that represent the list of orchestrations.</returns>
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions, bool fetchInput = true)
         {
-            await this.EnsureClientTaskHubInitializedAsync();
+            await this.EnsureTaskHubInitializedAsync();
             return await this.trackingStore.GetStateAsync(instanceId, allExecutions, fetchInput).ToListAsync();
         }
 
@@ -1978,7 +1978,7 @@ namespace DurableTask.AzureStorage
         /// <returns>List of <see cref="OrchestrationState"/></returns>
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(CancellationToken cancellationToken = default(CancellationToken))
         {
-            await this.EnsureClientTaskHubInitializedAsync();
+            await this.EnsureTaskHubInitializedAsync();
             return await this.trackingStore.GetStateAsync(cancellationToken).ToListAsync();
         }
 
@@ -1992,7 +1992,7 @@ namespace DurableTask.AzureStorage
         /// <returns>List of <see cref="OrchestrationState"/></returns>
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, CancellationToken cancellationToken = default(CancellationToken))
         {
-            await this.EnsureClientTaskHubInitializedAsync();
+            await this.EnsureTaskHubInitializedAsync();
             return await this.trackingStore.GetStateAsync(createdTimeFrom, createdTimeTo, runtimeStatus, cancellationToken).ToListAsync();
         }
 
@@ -2008,7 +2008,7 @@ namespace DurableTask.AzureStorage
         /// <returns>List of <see cref="OrchestrationState"/></returns>
         public async Task<DurableStatusQueryResult> GetOrchestrationStateAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken))
         {
-            await this.EnsureClientTaskHubInitializedAsync();
+            await this.EnsureTaskHubInitializedAsync();
             Page<OrchestrationState> page = await this.trackingStore
                 .GetStateAsync(createdTimeFrom, createdTimeTo, runtimeStatus, cancellationToken)
                 .AsPages(continuationToken, top)
@@ -2029,7 +2029,7 @@ namespace DurableTask.AzureStorage
         /// <returns>List of <see cref="OrchestrationState"/></returns>
         public async Task<DurableStatusQueryResult> GetOrchestrationStateAsync(OrchestrationInstanceStatusQueryCondition condition, int top, string continuationToken, CancellationToken cancellationToken = default(CancellationToken))
         {
-            await this.EnsureClientTaskHubInitializedAsync();
+            await this.EnsureTaskHubInitializedAsync();
             Page<OrchestrationState> page = await this.trackingStore
                 .GetStateAsync(condition, cancellationToken)
                 .AsPages(continuationToken, top)
@@ -2063,7 +2063,7 @@ namespace DurableTask.AzureStorage
         /// <param name="reason">The reason for rewinding.</param>
         public async Task RewindTaskOrchestrationAsync(string instanceId, string reason)
         {
-            await this.EnsureClientTaskHubInitializedAsync();
+            await this.EnsureTaskHubInitializedAsync();
             List<string> queueIds = await this.trackingStore.RewindHistoryAsync(instanceId).ToListAsync();
 
             foreach (string id in queueIds)
