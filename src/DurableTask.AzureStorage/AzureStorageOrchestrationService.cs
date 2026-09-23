@@ -394,10 +394,10 @@ namespace DurableTask.AzureStorage
             IDictionary<string, string> metadata = await queue.ExistsAsync() ? await queue.GetMetadataAsync() : null;
             if (metadata == null || !metadata.TryGetValue(WorkerTaskHubInfoMetadataKey, out string serializedHubInfo))
             {
-                // Older workers do not publish topology. Preserve their initialization contract
-                // rather than treating a partially populated partition table as authoritative.
-                await this.EnsureTaskHubCreatedAsync();
-                return this.settings.PartitionCount;
+                throw new InvalidOperationException(
+                    $"Task hub '{this.settings.TaskHubName}' is missing worker partition metadata. " +
+                    "Initialize the target with an upgraded worker or explicitly call CreateIfNotExistsAsync " +
+                    "using the target's partition configuration before retrying the client operation.");
             }
 
             TaskHubInfo hubInfo = Utils.DeserializeFromJson<TaskHubInfo>(serializedHubInfo);
@@ -1847,7 +1847,6 @@ namespace DurableTask.AzureStorage
 
             Utils.ConvertDateTimeInHistoryEventsToUTC(creationMessage.Event);
 
-            // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
 
             InstanceStatus existingInstance = await this.trackingStore.FetchInstanceStatusAsync(
@@ -1916,7 +1915,6 @@ namespace DurableTask.AzureStorage
         /// <param name="message">The message to send.</param>
         public async Task SendTaskOrchestrationMessageAsync(TaskMessage message)
         {
-            // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
             ControlQueue controlQueue = await this.GetControlQueueAsync(message.OrchestrationInstance.InstanceId);
             await this.SendTaskOrchestrationMessageInternalAsync(EmptySourceInstance, controlQueue, message);
@@ -1938,7 +1936,6 @@ namespace DurableTask.AzureStorage
         /// <returns>List of <see cref="OrchestrationState"/> objects that represent the list of orchestrations.</returns>
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
-            // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
             return new OrchestrationState[]
             {
@@ -1954,7 +1951,6 @@ namespace DurableTask.AzureStorage
         /// <returns>The <see cref="OrchestrationState"/> object that represents the orchestration.</returns>
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
-            // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
             return await this.trackingStore.GetStateAsync(instanceId, executionId, fetchInput: true);
         }
@@ -1969,7 +1965,6 @@ namespace DurableTask.AzureStorage
         /// <returns>List of <see cref="OrchestrationState"/> objects that represent the list of orchestrations.</returns>
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions, bool fetchInput = true)
         {
-            // Client operations will auto-create the task hub if it doesn't already exist.
             await this.EnsureTaskHubAsync();
             return await this.trackingStore.GetStateAsync(instanceId, allExecutions, fetchInput).ToListAsync();
         }
@@ -2065,6 +2060,7 @@ namespace DurableTask.AzureStorage
         /// <param name="reason">The reason for rewinding.</param>
         public async Task RewindTaskOrchestrationAsync(string instanceId, string reason)
         {
+            await this.EnsureTaskHubAsync();
             List<string> queueIds = await this.trackingStore.RewindHistoryAsync(instanceId).ToListAsync();
 
             foreach (string id in queueIds)

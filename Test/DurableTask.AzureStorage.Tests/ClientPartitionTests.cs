@@ -100,7 +100,7 @@ namespace DurableTask.AzureStorage.Tests
         [DataRow(16, "Safe")]
         [DataRow(4, "Legacy")]
         [DataRow(16, "Legacy")]
-        public async Task ClientCreatesMissingHubAndCanRecreateAfterDelete(int partitions, string manager)
+        public async Task ClientRequiresExplicitCreationAndRecreationAfterDelete(int partitions, string manager)
         {
             string hub = NewHub();
             using var service = new AzureStorageOrchestrationService(this.Settings(hub, partitions, manager));
@@ -110,6 +110,8 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual(0, (await this.QueueNamesAsync(hub)).Length);
                 for (int attempt = 0; attempt < 2; attempt++)
                 {
+                    await this.AssertMissingMetadataRejectedAsync(client, hub);
+                    await service.CreateIfNotExistsAsync();
                     await client.CreateOrchestrationInstanceAsync("Probe", string.Empty, "partition-probe", "hello");
                     Assert.AreEqual(partitions, (await this.QueueNamesAsync(hub)).Length);
                     Assert.AreEqual(partitions, await this.PartitionCountAsync(hub, manager));
@@ -153,7 +155,7 @@ namespace DurableTask.AzureStorage.Tests
         [DataRow("Table")]
         [DataRow("Safe")]
         [DataRow("Legacy")]
-        public async Task ConcurrentClientsCreateMissingHub(string manager)
+        public async Task ConcurrentClientsRequireExplicitHubCreation(string manager)
         {
             string hub = NewHub();
             var services = Enumerable.Range(0, 8)
@@ -161,6 +163,8 @@ namespace DurableTask.AzureStorage.Tests
                 .ToArray();
             try
             {
+                await Task.WhenAll(services.Select(service => this.AssertMissingMetadataRejectedAsync(new TaskHubClient(service), hub)));
+                await Task.WhenAll(services.Select(service => service.CreateIfNotExistsAsync()));
                 await Task.WhenAll(services.Select((service, i) => new TaskHubClient(service)
                     .CreateOrchestrationInstanceAsync("Probe", string.Empty, "probe" + i, "hello")));
                 Assert.AreEqual(16, (await this.QueueNamesAsync(hub)).Length);
@@ -225,22 +229,36 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [DataTestMethod]
-        [DataRow("Table")]
-        [DataRow("Safe")]
-        [DataRow("Legacy")]
-        public async Task UnmarkedExistingHubRetainsLegacyInitialization(string manager)
+        [DataRow(16, 4, "Table")]
+        [DataRow(4, 16, "Table")]
+        [DataRow(4, 4, "Table")]
+        [DataRow(16, 4, "Safe")]
+        [DataRow(4, 16, "Safe")]
+        [DataRow(4, 4, "Safe")]
+        [DataRow(16, 4, "Legacy")]
+        [DataRow(4, 16, "Legacy")]
+        [DataRow(4, 4, "Legacy")]
+        public async Task UnmarkedExistingHubIsRejectedWithoutReconfiguration(int clientPartitions, int targetPartitions, string manager)
         {
             string hub = NewHub();
-            using var target = new AzureStorageOrchestrationService(this.Settings(hub, 4, manager));
-            using var service = new AzureStorageOrchestrationService(this.Settings(hub, 16, manager));
+            using var target = new AzureStorageOrchestrationService(this.Settings(hub, targetPartitions, manager));
+            var writes = new RecordingWritePolicy();
+            using var service = new AzureStorageOrchestrationService(this.Settings(hub, clientPartitions, manager, writes));
             try
             {
                 await target.CreateIfNotExistsAsync();
                 await this.WriteWorkerMetadataAsync(hub, null);
-                await new TaskHubClient(service).GetOrchestrationStateAsync("missing");
-                Assert.AreEqual(16, (await this.QueueNamesAsync(hub)).Length);
-                Assert.AreEqual(16, await this.PartitionCountAsync(hub, manager));
+                var client = new TaskHubClient(service);
+                await this.AssertMissingMetadataRejectedAsync(client, hub);
+                Assert.AreEqual(0, writes.Count, "Rejected clients must not issue storage writes.");
+                Assert.AreEqual(targetPartitions, (await this.QueueNamesAsync(hub)).Length);
+                Assert.AreEqual(targetPartitions, await this.PartitionCountAsync(hub, manager));
                 Assert.IsNull(await this.ReadWorkerMetadataAsync(hub), "Clients must not publish authoritative worker settings.");
+                await target.CreateIfNotExistsAsync();
+                await client.CreateOrchestrationInstanceAsync("Probe", string.Empty, "partition-probe", "hello");
+                int partition = (int)(Fnv1aHashHelper.ComputeHash("partition-probe") % targetPartitions);
+                Assert.AreEqual(1, (await new QueueClient(this.connection,
+                    AzureStorageOrchestrationService.GetControlQueueName(hub, partition)).PeekMessagesAsync(1)).Value.Length);
             }
             finally
             {
@@ -249,21 +267,65 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public async Task ImplicitCreationDoesNotPublishWorkerMetadata()
+        public async Task MissingHubQueriesDoNotCreateResourcesAndCanRetryAfterWorkerInitialization()
         {
             string hub = NewHub();
             using var service = new AzureStorageOrchestrationService(this.Settings(hub, 4, "Table"));
             try
             {
-                await new TaskHubClient(service).GetOrchestrationStateAsync("missing");
+                var client = new TaskHubClient(service);
+                await this.AssertMissingMetadataRejectedAsync(client, hub);
                 Assert.IsNull(await this.ReadWorkerMetadataAsync(hub));
                 await service.CreateIfNotExistsAsync();
+                Assert.IsNull(await client.GetOrchestrationStateAsync("missing"));
                 Assert.AreEqual(4, JObject.Parse(await this.ReadWorkerMetadataAsync(hub)).Value<int>("PartitionCount"));
                 await service.DeleteAsync();
                 Assert.IsNull(await this.ReadWorkerMetadataAsync(hub));
             }
             finally
             {
+                await this.CleanupAsync(hub, "Table");
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(4, 16)]
+        [DataRow(16, 4)]
+        public async Task ClientBeforeWorkerMetadataPublicationFailsWithoutWritesAndRetries(int clientPartitions, int targetPartitions)
+        {
+            string hub = NewHub();
+            var pause = new PauseMetadataPublicationPolicy();
+            var queueOptions = new QueueClientOptions();
+            queueOptions.AddPolicy(pause, HttpPipelinePosition.PerCall);
+            var settings = this.Settings(hub, targetPartitions, "Table");
+            settings.StorageAccountClientProvider = new StorageAccountClientProvider(
+                StorageServiceClientProvider.ForBlob(this.connection),
+                StorageServiceClientProvider.ForQueue(this.connection, queueOptions),
+                StorageServiceClientProvider.ForTable(this.connection));
+            using var target = new AzureStorageOrchestrationService(settings);
+            var writes = new RecordingWritePolicy();
+            using var service = new AzureStorageOrchestrationService(this.Settings(hub, clientPartitions, "Table", writes));
+            Task creation = target.CreateIfNotExistsAsync();
+            try
+            {
+                Assert.AreSame(pause.Reached, await Task.WhenAny(pause.Reached, Task.Delay(TimeSpan.FromSeconds(10))));
+                var client = new TaskHubClient(service);
+                await this.AssertMissingMetadataRejectedAsync(client, hub);
+                Assert.AreEqual(0, writes.Count);
+                Assert.AreEqual(0, (await this.QueueNamesAsync(hub)).Length);
+                pause.Release();
+                await creation;
+                await client.CreateOrchestrationInstanceAsync("Probe", string.Empty, "partition-probe", "hello");
+                Assert.AreEqual(targetPartitions, (await this.QueueNamesAsync(hub)).Length);
+                Assert.AreEqual(targetPartitions, await this.PartitionCountAsync(hub, "Table"));
+                int partition = (int)(Fnv1aHashHelper.ComputeHash("partition-probe") % targetPartitions);
+                Assert.AreEqual(1, (await new QueueClient(this.connection,
+                    AzureStorageOrchestrationService.GetControlQueueName(hub, partition)).PeekMessagesAsync(1)).Value.Length);
+            }
+            finally
+            {
+                pause.Release();
+                await creation;
                 await this.CleanupAsync(hub, "Table");
             }
         }
@@ -436,6 +498,47 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
+        public async Task UnmarkedHubRewindDoesNotModifyHistoryBeforeRejection()
+        {
+            string hub = NewHub();
+            using var target = new AzureStorageOrchestrationService(this.Settings(hub, 4, "Table"));
+            using var worker = new TaskHubWorker(target);
+            worker.AddTaskOrchestrations(typeof(FailedOrchestration));
+            await worker.StartAsync();
+            try
+            {
+                var targetClient = new TaskHubClient(target);
+                var instance = await targetClient.CreateOrchestrationInstanceAsync(typeof(FailedOrchestration), "hello");
+                var state = await targetClient.WaitForOrchestrationAsync(instance, TimeSpan.FromSeconds(30));
+                Assert.AreEqual(OrchestrationStatus.Failed, state.OrchestrationStatus);
+                await worker.StopAsync();
+                await this.WriteWorkerMetadataAsync(hub, null);
+                string history = await target.GetOrchestrationHistoryAsync(instance.InstanceId, instance.ExecutionId);
+                string[] inventory = await this.ResourceInventoryAsync(hub);
+                var writes = new RecordingWritePolicy();
+                using var service = new AzureStorageOrchestrationService(this.Settings(hub, 16, "Table", writes));
+                InvalidOperationException error = await Assert.ThrowsExceptionAsync<InvalidOperationException>(
+                    () => service.RewindTaskOrchestrationAsync(instance.InstanceId, "retry"));
+                StringAssert.Contains(error.Message, "CreateIfNotExistsAsync");
+                Assert.AreEqual(0, writes.Count, "Rejected rewind must not mutate history or instance status.");
+                Assert.AreEqual(history, await target.GetOrchestrationHistoryAsync(instance.InstanceId, instance.ExecutionId));
+                Assert.AreEqual(OrchestrationStatus.Failed, (await targetClient.GetOrchestrationStateAsync(instance.InstanceId)).OrchestrationStatus);
+                CollectionAssert.AreEqual(inventory, await this.ResourceInventoryAsync(hub));
+
+                await target.CreateIfNotExistsAsync();
+                await service.RewindTaskOrchestrationAsync(instance.InstanceId, "retry");
+                Assert.AreEqual(OrchestrationStatus.Pending, (await targetClient.GetOrchestrationStateAsync(instance.InstanceId)).OrchestrationStatus);
+                string queue = AzureStorageOrchestrationService.GetControlQueueName(hub, (int)(Fnv1aHashHelper.ComputeHash(instance.InstanceId) % 4));
+                Assert.AreEqual(1, (await new QueueClient(this.connection, queue).PeekMessagesAsync(2)).Value.Length);
+            }
+            finally
+            {
+                await worker.StopAsync(isForced: true);
+                await this.CleanupAsync(hub, "Table");
+            }
+        }
+
+        [TestMethod]
         public async Task DiscoveredClientQueuesDoNotBecomeRecreatedWorkerLeases()
         {
             string hub = NewHub();
@@ -537,15 +640,65 @@ namespace DurableTask.AzureStorage.Tests
             await queue.SetMetadataAsync(metadata);
         }
 
-        AzureStorageOrchestrationServiceSettings Settings(string hub, int partitions, string manager) =>
+        async Task AssertMissingMetadataRejectedAsync(TaskHubClient client, string hub)
+        {
+            string[] before = await this.ResourceInventoryAsync(hub);
+            InvalidOperationException error = await Assert.ThrowsExceptionAsync<InvalidOperationException>(
+                () => client.CreateOrchestrationInstanceAsync("Probe", string.Empty, "partition-probe", "hello"));
+            StringAssert.Contains(error.Message, hub);
+            StringAssert.Contains(error.Message, "CreateIfNotExistsAsync");
+            await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => client.GetOrchestrationStateAsync("missing"));
+            await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => client.RaiseEventAsync(
+                new OrchestrationInstance { InstanceId = "partition-probe" }, "event", "hello"));
+            CollectionAssert.AreEqual(before, await this.ResourceInventoryAsync(hub));
+        }
+
+        async Task<string[]> ResourceInventoryAsync(string hub)
+        {
+            var resources = new List<string>();
+            await foreach (var queue in new QueueServiceClient(this.connection).GetQueuesAsync(prefix: hub.ToLowerInvariant()))
+            {
+                resources.Add("queue:" + queue.Name);
+                Assert.AreEqual(0, (await new QueueClient(this.connection, queue.Name).PeekMessagesAsync(1)).Value.Length);
+            }
+            await foreach (var container in new BlobServiceClient(this.connection).GetBlobContainersAsync(prefix: hub.ToLowerInvariant()))
+            {
+                resources.Add("container:" + container.Name);
+            }
+            await foreach (var table in new TableServiceClient(this.connection).QueryAsync(filter: $"TableName ge '{hub}' and TableName lt '{hub}z'"))
+            {
+                resources.Add("table:" + table.Name);
+            }
+            return resources.OrderBy(x => x, StringComparer.Ordinal).ToArray();
+        }
+
+        AzureStorageOrchestrationServiceSettings Settings(string hub, int partitions, string manager, RecordingWritePolicy writes = null) =>
             new AzureStorageOrchestrationServiceSettings
             {
-                StorageAccountClientProvider = new StorageAccountClientProvider(this.connection),
+                StorageAccountClientProvider = this.CreateStorageProvider(writes),
                 TaskHubName = hub,
                 PartitionCount = partitions,
                 UseTablePartitionManagement = manager == "Table",
                 UseLegacyPartitionManagement = manager == "Legacy",
             };
+
+        StorageAccountClientProvider CreateStorageProvider(RecordingWritePolicy writes)
+        {
+            if (writes == null)
+            {
+                return new StorageAccountClientProvider(this.connection);
+            }
+            var blobs = new BlobClientOptions();
+            var queues = new QueueClientOptions();
+            var tables = new TableClientOptions();
+            blobs.AddPolicy(writes, HttpPipelinePosition.PerCall);
+            queues.AddPolicy(writes, HttpPipelinePosition.PerCall);
+            tables.AddPolicy(writes, HttpPipelinePosition.PerCall);
+            return new StorageAccountClientProvider(
+                StorageServiceClientProvider.ForBlob(this.connection, blobs),
+                StorageServiceClientProvider.ForQueue(this.connection, queues),
+                StorageServiceClientProvider.ForTable(this.connection, tables));
+        }
 
         async Task CleanupAsync(string hub, string manager)
         {
@@ -579,6 +732,48 @@ namespace DurableTask.AzureStorage.Tests
                 count++;
             }
             return count;
+        }
+
+        public class FailedOrchestration : TaskOrchestration<string, string>
+        {
+            public override Task<string> RunTask(OrchestrationContext context, string input) =>
+                throw new InvalidOperationException("Expected test orchestration failure.");
+        }
+
+        class RecordingWritePolicy : HttpPipelinePolicy
+        {
+            int count;
+            public int Count => this.count;
+            public override void Process(HttpMessage message, ReadOnlyMemory<HttpPipelinePolicy> pipeline) =>
+                throw new NotSupportedException("Tests use asynchronous storage operations.");
+            public override ValueTask ProcessAsync(HttpMessage message, ReadOnlyMemory<HttpPipelinePolicy> pipeline)
+            {
+                if (message.Request.Method != RequestMethod.Get && message.Request.Method != RequestMethod.Head)
+                {
+                    Interlocked.Increment(ref this.count);
+                }
+                return ProcessNextAsync(message, pipeline);
+            }
+        }
+
+        class PauseMetadataPublicationPolicy : HttpPipelinePolicy
+        {
+            readonly TaskCompletionSource<bool> reached = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            readonly TaskCompletionSource<bool> released = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            public Task Reached => this.reached.Task;
+            public void Release() => this.released.TrySetResult(true);
+            public override void Process(HttpMessage message, ReadOnlyMemory<HttpPipelinePolicy> pipeline) =>
+                throw new NotSupportedException("Tests use asynchronous queue operations.");
+            public override async ValueTask ProcessAsync(HttpMessage message, ReadOnlyMemory<HttpPipelinePolicy> pipeline)
+            {
+                if (message.Request.Method == RequestMethod.Put &&
+                    message.Request.Uri.ToUri().Query.Contains("comp=metadata"))
+                {
+                    this.reached.TrySetResult(true);
+                    await this.released.Task;
+                }
+                await ProcessNextAsync(message, pipeline);
+            }
         }
 
         class PausePartitionCreationPolicy : HttpPipelinePolicy
