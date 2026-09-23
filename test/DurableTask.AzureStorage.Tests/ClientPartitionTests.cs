@@ -129,7 +129,7 @@ namespace DurableTask.AzureStorage.Tests
         [DataRow("Table")]
         [DataRow("Safe")]
         [DataRow("Legacy")]
-        public async Task ExplicitCreationRetainsConfiguredWorkerPartitions(string manager)
+        public async Task ExplicitRecreationCanChangeWorkerPartitions(string manager)
         {
             string hub = NewHub();
             using var target = new AzureStorageOrchestrationService(this.Settings(hub, 4, manager));
@@ -139,12 +139,133 @@ namespace DurableTask.AzureStorage.Tests
                 await target.CreateIfNotExistsAsync();
                 var client = new TaskHubClient(service);
                 await client.GetOrchestrationStateAsync("missing");
-                await service.CreateIfNotExistsAsync();
+                await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => service.CreateIfNotExistsAsync());
+                await service.CreateAsync();
                 Assert.AreEqual(16, (await this.QueueNamesAsync(hub)).Length);
                 Assert.AreEqual(16, await this.PartitionCountAsync(hub, manager));
                 await client.CreateOrchestrationInstanceAsync("Probe", string.Empty, "partition-probe", "hello");
                 var queue = new QueueClient(this.connection, AzureStorageOrchestrationService.GetControlQueueName(hub, 14));
                 Assert.AreEqual(1, (await queue.PeekMessagesAsync(1)).Value.Length);
+            }
+            finally
+            {
+                await this.CleanupAsync(hub, manager);
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(4, 16, "Table")]
+        [DataRow(16, 4, "Table")]
+        [DataRow(4, 16, "Safe")]
+        [DataRow(16, 4, "Safe")]
+        [DataRow(4, 16, "Legacy")]
+        [DataRow(16, 4, "Legacy")]
+        public async Task MarkedHubRejectsWorkerPartitionMismatchWithoutPublishing(
+            int targetPartitions, int workerPartitions, string manager)
+        {
+            string hub = NewHub();
+            using var target = new AzureStorageOrchestrationService(this.Settings(hub, targetPartitions, manager));
+            var writes = new RecordingWritePolicy();
+            using var worker = new AzureStorageOrchestrationService(this.Settings(hub, workerPartitions, manager, writes));
+            await target.CreateIfNotExistsAsync();
+            string metadata = await this.ReadWorkerMetadataAsync(hub);
+            string[] inventory = await this.ResourceInventoryAsync(hub);
+            try
+            {
+                await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => worker.CreateIfNotExistsAsync());
+                await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => worker.StartAsync());
+                Assert.AreEqual(metadata, await this.ReadWorkerMetadataAsync(hub));
+                Assert.AreEqual(0, writes.Count);
+                CollectionAssert.AreEqual(inventory, await this.ResourceInventoryAsync(hub));
+                Assert.AreEqual(targetPartitions, await this.PartitionCountAsync(hub, manager));
+            }
+            finally
+            {
+                Console.WriteLine($"Target={targetPartitions}, configured worker={workerPartitions}, published after call={JObject.Parse(await this.ReadWorkerMetadataAsync(hub)).Value<int>("PartitionCount")}, partition-store count after call={await this.PartitionCountAsync(hub, manager)}.");
+                await this.CleanupAsync(hub, manager);
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow("Table")]
+        [DataRow("Safe")]
+        [DataRow("Legacy")]
+        public async Task MatchingWorkerPreservesPublishedMetadata(string manager)
+        {
+            string hub = NewHub();
+            using var target = new AzureStorageOrchestrationService(this.Settings(hub, 4, manager));
+            using var worker = new AzureStorageOrchestrationService(this.Settings(hub, 4, manager));
+            try
+            {
+                await target.CreateIfNotExistsAsync();
+                var queue = new QueueClient(this.connection, hub.ToLowerInvariant() + "-workitems");
+                var metadata = (await queue.GetPropertiesAsync()).Value.Metadata;
+                metadata["application"] = "preserved";
+                await queue.SetMetadataAsync(metadata);
+                string published = await this.ReadWorkerMetadataAsync(hub);
+                await worker.CreateIfNotExistsAsync();
+                await worker.StartAsync();
+                await worker.StopAsync(isForced: true);
+                Assert.AreEqual(published, await this.ReadWorkerMetadataAsync(hub));
+                Assert.AreEqual("preserved", (await queue.GetPropertiesAsync()).Value.Metadata["application"]);
+                Assert.AreEqual(4, await this.PartitionCountAsync(hub, manager));
+            }
+            finally
+            {
+                await this.CleanupAsync(hub, manager);
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow("null", false)]
+        [DataRow("{broken", true)]
+        [DataRow("{\"TaskHubName\":\"wrong\",\"PartitionCount\":4}", false)]
+        public async Task WorkerRejectsInvalidPublishedMetadataBeforeWrites(string metadata, bool invalidJson)
+        {
+            string hub = NewHub();
+            using var target = new AzureStorageOrchestrationService(this.Settings(hub, 4, "Table"));
+            var writes = new RecordingWritePolicy();
+            using var worker = new AzureStorageOrchestrationService(this.Settings(hub, 4, "Table", writes));
+            try
+            {
+                await target.CreateIfNotExistsAsync();
+                await this.WriteWorkerMetadataAsync(hub, metadata);
+                if (invalidJson)
+                {
+                    await Assert.ThrowsExceptionAsync<JsonReaderException>(() => worker.CreateIfNotExistsAsync());
+                }
+                else
+                {
+                    await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => worker.CreateIfNotExistsAsync());
+                }
+                Assert.AreEqual(metadata, await this.ReadWorkerMetadataAsync(hub));
+                Assert.AreEqual(0, writes.Count);
+                await this.WriteWorkerMetadataAsync(hub, $"{{\"TaskHubName\":\"{hub}\",\"PartitionCount\":4}}");
+                await worker.CreateIfNotExistsAsync();
+            }
+            finally
+            {
+                await this.CleanupAsync(hub, "Table");
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow("Table")]
+        [DataRow("Safe")]
+        [DataRow("Legacy")]
+        public async Task ExplicitLegacyBootstrapRequiresOperatorMatchedConfiguration(string manager)
+        {
+            string hub = NewHub();
+            using var original = new AzureStorageOrchestrationService(this.Settings(hub, 4, manager));
+            using var upgraded = new AzureStorageOrchestrationService(this.Settings(hub, 4, manager));
+            try
+            {
+                await original.CreateIfNotExistsAsync();
+                await this.WriteWorkerMetadataAsync(hub, null);
+                await upgraded.CreateIfNotExistsAsync();
+                Assert.AreEqual(4, JObject.Parse(await this.ReadWorkerMetadataAsync(hub)).Value<int>("PartitionCount"));
+                Assert.AreEqual(4, (await this.QueueNamesAsync(hub)).Length);
+                Assert.AreEqual(4, await this.PartitionCountAsync(hub, manager));
             }
             finally
             {

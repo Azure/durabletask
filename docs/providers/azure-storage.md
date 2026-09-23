@@ -244,6 +244,10 @@ Both worker and client binaries must be upgraded to benefit from this behavior. 
 
 The hub creation APIs remain administrative operations that apply their configured worker settings; they should not be used to discover another worker's configuration. Hub deletion removes the metadata along with the existing work-item queue, including when deletion is performed by an older provider. Unlike best-effort app-lease cleanup, work-item queue deletion failures are propagated.
 
+When worker metadata is already published, explicit initialization and worker startup validate it before changing resources. A different configured partition count or invalid existing metadata is rejected; a matching marker, including its creation timestamp and unrelated queue metadata, is preserved. Destructive `CreateAsync()` still deletes and recreates a hub and can therefore establish a different configuration after deletion.
+
+This guard does not infer a legacy hub's complete topology from lease rows. Explicit initialization of an older unmarked hub still requires the operator to supply its correct existing partition configuration. All concurrently initializing hosts must agree on that configuration. Queue metadata read/validation/publication is not a compare-and-swap protocol; conflicting first-time publishers with different counts are not a supported deployment. The guard protects a count already present when read, not arbitrary conflicting first-publication races.
+
 Client initialization retains references to every discovered control queue. Deleting the hub through that service therefore removes the full discovered topology, including queues the client has never sent to, even when the caller's configured partition count is smaller.
 
 ### Lease Management

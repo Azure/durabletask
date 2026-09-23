@@ -356,11 +356,30 @@ namespace DurableTask.AzureStorage
             // Publish the worker's complete topology before leases are created individually.
             // Queue deletion removes this metadata, including when performed by older versions.
             Queue queue = GetWorkItemQueue(this.azureStorageClient);
-            await queue.CreateIfNotExistsAsync();
+            if (!await queue.ExistsAsync())
+            {
+                await queue.CreateIfNotExistsAsync();
+            }
+
             IDictionary<string, string> metadata = await queue.GetMetadataAsync();
-            metadata[WorkerTaskHubInfoMetadataKey] =
-                Utils.SerializeToJson(GetTaskHubInfo(this.settings.TaskHubName, this.settings.PartitionCount));
-            await queue.SetMetadataAsync(metadata);
+            if (metadata.TryGetValue(WorkerTaskHubInfoMetadataKey, out string serializedHubInfo))
+            {
+                TaskHubInfo hubInfo = this.DeserializeAndValidateTaskHubInfo(serializedHubInfo);
+                if (hubInfo.PartitionCount != this.settings.PartitionCount)
+                {
+                    throw new InvalidOperationException(
+                        $"Task hub '{this.settings.TaskHubName}' has published partition count {hubInfo.PartitionCount}, " +
+                        $"but this worker is configured for {this.settings.PartitionCount}. " +
+                        "Use the existing partition configuration, or initialize a new task hub to use a different partition count.");
+                }
+            }
+            else
+            {
+                metadata[WorkerTaskHubInfoMetadataKey] =
+                    Utils.SerializeToJson(GetTaskHubInfo(this.settings.TaskHubName, this.settings.PartitionCount));
+                await queue.SetMetadataAsync(metadata);
+            }
+
             await this.EnsureTaskHubCreatedAsync();
             // Worker admission must not be delayed by rediscovery after explicit initialization.
             this.clientTaskHubInitializer.Reset(Task.FromResult(this.settings.PartitionCount));
@@ -400,13 +419,7 @@ namespace DurableTask.AzureStorage
                     "using the target's partition configuration before retrying the client operation.");
             }
 
-            TaskHubInfo hubInfo = Utils.DeserializeFromJson<TaskHubInfo>(serializedHubInfo);
-            if (hubInfo == null ||
-                !string.Equals(hubInfo.TaskHubName, this.settings.TaskHubName, StringComparison.OrdinalIgnoreCase) ||
-                hubInfo.PartitionCount < 1 || hubInfo.PartitionCount > 16)
-            {
-                throw new InvalidOperationException($"Task hub '{this.settings.TaskHubName}' has invalid worker partition metadata.");
-            }
+            TaskHubInfo hubInfo = this.DeserializeAndValidateTaskHubInfo(serializedHubInfo);
 
             // Clients may finish creating resources after an interrupted worker initialization,
             // but must not create leases or overwrite the worker's partition configuration.
@@ -424,6 +437,18 @@ namespace DurableTask.AzureStorage
             }
             await Task.WhenAll(tasks);
             return hubInfo.PartitionCount;
+        }
+
+        TaskHubInfo DeserializeAndValidateTaskHubInfo(string serializedHubInfo)
+        {
+            TaskHubInfo hubInfo = Utils.DeserializeFromJson<TaskHubInfo>(serializedHubInfo);
+            if (hubInfo == null ||
+                !string.Equals(hubInfo.TaskHubName, this.settings.TaskHubName, StringComparison.OrdinalIgnoreCase) ||
+                hubInfo.PartitionCount < 1 || hubInfo.PartitionCount > 16)
+            {
+                throw new InvalidOperationException($"Task hub '{this.settings.TaskHubName}' has invalid worker partition metadata.");
+            }
+            return hubInfo;
         }
 
         async Task EnsureTaskHubCreatedAsync()
@@ -1850,6 +1875,7 @@ namespace DurableTask.AzureStorage
 
             Utils.ConvertDateTimeInHistoryEventsToUTC(creationMessage.Event);
 
+            // Client operations require published worker metadata before using the task hub.
             await this.EnsureTaskHubInitializedAsync();
 
             InstanceStatus existingInstance = await this.trackingStore.FetchInstanceStatusAsync(
@@ -1918,6 +1944,7 @@ namespace DurableTask.AzureStorage
         /// <param name="message">The message to send.</param>
         public async Task SendTaskOrchestrationMessageAsync(TaskMessage message)
         {
+            // Client operations require published worker metadata before using the task hub.
             await this.EnsureTaskHubInitializedAsync();
             ControlQueue controlQueue = await this.GetControlQueueAsync(message.OrchestrationInstance.InstanceId);
             await this.SendTaskOrchestrationMessageInternalAsync(EmptySourceInstance, controlQueue, message);
@@ -1939,6 +1966,7 @@ namespace DurableTask.AzureStorage
         /// <returns>List of <see cref="OrchestrationState"/> objects that represent the list of orchestrations.</returns>
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions)
         {
+            // Client operations require published worker metadata before using the task hub.
             await this.EnsureTaskHubInitializedAsync();
             return new OrchestrationState[]
             {
@@ -1954,6 +1982,7 @@ namespace DurableTask.AzureStorage
         /// <returns>The <see cref="OrchestrationState"/> object that represents the orchestration.</returns>
         public async Task<OrchestrationState> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
+            // Client operations require published worker metadata before using the task hub.
             await this.EnsureTaskHubInitializedAsync();
             return await this.trackingStore.GetStateAsync(instanceId, executionId, fetchInput: true);
         }
@@ -1968,6 +1997,7 @@ namespace DurableTask.AzureStorage
         /// <returns>List of <see cref="OrchestrationState"/> objects that represent the list of orchestrations.</returns>
         public async Task<IList<OrchestrationState>> GetOrchestrationStateAsync(string instanceId, bool allExecutions, bool fetchInput = true)
         {
+            // Client operations require published worker metadata before using the task hub.
             await this.EnsureTaskHubInitializedAsync();
             return await this.trackingStore.GetStateAsync(instanceId, allExecutions, fetchInput).ToListAsync();
         }
