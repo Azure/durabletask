@@ -66,15 +66,6 @@ namespace DurableTask.ServiceBus
         const int DuplicateDetectionWindowInHours = 4;
 
         /// <summary>
-        /// How many below-floor states to discard after a continue-as-new handoff before accepting one.
-        /// The floor exists only to cover the brief window where the successor row is not readable yet,
-        /// which resolves in well under this budget. Past it, a state below the floor is far more likely
-        /// a successor persisted by a worker whose clock is behind than state left by an earlier run,
-        /// so accepting it beats waiting forever.
-        /// </summary>
-        const int MaxPreviousRunRejections = 5;
-
-        /// <summary>
         /// Orchestration service settings 
         /// </summary>
         public readonly ServiceBusOrchestrationServiceSettings Settings;
@@ -1262,11 +1253,6 @@ namespace DurableTask.ServiceBus
 
             bool pinnedToExecution = !string.IsNullOrWhiteSpace(executionId);
 
-            // Once we stop tracking a specific execution we must not accept state left behind by an
-            // earlier run of the same instance id.
-            DateTime minimumLastUpdatedTime = DateTimeUtils.MinDateTime;
-            int remainingRejections = 0;
-
             while (!cancellationToken.IsCancellationRequested)
             {
                 OrchestrationState state = pinnedToExecution
@@ -1280,23 +1266,6 @@ namespace DurableTask.ServiceBus
                 if (pinnedToExecution && state?.OrchestrationStatus == OrchestrationStatus.ContinuedAsNew)
                 {
                     pinnedToExecution = false;
-                    minimumLastUpdatedTime = state.LastUpdatedTime;
-                    remainingRejections = MaxPreviousRunRejections;
-                }
-
-                // State from a previous run of this instance id; the current generation is not readable yet.
-                // A previous run stopped being updated no later than the continue-as-new that wrote the
-                // tombstone, while its successor is persisted at or after it. CreatedTime is deliberately
-                // not used: it is stamped on the client for the first generation but on the worker for every
-                // continue-as-new generation, so a client running ahead would discard a valid successor
-                // forever. LastUpdatedTime is rewritten by the persisting worker on every state write, so it
-                // stays within one tier, but worker clocks still disagree: a successor that completes in a
-                // single episode inside that skew is never rewritten and would stay below the floor forever.
-                // The budget bounds that, so an infinite wait cannot hang on it.
-                if (state != null && remainingRejections > 0 && state.LastUpdatedTime < minimumLastUpdatedTime)
-                {
-                    remainingRejections--;
-                    state = null;
                 }
 
                 // ContinuedAsNew is never a final state: a new generation always follows it. The built-in

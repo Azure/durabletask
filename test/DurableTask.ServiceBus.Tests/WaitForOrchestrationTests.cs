@@ -50,8 +50,7 @@ namespace DurableTask.ServiceBus.Tests
             string executionId,
             OrchestrationStatus status,
             DateTime createdTime,
-            string output = null,
-            DateTime? lastUpdatedTime = null)
+            string output = null)
         {
             return new OrchestrationState
             {
@@ -62,7 +61,7 @@ namespace DurableTask.ServiceBus.Tests
                 },
                 OrchestrationStatus = status,
                 CreatedTime = createdTime,
-                LastUpdatedTime = lastUpdatedTime ?? createdTime,
+                LastUpdatedTime = createdTime,
                 Output = output
             };
         }
@@ -169,193 +168,6 @@ namespace DurableTask.ServiceBus.Tests
 
             Assert.IsNull(state, "A zero timeout must not reach the next generation after un-pinning.");
             Assert.AreEqual(1, store.QueryCount, "A zero timeout must perform exactly one lookup.");
-        }
-
-        /// <summary>
-        /// After following a continue-as-new to the current generation we must still not accept state
-        /// left behind by an earlier run of the same instance id.
-        /// </summary>
-        [TestMethod]
-        public async Task WaitForOrchestration_ContinuedAsNew_IgnoresStateFromPreviousRun()
-        {
-            var store = new FakeInstanceStore();
-
-            // Previous run: completed long before the current run started.
-            store.States.Add(CreateState("previous-run", OrchestrationStatus.Completed, BaseTime, "stale output"));
-
-            // Current run, first generation, already continued as new.
-            store.States.Add(CreateState("generation-1", OrchestrationStatus.ContinuedAsNew, BaseTime.AddMinutes(5), "next input"));
-
-            // The next generation only becomes readable later.
-            store.OnQuery = s =>
-            {
-                if (s.QueryCount == 3)
-                {
-                    s.States.Add(CreateState("generation-2", OrchestrationStatus.Completed, BaseTime.AddMinutes(6), "final output"));
-                }
-            };
-
-            ServiceBusOrchestrationService service = CreateService(store);
-
-            OrchestrationState state = await service.WaitForOrchestrationAsync(
-                InstanceId,
-                "generation-1",
-                TimeSpan.FromSeconds(30),
-                CancellationToken.None);
-
-            Assert.IsNotNull(state);
-            Assert.AreEqual("generation-2", state.OrchestrationInstance.ExecutionId, "Returned state from the wrong run.");
-            Assert.AreEqual("final output", state.Output);
-        }
-
-        /// <summary>
-        /// CreatedTime comes from a HistoryEvent timestamp and is not guaranteed unique, so a previous
-        /// run can happen to share the ContinuedAsNew tombstone's CreatedTime. The floor must therefore
-        /// not depend on CreatedTime at all: LastUpdatedTime alone separates the two, because the
-        /// previous run stopped being updated before the continue-as-new occurred.
-        /// </summary>
-        [TestMethod]
-        public async Task WaitForOrchestration_ContinuedAsNew_IgnoresPreviousRunSharingTheTombstoneCreatedTime()
-        {
-            var store = new FakeInstanceStore();
-
-            // Previous run: completed before the current run continued as new, but its ExecutionStarted
-            // timestamp collides with the current run's.
-            store.States.Add(CreateState(
-                "previous-run",
-                OrchestrationStatus.Completed,
-                BaseTime,
-                "stale output",
-                BaseTime.AddMinutes(1)));
-
-            // Current run, first generation, already continued as new.
-            store.States.Add(CreateState(
-                "generation-1",
-                OrchestrationStatus.ContinuedAsNew,
-                BaseTime,
-                "next input",
-                BaseTime.AddMinutes(5)));
-
-            // The next generation only becomes readable later.
-            store.OnQuery = s =>
-            {
-                if (s.QueryCount == 3)
-                {
-                    s.States.Add(CreateState("generation-2", OrchestrationStatus.Completed, BaseTime.AddMinutes(5), "final output"));
-                }
-            };
-
-            ServiceBusOrchestrationService service = CreateService(store);
-
-            OrchestrationState state = await service.WaitForOrchestrationAsync(
-                InstanceId,
-                "generation-1",
-                TimeSpan.FromSeconds(30),
-                CancellationToken.None);
-
-            Assert.IsNotNull(state);
-            Assert.AreEqual("generation-2", state.OrchestrationInstance.ExecutionId, "Returned state from the wrong run.");
-            Assert.AreEqual("final output", state.Output);
-        }
-
-        /// <summary>
-        /// The first generation's ExecutionStartedEvent is stamped on the client that scheduled the
-        /// orchestration, while a continue-as-new generation's is stamped on the worker that ran it, and
-        /// both come from DateTime.UtcNow on those machines. A client running ahead of the worker therefore
-        /// produces a tombstone whose CreatedTime is later than its own successor's. Rejecting state by
-        /// CreatedTime would discard that successor on every iteration, so the wait would never observe the
-        /// completion it was asked about.
-        /// </summary>
-        [TestMethod]
-        public async Task WaitForOrchestration_ContinuedAsNew_FollowsSuccessorWhenClientClockIsAheadOfWorker()
-        {
-            var store = new FakeInstanceStore();
-
-            // First generation: started by a client running one second ahead of the worker, so its
-            // CreatedTime is later than everything the worker subsequently stamps. Its LastUpdatedTime is
-            // written by the worker when the continue-as-new is persisted.
-            store.States.Add(CreateState(
-                "generation-1",
-                OrchestrationStatus.ContinuedAsNew,
-                BaseTime.AddSeconds(1),
-                "next input",
-                BaseTime.AddMilliseconds(100)));
-
-            // Successor: created and persisted entirely on the worker, and already complete.
-            store.States.Add(CreateState(
-                "generation-2",
-                OrchestrationStatus.Completed,
-                BaseTime.AddMilliseconds(50),
-                "final output",
-                BaseTime.AddMilliseconds(200)));
-
-            ServiceBusOrchestrationService service = CreateService(store);
-
-            OrchestrationState state = await service.WaitForOrchestrationAsync(
-                InstanceId,
-                "generation-1",
-                TimeSpan.FromSeconds(30),
-                CancellationToken.None);
-
-            Assert.IsNotNull(state, "Clock skew between the client and the worker discarded a valid successor.");
-            Assert.AreEqual("generation-2", state.OrchestrationInstance.ExecutionId);
-            Assert.AreEqual("final output", state.Output);
-        }
-
-        /// <summary>
-        /// Worker clocks can disagree too, so a short successor can be created, complete and never be
-        /// written again while its LastUpdatedTime still sits below the tombstone's. An unbounded floor
-        /// would reject it on every poll, which an infinite wait can never escape, so the floor only
-        /// discards a limited number of below-floor states before accepting one.
-        /// </summary>
-        [TestMethod]
-        public async Task WaitForOrchestration_ContinuedAsNew_InfiniteWait_FollowsSuccessorPersistedBehindTheTombstoneClock()
-        {
-            var store = new FakeInstanceStore();
-
-            // Previous run of the same instance id, completed long ago.
-            store.States.Add(CreateState("previous-run", OrchestrationStatus.Completed, BaseTime, "stale output"));
-
-            // Current run, first generation, already continued as new.
-            store.States.Add(CreateState(
-                "generation-1",
-                OrchestrationStatus.ContinuedAsNew,
-                BaseTime.AddMinutes(5),
-                "next input"));
-
-            // The successor runs on a worker whose clock is behind and completes in a single episode: its
-            // one and only state write lands below the tombstone's LastUpdatedTime and is never revised.
-            store.States.Add(CreateState(
-                "generation-2",
-                OrchestrationStatus.Completed,
-                BaseTime.AddMinutes(4),
-                "final output"));
-
-            ServiceBusOrchestrationService service = CreateService(store);
-
-            // Guard the test itself: without the budget an infinite wait never returns.
-            using (var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
-            {
-                OrchestrationState state;
-
-                try
-                {
-                    state = await service.WaitForOrchestrationAsync(
-                        InstanceId,
-                        "generation-1",
-                        Timeout.InfiniteTimeSpan,
-                        cancellation.Token);
-                }
-                catch (OperationCanceledException)
-                {
-                    Assert.Fail("An infinite wait never observed a successor that was persisted behind the tombstone's clock.");
-                    throw;
-                }
-
-                Assert.IsNotNull(state);
-                Assert.AreEqual("generation-2", state.OrchestrationInstance.ExecutionId, "Returned state from the wrong run.");
-                Assert.AreEqual("final output", state.Output);
-            }
         }
 
         /// <summary>
