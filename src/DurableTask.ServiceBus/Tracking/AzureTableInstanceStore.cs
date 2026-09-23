@@ -91,6 +91,20 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         /// <summary>
+        /// Creates a new AzureTableInstanceStore over the supplied table client. Used by tests to
+        /// substitute the table client; production code uses the connection string or credential
+        /// constructors above.
+        /// </summary>
+        /// <param name="tableClient">The table client to issue queries through</param>
+        internal AzureTableInstanceStore(AzureTableClient tableClient)
+        {
+            this.tableClient = tableClient ?? throw new ArgumentNullException(nameof(tableClient));
+
+            // Workaround an issue with Storage that throws exceptions for any date < 1600 so DateTime.Min cannot be used
+            DateTimeUtils.SetMinDateTimeForStorageEmulator();
+        }
+
+        /// <summary>
         /// Runs initialization to prepare the storage for use
         /// </summary>
         /// <param name="recreateStorage">Flag to indicate whether the storage should be recreated.</param>
