@@ -91,6 +91,20 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         /// <summary>
+        /// Creates a new AzureTableInstanceStore over the supplied table client. Used by tests to
+        /// substitute the table client; production code uses the connection string or credential
+        /// constructors above.
+        /// </summary>
+        /// <param name="tableClient">The table client to issue queries through</param>
+        internal AzureTableInstanceStore(AzureTableClient tableClient)
+        {
+            this.tableClient = tableClient ?? throw new ArgumentNullException(nameof(tableClient));
+
+            // Workaround an issue with Storage that throws exceptions for any date < 1600 so DateTime.Min cannot be used
+            DateTimeUtils.SetMinDateTimeForStorageEmulator();
+        }
+
+        /// <summary>
         /// Runs initialization to prepare the storage for use
         /// </summary>
         /// <param name="recreateStorage">Flag to indicate whether the storage should be recreated.</param>
@@ -217,17 +231,28 @@ namespace DurableTask.ServiceBus.Tracking
         /// <returns>The matching orchestration state or null if not found</returns>
         public async Task<OrchestrationStateInstanceEntity> GetOrchestrationStateAsync(string instanceId, string executionId)
         {
+            // Retries here mirror the instance-id overload above so that both lookups survive the same
+            // transient table failures. Without them a single failure that escapes the storage SDK's own
+            // retries would fault every caller that polls by execution id.
             AzureTableOrchestrationStateEntity result =
-                (await this.tableClient.QueryOrchestrationStatesAsync(
-                new OrchestrationStateQuery().AddInstanceFilter(instanceId, executionId)).ConfigureAwait(false)).FirstOrDefault();
+                (await Utils.ExecuteWithRetries(() => this.tableClient.QueryOrchestrationStatesAsync(
+                    new OrchestrationStateQuery().AddInstanceFilter(instanceId, executionId)),
+                    string.Empty,
+                    "GetOrchestrationStateAsync-stateEntity",
+                    MaxRetriesTableStore,
+                    IntervalBetweenRetriesSecs).ConfigureAwait(false)).FirstOrDefault();
 
             // ReSharper disable once ConvertIfStatementToNullCoalescingExpression
             if (result == null)
             {
                 // Query from JumpStart table
-                result = (await this.tableClient.QueryJumpStartOrchestrationsAsync(
+                result = (await Utils.ExecuteWithRetries(() => this.tableClient.QueryJumpStartOrchestrationsAsync(
                        new OrchestrationStateQuery()
-                        .AddInstanceFilter(instanceId, executionId))
+                        .AddInstanceFilter(instanceId, executionId)),
+                        string.Empty,
+                        "GetOrchestrationStateAsync-jumpStartEntity",
+                        MaxRetriesTableStore,
+                        IntervalBetweenRetriesSecs)
                         .ConfigureAwait(false))
                     .FirstOrDefault();
             }
