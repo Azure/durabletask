@@ -1173,10 +1173,10 @@ namespace DurableTask.AzureStorage
                         instanceStatus is not null,
                         (instanceStatus?.SequenceNumber ?? 0) + 1,
                         cancellationToken);
-                    if (!allowReplayingTerminalInstances)
-                    {
-                        return $"Instance is {runtimeState.OrchestrationStatus}";
-                    }
+                }
+                if (!allowReplayingTerminalInstances)
+                {
+                    return $"Instance is {runtimeState.OrchestrationStatus}";
                 }
             }
 
