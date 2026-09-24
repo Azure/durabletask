@@ -104,6 +104,20 @@ public interface IOrchestrationServiceClient
 > [!NOTE]
 > Most providers implement both interfaces in a single class.
 
+### Optional Large Payload Purge Capability
+
+Service clients that support purging tombstoned large payloads can additionally implement `DurableTask.Core.IOrchestrationServiceLargePayloadPurgeClient`, following the optional capability pattern used by `IOrchestrationServicePurgeClient`. Existing implementations of `IOrchestrationServiceClient` do not need to change.
+
+| Method | Purpose |
+| ------ | ------- |
+| `SetLargePayloadAutoPurgeAsync` | Explicitly enable or disable large payload auto-purge for the client's task hub. |
+| `GetLargePayloadsToPurgeAsync` | Fetch up to the requested limit of tombstones ready for processing. |
+| `ReportLargePayloadPurgeResultsAsync` | Report the worker's outcomes using the unchanged tombstone correlation tokens. |
+
+Each operation accepts a UTC deadline (`DateTime.MaxValue` for no deadline) and a cancellation token. The service implementation owns transport, deadline/cancellation handling, disposition validation, and retry scheduling; the Core interface adds no worker or automatic setup.
+
+`LargePayloadPurgeTombstone` and `LargePayloadPurgeResult` are sealed, immutable Core models. Their constructors reject null tokens but preserve all other token strings without interpreting or normalizing them, including empty and whitespace values. Results retain the supplied `LargePayloadPurgeDisposition` without validating it. The numeric values are `Unspecified = 0`, `Deleted = 1`, `Retry = 2`, and `Quarantined = 3`; the backing service validates reported dispositions rather than treating an unspecified or unknown outcome as success.
+
 ## Minimal Implementation
 
 Here's a skeleton for a custom provider:
