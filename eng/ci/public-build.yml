@@ -1,11 +1,5 @@
 # This pipeline is used for public PR and CI builds.
 
-parameters:
-- name: durableTaskClientVersion
-  displayName: 'SDK Client version containing the large payload purge models (release prerequisite)'
-  type: string
-  default: ''
-
 # Run on changes in main
 trigger:
   batch: true
@@ -72,7 +66,7 @@ extends:
             # In the release configuration, the packages don't expose their internals
             # to the test projects.
             buildConfiguration: 'Debug'
-            buildTests: true
+            buildTests: true 
         # Run tests
         - template: /eng/templates/test.yml@self
           parameters:
@@ -92,7 +86,7 @@ extends:
             # In the release configuration, the packages don't expose their internals
             # to the test projects.
             buildConfiguration: 'Debug'
-            buildTests: true
+            buildTests: true 
         # Run tests
         - template: /eng/templates/test.yml@self
           parameters:
@@ -112,35 +106,9 @@ extends:
             # In the release configuration, the packages don't expose their internals
             # to the test projects.
             buildConfiguration: 'Debug'
-            buildTests: true
+            buildTests: true 
         # Run tests
         - template: /eng/templates/test.yml@self
           parameters:
             testAssembly: 'tests/**/DurableTask.Emulator.Tests.dll'
             artifactName: 'EmulatorTests'
-
-    - stage: DTFxLargePayloadPurgeValidate
-      dependsOn: []
-      jobs:
-      - job: Validate
-        steps:
-        - task: UseDotNet@2
-          displayName: 'Use the .NET 8 SDK'
-          inputs:
-            packageType: sdk
-            version: '8.0.x'
-        - task: DotNetCoreCLI@2
-          displayName: 'Restore large payload purge contract tests'
-          inputs:
-            command: restore
-            feedsToUse: config
-            nugetConfigPath: 'NuGet.config'
-            verbosityRestore: Minimal
-            projects: 'Test/DurableTask.LargePayloadPurge.Abstractions.Tests/DurableTask.LargePayloadPurge.Abstractions.Tests.csproj'
-            restoreArguments: '-p:DurableTaskClientVersion=${{ parameters.durableTaskClientVersion }}'
-        - task: DotNetCoreCLI@2
-          displayName: 'Test large payload purge contracts (net8.0 and net48)'
-          inputs:
-            command: test
-            projects: 'Test/DurableTask.LargePayloadPurge.Abstractions.Tests/DurableTask.LargePayloadPurge.Abstractions.Tests.csproj'
-            arguments: '--no-restore --configuration Debug -p:DurableTaskClientVersion=${{ parameters.durableTaskClientVersion }}'

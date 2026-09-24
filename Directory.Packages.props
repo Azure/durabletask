@@ -9,7 +9,6 @@
 
   <!-- Product dependencies -->
   <ItemGroup>
-    <PackageVersion Include="Microsoft.DurableTask.Client" Version="$(DurableTaskClientVersion)" Condition="'$(DurableTaskClientVersion)' != ''" />
     <PackageVersion Include="Azure.Core" Version="1.44.1" />
     <PackageVersion Include="Azure.Data.Tables" Version="12.11.0" />
     <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.20.1" />

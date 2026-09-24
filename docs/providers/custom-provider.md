@@ -104,28 +104,6 @@ public interface IOrchestrationServiceClient
 > [!NOTE]
 > Most providers implement both interfaces in a single class.
 
-### Optional Large Payload Purge Capability
-
-Service clients that support purging tombstoned large payloads can additionally implement `DurableTask.LargePayloadPurge.IOrchestrationServiceLargePayloadPurgeClient` from the separate `Microsoft.Azure.DurableTask.LargePayloadPurge.Abstractions` package, following the optional capability pattern used by `IOrchestrationServicePurgeClient`. Existing implementations of `IOrchestrationServiceClient` do not need to change.
-
-| Method | Purpose |
-| ------ | ------- |
-| `SetLargePayloadAutoPurgeAsync` | Record the explicit enable/disable choice for the client's task hub, without starting, stopping, or waiting for a purge runner. |
-| `GetLargePayloadsToPurgeAsync` | Fetch up to the requested limit of tombstones ready for processing. |
-| `ReportLargePayloadPurgeResultsAsync` | Report the worker's outcomes using the unchanged tombstone correlation tokens. |
-
-Each operation accepts the caller's UTC deadline and cancellation token. `DateTime.MaxValue` means the caller has not specified a deadline. The service implementation owns transport, propagation of the caller's deadline/cancellation, disposition validation, and retry scheduling; the interface adds no worker, deadline policy, or automatic setup.
-
-The package defines only the interface. Its signatures reuse the existing `Microsoft.DurableTask.Client.LargePayloadTombstone` and `Microsoft.DurableTask.Client.LargePayloadPurgeResult` records and `Microsoft.DurableTask.Client.LargePayloadPurgeDisposition` enum. Tombstone correlation tokens are echoed unchanged, and the backing service validates outcomes rather than treating an unspecified or unknown disposition as success.
-
-This package depends on `Microsoft.DurableTask.Client` and its transitive dependencies, including Core; it is not a BCL-only package. The reverse dependency does not exist: Core contains none of these purge contracts and does not depend on this package or SDK Client. Consumers must reference the interface package explicitly. There are no duplicate Core models or compatibility type forwarders.
-
-#### Build and release prerequisite
-
-The SDK Client package must contain the three public large payload purge models. The published SDK Client 1.26.0 package does not contain them. Until a compatible SDK release is available, building this project requires an explicitly supplied `DurableTaskClientVersion` and a package source containing that version; no unreleased SDK version is assumed by the repository. Core can still be restored and built independently without this property.
-
-The public and official pipeline templates expose the corresponding `durableTaskClientVersion` parameter and fail explicitly when it is not supplied. Before normal CI and release can succeed, publish the compatible SDK Client package and pin that real version in the repository and pipeline configuration. Then publish the interface package and the required Core version before updating host and service consumers. The interface project's initial version is 0.1.0; this is not a claim that the package has been published. Local validation packages are not production release dependencies.
-
 ## Minimal Implementation
 
 Here's a skeleton for a custom provider:
