@@ -11,12 +11,13 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-namespace DurableTask.Core
+namespace DurableTask.LargePayloadPurge
 {
     using System;
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
+    using Microsoft.DurableTask.Client;
 
     /// <summary>
     /// Optional orchestration service client capability for purging tombstoned large payloads.
@@ -28,8 +29,8 @@ namespace DurableTask.Core
         /// </summary>
         /// <remarks>This operation does not start, stop, or wait for a purge runner.</remarks>
         /// <param name="enabled">Whether large payload auto-purge is enabled.</param>
-        /// <param name="deadlineUtc">The operation deadline in UTC, or <see cref="DateTime.MaxValue"/> when the caller
-        /// has not specified a deadline. The backing service may apply a default deadline.</param>
+        /// <param name="deadlineUtc">The caller's operation deadline in UTC, or <see cref="DateTime.MaxValue"/>
+        /// when the caller has not specified a deadline.</param>
         /// <param name="cancellationToken">The token used to cancel the operation.</param>
         /// <returns>A task that represents the operation.</returns>
         Task SetLargePayloadAutoPurgeAsync(bool enabled, DateTime deadlineUtc, CancellationToken cancellationToken);
@@ -38,19 +39,19 @@ namespace DurableTask.Core
         /// Gets tombstoned large payloads that are ready to be purged.
         /// </summary>
         /// <param name="limit">The maximum number of tombstones to return.</param>
-        /// <param name="deadlineUtc">The operation deadline in UTC, or <see cref="DateTime.MaxValue"/> when the caller
-        /// has not specified a deadline. The backing service may apply a default deadline.</param>
+        /// <param name="deadlineUtc">The caller's operation deadline in UTC, or <see cref="DateTime.MaxValue"/>
+        /// when the caller has not specified a deadline.</param>
         /// <param name="cancellationToken">The token used to cancel the operation.</param>
         /// <returns>The tombstones to process.</returns>
-        Task<IReadOnlyList<LargePayloadPurgeTombstone>> GetLargePayloadsToPurgeAsync(
+        Task<IReadOnlyList<LargePayloadTombstone>> GetLargePayloadsToPurgeAsync(
             int limit, DateTime deadlineUtc, CancellationToken cancellationToken);
 
         /// <summary>
         /// Reports the outcomes of attempts to purge tombstoned large payloads.
         /// </summary>
         /// <param name="results">The purge outcomes, including the unchanged tombstone correlation tokens.</param>
-        /// <param name="deadlineUtc">The operation deadline in UTC, or <see cref="DateTime.MaxValue"/> when the caller
-        /// has not specified a deadline. The backing service may apply a default deadline.</param>
+        /// <param name="deadlineUtc">The caller's operation deadline in UTC, or <see cref="DateTime.MaxValue"/>
+        /// when the caller has not specified a deadline.</param>
         /// <param name="cancellationToken">The token used to cancel the operation.</param>
         /// <returns>A task that represents the operation.</returns>
         Task ReportLargePayloadPurgeResultsAsync(

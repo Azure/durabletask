@@ -7,6 +7,10 @@ parameters:
   type: boolean
   default: false
 
+- name: durableTaskClientVersion
+  type: string
+  default: ''
+
 steps:
 # Start by restoring all the dependencies. This needs to be its own task
 # from what I can tell. We specifically only target DurableTask.AzureStorage
@@ -28,6 +32,25 @@ steps:
           src/DurableTask.AzureStorage/DurableTask.AzureStorage.sln
           src/DurableTask.Emulator/DurableTask.Emulator.csproj
           src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj
+
+- task: DotNetCoreCLI@2
+  displayName: 'Restore large payload purge abstractions'
+  inputs:
+    command: restore
+    feedsToUse: config
+    nugetConfigPath: 'NuGet.config'
+    verbosityRestore: Minimal
+    projects: 'src/DurableTask.LargePayloadPurge.Abstractions/DurableTask.LargePayloadPurge.Abstractions.csproj'
+    restoreArguments: '-p:DurableTaskClientVersion=${{ parameters.durableTaskClientVersion }}'
+
+- task: VSBuild@1
+  displayName: 'Build (LargePayloadPurge Abstractions)'
+  inputs:
+    solution: 'src/DurableTask.LargePayloadPurge.Abstractions/DurableTask.LargePayloadPurge.Abstractions.csproj'
+    vsVersion: '17.0'
+    logFileVerbosity: minimal
+    configuration: ${{ parameters.buildConfiguration }}
+    msbuildArgs: /p:DurableTaskClientVersion=${{ parameters.durableTaskClientVersion }} /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
 # Build the filtered solution in release mode, specifying the continuous integration flag.
 - task: VSBuild@1

@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>DurableTask.LargePayloadPurge</RootNamespace>
+    <PackageId>Microsoft.Azure.DurableTask.LargePayloadPurge.Abstractions</PackageId>
+    <Description>Optional orchestration service capability for large payload purge using the Durable Task SDK client models.</Description>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <MajorVersion>0</MajorVersion>
+    <MinorVersion>1</MinorVersion>
+    <PatchVersion>0</PatchVersion>
+    <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
+    <FileVersion>$(VersionPrefix).0</FileVersion>
+    <FileVersion Condition="'$(FileVersionRevision)' != ''">$(VersionPrefix).$([MSBuild]::Modulo($(FileVersionRevision), 65536))</FileVersion>
+    <AssemblyVersion>$(MajorVersion).$(MinorVersion).0.0</AssemblyVersion>
+    <Version Condition="'$(VersionSuffix)' == ''">$(VersionPrefix)</Version>
+    <Version Condition="'$(VersionSuffix)' != ''">$(VersionPrefix)-$(VersionSuffix)</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.DurableTask.Client" />
+  </ItemGroup>
+
+  <Target Name="ValidateDurableTaskClientVersion" BeforeTargets="CollectPackageReferences">
+    <Error Condition="'$(DurableTaskClientVersion)' == ''"
+           Text="Set DurableTaskClientVersion to an available Microsoft.DurableTask.Client package containing the large payload purge models. A compatible SDK release is a prerequisite; for local validation also supply its package source." />
+  </Target>
+
+  <ItemGroup Condition="'$(Configuration)' == 'Release'">
+    <Content Include="..\..\_manifest\**" Pack="true" PackagePath="content/SBOM" />
+  </ItemGroup>
+
+</Project>

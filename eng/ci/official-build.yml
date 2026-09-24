@@ -1,3 +1,9 @@
+parameters:
+    - name: durableTaskClientVersion
+      displayName: 'SDK Client version containing the large payload purge models (release prerequisite)'
+      type: string
+      default: ''
+
 trigger:
     batch: true
     branches:
@@ -47,3 +53,5 @@ extends:
               dependsOn: []
               jobs:
                   - template: /eng/templates/build.yml@self
+                    parameters:
+                      durableTaskClientVersion: ${{ parameters.durableTaskClientVersion }}

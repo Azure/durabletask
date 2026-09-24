@@ -1,3 +1,8 @@
+parameters:
+    - name: durableTaskClientVersion
+      type: string
+      default: ''
+
 jobs:
     - job: Build
 
@@ -27,6 +32,25 @@ jobs:
                 src/DurableTask.ServiceBus/DurableTask.ServiceBus.csproj
                 src/DurableTask.AzureServiceFabric/DurableTask.AzureServiceFabric.csproj
                 src/DurableTask.ApplicationInsights/DurableTask.ApplicationInsights.csproj
+
+      - task: DotNetCoreCLI@2
+        displayName: 'Restore large payload purge abstractions'
+        inputs:
+          command: restore
+          feedsToUse: config
+          nugetConfigPath: 'NuGet.config'
+          verbosityRestore: Minimal
+          projects: 'src/DurableTask.LargePayloadPurge.Abstractions/DurableTask.LargePayloadPurge.Abstractions.csproj'
+          restoreArguments: '-p:DurableTaskClientVersion=${{ parameters.durableTaskClientVersion }}'
+
+      - task: VSBuild@1
+        displayName: 'Build (LargePayloadPurge Abstractions)'
+        inputs:
+          solution: 'src/DurableTask.LargePayloadPurge.Abstractions/DurableTask.LargePayloadPurge.Abstractions.csproj'
+          vsVersion: '17.0'
+          logFileVerbosity: minimal
+          configuration: Release
+          msbuildArgs: /p:DurableTaskClientVersion=${{ parameters.durableTaskClientVersion }} /p:FileVersionRevision=$(Build.BuildId) /p:ContinuousIntegrationBuild=true
 
 
       # Build the filtered solution in release mode, specifying the continuous integration flag.
@@ -89,6 +113,17 @@ jobs:
           folderPath: src
           pattern: DurableTask.*.dll
           signType: dll
+
+      - task: DotNetCoreCLI@2
+        displayName: 'Generate large payload purge abstractions package'
+        inputs:
+          command: pack
+          verbosityPack: Minimal
+          configuration: Release
+          nobuild: true
+          packDirectory: $(build.artifactStagingDirectory)
+          packagesToPack: 'src/DurableTask.LargePayloadPurge.Abstractions/DurableTask.LargePayloadPurge.Abstractions.csproj'
+          buildProperties: 'DurableTaskClientVersion=${{ parameters.durableTaskClientVersion }}'
       
       # need to add all the code-signing stuff + SBOM
       - task: DotNetCoreCLI@2
