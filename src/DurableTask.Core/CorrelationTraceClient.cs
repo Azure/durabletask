@@ -16,6 +16,7 @@ namespace DurableTask.Core
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Runtime.ExceptionServices;
     using System.Threading.Tasks;
     using DurableTask.Core.Settings;
 
@@ -46,13 +47,13 @@ namespace DurableTask.Core
             Action<Exception> trackExceptionAction)
         {
             listenerSubscription = DiagnosticListener.AllListeners.Subscribe(
-                    delegate (DiagnosticListener listener)
+                    new ActionObserver<DiagnosticListener>(listener =>
                     {
                         if (listener.Name == DiagnosticSourceName)
                         {
                             applicationInsightsSubscription?.Dispose();
 
-                            applicationInsightsSubscription = listener.Subscribe((KeyValuePair<string, object> evt) =>
+                            applicationInsightsSubscription = listener.Subscribe(new ActionObserver<KeyValuePair<string, object>>(evt =>
                             {
                                 if (evt.Key == RequestTrackEvent)
                                 {
@@ -72,9 +73,9 @@ namespace DurableTask.Core
                                     var e = (Exception)evt.Value;
                                     trackExceptionAction(e);
                                 }
-                            });
+                            }));
                         }
-                    });
+                    }));
         }
 
         /// <summary>
@@ -142,6 +143,30 @@ namespace DurableTask.Core
             if (CorrelationSettings.Current.EnableDistributedTracing)
             {
                 action();
+            }
+        }
+
+        sealed class ActionObserver<T> : IObserver<T>
+        {
+            readonly Action<T> onNext;
+
+            public ActionObserver(Action<T> onNext)
+            {
+                this.onNext = onNext ?? throw new ArgumentNullException(nameof(onNext));
+            }
+
+            public void OnCompleted()
+            {
+            }
+
+            public void OnError(Exception error)
+            {
+                ExceptionDispatchInfo.Capture(error).Throw();
+            }
+
+            public void OnNext(T value)
+            {
+                this.onNext(value);
             }
         }
     }
