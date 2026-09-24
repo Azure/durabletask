@@ -313,6 +313,24 @@ var settings = new AzureStorageOrchestrationServiceSettings
 
 ## Operations
 
+### Query Instances
+
+`OrchestrationInstanceStatusQueryCondition` and the Core `OrchestrationQuery` combine
+`InstanceIdPrefix` and `ExcludeEntities` with AND in the Azure Table query, before
+paging. `ExcludeEntities` defaults to `false`, preserving queries that include
+entities.
+
+Setting `ExcludeEntities = true` excludes instance IDs starting with `@`, even when
+a prefix is specified. A prefix of `@` or `@counter@` therefore returns no matches
+when exclusion is enabled. An `@` elsewhere in an orchestration ID, such as
+`order@123`, does not make it an entity. Entity-list queries must leave exclusion
+disabled.
+
+This corrects earlier behavior where a nonempty prefix suppressed entity exclusion,
+including for existing Core/gRPC queries using both options. The continuation-token
+format and page-size handling are unchanged; continue paging until the token is null,
+even if a page contains fewer results than requested.
+
 ### Create Task Hub
 
 ```csharp

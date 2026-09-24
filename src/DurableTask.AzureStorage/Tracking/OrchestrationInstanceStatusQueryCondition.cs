@@ -68,7 +68,8 @@ namespace DurableTask.AzureStorage.Tracking
         public bool FetchOutput { get; set; } = true;
 
         /// <summary>
-        /// Whether to exclude entities from the results.
+        /// Whether to exclude entity instance IDs (starting with '@') from the results,
+        /// including when <see cref="InstanceIdPrefix"/> is specified. The default is false.
         /// </summary>
         public bool ExcludeEntities { get; set; } = false;
 
@@ -145,7 +146,8 @@ namespace DurableTask.AzureStorage.Tracking
                 conditions.Add(AzureTableQueryFilter.PartitionKeyGreaterOrEqual(sanitizedPrefix));
                 conditions.Add(AzureTableQueryFilter.PartitionKeyLessThan(greaterThanPrefix));
             }
-            else if (this.ExcludeEntities)
+
+            if (this.ExcludeEntities)
             {
                 conditions.Add($"{nameof(OrchestrationInstanceStatus.PartitionKey)} lt '@' or {nameof(OrchestrationInstanceStatus.PartitionKey)} ge 'A'");
             }
