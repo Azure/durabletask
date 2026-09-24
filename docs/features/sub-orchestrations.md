@@ -207,21 +207,45 @@ public class PhaseOrchestration : TaskOrchestration<PhaseResult, PhaseInput>
 ### Auto-Generated IDs
 
 ```csharp
-// ID is an automatically generated GUID
+// The framework generates a distinct instance ID for this call
 var result = await context.CreateSubOrchestrationInstance<Result>(
     typeof(ChildOrchestration),
     input);
 ```
 
-### Custom IDs for Idempotency
+### Custom IDs
 
 ```csharp
-// Using custom ID ensures idempotency
+// Choose an ID that is unique among concurrently running children
 var result = await context.CreateSubOrchestrationInstance<Result>(
     typeof(ChildOrchestration),
     instanceId: $"{context.OrchestrationInstance.InstanceId}:child:{input.ItemId}",
     input: input);
 ```
+
+### Detecting Duplicate Awaited Child IDs
+
+Concurrent sub-orchestration calls must use distinct instance IDs. Different names, versions, or inputs do not disambiguate the same ID, and an explicit ID does not merge calls or make their results idempotent.
+
+Core hosts can opt in to detection before starting the worker:
+
+```csharp
+var worker = new TaskHubWorker(service)
+{
+    FailOnDuplicateSubOrchestrationInstanceIds = true
+};
+await worker.StartAsync();
+```
+
+The option defaults to `false` for compatibility. When enabled, a new awaited child start that conflicts with another pending awaited child in the same parent execution fails the **parent orchestration** with failure type `DuplicateSubOrchestrationInstanceId` and non-retriable failure details. The entire current decision batch is discarded before any of its activities, timers, events, or children are scheduled. Work already scheduled in previous batches is not cancelled.
+
+This is a terminal orchestration-level failure, not an exception that the offending orchestration can catch around an individual call. Use distinct IDs, omit explicit IDs, or await a child's completion or failure before reusing its ID. Comparison is ordinal and case-sensitive.
+
+Detection does not check fire-and-forget starts or uniqueness across parents. Existing duplicate history without a new conflicting start is not rejected, and already stranded orchestrations are not automatically repaired. This is a Core worker option; downstream hosts such as Azure Functions must separately expose and enable it in a release that includes this capability.
+
+The guard lazily indexes accepted child history once per runtime-state load, then maintains the pending index as events are accepted. Cold initialization reduces completed history before allocating index entries for the remaining pending children. Reused runtime states, including extended sessions, validate new batches without rescanning old history or copying all pending children. Cold loads and ordinary uncached orchestration replay still process history; this option does not eliminate those costs. Proposed actions are tracked separately until they are accepted into history, and a drained fan-out releases its index capacity.
+
+Custom middleware or providers that rewrite history should construct a new `OrchestrationRuntimeState`. If they instead directly edit `Events` or mutate accepted event IDs, child instance IDs, completion/failure task schedule IDs, or fire-and-forget tags, they must call `InvalidateSubOrchestrationInstanceIdIndex()` before the next guarded validation. Normal `AddEvent` calls maintain the index automatically. Arbitrary external mutations are not detected automatically, and invalidating this derived index does not repair other runtime-state metadata.
 
 ### Naming Conventions
 
