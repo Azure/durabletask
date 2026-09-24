@@ -2131,6 +2131,7 @@ namespace DurableTask.AzureStorage
         /// <returns>String with formatted JSON array representing the execution history.</returns>
         public async Task<string> GetOrchestrationHistoryAsync(string instanceId, string executionId)
         {
+            await this.EnsureTaskHubInitializedAsync();
             OrchestrationHistory history = await this.trackingStore.GetHistoryEventsAsync(
                 instanceId,
                 executionId,
@@ -2143,9 +2144,10 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="instanceId">Instance ID of the orchestration.</param>
         /// <returns>Class containing number of storage requests sent, along with instances and rows deleted/purged</returns>
-        public Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(string instanceId)
+        public async Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(string instanceId)
         {
-            return this.trackingStore.PurgeInstanceHistoryAsync(instanceId);
+            await this.EnsureTaskHubInitializedAsync();
+            return await this.trackingStore.PurgeInstanceHistoryAsync(instanceId);
         }
 
         /// <summary>
@@ -2155,9 +2157,10 @@ namespace DurableTask.AzureStorage
         /// <param name="createdTimeTo">CreatedTime of orchestrations. Purges history less than this value.</param>
         /// <param name="runtimeStatus">RuntimeStatus of orchestrations. You can specify several statuses.</param>
         /// <returns>Class containing number of storage requests sent, along with instances and rows deleted/purged</returns>
-        public Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
+        public async Task<PurgeHistoryResult> PurgeInstanceHistoryAsync(DateTime createdTimeFrom, DateTime? createdTimeTo, IEnumerable<OrchestrationStatus> runtimeStatus)
         {
-            return this.trackingStore.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus);
+            await this.EnsureTaskHubInitializedAsync();
+            return await this.trackingStore.PurgeInstanceHistoryAsync(createdTimeFrom, createdTimeTo, runtimeStatus);
         }
 
         /// <inheritdoc />
@@ -2176,6 +2179,34 @@ namespace DurableTask.AzureStorage
                 // Convert the timeout into a CancellationToken so that the tracking store
                 // only needs to observe a single cancellation mechanism.
                 using var timeoutCts = new CancellationTokenSource(purgeInstanceFilter.Timeout.Value);
+                if (purgeInstanceFilter.Timeout.Value == TimeSpan.Zero || timeoutCts.IsCancellationRequested)
+                {
+                    return new PurgeResult(0, false);
+                }
+                Task initialization = this.EnsureTaskHubInitializedAsync();
+                if (!initialization.IsCompleted)
+                {
+                    var cancelled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    using (timeoutCts.Token.Register(() => cancelled.TrySetResult(true)))
+                    {
+                        if (await Task.WhenAny(initialization, cancelled.Task) != initialization)
+                        {
+                            // Initialization is shared. Keep it available to other callers, but never
+                            // resume this purge after its deadline. Its failures are logged by the initializer.
+                            _ = initialization.ContinueWith(
+                                task => { _ = task.Exception; },
+                                CancellationToken.None,
+                                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                                TaskScheduler.Default);
+                            return new PurgeResult(0, false);
+                        }
+                    }
+                }
+                await initialization;
+                if (timeoutCts.IsCancellationRequested)
+                {
+                    return new PurgeResult(0, false);
+                }
                 storagePurgeHistoryResult = await this.trackingStore.PurgeInstanceHistoryAsync(
                     purgeInstanceFilter.CreatedTimeFrom,
                     purgeInstanceFilter.CreatedTimeTo,
@@ -2186,7 +2217,7 @@ namespace DurableTask.AzureStorage
             {
                 // No timeout: use the original code path (no CancellationToken) to preserve
                 // backward-compatible behavior where IsComplete is null.
-                storagePurgeHistoryResult = await this.trackingStore.PurgeInstanceHistoryAsync(
+                storagePurgeHistoryResult = await this.PurgeInstanceHistoryAsync(
                     purgeInstanceFilter.CreatedTimeFrom,
                     purgeInstanceFilter.CreatedTimeTo,
                     purgeInstanceFilter.RuntimeStatus);
@@ -2261,9 +2292,10 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="thresholdDateTimeUtc">Threshold date time in UTC</param>
         /// <param name="timeRangeFilterType">What to compare the threshold date time against</param>
-        public Task PurgeOrchestrationHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
+        public async Task PurgeOrchestrationHistoryAsync(DateTime thresholdDateTimeUtc, OrchestrationStateTimeRangeFilterType timeRangeFilterType)
         {
-            return this.trackingStore.PurgeHistoryAsync(thresholdDateTimeUtc, timeRangeFilterType);
+            await this.EnsureTaskHubInitializedAsync();
+            await this.trackingStore.PurgeHistoryAsync(thresholdDateTimeUtc, timeRangeFilterType);
         }
 
         /// <summary>
@@ -2271,9 +2303,10 @@ namespace DurableTask.AzureStorage
         /// such as the input or output status fields, and for which the blob URI was stored instead.
         /// </summary>
         /// <param name="blobUri">The URI of the blob.</param>
-        public Task<string> DownloadBlobAsync(string blobUri)
+        public async Task<string> DownloadBlobAsync(string blobUri)
         {
-            return this.messageManager.DownloadAndDecompressAsBytesAsync(new Uri(blobUri));
+            await this.EnsureTaskHubInitializedAsync();
+            return await this.messageManager.DownloadAndDecompressAsBytesAsync(new Uri(blobUri));
         }
 
         #endregion
