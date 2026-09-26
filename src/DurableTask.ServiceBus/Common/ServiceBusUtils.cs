@@ -301,9 +301,9 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                 // load the stream from the message directly if the blob key property is not set,
                 // i.e., it is not stored externally
 #if NETSTANDARD2_0
-                return Task.Run(() => new System.IO.MemoryStream(message.Body) as Stream);
+                return Task.FromResult<Stream>(new MemoryStream(message.Body));
 #else
-                return Task.Run(() => message.GetBody<Stream>());
+                return Task.FromResult(message.GetBody<Stream>());
 #endif
             }
 
