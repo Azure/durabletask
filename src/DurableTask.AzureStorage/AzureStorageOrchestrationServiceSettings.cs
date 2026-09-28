@@ -239,8 +239,12 @@ namespace DurableTask.AzureStorage
         public bool DisableExecutionStartedDeduplication { get; set; }
 
         /// <summary>
-        /// Gets or sets an optional custom type binder used when trying to deserialize queued messages.
+        /// Gets or sets an optional custom type binder used when serializing and deserializing queued messages.
         /// </summary>
+        /// <remarks>
+        /// Custom bindings must be stable and must not depend on serialization invocation counts.
+        /// See <see cref="ICustomTypeBinder.BindToName"/> for details.
+        /// </remarks>
         public ICustomTypeBinder? CustomMessageTypeBinder { get; set; }
 
         /// <summary>
