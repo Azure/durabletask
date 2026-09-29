@@ -487,6 +487,12 @@ namespace DurableTask.AzureStorage
             // Apply the migration mode before any dispatch begins so the flag is observed by all subsequent writes.
             await this.trackingStore.StartAsync(migrationMode);
             this.isMigrationEnding = migrationMode == MigrationMode.MigrationEnding;
+            this.settings.IsMigrationInProgress = migrationMode == MigrationMode.MigrationStarted || this.isMigrationEnding;
+            if (this.settings.IsMigrationInProgress)
+            {
+                this.settings.ControlQueueVisibilityTimeout = TimeSpan.FromSeconds(
+                    AzureStorageOrchestrationServiceSettings.MigrationControlQueueVisibilityTimeoutSeconds);
+            }
 
             // Disable nagling to improve storage access latency:
             // https://blogs.msdn.microsoft.com/windowsazurestorage/2010/06/25/nagles-algorithm-is-not-friendly-towards-small-requests/

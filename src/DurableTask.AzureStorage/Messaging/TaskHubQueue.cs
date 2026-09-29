@@ -63,6 +63,8 @@ namespace DurableTask.AzureStorage.Messaging
 
         protected abstract TimeSpan MessageVisibilityTimeout { get; }
 
+        protected virtual int MaximumAbandonDelayInSeconds => 600;
+
         // Intended only for use by unit tests
         internal Queue InnerQueue => this.storageQueue;
 
@@ -265,6 +267,8 @@ namespace DurableTask.AzureStorage.Messaging
                     this.storageQueue.Name,
                     queueMessage.DequeueCount);
             }
+
+            numSecondsToWait = Math.Min(numSecondsToWait, this.MaximumAbandonDelayInSeconds);
 
             this.settings.Logger.AbandoningMessage(
                 this.storageAccountName,

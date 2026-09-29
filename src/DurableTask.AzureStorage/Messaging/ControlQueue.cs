@@ -47,6 +47,10 @@ namespace DurableTask.AzureStorage.Messaging
 
         protected override TimeSpan MessageVisibilityTimeout => this.settings.ControlQueueVisibilityTimeout;
 
+        protected override int MaximumAbandonDelayInSeconds => this.settings.IsMigrationInProgress
+            ? AzureStorageOrchestrationServiceSettings.MigrationControlQueueVisibilityTimeoutSeconds
+            : base.MaximumAbandonDelayInSeconds;
+
         public async Task<IReadOnlyList<MessageData>> GetMessagesAsync(CancellationToken cancellationToken)
         {
             using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(this.releaseCancellationToken, cancellationToken))

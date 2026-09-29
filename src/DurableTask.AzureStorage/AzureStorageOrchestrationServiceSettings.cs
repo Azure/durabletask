@@ -27,6 +27,10 @@ namespace DurableTask.AzureStorage
     public class AzureStorageOrchestrationServiceSettings
     {
         internal const int DefaultPartitionCount = 4;
+        internal const int MigrationControlQueueVisibilityTimeoutSeconds = 30;
+
+        // Applied by service startup before control queue listeners begin receiving messages.
+        internal bool IsMigrationInProgress { get; set; }
 
         internal static readonly TimeSpan DefaultMaxQueuePollingInterval = TimeSpan.FromSeconds(30);
 
@@ -51,6 +55,7 @@ namespace DurableTask.AzureStorage
 
         /// <summary>
         /// Gets or sets the visibility timeout of dequeued control queue messages. The default is 5 minutes.
+        /// Service startup overrides this to 30 seconds while migration is in progress.
         /// </summary>
         public TimeSpan ControlQueueVisibilityTimeout { get; set; } = TimeSpan.FromMinutes(5);
 

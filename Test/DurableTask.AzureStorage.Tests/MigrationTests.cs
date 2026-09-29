@@ -44,6 +44,112 @@ namespace DurableTask.AzureStorage.Tests
         const string SentinelRowKey = "sentinel";
         const string ModifiedInstancesQueueSuffix = "modifiedinstances";
 
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task ControlQueueVisibility_MigrationCapsReceivesRenewalsAndAbandons(bool migrating)
+        {
+            TimeSpan configuredTimeout = TimeSpan.FromMinutes(2);
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                PartitionCount = 1,
+                StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                TaskHubName = $"migrvis{Guid.NewGuid():N}",
+                ControlQueueVisibilityTimeout = configuredTimeout,
+                WorkItemQueueVisibilityTimeout = configuredTimeout,
+            };
+            using var service = new AzureStorageOrchestrationService(settings);
+            var storage = new AzureStorageClient(settings);
+            var manager = new MessageManager(settings, storage, settings.TaskHubName + "-largemessages");
+            // Dedicated queues let us inspect receipts without the service listeners consuming our messages.
+            var control = new ControlQueue(storage, settings.TaskHubName + "-test-control", manager);
+            var activity = new WorkItemQueue(storage, settings.TaskHubName + "-test-activity", manager);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            bool started = false;
+            try
+            {
+                await (migrating ? service.StartAsync(MigrationMode.MigrationStarted) : service.StartAsync());
+                started = true;
+                TimeSpan controlTimeout = migrating ? TimeSpan.FromSeconds(30) : configuredTimeout;
+                Assert.AreEqual(controlTimeout, settings.ControlQueueVisibilityTimeout);
+                Assert.AreEqual(configuredTimeout, settings.WorkItemQueueVisibilityTimeout);
+                await control.CreateIfNotExistsAsync();
+                await activity.CreateIfNotExistsAsync();
+                var taskMessage = new TaskMessage
+                {
+                    OrchestrationInstance = new OrchestrationInstance { InstanceId = "target", ExecutionId = "execution" },
+                    Event = new EventRaisedEvent(-1, "input") { Name = "event" },
+                };
+                await control.AddMessageAsync(taskMessage, taskMessage.OrchestrationInstance);
+                await activity.AddMessageAsync(taskMessage, taskMessage.OrchestrationInstance);
+
+                DateTimeOffset before = DateTimeOffset.UtcNow;
+                MessageData message = (await control.GetMessagesAsync(timeout.Token)).Single();
+                AssertVisibility(message.OriginalQueueMessage.NextVisibleOn!.Value, before, controlTimeout);
+                before = DateTimeOffset.UtcNow;
+                await control.RenewMessageAsync(message, session: null!);
+                AssertVisibility(message.OriginalQueueMessage.NextVisibleOn!.Value, before, controlTimeout);
+
+                // Cover ordinary backoff, the migration cap, the poison threshold, and very large dequeue counts.
+                foreach (long dequeueCount in new[] { 1L, 5L, 10L, long.MaxValue })
+                {
+                    QueueMessage original = message.OriginalQueueMessage;
+                    message.OriginalQueueMessage = QueuesModelFactory.QueueMessage(
+                        original.MessageId, original.PopReceipt, original.Body, dequeueCount);
+                    TimeSpan expected = TimeSpan.FromSeconds(Math.Min(
+                        dequeueCount > 30 ? 600 : Math.Pow(2, dequeueCount), migrating ? 30 : 600));
+                    before = DateTimeOffset.UtcNow;
+                    await control.AbandonMessageAsync(message);
+                    AssertVisibility(message.OriginalQueueMessage.NextVisibleOn!.Value, before, expected);
+
+                    // Deserialization failures abandon the raw message through a separate overload.
+                    before = DateTimeOffset.UtcNow;
+                    UpdateReceipt? receipt = await control.AbandonMessageAsync(message.OriginalQueueMessage);
+                    Assert.IsNotNull(receipt);
+                    AssertVisibility(receipt.NextVisibleOn, before, expected);
+                    message.Update(receipt);
+                }
+
+                // Activity queue timeouts and backoff are independent of this control-queue change.
+                before = DateTimeOffset.UtcNow;
+                MessageData work = await activity.GetMessageAsync(timeout.Token);
+                AssertVisibility(work.OriginalQueueMessage.NextVisibleOn!.Value, before, configuredTimeout);
+                QueueMessage activityMessage = work.OriginalQueueMessage;
+                work.OriginalQueueMessage = QueuesModelFactory.QueueMessage(
+                    activityMessage.MessageId, activityMessage.PopReceipt, activityMessage.Body, dequeueCount: 10);
+                before = DateTimeOffset.UtcNow;
+                await activity.AbandonMessageAsync(work);
+                AssertVisibility(work.OriginalQueueMessage.NextVisibleOn!.Value, before, TimeSpan.FromMinutes(10));
+
+                if (migrating)
+                {
+                    await service.StopAsync();
+                    started = false;
+                    await service.StartAsync(MigrationMode.MigrationEnding);
+                    started = true;
+                    Assert.AreEqual(TimeSpan.FromSeconds(30), settings.ControlQueueVisibilityTimeout);
+                }
+            }
+            finally
+            {
+                if (started)
+                {
+                    await service.StopAsync();
+                }
+                await control.DeleteIfExistsAsync();
+                await activity.DeleteIfExistsAsync();
+                await service.DeleteAsync();
+            }
+
+            static void AssertVisibility(DateTimeOffset nextVisible, DateTimeOffset before, TimeSpan expected)
+            {
+                // Storage timestamps have second precision. Check the actual server receipt, not just settings.
+                Assert.IsTrue(nextVisible >= before.Add(expected).AddSeconds(-1), $"Visibility {nextVisible:O} was too short for {expected}.");
+                Assert.IsTrue(nextVisible <= DateTimeOffset.UtcNow.Add(expected), $"Visibility {nextVisible:O} exceeded {expected}.");
+            }
+        }
+
+
         /// <summary>
         /// Instance-table ETag concurrency outside migration mode must not introduce migration sequence metadata.
         /// </summary>
