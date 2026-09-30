@@ -108,6 +108,7 @@ namespace DurableTask.AzureStorage.Tracking
                 Name = executionStartedEvent.Name,
                 Version = executionStartedEvent.Version,
                 OrchestrationInstance = executionStartedEvent.OrchestrationInstance,
+                ParentInstance = executionStartedEvent.ParentInstance,
                 OrchestrationStatus = OrchestrationStatus.Pending,
                 Input = inputStatusOverride ?? executionStartedEvent.Input,
                 Tags = executionStartedEvent.Tags,

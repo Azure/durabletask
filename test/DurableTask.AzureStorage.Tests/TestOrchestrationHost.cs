@@ -14,6 +14,7 @@
 namespace DurableTask.AzureStorage.Tests
 {
     using DurableTask.Core;
+    using DurableTask.Core.Middleware;
     using DurableTask.Core.Settings;
     using Microsoft.Extensions.Logging;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -63,6 +64,11 @@ namespace DurableTask.AzureStorage.Tests
         public Task StopAsync()
         {
             return this.worker.StopAsync(isForced: true);
+        }
+
+        public void AddActivityDispatcherMiddleware(Func<DispatchMiddlewareContext, Func<Task>, Task> middleware)
+        {
+            this.worker.AddActivityDispatcherMiddleware(middleware);
         }
 
         public async Task UpdateWorkerVersion(VersioningSettings versioningSettings)

@@ -5,7 +5,7 @@ providers:
   metadata:
     isProduction: true
     accountableOwners:
-      service: c5281ccb-b379-4acf-9099-95a37f9805f3
+      service: a45bac48-a99c-4628-abbb-49725dd92796
     routing:
       defaultAreaPath:
         org: azfunc

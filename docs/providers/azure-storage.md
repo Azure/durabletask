@@ -152,6 +152,15 @@ The Azure Storage provider creates these resources:
 | **Partitions Table** | `{taskhub}Partitions` | Partition leases (table manager) |
 | **Lease Blobs** | `{taskhub}-leases/` | Partition leases (blob manager) |
 
+### Queue Message Serialization
+
+The provider serializes the full `MessageData` envelope to JSON and measures its UTF-8 byte count before any Base64 encoding. Messages at or below 45 KiB (46,080 bytes) are sent inline using that same JSON. Larger messages are compressed and uploaded to blob storage; the queue receives a separately serialized blob-reference wrapper.
+
+This transport serialization is separate from the application input/output serialization performed by `DataConverter`. `AzureStorageOrchestrationServiceSettings.CustomMessageTypeBinder` configures type binding for queue messages. Its `ICustomTypeBinder.BindToName` implementation should return stable names for a given type. Serialization invocation counts are implementation details, not an API contract; custom binders, getters, and serialization callbacks on transport types must not depend on a particular number of passes for correctness.
+
+> [!NOTE]
+> The inline path reuses the JSON produced for the size check instead of serializing the full message a second time. This preserves the wire payload for stable messages with deterministic, side-effect-free serialization. Custom serialization logic that changes its output or relies on side effects across successive passes can observe a behavior change and should be reviewed when upgrading.
+
 ### Partitioning
 
 The Azure Storage provider uses **partitions** to distribute orchestration workloads across workers. Each partition corresponds to exactly one **control queue**.

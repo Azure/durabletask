@@ -152,7 +152,13 @@ namespace DurableTask.AzureStorage
         public TimeSpan MaxQueuePollingInterval { get; set; } = DefaultMaxQueuePollingInterval;
 
         /// <summary>
-        /// If true, takes a lease on the task hub container, allowing for only one app to process messages in a task hub at a time.
+        /// If true, only workers whose <see cref="AppName"/> owns the task hub app lease may start new
+        /// orchestration, entity, or activity work. Workers sharing that app name may process work in
+        /// parallel. If false, workers from all apps sharing the task hub may process work.
+        /// Activity ownership is checked before starting each queue receive. Ownership loss does not
+        /// cancel an activity receive that already started, so it may continue polling and execute a
+        /// returned activity; the next receive waits for ownership. The activity gate is cooperative,
+        /// not an atomic or exactly-once ownership boundary, and already dispatched activities continue.
         /// </summary>
         public bool UseAppLease { get; set; } = true;
 
@@ -233,8 +239,12 @@ namespace DurableTask.AzureStorage
         public bool DisableExecutionStartedDeduplication { get; set; }
 
         /// <summary>
-        /// Gets or sets an optional custom type binder used when trying to deserialize queued messages.
+        /// Gets or sets an optional custom type binder used when serializing and deserializing queued messages.
         /// </summary>
+        /// <remarks>
+        /// Custom bindings must be stable and must not depend on serialization invocation counts.
+        /// See <see cref="ICustomTypeBinder.BindToName"/> for details.
+        /// </remarks>
         public ICustomTypeBinder? CustomMessageTypeBinder { get; set; }
 
         /// <summary>
