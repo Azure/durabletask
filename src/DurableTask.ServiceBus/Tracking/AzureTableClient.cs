@@ -124,7 +124,7 @@ namespace DurableTask.ServiceBus.Tracking
             }
         }
 
-        public Task<IEnumerable<AzureTableOrchestrationStateEntity>> QueryOrchestrationStatesAsync(
+        public virtual Task<IEnumerable<AzureTableOrchestrationStateEntity>> QueryOrchestrationStatesAsync(
             OrchestrationStateQuery stateQuery)
         {
             var query = CreateQueryInternal(stateQuery, false);
@@ -138,7 +138,7 @@ namespace DurableTask.ServiceBus.Tracking
             return await QueryTableSegmentAsync<AzureTableOrchestrationStateEntity>(this.historyTableClient, query, continuationToken, count);
         }
 
-        public Task<IEnumerable<AzureTableOrchestrationStateEntity>> QueryJumpStartOrchestrationsAsync(OrchestrationStateQuery stateQuery)
+        public virtual Task<IEnumerable<AzureTableOrchestrationStateEntity>> QueryJumpStartOrchestrationsAsync(OrchestrationStateQuery stateQuery)
         {
             // TODO: Enable segmented query for paging purpose
             var query = CreateQueryInternal(stateQuery, true);
