@@ -318,6 +318,38 @@ namespace DurableTask.AzureStorage.Tracking
             var recentStartRow = orchestratorStartedEntities.Where(y => y.RowKey == recentStartRowKey).ToList();
             string executionId = recentStartRow[0].GetString(nameof(OrchestrationInstance.ExecutionId));
 
+            // A child can notify its parent of failure before committing its own history, and then receive
+            // the rewind requst from the parent. We want to make sure the failed history and instance status
+            // update were committed in the child before proceeding with the rewind
+            Stopwatch waitForFailure = Stopwatch.StartNew();
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                InstanceStatus instanceStatus = await this.FetchInstanceStatusAsync(instanceId, cancellationToken);
+                if (instanceStatus == null || instanceStatus.State.OrchestrationInstance.ExecutionId != executionId)
+                {
+                    throw new InvalidOperationException($"Cannot rewind instance '{instanceId}': execution '{executionId}' no longer exists.");
+                }
+
+                OrchestrationStatus status = instanceStatus.State.OrchestrationStatus;
+                if (status == OrchestrationStatus.Failed)
+                {
+                    break;
+                }
+
+                if (status != OrchestrationStatus.Running && status != OrchestrationStatus.Pending && status != OrchestrationStatus.Suspended)
+                {
+                    throw new InvalidOperationException($"Cannot rewind instance '{instanceId}' in the {status} state. Only failed instances can be rewound.");
+                }
+
+                if (waitForFailure.Elapsed >= TimeSpan.FromMinutes(1))
+                {
+                    throw new TimeoutException($"Timed out waiting for instance '{instanceId}', execution '{executionId}', to commit its failed status before rewind.");
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+            }
+
             // Migration expects a new execution ID for the orchestration after it is rewound
             string newExecutionId = this.IsMigrationActive ? Guid.NewGuid().ToString("N") : null;
             DateTime instanceTimestamp = recentStartRow[0].Timestamp.GetValueOrDefault().DateTime;
@@ -426,8 +458,6 @@ namespace DurableTask.AzureStorage.Tracking
 
             if (newExecutionId != null)
             {
-                // History readers use the table-level ExecutionId to select one generation, so every row in the
-                // rewound generation (including the sentinel) must move with the embedded ExecutionStarted event.
                 IReadOnlyList<TableEntity> currentGeneration =
                     await this.QueryHistoryAsync($"{partitionFilter} and {executionIdFilter}", instanceId, cancellationToken);
                 foreach (TableEntity entity in currentGeneration)
