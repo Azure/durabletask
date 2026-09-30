@@ -49,21 +49,23 @@ namespace DurableTask.ServiceBus.Tests
             message.UserProperties[FrameworkConstants.CompressionTypePropertyName] =
                 FrameworkConstants.CompressionTypeNonePropertyValue;
 
-            var stream = new MemoryStream();
-            Utils.WriteObjectToStream(stream, Payload);
-            stream.Position = stream.Length;
+            using (var stream = new MemoryStream())
+            {
+                Utils.WriteObjectToStream(stream, Payload);
+                stream.Position = stream.Length;
 
-            var blobStore = new DeferredBlobStore();
-            Task<string> deserializationTask =
-                ServiceBusUtils.GetObjectFromBrokeredMessageAsync<string>(message, blobStore);
+                var blobStore = new DeferredBlobStore();
+                Task<string> deserializationTask =
+                    ServiceBusUtils.GetObjectFromBrokeredMessageAsync<string>(message, blobStore);
 
-            Assert.AreEqual(blobKey, blobStore.LoadedBlobKey);
-            Assert.IsFalse(deserializationTask.IsCompleted);
+                Assert.AreEqual(blobKey, blobStore.LoadedBlobKey);
+                Assert.IsFalse(deserializationTask.IsCompleted);
 
-            blobStore.CompleteLoad(stream);
+                blobStore.CompleteLoad(stream);
 
-            Assert.AreEqual(Payload, await deserializationTask);
-            Assert.ThrowsException<ObjectDisposedException>(() => stream.ReadByte());
+                Assert.AreEqual(Payload, await deserializationTask);
+                Assert.ThrowsException<ObjectDisposedException>(() => stream.ReadByte());
+            }
         }
 
         static async Task AssertInlineMessageRoundTrips(
