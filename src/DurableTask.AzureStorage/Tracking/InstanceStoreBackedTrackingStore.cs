@@ -131,13 +131,8 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override Task StartAsync(MigrationMode? migrationMode = null, CancellationToken cancellationToken = default)
+        public override Task StartAsync(CancellationToken cancellationToken = default)
         {
-            if (migrationMode.HasValue)
-            {
-                throw new NotSupportedException();
-            }
-
             //NOP
             return Utils.CompletedTask;
         }

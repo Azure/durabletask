@@ -13,6 +13,7 @@
 #nullable enable
 namespace DurableTask.AzureStorage.Tests
 {
+    using Azure;
     using DurableTask.Core.Logging;
     using DurableTask.Core.Settings;
     using Microsoft.Extensions.Logging;
@@ -24,13 +25,42 @@ namespace DurableTask.AzureStorage.Tests
 
     static class TestHelpers
     {
+        public static async Task<DateTimeOffset> BeginMigrationDrainAsync(AzureStorageOrchestrationServiceSettings settings)
+        {
+            var provider = settings.TrackingServiceClientProvider ?? settings.StorageAccountClientProvider!;
+            var migration = new AzureStorageMigration(provider.Table.CreateClient(provider.Table.CreateOptions()), settings.TaskHubName);
+            await migration.CreateIfNotExistsAsync(default);
+            while (true)
+            {
+                AzureStorageMigration.Gate gate = await migration.ReadAsync(default)
+                    ?? throw new InvalidOperationException("Migration gate disappeared. Source access cannot be restored.");
+                if (gate.IsMigrationEnding)
+                {
+                    return gate.AccessExpiresAt;
+                }
+                gate.IsMigrationEnding = true;
+                if (await migration.TryUpdateAsync(gate, default))
+                {
+                    return gate.AccessExpiresAt;
+                }
+            }
+        }
+
+        public static async Task ResetMigrationTestControlAsync(AzureStorageOrchestrationServiceSettings settings)
+        {
+            var provider = settings.TrackingServiceClientProvider ?? settings.StorageAccountClientProvider!;
+            try { await provider.Table.CreateClient(provider.Table.CreateOptions()).GetTableClient(settings.TaskHubName + "MigrationControl").DeleteEntityAsync(string.Empty, string.Empty); }
+            catch (RequestFailedException e) when (e.Status == 404) { }
+        }
+
         public static TestOrchestrationHost GetTestOrchestrationHost(
             bool enableExtendedSessions,
             int extendedSessionTimeoutInSeconds = 30,
             bool fetchLargeMessages = true,
             bool allowReplayingTerminalInstances = false,
             VersioningSettings? versioningSettings = null,
-            Action<AzureStorageOrchestrationServiceSettings>? modifySettingsAction = null)
+            Action<AzureStorageOrchestrationServiceSettings>? modifySettingsAction = null,
+            bool isMigrationActive = false)
         {
             AzureStorageOrchestrationServiceSettings settings = GetTestAzureStorageOrchestrationServiceSettings(
                 enableExtendedSessions,
@@ -40,7 +70,7 @@ namespace DurableTask.AzureStorage.Tests
             // Give the caller a chance to make test-specific changes to the settings
             modifySettingsAction?.Invoke(settings);
 
-            return new TestOrchestrationHost(settings, versioningSettings);
+            return new TestOrchestrationHost(settings, versioningSettings, isMigrationActive);
         }
 
         public static AzureStorageOrchestrationServiceSettings GetTestAzureStorageOrchestrationServiceSettings(

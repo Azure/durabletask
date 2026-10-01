@@ -29,6 +29,7 @@ namespace DurableTask.AzureStorage.Tests
         internal readonly AzureStorageOrchestrationService service;
 
         readonly AzureStorageOrchestrationServiceSettings settings;
+        readonly bool isMigrationActive;
         readonly TaskHubClient client;
         readonly HashSet<Type> addedOrchestrationTypes;
         readonly HashSet<Type> addedActivityTypes;
@@ -36,9 +37,10 @@ namespace DurableTask.AzureStorage.Tests
         // We allow updates to the worker for versioning tests.
         TaskHubWorker worker;
 
-        public TestOrchestrationHost(AzureStorageOrchestrationServiceSettings settings, VersioningSettings versioningSettings = null)
+        public TestOrchestrationHost(AzureStorageOrchestrationServiceSettings settings, VersioningSettings versioningSettings = null, bool isMigrationActive = false)
         {
-            this.service = new AzureStorageOrchestrationService(settings);
+            this.isMigrationActive = isMigrationActive;
+            this.service = new AzureStorageOrchestrationService(settings, isMigrationActive);
 
             this.settings = settings;
             this.worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory, versioningSettings: versioningSettings);
@@ -56,14 +58,19 @@ namespace DurableTask.AzureStorage.Tests
 
         public async Task StartAsync()
         {
-            await this.service.CreateAsync();
+            await TestHelpers.ResetMigrationTestControlAsync(this.settings);
+            if (this.isMigrationActive)
+            {
+                using (var setup = new AzureStorageOrchestrationService(this.settings))
+                {
+                    await setup.CreateAsync();
+                }
+            }
+            else
+            {
+                await this.service.CreateAsync();
+            }
             await this.worker.StartAsync();
-        }
-
-        public async Task StartAsync(MigrationMode migrationMode)
-        {
-            await this.service.CreateAsync();
-            await this.worker.StartAsync(migrationMode);
         }
 
         public Task StopAsync()

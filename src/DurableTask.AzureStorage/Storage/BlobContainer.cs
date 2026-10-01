@@ -28,14 +28,19 @@ namespace DurableTask.AzureStorage.Storage
     {
         readonly AzureStorageClient azureStorageClient;
         readonly string containerName;
-        readonly BlobContainerClient blobContainerClient;
+        readonly BlobContainerClient originalBlobContainerClient;
+        BlobContainerClient? cachedBlobContainerClient;
+
+        // During migration we use a blob container client that relies on short-lived SAS tokens
+        BlobContainerClient blobContainerClient => Volatile.Read(ref this.cachedBlobContainerClient)
+            ?? LazyInitializer.EnsureInitialized(ref this.cachedBlobContainerClient, () => this.azureStorageClient.GetBlobContainerClient(this.originalBlobContainerClient))!;
 
         public BlobContainer(AzureStorageClient azureStorageClient, BlobServiceClient blobServiceClient, string name)
         {
             this.azureStorageClient = azureStorageClient;
             this.containerName = name;
 
-            this.blobContainerClient = blobServiceClient.GetBlobContainerClient(this.containerName);
+            this.originalBlobContainerClient = blobServiceClient.GetBlobContainerClient(this.containerName);
         }
 
         public Blob GetBlobReference(string blobName, string? blobPrefix = null)
@@ -46,19 +51,29 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task<bool> CreateIfNotExistsAsync(CancellationToken cancellationToken = default)
         {
+            // This call must use the original blob container client because the migration SAS tokens lack the permissions for this operation,
+            // so we must ensure access explicitly
+            this.azureStorageClient.EnsureAccess();
+            // Creating the container requires the original credentials. Blob data operations still use the migration SAS.
             // TODO: Any encryption scope?
             // If we received null, then the response must have been a 409 (Conflict) and the container must already exist
-            Response<BlobContainerInfo> response = await this.blobContainerClient.CreateIfNotExistsAsync(PublicAccessType.None, cancellationToken: cancellationToken).DecorateFailure();
+            Response<BlobContainerInfo> response = await this.originalBlobContainerClient.CreateIfNotExistsAsync(PublicAccessType.None, cancellationToken: cancellationToken).DecorateFailure();
             return response != null;
         }
 
         public async Task<bool> ExistsAsync(CancellationToken cancellationToken = default)
         {
-            return await this.blobContainerClient.ExistsAsync(cancellationToken).DecorateFailure();
+            // This call must use the original blob container client because the migration SAS tokens lack the permissions for this operation,
+            // so we must ensure access explicitly
+            this.azureStorageClient.EnsureAccess();
+            // Container properties and leases do not support user delegation SAS. These management
+            // operations never mutate orchestration data; all blob content operations use SAS.
+            return await this.originalBlobContainerClient.ExistsAsync(cancellationToken).DecorateFailure();
         }
 
         public async Task<bool> DeleteIfExistsAsync(string? appLeaseId = null, CancellationToken cancellationToken = default)
         {
+            this.azureStorageClient.ThrowIfMigrationResourceDeletion();
             BlobRequestConditions? conditions = null;
             if (appLeaseId != null)
             {
@@ -82,7 +97,10 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task<string> AcquireLeaseAsync(TimeSpan leaseInterval, string leaseId, CancellationToken cancellationToken = default)
         {
-            BlobLease lease = await this.blobContainerClient
+            // This call must use the original blob container client because the migration SAS tokens lack the permissions for this operation,
+            // so we must ensure access explicitly
+            this.azureStorageClient.EnsureAccess();
+            BlobLease lease = await this.originalBlobContainerClient
                 .GetBlobLeaseClient(leaseId)
                 .AcquireAsync(leaseInterval, cancellationToken: cancellationToken)
                 .DecorateFailure();
@@ -92,7 +110,10 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task<string> ChangeLeaseAsync(string proposedLeaseId, string currentLeaseId, CancellationToken cancellationToken = default)
         {
-            BlobLease lease = await this.blobContainerClient
+            // This call must use the original blob container client because the migration SAS tokens lack the permissions for this operation,
+            // so we must ensure access explicitly
+            this.azureStorageClient.EnsureAccess();
+            BlobLease lease = await this.originalBlobContainerClient
                 .GetBlobLeaseClient(currentLeaseId)
                 .ChangeAsync(proposedLeaseId, cancellationToken: cancellationToken)
                 .DecorateFailure();
@@ -102,7 +123,10 @@ namespace DurableTask.AzureStorage.Storage
 
         public Task RenewLeaseAsync(string leaseId, CancellationToken cancellationToken = default)
         {
-            return this.blobContainerClient
+            // This call must use the original blob container client because the migration SAS tokens lack the permissions for this operation,
+            // so we must ensure access explicitly
+            this.azureStorageClient.EnsureAccess();
+            return this.originalBlobContainerClient
                 .GetBlobLeaseClient(leaseId)
                 .RenewAsync(cancellationToken: cancellationToken)
                 .DecorateFailure();
@@ -110,7 +134,7 @@ namespace DurableTask.AzureStorage.Storage
 
         public Uri GetBlobContainerUri()
         {
-            return this.blobContainerClient.Uri;
+            return this.originalBlobContainerClient.Uri;
         }
 
         static bool IsHnsFolder(BlobItem item)

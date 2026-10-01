@@ -31,7 +31,12 @@ namespace DurableTask.AzureStorage.Storage
         readonly AzureStorageClient azureStorageClient;
         readonly AzureStorageOrchestrationServiceStats stats;
         readonly TableServiceClient tableServiceClient;
-        readonly TableClient tableClient;
+        readonly TableClient originalTableClient;
+        TableClient? cachedTableClient;
+
+        // During migration we use a table client that relies on short-lived SAS tokens
+        TableClient tableClient => Volatile.Read(ref this.cachedTableClient)
+            ?? LazyInitializer.EnsureInitialized(ref this.cachedTableClient, () => this.azureStorageClient.GetTableClient(this.originalTableClient))!;
 
         public Table(AzureStorageClient azureStorageClient, TableServiceClient tableServiceClient, string tableName)
         {
@@ -39,22 +44,27 @@ namespace DurableTask.AzureStorage.Storage
             this.stats = this.azureStorageClient.Stats;
 
             this.tableServiceClient = tableServiceClient;
-            this.tableClient = tableServiceClient.GetTableClient(tableName);
+            this.originalTableClient = tableServiceClient.GetTableClient(tableName);
         }
 
-        public string Name => this.tableClient.Name;
+        public string Name => this.originalTableClient.Name;
 
-        internal Uri Uri => this.tableClient.Uri;
+        internal Uri Uri => this.originalTableClient.Uri;
 
         public async Task<bool> CreateIfNotExistsAsync(CancellationToken cancellationToken = default)
         {
+            // This call must use the original table client because the migration SAS tokens lack the permissions for this operation,
+            // so we must ensure access explicitly
+            this.azureStorageClient.EnsureAccess();
+            // Creating the resource requires the original credentials. Entity operations still use the migration SAS.
             // If we received null, then the response must have been a 409 (Conflict) and the table must already exist
-            Response<TableItem> response = await this.tableClient.CreateIfNotExistsAsync(cancellationToken).DecorateFailure();
+            Response<TableItem> response = await this.originalTableClient.CreateIfNotExistsAsync(cancellationToken).DecorateFailure();
             return response != null;
         }
 
         public async Task<bool> DeleteIfExistsAsync(CancellationToken cancellationToken = default)
         {
+            this.azureStorageClient.ThrowIfMigrationResourceDeletion();
             // If we received null, then the response must have been a 404 (NotFound) and the table must not exist
             Response response = await this.tableClient.DeleteAsync(cancellationToken).DecorateFailure();
             return response != null;
@@ -62,6 +72,9 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task<bool> ExistsAsync(CancellationToken cancellationToken = default)
         {
+            // This call must use the original table client because the migration SAS tokens lack the permissions for this operation,
+            // so we must ensure access explicitly
+            this.azureStorageClient.EnsureAccess();
             // TODO: Re-evaluate the use of an "Exists" method as it was intentional omitted from the client API
             List<TableItem> tables = await this.tableServiceClient
                 .QueryAsync(filter: $"TableName eq '{this.tableClient.Name}'", cancellationToken: cancellationToken)
@@ -73,6 +86,7 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task DeleteAsync(CancellationToken cancellationToken = default)
         {
+            this.azureStorageClient.ThrowIfMigrationResourceDeletion();
             await this.tableClient.DeleteAsync(cancellationToken).DecorateFailure();
         }
 

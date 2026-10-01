@@ -58,8 +58,8 @@ namespace DurableTask.AzureStorage.Tests
                 ControlQueueVisibilityTimeout = configuredTimeout,
                 WorkItemQueueVisibilityTimeout = configuredTimeout,
             };
-            using var service = new AzureStorageOrchestrationService(settings);
-            var storage = new AzureStorageClient(settings);
+            using var service = new AzureStorageOrchestrationService(settings, isMigrationActive: migrating);
+            var storage = new AzureStorageClient(settings, isMigrationActive: migrating);
             var manager = new MessageManager(settings, storage, settings.TaskHubName + "-largemessages");
             // Dedicated queues let us inspect receipts without the service listeners consuming our messages.
             var control = new ControlQueue(storage, settings.TaskHubName + "-test-control", manager);
@@ -68,7 +68,7 @@ namespace DurableTask.AzureStorage.Tests
             bool started = false;
             try
             {
-                await (migrating ? service.StartAsync(MigrationMode.MigrationStarted) : service.StartAsync());
+                await service.StartAsync();
                 started = true;
                 TimeSpan controlTimeout = migrating ? TimeSpan.FromSeconds(30) : configuredTimeout;
                 Assert.AreEqual(controlTimeout, settings.ControlQueueVisibilityTimeout);
@@ -125,7 +125,8 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     await service.StopAsync();
                     started = false;
-                    await service.StartAsync(MigrationMode.MigrationEnding);
+                    await TestHelpers.BeginMigrationDrainAsync(settings);
+                    await service.StartAsync();
                     started = true;
                     Assert.AreEqual(TimeSpan.FromSeconds(30), settings.ControlQueueVisibilityTimeout);
                 }
@@ -136,9 +137,12 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     await service.StopAsync();
                 }
-                await control.DeleteIfExistsAsync();
-                await activity.DeleteIfExistsAsync();
-                await service.DeleteAsync();
+                await TestHelpers.ResetMigrationTestControlAsync(settings);
+                var queues = settings.StorageAccountClientProvider!.Queue.CreateClient(settings.StorageAccountClientProvider.Queue.CreateOptions());
+                await queues.GetQueueClient(control.Name).DeleteIfExistsAsync();
+                await queues.GetQueueClient(activity.Name).DeleteIfExistsAsync();
+                using var cleanup = new AzureStorageOrchestrationService(settings);
+                await cleanup.DeleteAsync();
             }
 
             static void AssertVisibility(DateTimeOffset nextVisible, DateTimeOffset before, TimeSpan expected)
@@ -197,9 +201,9 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task RewindDuringMigration_BumpsSequenceNumberAndEnqueuesInstance()
         {
-            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false);
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(isMigrationActive: true, enableExtendedSessions: false);
 
-            await host.StartAsync(MigrationMode.MigrationStarted);
+            await host.StartAsync();
 
             // Run an orchestration that fails so that it can be rewound.
             RewindFailOrchestration.ShouldFail = true;
@@ -267,11 +271,11 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(instanceId, enqueued[0].InstanceId);
             Assert.AreEqual(sequenceNumberAfterRewind, enqueued[0].SequenceNumber);
 
-            var completionService = new AzureStorageOrchestrationService(settings);
+            var completionService = new AzureStorageOrchestrationService(settings, isMigrationActive: true);
             using var completionWorker = new TaskHubWorker(completionService, loggerFactory: settings.LoggerFactory);
             completionWorker.AddTaskOrchestrations(typeof(RewindFailOrchestration));
             completionWorker.AddTaskActivities(typeof(RewindFailActivity));
-            await completionWorker.StartAsync(MigrationMode.MigrationStarted);
+            await completionWorker.StartAsync();
             OrchestrationState? completedStatus = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
             Assert.AreEqual(OrchestrationStatus.Completed, completedStatus?.OrchestrationStatus);
             Assert.AreEqual(rewoundExecutionId, completedStatus?.OrchestrationInstance.ExecutionId);
@@ -335,9 +339,9 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task RewindSubOrchestrationDuringMigration_UpdatesExecutionIdsAndParentLink()
         {
-            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false);
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(isMigrationActive: true, enableExtendedSessions: false);
 
-            await host.StartAsync(MigrationMode.MigrationStarted);
+            await host.StartAsync();
 
             RewindFailOnceOrchestration.ShouldFail = true;
             string parentInstanceId = $"rewind-parent-{Guid.NewGuid():N}";
@@ -420,12 +424,12 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(parentInstanceId, rewoundChildStatus.ParentInstance.OrchestrationInstance.InstanceId);
             Assert.AreEqual(parentExecutionIdAfterRewind, rewoundChildStatus.ParentInstance.OrchestrationInstance.ExecutionId);
 
-            var completionService = new AzureStorageOrchestrationService(settings);
+            var completionService = new AzureStorageOrchestrationService(settings, isMigrationActive: true);
             using var completionWorker = new TaskHubWorker(completionService, loggerFactory: settings.LoggerFactory);
             completionWorker.AddTaskOrchestrations(
                 typeof(FailingRewindParentOrchestration),
                 typeof(RewindFailOnceOrchestration));
-            await completionWorker.StartAsync(MigrationMode.MigrationStarted);
+            await completionWorker.StartAsync();
             OrchestrationState? completedParentStatus = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
             Assert.AreEqual(OrchestrationStatus.Completed, completedParentStatus?.OrchestrationStatus);
             Assert.AreEqual(parentExecutionIdAfterRewind, completedParentStatus?.OrchestrationInstance.ExecutionId);
@@ -448,9 +452,9 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task TerminatePendingDuringMigration_BumpsSequenceNumberAndEnqueuesInstance()
         {
-            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false);
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(isMigrationActive: true, enableExtendedSessions: false);
 
-            await host.StartAsync(MigrationMode.MigrationStarted);
+            await host.StartAsync();
 
             // Schedule a start time far in the future so the orchestration stays Pending (its ExecutionStarted message
             // is not yet visible) when it is terminated. This exercises the "terminate a pending orchestration" path.
@@ -501,9 +505,9 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task CreateDuringMigration_SetsSequenceNumberToOneAndEnqueuesInstance()
         {
-            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false);
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(isMigrationActive: true, enableExtendedSessions: false);
 
-            await host.StartAsync(MigrationMode.MigrationStarted);
+            await host.StartAsync();
 
             // Schedule a start time far in the future so the orchestration stays Pending and never runs.
             TestOrchestrationClient client = await host.StartOrchestrationAsync(
@@ -540,9 +544,9 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task RecreateDuringMigration_BumpsSequenceNumberAndEnqueuesInstance()
         {
-            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false);
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(isMigrationActive: true, enableExtendedSessions: false);
 
-            await host.StartAsync(MigrationMode.MigrationStarted);
+            await host.StartAsync();
 
             string instanceId = $"migration-recreate-{Guid.NewGuid():N}";
 
@@ -594,14 +598,14 @@ namespace DurableTask.AzureStorage.Tests
         public async Task CompletedOrchestrationDuringMigration_SequenceNumberAndEnqueuesMatchCreatePlusEpisodes()
         {
             string taskHubName = $"migrepisodes{Guid.NewGuid():N}";
-            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(isMigrationActive: true,
                 enableExtendedSessions: false,
                 modifySettingsAction: settings =>
                 {
                     settings.TaskHubName = taskHubName;
                 });
 
-            await host.StartAsync(MigrationMode.MigrationStarted);
+            await host.StartAsync();
 
             TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(MultiEpisodeOrchestration), input: "world");
             OrchestrationState? status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
@@ -648,14 +652,14 @@ namespace DurableTask.AzureStorage.Tests
         public async Task WorkItemCommit_InstanceSequenceBehindHistory_UsesHistorySequenceNumberPlusOne()
         {
             string taskHubName = $"mighseq{Guid.NewGuid():N}";
-            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(isMigrationActive: true,
                 enableExtendedSessions: false,
                 modifySettingsAction: settings =>
                 {
                     settings.TaskHubName = taskHubName;
                 });
 
-            await host.StartAsync(MigrationMode.MigrationStarted);
+            await host.StartAsync();
 
             TestOrchestrationClient client = await host.StartOrchestrationAsync(
                 typeof(WaitForExternalEventOrchestration),
@@ -720,14 +724,14 @@ namespace DurableTask.AzureStorage.Tests
         public async Task CompletedRecoveryDuringMigration_MatchesSentinelSequenceNumberAndEnqueuesInstance()
         {
             string taskHubName = $"migrrecovery{Guid.NewGuid():N}";
-            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(isMigrationActive: true,
                 enableExtendedSessions: false,
                 modifySettingsAction: settings =>
                 {
                     settings.TaskHubName = taskHubName;
                 });
 
-            await host.StartAsync(MigrationMode.MigrationStarted);
+            await host.StartAsync();
 
             TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(SimpleOrchestration), input: "world");
             OrchestrationState? status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
@@ -794,7 +798,7 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// Confirms that every public API guarded by ThrowIfMigrationEnding rejects requests with
         /// <see cref="OrchestrationServiceUnavailableException"/> once the service is started in
-        /// <see cref="MigrationMode.MigrationEnding"/> (so callers are redirected to the new backend).
+        /// a draining migration gate (so callers are redirected to the new backend).
         /// </summary>
         [TestMethod]
         public async Task MigrationEnding_RejectsGuardedPublicApiRequests()
@@ -810,10 +814,10 @@ namespace DurableTask.AzureStorage.Tests
             AzureStorageOrchestrationService? service = null;
             try
             {
-                service = new AzureStorageOrchestrationService(settings);
+                service = new AzureStorageOrchestrationService(settings, isMigrationActive: true);
                 AzureStorageOrchestrationService svc = service;
-                await svc.CreateAsync();
-                await svc.StartAsync(MigrationMode.MigrationEnding);
+                await TestHelpers.BeginMigrationDrainAsync(settings);
+                await svc.StartAsync();
 
                 var instance = new OrchestrationInstance { InstanceId = "instance_id", ExecutionId = "execution_id" };
                 var creationMessage = new TaskMessage
@@ -897,14 +901,14 @@ namespace DurableTask.AzureStorage.Tests
         public async Task RecreatePurgedCompletedInstanceDuringMigration_HasExpectedSequenceNumberAndEnqueues()
         {
             string taskHubName = $"migrrp{Guid.NewGuid():N}";
-            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(isMigrationActive: true,
                 enableExtendedSessions: false,
                 modifySettingsAction: settings =>
                 {
                     settings.TaskHubName = taskHubName;
                 });
 
-            await host.StartAsync(MigrationMode.MigrationStarted);
+            await host.StartAsync();
 
             string instanceId = $"recreate-purged-{Guid.NewGuid():N}";
 
@@ -954,9 +958,9 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task PurgeInstanceDuringMigration_KeepsRowBumpsSequenceNumberAndEnqueuesInstance()
         {
-            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false);
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(isMigrationActive: true, enableExtendedSessions: false);
 
-            await host.StartAsync(MigrationMode.MigrationStarted);
+            await host.StartAsync();
 
             TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(SimpleOrchestration), input: "world");
             OrchestrationState? status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
@@ -1005,14 +1009,14 @@ namespace DurableTask.AzureStorage.Tests
         public async Task PurgeByFilterDuringMigration_KeepsRowsBumpsSequenceNumbersAndEnqueuesInstances()
         {
             string taskHubName = $"migrpurge{Guid.NewGuid():N}";
-            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
+            using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(isMigrationActive: true,
                 enableExtendedSessions: false,
                 modifySettingsAction: settings =>
                 {
                     settings.TaskHubName = taskHubName;
                 });
 
-            await host.StartAsync(MigrationMode.MigrationStarted);
+            await host.StartAsync();
 
             DateTime createdTimeFrom = DateTime.UtcNow;
 

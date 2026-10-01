@@ -26,18 +26,23 @@ namespace DurableTask.AzureStorage.Storage
     {
         readonly AzureStorageClient azureStorageClient;
         readonly AzureStorageOrchestrationServiceStats stats;
-        readonly QueueClient queueClient;
+        readonly QueueClient originalQueueClient;
+        QueueClient? cachedQueueClient;
+
+        // During migration we use a queue client that relies on short-lived SAS tokens
+        QueueClient queueClient => Volatile.Read(ref this.cachedQueueClient)
+            ?? LazyInitializer.EnsureInitialized(ref this.cachedQueueClient, () => this.azureStorageClient.GetQueueClient(this.originalQueueClient))!;
 
         public Queue(AzureStorageClient azureStorageClient, QueueServiceClient queueServiceClient, string queueName)
         {
             this.azureStorageClient = azureStorageClient;
             this.stats = this.azureStorageClient.Stats;
-            this.queueClient = queueServiceClient.GetQueueClient(queueName);
+            this.originalQueueClient = queueServiceClient.GetQueueClient(queueName);
         }
 
-        public string Name => this.queueClient.Name;
+        public string Name => this.originalQueueClient.Name;
 
-        public Uri Uri => this.queueClient.Uri;
+        public Uri Uri => this.originalQueueClient.Uri;
 
         public async Task<int> GetApproximateMessagesCountAsync(CancellationToken cancellationToken = default)
         {
@@ -107,13 +112,18 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task<bool> CreateIfNotExistsAsync(CancellationToken cancellationToken = default)
         {
+            // This call must use the original queue client because the migration SAS tokens lack the permissions for this operation,
+            // so we must ensure access explicitly
+            this.azureStorageClient.EnsureAccess();
+            // Creating the resource requires the original credentials. Message operations still use the migration SAS.
             // If we received null, then the response must have been a 409 (Conflict) and the queue must already exist
-            Response response = await this.queueClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken).DecorateFailure();
+            Response response = await this.originalQueueClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken).DecorateFailure();
             return response != null;
         }
 
         public async Task<bool> DeleteIfExistsAsync(CancellationToken cancellationToken = default)
         {
+            this.azureStorageClient.ThrowIfMigrationResourceDeletion();
             return await this.queueClient.DeleteIfExistsAsync(cancellationToken).DecorateFailure();
         }
 

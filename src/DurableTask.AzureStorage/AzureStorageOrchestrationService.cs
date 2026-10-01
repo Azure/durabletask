@@ -42,7 +42,6 @@ namespace DurableTask.AzureStorage
     /// </summary>
     public sealed class AzureStorageOrchestrationService :
         IOrchestrationService,
-        IMigratableOrchestrationService,
         IOrchestrationServiceClient,
         IDisposable,
         IOrchestrationServiceQueryClient,
@@ -79,15 +78,27 @@ namespace DurableTask.AzureStorage
         Task statsLoop;
         CancellationTokenSource shutdownSource;
 
-        // Set at startup when started in MigrationEnding mode; when true, client requests are rejected.
-        bool isMigrationEnding;
+        bool isMigrationActive;
+        volatile bool isMigrationEnding;
+        bool appLeaseManagerStarted;
+
+        internal bool IsMigrationEnding => this.isMigrationEnding;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="AzureStorageOrchestrationService"/> class.
         /// </summary>
         /// <param name="settings">The settings used to configure the orchestration service.</param>
         public AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings)
-            : this(settings, null)
+            : this(settings, null, isMigrationActive: false)
+        { }
+
+        /// <summary>
+        /// Initializes the service with live migration enabled or disabled.
+        /// </summary>
+        /// <param name="settings">The settings used to configure the orchestration service.</param>
+        /// <param name="isMigrationActive">Whether or not a migration is active from this backend to another.</param>
+        public AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings, bool isMigrationActive)
+            : this(settings, null, isMigrationActive)
         { }
 
         /// <inheritdoc/>
@@ -108,6 +119,10 @@ namespace DurableTask.AzureStorage
         /// <param name="settings">The settings used to configure the orchestration service.</param>
         /// <param name="customInstanceStore">Custom UserDefined Instance store to be used with the AzureStorageOrchestrationService</param>
         public AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings, IOrchestrationServiceInstanceStore customInstanceStore)
+            : this(settings, customInstanceStore, isMigrationActive: false)
+        { }
+
+        AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings, IOrchestrationServiceInstanceStore customInstanceStore, bool isMigrationActive)
         {
             if (settings == null)
             {
@@ -117,8 +132,16 @@ namespace DurableTask.AzureStorage
             ValidateSettings(settings);
 
             this.settings = settings;
+            this.isMigrationActive = isMigrationActive;
+            this.settings.IsMigrationActive = isMigrationActive;
+            if (isMigrationActive)
+            {
+                this.settings.ControlQueueVisibilityTimeout = TimeSpan.FromSeconds(
+                    AzureStorageOrchestrationServiceSettings.MigrationControlQueueVisibilityTimeoutSeconds);
+            }
 
-            this.azureStorageClient = new AzureStorageClient(settings);
+            this.azureStorageClient = new AzureStorageClient(settings, isMigrationActive);
+            this.azureStorageClient.MigrationEnding += this.EnterMigrationEnding;
             this.stats = this.azureStorageClient.Stats;
 
             string compressedMessageBlobContainerName = $"{settings.TaskHubName.ToLowerInvariant()}-largemessages";
@@ -454,45 +477,24 @@ namespace DurableTask.AzureStorage
         }
 
         /// <inheritdoc />
-        public Task StartAsync()
-        {
-            return this.StartAsync(migrationMode: null);
-        }
-
-        /// <summary>
-        /// Starts the orchestration service in the specified live-migration mode. For
-        /// <see cref="MigrationMode.MigrationStarted"/> the modified-instances queue is created and modified instances
-        /// are recorded while running; for <see cref="MigrationMode.MigrationEnding"/> all subsequent client requests
-        /// are rejected.
-        /// </summary>
-        /// <param name="migrationMode">The live-migration mode to run in.</param>
-        public Task StartAsync(MigrationMode migrationMode)
-        {
-            return this.StartAsync((MigrationMode?)migrationMode);
-        }
-
-        async Task StartAsync(MigrationMode? migrationMode)
+        public async Task StartAsync()
         {
             if (this.isStarted)
             {
                 throw new InvalidOperationException("The orchestration service has already started.");
             }
-            await this.CreateIfNotExistsAsync();
 
-            if (migrationMode == MigrationMode.MigrationStarted)
+            await this.azureStorageClient.InitializeMigrationAsync(refresh: true);
+            if (!this.isMigrationEnding)
             {
-                await this.modifiedInstancesQueue.CreateIfNotExistsAsync();
+                await this.CreateIfNotExistsAsync();
+                if (this.isMigrationActive)
+                {
+                    await this.modifiedInstancesQueue.CreateIfNotExistsAsync();
+                }
             }
 
-            // Apply the migration mode before any dispatch begins so the flag is observed by all subsequent writes.
-            await this.trackingStore.StartAsync(migrationMode);
-            this.isMigrationEnding = migrationMode == MigrationMode.MigrationEnding;
-            this.settings.IsMigrationInProgress = migrationMode == MigrationMode.MigrationStarted || this.isMigrationEnding;
-            if (this.settings.IsMigrationInProgress)
-            {
-                this.settings.ControlQueueVisibilityTimeout = TimeSpan.FromSeconds(
-                    AzureStorageOrchestrationServiceSettings.MigrationControlQueueVisibilityTimeoutSeconds);
-            }
+            await this.trackingStore.StartAsync();
 
             // Disable nagling to improve storage access latency:
             // https://blogs.msdn.microsoft.com/windowsazurestorage/2010/06/25/nagles-algorithm-is-not-friendly-towards-small-requests/
@@ -508,14 +510,26 @@ namespace DurableTask.AzureStorage
             if (!this.isMigrationEnding)
             {
                 await this.appLeaseManager.StartAsync();
+                this.appLeaseManagerStarted = true;
             }
 
             this.isStarted = true;
         }
 
+        void EnterMigrationEnding()
+        {
+            this.isMigrationEnding = true;
+            foreach (ControlQueue queue in this.allControlQueues.Values)
+            {
+                queue.Release(CloseReason.Shutdown, nameof(EnterMigrationEnding));
+            }
+            this.orchestrationSessionManager.AbortAllSessions();
+        }
+
         // Rejects client requests while a migration is ending; callers should be redirected to the new backend.
         void ThrowIfMigrationEnding()
         {
+            this.azureStorageClient.EnsureAccess();
             if (this.isMigrationEnding)
             {
                 throw new OrchestrationServiceUnavailableException(
@@ -544,11 +558,13 @@ namespace DurableTask.AzureStorage
             }
 
             // The lease manager is not started while a migration is ending, so there is nothing to stop.
-            if (!this.isMigrationEnding)
+            if (this.appLeaseManagerStarted)
             {
                 await this.appLeaseManager.StopAsync();
+                this.appLeaseManagerStarted = false;
             }
 
+            await this.azureStorageClient.StopMigrationTokenRefreshAsync();
             this.isStarted = false;
         }
 
@@ -2308,6 +2324,7 @@ namespace DurableTask.AzureStorage
         /// </summary>
         public void Dispose()
         {
+            _ = this.azureStorageClient.StopMigrationTokenRefreshAsync();
             this.orchestrationSessionManager.Dispose();
         }
 

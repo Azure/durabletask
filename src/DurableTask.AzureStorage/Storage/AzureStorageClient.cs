@@ -1,4 +1,4 @@
-﻿//  ----------------------------------------------------------------------------------
+//  ----------------------------------------------------------------------------------
 //  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -15,6 +15,10 @@ namespace DurableTask.AzureStorage.Storage
 {
     using System;
     using System.Text;
+    using System.Collections.Concurrent;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using Azure.Storage.Blobs.Specialized;
     using Azure.Core;
     using Azure.Data.Tables;
     using Azure.Storage.Blobs;
@@ -27,8 +31,118 @@ namespace DurableTask.AzureStorage.Storage
         readonly BlobServiceClient blobClient;
         readonly QueueServiceClient queueClient;
         readonly TableServiceClient tableClient;
+        readonly MigrationSasManager migration;
+        readonly bool isMigrationActive;
+        readonly object initializationLock = new();
+        Task? migrationInitialization;
+        readonly QueueClientOptions sasQueueOptions;
+        readonly TableClientOptions sasTableOptions;
+        readonly BlobClientOptions sasBlobOptions;
+        readonly ConcurrentDictionary<string, QueueClient> sasQueues = new ConcurrentDictionary<string, QueueClient>();
+        readonly ConcurrentDictionary<string, TableClient> sasTables = new ConcurrentDictionary<string, TableClient>();
+        readonly ConcurrentDictionary<string, BlobContainerClient> sasContainers = new ConcurrentDictionary<string, BlobContainerClient>();
 
-        public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings)
+        public event Action? MigrationEnding;
+        public bool IsMigrationActive => this.isMigrationActive;
+        public bool IsMigrationEnding => this.migration.IsMigrationEnding;
+
+        public async Task InitializeMigrationAsync(bool refresh = false)
+        {
+            if (!this.IsMigrationActive)
+            {
+                return;
+            }
+            Task initialization;
+            bool refreshCachedInitialization;
+            lock (this.initializationLock)
+            {
+                // New or in-progress initialization already refreshes credentials and starts the loop.
+                refreshCachedInitialization = refresh && this.migrationInitialization?.Status == TaskStatus.RanToCompletion;
+                // Run on the thread pool because synchronous SDK wrapper properties also call this method.
+                initialization = this.migrationInitialization ??= Task.Run(this.InitializeMigrationCoreAsync);
+            }
+            try
+            {
+                await initialization.ConfigureAwait(false);
+            }
+            catch
+            {
+                lock (this.initializationLock)
+                {
+                    // Do not clear a newer initialization started by another caller.
+                    if (ReferenceEquals(this.migrationInitialization, initialization))
+                    {
+                        this.migrationInitialization = null;
+                    }
+                }
+                throw;
+            }
+            if (refreshCachedInitialization)
+            {
+                // A completed initialization may belong to a stopped service; refresh and restart its loop.
+                await this.migration.RefreshAsync(CancellationToken.None).ConfigureAwait(false);
+                _ = this.migration.StartRefreshLoop();
+            }
+        }
+
+        public Task StopMigrationTokenRefreshAsync()
+        {
+            return this.migration.StopRefreshing();
+        }
+
+        async Task InitializeMigrationCoreAsync()
+        {
+            await this.migration.RefreshAsync(CancellationToken.None, createGateIfMissing: true).ConfigureAwait(false);
+            _ = this.migration.StartRefreshLoop();
+        }
+
+        public void EnsureAccess()
+        {
+            if (this.isMigrationActive)
+            {
+                this.InitializeMigrationAsync().GetAwaiter().GetResult();
+                this.migration.EnsureAccess();
+            }
+        }
+
+        public void ThrowIfMigrationResourceDeletion()
+        {
+            this.EnsureAccess();
+            if (this.isMigrationActive)
+            {
+                throw new OrchestrationServiceUnavailableException("Task hub resource deletion is not supported during migration.");
+            }
+        }
+
+        public QueueClient GetQueueClient(QueueClient original)
+        {
+            this.EnsureAccess();
+            return !this.isMigrationActive ? original : this.sasQueues.GetOrAdd(original.Name,
+                name => new QueueClient(original.Uri, this.migration.GetCredential('q', name), this.sasQueueOptions));
+        }
+
+        public TableClient GetTableClient(TableClient original)
+        {
+            this.EnsureAccess();
+            return !this.isMigrationActive ? original : this.sasTables.GetOrAdd(original.Name,
+                name => new TableClient(original.Uri, this.migration.GetCredential('t', name), this.sasTableOptions));
+        }
+
+        public BlobContainerClient GetBlobContainerClient(BlobContainerClient original)
+        {
+            this.EnsureAccess();
+            return !this.isMigrationActive ? original : this.sasContainers.GetOrAdd(original.Name,
+                name => new BlobContainerClient(original.Uri, this.migration.GetCredential('b', name), this.sasBlobOptions));
+        }
+
+        public BlockBlobClient GetBlockBlobClient(BlockBlobClient original)
+        {
+            this.EnsureAccess();
+            return !this.isMigrationActive ? original : this.GetBlobContainerClient(
+                this.blobClient.GetBlobContainerClient(original.BlobContainerName)).GetBlockBlobClient(original.Name);
+        }
+
+        public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings, bool isMigrationActive = false)
         {
             if (settings == null)
             {
@@ -40,6 +154,7 @@ namespace DurableTask.AzureStorage.Storage
                 throw new ArgumentException("Storage account client provider is not specified.", nameof(settings));
             }
 
+            this.isMigrationActive = isMigrationActive;
             this.Settings = settings;
             this.Stats = new AzureStorageOrchestrationServiceStats();
 
@@ -47,17 +162,48 @@ namespace DurableTask.AzureStorage.Storage
             var timeoutPolicy = new LeaseTimeoutHttpPipelinePolicy(this.Settings.LeaseRenewInterval);
             var monitoringPolicy = new MonitoringHttpPipelinePolicy(this.Stats);
 
-            this.queueClient = CreateClient(settings.StorageAccountClientProvider.Queue, ConfigureQueueClientPolicies);
+            QueueClientOptions? queueManagementOptions = null;
+            BlobClientOptions? blobManagementOptions = null;
+            TableClientOptions? tableManagementOptions = null;
+            this.queueClient = CreateClient(settings.StorageAccountClientProvider.Queue, options =>
+            {
+                queueManagementOptions = options;
+                ConfigureQueueClientPolicies(options);
+            });
             if (settings.HasTrackingStoreStorageAccount)
             {
-                this.blobClient = CreateClient(settings.TrackingServiceClientProvider!.Blob, ConfigureClientPolicies);
-                this.tableClient = CreateClient(settings.TrackingServiceClientProvider!.Table, ConfigureClientPolicies);
+                this.blobClient = CreateClient(settings.TrackingServiceClientProvider!.Blob, options => { blobManagementOptions = options; ConfigureClientPolicies(options); });
+                this.tableClient = CreateClient(settings.TrackingServiceClientProvider!.Table, options => { tableManagementOptions = options; options.Diagnostics.IsLoggingContentEnabled = false; ConfigureClientPolicies(options); });
             }
             else
             {
-                this.blobClient = CreateClient(settings.StorageAccountClientProvider.Blob, ConfigureClientPolicies);
-                this.tableClient = CreateClient(settings.StorageAccountClientProvider.Table, ConfigureClientPolicies);
+                this.blobClient = CreateClient(settings.StorageAccountClientProvider.Blob, options => { blobManagementOptions = options; ConfigureClientPolicies(options); });
+                this.tableClient = CreateClient(settings.StorageAccountClientProvider.Table, options => { tableManagementOptions = options; options.Diagnostics.IsLoggingContentEnabled = false; ConfigureClientPolicies(options); });
             }
+
+            this.migration = new MigrationSasManager(settings, this.blobClient, this.queueClient, this.tableClient,
+                (settings.TrackingServiceClientProvider ?? settings.StorageAccountClientProvider).Table,
+                () => this.MigrationEnding?.Invoke());
+
+            // Never add the migration policy to provider-owned options: a provider may reuse those options for
+            // another service instance or a management client. SAS pipelines must own their policy lists.
+            this.sasQueueOptions = CopyTransportOptions(queueManagementOptions!, new QueueClientOptions
+            {
+                Audience = queueManagementOptions!.Audience,
+                GeoRedundantSecondaryUri = queueManagementOptions.GeoRedundantSecondaryUri,
+            });
+            ConfigureQueueClientPolicies(this.sasQueueOptions);
+            this.sasQueueOptions.AddPolicy(new MigrationRequestPolicy(this.migration, useDelegationVersion: true), HttpPipelinePosition.PerRetry);
+            this.sasTableOptions = CopyTransportOptions(tableManagementOptions!, new TableClientOptions { Audience = tableManagementOptions!.Audience });
+            ConfigureClientPolicies(this.sasTableOptions);
+            this.sasTableOptions.AddPolicy(new MigrationRequestPolicy(this.migration, useDelegationVersion: true), HttpPipelinePosition.PerRetry);
+            this.sasBlobOptions = CopyTransportOptions(blobManagementOptions!, new BlobClientOptions
+            {
+                Audience = blobManagementOptions!.Audience,
+                GeoRedundantSecondaryUri = blobManagementOptions.GeoRedundantSecondaryUri,
+            });
+            ConfigureClientPolicies(this.sasBlobOptions);
+            this.sasBlobOptions.AddPolicy(new MigrationRequestPolicy(this.migration), HttpPipelinePosition.PerRetry);
 
             void ConfigureClientPolicies<TClientOptions>(TClientOptions options) where TClientOptions : ClientOptions
             {
@@ -145,12 +291,12 @@ namespace DurableTask.AzureStorage.Storage
 
         public Blob GetBlobReference(string container, string blobName)
         {
-            return new Blob(this.blobClient, container, blobName);
+            return new Blob(this, this.blobClient, container, blobName);
         }
 
         internal Blob GetBlobReference(Uri blobUri)
         {
-            return new Blob(this.blobClient, blobUri);
+            return new Blob(this, this.blobClient, blobUri);
         }
 
         public BlobContainer GetBlobContainerReference(string container)
@@ -181,6 +327,22 @@ namespace DurableTask.AzureStorage.Storage
             configurePolicies?.Invoke(options);
 
             return storageProvider.CreateClient(options);
+        }
+
+        static TOptions CopyTransportOptions<TOptions>(ClientOptions source, TOptions destination) where TOptions : ClientOptions
+        {
+            destination.Transport = source.Transport;
+            destination.Retry.Mode = source.Retry.Mode;
+            destination.Retry.Delay = source.Retry.Delay;
+            destination.Retry.MaxDelay = source.Retry.MaxDelay;
+            // These options are used only by migration SAS clients. Do not let SDK retries start another storage request.
+            destination.Retry.MaxRetries = 0;
+            destination.Retry.NetworkTimeout = source.Retry.NetworkTimeout;
+            destination.Diagnostics.ApplicationId = source.Diagnostics.ApplicationId;
+            destination.Diagnostics.IsLoggingEnabled = source.Diagnostics.IsLoggingEnabled;
+            destination.Diagnostics.IsLoggingContentEnabled = source.Diagnostics.IsLoggingContentEnabled;
+            destination.Diagnostics.IsDistributedTracingEnabled = false;
+            return destination;
         }
     }
 }

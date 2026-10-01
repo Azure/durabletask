@@ -30,7 +30,7 @@ namespace DurableTask.AzureStorage
         internal const int MigrationControlQueueVisibilityTimeoutSeconds = 30;
 
         // Applied by service startup before control queue listeners begin receiving messages.
-        internal bool IsMigrationInProgress { get; set; }
+        internal bool IsMigrationActive { get; set; }
 
         internal static readonly TimeSpan DefaultMaxQueuePollingInterval = TimeSpan.FromSeconds(30);
 

@@ -2627,7 +2627,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsTrue(value.EndsWith(".json.gz"));
 
             string blobName = value.Split('/').Last();
-            Assert.IsTrue(await new Blob(serviceClient, new Uri(value)).ExistsAsync(), $"Blob named {blobName} is expected to exist.");
+            Assert.IsTrue(await serviceClient.GetBlobContainerClient(new BlobUriBuilder(new Uri(value)).BlobContainerName).GetBlobClient(new BlobUriBuilder(new Uri(value)).BlobName).ExistsAsync(), $"Blob named {blobName} is expected to exist.");
 
             string containerName = $"{taskHubName.ToLowerInvariant()}-largemessages";
             BlobContainerClient container = serviceClient.GetBlobContainerClient(containerName);

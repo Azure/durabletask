@@ -16,16 +16,19 @@ namespace DurableTask.AzureStorage
     using System;
     using Azure.Core;
 
-    sealed class DefaultStorageServiceClientProvider<TClient, TClientOptions> : IStorageServiceClientProvider<TClient, TClientOptions> where TClientOptions : ClientOptions
+    sealed class DefaultStorageServiceClientProvider<TClient, TClientOptions> : IStorageServiceClientProvider<TClient, TClientOptions>, IStorageTokenCredentialProvider where TClientOptions : ClientOptions
     {
         readonly Func<TClientOptions, TClient> factory;
         readonly TClientOptions options;
 
-        public DefaultStorageServiceClientProvider(Func<TClientOptions, TClient> factory, TClientOptions options)
+        public DefaultStorageServiceClientProvider(Func<TClientOptions, TClient> factory, TClientOptions options, TokenCredential? tokenCredential = null)
         {
+            this.TokenCredential = tokenCredential;
             this.factory = factory ?? throw new ArgumentNullException(nameof(factory));
             this.options = options ?? throw new ArgumentNullException(nameof(options));
         }
+
+        public TokenCredential? TokenCredential { get; }
 
         public TClient CreateClient(TClientOptions options)
         {

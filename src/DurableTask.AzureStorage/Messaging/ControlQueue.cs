@@ -47,7 +47,7 @@ namespace DurableTask.AzureStorage.Messaging
 
         protected override TimeSpan MessageVisibilityTimeout => this.settings.ControlQueueVisibilityTimeout;
 
-        protected override int MaximumAbandonDelayInSeconds => this.settings.IsMigrationInProgress
+        protected override int MaximumAbandonDelayInSeconds => this.settings.IsMigrationActive
             ? AzureStorageOrchestrationServiceSettings.MigrationControlQueueVisibilityTimeoutSeconds
             : base.MaximumAbandonDelayInSeconds;
 

@@ -61,9 +61,9 @@ namespace DurableTask.AzureStorage
 
         internal IEnumerable<ControlQueue> Queues => this.ownedControlQueues.Values;
 
-        bool AttachInstanceTableETag => this.settings.UseInstanceTableEtag || this.trackingStore.IsMigrationActive;
+        bool AttachInstanceTableETag => this.settings.UseInstanceTableEtag || this.settings.IsMigrationActive;
 
-        bool AttachSequenceNumber => this.trackingStore.IsMigrationActive;
+        bool AttachSequenceNumber => this.settings.IsMigrationActive;
 
         public void AddQueue(string partitionId, ControlQueue controlQueue, CancellationToken cancellationToken)
         {

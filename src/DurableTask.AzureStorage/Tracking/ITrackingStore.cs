@@ -45,14 +45,13 @@ namespace DurableTask.AzureStorage.Tracking
         Task<bool> ExistsAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Starts the tracking store before use, optionally in a live-migration mode.
+        /// Starts the tracking store before use.
         /// </summary>
-        /// <param name="migrationMode">The live-migration mode to run in, or <see langword="null"/> for normal operation.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        Task StartAsync(MigrationMode? migrationMode = null, CancellationToken cancellationToken = default);
+        Task StartAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Gets a value indicating whether a live migration is in progress (started, not ended).
+        /// Gets a value indicating whether the tracking store is configured for live migration.
         /// </summary>
         bool IsMigrationActive { get; }
 

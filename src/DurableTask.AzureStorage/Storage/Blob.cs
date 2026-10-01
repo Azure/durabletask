@@ -25,16 +25,21 @@ namespace DurableTask.AzureStorage.Storage
 
     class Blob
     {
-        readonly BlockBlobClient blockBlobClient;
+        readonly AzureStorageClient azureStorageClient;
+        readonly BlockBlobClient originalBlockBlobClient;
+        BlockBlobClient? cachedBlockBlobClient;
+        BlockBlobClient blockBlobClient => Volatile.Read(ref this.cachedBlockBlobClient)
+            ?? LazyInitializer.EnsureInitialized(ref this.cachedBlockBlobClient, () => this.azureStorageClient.GetBlockBlobClient(this.originalBlockBlobClient))!;
 
-        public Blob(BlobServiceClient blobServiceClient, string containerName, string blobName)
+        public Blob(AzureStorageClient azureStorageClient, BlobServiceClient blobServiceClient, string containerName, string blobName)
         {
-            this.blockBlobClient = blobServiceClient
+            this.azureStorageClient = azureStorageClient;
+            this.originalBlockBlobClient = blobServiceClient
                 .GetBlobContainerClient(containerName)
                 .GetBlockBlobClient(blobName);
         }
 
-        public Blob(BlobServiceClient blobServiceClient, Uri blobUri)
+        public Blob(AzureStorageClient azureStorageClient, BlobServiceClient blobServiceClient, Uri blobUri)
         {
             if (!blobUri.AbsoluteUri.StartsWith(blobServiceClient.Uri.AbsoluteUri, StringComparison.Ordinal))
             {
@@ -42,14 +47,15 @@ namespace DurableTask.AzureStorage.Storage
             }
 
             var builder = new BlobUriBuilder(blobUri);
-            this.blockBlobClient = blobServiceClient
+            this.azureStorageClient = azureStorageClient;
+            this.originalBlockBlobClient = blobServiceClient
                 .GetBlobContainerClient(builder.BlobContainerName)
                 .GetBlockBlobClient(builder.BlobName);
         }
 
-        public string Name => this.blockBlobClient.Name;
+        public string Name => this.originalBlockBlobClient.Name;
 
-        public Uri Uri => this.blockBlobClient.Uri;
+        public Uri Uri => this.originalBlockBlobClient.Uri;
 
         public async Task<bool> ExistsAsync(CancellationToken cancellationToken = default)
         {

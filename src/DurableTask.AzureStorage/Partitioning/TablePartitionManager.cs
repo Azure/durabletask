@@ -114,6 +114,11 @@ namespace DurableTask.AzureStorage.Partitioning
 
             while (true)
             {
+                if (this.service.IsMigrationEnding)
+                {
+                    break;
+                }
+
                 TimeSpan timeToSleep = this.options.AcquireInterval;
 
                 try

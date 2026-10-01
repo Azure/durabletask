@@ -284,22 +284,7 @@ namespace DurableTask.Core
         ///     Starts the TaskHubWorker so it begins processing orchestrations and activities
         /// </summary>
         /// <returns></returns>
-        public Task<TaskHubWorker> StartAsync()
-        {
-            return this.StartAsync(migrationMode: null);
-        }
-
-        /// <summary>
-        ///     Starts the TaskHubWorker in the specified live-migration mode so it begins processing orchestrations and
-        ///     activities. The underlying orchestration service must implement <see cref="IMigratableOrchestrationService"/>.
-        /// </summary>
-        /// <param name="migrationMode">The live-migration mode to start the orchestration service in.</param>
-        public Task<TaskHubWorker> StartAsync(MigrationMode migrationMode)
-        {
-            return this.StartAsync((MigrationMode?)migrationMode);
-        }
-
-        async Task<TaskHubWorker> StartAsync(MigrationMode? migrationMode)
+        public async Task<TaskHubWorker> StartAsync()
         {
             await this.slimLock.WaitAsync();
             try
@@ -338,20 +323,7 @@ namespace DurableTask.Core
                         this.ExceptionPropertiesProvider);
                 }
 
-                if (migrationMode.HasValue)
-                {
-                    if (this.orchestrationService is not IMigratableOrchestrationService migratableService)
-                    {
-                        throw new NotSupportedException(
-                            $"The orchestration service '{this.orchestrationService.GetType().FullName}' does not support live migration.");
-                    }
-
-                    await migratableService.StartAsync(migrationMode.Value);
-                }
-                else
-                {
-                    await this.orchestrationService.StartAsync();
-                }
+                await this.orchestrationService.StartAsync();
 
                 await this.orchestrationDispatcher.StartAsync();
                 await this.activityDispatcher.StartAsync();
