@@ -31,20 +31,20 @@ namespace DurableTask.AzureStorage.Storage
         readonly BlobServiceClient blobClient;
         readonly QueueServiceClient queueClient;
         readonly TableServiceClient tableClient;
-        readonly MigrationSasManager migration;
+        readonly MigrationSasManager? migration;
         readonly bool isMigrationActive;
-        readonly object initializationLock = new();
+        readonly object? initializationLock;
         Task? migrationInitialization;
-        readonly QueueClientOptions sasQueueOptions;
-        readonly TableClientOptions sasTableOptions;
-        readonly BlobClientOptions sasBlobOptions;
-        readonly ConcurrentDictionary<string, QueueClient> sasQueues = new ConcurrentDictionary<string, QueueClient>();
-        readonly ConcurrentDictionary<string, TableClient> sasTables = new ConcurrentDictionary<string, TableClient>();
-        readonly ConcurrentDictionary<string, BlobContainerClient> sasContainers = new ConcurrentDictionary<string, BlobContainerClient>();
+        readonly QueueClientOptions? sasQueueOptions;
+        readonly TableClientOptions? sasTableOptions;
+        readonly BlobClientOptions? sasBlobOptions;
+        readonly ConcurrentDictionary<string, QueueClient>? sasQueues;
+        readonly ConcurrentDictionary<string, TableClient>? sasTables;
+        readonly ConcurrentDictionary<string, BlobContainerClient>? sasContainers;
 
         public event Action? MigrationEnding;
         public bool IsMigrationActive => this.isMigrationActive;
-        public bool IsMigrationEnding => this.migration.IsMigrationEnding;
+        public bool IsMigrationEnding => this.isMigrationActive && this.migration!.IsMigrationEnding;
 
         public async Task InitializeMigrationAsync(bool refresh = false)
         {
@@ -54,12 +54,12 @@ namespace DurableTask.AzureStorage.Storage
             }
             Task initialization;
             bool refreshCachedInitialization;
-            lock (this.initializationLock)
+            lock (this.initializationLock!)
             {
                 // New or in-progress initialization already refreshes credentials and starts the loop.
                 refreshCachedInitialization = refresh && this.migrationInitialization?.Status == TaskStatus.RanToCompletion;
                 // Run on the thread pool because synchronous SDK wrapper properties also call this method.
-                initialization = this.migrationInitialization ??= Task.Run(this.InitializeMigrationCoreAsync);
+                initialization = this.migrationInitialization ??= Task.Run(() => this.InitializeMigrationCoreAsync(createGateIfMissing: true));
             }
             try
             {
@@ -67,7 +67,7 @@ namespace DurableTask.AzureStorage.Storage
             }
             catch
             {
-                lock (this.initializationLock)
+                lock (this.initializationLock!)
                 {
                     // Do not clear a newer initialization started by another caller.
                     if (ReferenceEquals(this.migrationInitialization, initialization))
@@ -80,20 +80,19 @@ namespace DurableTask.AzureStorage.Storage
             if (refreshCachedInitialization)
             {
                 // A completed initialization may belong to a stopped service; refresh and restart its loop.
-                await this.migration.RefreshAsync(CancellationToken.None).ConfigureAwait(false);
-                _ = this.migration.StartRefreshLoop();
+                await this.InitializeMigrationCoreAsync(createGateIfMissing: false);
             }
         }
 
         public Task StopMigrationTokenRefreshAsync()
         {
-            return this.migration.StopRefreshing();
+            return this.migration?.StopRefreshing() ?? Task.CompletedTask;
         }
 
-        async Task InitializeMigrationCoreAsync()
+        async Task InitializeMigrationCoreAsync(bool createGateIfMissing)
         {
-            await this.migration.RefreshAsync(CancellationToken.None, createGateIfMissing: true).ConfigureAwait(false);
-            _ = this.migration.StartRefreshLoop();
+            await this.migration!.RefreshAsync(CancellationToken.None, createGateIfMissing).ConfigureAwait(false);
+            _ = this.migration!.StartRefreshLoop();
         }
 
         public void EnsureAccess()
@@ -101,7 +100,7 @@ namespace DurableTask.AzureStorage.Storage
             if (this.isMigrationActive)
             {
                 this.InitializeMigrationAsync().GetAwaiter().GetResult();
-                this.migration.EnsureAccess();
+                this.migration!.EnsureAccess();
             }
         }
 
@@ -117,22 +116,22 @@ namespace DurableTask.AzureStorage.Storage
         public QueueClient GetQueueClient(QueueClient original)
         {
             this.EnsureAccess();
-            return !this.isMigrationActive ? original : this.sasQueues.GetOrAdd(original.Name,
-                name => new QueueClient(original.Uri, this.migration.GetCredential('q', name), this.sasQueueOptions));
+            return !this.isMigrationActive ? original : this.sasQueues!.GetOrAdd(original.Name,
+                name => new QueueClient(original.Uri, this.migration!.GetCredential('q', name), this.sasQueueOptions));
         }
 
         public TableClient GetTableClient(TableClient original)
         {
             this.EnsureAccess();
-            return !this.isMigrationActive ? original : this.sasTables.GetOrAdd(original.Name,
-                name => new TableClient(original.Uri, this.migration.GetCredential('t', name), this.sasTableOptions));
+            return !this.isMigrationActive ? original : this.sasTables!.GetOrAdd(original.Name,
+                name => new TableClient(original.Uri, this.migration!.GetCredential('t', name), this.sasTableOptions));
         }
 
         public BlobContainerClient GetBlobContainerClient(BlobContainerClient original)
         {
             this.EnsureAccess();
-            return !this.isMigrationActive ? original : this.sasContainers.GetOrAdd(original.Name,
-                name => new BlobContainerClient(original.Uri, this.migration.GetCredential('b', name), this.sasBlobOptions));
+            return !this.isMigrationActive ? original : this.sasContainers!.GetOrAdd(original.Name,
+                name => new BlobContainerClient(original.Uri, this.migration!.GetCredential('b', name), this.sasBlobOptions));
         }
 
         public BlockBlobClient GetBlockBlobClient(BlockBlobClient original)
@@ -181,29 +180,37 @@ namespace DurableTask.AzureStorage.Storage
                 this.tableClient = CreateClient(settings.StorageAccountClientProvider.Table, options => { tableManagementOptions = options; options.Diagnostics.IsLoggingContentEnabled = false; ConfigureClientPolicies(options); });
             }
 
-            this.migration = new MigrationSasManager(settings, this.blobClient, this.queueClient, this.tableClient,
-                (settings.TrackingServiceClientProvider ?? settings.StorageAccountClientProvider).Table,
-                () => this.MigrationEnding?.Invoke());
+            if (this.isMigrationActive)
+            {
+                this.initializationLock = new object();
+                this.sasQueues = new ConcurrentDictionary<string, QueueClient>();
+                this.sasTables = new ConcurrentDictionary<string, TableClient>();
+                this.sasContainers = new ConcurrentDictionary<string, BlobContainerClient>();
 
-            // Never add the migration policy to provider-owned options: a provider may reuse those options for
-            // another service instance or a management client. SAS pipelines must own their policy lists.
-            this.sasQueueOptions = CopyTransportOptions(queueManagementOptions!, new QueueClientOptions
-            {
-                Audience = queueManagementOptions!.Audience,
-                GeoRedundantSecondaryUri = queueManagementOptions.GeoRedundantSecondaryUri,
-            });
-            ConfigureQueueClientPolicies(this.sasQueueOptions);
-            this.sasQueueOptions.AddPolicy(new MigrationRequestPolicy(this.migration, useDelegationVersion: true), HttpPipelinePosition.PerRetry);
-            this.sasTableOptions = CopyTransportOptions(tableManagementOptions!, new TableClientOptions { Audience = tableManagementOptions!.Audience });
-            ConfigureClientPolicies(this.sasTableOptions);
-            this.sasTableOptions.AddPolicy(new MigrationRequestPolicy(this.migration, useDelegationVersion: true), HttpPipelinePosition.PerRetry);
-            this.sasBlobOptions = CopyTransportOptions(blobManagementOptions!, new BlobClientOptions
-            {
-                Audience = blobManagementOptions!.Audience,
-                GeoRedundantSecondaryUri = blobManagementOptions.GeoRedundantSecondaryUri,
-            });
-            ConfigureClientPolicies(this.sasBlobOptions);
-            this.sasBlobOptions.AddPolicy(new MigrationRequestPolicy(this.migration), HttpPipelinePosition.PerRetry);
+                this.migration = new MigrationSasManager(settings, this.blobClient, this.queueClient, this.tableClient,
+                    (settings.TrackingServiceClientProvider ?? settings.StorageAccountClientProvider).Table,
+                    () => this.MigrationEnding?.Invoke());
+
+                // Never add the migration policy to provider-owned options: a provider may reuse those options for
+                // another service instance or a management client. SAS pipelines must own their policy lists.
+                this.sasQueueOptions = CopyTransportOptions(queueManagementOptions!, new QueueClientOptions
+                {
+                    Audience = queueManagementOptions!.Audience,
+                    GeoRedundantSecondaryUri = queueManagementOptions.GeoRedundantSecondaryUri,
+                });
+                ConfigureQueueClientPolicies(this.sasQueueOptions);
+                this.sasQueueOptions.AddPolicy(new MigrationRequestPolicy(this.migration, useDelegationVersion: true), HttpPipelinePosition.PerRetry);
+                this.sasTableOptions = CopyTransportOptions(tableManagementOptions!, new TableClientOptions { Audience = tableManagementOptions!.Audience });
+                ConfigureClientPolicies(this.sasTableOptions);
+                this.sasTableOptions.AddPolicy(new MigrationRequestPolicy(this.migration, useDelegationVersion: true), HttpPipelinePosition.PerRetry);
+                this.sasBlobOptions = CopyTransportOptions(blobManagementOptions!, new BlobClientOptions
+                {
+                    Audience = blobManagementOptions!.Audience,
+                    GeoRedundantSecondaryUri = blobManagementOptions.GeoRedundantSecondaryUri,
+                });
+                ConfigureClientPolicies(this.sasBlobOptions);
+                this.sasBlobOptions.AddPolicy(new MigrationRequestPolicy(this.migration), HttpPipelinePosition.PerRetry);
+            }
 
             void ConfigureClientPolicies<TClientOptions>(TClientOptions options) where TClientOptions : ClientOptions
             {

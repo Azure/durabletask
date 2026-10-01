@@ -40,9 +40,9 @@ namespace DurableTask.AzureStorage.Storage
         readonly TableServiceClient tableService;
         readonly IStorageServiceClientProvider<TableServiceClient, TableClientOptions> tableProvider;
         readonly Action onMigrationEnding;
-        readonly object sync = new object();
-        readonly SemaphoreSlim refreshLock = new SemaphoreSlim(1, 1);
-        readonly Dictionary<string, AzureSasCredential> credentials = new Dictionary<string, AzureSasCredential>();
+        readonly object sync = new();
+        readonly SemaphoreSlim refreshLock = new(1, 1);
+        readonly Dictionary<string, AzureSasCredential> credentials = new();
         BlobKey? blobKey;
         QueueKey? queueKey;
         TableUserDelegationKey? tableKey;
