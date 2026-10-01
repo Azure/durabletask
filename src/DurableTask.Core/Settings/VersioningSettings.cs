@@ -12,6 +12,7 @@
 //  ----------------------------------------------------------------------------------
 
 using System;
+using System.Collections.Generic;
 
 namespace DurableTask.Core.Settings
 {
@@ -71,6 +72,19 @@ namespace DurableTask.Core.Settings
         /// Gets or sets the <see cref="VersionFailureStrategy"/> that is used to determine what happens on a versioning failure.
         /// </summary>
         public VersionFailureStrategy FailureStrategy { get; set; } = VersionFailureStrategy.Reject;
+
+        /// <summary>
+        /// Gets the orchestration names whose unversioned executions are excluded from worker version checks.
+        /// </summary>
+        /// <remarks>
+        /// This set is empty by default and matches names using an exact, case-sensitive ordinal comparison.
+        /// An exclusion applies only when the execution version is null or empty; nonempty versions still
+        /// follow <see cref="MatchStrategy"/> and <see cref="FailureStrategy"/>.
+        /// Use this for explicitly registered, unversioned infrastructure orchestrations, not business orchestrations.
+        /// Exclusions do not change execution versions or orchestration registration and lookup.
+        /// Configure this set before starting the worker and do not modify it while the worker is running.
+        /// </remarks>
+        public ISet<string> ExcludedOrchestrationNames { get; } = new HashSet<string>(StringComparer.Ordinal);
 
         /// <summary>
         /// Compare two versions to each other.

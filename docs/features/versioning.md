@@ -224,6 +224,22 @@ var instance = await client.CreateOrchestrationInstanceAsync(
 | `Reject` | Default. Abandon the work item so another worker can pick it up (or retry later). |
 | `Fail` | Fail the orchestration with a `VersionMismatch` error. |
 
+#### Excluding Unversioned Infrastructure Orchestrations
+
+A host that registers infrastructure orchestrations alongside business orchestrations can exclude specific unversioned infrastructure orchestration names from worker version checks:
+
+```csharp
+// Use the exact name of an explicitly registered unversioned infrastructure orchestration.
+// Configure exclusions before starting the worker.
+versioningSettings.ExcludedOrchestrationNames.Add(registeredInfrastructureOrchestrationName);
+```
+
+`ExcludedOrchestrationNames` is empty by default and uses exact, case-sensitive ordinal matching, not prefixes or patterns. An exclusion applies only when the execution version is `null` or the empty string. Nonempty versions, including whitespace, still follow the configured version matching and failure strategies even when the name is in the set. Business orchestration names not in the set retain the same version checks.
+
+The exclusion skips only the worker version check, which runs before orchestration middleware and execution. It does not register an orchestration, change its execution version or history, or bypass name/version lookup. Register and start these infrastructure orchestrations with their explicit unversioned identity. The same check applies on replay and after `ContinueAsNew`; continuing with a nonempty version re-enables the normal version policy.
+
+Do not modify the set while the worker is running.
+
 #### Blue-Green Deployment Example
 
 Run old and new workers simultaneously during deployments:
