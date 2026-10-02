@@ -701,14 +701,14 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
-        public async Task UpdateTaskHubJsonWithNewPartitionCount()
+        public async Task UpdatePartitionCountAfterDeleteAndRecreate()
         {
             string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
             var settings = new AzureStorageOrchestrationServiceSettings
             {
                 PartitionCount = 4,
                 StorageAccountClientProvider = new StorageAccountClientProvider(connectionString),
-                TaskHubName = nameof(UpdateTaskHubJsonWithNewPartitionCount),
+                TaskHubName = nameof(UpdatePartitionCountAfterDeleteAndRecreate),
                 UseAppLease = false,
             };
 
@@ -747,7 +747,8 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.IsNotNull(recommendation.Reason);
             }
 
-            // Change the default partition count, and start and stop the worker to try and update taskhub.json.
+            // Delete the empty hub before changing its count, then recreate it through worker startup.
+            await service.DeleteAsync();
             settings.PartitionCount = 8;
             service = new AzureStorageOrchestrationService(settings);
             var worker = new TaskHubWorker(service);
