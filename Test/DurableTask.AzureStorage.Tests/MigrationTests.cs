@@ -137,6 +137,7 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     await service.StopAsync();
                 }
+                await storage.StopMigrationTokenRefreshAsync();
                 await TestHelpers.ResetMigrationTestControlAsync(settings);
                 var queues = settings.StorageAccountClientProvider!.Queue.CreateClient(settings.StorageAccountClientProvider.Queue.CreateOptions());
                 await queues.GetQueueClient(control.Name).DeleteIfExistsAsync();
@@ -797,11 +798,13 @@ namespace DurableTask.AzureStorage.Tests
 
         /// <summary>
         /// Confirms that every public API guarded by ThrowIfMigrationEnding rejects requests with
-        /// <see cref="OrchestrationServiceUnavailableException"/> once the service is started in
-        /// a draining migration gate (so callers are redirected to the new backend).
+        /// <see cref="OrchestrationServiceUnavailableException"/> whether the service discovers drain at startup
+        /// or through its running renewal loop (so callers are redirected to the new backend).
         /// </summary>
-        [TestMethod]
-        public async Task MigrationEnding_RejectsGuardedPublicApiRequests()
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task MigrationEnding_RejectsGuardedPublicApiRequests(bool alreadyStarted)
         {
             var settings = new AzureStorageOrchestrationServiceSettings
             {
@@ -816,8 +819,26 @@ namespace DurableTask.AzureStorage.Tests
             {
                 service = new AzureStorageOrchestrationService(settings, isMigrationActive: true);
                 AzureStorageOrchestrationService svc = service;
-                await TestHelpers.BeginMigrationDrainAsync(settings);
-                await svc.StartAsync();
+                if (alreadyStarted)
+                {
+                    await svc.StartAsync();
+                }
+                DateTimeOffset finalExpiry = await TestHelpers.BeginMigrationDrainAsync(settings);
+                if (alreadyStarted)
+                {
+                    await TestHelpers.WaitFor(() => svc.IsMigrationEnding, TimeSpan.FromSeconds(10));
+                }
+                else
+                {
+                    await svc.StartAsync();
+                }
+
+                var provider = settings.StorageAccountClientProvider!.Table;
+                var control = new AzureStorageMigration(provider.CreateClient(provider.CreateOptions()), settings.TaskHubName);
+                await control.CreateIfNotExistsAsync(default);
+                AzureStorageMigration.Gate gate = (await control.ReadAsync(default))!;
+                Assert.IsTrue(gate.IsMigrationEnding, "Startup or creation retries must not reopen the gate.");
+                Assert.AreEqual(finalExpiry, gate.AccessExpiresAt);
 
                 var instance = new OrchestrationInstance { InstanceId = "instance_id", ExecutionId = "execution_id" };
                 var creationMessage = new TaskMessage

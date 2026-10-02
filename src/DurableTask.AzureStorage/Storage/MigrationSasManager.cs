@@ -186,7 +186,7 @@ namespace DurableTask.AzureStorage.Storage
                         entry.Value.Update(this.Sign(entry.Key[0], entry.Key.Substring(2)));
                     }
                 }
-                // Slow key acquisition/publication may have consumed the whole interval. Re-read before starting workers.
+                // Some slowdown in the renewal path consumed the whole expiry interval. Re-read before returning
                 if (this.EstimatedServerTime >= gate.AccessExpiresAt)
                 {
                     continue;

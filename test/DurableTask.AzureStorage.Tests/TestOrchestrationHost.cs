@@ -63,7 +63,15 @@ namespace DurableTask.AzureStorage.Tests
             {
                 using (var setup = new AzureStorageOrchestrationService(this.settings))
                 {
-                    await setup.CreateAsync();
+                    try
+                    {
+                        await setup.CreateAsync();
+                    }
+                    finally
+                    {
+                        // Setup deletes old test data outside migration, but shares the worker's settings.
+                        this.settings.IsMigrationActive = true;
+                    }
                 }
             }
             else
