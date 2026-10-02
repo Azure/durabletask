@@ -134,7 +134,8 @@ namespace DurableTask.AzureStorage.Logging
             string partitionId,
             long sequenceNumber,
             string popReceipt,
-            int visibilityTimeoutSeconds)
+            int visibilityTimeoutSeconds,
+            string details)
         {
             var logEvent = new LogEvents.AbandoningMessage(
                 account,
@@ -147,7 +148,8 @@ namespace DurableTask.AzureStorage.Logging
                 partitionId,
                 sequenceNumber,
                 popReceipt,
-                visibilityTimeoutSeconds);
+                visibilityTimeoutSeconds,
+                details);
             this.WriteStructuredLog(logEvent);
         }
 

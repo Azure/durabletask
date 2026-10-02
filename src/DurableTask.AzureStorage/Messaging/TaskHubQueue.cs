@@ -212,7 +212,10 @@ namespace DurableTask.AzureStorage.Messaging
             return initialVisibilityDelay;
         }
 
-        public virtual async Task AbandonMessageAsync(MessageData message, SessionBase? session = null)
+        public virtual async Task AbandonMessageAsync(
+            MessageData message,
+            string abandonmentDetails,
+            SessionBase? session = null)
         {
             QueueMessage queueMessage = message.OriginalQueueMessage;
             TaskMessage taskMessage = message.TaskMessage;
@@ -224,7 +227,8 @@ namespace DurableTask.AzureStorage.Messaging
                 taskMessage,
                 instance,
                 session?.TraceActivityId,
-                sequenceNumber);
+                sequenceNumber,
+                abandonmentDetails);
 
             // If we've successfully abandoned the message, update the pop receipt
             // (even though we'll likely no longer interact with this message)
@@ -239,7 +243,8 @@ namespace DurableTask.AzureStorage.Messaging
             TaskMessage? taskMessage,
             OrchestrationInstance? instance,
             Guid? traceActivityId,
-            long sequenceNumber)
+            long sequenceNumber,
+            string details)
         {
             string instanceId = instance?.InstanceId ?? string.Empty;
             string executionId = instance?.ExecutionId ?? string.Empty;
@@ -277,7 +282,8 @@ namespace DurableTask.AzureStorage.Messaging
                 this.storageQueue.Name,
                 sequenceNumber,
                 queueMessage.PopReceipt,
-                numSecondsToWait);
+                numSecondsToWait,
+                details);
 
             try
             {
