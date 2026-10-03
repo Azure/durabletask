@@ -277,7 +277,7 @@ namespace DurableTask.AzureStorage
                 ExtensionVersion);
         }
 
-        [Event(EventIds.PoisonMessageDetected, Level = EventLevel.Warning, Version = 3)]
+        [Event(EventIds.PoisonMessageDetected, Level = EventLevel.Warning, Version = 4)]
         public void PoisonMessageDetected(
             string Account,
             string TaskHub,
@@ -288,6 +288,7 @@ namespace DurableTask.AzureStorage
             string ExecutionId,
             string PartitionId,
             long DequeueCount,
+            string BlobName,
             string AppName,
             string ExtensionVersion)
         {
@@ -302,6 +303,7 @@ namespace DurableTask.AzureStorage
                 ExecutionId ?? string.Empty,
                 PartitionId,
                 DequeueCount,
+                BlobName,
                 AppName,
                 ExtensionVersion);
         }

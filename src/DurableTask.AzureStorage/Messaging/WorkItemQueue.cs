@@ -45,9 +45,39 @@ namespace DurableTask.AzureStorage.Messaging
                         continue;
                     }
 
-                    MessageData data = await this.messageManager.DeserializeQueueMessageAsync(
+                    MessageData data;
+
+                    try
+                    {
+                        data = await this.messageManager.DeserializeQueueMessageAsync(
+                            queueMessage,
+                            this.storageQueue.Name);
+                    }
+                    catch (Exception)
+                    {
+                        if (await this.CheckForAndHandlePoisonMessageAsync(
+                            blobNamePrefix: "activity-messages/",
+                            queueMessage,
+                            cancellationToken))
+                        {
+                            this.backoffHelper.Reset();
+                            continue;
+                        }
+
+                        throw;
+                    }
+
+                    if (await this.CheckForAndHandlePoisonMessageAsync(
+                        blobNamePrefix: "activity-messages/",
                         queueMessage,
-                        this.storageQueue.Name);
+                        cancellationToken,
+                        data.TaskMessage.OrchestrationInstance,
+                        data.TaskMessage.Event.EventType.ToString(),
+                        Utils.GetTaskEventId(data.TaskMessage.Event)))
+                    {
+                        this.backoffHelper.Reset();
+                        continue;
+                    }
 
                     this.backoffHelper.Reset();
                     return data;
