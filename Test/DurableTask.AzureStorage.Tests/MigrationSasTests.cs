@@ -294,8 +294,19 @@ namespace DurableTask.AzureStorage.Tests
         // Use a dummy identity token; the fake transport handles every request locally.
         sealed class TestCredential : TokenCredential
         {
-            public override AccessToken GetToken(TokenRequestContext context, CancellationToken cancellationToken) =>
-                new AccessToken("test-token", DateTimeOffset.UtcNow.AddHours(1));
+            readonly bool assertTableScope;
+
+            public TestCredential(bool assertTableScope = false) => this.assertTableScope = assertTableScope;
+
+            public override AccessToken GetToken(TokenRequestContext context, CancellationToken cancellationToken)
+            {
+                if (this.assertTableScope)
+                {
+                    CollectionAssert.AreEqual(new[] { "https://storage.azure.com/.default" }, context.Scopes,
+                        "Table gate access and delegation-key acquisition must request the Storage resource scope.");
+                }
+                return new AccessToken("test-token", DateTimeOffset.UtcNow.AddHours(1));
+            }
 
             public override ValueTask<AccessToken> GetTokenAsync(TokenRequestContext context, CancellationToken cancellationToken) =>
                 new ValueTask<AccessToken>(this.GetToken(context, cancellationToken));
@@ -319,7 +330,7 @@ namespace DurableTask.AzureStorage.Tests
                 var provider = new StorageAccountClientProvider(
                     StorageServiceClientProvider.ForBlob("account", credential, Options(new BlobClientOptions())),
                     StorageServiceClientProvider.ForQueue("account", credential, Options(new QueueClientOptions())),
-                    StorageServiceClientProvider.ForTable("account", credential, Options(new TableClientOptions())));
+                    StorageServiceClientProvider.ForTable("account", new TestCredential(assertTableScope: true), Options(new TableClientOptions())));
                 this.Settings = new AzureStorageOrchestrationServiceSettings { TaskHubName = "TestHub", StorageAccountClientProvider = provider };
                 this.Control = new AzureStorageMigration(provider.Table.CreateClient(provider.Table.CreateOptions()), "TestHub");
 

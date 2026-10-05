@@ -54,7 +54,13 @@ namespace DurableTask.AzureStorage.Storage
 
         public static async Task<TableUserDelegationKey> GetAsync(Uri endpoint, TokenCredential credential, TableClientOptions options, DateTimeOffset serverTime, CancellationToken cancellationToken)
         {
-            string audience = (options.Audience ?? TableAudience.AzurePublicCloud).ToString().TrimEnd('/');
+            TableAudience audience = options.Audience ?? TableAudience.AzurePublicCloud;
+            string resource = audience == TableAudience.AzurePublicCloud ? "https://storage.azure.com"
+                : audience == TableAudience.AzureGovernment ? "https://storage.azure.us"
+                : audience == TableAudience.AzureChina ? "https://storage.azure.cn"
+                : audience.ToString().TrimEnd('/');
+            string scope = resource.EndsWith("/.default", StringComparison.OrdinalIgnoreCase)
+                ? resource : resource + "/.default";
             // Workload options may contain the SAS fence policy. Key acquisition has its own authenticated
             // pipeline and cannot depend on an existing, unexpired workload SAS.
             var keyOptions = new TableClientOptions { Transport = options.Transport };
@@ -63,7 +69,7 @@ namespace DurableTask.AzureStorage.Storage
             keyOptions.Retry.MaxDelay = options.Retry.MaxDelay;
             keyOptions.Retry.MaxRetries = options.Retry.MaxRetries;
             keyOptions.Retry.NetworkTimeout = options.Retry.NetworkTimeout;
-            HttpPipeline pipeline = HttpPipelineBuilder.Build(keyOptions, new BearerTokenAuthenticationPolicy(credential, audience + "/.default"));
+            HttpPipeline pipeline = HttpPipelineBuilder.Build(keyOptions, new BearerTokenAuthenticationPolicy(credential, scope));
             using HttpMessage message = pipeline.CreateMessage();
             message.Request.Method = RequestMethod.Post;
             message.Request.Uri.Reset(new Uri(endpoint, "?restype=service&comp=userdelegationkey"));

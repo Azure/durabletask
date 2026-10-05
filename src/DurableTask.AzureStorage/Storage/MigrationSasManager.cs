@@ -25,7 +25,6 @@ namespace DurableTask.AzureStorage.Storage
     using Azure.Storage.Blobs;
     using Azure.Storage.Sas;
     using Azure.Storage.Queues;
-    using DurableTask.Core.Exceptions;
     using BlobKey = Azure.Storage.Blobs.Models.UserDelegationKey;
     using QueueKey = Azure.Storage.Queues.Models.UserDelegationKey;
 
@@ -161,7 +160,7 @@ namespace DurableTask.AzureStorage.Storage
 
                 if (await this.RefreshKeysAsync(gate.ServerTime, cancellationToken).ConfigureAwait(false))
                 {
-                    // Key acquisition may be slow. Re-read the gate and Storage clock before publishing a deadline.
+                    // Key acquisition may be slow, so re-read the gate
                     continue;
                 }
 
@@ -176,6 +175,7 @@ namespace DurableTask.AzureStorage.Storage
                     }
                 }
 
+                // Generate new SAS tokens with the new expiry time
                 lock (this.sync)
                 {
                     this.expiresAt = gate.AccessExpiresAt;
