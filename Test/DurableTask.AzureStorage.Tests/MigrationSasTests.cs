@@ -20,6 +20,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Linq;
     using System.Net;
     using System.Net.Http;
+    using System.Reflection;
     using System.Threading;
     using System.Threading.Tasks;
     using Azure;
@@ -29,13 +30,69 @@ namespace DurableTask.AzureStorage.Tests
     using Azure.Storage.Blobs;
     using Azure.Storage.Queues;
     using DurableTask.AzureStorage.Storage;
-    using DurableTask.Core.Exceptions;
+    using DurableTask.Core.Entities;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Newtonsoft.Json.Linq;
 
     [TestClass]
     public class MigrationSasTests
     {
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task Ending_RejectsEntityAndHubApisWithoutSendingRequests(bool warmClients)
+        {
+            using var storage = new StorageResponses();
+            var service = new AzureStorageOrchestrationService(storage.Settings, isMigrationActive: true);
+            var client = (AzureStorageClient)typeof(AzureStorageOrchestrationService)
+                .GetField("azureStorageClient", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(service)!;
+            // Capture the entity API before drain so reuse also exercises the guard.
+            EntityBackendQueries entities = ((IEntityOrchestrationService)service).EntityBackendQueries!;
+            try
+            {
+                // Cover both cached clients and a host that has not initialized migration.
+                if (warmClients)
+                {
+                    await client.InitializeMigrationAsync();
+                    await client.StopMigrationTokenRefreshAsync();
+                    foreach (Func<Task> write in CachedWrites(client)) await write();
+                    await service.CreateIfNotExistsAsync();
+                }
+                else
+                {
+                    await storage.Control.CreateIfNotExistsAsync(default);
+                }
+                // Close the gate and make the service observe the transition.
+                await storage.EndMigrationAsync();
+                await client.InitializeMigrationAsync(refresh: true);
+                Assert.IsTrue(service.IsMigrationEnding);
+                int sentBefore = storage.Workload.Count;
+                // Every hub and entity API must reject access after observing drain.
+                Func<Task>[] calls =
+                {
+                    () => service.CreateAsync(),
+                    () => service.CreateAsync(false),
+                    () => service.CreateAsync(true),
+                    () => service.CreateIfNotExistsAsync(),
+                    () => service.DeleteAsync(false),
+                    () => service.DeleteAsync(true),
+                    () => entities.GetEntityAsync(new EntityId("test", "key")),
+                    () => entities.QueryEntitiesAsync(new EntityBackendQueries.EntityQuery(), default),
+                    () => entities.CleanEntityStorageAsync(default, default),
+                };
+                foreach (Func<Task> call in calls)
+                {
+                    await Assert.ThrowsExceptionAsync<OrchestrationServiceUnavailableException>(call);
+                }
+                // Rejection must happen before any business request reaches Storage.
+                Assert.AreEqual(sentBefore, storage.Workload.Count);
+            }
+            finally
+            {
+                await client.StopMigrationTokenRefreshAsync();
+            }
+        }
+
         [TestMethod]
         public async Task CachedClients_UseRenewedCredentialsAndRejectRequestsAfterDrain()
         {

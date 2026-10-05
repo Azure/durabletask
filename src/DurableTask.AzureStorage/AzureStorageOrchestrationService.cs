@@ -332,7 +332,7 @@ namespace DurableTask.AzureStorage
            => new EntityTrackingStoreQueries(
                 this.messageManager,
                 this.trackingStore,
-                this.EnsureTaskHubAsync,
+                this.CreateIfNotExistsAsync,
                 ((IEntityOrchestrationService)this).EntityBackendProperties,
                 this.SendTaskOrchestrationMessageAsync);
 
@@ -366,6 +366,7 @@ namespace DurableTask.AzureStorage
         /// </summary>
         public async Task CreateAsync()
         {
+            this.ThrowIfMigrationEnding();
             await this.DeleteAsync();
             await this.EnsureTaskHubAsync();
         }
@@ -375,6 +376,7 @@ namespace DurableTask.AzureStorage
         /// </summary>
         public Task CreateIfNotExistsAsync()
         {
+            this.ThrowIfMigrationEnding();
             return this.EnsureTaskHubAsync();
         }
 
@@ -431,6 +433,7 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         public async Task CreateAsync(bool recreateInstanceStore)
         {
+            this.ThrowIfMigrationEnding();
             if (recreateInstanceStore)
             {
                 await DeleteTrackingStore();
@@ -444,6 +447,7 @@ namespace DurableTask.AzureStorage
         /// <inheritdoc />
         public async Task DeleteAsync(bool deleteInstanceStore)
         {
+            this.ThrowIfMigrationEnding();
             var tasks = new List<Task>();
 
             foreach (string partitionId in this.allControlQueues.Keys)
