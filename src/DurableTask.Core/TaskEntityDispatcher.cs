@@ -912,7 +912,9 @@ namespace DurableTask.Core
             {
                 Tags = OrchestrationTags.MergeTags(
                     newTags: new Dictionary<string, string>() { { OrchestrationTags.FireAndForget, "" } },
-                    existingTags: runtimeState.Tags),
+                    existingTags: OrchestrationTags.MergeTags(
+                        newTags: action.Tags,
+                        existingTags: runtimeState.Tags)),
                 OrchestrationInstance = destination,
                 ScheduledStartTime = action.ScheduledStartTime,
                 ParentInstance = new ParentInstance

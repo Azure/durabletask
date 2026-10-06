@@ -49,6 +49,15 @@ namespace DurableTask.Core.Entities.OperationFormat
         public string? Input { get; set; }
 
         /// <summary>
+        /// Gets or sets the tags of the sub-orchestration.
+        /// </summary>
+        /// <remarks>
+        /// These tags override tags inherited from the entity. The runtime always sets the
+        /// <see cref="OrchestrationTags.FireAndForget"/> tag.
+        /// </remarks>
+        public IDictionary<string, string>? Tags { get; set; }
+
+        /// <summary>
         /// Gets or sets when to start the orchestration, or null if the orchestration should be started immediately.
         /// </summary>
         public DateTime? ScheduledStartTime { get; set; }
