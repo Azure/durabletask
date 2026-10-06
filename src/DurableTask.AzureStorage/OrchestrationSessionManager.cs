@@ -216,8 +216,57 @@ namespace DurableTask.AzureStorage
             }
             finally
             {
-                // Remove the partition from memory
+                // Make dequeued-but-undispatched messages visible before dropping the partition.
+                await this.AbandonPendingMessagesAsync(partitionId);
+
                 this.RemoveQueue(partitionId, reason, caller);
+            }
+        }
+
+        /// <summary>
+        /// Abandons all pending (dequeued but not yet dispatched) messages for the specified partition,
+        /// making them immediately visible in the Azure Storage queue for the new partition owner.
+        /// This prevents a throughput gap equal to the visibility timeout duration when a partition
+        /// is released during drain.
+        /// </summary>
+        async Task AbandonPendingMessagesAsync(string partitionId)
+        {
+            var messagesToAbandon = new List<(ControlQueue Queue, MessageData Message)>();
+
+            lock (this.messageAndSessionLock)
+            {
+                var node = this.pendingOrchestrationMessageBatches.First;
+                while (node != null)
+                {
+                    LinkedListNode<PendingMessageBatch>? next = node.Next;
+                    PendingMessageBatch batch = node.Value;
+
+                    if (string.Equals(batch.ControlQueue.Name, partitionId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        foreach (MessageData message in batch.Messages)
+                        {
+                            messagesToAbandon.Add((batch.ControlQueue, message));
+                        }
+
+                        this.pendingOrchestrationMessageBatches.Remove(node);
+                    }
+
+                    node = next;
+                }
+            }
+
+            if (messagesToAbandon.Count > 0)
+            {
+                this.settings.Logger.PartitionManagerInfo(
+                    this.storageAccountName,
+                    this.settings.TaskHubName,
+                    this.settings.WorkerId,
+                    partitionId,
+                    $"Abandoning {messagesToAbandon.Count} pending message(s) during drain to make them immediately visible for the new partition owner.");
+
+                await messagesToAbandon.ParallelForEachAsync(
+                    this.settings.MaxStorageOperationConcurrency,
+                    item => item.Queue.AbandonMessageForDrainAsync(item.Message));
             }
         }
 
@@ -592,6 +641,12 @@ namespace DurableTask.AzureStorage
 
                 lock (this.messageAndSessionLock)
                 {
+                    // Drain may have removed this batch after it was queued for dispatch.
+                    if (node.List != this.pendingOrchestrationMessageBatches)
+                    {
+                        continue;
+                    }
+
                     PendingMessageBatch nextBatch = node.Value;
                     this.pendingOrchestrationMessageBatches.Remove(node);
 
