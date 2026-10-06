@@ -11,6 +11,7 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
+using System.Reflection;
 using DurableTask.Core.Settings;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -19,6 +20,21 @@ namespace DurableTask.Core.Tests
     [TestClass]
     public class VersionSettingsTests
     {
+        [TestMethod]
+        public void ExcludedOrchestrationNamesHasNoPublicSurface()
+        {
+            // Only publicly-visible members are returned without BindingFlags.NonPublic.
+            Assert.IsNull(
+                typeof(VersioningSettings).GetProperty("ExcludedOrchestrationNames"),
+                "ExcludedOrchestrationNames must not be a public member of VersioningSettings.");
+
+            PropertyInfo internalProperty = typeof(VersioningSettings).GetProperty(
+                "ExcludedOrchestrationNames", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.IsNotNull(internalProperty, "ExcludedOrchestrationNames must remain accessible internally.");
+            Assert.IsTrue(internalProperty.GetMethod.IsAssembly, "The getter must be internal, not public or private.");
+            Assert.IsNull(internalProperty.SetMethod, "The property must remain getter-only.");
+        }
+
         [TestMethod]
         public void ExcludedOrchestrationNamesAreEmptyAndInstanceScopedByDefault()
         {

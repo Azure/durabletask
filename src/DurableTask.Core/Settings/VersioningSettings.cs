@@ -80,11 +80,11 @@ namespace DurableTask.Core.Settings
         /// This set is empty by default and matches names using an exact, case-sensitive ordinal comparison.
         /// An exclusion applies only when the execution version is null or empty; nonempty versions still
         /// follow <see cref="MatchStrategy"/> and <see cref="FailureStrategy"/>.
-        /// Use this for explicitly registered, unversioned infrastructure orchestrations, not business orchestrations.
-        /// Exclusions do not change execution versions or orchestration registration and lookup.
+        /// This is reserved for registering explicitly, unversioned infrastructure orchestrations, not business
+        /// orchestrations. Exclusions do not change execution versions or orchestration registration and lookup.
         /// Configure this set before starting the worker and do not modify it while the worker is running.
         /// </remarks>
-        public ISet<string> ExcludedOrchestrationNames { get; } = new HashSet<string>(StringComparer.Ordinal);
+        internal ISet<string> ExcludedOrchestrationNames { get; } = new HashSet<string>(StringComparer.Ordinal);
 
         /// <summary>
         /// Compare two versions to each other.

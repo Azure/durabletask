@@ -224,21 +224,13 @@ var instance = await client.CreateOrchestrationInstanceAsync(
 | `Reject` | Default. Abandon the work item so another worker can pick it up (or retry later). |
 | `Fail` | Fail the orchestration with a `VersionMismatch` error. |
 
-#### Excluding Unversioned Infrastructure Orchestrations
+#### Unversioned Infrastructure Orchestrations
 
-A host that registers infrastructure orchestrations alongside business orchestrations can exclude specific unversioned infrastructure orchestration names from worker version checks:
+A small number of explicitly registered, unversioned infrastructure orchestrations are internally exempted from the worker version check so that they can run under the configured version policy without being treated as business orchestrations. This exemption is internal to the Durable Task Framework and its approved integrations; it is not a public, customer-configurable allow list.
 
-```csharp
-// Use the exact name of an explicitly registered unversioned infrastructure orchestration.
-// Configure exclusions before starting the worker.
-versioningSettings.ExcludedOrchestrationNames.Add(registeredInfrastructureOrchestrationName);
-```
+The exemption applies only when both the orchestration name is an exact, exempted match and its execution version is `null` or the empty string. Nonempty versions, including whitespace, still follow the configured version matching and failure strategies for every orchestration, exempted or not. Business orchestration version policies and failure behavior are otherwise unchanged and apply per worker exactly as described above.
 
-`ExcludedOrchestrationNames` is empty by default and uses exact, case-sensitive ordinal matching, not prefixes or patterns. An exclusion applies only when the execution version is `null` or the empty string. Nonempty versions, including whitespace, still follow the configured version matching and failure strategies even when the name is in the set. Business orchestration names not in the set retain the same version checks.
-
-The exclusion skips only the worker version check, which runs before orchestration middleware and execution. It does not register an orchestration, change its execution version or history, or bypass name/version lookup. Register and start these infrastructure orchestrations with their explicit unversioned identity. The same check applies on replay and after `ContinueAsNew`; continuing with a nonempty version re-enables the normal version policy.
-
-Do not modify the set while the worker is running.
+The exclusion skips only the worker version check, which runs before orchestration middleware and execution. It does not register an orchestration, change its execution version or history, or bypass name/version lookup. The same check applies on replay and after `ContinueAsNew`; continuing with a nonempty version re-enables the normal version policy.
 
 #### Blue-Green Deployment Example
 
