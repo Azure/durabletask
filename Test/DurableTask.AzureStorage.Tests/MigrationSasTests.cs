@@ -310,6 +310,95 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task WorkerStop_KeepsClientCredentialsRenewingUntilGateCloses(bool forced)
+        {
+            using var storage = new StorageResponses();
+            using var service = new AzureStorageOrchestrationService(storage.Settings, isMigrationActive: true);
+            var client = GetPrivateField<AzureStorageClient>(service, "azureStorageClient");
+            try
+            {
+                Func<Task>[] writes = CachedWrites(client);
+                foreach (Func<Task> write in writes) await write();
+                DateTimeOffset firstExpiry = storage.Expiry;
+                var manager = GetPrivateField<MigrationSasManager>(client, "migration");
+                Task renewal = GetPrivateField<Task>(manager, "renewalTask");
+
+                // Exercise the real worker stop without starting unrelated queue listeners or leases.
+                using var shutdown = new CancellationTokenSource();
+                typeof(AzureStorageOrchestrationService).GetField("shutdownSource", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(service, shutdown);
+                typeof(AzureStorageOrchestrationService).GetField("statsLoop", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(service, Task.CompletedTask);
+                await service.StopAsync(forced);
+                Assert.IsTrue(shutdown.IsCancellationRequested, "Worker shutdown must still be signaled.");
+                Assert.IsFalse(renewal.IsCompleted, "Worker stop must not stop credentials needed by clients.");
+
+                // Confirm that the renewl loop is still running by manually "expiring" the SAS renewl deadline
+                storage.ServerTime = firstExpiry.AddSeconds(10);
+                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                while (storage.Expiry <= firstExpiry) await Task.Delay(20, deadline.Token);
+                var refreshLock = GetPrivateField<SemaphoreSlim>(manager, "refreshLock");
+                await refreshLock.WaitAsync(deadline.Token);
+                refreshLock.Release(); // The renewal has finished updating the cached credentials.
+
+                // Confirm that the renewed SAS credentials are actually used on subsequent requests
+                storage.Workload.Clear();
+                foreach (Func<Task> write in writes) await write();
+                AssertRequestsUseExpiry(storage.Workload, storage.Expiry);
+                Assert.IsTrue(storage.Expiry > storage.ServerTime);
+
+                // Concurrent worker/client initialization must reuse the surviving loop.
+                await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => client.InitializeMigrationAsync(refresh: true)));
+                Assert.AreSame(renewal, GetPrivateField<Task>(manager, "renewalTask"));
+
+                // Now end migration and confirm that the renewal loop stops and the gate is closed
+                DateTimeOffset finalExpiry = storage.Expiry;
+                await storage.EndMigrationAsync();
+                Assert.AreSame(renewal, await Task.WhenAny(renewal, Task.Delay(TimeSpan.FromSeconds(10))));
+                await renewal;
+                Assert.IsTrue(service.IsMigrationEnding);
+                Assert.AreEqual(finalExpiry, storage.Expiry, "Gate closure must prevent further expiry extension.");
+                int sentBefore = storage.Workload.Count;
+                foreach (Func<Task> write in writes)
+                    await Assert.ThrowsExceptionAsync<OrchestrationServiceUnavailableException>(write);
+                Assert.AreEqual(sentBefore, storage.Workload.Count);
+            }
+            finally
+            {
+                await client.StopMigrationTokenRefreshAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task ServiceDispose_StopsClientOnlyRenewal()
+        {
+            using var storage = new StorageResponses();
+            using var service = new AzureStorageOrchestrationService(storage.Settings, isMigrationActive: true);
+            var client = GetPrivateField<AzureStorageClient>(service, "azureStorageClient");
+            try
+            {
+                // A client-only service may renew without ever starting a worker.
+                await CachedWrites(client)[0]();
+                var manager = GetPrivateField<MigrationSasManager>(client, "migration");
+                Task renewal = GetPrivateField<Task>(manager, "renewalTask");
+                Assert.IsFalse(renewal.IsCompleted);
+
+                service.Dispose();
+
+                Assert.AreSame(renewal, await Task.WhenAny(renewal, Task.Delay(TimeSpan.FromSeconds(10))));
+                await renewal;
+                Assert.IsTrue(GetPrivateField<CancellationTokenSource>(manager, "renewalSource").IsCancellationRequested);
+            }
+            finally
+            {
+                await client.StopMigrationTokenRefreshAsync();
+            }
+        }
+
+        static T GetPrivateField<T>(object instance, string name) =>
+            (T)instance.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(instance)!;
+
         static Func<Task>[] CachedWrites(AzureStorageClient client)
         {
             // Reuse the wrappers: recreating them would hide a stale cached-credential bug.

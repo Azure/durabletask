@@ -568,8 +568,11 @@ namespace DurableTask.AzureStorage
                 this.appLeaseManagerStarted = false;
             }
 
-            await this.azureStorageClient.StopMigrationTokenRefreshAsync();
             this.isStarted = false;
+
+            // Note that we intentionally do not stop SAS credential renewal in this call if migration is running,
+            // because a stopped worker does not necessarily mean that all client operations have completed.
+            // We will keep renewing until disposal of the orchestration service
         }
 
         async Task ReportStatsLoop(CancellationToken cancellationToken)
