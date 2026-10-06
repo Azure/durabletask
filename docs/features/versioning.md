@@ -224,6 +224,14 @@ var instance = await client.CreateOrchestrationInstanceAsync(
 | `Reject` | Default. Abandon the work item so another worker can pick it up (or retry later). |
 | `Fail` | Fail the orchestration with a `VersionMismatch` error. |
 
+#### Unversioned Infrastructure Orchestrations
+
+A small number of explicitly registered, unversioned infrastructure orchestrations are internally exempted from the worker version check so that they can run under the configured version policy without being treated as business orchestrations. This exemption is internal to the Durable Task Framework and its approved integrations; it is not a public, customer-configurable allow list.
+
+The exemption applies only when both the orchestration name is an exact, exempted match and its execution version is `null` or the empty string. Nonempty versions, including whitespace, still follow the configured version matching and failure strategies for every orchestration, exempted or not. Business orchestration version policies and failure behavior are otherwise unchanged and apply per worker exactly as described above.
+
+The exclusion skips only the worker version check, which runs before orchestration middleware and execution. It does not register an orchestration, change its execution version or history, or bypass name/version lookup. The same check applies on replay and after `ContinueAsNew`; continuing with a nonempty version re-enables the normal version policy.
+
 #### Blue-Green Deployment Example
 
 Run old and new workers simultaneously during deployments:

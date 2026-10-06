@@ -398,7 +398,9 @@ namespace DurableTask.Core
                         IReadOnlyList<OrchestratorAction> decisions = new List<OrchestratorAction>();
                         bool versioningFailed = false;
 
-                        if (this.versioningSettings != null)
+                        if (this.versioningSettings != null &&
+                            !(string.IsNullOrEmpty(runtimeState.Version) &&
+                              this.versioningSettings.ExcludedOrchestrationNames.Contains(runtimeState.Name)))
                         {
                             switch (this.versioningSettings.MatchStrategy)
                             {
