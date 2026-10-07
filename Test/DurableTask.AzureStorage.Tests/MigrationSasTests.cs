@@ -107,7 +107,7 @@ namespace DurableTask.AzureStorage.Tests
                 await writes[1]();
                 await writes[2]();
                 DateTimeOffset firstExpiry = storage.Expiry;
-                Assert.AreEqual(storage.ServerTime.AddSeconds(10), firstExpiry);
+                Assert.AreEqual(storage.ServerTime.AddSeconds(15), firstExpiry);
                 Assert.AreEqual(3, storage.DelegationRequests);
                 AssertRequestsUseExpiry(storage.Workload, firstExpiry);
 
@@ -135,6 +135,48 @@ namespace DurableTask.AzureStorage.Tests
                     await Assert.ThrowsExceptionAsync<OrchestrationServiceUnavailableException>(write);
                 }
                 Assert.AreEqual(sentBefore, storage.Workload.Count, "Even previously cached clients must stop before sending a request.");
+            }
+            finally
+            {
+                await client.StopMigrationTokenRefreshAsync();
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(3, false)]
+        [DataRow(4, true)]
+        [DataRow(9, true)]
+        public async Task Renewal_PreservesFourSecondCadenceWithElevenSecondMargin(int elapsedSeconds, bool shouldRenew)
+        {
+            using var storage = new StorageResponses();
+            var client = new AzureStorageClient(storage.Settings, isMigrationActive: true);
+            try
+            {
+                await client.InitializeMigrationAsync();
+                await client.StopMigrationTokenRefreshAsync();
+                Func<Task>[] writes = CachedWrites(client);
+                foreach (Func<Task> write in writes)
+                {
+                    await write();
+                }
+                DateTimeOffset firstExpiry = storage.Expiry;
+                Assert.AreEqual(storage.ServerTime.AddSeconds(15), firstExpiry);
+                int writesBefore = storage.GateWrites;
+                storage.ServerTime = storage.ServerTime.AddSeconds(elapsedSeconds);
+
+                await client.InitializeMigrationAsync(refresh: true);
+                await client.StopMigrationTokenRefreshAsync();
+
+                Assert.AreEqual(writesBefore + (shouldRenew ? 1 : 0), storage.GateWrites);
+                Assert.AreEqual(shouldRenew ? storage.ServerTime.AddSeconds(15) : firstExpiry, storage.Expiry);
+                Assert.AreEqual(3, storage.DelegationRequests, "Renewal must reuse the cached delegation keys.");
+                storage.Workload.Clear();
+                // The same cached clients must now send the new expiry on every request.
+                foreach (Func<Task> write in writes)
+                {
+                    await write();
+                }
+                AssertRequestsUseExpiry(storage.Workload, storage.Expiry);
             }
             finally
             {
@@ -235,7 +277,7 @@ namespace DurableTask.AzureStorage.Tests
                     await client.InitializeMigrationAsync();
                     Assert.IsTrue(storage.GateExists);
                     Assert.IsFalse(client.IsMigrationEnding);
-                    Assert.AreEqual(storage.ServerTime.AddSeconds(10), storage.Expiry);
+                    Assert.AreEqual(storage.ServerTime.AddSeconds(15), storage.Expiry);
                 }
                 else
                 {

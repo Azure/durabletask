@@ -30,8 +30,8 @@ namespace DurableTask.AzureStorage.Storage
 
     sealed class MigrationSasManager
     {
-        internal static readonly TimeSpan SasLifetime = TimeSpan.FromSeconds(10);
-        static readonly TimeSpan RenewBefore = TimeSpan.FromSeconds(6);
+        internal static readonly TimeSpan SasLifetime = TimeSpan.FromSeconds(15);
+        static readonly TimeSpan RenewBefore = TimeSpan.FromSeconds(11);
         readonly AzureStorageMigration migration;
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly BlobServiceClient blobService;
@@ -197,7 +197,7 @@ namespace DurableTask.AzureStorage.Storage
 
         async Task<bool> RefreshKeysAsync(DateTimeOffset serverTime, CancellationToken cancellationToken)
         {
-            // Delegation keys are cached for a day; the ten-second SAS renewal normally needs only the gate.
+            // Delegation keys are cached for a day; short-lived SAS renewal normally needs only the gate.
             bool refreshed = false;
             TokenCredential? credential = (this.tableProvider as IStorageTokenCredentialProvider)?.TokenCredential;
             if (credential != null && (this.tableKey == null || this.tableKey.ExpiresOn <= serverTime.AddMinutes(5)))
