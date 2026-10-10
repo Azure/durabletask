@@ -1716,7 +1716,7 @@ namespace DurableTask.ServiceBus
 
             try
             {
-                Stream rawStream = await
+                using (Stream rawStream = await
                     RuntimeStateStreamConverter.OrchestrationRuntimeStateToRawStream(
                         newOrchestrationRuntimeState,
                         runtimeState,
@@ -1724,12 +1724,25 @@ namespace DurableTask.ServiceBus
                         this.Settings.TaskOrchestrationDispatcherSettings.CompressOrchestrationState,
                         this.Settings.SessionSettings,
                         this.BlobStore,
-                        session.SessionId);
-
-                using (var ms = new MemoryStream())
+                        session.SessionId))
                 {
-                    await rawStream.CopyToAsync(ms);
-                    await session.SetStateAsync(ms.ToArray());
+                    byte[] sessionState;
+
+                    // Avoid an intermediate copy when the stream is already a MemoryStream positioned at the start.
+                    if (rawStream is MemoryStream memoryStream && memoryStream.Position == 0)
+                    {
+                        sessionState = memoryStream.ToArray();
+                    }
+                    else
+                    {
+                        using (var ms = new MemoryStream())
+                        {
+                            await rawStream.CopyToAsync(ms);
+                            sessionState = ms.ToArray();
+                        }
+                    }
+
+                    await session.SetStateAsync(sessionState);
                 }
 
                 this.ServiceStats.OrchestrationDispatcherStats.SessionSets.Increment();
