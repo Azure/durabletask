@@ -1726,23 +1726,7 @@ namespace DurableTask.ServiceBus
                         this.BlobStore,
                         session.SessionId))
                 {
-                    byte[] sessionState;
-
-                    // Avoid an intermediate copy when the stream is already a MemoryStream positioned at the start.
-                    if (rawStream is MemoryStream memoryStream && memoryStream.Position == 0)
-                    {
-                        sessionState = memoryStream.ToArray();
-                    }
-                    else
-                    {
-                        using (var ms = new MemoryStream())
-                        {
-                            await rawStream.CopyToAsync(ms);
-                            sessionState = ms.ToArray();
-                        }
-                    }
-
-                    await session.SetStateAsync(sessionState);
+                    await session.SetStateAsync(await ServiceBusUtils.GetSessionStateBytesAsync(rawStream));
                 }
 
                 this.ServiceStats.OrchestrationDispatcherStats.SessionSets.Increment();

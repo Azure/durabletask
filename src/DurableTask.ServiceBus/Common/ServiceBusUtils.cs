@@ -193,6 +193,29 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             return brokeredMessage;
         }
 
+        /// <summary>
+        /// Reads the remaining contents of a session state stream into a byte array.
+        /// </summary>
+        public static async Task<byte[]> GetSessionStateBytesAsync(Stream stream)
+        {
+            if (stream == null)
+            {
+                throw new ArgumentNullException(nameof(stream));
+            }
+
+            // Avoid an intermediate copy when the stream is already a MemoryStream positioned at the start.
+            if (stream is MemoryStream memoryStream && memoryStream.Position == 0)
+            {
+                return memoryStream.ToArray();
+            }
+
+            using (var ms = new MemoryStream())
+            {
+                await stream.CopyToAsync(ms);
+                return ms.ToArray();
+            }
+        }
+
         public static async Task<T> GetObjectFromBrokeredMessageAsync<T>(Message message, IOrchestrationServiceBlobStore orchestrationServiceBlobStore)
         {
             if (message == null)
