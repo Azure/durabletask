@@ -42,13 +42,8 @@ namespace DurableTask.ServiceBus
     using ServiceBusConnection = DurableTask.ServiceBus.Common.Abstraction.ServiceBusConnection;
     using ManagementClient = DurableTask.ServiceBus.Common.Abstraction.ManagementClient;
     using ServiceBusConnectionStringBuilder = DurableTask.ServiceBus.Common.Abstraction.ServiceBusConnectionStringBuilder;
-#if NETSTANDARD2_0
     using Azure.Core;
     using ReceiveMode = Azure.Messaging.ServiceBus.ServiceBusReceiveMode;
-#else
-    using Microsoft.ServiceBus.Messaging;
-    using RetryPolicy = DurableTask.ServiceBus.Common.Abstraction.RetryPolicy;
-#endif
 
     /// <summary>
     /// Orchestration Service and Client implementation using Azure Service Bus
@@ -109,8 +104,6 @@ namespace DurableTask.ServiceBus
 
         ServiceBusConnection serviceBusConnection;
 
-#if NETSTANDARD2_0
-
         /// <summary>
         ///     Create a new ServiceBusOrchestrationService to the given service bus namespace and hub name
         /// </summary>
@@ -135,8 +128,6 @@ namespace DurableTask.ServiceBus
                       settings)
         {
         }
-
-#endif
 
         /// <summary>
         ///     Create a new ServiceBusOrchestrationService to the given service bus connection string and hub name
@@ -187,23 +178,13 @@ namespace DurableTask.ServiceBus
             if (!string.IsNullOrEmpty(connectionSettings.ConnectionString))
             {
                 var sbConnectionStringBuilder = new ServiceBusConnectionStringBuilder(connectionSettings.ConnectionString);
-#if NETSTANDARD2_0
                 this.serviceBusConnection = new ServiceBusConnection(sbConnectionStringBuilder);
-#else
-                this.serviceBusConnection = new ServiceBusConnection(sbConnectionStringBuilder)
-                {
-                    TokenProvider = TokenProvider.CreateSharedAccessSignatureTokenProvider(sbConnectionStringBuilder.SasKeyName,
-                        sbConnectionStringBuilder.SasKey, ServiceBusUtils.TokenTimeToLive),
-                };
-#endif
             }
-#if NETSTANDARD2_0
             else if (connectionSettings.Endpoint != null && connectionSettings.TokenCredential != null)
             {
 
                 this.serviceBusConnection = new ServiceBusConnection(connectionSettings.Endpoint.Host, connectionSettings.TransportType, connectionSettings.TokenCredential);
             }
-#endif
             else
             {
                 throw new ArgumentException("Invalid Service Bus connection settings.", nameof(connectionSettings));
@@ -211,7 +192,6 @@ namespace DurableTask.ServiceBus
 
             this.Settings = settings ?? new ServiceBusOrchestrationServiceSettings();
             this.orchestratorBatchMessageSender = new MessageSender(this.serviceBusConnection, this.orchestratorEntityName);
-
 
             this.BlobStore = blobStore;
             if (instanceStore != null)
@@ -248,11 +228,7 @@ namespace DurableTask.ServiceBus
             this.orchestratorSender = new MessageSender(this.serviceBusConnection, this.orchestratorEntityName, this.workerEntityName);
             this.workerSender = new MessageSender(this.serviceBusConnection, this.workerEntityName, this.orchestratorEntityName);
             this.trackingSender = new MessageSender(this.serviceBusConnection, this.trackingEntityName, this.orchestratorEntityName);
-#if !NETSTANDARD2_0
-            this.orchestratorQueueClient = new QueueClient(this.serviceBusConnection, this.orchestratorEntityName, ReceiveMode.PeekLock, RetryPolicy.Default);
-#else
             this.orchestratorQueueClient = new QueueClient(this.serviceBusConnection, this.orchestratorEntityName);
-#endif
             this.workerReceiver = new MessageReceiver(serviceBusConnection, this.workerEntityName);
             this.orchestratorSessionClient = new SessionClient(serviceBusConnection, this.orchestratorEntityName, ReceiveMode.PeekLock);
             this.trackingClient = new SessionClient(serviceBusConnection, this.trackingEntityName, ReceiveMode.PeekLock);
@@ -1384,11 +1360,7 @@ namespace DurableTask.ServiceBus
         static bool IsTransientException(Exception exception)
         {
             // TODO : Once we change the exception model, check for inner exception
-#if NETSTANDARD2_0
             return (exception as Azure.Messaging.ServiceBus.ServiceBusException)?.IsTransient ?? false;
-#else
-            return (exception as MessagingException)?.IsTransient ?? false;
-#endif
         }
 
         /// <summary>
@@ -1780,19 +1752,11 @@ namespace DurableTask.ServiceBus
                     {
                         await managementClient.DeleteQueueAsync(path);
                     }
-#if !NETSTANDARD2_0
-                    catch (MessagingEntityAlreadyExistsException)
-#else
                     catch (Azure.Messaging.ServiceBus.ServiceBusException e) when (e.Reason.Equals(Azure.Messaging.ServiceBus.ServiceBusFailureReason.MessagingEntityAlreadyExists))
-#endif
                     {
                         await Task.FromResult(0);
                     }
-#if !NETSTANDARD2_0
-                    catch (MessagingEntityNotFoundException)
-#else
                     catch (Azure.Messaging.ServiceBus.ServiceBusException e) when (e.Reason.Equals(Azure.Messaging.ServiceBus.ServiceBusFailureReason.MessagingEntityNotFound))
-#endif
                     {
                         await Task.FromResult(0);
                     }
@@ -1813,11 +1777,7 @@ namespace DurableTask.ServiceBus
                     {
                         await CreateQueueAsync(managementClient, path, requiresSessions, requiresDuplicateDetection, maxDeliveryCount, maxSizeInMegabytes);
                     }
-#if !NETSTANDARD2_0
-                    catch (MessagingEntityAlreadyExistsException)
-#else
                     catch (Azure.Messaging.ServiceBus.ServiceBusException e) when (e.Reason.Equals(Azure.Messaging.ServiceBus.ServiceBusFailureReason.MessagingEntityAlreadyExists))
-#endif
                     {
                         await Task.FromResult(0);
                     }
@@ -1851,11 +1811,7 @@ namespace DurableTask.ServiceBus
                 throw new ArgumentException($"The specified value {maxSizeInMegabytes} is invalid for the maximum queue size in megabytes.\r\nIt must be one of the following values:\r\n{string.Join(";", ValidQueueSizes)}", nameof(maxSizeInMegabytes));
             }
 
-#if NETSTANDARD2_0
             var description = new Azure.Messaging.ServiceBus.Administration.CreateQueueOptions(path)
-#else
-            var description = new QueueDescription(path)
-#endif
             {
                 RequiresSession = requiresSessions,
                 MaxDeliveryCount = maxDeliveryCount,
@@ -1900,12 +1856,10 @@ namespace DurableTask.ServiceBus
             {
                 return new ManagementClient(this.connectionSettings.ConnectionString);
             }
-#if NETSTANDARD2_0
             else if (connectionSettings.Endpoint != null && connectionSettings.TokenCredential != null)
             {
                 return new ManagementClient(connectionSettings.Endpoint.Host, connectionSettings.TokenCredential);
             }
-#endif
             else
             {
                 throw new Exception("Unable to create ManagementClient due to invalid connection settings.");

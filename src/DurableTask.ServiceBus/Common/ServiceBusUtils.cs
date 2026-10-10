@@ -54,7 +54,6 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
             if (compressionSettings.Style == CompressionStyle.Legacy)
             {
-#if NETSTANDARD2_0
                 using (var ms = new MemoryStream())
                 {
                     var serialiser = (XmlObjectSerializer)typeof(DataContractSerializer)
@@ -64,9 +63,6 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                     serialiser?.WriteObject(ms,serializableObject);
                     return new Message(ms.ToArray()) { SessionId = instance?.InstanceId };
                 }
-#else
-                return new Message(serializableObject) { SessionId = instance?.InstanceId};
-#endif
             }
 
             if (messageSettings == null)
@@ -137,16 +133,12 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
         static Message GenerateBrokeredMessageWithCompressionTypeProperty(Stream stream, string compressionType)
         {
-#if NETSTANDARD2_0
             Message brokeredMessage;
             using (var ms = new MemoryStream())
             {
                 stream.CopyTo(ms);
                 brokeredMessage = new Message(ms.ToArray());
             }
-#else
-            var brokeredMessage = new Message(stream);
-#endif
             brokeredMessage.UserProperties[FrameworkConstants.CompressionTypePropertyName] = compressionType;
 
             return brokeredMessage;
@@ -212,13 +204,9 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             if (string.IsNullOrWhiteSpace(compressionType))
             {
                 // no compression, legacy style
-#if NETSTANDARD2_0
                 var dataContractSerializer = new DataContractSerializer(typeof(T));
                 using (var ms = new MemoryStream(message.Body))
                     deserializedObject = (T)dataContractSerializer.ReadObject(ms);
-#else
-                deserializedObject = message.GetBody<T>();
-#endif
             }
             else if (string.Equals(compressionType, FrameworkConstants.CompressionTypeGzipPropertyValue,
                 StringComparison.OrdinalIgnoreCase))
@@ -278,7 +266,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                     originalException.Throw();
                 }
 
-                return (dynamic)new TaskMessage
+                return (T)(object)new TaskMessage
                 {
                     Event = new HistoryStateEvent(-1, stateMessage.State),
                     OrchestrationInstance = stateMessage.State.OrchestrationInstance
@@ -300,11 +288,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             {
                 // load the stream from the message directly if the blob key property is not set,
                 // i.e., it is not stored externally
-#if NETSTANDARD2_0
                 return Task.FromResult<Stream>(new MemoryStream(message.Body));
-#else
-                return Task.FromResult(message.GetBody<Stream>());
-#endif
             }
 
             // if the blob key is set in the message property,
