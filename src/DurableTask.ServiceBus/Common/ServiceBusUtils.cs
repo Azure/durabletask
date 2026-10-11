@@ -60,7 +60,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                         .MakeGenericType(serializableObject.GetType())
                         .GetField("Instance")
                         ?.GetValue(null);
-                    serialiser?.WriteObject(ms,serializableObject);
+                    serialiser?.WriteObject(ms, serializableObject);
                     return new Message(ms.ToArray()) { SessionId = instance?.InstanceId };
                 }
             }
@@ -342,7 +342,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                         TraceEventType.Critical,
                         "MaxDeliveryCountApproaching",
                         "Delivery count for message with id {0} is {1}. Message will be deadlettered if processing continues to fail.",
-                        message.MessageId, 
+                        message.MessageId,
                         message.SystemProperties.DeliveryCount);
                 }
             }

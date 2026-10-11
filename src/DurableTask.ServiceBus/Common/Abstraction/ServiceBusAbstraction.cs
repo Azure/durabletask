@@ -3,12 +3,8 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 {
     using System;
     using System.Collections.Generic;
-    using System.IO;
     using System.Linq;
-    using System.Runtime.Serialization;
     using System.Threading.Tasks;
-    using System.Xml;
-    using DurableTask.ServiceBus.Tracking;
 
     /// <inheritdoc />
     public class IMessageSession
@@ -79,7 +75,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
         public abstract void Switch(Action<A> f, Action<B> g);
 
-        private Union() { } 
+        private Union() { }
 
         public sealed class Case1 : Union<A, B>
         {
@@ -242,7 +238,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                 _ => throw NotReceivedMessagePropertyGetException(),
                 rm => rm.EnqueuedTime.UtcDateTime);
         }
-        
+
     }
 
     /// <inheritdoc />
@@ -512,7 +508,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                 return new IMessageSession(await this.serviceBusClient.AcceptNextSessionAsync(entityPath, options));
             }
             catch (Azure.Messaging.ServiceBus.ServiceBusException e) when (e.Reason.Equals(Azure.Messaging.ServiceBus.ServiceBusFailureReason.ServiceTimeout))
-            { 
+            {
                 return null;
             }
         }
