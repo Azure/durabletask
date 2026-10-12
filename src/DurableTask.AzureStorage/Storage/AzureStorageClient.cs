@@ -342,7 +342,9 @@ namespace DurableTask.AzureStorage.Storage
             destination.Retry.Mode = source.Retry.Mode;
             destination.Retry.Delay = source.Retry.Delay;
             destination.Retry.MaxDelay = source.Retry.MaxDelay;
-            // These options are used only by migration SAS clients. Do not let SDK retries start another storage request.
+            // These options are used only by migration SAS clients.
+            // Do not let SDK retries start another storage request, since we require strict time bounds on how long a storage
+            // request can take.
             destination.Retry.MaxRetries = 0;
             destination.Retry.NetworkTimeout = source.Retry.NetworkTimeout;
             destination.Diagnostics.ApplicationId = source.Diagnostics.ApplicationId;

@@ -283,17 +283,9 @@ namespace DurableTask.AzureStorage.Tracking
             return entities;
         }
 
-        public override IAsyncEnumerable<string> RewindHistoryAsync(
+        public override async IAsyncEnumerable<string> RewindHistoryAsync(
             string instanceId,
-            CancellationToken cancellationToken = default)
-        {
-            return this.RewindHistoryAsync(instanceId, parentExecutionId: null, cancellationToken);
-        }
-
-        async IAsyncEnumerable<string> RewindHistoryAsync(
-            string instanceId,
-            string parentExecutionId,
-            [EnumeratorCancellation] CancellationToken cancellationToken)
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             // REWIND ALGORITHM:
@@ -347,8 +339,6 @@ namespace DurableTask.AzureStorage.Tracking
                 await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
             }
 
-            // Migration expects a new execution ID for the orchestration after it is rewound
-            string newExecutionId = this.IsMigrationActive ? Guid.NewGuid().ToString("N") : null;
             DateTime instanceTimestamp = recentStartRow[0].Timestamp.GetValueOrDefault().DateTime;
 
             // Use parameterized filter to prevent OData injection via crafted execution IDs
@@ -437,7 +427,6 @@ namespace DurableTask.AzureStorage.Tracking
                         // recursive call to clear out failure events on child instances
                         await foreach (string childInstanceId in this.RewindHistoryAsync(
                             soEntity.GetString(nameof(OrchestrationInstance.InstanceId)),
-                            newExecutionId,
                             cancellationToken))
                         {
                             yield return childInstanceId;
@@ -453,39 +442,9 @@ namespace DurableTask.AzureStorage.Tracking
                 await this.HistoryTable.ReplaceEntityAsync(entity, entity.ETag, cancellationToken);
             }
 
-            if (newExecutionId != null)
-            {
-                IReadOnlyList<TableEntity> currentGeneration =
-                    await this.QueryHistoryAsync($"{partitionFilter} and {executionIdFilter}", instanceId, cancellationToken);
-                foreach (TableEntity entity in currentGeneration)
-                {
-                    entity[nameof(OrchestrationInstance.ExecutionId)] = newExecutionId;
-                    if (entity.GetString(nameof(HistoryEvent.EventType)) == nameof(EventType.ExecutionStarted))
-                    {
-                        ExecutionStartedEvent executionStartedEvent =
-                            (ExecutionStartedEvent)TableEntityConverter.Deserialize(entity, typeof(ExecutionStartedEvent));
-                        executionStartedEvent.OrchestrationInstance.ExecutionId = newExecutionId;
-                        if (parentExecutionId != null)
-                        {
-                            executionStartedEvent.ParentInstance.OrchestrationInstance.ExecutionId = parentExecutionId;
-                        }
-
-                        TableEntity serializedExecutionStartedEvent = TableEntityConverter.Serialize(executionStartedEvent);
-                        entity[nameof(ExecutionStartedEvent.OrchestrationInstance)] =
-                            serializedExecutionStartedEvent[nameof(ExecutionStartedEvent.OrchestrationInstance)];
-                        entity[nameof(ExecutionStartedEvent.ParentInstance)] =
-                            serializedExecutionStartedEvent[nameof(ExecutionStartedEvent.ParentInstance)];
-                    }
-
-                    await this.HistoryTable.ReplaceEntityAsync(entity, entity.ETag, cancellationToken);
-                }
-            }
-
             // reset orchestration status in instance store table
             await this.UpdateStatusForRewindAsync(
                 instanceId,
-                newExecutionId,
-                parentExecutionId,
                 newSequenceNumber,
                 cancellationToken);
 
@@ -841,6 +800,8 @@ namespace DurableTask.AzureStorage.Tracking
                     ["Generation"] = orchestrationInstanceStatus.Generation,
                 };
 
+                // Make sure to delete the history before updating the instance row, so once the migration process reads the row with its new
+                // sequence number, it can be sure the history has been deleted
                 TableTransactionResults deleted = await this.HistoryTable.DeleteBatchAsync(historyEntities, cancellationToken);
                 rowsDeleted += deleted.Responses.Count;
                 storageRequests += deleted.RequestCount;
@@ -1041,37 +1002,12 @@ namespace DurableTask.AzureStorage.Tracking
         /// <inheritdoc />
         public override async Task UpdateStatusForRewindAsync(string instanceId, long? sequenceNumber, CancellationToken cancellationToken = default)
         {
-            await this.UpdateStatusForRewindAsync(
-                instanceId,
-                executionId: null,
-                parentExecutionId: null,
-                sequenceNumber,
-                cancellationToken);
-        }
-
-        async Task UpdateStatusForRewindAsync(
-            string instanceId,
-            string executionId,
-            string parentExecutionId,
-            long? sequenceNumber,
-            CancellationToken cancellationToken)
-        {
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
             TableEntity entity = new TableEntity(sanitizedInstanceId, "")
             {
                 ["RuntimeStatus"] = OrchestrationStatus.Pending.ToString("G"),
                 ["LastUpdatedTime"] = DateTime.UtcNow,
             };
-
-            if (executionId != null)
-            {
-                entity[nameof(OrchestrationInstance.ExecutionId)] = executionId;
-            }
-
-            if (parentExecutionId != null)
-            {
-                entity[ParentExecutionIdProperty] = parentExecutionId;
-            }
 
             if (sequenceNumber.HasValue)
             {
@@ -1089,7 +1025,7 @@ namespace DurableTask.AzureStorage.Tracking
                 this.storageAccountName,
                 this.taskHubName,
                 instanceId,
-                executionId ?? string.Empty,
+                string.Empty,
                 OrchestrationStatus.Pending,
                 currentEpisodeNumber,
                 stopwatch.ElapsedMilliseconds);

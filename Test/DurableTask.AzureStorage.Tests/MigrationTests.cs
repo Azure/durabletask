@@ -194,7 +194,7 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
-        /// Rewinding an orchestration while a migration is active must assign a new execution ID, bump the instance's
+        /// Rewinding an orchestration while a migration is active must bump the instance's
         /// sequence number (and stamp the same value on the history sentinel row), and record the instance in the
         /// modified-instances queue so the migration process re-copies it. The rewind's effects are inspected
         /// immediately after the rewind (with the worker stopped) so the assertions are deterministic.
@@ -213,7 +213,6 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(OrchestrationStatus.Failed, failedStatus?.OrchestrationStatus);
 
             string instanceId = client.InstanceId;
-            string failedExecutionId = failedStatus!.OrchestrationInstance.ExecutionId;
 
             // Stop the worker so no further work items are processed. This makes the state observed immediately after
             // the rewind deterministic (otherwise the revived orchestration would keep bumping the sequence number).
@@ -234,29 +233,14 @@ namespace DurableTask.AzureStorage.Tests
             RewindFailOrchestration.ShouldFail = false;
             await client.RewindAsync("rewind for migration test");
 
-            // Assert: rewind creates a new execution identity in both the instance row and the embedded
-            // ExecutionStarted event.
-            string? rewoundExecutionId = await GetInstanceExecutionIdAsync(azureStorageClient, instanceId);
-            Assert.IsNotNull(rewoundExecutionId);
-            Assert.AreNotEqual(failedExecutionId, rewoundExecutionId);
-            Assert.AreEqual(
-                rewoundExecutionId,
-                await GetExecutionStartedEventExecutionIdAsync(azureStorageClient, instanceId));
-            CollectionAssert.AreEquivalent(
-                new[] { rewoundExecutionId },
-                (await GetHistoryExecutionIdsAsync(azureStorageClient, instanceId)).Distinct().ToArray());
-
-            JArray rewoundHistory = await GetHistoryAsync(host.service, instanceId, rewoundExecutionId);
+            JArray rewoundHistory = JArray.Parse(
+                await host.service.GetOrchestrationHistoryAsync(instanceId, executionId: null));
             AssertHistoryEventTypes(
                 rewoundHistory,
                 EventType.ExecutionStarted,
                 EventType.TaskScheduled,
                 EventType.TaskCompleted,
                 EventType.GenericEvent);
-            Assert.AreEqual(
-                0,
-                (await GetHistoryAsync(host.service, instanceId, failedExecutionId)).Count,
-                "The superseded execution ID should no longer resolve to the rewound generation's history.");
 
             // Assert: the rewind bumped the instance sequence number by exactly one...
             long? sequenceNumberAfterRewind = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
@@ -279,16 +263,14 @@ namespace DurableTask.AzureStorage.Tests
             await completionWorker.StartAsync();
             OrchestrationState? completedStatus = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
             Assert.AreEqual(OrchestrationStatus.Completed, completedStatus?.OrchestrationStatus);
-            Assert.AreEqual(rewoundExecutionId, completedStatus?.OrchestrationInstance.ExecutionId);
             await completionWorker.StopAsync();
         }
 
         /// <summary>
-        /// Rewind preserves the existing execution identity when storage migration is not active and the rewound
-        /// orchestration completes successfully.
+        /// A failed orchestration can be rewound and complete successfully when storage migration is not active.
         /// </summary>
         [TestMethod]
-        public async Task RewindOutsideMigration_PreservesExecutionId()
+        public async Task RewindOutsideMigration_CompletesSuccessfully()
         {
             using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false);
 
@@ -305,23 +287,8 @@ namespace DurableTask.AzureStorage.Tests
 
             AzureStorageOrchestrationServiceSettings settings =
                 TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(enableExtendedSessions: false);
-            var azureStorageClient = new AzureStorageClient(settings);
-            string instanceId = client.InstanceId;
-            string? executionIdBeforeRewind = await GetInstanceExecutionIdAsync(azureStorageClient, instanceId);
-            Assert.IsNotNull(executionIdBeforeRewind);
-
             RewindFailOnceOrchestration.ShouldFail = false;
             await client.RewindAsync("rewind outside migration");
-
-            string? executionIdAfterRewind = await GetInstanceExecutionIdAsync(azureStorageClient, instanceId);
-            Assert.IsNotNull(executionIdAfterRewind);
-            Assert.AreEqual(executionIdBeforeRewind, executionIdAfterRewind);
-            Assert.AreEqual(
-                executionIdAfterRewind,
-                await GetExecutionStartedEventExecutionIdAsync(azureStorageClient, instanceId));
-            CollectionAssert.AreEquivalent(
-                new[] { executionIdAfterRewind },
-                (await GetHistoryExecutionIdsAsync(azureStorageClient, instanceId)).Distinct().ToArray());
 
             var completionService = new AzureStorageOrchestrationService(settings);
             using var completionWorker = new TaskHubWorker(completionService, loggerFactory: settings.LoggerFactory);
@@ -329,16 +296,15 @@ namespace DurableTask.AzureStorage.Tests
             await completionWorker.StartAsync();
             OrchestrationState? completedStatus = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
             Assert.AreEqual(OrchestrationStatus.Completed, completedStatus?.OrchestrationStatus);
-            Assert.AreEqual(executionIdAfterRewind, completedStatus?.OrchestrationInstance.ExecutionId);
             await completionWorker.StopAsync();
         }
 
         /// <summary>
-        /// Migration-mode rewind gives both a parent and its failed child new execution identities and updates the
-        /// child's parent link to the parent's new execution so both can complete successfully.
+        /// A parent and its failed child can be rewound and complete successfully while migration is active.
+        /// Rewind increments both instance sequence numbers and stamps the matching history sentinels.
         /// </summary>
         [TestMethod]
-        public async Task RewindSubOrchestrationDuringMigration_UpdatesExecutionIdsAndParentLink()
+        public async Task RewindSubOrchestrationDuringMigration_CompletesParentAndChild()
         {
             using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(isMigrationActive: true, enableExtendedSessions: false);
 
@@ -358,43 +324,38 @@ namespace DurableTask.AzureStorage.Tests
 
             AzureStorageOrchestrationServiceSettings settings =
                 TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(enableExtendedSessions: false);
+
             var azureStorageClient = new AzureStorageClient(settings);
-            string? parentExecutionIdBeforeRewind =
-                await GetInstanceExecutionIdAsync(azureStorageClient, parentInstanceId);
-            string? childExecutionIdBeforeRewind =
-                await GetInstanceExecutionIdAsync(azureStorageClient, childInstanceId);
-            Assert.IsNotNull(parentExecutionIdBeforeRewind);
-            Assert.IsNotNull(childExecutionIdBeforeRewind);
+            long? parentSequenceNumberBeforeRewind = await GetInstanceSequenceNumberAsync(azureStorageClient, parentInstanceId);
+            long? childSequenceNumberBeforeRewind = await GetInstanceSequenceNumberAsync(azureStorageClient, childInstanceId);
+            Assert.IsNotNull(parentSequenceNumberBeforeRewind, "The parent instance should carry a migration sequence number.");
+            Assert.IsNotNull(childSequenceNumberBeforeRewind, "The child instance should carry a migration sequence number.");
 
             RewindFailOnceOrchestration.ShouldFail = false;
             await client.RewindAsync("rewind parent and child during migration");
 
-            string? parentExecutionIdAfterRewind =
-                await GetInstanceExecutionIdAsync(azureStorageClient, parentInstanceId);
-            string? childExecutionIdAfterRewind =
-                await GetInstanceExecutionIdAsync(azureStorageClient, childInstanceId);
-            Assert.IsNotNull(parentExecutionIdAfterRewind);
-            Assert.IsNotNull(childExecutionIdAfterRewind);
-            Assert.AreNotEqual(parentExecutionIdBeforeRewind, parentExecutionIdAfterRewind);
-            Assert.AreNotEqual(childExecutionIdBeforeRewind, childExecutionIdAfterRewind);
+            // The worker is stopped, so only rewind should increment these sequence numbers.
+            long? parentSequenceNumberAfterRewind = await GetInstanceSequenceNumberAsync(azureStorageClient, parentInstanceId);
+            long? childSequenceNumberAfterRewind = await GetInstanceSequenceNumberAsync(azureStorageClient, childInstanceId);
             Assert.AreEqual(
-                parentExecutionIdAfterRewind,
-                await GetExecutionStartedEventExecutionIdAsync(azureStorageClient, parentInstanceId));
+                parentSequenceNumberBeforeRewind + 1,
+                parentSequenceNumberAfterRewind,
+                "Rewind should bump the parent instance sequence number by one.");
             Assert.AreEqual(
-                childExecutionIdAfterRewind,
-                await GetExecutionStartedEventExecutionIdAsync(azureStorageClient, childInstanceId));
+                childSequenceNumberBeforeRewind + 1,
+                childSequenceNumberAfterRewind,
+                "Rewind should bump the child instance sequence number by one.");
             Assert.AreEqual(
-                parentExecutionIdAfterRewind,
-                await GetExecutionStartedEventParentExecutionIdAsync(azureStorageClient, childInstanceId));
-            CollectionAssert.AreEquivalent(
-                new[] { parentExecutionIdAfterRewind },
-                (await GetHistoryExecutionIdsAsync(azureStorageClient, parentInstanceId)).Distinct().ToArray());
-            CollectionAssert.AreEquivalent(
-                new[] { childExecutionIdAfterRewind },
-                (await GetHistoryExecutionIdsAsync(azureStorageClient, childInstanceId)).Distinct().ToArray());
+                parentSequenceNumberAfterRewind,
+                await GetSentinelSequenceNumberAsync(azureStorageClient, parentInstanceId),
+                "The parent history sentinel should match the parent instance sequence number.");
+            Assert.AreEqual(
+                childSequenceNumberAfterRewind,
+                await GetSentinelSequenceNumberAsync(azureStorageClient, childInstanceId),
+                "The child history sentinel should match the child instance sequence number.");
 
-            JArray rewoundParentHistory =
-                await GetHistoryAsync(host.service, parentInstanceId, parentExecutionIdAfterRewind);
+            JArray rewoundParentHistory = JArray.Parse(
+                await host.service.GetOrchestrationHistoryAsync(parentInstanceId, executionId: null));
             AssertHistoryEventTypes(
                 rewoundParentHistory,
                 EventType.ExecutionStarted,
@@ -402,28 +363,18 @@ namespace DurableTask.AzureStorage.Tests
                 EventType.GenericEvent,
                 EventType.GenericEvent);
 
-            JArray rewoundChildHistory =
-                await GetHistoryAsync(host.service, childInstanceId, childExecutionIdAfterRewind);
+            JArray rewoundChildHistory = JArray.Parse(
+                await host.service.GetOrchestrationHistoryAsync(childInstanceId, executionId: null));
             AssertHistoryEventTypes(
                 rewoundChildHistory,
                 EventType.ExecutionStarted,
                 EventType.GenericEvent);
 
-            Assert.AreEqual(
-                0,
-                (await GetHistoryAsync(host.service, parentInstanceId, parentExecutionIdBeforeRewind)).Count,
-                "The superseded parent execution ID should no longer resolve to history.");
-            Assert.AreEqual(
-                0,
-                (await GetHistoryAsync(host.service, childInstanceId, childExecutionIdBeforeRewind)).Count,
-                "The superseded child execution ID should no longer resolve to history.");
-
             OrchestrationState? rewoundChildStatus =
-                await host.service.GetOrchestrationStateAsync(childInstanceId, childExecutionIdAfterRewind);
+                await host.service.GetOrchestrationStateAsync(childInstanceId, executionId: null);
             Assert.IsNotNull(rewoundChildStatus);
             Assert.AreEqual(OrchestrationStatus.Pending, rewoundChildStatus.OrchestrationStatus);
             Assert.AreEqual(parentInstanceId, rewoundChildStatus.ParentInstance.OrchestrationInstance.InstanceId);
-            Assert.AreEqual(parentExecutionIdAfterRewind, rewoundChildStatus.ParentInstance.OrchestrationInstance.ExecutionId);
 
             var completionService = new AzureStorageOrchestrationService(settings, isMigrationActive: true);
             using var completionWorker = new TaskHubWorker(completionService, loggerFactory: settings.LoggerFactory);
@@ -433,14 +384,12 @@ namespace DurableTask.AzureStorage.Tests
             await completionWorker.StartAsync();
             OrchestrationState? completedParentStatus = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
             Assert.AreEqual(OrchestrationStatus.Completed, completedParentStatus?.OrchestrationStatus);
-            Assert.AreEqual(parentExecutionIdAfterRewind, completedParentStatus?.OrchestrationInstance.ExecutionId);
 
             OrchestrationState? completedChildStatus =
-                await host.service.GetOrchestrationStateAsync(childInstanceId, childExecutionIdAfterRewind);
+                await host.service.GetOrchestrationStateAsync(childInstanceId, executionId: null);
             Assert.IsNotNull(completedChildStatus);
             Assert.AreEqual(OrchestrationStatus.Completed, completedChildStatus.OrchestrationStatus);
             Assert.AreEqual(parentInstanceId, completedChildStatus.ParentInstance.OrchestrationInstance.InstanceId);
-            Assert.AreEqual(parentExecutionIdAfterRewind, completedChildStatus.ParentInstance.OrchestrationInstance.ExecutionId);
             await completionWorker.StopAsync();
         }
 
@@ -1141,70 +1090,6 @@ namespace DurableTask.AzureStorage.Tests
             }
 
             return null;
-        }
-
-        static async Task<string?> GetInstanceExecutionIdAsync(AzureStorageClient azureStorageClient, string instanceId)
-        {
-            Table instanceTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName);
-            string filter = AzureTableQueryFilter.PartitionKeyEquals(instanceId);
-            await foreach (TableEntity entity in instanceTable.ExecuteQueryAsync<TableEntity>(filter))
-            {
-                return entity.GetString(nameof(OrchestrationInstance.ExecutionId));
-            }
-
-            return null;
-        }
-
-        static async Task<string?> GetExecutionStartedEventExecutionIdAsync(AzureStorageClient azureStorageClient, string instanceId)
-        {
-            Table historyTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.HistoryTableName);
-            string filter = $"{AzureTableQueryFilter.PartitionKeyEquals(instanceId)} and " +
-                $"{AzureTableQueryFilter.ColumnEquals(nameof(HistoryEvent.EventType), nameof(EventType.ExecutionStarted))}";
-            await foreach (TableEntity entity in historyTable.ExecuteQueryAsync<TableEntity>(filter))
-            {
-                ExecutionStartedEvent executionStartedEvent =
-                    (ExecutionStartedEvent)TableEntityConverter.Deserialize(entity, typeof(ExecutionStartedEvent));
-                return executionStartedEvent.OrchestrationInstance.ExecutionId;
-            }
-
-            return null;
-        }
-
-        static async Task<string?> GetExecutionStartedEventParentExecutionIdAsync(AzureStorageClient azureStorageClient, string instanceId)
-        {
-            Table historyTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.HistoryTableName);
-            string filter = $"{AzureTableQueryFilter.PartitionKeyEquals(instanceId)} and " +
-                $"{AzureTableQueryFilter.ColumnEquals(nameof(HistoryEvent.EventType), nameof(EventType.ExecutionStarted))}";
-            await foreach (TableEntity entity in historyTable.ExecuteQueryAsync<TableEntity>(filter))
-            {
-                ExecutionStartedEvent executionStartedEvent =
-                    (ExecutionStartedEvent)TableEntityConverter.Deserialize(entity, typeof(ExecutionStartedEvent));
-                return executionStartedEvent.ParentInstance?.OrchestrationInstance.ExecutionId;
-            }
-
-            return null;
-        }
-
-        static async Task<List<string>> GetHistoryExecutionIdsAsync(AzureStorageClient azureStorageClient, string instanceId)
-        {
-            Table historyTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.HistoryTableName);
-            string filter = AzureTableQueryFilter.PartitionKeyEquals(instanceId);
-            var executionIds = new List<string>();
-            await foreach (TableEntity entity in historyTable.ExecuteQueryAsync<TableEntity>(filter))
-            {
-                executionIds.Add(entity.GetString(nameof(OrchestrationInstance.ExecutionId)));
-            }
-
-            return executionIds;
-        }
-
-        static async Task<JArray> GetHistoryAsync(
-            AzureStorageOrchestrationService service,
-            string instanceId,
-            string executionId)
-        {
-            string history = await service.GetOrchestrationHistoryAsync(instanceId, executionId);
-            return JArray.Parse(history);
         }
 
         static void AssertHistoryEventTypes(JArray history, params EventType[] expectedEventTypes)

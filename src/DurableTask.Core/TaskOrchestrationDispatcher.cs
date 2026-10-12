@@ -346,7 +346,7 @@ namespace DurableTask.Core
             ExecutionRewoundEvent rewindEvent =
                 workItem.NewMessages.Select(msg => msg.Event).OfType<ExecutionRewoundEvent>().LastOrDefault();
 
-            if (rewindEvent is not null && runtimeState.OrchestrationStatus != OrchestrationStatus.Running)
+            if (rewindEvent is not null && ShouldRewind(runtimeState, rewindEvent))
             {
                 isRewinding = true;
                 if (rewindEvent.ParentTraceContext != null)
@@ -354,9 +354,12 @@ namespace DurableTask.Core
                     startEvent.ParentTraceContext = rewindEvent.ParentTraceContext;
                 }
                 // We set these to null here so that a new Activity is created to represent the execution of the rewound orchestration.
-                startEvent.ParentTraceContext.SpanId = null;
-                startEvent.ParentTraceContext.Id = null;
-                startEvent.ParentTraceContext.ActivityStartTime = null;
+                if (startEvent.ParentTraceContext != null)
+                {
+                    startEvent.ParentTraceContext.SpanId = null;
+                    startEvent.ParentTraceContext.Id = null;
+                    startEvent.ParentTraceContext.ActivityStartTime = null;
+                }
             }   
             Activity? traceActivity = TraceHelper.StartTraceActivityForOrchestrationExecution(startEvent);
 
@@ -906,8 +909,8 @@ namespace DurableTask.Core
                     return false;
                 }
 
-                if (message.Event.EventType == EventType.ExecutionRewound
-                    && workItem.OrchestrationRuntimeState.OrchestrationStatus != OrchestrationStatus.Running
+                if (message.Event is ExecutionRewoundEvent rewindRequest
+                    && ShouldRewind(workItem.OrchestrationRuntimeState, rewindRequest)
                     && workItem.NewMessages.Count > 1)
                 {
                     foreach (TaskMessage droppedMessage in workItem.NewMessages)
@@ -915,7 +918,7 @@ namespace DurableTask.Core
                         if (droppedMessage.Event.EventType != EventType.ExecutionRewound)
                         {
                             logHelper.DroppingOrchestrationMessage(workItem, droppedMessage, "Multiple messages sent to an instance " +
-                                "that is attempting to rewind from a terminal state. The only message that can be sent in " +
+                                "that is attempting to rewind. The only message that can be sent in " +
                                 "this case is the rewind request.");
                         }
                     }
@@ -1004,13 +1007,21 @@ namespace DurableTask.Core
 
                 // In this case, the ExecutionRewoundEvent has already been added to the history and is just sent as a way to trigger the failed deepest suborchestrations to rerun.
                 // We do not redundantly add it to the history in this situation.
-                if (!(message.Event is ExecutionRewoundEvent executionRewoundEvent && workItem.OrchestrationRuntimeState.OrchestrationStatus == OrchestrationStatus.Running))
+                if (!(message.Event is ExecutionRewoundEvent executionRewoundEvent && !ShouldRewind(workItem.OrchestrationRuntimeState, executionRewoundEvent)))
                 {
                     workItem.OrchestrationRuntimeState.AddEvent(message.Event);
                 }
             }
 
             return true;
+        }
+
+        internal static bool ShouldRewind(OrchestrationRuntimeState runtimeState, ExecutionRewoundEvent rewindEvent)
+        {
+            return runtimeState.OrchestrationStatus != OrchestrationStatus.Running
+                || (!string.IsNullOrEmpty(rewindEvent.ParentExecutionId)
+                    && runtimeState.ExecutionStartedEvent?.ParentInstance?.OrchestrationInstance is OrchestrationInstance parent
+                    && !string.Equals(parent.ExecutionId, rewindEvent.ParentExecutionId, StringComparison.Ordinal));
         }
 
         TaskMessage? ProcessWorkflowCompletedTaskDecision(
