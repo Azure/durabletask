@@ -243,8 +243,8 @@ namespace DurableTask.Core.Tests
             var (startEvent, _) = SendStartMessage(runtimeState, action);
 
             Assert.AreEqual("", startEvent.Tags[OrchestrationTags.FireAndForget]);
-            Assert.IsTrue(startEvent.Tags.ContainsKey("custom"));
-            Assert.AreEqual("caller-value", startEvent.Tags["custom"]);
+            Assert.IsTrue(startEvent.Tags.TryGetValue("custom", out string customTagValue));
+            Assert.AreEqual("caller-value", customTagValue);
             Assert.AreEqual("entity-value", startEvent.Tags["inherited"]);
             Assert.AreEqual("false", action.Tags[OrchestrationTags.FireAndForget]);
             Assert.AreEqual("parent-value", runtimeState.Tags[OrchestrationTags.FireAndForget]);
@@ -390,8 +390,8 @@ namespace DurableTask.Core.Tests
             Assert.AreEqual(1, runtimeState.Tags.Count);
             if (useTags)
             {
-                Assert.IsTrue(service.State.Tags.ContainsKey("custom"));
-                Assert.AreEqual("caller-value", service.State.Tags["custom"]);
+                Assert.IsTrue(service.State.Tags.TryGetValue("custom", out string customTagValue));
+                Assert.AreEqual("caller-value", customTagValue);
             }
         }
 
