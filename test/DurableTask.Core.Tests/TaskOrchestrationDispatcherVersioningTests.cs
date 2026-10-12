@@ -29,7 +29,9 @@ namespace DurableTask.Core.Tests
     [TestClass]
     public class TaskOrchestrationDispatcherVersioningTests
     {
-        const string InternalName = "Internal.Orchestration";
+        // Intentionally an independent literal, not an alias of TaskOrchestrationDispatcher's private constant,
+        // so a typo in the production name would not also be mirrored into (and hidden by) the test name.
+        const string ExemptedName = "BlobPurgeJobOrchestrator";
 
         [TestMethod]
         [DataRow(VersionMatchStrategy.Strict, null, false)]
@@ -49,31 +51,25 @@ namespace DurableTask.Core.Tests
         {
             foreach (VersionFailureStrategy failureStrategy in Enum.GetValues(typeof(VersionFailureStrategy)))
             {
-                foreach (bool configureExclusion in new[] { false, true })
+                var settings = new VersioningSettings
                 {
-                    var settings = new VersioningSettings
-                    {
-                        Version = "1.0",
-                        MatchStrategy = matchStrategy,
-                        FailureStrategy = failureStrategy,
-                    };
-                    if (configureExclusion)
-                    {
-                        settings.ExcludedOrchestrationNames.Add(InternalName);
-                    }
+                    Version = "1.0",
+                    MatchStrategy = matchStrategy,
+                    FailureStrategy = failureStrategy,
+                };
 
-                    await AssertVersionPolicyAsync(settings, "Business.Orchestration", version, shouldExecute);
-                }
+                await AssertVersionPolicyAsync(settings, "Business.Orchestration", version, shouldExecute);
             }
         }
 
         [TestMethod]
-        [DataRow(InternalName, true)]
-        [DataRow("internal.orchestration", false)]
-        [DataRow("Internal.Orchestration.Child", false)]
-        [DataRow("Internal", false)]
+        [DataRow(ExemptedName, true)]
+        [DataRow("blobpurgejoborchestrator", false)]
+        [DataRow("BLOBPURGEJOBORCHESTRATOR", false)]
+        [DataRow("BlobPurgeJobOrchestratorChild", false)]
+        [DataRow("BlobPurgeJobOrchestrat", false)]
         [DataRow("Business.Orchestration", false)]
-        public async Task OnlyExactExcludedUnversionedNamesExecute(string name, bool shouldExecute)
+        public async Task OnlyExactExemptedUnversionedNameExecutes(string name, bool shouldExecute)
         {
             foreach (VersionFailureStrategy failureStrategy in Enum.GetValues(typeof(VersionFailureStrategy)))
             {
@@ -91,14 +87,14 @@ namespace DurableTask.Core.Tests
         [DataRow(VersionMatchStrategy.Strict, " ", false)]
         [DataRow(VersionMatchStrategy.CurrentOrOlder, "0.9", true)]
         [DataRow(VersionMatchStrategy.CurrentOrOlder, "2.0", false)]
-        public async Task ExcludedNamesWithNonemptyVersionsRetainVersionPolicies(
+        public async Task ExemptedNameWithNonemptyVersionsRetainsVersionPolicies(
             VersionMatchStrategy matchStrategy, string version, bool shouldExecute)
         {
             foreach (VersionFailureStrategy failureStrategy in Enum.GetValues(typeof(VersionFailureStrategy)))
             {
                 var settings = CreateSettings(failureStrategy);
                 settings.MatchStrategy = matchStrategy;
-                await AssertVersionPolicyAsync(settings, InternalName, version, shouldExecute);
+                await AssertVersionPolicyAsync(settings, ExemptedName, version, shouldExecute);
             }
         }
 
@@ -107,19 +103,19 @@ namespace DurableTask.Core.Tests
         {
             foreach (VersioningSettings settings in new[] { null, new VersioningSettings() })
             {
-                await AssertVersionPolicyAsync(settings, InternalName, string.Empty, shouldExecute: true);
+                await AssertVersionPolicyAsync(settings, ExemptedName, string.Empty, shouldExecute: true);
                 await AssertVersionPolicyAsync(settings, "Business.Orchestration", "2.0", shouldExecute: true);
             }
         }
 
         [TestMethod]
-        public async Task ExclusionDoesNotBypassOrchestrationResolution()
+        public async Task ExemptionDoesNotBypassOrchestrationResolution()
         {
             using var service = new RecordingOrchestrationService();
             var dispatcher = new TestDispatcher(
                 service, new NameVersionObjectManager<TaskOrchestration>(),
                 new DispatchMiddlewarePipeline(), CreateSettings(VersionFailureStrategy.Fail));
-            TaskOrchestrationWorkItem workItem = CreateWorkItem(InternalName, string.Empty);
+            TaskOrchestrationWorkItem workItem = CreateWorkItem(ExemptedName, string.Empty);
 
             await Assert.ThrowsExceptionAsync<TypeMissingException>(() => dispatcher.ProcessAsync(workItem));
 
@@ -131,24 +127,24 @@ namespace DurableTask.Core.Tests
         [TestMethod]
         [DataRow(null)]
         [DataRow("")]
-        public async Task ExclusionAppliesToReplayAndContinueAsNewWithoutChangingVersion(string version)
+        public async Task ExemptionAppliesToReplayAndContinueAsNewWithoutChangingVersion(string version)
         {
             using var service = new RecordingOrchestrationService();
             var orchestration = new TimerOrchestration();
             var manager = new NameVersionObjectManager<TaskOrchestration>();
-            manager.Add(new NameValueObjectCreator<TaskOrchestration>(InternalName, version, orchestration));
+            manager.Add(new NameValueObjectCreator<TaskOrchestration>(ExemptedName, version, orchestration));
             var pipeline = new DispatchMiddlewarePipeline();
             int middlewareCalls = 0;
             pipeline.Add((context, next) =>
             {
                 OrchestrationRuntimeState state = context.GetProperty<OrchestrationRuntimeState>();
-                Assert.AreEqual(InternalName, state.Name);
+                Assert.AreEqual(ExemptedName, state.Name);
                 Assert.AreEqual(version, state.Version);
                 middlewareCalls++;
                 return next();
             });
             var dispatcher = new TestDispatcher(service, manager, pipeline, CreateSettings(VersionFailureStrategy.Fail));
-            TaskOrchestrationWorkItem workItem = CreateWorkItem(InternalName, version);
+            TaskOrchestrationWorkItem workItem = CreateWorkItem(ExemptedName, version);
 
             await dispatcher.ProcessAsync(workItem);
             for (int generation = 0; generation < 3; generation++)
@@ -189,10 +185,10 @@ namespace DurableTask.Core.Tests
             using var service = new RecordingOrchestrationService();
             var orchestration = new VersionChangingOrchestration();
             var manager = new NameVersionObjectManager<TaskOrchestration>();
-            manager.Add(new NameValueObjectCreator<TaskOrchestration>(InternalName, string.Empty, orchestration));
-            manager.Add(new NameValueObjectCreator<TaskOrchestration>(InternalName, "2.0", orchestration));
+            manager.Add(new NameValueObjectCreator<TaskOrchestration>(ExemptedName, string.Empty, orchestration));
+            manager.Add(new NameValueObjectCreator<TaskOrchestration>(ExemptedName, "2.0", orchestration));
             var dispatcher = new TestDispatcher(service, manager, new DispatchMiddlewarePipeline(), CreateSettings(failureStrategy));
-            TaskOrchestrationWorkItem workItem = CreateWorkItem(InternalName, string.Empty);
+            TaskOrchestrationWorkItem workItem = CreateWorkItem(ExemptedName, string.Empty);
 
             await dispatcher.ProcessAsync(workItem);
 
@@ -203,14 +199,12 @@ namespace DurableTask.Core.Tests
 
         static VersioningSettings CreateSettings(VersionFailureStrategy failureStrategy)
         {
-            var settings = new VersioningSettings
+            return new VersioningSettings
             {
                 Version = "1.0",
                 MatchStrategy = VersionMatchStrategy.Strict,
                 FailureStrategy = failureStrategy,
             };
-            settings.ExcludedOrchestrationNames.Add(InternalName);
-            return settings;
         }
 
         static async Task AssertVersionPolicyAsync(VersioningSettings settings, string name, string version, bool shouldExecute)

@@ -11,7 +11,6 @@
 //  limitations under the License.
 //  ----------------------------------------------------------------------------------
 
-using System.Reflection;
 using DurableTask.Core.Settings;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -20,48 +19,6 @@ namespace DurableTask.Core.Tests
     [TestClass]
     public class VersionSettingsTests
     {
-        [TestMethod]
-        public void ExcludedOrchestrationNamesHasNoPublicSurface()
-        {
-            // Only publicly-visible members are returned without BindingFlags.NonPublic.
-            Assert.IsNull(
-                typeof(VersioningSettings).GetProperty("ExcludedOrchestrationNames"),
-                "ExcludedOrchestrationNames must not be a public member of VersioningSettings.");
-
-            PropertyInfo internalProperty = typeof(VersioningSettings).GetProperty(
-                "ExcludedOrchestrationNames", BindingFlags.NonPublic | BindingFlags.Instance);
-            Assert.IsNotNull(internalProperty, "ExcludedOrchestrationNames must remain accessible internally.");
-            Assert.IsTrue(internalProperty.GetMethod.IsAssembly, "The getter must be internal, not public or private.");
-            Assert.IsNull(internalProperty.SetMethod, "The property must remain getter-only.");
-        }
-
-        [TestMethod]
-        public void ExcludedOrchestrationNamesAreEmptyAndInstanceScopedByDefault()
-        {
-            var settings = new VersioningSettings();
-            var otherSettings = new VersioningSettings();
-
-            Assert.AreEqual(0, settings.ExcludedOrchestrationNames.Count);
-            settings.ExcludedOrchestrationNames.Add("Internal.Orchestration");
-
-            Assert.AreEqual(0, otherSettings.ExcludedOrchestrationNames.Count);
-            Assert.AreEqual(string.Empty, settings.Version);
-            Assert.AreEqual(VersioningSettings.VersionMatchStrategy.None, settings.MatchStrategy);
-            Assert.AreEqual(VersioningSettings.VersionFailureStrategy.Reject, settings.FailureStrategy);
-        }
-
-        [TestMethod]
-        public void ExcludedOrchestrationNamesUseExactOrdinalMatching()
-        {
-            var settings = new VersioningSettings();
-            Assert.IsTrue(settings.ExcludedOrchestrationNames.Add("Internal.Orchestration"));
-            Assert.IsFalse(settings.ExcludedOrchestrationNames.Add("Internal.Orchestration"));
-
-            Assert.IsTrue(settings.ExcludedOrchestrationNames.Contains("Internal.Orchestration"));
-            Assert.IsFalse(settings.ExcludedOrchestrationNames.Contains("internal.orchestration"));
-            Assert.IsFalse(settings.ExcludedOrchestrationNames.Contains("Internal.Orchestration.Child"));
-        }
-
         [TestMethod]
         [DataRow("1.0.0", "1.0.0", 0)]
         [DataRow("1.1.0", "1.0.0", 1)]
