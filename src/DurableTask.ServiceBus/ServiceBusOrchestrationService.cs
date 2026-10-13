@@ -1716,7 +1716,8 @@ namespace DurableTask.ServiceBus
 
             try
             {
-                Stream rawStream = await
+                byte[] sessionState;
+                using (Stream rawStream = await
                     RuntimeStateStreamConverter.OrchestrationRuntimeStateToRawStream(
                         newOrchestrationRuntimeState,
                         runtimeState,
@@ -1724,13 +1725,12 @@ namespace DurableTask.ServiceBus
                         this.Settings.TaskOrchestrationDispatcherSettings.CompressOrchestrationState,
                         this.Settings.SessionSettings,
                         this.BlobStore,
-                        session.SessionId);
-
-                using (var ms = new MemoryStream())
+                        session.SessionId))
                 {
-                    await rawStream.CopyToAsync(ms);
-                    await session.SetStateAsync(ms.ToArray());
+                    sessionState = await ServiceBusUtils.GetSessionStateBytesAsync(rawStream);
                 }
+
+                await session.SetStateAsync(sessionState);
 
                 this.ServiceStats.OrchestrationDispatcherStats.SessionSets.Increment();
             }

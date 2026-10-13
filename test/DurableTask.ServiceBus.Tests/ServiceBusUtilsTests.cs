@@ -68,6 +68,62 @@ namespace DurableTask.ServiceBus.Tests
             }
         }
 
+        [TestMethod]
+        public async Task SessionStateBytesFromMemoryStreamAtStart()
+        {
+            byte[] expected = { 1, 2, 3, 4, 5 };
+            using (var stream = new MemoryStream(expected))
+            {
+                byte[] actual = await ServiceBusUtils.GetSessionStateBytesAsync(stream);
+
+                CollectionAssert.AreEqual(expected, actual);
+                Assert.AreNotSame(expected, actual);
+            }
+        }
+
+        [TestMethod]
+        public async Task SessionStateBytesFromMemoryStreamNotAtStartReadsRemainingBytes()
+        {
+            using (var stream = new MemoryStream(new byte[] { 1, 2, 3, 4, 5 }))
+            {
+                stream.Position = 2;
+
+                byte[] actual = await ServiceBusUtils.GetSessionStateBytesAsync(stream);
+
+                CollectionAssert.AreEqual(new byte[] { 3, 4, 5 }, actual);
+            }
+        }
+
+        [TestMethod]
+        public async Task SessionStateBytesFromNonMemoryStream()
+        {
+            byte[] expected = { 10, 20, 30 };
+            using (var stream = new BufferedStream(new MemoryStream(expected)))
+            {
+                byte[] actual = await ServiceBusUtils.GetSessionStateBytesAsync(stream);
+
+                CollectionAssert.AreEqual(expected, actual);
+            }
+        }
+
+        [TestMethod]
+        public async Task SessionStateBytesFromEmptyMemoryStream()
+        {
+            using (var stream = new MemoryStream())
+            {
+                byte[] actual = await ServiceBusUtils.GetSessionStateBytesAsync(stream);
+
+                Assert.AreEqual(0, actual.Length);
+            }
+        }
+
+        [TestMethod]
+        public async Task SessionStateBytesNullStreamThrows()
+        {
+            await Assert.ThrowsExceptionAsync<ArgumentNullException>(
+                () => ServiceBusUtils.GetSessionStateBytesAsync(null));
+        }
+
         static async Task AssertInlineMessageRoundTrips(
             CompressionStyle compressionStyle,
             bool expectSynchronousCompletion)
