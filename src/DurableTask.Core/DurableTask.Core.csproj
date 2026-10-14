@@ -16,7 +16,7 @@
   <!-- Version Info -->
   <PropertyGroup>
     <MajorVersion>3</MajorVersion>
-    <MinorVersion>10</MinorVersion>
+    <MinorVersion>11</MinorVersion>
     <PatchVersion>0</PatchVersion>
     <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
     <FileVersion>$(VersionPrefix).0</FileVersion>

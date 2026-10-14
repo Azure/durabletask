@@ -83,7 +83,7 @@ steps:
     displayName: 'Publish Core Tests Artifact'
     inputs:
       path: $(Build.SourcesDirectory)/Test/DurableTask.Core.Tests/bin/${{ parameters.buildConfiguration }}
-      artifact: CoreTests
+      artifact: CoreTests-$(System.JobId)-$(System.JobAttempt)
 
   - task: VSBuild@1
     displayName: 'Build (AzureStorage Tests)'
@@ -98,7 +98,7 @@ steps:
     displayName: 'Publish AzureStorage Tests Artifact'
     inputs:
       path: $(Build.SourcesDirectory)/Test/DurableTask.AzureStorage.Tests/bin/${{ parameters.buildConfiguration }}
-      artifact: AzureStorageTests
+      artifact: AzureStorageTests-$(System.JobId)-$(System.JobAttempt)
 
   - task: VSBuild@1
     displayName: 'Build (Emulator Tests)'
@@ -113,4 +113,4 @@ steps:
     displayName: 'Publish Emulator Tests Artifact'
     inputs:
       path: $(Build.SourcesDirectory)/Test/DurableTask.Emulator.Tests/bin/${{ parameters.buildConfiguration }}
-      artifact: EmulatorTests
+      artifact: EmulatorTests-$(System.JobId)-$(System.JobAttempt)
