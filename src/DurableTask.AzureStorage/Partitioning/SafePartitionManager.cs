@@ -15,10 +15,8 @@ namespace DurableTask.AzureStorage.Partitioning
 {
     using System;
     using System.Collections.Generic;
-    using System.Runtime.ExceptionServices;
     using System.Threading;
     using System.Threading.Tasks;
-    using Azure;
     using DurableTask.AzureStorage.Storage;
 
     class SafePartitionManager : IPartitionManager
@@ -104,23 +102,8 @@ namespace DurableTask.AzureStorage.Partitioning
 
         Task IPartitionManager.DeleteLeases()
         {
-            return Task.WhenAll(
-                this.intentLeaseManager.DeleteAllAsync(),
-                this.ownershipLeaseManager.DeleteAllAsync()
-                ).ContinueWith(t =>
-            {
-                if (t.Exception?.InnerExceptions?.Count > 0)
-                {
-                    foreach (Exception e in t.Exception.InnerExceptions)
-                    {
-                        RequestFailedException storageException = e as RequestFailedException;
-                        if (storageException == null || storageException.Status != 404)
-                        {
-                            ExceptionDispatchInfo.Capture(e).Throw();
-                        }
-                    }
-                }
-            });
+            // Intent and ownership leases share one container; deleting it removes both.
+            return this.intentLeaseManager.DeleteAllAsync();
         }
 
         async Task IPartitionManager.StartAsync()

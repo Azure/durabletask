@@ -151,6 +151,7 @@ The Azure Storage provider creates these resources:
 | **Instances Table** | `{taskhub}Instances` | Instance metadata |
 | **Partitions Table** | `{taskhub}Partitions` | Partition leases (table manager) |
 | **Lease Blobs** | `{taskhub}-leases/` | Partition leases (blob manager) |
+| **Worker Partition Metadata** | `durabletask_taskhub` metadata on `{taskhub}-workitems` | Complete partition configuration published during explicit hub initialization |
 
 ### Queue Message Serialization
 
@@ -237,6 +238,29 @@ The work item queue is a simple, non-partitioned queue for activity function mes
 > [!IMPORTANT]
 > Partition count **cannot be changed** after task hub creation. Set it high enough to accommodate future scale-out needs. The maximum number of workers that can process orchestrations concurrently equals the partition count. Note that higher partition counts increase Azure Storage costs due to more queue and table operations.
 
+#### Clients targeting another worker's hub
+
+Explicit hub initialization (`CreateIfNotExistsAsync`, `CreateAsync`, or worker startup) publishes the worker's configured partition count before creating partition leases. Client operations use that published count for queue initialization and message routing, rather than applying the caller's `PartitionCount` to an existing target hub. Clients do not publish this metadata or modify partition leases.
+
+> [!WARNING]
+> **Breaking change:** Client operations now require published worker partition metadata. Client-only automatic hub creation is no longer supported. Missing metadata is rejected even if the client's partition count matches the target's. Existing hubs initialized only by older workers must be explicitly initialized with an upgraded provider before these clients can use them.
+
+Deploy the upgraded target worker first and let it publish metadata, or explicitly call `CreateIfNotExistsAsync` using the target's existing partition configuration, before issuing client operations. `CreateAsync` and worker startup also remain able to initialize a hub. Do not change an existing hub's partition count during this upgrade.
+
+If the work-item queue or its `durabletask_taskhub` metadata entry is absent, the client throws an actionable exception without creating queues, tables, blobs, or leases or enqueuing the message. This includes calls racing with worker startup before metadata publication. Failed initialization is not cached: retrying the same client after publication succeeds. There is no fallback to the caller's count or a partially populated partition table. Malformed metadata and storage access failures remain explicit errors.
+
+The same precondition applies to history reads, purge operations, and large-message downloads. A timed purge includes initialization in its deadline; if the deadline expires first, it returns zero deleted instances with `IsComplete = false` and does not later start purging. Shared initialization is not cancelled for other callers and may continue provisioning resources once valid metadata is available. This is a no-late-purge guarantee, not cancellation of all shared initialization work.
+
+Both worker and client binaries must be upgraded to benefit from this behavior. Older client binaries ignore the metadata and are not fixed by upgrading the worker alone. Successfully initialized clients cache topology; recreate them after deleting and recreating a hub externally. Explicit worker initialization preserves its already-completed initialization path for local clients and activity admission.
+
+The hub creation APIs remain administrative operations that apply their configured worker settings; they should not be used to discover another worker's configuration. Hub deletion removes the metadata along with the existing work-item queue, including when deletion is performed by an older provider. Unlike best-effort app-lease cleanup, work-item queue deletion failures are propagated.
+
+When worker metadata is already published, explicit initialization and worker startup validate it before changing resources. A different configured partition count or invalid existing metadata is rejected; a matching marker, including its creation timestamp and unrelated queue metadata, is preserved. Destructive `CreateAsync()` still deletes and recreates a hub and can therefore establish a different configuration after deletion.
+
+This guard does not infer a legacy hub's complete topology from lease rows. Explicit initialization of an older unmarked hub still requires the operator to supply its correct existing partition configuration. All concurrently initializing hosts must agree on that configuration. Queue metadata read/validation/publication is not a compare-and-swap protocol; conflicting first-time publishers with different counts are not a supported deployment. The guard protects a count already present when read, not arbitrary conflicting first-publication races.
+
+Client initialization retains references to every discovered control queue. Deleting the hub through that service therefore removes the full discovered topology, including queues the client has never sent to, even when the caller's configured partition count is smaller.
+
 ### Lease Management
 
 Workers compete for partition ownership using one of two partition managers:
@@ -256,6 +280,8 @@ When `UseTablePartitionManagement = false`:
 - Partition leases are stored as blobs in `{taskhub}-leases/`
 - Uses Azure Blob leases for concurrency control
 - Available in "safe" (`UseLegacyPartitionManagement = false`) and "legacy" (`UseLegacyPartitionManagement = true`) variants
+
+Safe-mode intent and ownership leases use different prefixes in the same container. Hub deletion deletes that shared container once, not once per prefix. An already-absent container is handled idempotently; other storage deletion failures are propagated.
 
 #### Partition lifecycle
 
