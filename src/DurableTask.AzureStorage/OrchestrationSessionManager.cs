@@ -61,6 +61,9 @@ namespace DurableTask.AzureStorage
 
         internal IEnumerable<ControlQueue> Queues => this.ownedControlQueues.Values;
 
+        // The time to wait before a failed orchestration state prefetch is tried again. Tests can set a shorter time.
+        internal TimeSpan PrefetchRetryDelay { get; set; } = TimeSpan.FromSeconds(5);
+
         public void AddQueue(string partitionId, ControlQueue controlQueue, CancellationToken cancellationToken)
         {
             this.shutdownToken = cancellationToken;
@@ -575,11 +578,15 @@ namespace DurableTask.AzureStorage
                     e.ToString());
 
                 // Sleep briefly to avoid a tight failure loop.
-                await Task.Delay(TimeSpan.FromSeconds(5));
+                // If the token is cancelled during the delay (shutdown), this background task stops here.
+                await Task.Delay(this.PrefetchRetryDelay, cancellationToken);
 
                 // This is a background operation so failure is not an option. All exceptions must be handled.
                 // To avoid starvation, we need to re-enqueue this async operation instead of retrying in a loop.
-                await Task.Run(() => this.ScheduleOrchestrationStatePrefetch(node, traceActivityId, cancellationToken));
+                // Do not await the new operation. This method keeps the caught exception until the method completes.
+                // If it waits for the next attempt, each failed attempt stays in memory until an attempt is successful.
+                // If the failure is permanent, memory then increases without a limit.
+                _ = Task.Run(() => this.ScheduleOrchestrationStatePrefetch(node, traceActivityId, cancellationToken));
             }
         }
 
