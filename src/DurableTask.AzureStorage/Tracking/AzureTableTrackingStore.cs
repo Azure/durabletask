@@ -310,9 +310,7 @@ namespace DurableTask.AzureStorage.Tracking
             // Use parameterized filter to prevent OData injection via crafted execution IDs
             string executionIdFilter = AzureTableQueryFilter.ColumnEquals(nameof(OrchestrationInstance.ExecutionId), executionId);
 
-            // Rewind changes history, so during a live migration the sentinel's sequence number must be bumped to match
-            // the instance row update below. Compute it up front so it can be stamped on the sentinel row in-line while
-            // clearing failure events, avoiding a separate write.
+            // Notify migration before changing history
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
             long? newSequenceNumber = null;
             if (this.IsMigrationActive)
@@ -331,14 +329,22 @@ namespace DurableTask.AzureStorage.Tracking
             updateFilterBuilder.Append($"{nameof(ExecutionCompletedEvent.OrchestrationStatus)} eq '{nameof(OrchestrationStatus.Failed)}'");
             updateFilterBuilder.Append($" or {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.TaskFailed)}'");
             updateFilterBuilder.Append($" or {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.SubOrchestrationInstanceFailed)}'");
-            if (this.IsMigrationActive)
+            if (newSequenceNumber.HasValue)
             {
-                // Include the sentinel row so its sequence number can be bumped in-line below.
+                // Include the sentinel so its sequence can advance before any history edits.
                 updateFilterBuilder.Append($" or {AzureTableQueryFilter.ColumnEquals(nameof(ITableEntity.RowKey), SentinelRowKey)}");
             }
             updateFilterBuilder.Append(')');
 
             IReadOnlyList<TableEntity> entitiesToClear = await this.QueryHistoryAsync(updateFilterBuilder.ToString(), instanceId, cancellationToken);
+            if (newSequenceNumber.HasValue)
+            {
+                TableEntity sentinel = entitiesToClear.Single(entity => entity.RowKey == SentinelRowKey);
+                sentinel[SequenceNumberProperty] = newSequenceNumber.Value;
+                Response response = await this.HistoryTable.MergeEntityAsync(sentinel, sentinel.ETag, cancellationToken);
+                sentinel.ETag = response.Headers.ETag.Value;
+            }
+
             foreach (TableEntity entity in entitiesToClear)
             {
                 if (entity.GetString(nameof(OrchestrationInstance.ExecutionId)) != executionId)
@@ -349,12 +355,6 @@ namespace DurableTask.AzureStorage.Tracking
 
                 if (entity.RowKey == SentinelRowKey)
                 {
-                    if (newSequenceNumber.HasValue)
-                    {
-                        entity[SequenceNumberProperty] = newSequenceNumber.Value;
-                        await this.HistoryTable.ReplaceEntityAsync(entity, entity.ETag, cancellationToken);
-                    }
-
                     continue;
                 }
 

@@ -49,7 +49,7 @@ namespace DurableTask.AzureStorage.Tests
         public static async Task ResetMigrationTestControlAsync(AzureStorageOrchestrationServiceSettings settings)
         {
             var provider = settings.TrackingServiceClientProvider ?? settings.StorageAccountClientProvider!;
-            try { await provider.Table.CreateClient(provider.Table.CreateOptions()).GetTableClient(settings.TaskHubName + "MigrationControl").DeleteEntityAsync(string.Empty, string.Empty); }
+            try { await provider.Table.CreateClient(provider.Table.CreateOptions()).GetTableClient(settings.TaskHubName + "MigrationCtrl").DeleteEntityAsync(string.Empty, string.Empty); }
             catch (RequestFailedException e) when (e.Status == 404) { }
         }
 

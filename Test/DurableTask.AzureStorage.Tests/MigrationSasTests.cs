@@ -604,9 +604,9 @@ namespace DurableTask.AzureStorage.Tests
                 }
                 if (uri.AbsolutePath == "/Tables")
                 {
-                    return Respond(201, "{\"TableName\":\"TestHubMigrationControl\"}");
+                    return Respond(201, "{\"TableName\":\"TestHubMigrationCtrl\"}");
                 }
-                if (uri.AbsolutePath.StartsWith("/TestHubMigrationControl", StringComparison.Ordinal))
+                if (uri.AbsolutePath.StartsWith("/TestHubMigrationCtrl", StringComparison.Ordinal))
                 {
                     // Return the saved gate and ETag, or the read failure requested by the test.
                     if (request.Method == HttpMethod.Get)

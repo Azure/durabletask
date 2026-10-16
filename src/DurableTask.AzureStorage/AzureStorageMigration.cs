@@ -42,7 +42,7 @@ namespace DurableTask.AzureStorage
             {
                 throw new ArgumentException("A task hub name is required.", nameof(taskHubName));
             }
-            this.table = tableServiceClient.GetTableClient(taskHubName + "MigrationControl");
+            this.table = tableServiceClient.GetTableClient(taskHubName + "MigrationCtrl");
         }
 
         internal async Task CreateIfNotExistsAsync(CancellationToken cancellationToken)

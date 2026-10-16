@@ -28,7 +28,7 @@ namespace DurableTask.AzureStorage.Messaging
 
         public ModifiedInstancesQueue(AzureStorageClient azureStorageClient)
         {
-            string queueName = AzureStorageOrchestrationService.GetQueueName(azureStorageClient.Settings.TaskHubName, "modifiedinstances");
+            string queueName = AzureStorageOrchestrationService.GetQueueName(azureStorageClient.Settings.TaskHubName, "modified");
             this.queue = azureStorageClient.GetQueueReference(queueName);
         }
 

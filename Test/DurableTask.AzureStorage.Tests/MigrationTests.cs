@@ -42,7 +42,7 @@ namespace DurableTask.AzureStorage.Tests
     {
         const string SequenceNumberPropertyName = "SequenceNumber";
         const string SentinelRowKey = "sentinel";
-        const string ModifiedInstancesQueueSuffix = "modifiedinstances";
+        const string ModifiedInstancesQueueSuffix = "modified";
 
         [DataTestMethod]
         [DataRow(false)]
