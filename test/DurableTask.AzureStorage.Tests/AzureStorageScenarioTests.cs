@@ -1406,6 +1406,84 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        [TestMethod]
+        public async Task TerminatePurgedOrchestrationDoesNotRetryForever()
+        {
+            AzureStorageOrchestrationService service = null;
+            bool serviceStarted = false;
+            string instanceId = Guid.NewGuid().ToString();
+            string executionId = Guid.NewGuid().ToString();
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                PartitionCount = 1,
+                StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+                TaskHubName = "PurgedTermination" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                ExtendedSessionsEnabled = false,
+                ControlQueueVisibilityTimeout = TimeSpan.FromSeconds(5),
+                UseAppLease = false,
+            };
+
+            try
+            {
+                service = new AzureStorageOrchestrationService(settings);
+                await service.CreateAsync();
+
+                var executionStartedEvent = new ExecutionStartedEvent(-1, string.Empty)
+                {
+                    Name = "orchestration",
+                    Version = string.Empty,
+                    OrchestrationInstance = new OrchestrationInstance
+                    {
+                        InstanceId = instanceId,
+                        ExecutionId = executionId,
+                    },
+                };
+                Assert.IsTrue(await service.TrackingStore.SetNewExecutionAsync(executionStartedEvent, null, null));
+                Assert.AreEqual(
+                    OrchestrationStatus.Pending,
+                    (await service.TrackingStore.FetchInstanceStatusAsync(instanceId)).State.OrchestrationStatus);
+
+                var controlQueue = service.AllControlQueues.Single();
+                await controlQueue.AddMessageAsync(
+                    new TaskMessage
+                    {
+                        OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId },
+                        Event = new ExecutionTerminatedEvent(-1, "terminate"),
+                    },
+                    new OrchestrationInstance { InstanceId = "source", ExecutionId = "source-execution" });
+
+                await service.TrackingStore.PurgeInstanceHistoryAsync(instanceId);
+                Assert.IsNull(await service.TrackingStore.FetchInstanceStatusAsync(instanceId));
+
+                await service.StartAsync();
+                serviceStarted = true;
+                using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
+                {
+                    TaskOrchestrationWorkItem workItem = await service.LockNextTaskOrchestrationWorkItemAsync(
+                        TimeSpan.FromSeconds(30),
+                        timeout.Token);
+                    Assert.IsNull(workItem);
+                }
+
+                Assert.AreEqual(
+                    0,
+                    await controlQueue.InnerQueue.GetApproximateMessagesCountAsync(),
+                    "A termination message for a purged instance should be deleted, not redelivered.");
+            }
+            finally
+            {
+                if (serviceStarted)
+                {
+                    await service.StopAsync(isForced: true);
+                }
+
+                if (service != null)
+                {
+                    await service.DeleteAsync();
+                }
+            }
+        }
+
         /// <summary>
         /// End-to-end test which validates the Rewind functionality on more than one orchestration.
         /// </summary>
