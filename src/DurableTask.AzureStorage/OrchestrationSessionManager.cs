@@ -541,17 +541,19 @@ namespace DurableTask.AzureStorage
                     batch.ETags.HistoryETag = history.ETag;
                     batch.LastCheckpointTime = history.LastCheckpointTime;
                     batch.TrackingStoreContext = history.TrackingStoreContext;
+                }
 
-                    // Try to get the instance ETag from the tracking store if it wasn't already provided
-                    if (this.settings.UseInstanceTableEtag && batch.ETags.InstanceETag == null)
-                    {
-                        InstanceStatus? instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(
-                            batch.OrchestrationInstanceId,
-                            cancellationToken);
-                        // The instance could not exist in the case that these messages are for the first execution of a suborchestration,
-                        // or an entity-started orchestration, for example
-                        batch.ETags.InstanceETag = instanceStatus?.ETag;
-                    }
+                // Try to get the instance ETag from the tracking store if it wasn't already provided.
+                // This is not in the history check above, so that a retry loads the instance ETag again
+                // when an earlier attempt loaded the history but failed to load the instance ETag.
+                if (this.settings.UseInstanceTableEtag && batch.ETags.InstanceETag == null)
+                {
+                    InstanceStatus? instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(
+                        batch.OrchestrationInstanceId,
+                        cancellationToken);
+                    // The instance could not exist in the case that these messages are for the first execution of a suborchestration,
+                    // or an entity-started orchestration, for example
+                    batch.ETags.InstanceETag = instanceStatus?.ETag;
                 }
 
                 if (this.settings.UseSeparateQueueForEntityWorkItems

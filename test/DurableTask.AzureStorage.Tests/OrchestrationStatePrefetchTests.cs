@@ -221,7 +221,8 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         /// <summary>
-        /// When the history is already loaded and a later step fails, the retry must not load the history again.
+        /// When the history is loaded but the instance ETag load fails, the retry loads the instance ETag again.
+        /// The retry must not load the history again.
         /// </summary>
         [TestMethod]
         public async Task PrefetchRetry_HistoryAlreadyLoaded_DoesNotLoadHistoryAgain()
@@ -229,12 +230,13 @@ namespace DurableTask.AzureStorage.Tests
             // The instance ETag is loaded after the history. Make the first instance ETag load fail.
             this.settings.UseInstanceTableEtag = true;
             OrchestrationHistory history = CreateHistory();
+            var instanceETag = new ETag("instance-etag");
             var trackingStore = new FakeTrackingStore
             {
                 OnGetHistory = attempt => Task.FromResult(history),
                 OnFetchInstanceStatus = attempt => attempt == 1
                     ? throw new SimulatedStorageException(attempt)
-                    : Task.FromResult<InstanceStatus>(null),
+                    : Task.FromResult(new InstanceStatus(new OrchestrationState(), instanceETag)),
             };
 
             using var manager = this.CreateManager(trackingStore);
@@ -247,7 +249,8 @@ namespace DurableTask.AzureStorage.Tests
             }
 
             Assert.IsNotNull(session);
-            Assert.IsTrue(trackingStore.InstanceStatusCalls >= 1, "The instance ETag load did not run.");
+            Assert.AreEqual(2, trackingStore.InstanceStatusCalls, "The instance ETag load did not run.");
+            Assert.AreEqual<ETag?>(instanceETag, session.ETags.InstanceETag, "The session does not have the instance ETag from the retry.");
             Assert.AreEqual(1, trackingStore.HistoryCalls, "The retry loaded the history again.");
             Assert.AreSame(history.Events[0], session.RuntimeState.ExecutionStartedEvent);
         }
