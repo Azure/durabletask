@@ -1,4 +1,5 @@
 ﻿using DurableTask.Core.Entities;
+using DurableTask.Core.Entities.EventFormat;
 using DurableTask.Core.Entities.OperationFormat;
 using DurableTask.Core.History;
 using DurableTask.Core.Logging;
@@ -6,7 +7,6 @@ using DurableTask.Core.Middleware;
 using DurableTask.Core.Settings;
 using DurableTask.Core.Tracing;
 using DurableTask.Emulator;
-using DurableTask.Test.Orchestrations;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json;
@@ -15,6 +15,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using static DurableTask.Core.TaskEntityDispatcher;
 
@@ -395,6 +396,211 @@ namespace DurableTask.Core.Tests
             }
         }
 
+        [TestMethod]
+        public async Task ExtendedSession_NoWorkerBatches_PreserveStateAndQueueChanges()
+        {
+            const string firstState = "{\"count\":42,\"values\":[\"a\",\"b\"]}";
+            const string secondState = "{\"count\":43,\"values\":[\"a\",\"b\",\"c\"]}";
+            int workerCalls = 0;
+
+            IReadOnlyList<OrchestrationState> checkpoints = await RunEntitySessionAsync(
+                "initial-state",
+                (request, metadata) =>
+                {
+                    Assert.AreEqual(1, request.Operations.Count);
+                    Assert.IsTrue(metadata.IsExtendedSession);
+                    if (workerCalls++ == 0)
+                    {
+                        Assert.AreEqual("set", request.Operations[0].Operation);
+                        Assert.IsTrue(metadata.IncludeState);
+                        Assert.AreEqual("initial-state", request.EntityState);
+                        return firstState;
+                    }
+
+                    Assert.AreEqual("queued", request.Operations[0].Operation);
+                    Assert.IsFalse(metadata.IncludeState);
+                    Assert.IsNull(request.EntityState, "The dispatcher should still clear its state between worker batches.");
+                    return secondState;
+                },
+                // 1. Update the entity state.
+                new[] { EntityOperation("set") },
+                // 2. Lock without invoking the worker.
+                new[] { EntityLock() },
+                // 3. Queue another caller's operation.
+                new[] { EntityOperation("queued", "other-caller") },
+                // 4. Unlock and execute the queued operation.
+                new[] { EntityUnlock() },
+                // 5. Lock and unlock without invoking the worker.
+                new[] { EntityLock() },
+                new[] { EntityUnlock() });
+
+            // 6. Verify state, locks, and queues at each checkpoint.
+            Assert.AreEqual(2, workerCalls, "Lock-only and blocked-operation batches must not invoke the worker.");
+            Assert.AreEqual(6, checkpoints.Count);
+            string[] expectedStates = { firstState, firstState, firstState, secondState, secondState, secondState };
+            string[] expectedOwners = { null, "owner", "owner", null, "owner", null };
+            int[] expectedQueueSizes = { 0, 0, 1, 0, 0, 0 };
+            for (int i = 0; i < checkpoints.Count; i++)
+            {
+                JObject checkpoint = JObject.Parse(checkpoints[i].Input);
+                Assert.AreEqual(expectedStates[i], (string)checkpoint["state"], $"Entity state at checkpoint {i}.");
+                Assert.AreEqual(expectedOwners[i], (string)checkpoint["lockedBy"], $"Lock owner at checkpoint {i}.");
+                Assert.AreEqual(expectedQueueSizes[i], checkpoint["queue"]?.Count() ?? 0, $"Queue at checkpoint {i}.");
+                EntityStatus status = JsonConvert.DeserializeObject<EntityStatus>(checkpoints[i].Status);
+                Assert.IsTrue(status.EntityExists);
+                Assert.AreEqual(expectedOwners[i], status.LockedBy);
+                Assert.AreEqual(expectedQueueSizes[i], status.BacklogQueueSize);
+            }
+        }
+
+        [TestMethod]
+        public async Task ExtendedSession_OnlyLockAndUnlock_PreserveInitialState()
+        {
+            IReadOnlyList<OrchestrationState> checkpoints = await RunEntitySessionAsync(
+                "existing-state",
+                (request, metadata) => throw new AssertFailedException("A lock-only session must not invoke the worker."),
+                // 1. Lock the existing entity.
+                new[] { EntityLock() },
+                // 2. Unlock without invoking the worker.
+                new[] { EntityUnlock() });
+
+            // 3. Verify both checkpoints preserve the state.
+            Assert.AreEqual(2, checkpoints.Count);
+            Assert.AreEqual("existing-state", (string)JObject.Parse(checkpoints[0].Input)["state"]);
+            Assert.AreEqual("owner", (string)JObject.Parse(checkpoints[0].Input)["lockedBy"]);
+            Assert.AreEqual("existing-state", (string)JObject.Parse(checkpoints[1].Input)["state"]);
+            Assert.IsNull((string)JObject.Parse(checkpoints[1].Input)["lockedBy"]);
+            Assert.IsTrue(JsonConvert.DeserializeObject<EntityStatus>(checkpoints[1].Status).EntityExists);
+        }
+
+        [TestMethod]
+        public async Task ExtendedSession_WorkerDeletion_IsNotRestoredByUnlock()
+        {
+            int workerCalls = 0;
+            IReadOnlyList<OrchestrationState> checkpoints = await RunEntitySessionAsync(
+                "initial-state",
+                (request, metadata) =>
+                {
+                    workerCalls++;
+                    Assert.AreEqual(1, request.Operations.Count);
+                    if (request.Operations[0].Operation == "set")
+                    {
+                        return "updated-state";
+                    }
+
+                    Assert.AreEqual("delete", request.Operations[0].Operation);
+                    Assert.IsFalse(metadata.IncludeState);
+                    return null;
+                },
+                // 1. Update the entity state.
+                new[] { EntityOperation("set") },
+                // 2. Acquire the lock.
+                new[] { EntityLock() },
+                // 3. Delete the state while holding the lock.
+                new[] { EntityOperation("delete", "owner") },
+                // 4. Unlock without invoking the worker.
+                new[] { EntityUnlock() });
+
+            Assert.AreEqual(2, workerCalls);
+            Assert.AreEqual(4, checkpoints.Count);
+            // 5. Verify deletion preserves the lock.
+            JObject deleted = JObject.Parse(checkpoints[2].Input);
+            Assert.IsNull((string)deleted["state"]);
+            Assert.AreEqual("owner", (string)deleted["lockedBy"]);
+            Assert.IsFalse(JsonConvert.DeserializeObject<EntityStatus>(checkpoints[2].Status).EntityExists);
+            // 6. Verify unlocking does not restore deleted state.
+            Assert.IsNull(checkpoints[3].Input, "Unlock must delete the empty scheduler, not resurrect old entity state.");
+            EntityStatus finalStatus = JsonConvert.DeserializeObject<EntityStatus>(checkpoints[3].Status);
+            Assert.IsFalse(finalStatus.EntityExists);
+            Assert.IsNull(finalStatus.LockedBy);
+        }
+
+        static async Task<IReadOnlyList<OrchestrationState>> RunEntitySessionAsync(
+            string initialState,
+            Func<EntityBatchRequest, WorkItemMetadata, string> runWorker,
+            params TaskMessage[][] batches)
+        {
+            using var service = new CapturingOrchestrationService();
+            var session = new EntityTestSession(batches.Skip(1));
+            var pipeline = new DispatchMiddlewarePipeline();
+            pipeline.Add((context, next) =>
+            {
+                EntityBatchRequest request = context.GetProperty<EntityBatchRequest>();
+                string state = runWorker(request, context.GetProperty<WorkItemMetadata>());
+                context.SetProperty(new EntityBatchResult
+                {
+                    EntityState = state,
+                    Results = request.Operations.Select(_ => new OperationResult()).ToList(),
+                    Actions = new List<OperationAction>(),
+                });
+                return Task.CompletedTask;
+            });
+            var dispatcher = new TaskEntityDispatcher(
+                service, new NameVersionObjectManager<TaskEntity>(), pipeline,
+                new LogHelper(null), ErrorPropagationMode.UseFailureDetails, null);
+            dispatcher.EntityBackendProperties.SupportsImplicitEntityDeletion = true;
+            dispatcher.EntityBackendProperties.EntityMessageReorderWindow = TimeSpan.Zero;
+            OrchestrationRuntimeState runtimeState = CreateEntityRuntimeState();
+            runtimeState.ExecutionStartedEvent.Input = JsonConvert.SerializeObject(new { state = initialState });
+            var workItem = new TaskOrchestrationWorkItem
+            {
+                InstanceId = runtimeState.OrchestrationInstance.InstanceId,
+                OrchestrationRuntimeState = runtimeState,
+                LockedUntilUtc = DateTime.MaxValue,
+                NewMessages = batches[0],
+                Session = session,
+            };
+
+            // Exercise the real session loop without starting background dispatchers or changing production visibility.
+            MethodInfo processSession = typeof(TaskEntityDispatcher).GetMethod(
+                "OnProcessWorkItemSessionAsync", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(processSession);
+            await (Task)processSession.Invoke(dispatcher, new object[] { workItem });
+            Assert.IsTrue(session.Ended);
+            return service.Checkpoints;
+        }
+
+        static TaskMessage EntityOperation(string operation, string parent = null) => EntityMessage(new RequestMessage
+        {
+            Id = Guid.NewGuid(), Operation = operation, IsSignal = true, ParentInstanceId = parent,
+        });
+
+        static TaskMessage EntityLock() => EntityMessage(new RequestMessage
+        {
+            Id = Guid.NewGuid(), ParentInstanceId = "owner", LockSet = new[] { new EntityId("testentity", "test-key") },
+        });
+
+        static TaskMessage EntityUnlock() => EntityMessage(new ReleaseMessage { ParentInstanceId = "owner" });
+
+        static TaskMessage EntityMessage(EntityMessage message) => new TaskMessage
+        {
+            OrchestrationInstance = new OrchestrationInstance { InstanceId = "@testentity@test-key" },
+            Event = new EventRaisedEvent(-1, JsonConvert.SerializeObject(message))
+            {
+                Name = message is ReleaseMessage
+                    ? EntityMessageEventNames.ReleaseMessageEventName
+                    : EntityMessageEventNames.RequestMessageEventName,
+            },
+        };
+
+        sealed class EntityTestSession : IOrchestrationSession
+        {
+            readonly Queue<TaskMessage[]> batches;
+
+            public EntityTestSession(IEnumerable<TaskMessage[]> batches) => this.batches = new Queue<TaskMessage[]>(batches);
+
+            public bool Ended { get; private set; }
+
+            public Task<IList<TaskMessage>> FetchNewOrchestrationMessagesAsync(TaskOrchestrationWorkItem workItem)
+                => Task.FromResult<IList<TaskMessage>>(this.batches.Count > 0 ? this.batches.Dequeue() : null);
+
+            public Task EndSessionAsync()
+            {
+                this.Ended = true;
+                return Task.CompletedTask;
+            }
+        }
+
         static OrchestrationRuntimeState CreateEntityRuntimeState(IDictionary<string, string> tags = null)
         {
             return new OrchestrationRuntimeState(new HistoryEvent[]
@@ -471,6 +677,7 @@ namespace DurableTask.Core.Tests
         sealed class CapturingOrchestrationService : LocalOrchestrationService, IOrchestrationService
         {
             public OrchestrationState State { get; private set; }
+            public List<OrchestrationState> Checkpoints { get; } = new List<OrchestrationState>();
             public IList<TaskMessage> Messages { get; private set; }
             public TaskMessage ContinuedAsNewMessage { get; private set; }
 
@@ -484,6 +691,7 @@ namespace DurableTask.Core.Tests
                 OrchestrationState state)
             {
                 this.State = state;
+                this.Checkpoints.Add(state);
                 this.Messages = outboundMessages.Concat(orchestratorMessages).Concat(timerMessages).ToList();
                 this.ContinuedAsNewMessage = continuedAsNewMessage;
                 return Task.CompletedTask;
