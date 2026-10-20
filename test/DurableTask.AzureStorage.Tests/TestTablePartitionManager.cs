@@ -529,6 +529,8 @@ namespace DurableTask.AzureStorage.Tests
                 taskHubWorkers[i].AddTaskOrchestrations(typeof(LongRunningOrchestrator));
             }
 
+            await services[0].CreateIfNotExistsAsync();
+
             // Create 50 orchestration instances.
             var client = new TaskHubClient(services[0]);
             var createInstanceTasks = new Task<OrchestrationInstance>[InstanceCount];
@@ -610,6 +612,8 @@ namespace DurableTask.AzureStorage.Tests
                 taskHubWorkers[i].AddTaskOrchestrations(typeof(HelloOrchestrator));
                 taskHubWorkers[i].AddTaskActivities(typeof(Hello));
             }
+
+            await services[0].CreateIfNotExistsAsync();
 
             // Create 100 orchestration instances.
             var client = new TaskHubClient(services[0]);

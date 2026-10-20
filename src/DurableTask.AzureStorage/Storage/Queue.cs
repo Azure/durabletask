@@ -39,6 +39,17 @@ namespace DurableTask.AzureStorage.Storage
 
         public Uri Uri => this.queueClient.Uri;
 
+        public async Task<IDictionary<string, string>> GetMetadataAsync(CancellationToken cancellationToken = default)
+        {
+            QueueProperties properties = await this.queueClient.GetPropertiesAsync(cancellationToken).DecorateFailure();
+            return properties.Metadata;
+        }
+
+        public async Task SetMetadataAsync(IDictionary<string, string> metadata, CancellationToken cancellationToken = default)
+        {
+            await this.queueClient.SetMetadataAsync(metadata, cancellationToken).DecorateFailure();
+        }
+
         public async Task<int> GetApproximateMessagesCountAsync(CancellationToken cancellationToken = default)
         {
             QueueProperties properties = await this.queueClient.GetPropertiesAsync(cancellationToken).DecorateFailure();
