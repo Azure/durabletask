@@ -10,7 +10,7 @@ steps:
   - task: DownloadPipelineArtifact@2
     displayName: 'Download Tests Artifact'
     inputs:
-      artifactName: '${{ parameters.artifactName }}'
+      artifactName: '${{ parameters.artifactName }}-$(System.JobId)-$(System.JobAttempt)'
       targetPath: '$(System.DefaultWorkingDirectory)/tests'
 
   - bash: |

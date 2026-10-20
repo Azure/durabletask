@@ -99,12 +99,12 @@ namespace DurableTask.AzureStorage.Tests
                     TimeSpan expected = TimeSpan.FromSeconds(Math.Min(
                         dequeueCount > 30 ? 600 : Math.Pow(2, dequeueCount), migrating ? 30 : 600));
                     before = DateTimeOffset.UtcNow;
-                    await control.AbandonMessageAsync(message);
+                    await control.AbandonMessageAsync(message, "Testing control queue visibility timeout.");
                     AssertVisibility(message.OriginalQueueMessage.NextVisibleOn!.Value, before, expected);
 
                     // Deserialization failures abandon the raw message through a separate overload.
                     before = DateTimeOffset.UtcNow;
-                    UpdateReceipt? receipt = await control.AbandonMessageAsync(message.OriginalQueueMessage);
+                    UpdateReceipt? receipt = await control.AbandonMessageAsync(message.OriginalQueueMessage, "Testing raw control message visibility timeout.");
                     Assert.IsNotNull(receipt);
                     AssertVisibility(receipt.NextVisibleOn, before, expected);
                     message.Update(receipt);
@@ -118,7 +118,7 @@ namespace DurableTask.AzureStorage.Tests
                 work.OriginalQueueMessage = QueuesModelFactory.QueueMessage(
                     activityMessage.MessageId, activityMessage.PopReceipt, activityMessage.Body, dequeueCount: 10);
                 before = DateTimeOffset.UtcNow;
-                await activity.AbandonMessageAsync(work);
+                await activity.AbandonMessageAsync(work, "Testing activity queue visibility timeout.");
                 AssertVisibility(work.OriginalQueueMessage.NextVisibleOn!.Value, before, TimeSpan.FromMinutes(10));
 
                 if (migrating)

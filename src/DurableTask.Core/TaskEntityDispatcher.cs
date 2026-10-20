@@ -332,6 +332,13 @@ namespace DurableTask.Core
                             }
                         }
                     }
+                    else if (!firstExecutionIfExtendedSession && schedulerState.EntityState == null)
+                    {
+                        // No worker result will supply the entity state for this batch, and it may have been set
+                        // to null by the calling loop in the case of an extended session. To avoid effectively deleting
+                        // the entity state by storing null, we restore it here
+                        schedulerState.EntityState = ClientEntityHelpers.GetEntityState(runtimeState.Input);
+                    }
 
                     // process the lock request, if any
                     if (workToDoNow.LockRequest != null)
@@ -912,7 +919,9 @@ namespace DurableTask.Core
             {
                 Tags = OrchestrationTags.MergeTags(
                     newTags: new Dictionary<string, string>() { { OrchestrationTags.FireAndForget, "" } },
-                    existingTags: runtimeState.Tags),
+                    existingTags: OrchestrationTags.MergeTags(
+                        newTags: action.Tags,
+                        existingTags: runtimeState.Tags)),
                 OrchestrationInstance = destination,
                 ScheduledStartTime = action.ScheduledStartTime,
                 ParentInstance = new ParentInstance

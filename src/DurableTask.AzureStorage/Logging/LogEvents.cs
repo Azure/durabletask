@@ -336,7 +336,8 @@ namespace DurableTask.AzureStorage.Logging
                 string partitionId,
                 long sequenceNumber,
                 string popReceipt,
-                int visibilityTimeoutSeconds)
+                int visibilityTimeoutSeconds,
+                string details)
             {
                 this.Account = account;
                 this.TaskHub = taskHub;
@@ -349,6 +350,7 @@ namespace DurableTask.AzureStorage.Logging
                 this.SequenceNumber = sequenceNumber;
                 this.PopReceipt = popReceipt;
                 this.VisibilityTimeoutSeconds = visibilityTimeoutSeconds;
+                this.Details = details;
             }
 
             [StructuredLogField]
@@ -384,6 +386,9 @@ namespace DurableTask.AzureStorage.Logging
             [StructuredLogField]
             public int VisibilityTimeoutSeconds { get; }
 
+            [StructuredLogField]
+            public string Details { get; }
+
             public override EventId EventId => new EventId(
                 EventIds.AbandoningMessage,
                 nameof(EventIds.AbandoningMessage));
@@ -410,7 +415,8 @@ namespace DurableTask.AzureStorage.Logging
                 this.PopReceipt,
                 this.VisibilityTimeoutSeconds,
                 Utils.AppName,
-                Utils.ExtensionVersion);
+                Utils.ExtensionVersion,
+                this.Details);
         }
 
         internal class AssertFailure : StructuredLogEvent, IEventSourceEvent
