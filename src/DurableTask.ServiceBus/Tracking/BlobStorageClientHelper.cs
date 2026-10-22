@@ -156,14 +156,7 @@ namespace DurableTask.ServiceBus.Tracking
             }
 
             string dateString = segments[segments.Length - 1];
-            bool parseSucceeded = DateTime.TryParseExact(
-                dateString,
-                DateFormat,
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.None,
-                out DateTime containerDateTime);
-
-            if (!parseSucceeded)
+            if (!TryParseContainerDate(dateString, out DateTime containerDateTime))
             {
                 TraceHelper.Trace(
                     TraceEventType.Warning,
@@ -180,7 +173,8 @@ namespace DurableTask.ServiceBus.Tracking
         /// Check if the container belongs to the hub with the given container name prefix.
         /// Container names are {hubName}-dtfx-{type}-{yyyyMMdd}; because hub names may contain dashes, a different hub
         /// (e.g. "alpha-dtfx-backup") can share the prefix "alpha-dtfx". The container belongs to the hub only if the
-        /// whole name without its trailing "-{type}-{yyyyMMdd}" segments equals the hub's container name prefix.
+        /// whole name without its trailing "-{type}-{yyyyMMdd}" segments equals the hub's container name prefix,
+        /// the type is not empty, and the last segment is a valid yyyyMMdd date.
         /// </summary>
         /// <param name="containerName">The container name</param>
         /// <param name="containerNamePrefix">The hub's container name prefix, i.e. {hubName}-dtfx</param>
@@ -194,12 +188,18 @@ namespace DurableTask.ServiceBus.Tracking
             }
 
             int typeDelimiterIndex = containerName.LastIndexOf(ContainerNameDelimiter, dateDelimiterIndex - 1);
-            if (typeDelimiterIndex <= 0)
+            if (typeDelimiterIndex <= 0 || typeDelimiterIndex == dateDelimiterIndex - 1)
             {
                 return false;
             }
 
-            return string.Equals(containerName.Substring(0, typeDelimiterIndex), containerNamePrefix, StringComparison.OrdinalIgnoreCase);
+            return string.Equals(containerName.Substring(0, typeDelimiterIndex), containerNamePrefix, StringComparison.OrdinalIgnoreCase) &&
+                TryParseContainerDate(containerName.Substring(dateDelimiterIndex + 1), out _);
+        }
+
+        static bool TryParseContainerDate(string dateString, out DateTime date)
+        {
+            return DateTime.TryParseExact(dateString, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
         }
 
         /// <summary>

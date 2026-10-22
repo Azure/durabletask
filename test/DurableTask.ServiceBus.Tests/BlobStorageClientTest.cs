@@ -191,6 +191,50 @@ namespace DurableTask.ServiceBus.Tests
             }
         }
 
+        [TestMethod]
+        public async Task TestDeleteBlobStoreContainersIgnoresMalformedContainers()
+        {
+            string storageConnectionString = TestHelpers.GetTestSetting("StorageConnectionString");
+            var serviceClient = new BlobServiceClient(storageConnectionString);
+            string hubName = "alpha" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            var hubClient = new BlobStorageClient(hubName, storageConnectionString);
+
+            string hubPrefix = BlobStorageClientHelper.BuildContainerNamePrefix(hubName);
+            string hubContainer = BlobStorageClientHelper.BuildContainerName(hubPrefix, "session-20150516");
+            string[] malformedContainers =
+            {
+                BlobStorageClientHelper.BuildContainerName(hubPrefix, "session-backup"),
+                BlobStorageClientHelper.BuildContainerName(hubPrefix, "session-20150230"),
+            };
+
+            try
+            {
+                await UploadAsync(hubClient, "session-20150516|a");
+                foreach (string name in malformedContainers)
+                {
+                    await serviceClient.GetBlobContainerClient(name).CreateIfNotExistsAsync();
+                }
+
+                List<string> listed = (await hubClient.ListContainersAsync()).Select(c => c.Name).ToList();
+                CollectionAssert.AreEqual(new[] { hubContainer }, listed, "Containers outside the {type}-{yyyyMMdd} format must not be listed.");
+
+                await hubClient.DeleteBlobStoreContainersAsync();
+
+                Assert.IsFalse(await serviceClient.GetBlobContainerClient(hubContainer).ExistsAsync(), "The hub's container must be deleted.");
+                foreach (string name in malformedContainers)
+                {
+                    Assert.IsTrue(await serviceClient.GetBlobContainerClient(name).ExistsAsync(), $"Malformed container {name} must be kept.");
+                }
+            }
+            finally
+            {
+                foreach (string name in malformedContainers.Append(hubContainer))
+                {
+                    await serviceClient.GetBlobContainerClient(name).DeleteIfExistsAsync();
+                }
+            }
+        }
+
         static async Task UploadAsync(BlobStorageClient client, string key)
         {
             using (Stream stream = new MemoryStream(Encoding.UTF8.GetBytes("test stream content")))
