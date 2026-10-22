@@ -27,6 +27,8 @@ namespace DurableTask.ServiceBus.Tracking
     {
         static readonly string DateFormat = "yyyyMMdd";
         static readonly char ContainerNameDelimiter = '-';
+        static readonly string ContainerNameMarker = "dtfx";
+        static readonly Regex ContainerNameSuffixRegex = new Regex(@"^[a-z0-9-]+\z", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
         /// <summary>
         /// the blob storage access key is in the format of {DateTime}|{blobName}
@@ -60,7 +62,7 @@ namespace DurableTask.ServiceBus.Tracking
 
         static string BuildContainerNameSuffix(string containerType, DateTime blobCreationTime)
         {
-            return $"{containerType.ToLower()}{ContainerNameDelimiter}{GetDateStringForContainerName(blobCreationTime)}";
+            return $"{containerType.ToLowerInvariant()}{ContainerNameDelimiter}{GetDateStringForContainerName(blobCreationTime)}";
         }
 
         /// <summary>
@@ -72,7 +74,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// <returns>The container name prefix</returns>
         public static string BuildContainerNamePrefix(string hubName)
         {
-            return $"{hubName.ToLower()}{ContainerNameDelimiter}dtfx";
+            return $"{hubName.ToLowerInvariant()}{ContainerNameDelimiter}{ContainerNameMarker}";
         }
 
         /// <summary>
@@ -91,8 +93,8 @@ namespace DurableTask.ServiceBus.Tracking
         static string GetDateStringForContainerName(DateTime messageFireTime)
         {
             return messageFireTime.IsSet() ?
-                messageFireTime.ToString(DateFormat) :
-                DateTime.UtcNow.ToString(DateFormat);
+                messageFireTime.ToString(DateFormat, CultureInfo.InvariantCulture) :
+                DateTime.UtcNow.ToString(DateFormat, CultureInfo.InvariantCulture);
         }
 
         /// <summary>
@@ -129,8 +131,7 @@ namespace DurableTask.ServiceBus.Tracking
         /// <returns>True if the container name suffix is valid.</returns>
         static bool IsValidContainerNameSuffix(string containerNameSuffix)
         {
-            var regex = new Regex(@"^[a-z0-9\\-]+$");
-            return regex.Match(containerNameSuffix).Success;
+            return ContainerNameSuffixRegex.IsMatch(containerNameSuffix);
         }
 
         /// <summary>
@@ -141,26 +142,21 @@ namespace DurableTask.ServiceBus.Tracking
         /// <returns></returns>
         public static bool IsContainerExpired(string containerName, DateTime thresholdDateTimeUtc)
         {
+            // Container names are {hubName}-dtfx-{type}-{yyyyMMdd}; the hub name may itself contain dashes,
+            // so the fixed segments are read from the end.
             string[] segments = containerName.Split(ContainerNameDelimiter);
-            if (segments.Length != 4)
+            if (segments.Length < 4 || !string.Equals(segments[segments.Length - 3], ContainerNameMarker, StringComparison.Ordinal))
             {
                 TraceHelper.Trace(
                     TraceEventType.Warning,
                     "BlobStorageClientHelper-IsContainerExpired-ContainerIgnored",
-                    $"Container name {containerName} does not contain required 4 segments. Container {containerName} is ignored.");
+                    $"Container name {containerName} is not in the format {{hubName}}-{ContainerNameMarker}-{{type}}-{{date}}. Container {containerName} is ignored.");
 
                 return false;
             }
 
             string dateString = segments[segments.Length - 1];
-            bool parseSucceeded = DateTime.TryParseExact(
-                dateString,
-                DateFormat,
-                System.Globalization.CultureInfo.InvariantCulture,
-                DateTimeStyles.None,
-                out DateTime containerDateTime);
-
-            if (!parseSucceeded)
+            if (!TryParseContainerDate(dateString, out DateTime containerDateTime))
             {
                 TraceHelper.Trace(
                     TraceEventType.Warning,
@@ -171,6 +167,39 @@ namespace DurableTask.ServiceBus.Tracking
             }
 
             return containerDateTime < thresholdDateTimeUtc;
+        }
+
+        /// <summary>
+        /// Check if the container belongs to the hub with the given container name prefix.
+        /// Container names are {hubName}-dtfx-{type}-{yyyyMMdd}; because hub names may contain dashes, a different hub
+        /// (e.g. "alpha-dtfx-backup") can share the prefix "alpha-dtfx". The container belongs to the hub only if the
+        /// whole name without its trailing "-{type}-{yyyyMMdd}" segments equals the hub's container name prefix,
+        /// the type is not empty, and the last segment is a valid yyyyMMdd date.
+        /// </summary>
+        /// <param name="containerName">The container name</param>
+        /// <param name="containerNamePrefix">The hub's container name prefix, i.e. {hubName}-dtfx</param>
+        /// <returns>True if the container belongs to the hub.</returns>
+        internal static bool IsContainerOwnedByHub(string containerName, string containerNamePrefix)
+        {
+            int dateDelimiterIndex = containerName.LastIndexOf(ContainerNameDelimiter);
+            if (dateDelimiterIndex <= 0)
+            {
+                return false;
+            }
+
+            int typeDelimiterIndex = containerName.LastIndexOf(ContainerNameDelimiter, dateDelimiterIndex - 1);
+            if (typeDelimiterIndex <= 0 || typeDelimiterIndex == dateDelimiterIndex - 1)
+            {
+                return false;
+            }
+
+            return string.Equals(containerName.Substring(0, typeDelimiterIndex), containerNamePrefix, StringComparison.OrdinalIgnoreCase) &&
+                TryParseContainerDate(containerName.Substring(dateDelimiterIndex + 1), out _);
+        }
+
+        static bool TryParseContainerDate(string dateString, out DateTime date)
+        {
+            return DateTime.TryParseExact(dateString, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
         }
 
         /// <summary>
