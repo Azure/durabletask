@@ -177,6 +177,32 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         /// <summary>
+        /// Check if the container belongs to the hub with the given container name prefix.
+        /// Container names are {hubName}-dtfx-{type}-{yyyyMMdd}; because hub names may contain dashes, a different hub
+        /// (e.g. "alpha-dtfx-backup") can share the prefix "alpha-dtfx". The container belongs to the hub only if the
+        /// whole name without its trailing "-{type}-{yyyyMMdd}" segments equals the hub's container name prefix.
+        /// </summary>
+        /// <param name="containerName">The container name</param>
+        /// <param name="containerNamePrefix">The hub's container name prefix, i.e. {hubName}-dtfx</param>
+        /// <returns>True if the container belongs to the hub.</returns>
+        internal static bool IsContainerOwnedByHub(string containerName, string containerNamePrefix)
+        {
+            int dateDelimiterIndex = containerName.LastIndexOf(ContainerNameDelimiter);
+            if (dateDelimiterIndex <= 0)
+            {
+                return false;
+            }
+
+            int typeDelimiterIndex = containerName.LastIndexOf(ContainerNameDelimiter, dateDelimiterIndex - 1);
+            if (typeDelimiterIndex <= 0)
+            {
+                return false;
+            }
+
+            return string.Equals(containerName.Substring(0, typeDelimiterIndex), containerNamePrefix, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// Build a container name using prefix and suffix.
         /// </summary>
         /// <param name="prefix">The container name prefix</param>

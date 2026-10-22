@@ -89,6 +89,26 @@ namespace DurableTask.ServiceBus.Tests
         }
 
         [TestMethod]
+        [SuppressMessage("ReSharper", "StringLiteralTypo")]
+        public void IsContainerOwnedByHubTest()
+        {
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-session-20150516", "alpha-dtfx"));
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-backup-dtfx-session-20150516", "alpha-dtfx-backup-dtfx"));
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerOwnedByHub("my-hub-dtfx-message-20150516", "my-hub-dtfx"));
+
+            // another hub whose container names share this hub's prefix
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-backup-dtfx-session-20150516", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-session-20150516", "alpha-dtfx-backup-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-extra-session-20150516", "alpha-dtfx"));
+
+            // malformed names
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-20150516", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("-session-20150516", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("invalidContainerName", "alpha-dtfx"));
+        }
+
+        [TestMethod]
         public void BuildMessageBlobKeyTest()
         {
             var instanceId = "aa";
