@@ -426,14 +426,21 @@ namespace DurableTask.ServiceBus
         {
             ManagementClient managementClient = this.CreateManagementClient();
 
+            return GetHubQueueMaxDeliveryCounts(await managementClient.GetQueuesAsync());
+        }
+
+        /// <summary>
+        ///     Gets the max delivery count of each hub queue from the given queues, or -1 for a queue that doesn't exist
+        /// </summary>
+        internal Dictionary<string, int> GetHubQueueMaxDeliveryCounts(IEnumerable<QueueDescription> allQueues)
+        {
             var result = new Dictionary<string, int>(3);
 
-            var queues =
-                (await managementClient.GetQueuesAsync()).Where(x => x.Path.StartsWith(this.hubName)).ToList();
+            var queues = allQueues.Where(x => x.Path.StartsWith(this.hubName)).ToList();
 
-            result.Add("TaskOrchestration", queues.Single(q => string.Equals(q.Path, this.orchestratorEntityName))?.MaxDeliveryCount ?? -1);
-            result.Add("TaskActivity", queues.Single(q => string.Equals(q.Path, this.workerEntityName))?.MaxDeliveryCount ?? -1);
-            result.Add("Tracking", queues.Single(q => string.Equals(q.Path, this.trackingEntityName))?.MaxDeliveryCount ?? -1);
+            result.Add("TaskOrchestration", queues.SingleOrDefault(q => string.Equals(q.Path, this.orchestratorEntityName))?.MaxDeliveryCount ?? -1);
+            result.Add("TaskActivity", queues.SingleOrDefault(q => string.Equals(q.Path, this.workerEntityName))?.MaxDeliveryCount ?? -1);
+            result.Add("Tracking", queues.SingleOrDefault(q => string.Equals(q.Path, this.trackingEntityName))?.MaxDeliveryCount ?? -1);
 
             return result;
         }
