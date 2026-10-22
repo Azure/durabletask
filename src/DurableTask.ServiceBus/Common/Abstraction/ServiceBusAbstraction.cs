@@ -341,22 +341,12 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             {
                 int droppedCount = 0;
                 long droppedBodyBytes = 0;
-                List<string> droppedMessageIds = null;
                 foreach (Azure.Messaging.ServiceBus.ServiceBusMessage sbMessage in messageList)
                 {
                     if (!batch.TryAddMessage(sbMessage))
                     {
                         droppedCount++;
                         droppedBodyBytes += sbMessage.Body.ToMemory().Length;
-                        if (sbMessage.MessageId != null)
-                        {
-                            if (droppedMessageIds == null)
-                            {
-                                droppedMessageIds = new List<string>();
-                            }
-
-                            droppedMessageIds.Add(sbMessage.MessageId);
-                        }
                     }
                 }
 
@@ -366,8 +356,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                         TraceEventType.Error,
                         "MessageSender-SendAsync-MessagesDropped",
                         () => $"{droppedCount} message(s) ({droppedBodyBytes} body bytes) did not fit in the batch for '{sender.EntityPath}' " +
-                              $"and were not sent; {batch.Count} message(s) were sent (maximum batch size: {batch.MaxSizeInBytes} bytes)." +
-                              (droppedMessageIds != null ? $" Dropped message ids: {string.Join(", ", droppedMessageIds)}" : string.Empty));
+                              $"and were not sent; {batch.Count} message(s) were added to the batch (maximum batch size: {batch.MaxSizeInBytes} bytes).");
                 }
 
                 await sender.SendMessagesAsync(batch);
