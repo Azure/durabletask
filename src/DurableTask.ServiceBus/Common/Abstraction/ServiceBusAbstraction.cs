@@ -339,28 +339,35 @@ namespace DurableTask.ServiceBus.Common.Abstraction
         {
             using (Azure.Messaging.ServiceBus.ServiceBusMessageBatch batch = await sender.CreateMessageBatchAsync())
             {
+                int droppedCount = 0;
+                long droppedBodyBytes = 0;
                 List<string> droppedMessageIds = null;
                 foreach (Azure.Messaging.ServiceBus.ServiceBusMessage sbMessage in messageList)
                 {
                     if (!batch.TryAddMessage(sbMessage))
                     {
-                        if (droppedMessageIds == null)
+                        droppedCount++;
+                        droppedBodyBytes += sbMessage.Body.ToMemory().Length;
+                        if (sbMessage.MessageId != null)
                         {
-                            droppedMessageIds = new List<string>();
-                        }
+                            if (droppedMessageIds == null)
+                            {
+                                droppedMessageIds = new List<string>();
+                            }
 
-                        droppedMessageIds.Add(sbMessage.MessageId ?? "<none>");
+                            droppedMessageIds.Add(sbMessage.MessageId);
+                        }
                     }
                 }
 
-                if (droppedMessageIds != null)
+                if (droppedCount > 0)
                 {
                     TraceHelper.Trace(
                         TraceEventType.Error,
                         "MessageSender-SendAsync-MessagesDropped",
-                        () => $"{droppedMessageIds.Count} message(s) did not fit in the batch for '{sender.EntityPath}' " +
-                              $"(maximum batch size: {batch.MaxSizeInBytes} bytes, batched messages: {batch.Count}) and were not sent. " +
-                              $"Message ids: {string.Join(", ", droppedMessageIds)}");
+                        () => $"{droppedCount} message(s) ({droppedBodyBytes} body bytes) did not fit in the batch for '{sender.EntityPath}' " +
+                              $"and were not sent; {batch.Count} message(s) were sent (maximum batch size: {batch.MaxSizeInBytes} bytes)." +
+                              (droppedMessageIds != null ? $" Dropped message ids: {string.Join(", ", droppedMessageIds)}" : string.Empty));
                 }
 
                 await sender.SendMessagesAsync(batch);
