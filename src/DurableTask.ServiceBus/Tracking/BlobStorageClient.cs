@@ -59,7 +59,7 @@ namespace DurableTask.ServiceBus.Tracking
 
             // make the hub name lower case since it will be used as part of the prefix of the container name,
             // which only allows lower case letters
-            this.containerNamePrefix = BlobStorageClientHelper.BuildContainerNamePrefix(hubName.ToLower());
+            this.containerNamePrefix = BlobStorageClientHelper.BuildContainerNamePrefix(hubName);
         }
 
         /// <summary>
@@ -89,7 +89,7 @@ namespace DurableTask.ServiceBus.Tracking
 
             // make the hub name lower case since it will be used as part of the prefix of the container name,
             // which only allows lower case letters
-            this.containerNamePrefix = BlobStorageClientHelper.BuildContainerNamePrefix(hubName.ToLower());
+            this.containerNamePrefix = BlobStorageClientHelper.BuildContainerNamePrefix(hubName);
         }
 
         /// <summary>

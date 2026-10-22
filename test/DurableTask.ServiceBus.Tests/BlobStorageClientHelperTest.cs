@@ -15,6 +15,7 @@ namespace DurableTask.ServiceBus.Tests
 {
     using System;
     using System.Diagnostics.CodeAnalysis;
+    using System.Globalization;
     using System.Text.RegularExpressions;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using DurableTask.ServiceBus.Tracking;
@@ -40,6 +41,51 @@ namespace DurableTask.ServiceBus.Tests
             // invalid containers are ignored
             Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired("invalidContainerName", DateTime.UtcNow));
             Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired("hubname-dtfx-message-20146789", DateTime.UtcNow));
+        }
+
+        [TestMethod]
+        [SuppressMessage("ReSharper", "StringLiteralTypo")]
+        public void IsContainerExpiredHubNameWithDashesTest()
+        {
+            var dateTime = new DateTime(2015, 05, 17);
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerExpired("my-hub-dtfx-message-20150516", dateTime));
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerExpired("my-test-hub-dtfx-session-20140518", dateTime));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired("my-hub-dtfx-message-20150518", dateTime));
+
+            // containers not created by the framework are ignored
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired("my-hub-other-message-20100101", DateTime.UtcNow));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired("dtfx-message-20100101", DateTime.UtcNow));
+        }
+
+        [TestMethod]
+        [SuppressMessage("ReSharper", "StringLiteralTypo")]
+        public void ContainerNamesAreCultureInvariantTest()
+        {
+            CultureInfo originalCulture = CultureInfo.CurrentCulture;
+            try
+            {
+                // th-TH uses the Buddhist calendar (year 2558 for 2015)
+                CultureInfo.CurrentCulture = new CultureInfo("th-TH");
+                string key = BlobStorageClientHelper.BuildMessageBlobKey("aa", "bb", new DateTime(2015, 05, 17));
+                StringAssert.StartsWith(key, "message-20150517|");
+
+                // tr-TR lower-cases 'I' to a dotless 'ı', which is invalid in a container name
+                CultureInfo.CurrentCulture = new CultureInfo("tr-TR");
+                Assert.AreEqual("myhubid-dtfx", BlobStorageClientHelper.BuildContainerNamePrefix("MYHUBID"));
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = originalCulture;
+            }
+        }
+
+        [TestMethod]
+        public void ParseKeyRejectsInvalidSuffixCharactersTest()
+        {
+            Assert.ThrowsException<ArgumentException>(
+                () => BlobStorageClientHelper.ParseKey(@"message\-20100319|aa/bb/cc", out _, out _));
+            Assert.ThrowsException<ArgumentException>(
+                () => BlobStorageClientHelper.ParseKey("message-20100319\n|aa/bb/cc", out _, out _));
         }
 
         [TestMethod]
