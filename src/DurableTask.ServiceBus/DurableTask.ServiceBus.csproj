@@ -2,16 +2,16 @@
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory),DurableTask.sln))\tools\DurableTask.props" />
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net48</TargetFrameworks>
+    <TargetFramework>netstandard2.0</TargetFramework>
     <PackageId>Microsoft.Azure.DurableTask.ServiceBus</PackageId>
     <Platforms>AnyCPU;x64</Platforms>
   </PropertyGroup>
 
     <!-- Version Info -->
   <PropertyGroup>
-    <MajorVersion>4</MajorVersion>
+    <MajorVersion>5</MajorVersion>
     <MinorVersion>0</MinorVersion>
-    <PatchVersion>3</PatchVersion>
+    <PatchVersion>0</PatchVersion>
 
     <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
     <FileVersion>$(VersionPrefix).0</FileVersion>
@@ -24,26 +24,10 @@
     <Version>$(VersionPrefix)</Version>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
-    <PackageReference Include="ImpromptuInterface" />
-    <PackageReference Include="Microsoft.Azure.KeyVault.Core" />
-    <PackageReference Include="Microsoft.Data.Edm" />
-    <PackageReference Include="Microsoft.Data.OData" />
-    <PackageReference Include="Microsoft.Data.Services.Client" />
-    <PackageReference Include="Microsoft.WindowsAzure.ConfigurationManager" />
-    <PackageReference Include="System.Spatial" />
-    <PackageReference Include="WindowsAzure.ServiceBus" />
-    <Reference Include="System.Transactions" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <PackageReference Include="Azure.Messaging.ServiceBus" />
-  </ItemGroup>
-
   <ItemGroup>
+    <PackageReference Include="Azure.Messaging.ServiceBus" />
     <PackageReference Include="Azure.Data.Tables"  />
     <PackageReference Include="Azure.Storage.Blobs" />
-    <PackageReference Include="Microsoft.CSharp" />
   </ItemGroup>
 
   <ItemGroup>

@@ -224,6 +224,14 @@ var instance = await client.CreateOrchestrationInstanceAsync(
 | `Reject` | Default. Abandon the work item so another worker can pick it up (or retry later). |
 | `Fail` | Fail the orchestration with a `VersionMismatch` error. |
 
+#### Built-in Unversioned Orchestration Exemption
+
+The worker version check exempts exactly one built-in, unversioned orchestration name, `BlobPurgeJobOrchestrator`. This is not a configurable allow list; the name is fixed in the Durable Task Framework and cannot be extended, replaced, or configured by a host.
+
+The exemption applies only when both the orchestration name is an exact, case-sensitive (ordinal) match for `BlobPurgeJobOrchestrator` and its execution version is `null` or the empty string. Nonempty versions, including whitespace, and every other orchestration name continue through the configured version matching and failure strategies unchanged. Business orchestration version policies and failure behavior are otherwise unchanged and apply per worker exactly as described above.
+
+The exemption skips only the worker version check, which runs before orchestration middleware and execution. It does not register an orchestration, change its execution version or history, or bypass name/version lookup. The same check applies on replay and after `ContinueAsNew`; continuing with a nonempty version re-enables the normal version policy.
+
 #### Blue-Green Deployment Example
 
 Run old and new workers simultaneously during deployments:

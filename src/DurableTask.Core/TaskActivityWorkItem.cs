@@ -37,6 +37,16 @@ namespace DurableTask.Core
         public TaskMessage TaskMessage;
 
         /// <summary>
+        /// Gets or sets the one-based delivery attempt number for the current activity work item.
+        /// </summary>
+        /// <remarks>
+        /// This value does not represent the Activity attempt number of a Durable Task retry policy, and
+        /// does not necessarily reflect the amount of times user code has been executed.
+        /// A value of <c>null</c> indicates that the delivery attempt number is not available.
+        /// </remarks>
+        public long? DeliveryAttempt { get; set; }
+
+        /// <summary>
         /// The TraceContext which is included on the queue.
         /// </summary>
         public TraceContextBase TraceContextBase;

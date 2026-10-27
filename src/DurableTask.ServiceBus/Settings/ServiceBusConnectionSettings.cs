@@ -13,9 +13,7 @@
 
 namespace DurableTask.ServiceBus.Settings
 {
-#if NETSTANDARD2_0
     using Azure.Core;
-#endif
     using System;
 
     /// <summary>
@@ -35,8 +33,6 @@ namespace DurableTask.ServiceBus.Settings
                 ConnectionString = connectionString
             };
         }
-
-#if NETSTANDARD2_0
 
         /// <summary>
         /// Creates an instance of <see cref="ServiceBusConnectionSettings"/>
@@ -72,8 +68,6 @@ namespace DurableTask.ServiceBus.Settings
             };
         }
 
-#endif
-
         private ServiceBusConnectionSettings()
         {
         }
@@ -82,8 +76,6 @@ namespace DurableTask.ServiceBus.Settings
         /// Service Bus connection string
         /// </summary>
         public string ConnectionString { get; private set; }
-
-#if NETSTANDARD2_0
 
         /// <summary>
         /// Service Bus endpoint
@@ -99,7 +91,6 @@ namespace DurableTask.ServiceBus.Settings
         /// Azure.Identity TokenCredential used to authenticate with the service bus
         /// </summary>
         public TokenCredential TokenCredential { get; private set; }
-#endif
 
     }
 }

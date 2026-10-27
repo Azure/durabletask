@@ -120,7 +120,7 @@ namespace DurableTask.AzureStorage
                 return Utils.SerializeToJson(serializer, wrapperMessageData);
             }
 
-            return Utils.SerializeToJson(serializer, messageData);
+            return rawContent;
         }
 
         /// <summary>

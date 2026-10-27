@@ -726,7 +726,9 @@ namespace DurableTask.AzureStorage
                     // Make sure we still own the partition. If not, abandon the session.
                     if (session.ControlQueue.IsReleased)
                     {
-                        await this.AbandonAndReleaseSessionAsync(session);
+                        await this.AbandonAndReleaseSessionAsync(
+                            session,
+                            "The control queue was released.");
                         return null;
                     }
 
@@ -771,13 +773,18 @@ namespace DurableTask.AzureStorage
                     if (outOfOrderMessages?.Count > 0)
                     {
                         // This will also remove the messages from the current batch.
-                        await this.AbandonMessagesAsync(session, outOfOrderMessages);
+                        await this.AbandonMessagesAsync(
+                            session,
+                            outOfOrderMessages,
+                            "Message was received out of order.");
                     }
 
                     if (session.CurrentMessageBatch.Count == 0)
                     {
                         // All messages were removed. Release the work item.
-                        await this.AbandonAndReleaseSessionAsync(session);
+                        await this.AbandonAndReleaseSessionAsync(
+                            session,
+                            "No processable messages remained in the session.");
                         return null;
                     }
 
@@ -827,10 +834,15 @@ namespace DurableTask.AzureStorage
                             }
                         }
 
-                        // If no messages have a matching execution ID, then delete all of them. This means all the
-                        // messages are external (external events, termination, etc.) and were sent to an instance that
-                        // doesn't exist or is no longer in a running state.
-                        if (messagesToDiscard.Count == 0)
+                        bool matchingExecutionMessageWasAbandoned = outOfOrderMessages?.Any(
+                            msg => msg.TaskMessage.OrchestrationInstance.ExecutionId == session.Instance.ExecutionId) == true;
+
+                        // If no remaining or abandoned message targeted the session's execution, then no message
+                        // pinned the history lookup to a specific execution and the latest history was fetched, so it
+                        // is safe to discard all remaining messages if the instance is not deemed executable.
+                        // Otherwise, preserve execution-independent messages because there may be a valid history for
+                        // another execution ID stored.
+                        if (messagesToDiscard.Count == 0 && !matchingExecutionMessageWasAbandoned)
                         {
                             messagesToDiscard.AddRange(messagesToAbandon);
                             messagesToAbandon.Clear();
@@ -841,21 +853,24 @@ namespace DurableTask.AzureStorage
                         // the next time they are picked up.
                         messagesToAbandon.ForEach(session.DeferMessage);
 
-                        var eventListBuilder = new StringBuilder(orchestrationWorkItem.NewMessages.Count * 40);
-                        foreach (MessageData msg in messagesToDiscard)
+                        if (messagesToDiscard.Count > 0)
                         {
-                            eventListBuilder.Append(msg.TaskMessage.Event.EventType.ToString()).Append(',');
-                        }
+                            var eventListBuilder = new StringBuilder(orchestrationWorkItem.NewMessages.Count * 40);
+                            foreach (MessageData msg in messagesToDiscard)
+                            {
+                                eventListBuilder.Append(msg.TaskMessage.Event.EventType.ToString()).Append(',');
+                            }
 
-                        this.settings.Logger.DiscardingWorkItem(
-                            this.azureStorageClient.QueueAccountName,
-                            this.settings.TaskHubName,
-                            session.Instance.InstanceId,
-                            session.Instance.ExecutionId,
-                            orchestrationWorkItem.NewMessages.Count,
-                            session.RuntimeState.Events.Count,
-                            eventListBuilder.ToString(0, eventListBuilder.Length - 1) /* remove trailing comma */,
-                            warningMessage);
+                            this.settings.Logger.DiscardingWorkItem(
+                                this.azureStorageClient.QueueAccountName,
+                                this.settings.TaskHubName,
+                                session.Instance.InstanceId,
+                                session.Instance.ExecutionId,
+                                orchestrationWorkItem.NewMessages.Count,
+                                session.RuntimeState.Events.Count,
+                                eventListBuilder.ToString(0, eventListBuilder.Length - 1) /* remove trailing comma */,
+                                warningMessage);
+                        }
 
                         // The instance has already completed or never existed. Delete this message batch.
                         await this.DeleteMessageBatchAsync(session, messagesToDiscard);
@@ -870,7 +885,9 @@ namespace DurableTask.AzureStorage
                     if (session != null)
                     {
                         // host is shutting down - release any queued messages
-                        await this.AbandonAndReleaseSessionAsync(session);
+                        await this.AbandonAndReleaseSessionAsync(
+                            session,
+                            "Message processing was canceled during shutdown or listener cancellation.");
                     }
 
                     return null;
@@ -1125,11 +1142,11 @@ namespace DurableTask.AzureStorage
             return null;
         }
 
-        async Task AbandonAndReleaseSessionAsync(OrchestrationSession session)
+        async Task AbandonAndReleaseSessionAsync(OrchestrationSession session, string details)
         {
             try
             {
-                await this.AbandonSessionAsync(session);
+                await this.AbandonSessionAsync(session, details);
             }
             finally
             {
@@ -1488,20 +1505,25 @@ namespace DurableTask.AzureStorage
                 return Utils.CompletedTask;
             }
 
-            return this.AbandonSessionAsync(session);
+            return this.AbandonSessionAsync(
+                session,
+                "The orchestration work item was abandoned by the dispatcher.");
         }
 
-        Task AbandonSessionAsync(OrchestrationSession session)
+        Task AbandonSessionAsync(OrchestrationSession session, string details)
         {
             session.StartNewLogicalTraceScope();
-            return this.AbandonMessagesAsync(session, session.CurrentMessageBatch.ToList());
+            return this.AbandonMessagesAsync(session, session.CurrentMessageBatch.ToList(), details);
         }
 
-        async Task AbandonMessagesAsync(OrchestrationSession session, IList<MessageData> messages)
+        async Task AbandonMessagesAsync(
+            OrchestrationSession session,
+            IList<MessageData> messages,
+            string details)
         {
             await messages.ParallelForEachAsync(
                 this.settings.MaxStorageOperationConcurrency,
-                message => session.ControlQueue.AbandonMessageAsync(message, session));
+                message => session.ControlQueue.AbandonMessageAsync(message, details, session));
 
             // Remove the messages from the current batch. The remaining messages
             // may still be able to be processed
@@ -1544,6 +1566,15 @@ namespace DurableTask.AzureStorage
 
             using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.shutdownSource.Token))
             {
+                try
+                {
+                    await this.appLeaseManager.WaitForActivityOwnershipAsync(linkedCts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    return null;
+                }
+
                 MessageData message = await this.workItemQueue.GetMessageAsync(linkedCts.Token);
 
                 if (message == null)
@@ -1590,6 +1621,7 @@ namespace DurableTask.AzureStorage
                     Id = message.Id,
                     TaskMessage = session.MessageData.TaskMessage,
                     LockedUntilUtc = message.OriginalQueueMessage.NextVisibleOn.Value.UtcDateTime,
+                    DeliveryAttempt = message.OriginalQueueMessage.DequeueCount,
 
                     TraceContextBase = requestTraceContext
                 };
@@ -1680,7 +1712,10 @@ namespace DurableTask.AzureStorage
 
             session.StartNewLogicalTraceScope();
 
-            await this.workItemQueue.AbandonMessageAsync(session.MessageData, session);
+            await this.workItemQueue.AbandonMessageAsync(
+                session.MessageData,
+                "The activity work item was abandoned by the dispatcher.",
+                session);
 
             if (this.activeActivitySessions.TryRemove(workItem.Id, out _))
             {
