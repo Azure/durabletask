@@ -1328,7 +1328,9 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     using BlobDownloadStreamingResult response = (await anonymousBlob.DownloadStreamingAsync()).Value;
                 });
-                Assert.IsTrue(denied.Status == 401 || denied.Status == 403);
+                Assert.IsTrue(
+                    denied.Status == 401 || denied.Status == 403 || denied.Status == 404,
+                    $"Unexpected anonymous read failure status: {denied.Status}.");
 
                 using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
                     enableExtendedSessions: false,

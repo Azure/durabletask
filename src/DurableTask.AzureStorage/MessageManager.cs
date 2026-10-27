@@ -124,7 +124,7 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// If the message is a reference in this task hub's large-message container, retrieves it from blob storage.
+        /// If the message is a reference in this task hub's large-message container, retrieve it from blob storage.
         /// Otherwise returns the message as is.
         /// </summary>
         /// <param name="message">The message to be fetched if it is a large-message reference.</param>

@@ -31,6 +31,7 @@ namespace DurableTask.AzureStorage.Tests
     public class MessageManagerTests
     {
         const int MaxStorageQueuePayloadSizeInBytes = 45 * 1024;
+        const string ScopedReference = "https://referencevalidation.blob.core.windows.net/test-largemessages/message.json.gz";
 
         [DataTestMethod]
         [DataRow("System.Collections.Generic.Dictionary`2[[System.String, System.Private.CoreLib],[System.String, System.Private.CoreLib]]")]
@@ -210,48 +211,111 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(reference, blobUri.AbsoluteUri);
         }
 
+        public static IEnumerable<object?[]> OutOfScopePayloads => new[]
+        {
+            new object?[] { null },
+            new object?[] { "" },
+            new object?[] { "ordinary termination reason" },
+            new object?[] { "https://example.com/backup.json.gz" },
+            new object?[] { "http://127.0.0.1:10000/devstoreaccount1/ownerprivate/backup.json.gz" },
+            new object?[] { "http://127.0.0.1:10000/devstoreaccount1/other-largemessages/backup.json.gz" },
+            new object?[] { "http://127.0.0.1:10000/devstoreaccount1/test-largemessages-other/backup.json.gz" },
+            new object?[] { "http://127.0.0.1:10000/otheraccount/test-largemessages/backup.json.gz" },
+            new object?[] { "http://127.0.0.1:10001/devstoreaccount1/test-largemessages/backup.json.gz" },
+            new object?[] { "https://127.0.0.1:10000/devstoreaccount1/test-largemessages/backup.json.gz" },
+            new object?[] { "http://127.0.0.1:10000/devstoreaccount1/Test-largemessages/backup.json.gz" },
+            new object?[] { "http://127.0.0.1:10000/devstoreaccount1/test-largemessages" },
+            new object?[] { "http://127.0.0.1:10000/devstoreaccount1/test-largemessages/" },
+            new object?[] { "http://127.0.0.1:10000/devstoreaccount1/test-largemessages/blob.json.gz?comp=metadata" },
+            new object?[] { "http://127.0.0.1:10000/devstoreaccount1/test-largemessages/blob.json.gz#fragment" },
+            new object?[] { "http://user@127.0.0.1:10000/devstoreaccount1/test-largemessages/blob.json.gz" },
+            new object?[] { "http://127.0.0.1:10000/devstoreaccount1/test-largemessages/../ownerprivate/backup.json.gz" },
+            new object?[] { "http://127.0.0.1:10000/devstoreaccount1/test-largemessages/%2e%2e/ownerprivate/backup.json.gz" },
+        };
+
+        public static IEnumerable<object[]> OutOfScopeBlobUris
+        {
+            get
+            {
+                foreach (object?[] row in OutOfScopePayloads)
+                {
+                    if (row[0] is string payload &&
+                        Uri.TryCreate(payload, UriKind.Absolute, out Uri? candidate) &&
+                        candidate != null)
+                    {
+                        yield return new object[] { candidate };
+                    }
+                }
+            }
+        }
+
+        public static IEnumerable<object[]> ReconstructedTargetsOutsideScope => new[]
+        {
+            new object[] { "https://referencevalidation.blob.core.windows.net/other-largemessages/message.json.gz" },
+            new object[] { "https://referencevalidation.blob.core.windows.net/test-largemessages-other/message.json.gz" },
+            new object[] { "https://otheraccount.blob.core.windows.net/test-largemessages/message.json.gz" },
+            new object[] { "https://referencevalidation.blob.core.windows.net/test-largemessages/" },
+            new object[] { "https://referencevalidation.blob.core.windows.net/test-largemessages/message.json.gz?comp=metadata" },
+        };
+
         [DataTestMethod]
-        [DataRow(null)]
-        [DataRow("")]
-        [DataRow("ordinary termination reason")]
-        [DataRow("https://example.com/backup.json.gz")]
-        [DataRow("http://127.0.0.1:10000/devstoreaccount1/ownerprivate/backup.json.gz")]
-        [DataRow("http://127.0.0.1:10000/devstoreaccount1/other-largemessages/backup.json.gz")]
-        [DataRow("http://127.0.0.1:10000/devstoreaccount1/test-largemessages-other/backup.json.gz")]
-        [DataRow("http://127.0.0.1:10000/otheraccount/test-largemessages/backup.json.gz")]
-        [DataRow("http://127.0.0.1:10001/devstoreaccount1/test-largemessages/backup.json.gz")]
-        [DataRow("https://127.0.0.1:10000/devstoreaccount1/test-largemessages/backup.json.gz")]
-        [DataRow("http://127.0.0.1:10000/devstoreaccount1/Test-largemessages/backup.json.gz")]
-        [DataRow("http://127.0.0.1:10000/devstoreaccount1/test-largemessages")]
-        [DataRow("http://127.0.0.1:10000/devstoreaccount1/test-largemessages/")]
-        [DataRow("http://127.0.0.1:10000/devstoreaccount1/test-largemessages/blob.json.gz?comp=metadata")]
-        [DataRow("http://127.0.0.1:10000/devstoreaccount1/test-largemessages/blob.json.gz#fragment")]
-        [DataRow("http://user@127.0.0.1:10000/devstoreaccount1/test-largemessages/blob.json.gz")]
-        [DataRow("http://127.0.0.1:10000/devstoreaccount1/test-largemessages/../ownerprivate/backup.json.gz")]
-        [DataRow("http://127.0.0.1:10000/devstoreaccount1/test-largemessages/%2e%2e/ownerprivate/backup.json.gz")]
-        public async Task FetchLargeMessageIfNecessary_OutOfScopePayload_RemainsLiteral(string? payload)
+        [DynamicData(nameof(OutOfScopePayloads), DynamicDataSourceType.Property)]
+        public void TryGetLargeMessageReference_OutOfScopePayload_IsNotRecognized(string? payload)
         {
             var manager = SetupLargeMessageManager(useEmulator: true);
 
             Assert.IsFalse(manager.TryGetLargeMessageReference(payload, out Uri blobUri));
             Assert.IsNull(blobUri);
-            Assert.AreEqual(payload, await manager.FetchLargeMessageIfNecessary(payload));
-
-            if (Uri.TryCreate(payload, UriKind.Absolute, out Uri? candidate) && candidate != null)
-            {
-                await Assert.ThrowsExceptionAsync<ArgumentException>(() => manager.DownloadAndDecompressAsBytesAsync(candidate));
-            }
         }
 
         [DataTestMethod]
-        [DataRow("https://referencevalidation.blob.core.windows.net/other-largemessages/message.json.gz")]
-        [DataRow("https://referencevalidation.blob.core.windows.net/test-largemessages-other/message.json.gz")]
-        [DataRow("https://otheraccount.blob.core.windows.net/test-largemessages/message.json.gz")]
-        [DataRow("https://referencevalidation.blob.core.windows.net/test-largemessages/")]
-        [DataRow("https://referencevalidation.blob.core.windows.net/test-largemessages/message.json.gz?comp=metadata")]
+        [DynamicData(nameof(OutOfScopePayloads), DynamicDataSourceType.Property)]
+        public async Task FetchLargeMessageIfNecessary_OutOfScopePayload_RemainsLiteral(string? payload)
+        {
+            var manager = SetupLargeMessageManager(useEmulator: true);
+
+            Assert.AreEqual(payload, await manager.FetchLargeMessageIfNecessary(payload));
+        }
+
+        [DataTestMethod]
+        [DynamicData(nameof(OutOfScopeBlobUris), DynamicDataSourceType.Property)]
+        public async Task DownloadAndDecompressAsBytesAsync_OutOfScopeUri_Throws(Uri blobUri)
+        {
+            var manager = SetupLargeMessageManager(useEmulator: true);
+
+            await Assert.ThrowsExceptionAsync<ArgumentException>(() => manager.DownloadAndDecompressAsBytesAsync(blobUri));
+        }
+
+        [DataTestMethod]
+        [DynamicData(nameof(ReconstructedTargetsOutsideScope), DynamicDataSourceType.Property)]
+        public void TryGetLargeMessageReference_ReconstructedTargetOutsideScope_IsNotRecognized(string targetUri)
+        {
+            var manager = SetupLargeMessageManagerWithReconstructedTarget(targetUri);
+
+            Assert.IsFalse(manager.TryGetLargeMessageReference(ScopedReference, out Uri blobUri));
+            Assert.IsNull(blobUri);
+        }
+
+        [DataTestMethod]
+        [DynamicData(nameof(ReconstructedTargetsOutsideScope), DynamicDataSourceType.Property)]
         public async Task FetchLargeMessageIfNecessary_ReconstructedTargetOutsideScope_RemainsLiteral(string targetUri)
         {
-            const string reference = "https://referencevalidation.blob.core.windows.net/test-largemessages/message.json.gz";
+            var manager = SetupLargeMessageManagerWithReconstructedTarget(targetUri);
+
+            Assert.AreEqual(ScopedReference, await manager.FetchLargeMessageIfNecessary(ScopedReference));
+        }
+
+        [DataTestMethod]
+        [DynamicData(nameof(ReconstructedTargetsOutsideScope), DynamicDataSourceType.Property)]
+        public async Task DownloadAndDecompressAsBytesAsync_ReconstructedTargetOutsideScope_Throws(string targetUri)
+        {
+            var manager = SetupLargeMessageManagerWithReconstructedTarget(targetUri);
+
+            await Assert.ThrowsExceptionAsync<ArgumentException>(() => manager.DownloadAndDecompressAsBytesAsync(new Uri(ScopedReference)));
+        }
+
+        private static MessageManager SetupLargeMessageManagerWithReconstructedTarget(string targetUri)
+        {
             var blob = new Mock<BlockBlobClient>(MockBehavior.Strict);
             blob.SetupGet(client => client.Uri).Returns(new Uri(targetUri));
 
@@ -274,12 +338,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 StorageAccountClientProvider = new StorageAccountClientProvider(blobProvider.Object, provider.Queue, provider.Table),
             };
-            var manager = new MessageManager(settings, new AzureStorageClient(settings), "test-largemessages");
-
-            Assert.IsFalse(manager.TryGetLargeMessageReference(reference, out Uri blobUri));
-            Assert.IsNull(blobUri);
-            Assert.AreEqual(reference, await manager.FetchLargeMessageIfNecessary(reference));
-            await Assert.ThrowsExceptionAsync<ArgumentException>(() => manager.DownloadAndDecompressAsBytesAsync(new Uri(reference)));
+            return new MessageManager(settings, new AzureStorageClient(settings), "test-largemessages");
         }
 
         private static MessageManager SetupLargeMessageManager(bool useEmulator)
