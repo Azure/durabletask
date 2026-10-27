@@ -25,6 +25,7 @@ namespace DurableTask.AzureStorage
     using System.Threading;
     using System.Threading.Tasks;
     using Azure;
+    using Azure.Storage.Blobs;
     using Azure.Storage.Blobs.Models;
     using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Storage;
@@ -123,15 +124,15 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// If the "message" of an orchestration state is actually a URI retrieves actual message from blob storage.
+        /// If the message is a reference in this task hub's large-message container, retrieves it from blob storage.
         /// Otherwise returns the message as is.
         /// </summary>
-        /// <param name="message">The message to be fetched if it is a url.</param>
+        /// <param name="message">The message to be fetched if it is a large-message reference.</param>
         /// <param name="cancellationToken">A token used for canceling the operation.</param>
         /// <returns>Actual string representation of message.</returns>
         public async Task<string> FetchLargeMessageIfNecessary(string message, CancellationToken cancellationToken = default)
         {
-            if (TryGetLargeMessageReference(message, out Uri blobUrl))
+            if (this.TryGetLargeMessageReference(message, out Uri blobUrl))
             {
                 return await this.DownloadAndDecompressAsBytesAsync(blobUrl, cancellationToken);
             }
@@ -141,11 +142,32 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        internal static bool TryGetLargeMessageReference(string messagePayload, out Uri blobUrl)
+        internal bool TryGetLargeMessageReference(string messagePayload, out Uri blobUrl)
         {
-            if (Uri.IsWellFormedUriString(messagePayload, UriKind.Absolute))
+            if (Uri.IsWellFormedUriString(messagePayload, UriKind.Absolute) &&
+                Uri.TryCreate(messagePayload, UriKind.Absolute, out Uri candidate))
             {
-                return Uri.TryCreate(messagePayload, UriKind.Absolute, out blobUrl);
+                Uri containerUri = this.blobContainer.GetBlobContainerUri();
+                string containerPath = containerUri.AbsolutePath.TrimEnd('/') + "/";
+
+                // A URL in user-controlled text is not authority to read other containers or accounts.
+                if (candidate.Scheme == containerUri.Scheme &&
+                    string.Equals(candidate.Host, containerUri.Host, StringComparison.OrdinalIgnoreCase) &&
+                    candidate.Port == containerUri.Port &&
+                    candidate.UserInfo.Length == 0 &&
+                    candidate.Query.Length == 0 &&
+                    candidate.Fragment.Length == 0 &&
+                    candidate.AbsolutePath.StartsWith(containerPath, StringComparison.Ordinal) &&
+                    candidate.AbsolutePath.Length > containerPath.Length)
+                {
+                    var blobUri = new BlobUriBuilder(candidate);
+                    var container = new BlobUriBuilder(containerUri);
+                    if (blobUri.BlobContainerName == container.BlobContainerName && !string.IsNullOrEmpty(blobUri.BlobName))
+                    {
+                        blobUrl = candidate;
+                        return true;
+                    }
+                }
             }
 
             blobUrl = null;
@@ -249,7 +271,12 @@ namespace DurableTask.AzureStorage
 
         public Task<string> DownloadAndDecompressAsBytesAsync(Uri blobUri, CancellationToken cancellationToken = default)
         {
-            Blob blob = this.azureStorageClient.GetBlobReference(blobUri);
+            if (blobUri == null || !this.TryGetLargeMessageReference(blobUri.OriginalString, out Uri validatedUri))
+            {
+                throw new ArgumentException("Blob must belong to this task hub's large-message container.", nameof(blobUri));
+            }
+
+            Blob blob = this.blobContainer.GetBlobReference(new BlobUriBuilder(validatedUri).BlobName);
             return DownloadAndDecompressAsBytesAsync(blob, cancellationToken);
         }
 

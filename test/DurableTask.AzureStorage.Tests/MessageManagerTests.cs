@@ -19,6 +19,7 @@ namespace DurableTask.AzureStorage.Tests
     using Newtonsoft.Json;
     using System;
     using System.Collections.Generic;
+    using System.Threading.Tasks;
 
     [TestClass]
     public class MessageManagerTests
@@ -85,6 +86,68 @@ namespace DurableTask.AzureStorage.Tests
 
             var expected = $"http://127.0.0.1:10000/devstoreaccount1/{container}/{blobUrl}";
             Assert.AreEqual(expected, manager.GetBlobUrl(blob));
+        }
+
+        [DataTestMethod]
+        [DataRow(true, "instance/message-0123456789abcdef0123456789abcdef-ExecutionStarted.json.gz")]
+        [DataRow(false, "instance/message-0123456789abcdef0123456789abcdef-ExecutionStarted.json.gz")]
+        [DataRow(true, "instance/history-0000000000000001-ExecutionCompleted-12345678-Result.json.gz")]
+        [DataRow(false, "instance/history-0000000000000001-ExecutionCompleted-12345678-Result.json.gz")]
+        [DataRow(true, "instance|with spaces/history-0000000000000001-ExecutionStarted-12345678-Input.json.gz")]
+        [DataRow(false, "instance|with spaces/history-0000000000000001-ExecutionStarted-12345678-Input.json.gz")]
+        public void TryGetLargeMessageReference_AcceptsTaskHubReferences(bool useEmulator, string blobName)
+        {
+            var manager = SetupLargeMessageManager(useEmulator);
+            string reference = manager.GetBlobUrl(blobName);
+
+            Assert.IsTrue(manager.TryGetLargeMessageReference(reference, out Uri blobUri));
+            Assert.AreEqual(reference, blobUri.AbsoluteUri);
+        }
+
+        [DataTestMethod]
+        [DataRow(null)]
+        [DataRow("")]
+        [DataRow("ordinary termination reason")]
+        [DataRow("https://example.com/backup.json.gz")]
+        [DataRow("http://127.0.0.1:10000/devstoreaccount1/ownerprivate/backup.json.gz")]
+        [DataRow("http://127.0.0.1:10000/devstoreaccount1/other-largemessages/backup.json.gz")]
+        [DataRow("http://127.0.0.1:10000/devstoreaccount1/test-largemessages-other/backup.json.gz")]
+        [DataRow("http://127.0.0.1:10000/otheraccount/test-largemessages/backup.json.gz")]
+        [DataRow("http://127.0.0.1:10001/devstoreaccount1/test-largemessages/backup.json.gz")]
+        [DataRow("https://127.0.0.1:10000/devstoreaccount1/test-largemessages/backup.json.gz")]
+        [DataRow("http://127.0.0.1:10000/devstoreaccount1/Test-largemessages/backup.json.gz")]
+        [DataRow("http://127.0.0.1:10000/devstoreaccount1/test-largemessages")]
+        [DataRow("http://127.0.0.1:10000/devstoreaccount1/test-largemessages/")]
+        [DataRow("http://127.0.0.1:10000/devstoreaccount1/test-largemessages/blob.json.gz?comp=metadata")]
+        [DataRow("http://127.0.0.1:10000/devstoreaccount1/test-largemessages/blob.json.gz#fragment")]
+        [DataRow("http://user@127.0.0.1:10000/devstoreaccount1/test-largemessages/blob.json.gz")]
+        [DataRow("http://127.0.0.1:10000/devstoreaccount1/test-largemessages/../ownerprivate/backup.json.gz")]
+        [DataRow("http://127.0.0.1:10000/devstoreaccount1/test-largemessages/%2e%2e/ownerprivate/backup.json.gz")]
+        public async Task FetchLargeMessageIfNecessary_OutOfScopePayload_RemainsLiteral(string? payload)
+        {
+            var manager = SetupLargeMessageManager(useEmulator: true);
+
+            Assert.IsFalse(manager.TryGetLargeMessageReference(payload, out Uri blobUri));
+            Assert.IsNull(blobUri);
+            Assert.AreEqual(payload, await manager.FetchLargeMessageIfNecessary(payload));
+
+            if (Uri.TryCreate(payload, UriKind.Absolute, out Uri? candidate) && candidate != null)
+            {
+                await Assert.ThrowsExceptionAsync<ArgumentException>(() => manager.DownloadAndDecompressAsBytesAsync(candidate));
+            }
+        }
+
+        private static MessageManager SetupLargeMessageManager(bool useEmulator)
+        {
+            string connectionString = useEmulator
+                ? "UseDevelopmentStorage=true"
+                : $"DefaultEndpointsProtocol=https;AccountName=referencevalidation;AccountKey={Convert.ToBase64String(new byte[32])};EndpointSuffix=core.windows.net";
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider(connectionString),
+            };
+
+            return new MessageManager(settings, new AzureStorageClient(settings), "test-largemessages");
         }
 
         private string GetMessage(string dictionaryType)

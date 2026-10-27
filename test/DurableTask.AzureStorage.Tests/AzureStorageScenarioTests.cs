@@ -31,6 +31,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.IO;
+    using System.IO.Compression;
     using System.Linq;
     using System.Net;
     using System.Runtime.Serialization;
@@ -1212,6 +1213,102 @@ namespace DurableTask.AzureStorage.Tests
                 Assert.AreEqual("sayōnara", status?.Output);
 
                 await host.StopAsync();
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow("terminate")]
+        [DataRow("suspend")]
+        [DataRow("resume")]
+        public async Task ManagementReason_PrivateBlobUrl_RemainsLiteral(string operation)
+        {
+            string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
+            var container = new BlobServiceClient(connectionString)
+                .GetBlobContainerClient("private-reason-" + Guid.NewGuid().ToString("N"));
+            await container.CreateAsync(PublicAccessType.None);
+
+            try
+            {
+                var blob = container.GetBlobClient("private-backup.json.gz");
+                string canary = "synthetic-private-value-" + Guid.NewGuid().ToString("N");
+                using (var buffer = new MemoryStream())
+                {
+                    using (var gzip = new GZipStream(buffer, CompressionLevel.Optimal, leaveOpen: true))
+                    {
+                        byte[] payload = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(canary));
+                        await gzip.WriteAsync(payload, 0, payload.Length);
+                    }
+
+                    buffer.Position = 0;
+                    await blob.UploadAsync(buffer);
+                }
+
+                var anonymousBlob = new BlobClient(blob.Uri);
+                var denied = await Assert.ThrowsExceptionAsync<Azure.RequestFailedException>(async () =>
+                {
+                    using BlobDownloadStreamingResult response = (await anonymousBlob.DownloadStreamingAsync()).Value;
+                });
+                Assert.IsTrue(denied.Status == 401 || denied.Status == 403);
+
+                using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
+                    enableExtendedSessions: false,
+                    modifySettingsAction: settings =>
+                    {
+                        settings.StorageAccountClientProvider = new StorageAccountClientProvider(connectionString);
+                        settings.TaskHubName = "ReasonTest" + Guid.NewGuid().ToString("N");
+                    });
+                await host.StartAsync();
+                try
+                {
+                    var client = await host.StartOrchestrationAsync(typeof(Orchestrations.Counter), 0);
+                    await client.WaitForStartupAsync(StandardTimeout);
+
+                    await client.SuspendAsync("literal-control");
+                    var control = await client.WaitForStatusChange(StandardTimeout, OrchestrationStatus.Suspended);
+                    Assert.AreEqual("literal-control", control.Output);
+
+                    if (operation != "resume")
+                    {
+                        await client.ResumeAsync("literal-control");
+                        await client.WaitForStatusChange(StandardTimeout, OrchestrationStatus.Running);
+                    }
+
+                    OrchestrationStatus expectedStatus;
+                    if (operation == "terminate")
+                    {
+                        await client.TerminateAsync(blob.Uri.AbsoluteUri);
+                        expectedStatus = OrchestrationStatus.Terminated;
+                    }
+                    else if (operation == "suspend")
+                    {
+                        await client.SuspendAsync(blob.Uri.AbsoluteUri);
+                        expectedStatus = OrchestrationStatus.Suspended;
+                    }
+                    else
+                    {
+                        await client.ResumeAsync(blob.Uri.AbsoluteUri);
+                        expectedStatus = OrchestrationStatus.Running;
+                    }
+
+                    var status = await client.WaitForStatusChange(StandardTimeout, expectedStatus);
+                    Assert.AreEqual(blob.Uri.AbsoluteUri, status.Output,
+                        "Management reasons must not be replaced with private blob contents.");
+
+                    if (expectedStatus != OrchestrationStatus.Terminated)
+                    {
+                        await client.TerminateAsync("cleanup");
+                        await client.WaitForCompletionAsync(StandardTimeout);
+                    }
+                }
+                finally
+                {
+                    await host.StopAsync();
+                    await host.service.DeleteAsync();
+                }
+            }
+            finally
+            {
+                await container.DeleteAsync();
             }
         }
 
