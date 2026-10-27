@@ -13,9 +13,13 @@
 #nullable enable
 namespace DurableTask.AzureStorage.Tests
 {
+    using Azure.Storage.Blobs;
+    using Azure.Storage.Blobs.Specialized;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core.History;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using Moq;
+    using Moq.Protected;
     using Newtonsoft.Json;
     using System;
     using System.Collections.Generic;
@@ -95,6 +99,8 @@ namespace DurableTask.AzureStorage.Tests
         [DataRow(false, "instance/history-0000000000000001-ExecutionCompleted-12345678-Result.json.gz")]
         [DataRow(true, "instance|with spaces/history-0000000000000001-ExecutionStarted-12345678-Input.json.gz")]
         [DataRow(false, "instance|with spaces/history-0000000000000001-ExecutionStarted-12345678-Input.json.gz")]
+        [DataRow(true, "instance/encoded%2Fname.json.gz")]
+        [DataRow(false, "instance/encoded%2Fname.json.gz")]
         public void TryGetLargeMessageReference_AcceptsTaskHubReferences(bool useEmulator, string blobName)
         {
             var manager = SetupLargeMessageManager(useEmulator);
@@ -135,6 +141,45 @@ namespace DurableTask.AzureStorage.Tests
             {
                 await Assert.ThrowsExceptionAsync<ArgumentException>(() => manager.DownloadAndDecompressAsBytesAsync(candidate));
             }
+        }
+
+        [DataTestMethod]
+        [DataRow("https://referencevalidation.blob.core.windows.net/other-largemessages/message.json.gz")]
+        [DataRow("https://referencevalidation.blob.core.windows.net/test-largemessages-other/message.json.gz")]
+        [DataRow("https://otheraccount.blob.core.windows.net/test-largemessages/message.json.gz")]
+        [DataRow("https://referencevalidation.blob.core.windows.net/test-largemessages/")]
+        [DataRow("https://referencevalidation.blob.core.windows.net/test-largemessages/message.json.gz?comp=metadata")]
+        public async Task FetchLargeMessageIfNecessary_ReconstructedTargetOutsideScope_RemainsLiteral(string targetUri)
+        {
+            const string reference = "https://referencevalidation.blob.core.windows.net/test-largemessages/message.json.gz";
+            var blob = new Mock<BlockBlobClient>(MockBehavior.Strict);
+            blob.SetupGet(client => client.Uri).Returns(new Uri(targetUri));
+
+            var container = new Mock<BlobContainerClient>(MockBehavior.Strict);
+            container.SetupGet(client => client.Uri)
+                .Returns(new Uri("https://referencevalidation.blob.core.windows.net/test-largemessages"));
+            container.Protected()
+                .Setup<BlockBlobClient>("GetBlockBlobClientCore", ItExpr.IsAny<string>())
+                .Returns(blob.Object);
+
+            var service = new Mock<BlobServiceClient>(MockBehavior.Strict);
+            service.Setup(client => client.GetBlobContainerClient("test-largemessages")).Returns(container.Object);
+
+            var blobProvider = new Mock<IStorageServiceClientProvider<BlobServiceClient, BlobClientOptions>>(MockBehavior.Strict);
+            blobProvider.Setup(provider => provider.CreateOptions()).Returns(new BlobClientOptions());
+            blobProvider.Setup(provider => provider.CreateClient(It.IsAny<BlobClientOptions>())).Returns(service.Object);
+
+            var provider = new StorageAccountClientProvider("UseDevelopmentStorage=true");
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider(blobProvider.Object, provider.Queue, provider.Table),
+            };
+            var manager = new MessageManager(settings, new AzureStorageClient(settings), "test-largemessages");
+
+            Assert.IsFalse(manager.TryGetLargeMessageReference(reference, out Uri blobUri));
+            Assert.IsNull(blobUri);
+            Assert.AreEqual(reference, await manager.FetchLargeMessageIfNecessary(reference));
+            await Assert.ThrowsExceptionAsync<ArgumentException>(() => manager.DownloadAndDecompressAsBytesAsync(new Uri(reference)));
         }
 
         private static MessageManager SetupLargeMessageManager(bool useEmulator)

@@ -132,9 +132,9 @@ namespace DurableTask.AzureStorage
         /// <returns>Actual string representation of message.</returns>
         public async Task<string> FetchLargeMessageIfNecessary(string message, CancellationToken cancellationToken = default)
         {
-            if (this.TryGetLargeMessageReference(message, out Uri blobUrl))
+            if (this.TryGetLargeMessageReference(message, out _, out Blob blob))
             {
-                return await this.DownloadAndDecompressAsBytesAsync(blobUrl, cancellationToken);
+                return await DownloadAndDecompressAsBytesAsync(blob, cancellationToken);
             }
             else
             {
@@ -144,33 +144,51 @@ namespace DurableTask.AzureStorage
 
         internal bool TryGetLargeMessageReference(string messagePayload, out Uri blobUrl)
         {
+            return this.TryGetLargeMessageReference(messagePayload, out blobUrl, out _);
+        }
+
+        private bool TryGetLargeMessageReference(string messagePayload, out Uri blobUrl, out Blob blob)
+        {
             if (Uri.IsWellFormedUriString(messagePayload, UriKind.Absolute) &&
                 Uri.TryCreate(messagePayload, UriKind.Absolute, out Uri candidate))
             {
                 Uri containerUri = this.blobContainer.GetBlobContainerUri();
-                string containerPath = containerUri.AbsolutePath.TrimEnd('/') + "/";
-
-                // A URL in user-controlled text is not authority to read other containers or accounts.
-                if (candidate.Scheme == containerUri.Scheme &&
-                    string.Equals(candidate.Host, containerUri.Host, StringComparison.OrdinalIgnoreCase) &&
-                    candidate.Port == containerUri.Port &&
-                    candidate.UserInfo.Length == 0 &&
-                    candidate.Query.Length == 0 &&
-                    candidate.Fragment.Length == 0 &&
-                    candidate.AbsolutePath.StartsWith(containerPath, StringComparison.Ordinal) &&
-                    candidate.AbsolutePath.Length > containerPath.Length)
+                if (IsInLargeMessageContainer(candidate, containerUri))
                 {
-                    var blobUri = new BlobUriBuilder(candidate);
-                    var container = new BlobUriBuilder(containerUri);
-                    if (blobUri.BlobContainerName == container.BlobContainerName && !string.IsNullOrEmpty(blobUri.BlobName))
+                    Blob candidateBlob = this.blobContainer.GetBlobReference(new BlobUriBuilder(candidate).BlobName);
+
+                    // SDK decoding and URI reconstruction must not change the allowed storage scope.
+                    if (IsInLargeMessageContainer(candidateBlob.Uri, containerUri))
                     {
                         blobUrl = candidate;
+                        blob = candidateBlob;
                         return true;
                     }
                 }
             }
 
             blobUrl = null;
+            blob = null;
+            return false;
+        }
+
+        private static bool IsInLargeMessageContainer(Uri candidate, Uri containerUri)
+        {
+            string containerPath = containerUri.AbsolutePath.TrimEnd('/') + "/";
+            if (candidate.Scheme == containerUri.Scheme &&
+                string.Equals(candidate.Host, containerUri.Host, StringComparison.OrdinalIgnoreCase) &&
+                candidate.Port == containerUri.Port &&
+                candidate.UserInfo.Length == 0 &&
+                candidate.Query.Length == 0 &&
+                candidate.Fragment.Length == 0 &&
+                candidate.AbsolutePath.StartsWith(containerPath, StringComparison.Ordinal) &&
+                candidate.AbsolutePath.Length > containerPath.Length)
+            {
+                var blobUri = new BlobUriBuilder(candidate);
+                var container = new BlobUriBuilder(containerUri);
+                return blobUri.BlobContainerName == container.BlobContainerName && !string.IsNullOrEmpty(blobUri.BlobName);
+            }
+
             return false;
         }
 
@@ -271,12 +289,11 @@ namespace DurableTask.AzureStorage
 
         public Task<string> DownloadAndDecompressAsBytesAsync(Uri blobUri, CancellationToken cancellationToken = default)
         {
-            if (blobUri == null || !this.TryGetLargeMessageReference(blobUri.OriginalString, out Uri validatedUri))
+            if (blobUri == null || !this.TryGetLargeMessageReference(blobUri.OriginalString, out _, out Blob blob))
             {
                 throw new ArgumentException("Blob must belong to this task hub's large-message container.", nameof(blobUri));
             }
 
-            Blob blob = this.blobContainer.GetBlobReference(new BlobUriBuilder(validatedUri).BlobName);
             return DownloadAndDecompressAsBytesAsync(blob, cancellationToken);
         }
 
