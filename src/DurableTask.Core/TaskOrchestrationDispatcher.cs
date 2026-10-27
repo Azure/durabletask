@@ -39,6 +39,13 @@ namespace DurableTask.Core
     {
         static readonly Task CompletedTask = Task.FromResult(0);
 
+        // The exact, case-sensitive name of the single built-in infrastructure orchestration that is exempt
+        // from the worker version check below. The exemption applies only when its execution version is null
+        // or empty; nonempty versions, including whitespace, and every other orchestration name continue
+        // through the configured version matching and failure strategies unchanged. This does not change
+        // orchestration registration, lookup, execution version, or history, and it is not configurable.
+        const string BlobPurgeJobOrchestratorName = "BlobPurgeJobOrchestrator";
+
         readonly INameVersionObjectManager<TaskOrchestration> objectManager;
         readonly IOrchestrationService orchestrationService;
         readonly WorkItemDispatcher<TaskOrchestrationWorkItem> dispatcher;
@@ -398,7 +405,9 @@ namespace DurableTask.Core
                         IReadOnlyList<OrchestratorAction> decisions = new List<OrchestratorAction>();
                         bool versioningFailed = false;
 
-                        if (this.versioningSettings != null)
+                        if (this.versioningSettings != null &&
+                            !(string.IsNullOrEmpty(runtimeState.Version) &&
+                              runtimeState.Name == BlobPurgeJobOrchestratorName))
                         {
                             switch (this.versioningSettings.MatchStrategy)
                             {

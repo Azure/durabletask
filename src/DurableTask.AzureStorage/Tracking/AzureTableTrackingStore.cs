@@ -38,6 +38,7 @@ namespace DurableTask.AzureStorage.Tracking
     class AzureTableTrackingStore : TrackingStoreBase
     {
         const string NameProperty = "Name";
+        const string ParentInstanceIdProperty = "ParentInstanceId";
         const string InputProperty = "Input";
         const string ResultProperty = "Result";
         const string OutputProperty = "Output";
@@ -461,6 +462,16 @@ namespace DurableTask.AzureStorage.Tracking
                 InstanceId = instanceId,
                 ExecutionId = orchestrationInstanceStatus.ExecutionId,
             };
+            if (!string.IsNullOrEmpty(orchestrationInstanceStatus.ParentInstanceId))
+            {
+                orchestrationState.ParentInstance = new ParentInstance
+                {
+                    OrchestrationInstance = new OrchestrationInstance
+                    {
+                        InstanceId = orchestrationInstanceStatus.ParentInstanceId,
+                    },
+                };
+            }
 
             orchestrationState.Name = orchestrationInstanceStatus.Name;
             orchestrationState.Version = orchestrationInstanceStatus.Version;
@@ -799,6 +810,7 @@ namespace DurableTask.AzureStorage.Tracking
                 ["Generation"] = executionStartedEvent.Generation,
                 ["Tags"] = TagsSerializer.Serialize(executionStartedEvent.Tags),
             };
+            SetParentInstanceId(entity, executionStartedEvent.ParentInstance);
 
             // It is possible that the queue message was small enough to be written directly to a queue message,
             // not a blob, but is too large to be written to a table property.
@@ -943,6 +955,12 @@ namespace DurableTask.AzureStorage.Tracking
                 ["LastUpdatedTime"] = newEvents.Last().Timestamp,
                 ["TaskHubName"] = this.settings.TaskHubName,
             };
+
+            // The parent is written on every checkpoint, not just the one carrying ExecutionStarted, so that
+            // it is always merged together with the ExecutionId above. Because the Instances row is keyed
+            // only by instance ID, a reused instance ID would otherwise end up advertising the current
+            // execution alongside a parent left behind by the previous orchestration.
+            SetParentInstanceId(instanceEntity, newRuntimeState.ParentInstance);
 
             // check if we are replacing a previous execution with blobs; those will be deleted from the store after the update. This could occur in a ContinueAsNew scenario
             List<string> blobsToDelete = null;
@@ -1151,6 +1169,7 @@ namespace DurableTask.AzureStorage.Tracking
                 ["Tags"] = TagsSerializer.Serialize(executionStartedEvent.Tags),
                 ["TaskHubName"] = this.settings.TaskHubName,
             };
+            SetParentInstanceId(instanceEntity, executionStartedEvent.ParentInstance);
             if (runtimeState.ExecutionStartedEvent.ScheduledStartTime.HasValue)
             {
                 instanceEntity["ScheduledStartTime"] = executionStartedEvent.ScheduledStartTime;
@@ -1246,6 +1265,16 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             return estimatedByteCount;
+        }
+
+        // The value is always assigned, including when there is no parent. Several of the Instances
+        // table writes use merge semantics, so omitting the property would let a top-level or newly
+        // recreated orchestration inherit a stale parent ID from a previous row with the same
+        // instance ID. An empty string is used rather than null because merge semantics for null
+        // properties are ambiguous; reads treat empty and missing identically.
+        static void SetParentInstanceId(TableEntity entity, ParentInstance parentInstance)
+        {
+            entity[ParentInstanceIdProperty] = parentInstance?.OrchestrationInstance?.InstanceId ?? string.Empty;
         }
 
         Type GetTypeForTableEntity(TableEntity tableEntity)

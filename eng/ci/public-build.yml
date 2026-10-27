@@ -6,8 +6,6 @@ trigger:
   branches:
     include:
     - main
-    - durabletask-core-v2
-    - vabachu/v320-release
 
 # Run nightly to catch new CVEs and to report SDL often.
 schedules:
@@ -16,7 +14,6 @@ schedules:
     branches:
       include:
       - main
-      - durabletask-core-v2
     always: true # Run pipeline irrespective of no code changes since last successful run
 
 # Run on all PRs

@@ -61,6 +61,9 @@ namespace DurableTask.AzureStorage
 
         internal IEnumerable<ControlQueue> Queues => this.ownedControlQueues.Values;
 
+        // The time to wait before a failed orchestration state prefetch is tried again. Tests can set a shorter time.
+        internal TimeSpan PrefetchRetryDelay { get; set; } = TimeSpan.FromSeconds(5);
+
         public void AddQueue(string partitionId, ControlQueue controlQueue, CancellationToken cancellationToken)
         {
             this.shutdownToken = cancellationToken;
@@ -326,7 +329,11 @@ namespace DurableTask.AzureStorage
                 filteredMessages = filteredMessages.Except(messagesToDefer);
 
                 // Defer messages on a background thread to avoid blocking the dequeue loop
-                _ = Task.Run(() => messagesToDefer.ParallelForEachAsync(msg => controlQueue.AbandonMessageAsync(msg, session: null)));
+                _ = Task.Run(() => messagesToDefer.ParallelForEachAsync(
+                    msg => controlQueue.AbandonMessageAsync(
+                        msg,
+                        "Execution-start message was deferred pending instance status reconciliation.",
+                        session: null)));
             }
 
             if (messagesToDiscard?.Count > 0)
@@ -534,17 +541,19 @@ namespace DurableTask.AzureStorage
                     batch.ETags.HistoryETag = history.ETag;
                     batch.LastCheckpointTime = history.LastCheckpointTime;
                     batch.TrackingStoreContext = history.TrackingStoreContext;
+                }
 
-                    // Try to get the instance ETag from the tracking store if it wasn't already provided
-                    if (this.settings.UseInstanceTableEtag && batch.ETags.InstanceETag == null)
-                    {
-                        InstanceStatus? instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(
-                            batch.OrchestrationInstanceId,
-                            cancellationToken);
-                        // The instance could not exist in the case that these messages are for the first execution of a suborchestration,
-                        // or an entity-started orchestration, for example
-                        batch.ETags.InstanceETag = instanceStatus?.ETag;
-                    }
+                // Try to get the instance ETag from the tracking store if it wasn't already provided.
+                // This is not in the history check above, so that a retry loads the instance ETag again
+                // when an earlier attempt loaded the history but failed to load the instance ETag.
+                if (this.settings.UseInstanceTableEtag && batch.ETags.InstanceETag == null)
+                {
+                    InstanceStatus? instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(
+                        batch.OrchestrationInstanceId,
+                        cancellationToken);
+                    // The instance could not exist in the case that these messages are for the first execution of a suborchestration,
+                    // or an entity-started orchestration, for example
+                    batch.ETags.InstanceETag = instanceStatus?.ETag;
                 }
 
                 if (this.settings.UseSeparateQueueForEntityWorkItems
@@ -571,11 +580,15 @@ namespace DurableTask.AzureStorage
                     e.ToString());
 
                 // Sleep briefly to avoid a tight failure loop.
-                await Task.Delay(TimeSpan.FromSeconds(5));
+                // If the token is cancelled during the delay (shutdown), this background task stops here.
+                await Task.Delay(this.PrefetchRetryDelay, cancellationToken);
 
                 // This is a background operation so failure is not an option. All exceptions must be handled.
                 // To avoid starvation, we need to re-enqueue this async operation instead of retrying in a loop.
-                await Task.Run(() => this.ScheduleOrchestrationStatePrefetch(node, traceActivityId, cancellationToken));
+                // Do not await the new operation. This method keeps the caught exception until the method completes.
+                // If it waits for the next attempt, each failed attempt stays in memory until an attempt is successful.
+                // If the failure is permanent, memory then increases without a limit.
+                _ = Task.Run(() => this.ScheduleOrchestrationStatePrefetch(node, traceActivityId, cancellationToken));
             }
         }
 

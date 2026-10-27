@@ -14,18 +14,10 @@
     <PackageReference Include="Azure.Storage.Blobs" />
     <PackageReference Include="CommandLineParser" />
     <PackageReference Include="EnterpriseLibrary.SemanticLogging" />
-    <PackageReference Include="ImpromptuInterface" />
-    <PackageReference Include="Microsoft.Azure.KeyVault.Core" />
-    <PackageReference Include="Microsoft.Data.Edm" />
-    <PackageReference Include="Microsoft.Data.OData" />
-    <PackageReference Include="Microsoft.Data.Services.Client" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="Microsoft.Tpl.Dataflow" />
-    <PackageReference Include="Microsoft.WindowsAzure.ConfigurationManager" />
     <PackageReference Include="MSTest.TestAdapter" />
     <PackageReference Include="MSTest.TestFramework" />
-    <PackageReference Include="System.Spatial" />
-    <PackageReference Include="WindowsAzure.ServiceBus" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">

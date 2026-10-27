@@ -54,19 +54,15 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
             if (compressionSettings.Style == CompressionStyle.Legacy)
             {
-#if NETSTANDARD2_0
                 using (var ms = new MemoryStream())
                 {
                     var serialiser = (XmlObjectSerializer)typeof(DataContractSerializer)
                         .MakeGenericType(serializableObject.GetType())
                         .GetField("Instance")
                         ?.GetValue(null);
-                    serialiser?.WriteObject(ms,serializableObject);
+                    serialiser?.WriteObject(ms, serializableObject);
                     return new Message(ms.ToArray()) { SessionId = instance?.InstanceId };
                 }
-#else
-                return new Message(serializableObject) { SessionId = instance?.InstanceId};
-#endif
             }
 
             if (messageSettings == null)
@@ -137,16 +133,12 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 
         static Message GenerateBrokeredMessageWithCompressionTypeProperty(Stream stream, string compressionType)
         {
-#if NETSTANDARD2_0
             Message brokeredMessage;
             using (var ms = new MemoryStream())
             {
                 stream.CopyTo(ms);
                 brokeredMessage = new Message(ms.ToArray());
             }
-#else
-            var brokeredMessage = new Message(stream);
-#endif
             brokeredMessage.UserProperties[FrameworkConstants.CompressionTypePropertyName] = compressionType;
 
             return brokeredMessage;
@@ -193,6 +185,29 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             return brokeredMessage;
         }
 
+        /// <summary>
+        /// Reads the remaining contents of a session state stream into a byte array.
+        /// </summary>
+        public static async Task<byte[]> GetSessionStateBytesAsync(Stream stream)
+        {
+            if (stream == null)
+            {
+                throw new ArgumentNullException(nameof(stream));
+            }
+
+            // Avoid an intermediate copy when the stream is already a MemoryStream positioned at the start.
+            if (stream is MemoryStream memoryStream && memoryStream.Position == 0)
+            {
+                return memoryStream.ToArray();
+            }
+
+            using (var ms = new MemoryStream())
+            {
+                await stream.CopyToAsync(ms);
+                return ms.ToArray();
+            }
+        }
+
         public static async Task<T> GetObjectFromBrokeredMessageAsync<T>(Message message, IOrchestrationServiceBlobStore orchestrationServiceBlobStore)
         {
             if (message == null)
@@ -212,13 +227,9 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             if (string.IsNullOrWhiteSpace(compressionType))
             {
                 // no compression, legacy style
-#if NETSTANDARD2_0
                 var dataContractSerializer = new DataContractSerializer(typeof(T));
                 using (var ms = new MemoryStream(message.Body))
                     deserializedObject = (T)dataContractSerializer.ReadObject(ms);
-#else
-                deserializedObject = message.GetBody<T>();
-#endif
             }
             else if (string.Equals(compressionType, FrameworkConstants.CompressionTypeGzipPropertyValue,
                 StringComparison.OrdinalIgnoreCase))
@@ -278,7 +289,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                     originalException.Throw();
                 }
 
-                return (dynamic)new TaskMessage
+                return (T)(object)new TaskMessage
                 {
                     Event = new HistoryStateEvent(-1, stateMessage.State),
                     OrchestrationInstance = stateMessage.State.OrchestrationInstance
@@ -300,11 +311,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             {
                 // load the stream from the message directly if the blob key property is not set,
                 // i.e., it is not stored externally
-#if NETSTANDARD2_0
-                return Task.Run(() => new System.IO.MemoryStream(message.Body) as Stream);
-#else
-                return Task.Run(() => message.GetBody<Stream>());
-#endif
+                return Task.FromResult<Stream>(new MemoryStream(message.Body));
             }
 
             // if the blob key is set in the message property,
@@ -358,7 +365,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
                         TraceEventType.Critical,
                         "MaxDeliveryCountApproaching",
                         "Delivery count for message with id {0} is {1}. Message will be deadlettered if processing continues to fail.",
-                        message.MessageId, 
+                        message.MessageId,
                         message.SystemProperties.DeliveryCount);
                 }
             }
