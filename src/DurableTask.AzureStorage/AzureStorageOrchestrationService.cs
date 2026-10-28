@@ -2176,6 +2176,7 @@ namespace DurableTask.AzureStorage
         /// such as the input or output status fields, and for which the blob URI was stored instead.
         /// </summary>
         /// <param name="blobUri">The URI of the blob.</param>
+        /// <exception cref="ArgumentException">The URI is not in this task hub's large-message container.</exception>
         public Task<string> DownloadBlobAsync(string blobUri)
         {
             return this.messageManager.DownloadAndDecompressAsBytesAsync(new Uri(blobUri));
