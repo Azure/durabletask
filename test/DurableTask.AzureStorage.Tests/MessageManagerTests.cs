@@ -24,6 +24,7 @@ namespace DurableTask.AzureStorage.Tests
     using Newtonsoft.Json;
     using System;
     using System.Collections.Generic;
+    using System.Linq;
     using System.Text;
     using System.Threading.Tasks;
 
@@ -233,21 +234,13 @@ namespace DurableTask.AzureStorage.Tests
             new object?[] { "http://127.0.0.1:10000/devstoreaccount1/test-largemessages/%2e%2e/ownerprivate/backup.json.gz" },
         };
 
-        public static IEnumerable<object[]> OutOfScopeBlobUris
-        {
-            get
-            {
-                foreach (object?[] row in OutOfScopePayloads)
-                {
-                    if (row[0] is string payload &&
-                        Uri.TryCreate(payload, UriKind.Absolute, out Uri? candidate) &&
-                        candidate != null)
-                    {
-                        yield return new object[] { candidate };
-                    }
-                }
-            }
-        }
+        public static IEnumerable<object[]> OutOfScopeBlobUris => OutOfScopePayloads
+            .Select(row => row[0] as string)
+            .Where(payload => payload != null)
+            .Select(payload => Uri.TryCreate(payload, UriKind.Absolute, out Uri? candidate) && candidate != null
+                ? new object[] { candidate }
+                : null)
+            .OfType<object[]>();
 
         public static IEnumerable<object[]> ReconstructedTargetsOutsideScope => new[]
         {
