@@ -351,7 +351,9 @@ namespace DurableTask.AzureStorage.Monitoring
             QueueMetricHistory workItemQueueLatencyHistory,
             List<QueueMetricHistory> controlQueueLatencyHistory)
         {
-            // Invisible activity messages still count as work.
+            // Invisible activity messages still need worker capacity.
+            double requiredActivityWorkers = Math.Ceiling(workItemQueueLength / (double)this.settings.MaxConcurrentTaskActivityWorkItems);
+            bool hasSpareActivityWorkers = workerCount > requiredActivityWorkers;
             bool workItemsAreIdle = workItemQueueLength == 0 && IsIdle(workItemQueueLatencyHistory);
             bool taskHubIsIdle = workItemsAreIdle && controlQueueLatencyHistory.TrueForAll(IsIdle);
             if (workerCount == 0 && !taskHubIsIdle)
@@ -372,6 +374,13 @@ namespace DurableTask.AzureStorage.Monitoring
                     keepWorkersAlive: false,
                     reason: "Task hub is idle");
             }
+            else if (workerCount < requiredActivityWorkers)
+            {
+                return new ScaleRecommendation(
+                    ScaleAction.AddWorker,
+                    keepWorkersAlive: true,
+                    reason: $"Activity workers needed: {requiredActivityWorkers} > {workerCount}");
+            }
             else if (this.IsHighLatency(workItemQueueLatencyHistory))
             {
                 return new ScaleRecommendation(
@@ -379,12 +388,12 @@ namespace DurableTask.AzureStorage.Monitoring
                     keepWorkersAlive: true,
                     reason: $"Work-item queue latency: {workItemQueueLatencyHistory.Latest} > {this.highLatencyThreshold}");
             }
-            else if (workerCount > partitionCount && workItemsAreIdle)
+            else if (workerCount > partitionCount && hasSpareActivityWorkers && IsIdle(workItemQueueLatencyHistory))
             {
                 return new ScaleRecommendation(
                     ScaleAction.RemoveWorker,
                     keepWorkersAlive: true,
-                    reason: $"Work-items idle, #workers > partitions ({workerCount} > {partitionCount})");
+                    reason: $"Activity capacity available, #workers > partitions ({workerCount} > {partitionCount})");
             }
 
             // Control queues are partitioned; only scale-out if there are more partitions than workers.
@@ -397,15 +406,15 @@ namespace DurableTask.AzureStorage.Monitoring
                     keepWorkersAlive: true,
                     reason: $"High control queue latency: {metric.Latest} > {this.highLatencyThreshold}");
             }
-            else if (workerCount > controlQueueLatencyHistory.Count(h => !IsIdle(h)) && workItemsAreIdle)
+            else if (workerCount > controlQueueLatencyHistory.Count(h => !IsIdle(h)) && hasSpareActivityWorkers && IsIdle(workItemQueueLatencyHistory))
             {
-                // If the work item queues are idle, scale down to the number of non-idle control queues.
+                // Keep enough workers for activities and non-idle control queues.
                 return new ScaleRecommendation(
                     ScaleAction.RemoveWorker,
-                    keepWorkersAlive: controlQueueLatencyHistory.Any(IsIdle),
+                    keepWorkersAlive: workItemQueueLength > 0 || controlQueueLatencyHistory.Any(IsIdle),
                     reason: $"One or more control queues idle");
             }
-            else if (workerCount > 1 && workItemQueueLength == 0)
+            else if (workerCount > 1 && hasSpareActivityWorkers)
             {
                 // If all queues are operating efficiently, it can be hard to know if we need to reduce the worker count.
                 // We want to avoid the case where a constant trickle of load after a big scale-out prevents scaling back in.
