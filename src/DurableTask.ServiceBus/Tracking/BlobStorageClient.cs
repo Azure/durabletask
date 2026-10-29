@@ -59,7 +59,7 @@ namespace DurableTask.ServiceBus.Tracking
 
             // make the hub name lower case since it will be used as part of the prefix of the container name,
             // which only allows lower case letters
-            this.containerNamePrefix = BlobStorageClientHelper.BuildContainerNamePrefix(hubName.ToLower());
+            this.containerNamePrefix = BlobStorageClientHelper.BuildContainerNamePrefix(hubName);
         }
 
         /// <summary>
@@ -89,7 +89,7 @@ namespace DurableTask.ServiceBus.Tracking
 
             // make the hub name lower case since it will be used as part of the prefix of the container name,
             // which only allows lower case letters
-            this.containerNamePrefix = BlobStorageClientHelper.BuildContainerNamePrefix(hubName.ToLower());
+            this.containerNamePrefix = BlobStorageClientHelper.BuildContainerNamePrefix(hubName);
         }
 
         /// <summary>
@@ -130,19 +130,21 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         /// <summary>
-        /// List all containers of the blob storage, whose prefix is containerNamePrefix, i.e., {hubName}-dtfx.
+        /// List all containers of this hub, i.e. containers named {hubName}-dtfx-{type}-{yyyyMMdd}.
+        /// Containers of other hubs whose names share this hub's prefix (e.g. hub "alpha-dtfx-backup" for hub "alpha")
+        /// are not returned.
         /// </summary>
         /// <returns>A list of Azure blob containers</returns>
         public async Task<IEnumerable<BlobContainerItem>> ListContainersAsync()
         {
             List<BlobContainerItem> results = new List<BlobContainerItem>();
             // Use the service client's prefix parameter to only enumerate containers that start with the
-            // configured containerNamePrefix. Also apply a defensive in-memory filter in case of any
-            // unexpected differences in casing or service behavior.
+            // configured containerNamePrefix, then keep only the containers that belong to this hub, since
+            // hub names may contain dashes and another hub's containers can share the same prefix.
             var response = this.blobServiceClient.GetBlobContainersAsync(prefix: this.containerNamePrefix);
             await foreach (var container in response)
             {
-                if (container.Name != null && container.Name.StartsWith(this.containerNamePrefix, StringComparison.OrdinalIgnoreCase))
+                if (container.Name != null && BlobStorageClientHelper.IsContainerOwnedByHub(container.Name, this.containerNamePrefix))
                 {
                     results.Add(container);
                 }
@@ -152,7 +154,7 @@ namespace DurableTask.ServiceBus.Tracking
         
 
         /// <summary>
-        /// Delete all containers that are older than the input threshold date.
+        /// Delete all containers of this hub that are older than the input threshold date.
         /// </summary>
         /// <param name="thresholdDateTimeUtc">The specified date threshold</param>
         /// <returns></returns>
@@ -164,7 +166,7 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         /// <summary>
-        /// Delete blob containers with the containerNamePrefix as prefix.
+        /// Delete all containers of this hub.
         /// </summary>
         /// <returns></returns>
         public async Task DeleteBlobStoreContainersAsync()

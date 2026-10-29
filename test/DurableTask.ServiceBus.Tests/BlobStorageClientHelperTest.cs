@@ -15,6 +15,7 @@ namespace DurableTask.ServiceBus.Tests
 {
     using System;
     using System.Diagnostics.CodeAnalysis;
+    using System.Globalization;
     using System.Text.RegularExpressions;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using DurableTask.ServiceBus.Tracking;
@@ -40,6 +41,84 @@ namespace DurableTask.ServiceBus.Tests
             // invalid containers are ignored
             Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired("invalidContainerName", DateTime.UtcNow));
             Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired("hubname-dtfx-message-20146789", DateTime.UtcNow));
+        }
+
+        [TestMethod]
+        [SuppressMessage("ReSharper", "StringLiteralTypo")]
+        public void IsContainerExpiredHubNameWithDashesTest()
+        {
+            var dateTime = new DateTime(2015, 05, 17);
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerExpired("my-hub-dtfx-message-20150516", dateTime));
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerExpired("my-test-hub-dtfx-session-20140518", dateTime));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired("my-hub-dtfx-message-20150518", dateTime));
+
+            // containers not created by the framework are ignored
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired("my-hub-other-message-20100101", DateTime.UtcNow));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired("dtfx-message-20100101", DateTime.UtcNow));
+        }
+
+        [TestMethod]
+        [SuppressMessage("ReSharper", "StringLiteralTypo")]
+        public void ContainerNamesAreCultureInvariantTest()
+        {
+            CultureInfo originalCulture = CultureInfo.CurrentCulture;
+            try
+            {
+                // th-TH uses the Buddhist calendar (year 2558 for 2015)
+                CultureInfo.CurrentCulture = new CultureInfo("th-TH");
+                string key = BlobStorageClientHelper.BuildMessageBlobKey("aa", "bb", new DateTime(2015, 05, 17));
+                StringAssert.StartsWith(key, "message-20150517|");
+
+                // tr-TR lower-cases 'I' to a dotless 'ı', which is invalid in a container name
+                CultureInfo.CurrentCulture = new CultureInfo("tr-TR");
+                Assert.AreEqual("myhubid-dtfx", BlobStorageClientHelper.BuildContainerNamePrefix("MYHUBID"));
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = originalCulture;
+            }
+        }
+
+        [TestMethod]
+        public void ParseKeyRejectsInvalidSuffixCharactersTest()
+        {
+            Assert.ThrowsException<ArgumentException>(
+                () => BlobStorageClientHelper.ParseKey(@"message\-20100319|aa/bb/cc", out _, out _));
+            Assert.ThrowsException<ArgumentException>(
+                () => BlobStorageClientHelper.ParseKey("message-20100319\n|aa/bb/cc", out _, out _));
+        }
+
+        [TestMethod]
+        [SuppressMessage("ReSharper", "StringLiteralTypo")]
+        public void IsContainerOwnedByHubTest()
+        {
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-session-20150516", "alpha-dtfx"));
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-backup-dtfx-session-20150516", "alpha-dtfx-backup-dtfx"));
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerOwnedByHub("my-hub-dtfx-message-20150516", "my-hub-dtfx"));
+
+            // another hub whose container names share this hub's prefix
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-backup-dtfx-session-20150516", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-session-20150516", "alpha-dtfx-backup-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-extra-session-20150516", "alpha-dtfx"));
+
+            // malformed names
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-20150516", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("-session-20150516", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("invalidContainerName", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx--20150516", "alpha-dtfx"));
+
+            // non-date suffixes
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-session-backup", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-session-2015051", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-session-201505160", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-session-", "alpha-dtfx"));
+
+            // invalid calendar dates
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-session-20150230", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-session-20151301", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-message-20150001", "alpha-dtfx"));
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-message-20160229", "alpha-dtfx"));
         }
 
         [TestMethod]
