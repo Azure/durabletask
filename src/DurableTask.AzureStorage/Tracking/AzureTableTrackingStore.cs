@@ -886,6 +886,15 @@ namespace DurableTask.AzureStorage.Tracking
             ExecutionTerminatedEvent executionTerminatedEvent,
             CancellationToken cancellationToken = default)
         {
+            // A terminate message can outlive the instance row if the instance is
+            // purged before the message is processed. In that case there is no
+            // status to update, and retrying the message would keep it on the
+            // control queue indefinitely.
+            if (await this.FetchInstanceStatusAsync(instanceId, cancellationToken) == null)
+            {
+                return;
+            }
+
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
             TableEntity instanceEntity = new TableEntity(sanitizedInstanceId, "")
             {
@@ -898,10 +907,25 @@ namespace DurableTask.AzureStorage.Tracking
 
             // Setting addBlobPropertyName to false ensures that the blob URL is saved as the "Output" of the instance entity, which is the expected behavior
             // for large orchestration outputs.
-            await this.CompressLargeMessageAsync(instanceEntity, listOfBlobs: null, cancellationToken: cancellationToken, addBlobPropertyName: false);
+            var largeMessageBlobs = new List<string>();
+            await this.CompressLargeMessageAsync(instanceEntity, largeMessageBlobs, cancellationToken, addBlobPropertyName: false);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
-            await this.InstancesTable.MergeEntityAsync(instanceEntity, ETag.All, cancellationToken);
+            try
+            {
+                await this.InstancesTable.MergeEntityAsync(instanceEntity, ETag.All, cancellationToken);
+            }
+            catch (DurableTaskStorageException e) when (
+                e.HttpStatusCode == (int)HttpStatusCode.NotFound &&
+                e.ErrorCode == "ResourceNotFound")
+            {
+                // The row can be purged after the existence check above.
+                foreach (string blobName in largeMessageBlobs)
+                {
+                    await this.messageManager.DeleteBlobAsync(blobName, cancellationToken);
+                }
+                return;
+            }
 
             this.settings.Logger.InstanceStatusUpdate(
                 this.storageAccountName,
