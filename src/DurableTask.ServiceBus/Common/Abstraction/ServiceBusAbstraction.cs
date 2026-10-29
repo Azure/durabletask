@@ -4,6 +4,7 @@ namespace DurableTask.ServiceBus.Common.Abstraction
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Threading;
     using System.Threading.Tasks;
 
     /// <inheritdoc />
@@ -497,19 +498,31 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             this.serviceBusClient = serviceBusConnection.GetSendViaEntityScopedClient(entityPath);
         }
 
+        /// <summary>
+        /// Accepts the next available session, or returns null if none becomes available within <paramref name="operationTimeout"/>.
+        /// A non-positive timeout falls back to the client's retry policy timeout.
+        /// </summary>
         public async Task<IMessageSession> AcceptMessageSessionAsync(TimeSpan operationTimeout)
         {
-            try
+            var options = new Azure.Messaging.ServiceBus.ServiceBusSessionReceiverOptions
             {
-                var options = new Azure.Messaging.ServiceBus.ServiceBusSessionReceiverOptions
+                ReceiveMode = receiveMode,
+            };
+
+            using (var timeoutCts = operationTimeout > TimeSpan.Zero ? new CancellationTokenSource(operationTimeout) : new CancellationTokenSource())
+            {
+                try
                 {
-                    ReceiveMode = receiveMode,
-                };
-                return new IMessageSession(await this.serviceBusClient.AcceptNextSessionAsync(entityPath, options));
-            }
-            catch (Azure.Messaging.ServiceBus.ServiceBusException e) when (e.Reason.Equals(Azure.Messaging.ServiceBus.ServiceBusFailureReason.ServiceTimeout))
-            {
-                return null;
+                    return new IMessageSession(await this.serviceBusClient.AcceptNextSessionAsync(entityPath, options, timeoutCts.Token));
+                }
+                catch (Azure.Messaging.ServiceBus.ServiceBusException e) when (e.Reason.Equals(Azure.Messaging.ServiceBus.ServiceBusFailureReason.ServiceTimeout))
+                {
+                    return null;
+                }
+                catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+                {
+                    return null;
+                }
             }
         }
 
