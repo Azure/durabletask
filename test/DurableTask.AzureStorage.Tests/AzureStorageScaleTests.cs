@@ -701,6 +701,69 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
+        public async Task MonitorInFlightWorkItemsDisconnected()
+        {
+            string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                PartitionCount = 1,
+                StorageAccountClientProvider = new StorageAccountClientProvider(connectionString),
+                TaskHubName = nameof(MonitorInFlightWorkItemsDisconnected),
+                UseAppLease = false,
+            };
+            var service = new AzureStorageOrchestrationService(settings);
+            var monitor = new DisconnectedPerformanceMonitor(connectionString, settings.TaskHubName);
+            await service.CreateAsync(recreateInstanceStore: true);
+
+            try
+            {
+                // 1. Queue activities and a timer that is not due yet.
+                const int activityCount = 18;
+                Queue workItems = service.WorkItemQueue.InnerQueue;
+                Queue control = service.AllControlQueues.Single().InnerQueue;
+                for (int i = 0; i < activityCount; i++)
+                {
+                    await workItems.AddMessageAsync("activity", visibilityDelay: null);
+                }
+                await control.AddMessageAsync("timer", visibilityDelay: TimeSpan.FromHours(1));
+
+                PerformanceHeartbeat heartbeat = await monitor.PulseAsync();
+                Assert.AreEqual(activityCount, heartbeat.WorkItemQueueLength);
+                CollectionAssert.AreEqual(new[] { 0 }, heartbeat.ControlQueueLengths.ToArray());
+
+                // 2. Running activities keep their messages invisible.
+                IReadOnlyCollection<QueueMessage> running = await workItems.GetMessagesAsync(activityCount, TimeSpan.FromMinutes(5));
+                Assert.AreEqual(activityCount, running.Count);
+                Assert.IsNull(await workItems.PeekMessageAsync());
+                heartbeat = await monitor.PulseAsync();
+                Assert.AreEqual(activityCount, heartbeat.WorkItemQueueLength);
+                Assert.AreEqual(TimeSpan.Zero, heartbeat.WorkItemQueueLatency);
+                CollectionAssert.AreEqual(new[] { 0 }, heartbeat.ControlQueueLengths.ToArray());
+
+                // 3. New work adds to the running work, so scale-out is still possible.
+                await workItems.AddMessageAsync("next activity", visibilityDelay: null);
+                heartbeat = await monitor.PulseAsync();
+                Assert.AreEqual(activityCount + 1, heartbeat.WorkItemQueueLength);
+                QueueMessage next = await workItems.GetMessageAsync(TimeSpan.FromMinutes(5));
+                Assert.IsNotNull(next);
+
+                // 4. Completed activities no longer keep workers alive.
+                foreach (QueueMessage message in running.Append(next))
+                {
+                    await workItems.DeleteMessageAsync(message);
+                }
+                heartbeat = await monitor.PulseAsync();
+                Assert.AreEqual(0, heartbeat.WorkItemQueueLength);
+                Assert.AreEqual(TimeSpan.Zero, heartbeat.WorkItemQueueLatency);
+                CollectionAssert.AreEqual(new[] { 0 }, heartbeat.ControlQueueLengths.ToArray());
+            }
+            finally
+            {
+                await service.DeleteAsync();
+            }
+        }
+
+        [TestMethod]
         public async Task UpdateTaskHubJsonWithNewPartitionCount()
         {
             string connectionString = TestHelpers.GetTestStorageAccountConnectionString();

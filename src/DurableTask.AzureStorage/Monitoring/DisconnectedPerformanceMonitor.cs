@@ -152,8 +152,8 @@ namespace DurableTask.AzureStorage.Monitoring
                 this.azureStorageClient,
                 defaultPartitionCount: AzureStorageOrchestrationServiceSettings.DefaultPartitionCount);
 
-            Task<QueueMetric> workItemMetricTask = GetQueueMetricsAsync(workItemQueue);
-            List<Task<QueueMetric>> controlQueueMetricTasks = controlQueues.Select(GetQueueMetricsAsync).ToList();
+            Task<QueueMetric> workItemMetricTask = GetQueueMetricsAsync(workItemQueue, includeInvisibleMessages: true);
+            List<Task<QueueMetric>> controlQueueMetricTasks = controlQueues.Select(queue => GetQueueMetricsAsync(queue, includeInvisibleMessages: false)).ToList();
 
             var tasks = new List<Task>(controlQueueMetricTasks.Count + 1);
             tasks.Add(workItemMetricTask);
@@ -201,7 +201,7 @@ namespace DurableTask.AzureStorage.Monitoring
             return true;
         }
 
-        async Task<QueueMetric> GetQueueMetricsAsync(Queue queue)
+        async Task<QueueMetric> GetQueueMetricsAsync(Queue queue, bool includeInvisibleMessages)
         {
             Task<TimeSpan> latencyTask = GetQueueLatencyAsync(queue);
             Task<int> lengthTask = GetQueueLengthAsync(queue);
@@ -212,9 +212,13 @@ namespace DurableTask.AzureStorage.Monitoring
 
             if (latency == TimeSpan.MinValue)
             {
-                // No available queue messages (peek returned null)
+                // No visible messages means no queue latency, but activities may still be running.
                 latency = TimeSpan.Zero;
-                length = 0;
+                if (!includeInvisibleMessages)
+                {
+                    // Control queues can contain timers that are not due yet.
+                    length = 0;
+                }
             }
 
             return new QueueMetric { Latency = latency, Length = length };
