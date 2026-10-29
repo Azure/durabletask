@@ -735,10 +735,30 @@ namespace DurableTask.AzureStorage.Tests
                 IReadOnlyCollection<QueueMessage> running = await workItems.GetMessagesAsync(activityCount, TimeSpan.FromMinutes(5));
                 Assert.AreEqual(activityCount, running.Count);
                 Assert.IsNull(await workItems.PeekMessageAsync());
-                heartbeat = await monitor.PulseAsync();
-                Assert.AreEqual(activityCount, heartbeat.WorkItemQueueLength);
-                Assert.AreEqual(TimeSpan.Zero, heartbeat.WorkItemQueueLatency);
-                CollectionAssert.AreEqual(new[] { 0 }, heartbeat.ControlQueueLengths.ToArray());
+                var heartbeats = new List<PerformanceHeartbeat>();
+                for (int i = 0; i < DisconnectedPerformanceMonitor.QueueLengthSampleSize; i++)
+                {
+                    heartbeat = await monitor.PulseAsync(currentWorkerCount: 1);
+                    heartbeats.Add(heartbeat);
+                    Assert.AreEqual(activityCount, heartbeat.WorkItemQueueLength);
+                    Assert.AreEqual(TimeSpan.Zero, heartbeat.WorkItemQueueLatency);
+                    CollectionAssert.AreEqual(new[] { 0 }, heartbeat.ControlQueueLengths.ToArray());
+                    Assert.AreEqual(ScaleAction.None, heartbeat.ScaleRecommendation.Action);
+                    Assert.IsTrue(heartbeat.ScaleRecommendation.KeepWorkersAlive);
+                }
+                foreach (int workerCount in new[] { 0, 1, 2 })
+                {
+                    ScaleAction expected = workerCount == 0 ? ScaleAction.AddWorker : ScaleAction.None;
+                    foreach (ScaleRecommendation recommendation in new[]
+                    {
+                        monitor.MakeScaleRecommendation(workerCount),
+                        monitor.MakeScaleRecommendation(workerCount, heartbeats.ToArray()),
+                    })
+                    {
+                        Assert.AreEqual(expected, recommendation.Action);
+                        Assert.IsTrue(recommendation.KeepWorkersAlive);
+                    }
+                }
 
                 // 3. New work adds to the running work, so scale-out is still possible.
                 await workItems.AddMessageAsync("next activity", visibilityDelay: null);
@@ -752,10 +772,20 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     await workItems.DeleteMessageAsync(message);
                 }
-                heartbeat = await monitor.PulseAsync();
-                Assert.AreEqual(0, heartbeat.WorkItemQueueLength);
-                Assert.AreEqual(TimeSpan.Zero, heartbeat.WorkItemQueueLatency);
-                CollectionAssert.AreEqual(new[] { 0 }, heartbeat.ControlQueueLengths.ToArray());
+                heartbeats.Clear();
+                for (int i = 0; i < DisconnectedPerformanceMonitor.QueueLengthSampleSize; i++)
+                {
+                    heartbeat = await monitor.PulseAsync(currentWorkerCount: 1);
+                    heartbeats.Add(heartbeat);
+                    Assert.AreEqual(0, heartbeat.WorkItemQueueLength);
+                    Assert.AreEqual(TimeSpan.Zero, heartbeat.WorkItemQueueLatency);
+                    CollectionAssert.AreEqual(new[] { 0 }, heartbeat.ControlQueueLengths.ToArray());
+                }
+                Assert.AreEqual(ScaleAction.RemoveWorker, heartbeat.ScaleRecommendation.Action);
+                Assert.IsFalse(heartbeat.ScaleRecommendation.KeepWorkersAlive);
+                ScaleRecommendation completed = monitor.MakeScaleRecommendation(1, heartbeats.ToArray());
+                Assert.AreEqual(ScaleAction.RemoveWorker, completed.Action);
+                Assert.IsFalse(completed.KeepWorkersAlive);
             }
             finally
             {
@@ -1105,6 +1135,59 @@ namespace DurableTask.AzureStorage.Tests
             ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
             Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
             Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [DataTestMethod]
+        [DataRow(0, 0, 0, ScaleAction.AddWorker)]
+        [DataRow(1, 0, 0, ScaleAction.None)]
+        [DataRow(5, 0, 0, ScaleAction.None)]
+        [DataRow(3, 0, 100, ScaleAction.None)]
+        [DataRow(2, 100, 100, ScaleAction.None)]
+        [DataRow(1, 1000, 0, ScaleAction.AddWorker)]
+        [DataRow(1, 0, 1000, ScaleAction.AddWorker)]
+        public void ScaleDecision_AdHoc_RetainedWorkItems(
+            int workerCount, int activityLatency, int controlLatency, ScaleAction expected)
+        {
+            // 1. Keep one activity message while filling the sampling window.
+            var monitor = GetFakePerformanceMonitor();
+            monitor.EnableRandomScaleDownOnLowLatency = true;
+            PerformanceHeartbeat[] heartbeats = Enumerable.Range(0, DisconnectedPerformanceMonitor.QueueLengthSampleSize)
+                .Select(_ => new PerformanceHeartbeat
+                {
+                    PartitionCount = 4,
+                    WorkItemQueueLength = 1,
+                    WorkItemQueueLatency = TimeSpan.FromMilliseconds(activityLatency),
+                    ControlQueueLatencies = new List<TimeSpan>
+                    {
+                        TimeSpan.FromMilliseconds(controlLatency), TimeSpan.FromMilliseconds(controlLatency),
+                        TimeSpan.Zero, TimeSpan.Zero,
+                    },
+                }).ToArray();
+
+            // 2. Retained work prevents scale-in, but high latency can still request more workers.
+            ScaleRecommendation recommendation = monitor.MakeScaleRecommendation(workerCount, heartbeats);
+            Assert.AreEqual(expected, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_CompletedWorkItems()
+        {
+            // 1. The newest sample has no work left, even though earlier samples did.
+            var monitor = GetFakePerformanceMonitor();
+            PerformanceHeartbeat[] heartbeats = Enumerable.Range(0, DisconnectedPerformanceMonitor.QueueLengthSampleSize)
+                .Select(_ => new PerformanceHeartbeat
+                {
+                    PartitionCount = 4,
+                    WorkItemQueueLength = 18,
+                    ControlQueueLatencies = new List<TimeSpan> { TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero },
+                }).ToArray();
+            heartbeats.Last().WorkItemQueueLength = 0;
+
+            // 2. Completed work no longer prevents scale-in.
+            ScaleRecommendation recommendation = monitor.MakeScaleRecommendation(1, heartbeats);
+            Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action);
+            Assert.IsFalse(recommendation.KeepWorkersAlive);
         }
 
         [TestMethod]

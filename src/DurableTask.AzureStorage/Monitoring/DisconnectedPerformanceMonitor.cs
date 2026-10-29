@@ -306,7 +306,7 @@ namespace DurableTask.AzureStorage.Monitoring
         /// <returns>Returns a scale recommendation</returns>
         public virtual ScaleRecommendation MakeScaleRecommendation(int workerCount)
         {
-            return MakeScaleRecommendation(workerCount, this.PartitionCount, this.WorkItemQueueLatencies, this.ControlQueueLatencies);
+            return MakeScaleRecommendation(workerCount, this.PartitionCount, this.currentWorkItemQueueLength, this.WorkItemQueueLatencies, this.ControlQueueLatencies);
         }
 
         /// <summary>
@@ -322,7 +322,8 @@ namespace DurableTask.AzureStorage.Monitoring
                 return new ScaleRecommendation(ScaleAction.None, keepWorkersAlive: true, reason: "No heartbeat metrics");
             }
 
-            int partitionCount = performanceHeartbeats.Last().PartitionCount;
+            PerformanceHeartbeat latestHeartbeat = performanceHeartbeats.Last();
+            int partitionCount = latestHeartbeat.PartitionCount;
             QueueMetricHistory workItemQueueLatencyHistory = new QueueMetricHistory(QueueLengthSampleSize);
             List<QueueMetricHistory> controlQueueLatencyHistory = new List<QueueMetricHistory>();
 
@@ -340,17 +341,19 @@ namespace DurableTask.AzureStorage.Monitoring
                 }
             }
 
-            return MakeScaleRecommendation(workerCount, partitionCount, workItemQueueLatencyHistory, controlQueueLatencyHistory);
+            return MakeScaleRecommendation(workerCount, partitionCount, latestHeartbeat.WorkItemQueueLength, workItemQueueLatencyHistory, controlQueueLatencyHistory);
         }
 
         internal ScaleRecommendation MakeScaleRecommendation(
             int workerCount,
             int partitionCount,
+            int workItemQueueLength,
             QueueMetricHistory workItemQueueLatencyHistory,
             List<QueueMetricHistory> controlQueueLatencyHistory)
         {
-            // REVIEW: Is zero latency a reliable indicator of idle?
-            bool taskHubIsIdle = IsIdle(workItemQueueLatencyHistory) && controlQueueLatencyHistory.TrueForAll(IsIdle);
+            // Invisible activity messages still count as work.
+            bool workItemsAreIdle = workItemQueueLength == 0 && IsIdle(workItemQueueLatencyHistory);
+            bool taskHubIsIdle = workItemsAreIdle && controlQueueLatencyHistory.TrueForAll(IsIdle);
             if (workerCount == 0 && !taskHubIsIdle)
             {
                 return new ScaleRecommendation(ScaleAction.AddWorker, keepWorkersAlive: true, reason: "First worker");
@@ -376,7 +379,7 @@ namespace DurableTask.AzureStorage.Monitoring
                     keepWorkersAlive: true,
                     reason: $"Work-item queue latency: {workItemQueueLatencyHistory.Latest} > {this.highLatencyThreshold}");
             }
-            else if (workerCount > partitionCount && IsIdle(workItemQueueLatencyHistory))
+            else if (workerCount > partitionCount && workItemsAreIdle)
             {
                 return new ScaleRecommendation(
                     ScaleAction.RemoveWorker,
@@ -394,7 +397,7 @@ namespace DurableTask.AzureStorage.Monitoring
                     keepWorkersAlive: true,
                     reason: $"High control queue latency: {metric.Latest} > {this.highLatencyThreshold}");
             }
-            else if (workerCount > controlQueueLatencyHistory.Count(h => !IsIdle(h)) && IsIdle(workItemQueueLatencyHistory))
+            else if (workerCount > controlQueueLatencyHistory.Count(h => !IsIdle(h)) && workItemsAreIdle)
             {
                 // If the work item queues are idle, scale down to the number of non-idle control queues.
                 return new ScaleRecommendation(
@@ -402,7 +405,7 @@ namespace DurableTask.AzureStorage.Monitoring
                     keepWorkersAlive: controlQueueLatencyHistory.Any(IsIdle),
                     reason: $"One or more control queues idle");
             }
-            else if (workerCount > 1)
+            else if (workerCount > 1 && workItemQueueLength == 0)
             {
                 // If all queues are operating efficiently, it can be hard to know if we need to reduce the worker count.
                 // We want to avoid the case where a constant trickle of load after a big scale-out prevents scaling back in.
