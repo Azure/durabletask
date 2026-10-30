@@ -13,33 +13,37 @@
 #nullable enable
 namespace DurableTask.AzureStorage.Messaging
 {
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Storage;
 
     /// <summary>
-    /// Encapsulates the Azure Storage queue used to record instances whose data has been modified after a
+    /// Encapsulates the Azure Storage queues used to record instances whose data has been modified after a
     /// migration away from the Azure Storage backend has started. Each message carries the instance ID and the
     /// sequence number that the source write is expected to produce.
     /// </summary>
     class ModifiedInstancesQueue
     {
-        readonly Queue queue;
+        readonly Queue[] queues;
 
         public ModifiedInstancesQueue(AzureStorageClient azureStorageClient)
         {
-            string queueName = AzureStorageOrchestrationService.GetQueueName(azureStorageClient.Settings.TaskHubName, "modified");
-            this.queue = azureStorageClient.GetQueueReference(queueName);
+            this.queues = new Queue[azureStorageClient.Settings.PartitionCount];
+            for (int partitionIndex = 0; partitionIndex < this.queues.Length; partitionIndex++)
+            {
+                string queueName = AzureStorageOrchestrationService.GetModifiedInstancesQueueName(
+                    azureStorageClient.Settings.TaskHubName, partitionIndex);
+                this.queues[partitionIndex] = azureStorageClient.GetQueueReference(queueName);
+            }
         }
 
-        public string Name => this.queue.Name;
-
         /// <summary>
-        /// Creates the modified-instances queue if it does not already exist. This operation is idempotent.
+        /// Creates the modified-instances queues if they do not already exist.
         /// </summary>
         public Task CreateIfNotExistsAsync(CancellationToken cancellationToken = default)
         {
-            return this.queue.CreateIfNotExistsAsync(cancellationToken);
+            return Task.WhenAll(this.queues.Select(queue => queue.CreateIfNotExistsAsync(cancellationToken)));
         }
 
         /// <summary>
@@ -56,7 +60,9 @@ namespace DurableTask.AzureStorage.Messaging
                 SequenceNumber = sequenceNumber,
             });
 
-            return this.queue.AddMessageAsync(message, visibilityDelay: null, cancellationToken: cancellationToken);
+            // Use the same partition as the instance's control queue.
+            uint partitionIndex = Fnv1aHashHelper.ComputeHash(instanceId) % (uint)this.queues.Length;
+            return this.queues[partitionIndex].AddMessageAsync(message, visibilityDelay: null, cancellationToken: cancellationToken);
         }
     }
 

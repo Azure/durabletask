@@ -236,6 +236,11 @@ namespace DurableTask.AzureStorage
             return GetQueueName(taskHub, $"control-{partitionIndex:00}");
         }
 
+        internal static string GetModifiedInstancesQueueName(string taskHub, int partitionIndex)
+        {
+            return GetQueueName(taskHub, $"modified-{partitionIndex:00}");
+        }
+
         internal static string GetWorkItemQueueName(string taskHub)
         {
             return GetQueueName(taskHub, "workitems");

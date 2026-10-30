@@ -42,7 +42,6 @@ namespace DurableTask.AzureStorage.Tests
     {
         const string SequenceNumberPropertyName = "SequenceNumber";
         const string SentinelRowKey = "sentinel";
-        const string ModifiedInstancesQueueSuffix = "modified";
 
         [DataTestMethod]
         [DataRow(false)]
@@ -226,8 +225,8 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsNotNull(sequenceNumberBeforeRewind, "The instance row should carry a sequence number while a migration is active.");
 
             // Drain all messages produced while the orchestration was running so the rewind's enqueue can be isolated.
-            Queue modifiedInstancesQueue = GetModifiedInstancesQueue(azureStorageClient, settings);
-            await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            Queue[] modifiedInstancesQueues = GetModifiedInstancesQueues(azureStorageClient, settings);
+            await DrainModifiedInstancesQueuesAsync(modifiedInstancesQueues);
 
             // Act: rewind the failed orchestration.
             RewindFailOrchestration.ShouldFail = false;
@@ -251,7 +250,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(sequenceNumberAfterRewind, sentinelSequenceNumber, "The history sentinel should carry the same sequence number as the instance row.");
 
             // ...and enqueued exactly one modified-instance message for this instance.
-            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueuesAsync(modifiedInstancesQueues);
             Assert.AreEqual(1, enqueued.Count, "Rewind should enqueue the instance exactly once.");
             Assert.AreEqual(instanceId, enqueued[0].InstanceId);
             Assert.AreEqual(sequenceNumberAfterRewind, enqueued[0].SequenceNumber);
@@ -422,8 +421,8 @@ namespace DurableTask.AzureStorage.Tests
             long? sequenceNumberBeforeTermination = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
 
             // Drain the message enqueued when the instance was created so the termination's enqueue can be isolated.
-            Queue modifiedInstancesQueue = GetModifiedInstancesQueue(azureStorageClient, settings);
-            await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            Queue[] modifiedInstancesQueues = GetModifiedInstancesQueues(azureStorageClient, settings);
+            await DrainModifiedInstancesQueuesAsync(modifiedInstancesQueues);
 
             // Act: terminate the pending orchestration and wait for it to reach the terminal state.
             await client.TerminateAsync("terminate for migration test");
@@ -441,7 +440,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsFalse(await HistoryExistsAsync(azureStorageClient, instanceId), "A terminated pending orchestration should have no history.");
 
             // ...and enqueued exactly one modified-instance message for this instance.
-            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueuesAsync(modifiedInstancesQueues);
             Assert.AreEqual(1, enqueued.Count, "Termination should enqueue the instance exactly once.");
             Assert.AreEqual(instanceId, enqueued[0].InstanceId);
             Assert.AreEqual(sequenceNumberAfterTermination, enqueued[0].SequenceNumber);
@@ -478,8 +477,8 @@ namespace DurableTask.AzureStorage.Tests
             // The instance was only created (it never ran), so there is no history.
             Assert.IsFalse(await HistoryExistsAsync(azureStorageClient, instanceId), "A newly created, unstarted orchestration should have no history.");
 
-            Queue modifiedInstancesQueue = GetModifiedInstancesQueue(azureStorageClient, settings);
-            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            Queue[] modifiedInstancesQueues = GetModifiedInstancesQueues(azureStorageClient, settings);
+            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueuesAsync(modifiedInstancesQueues);
             Assert.AreEqual(1, enqueued.Count, "Creating the instance should enqueue it exactly once.");
             Assert.AreEqual(instanceId, enqueued[0].InstanceId);
             Assert.AreEqual(sequenceNumber, enqueued[0].SequenceNumber);
@@ -516,8 +515,8 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsNotNull(sequenceNumberBeforeRecreate, "The completed instance should carry a sequence number while a migration is active.");
 
             // Drain the messages produced by the first run so the recreate's enqueue can be isolated.
-            Queue modifiedInstancesQueue = GetModifiedInstancesQueue(azureStorageClient, settings);
-            await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            Queue[] modifiedInstancesQueues = GetModifiedInstancesQueues(azureStorageClient, settings);
+            await DrainModifiedInstancesQueuesAsync(modifiedInstancesQueues);
 
             // Act: recreate the completed orchestration under the same instance ID (a new generation).
             await host.StartOrchestrationAsync(typeof(SimpleOrchestration), input: "again", instanceId: instanceId);
@@ -532,7 +531,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(sequenceNumberBeforeRecreate, sentinelSequenceNumber, "The recreate should not change the previous generation's history sentinel.");
 
             // ...and enqueued the instance exactly once for the new generation.
-            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueuesAsync(modifiedInstancesQueues);
             Assert.AreEqual(1, enqueued.Count, "Recreate should enqueue the instance exactly once.");
             Assert.AreEqual(instanceId, enqueued[0].InstanceId);
             Assert.AreEqual(sequenceNumberAfterRecreate, enqueued[0].SequenceNumber);
@@ -584,8 +583,8 @@ namespace DurableTask.AzureStorage.Tests
             long? sentinelSequenceNumber = await GetSentinelSequenceNumberAsync(azureStorageClient, instanceId);
             Assert.AreEqual(sequenceNumber, sentinelSequenceNumber, "The history sentinel should carry the same sequence number as the instance row.");
 
-            Queue modifiedInstancesQueue = GetModifiedInstancesQueue(azureStorageClient, settings);
-            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            Queue[] modifiedInstancesQueues = GetModifiedInstancesQueues(azureStorageClient, settings);
+            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueuesAsync(modifiedInstancesQueues);
             Assert.AreEqual(expected, enqueued.Count, "The instance should be enqueued once for the create and once per episode.");
             Assert.IsTrue(enqueued.All(message => message.InstanceId == instanceId), "Every enqueued message should be for this instance.");
             CollectionAssert.AreEquivalent(
@@ -629,8 +628,8 @@ namespace DurableTask.AzureStorage.Tests
                 await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId),
                 "The instance and history sequence numbers should initially match.");
 
-            Queue modifiedInstancesQueue = GetModifiedInstancesQueue(azureStorageClient, settings);
-            await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            Queue[] modifiedInstancesQueues = GetModifiedInstancesQueues(azureStorageClient, settings);
+            await DrainModifiedInstancesQueuesAsync(modifiedInstancesQueues);
 
             // Simulate the history-new/instance-old prefetch window by moving only the instance sequence back.
             Table instanceTable = azureStorageClient.GetTableReference(settings.InstanceTableName);
@@ -657,7 +656,7 @@ namespace DurableTask.AzureStorage.Tests
                 "The history sentinel should be advanced rather than reusing its current sequence number.");
 
             ModifiedInstanceMessage enqueued = AssertSingle(
-                await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue),
+                await DrainModifiedInstancesQueuesAsync(modifiedInstancesQueues),
                 "The completing work item should enqueue exactly one modified-instance message.");
             Assert.AreEqual(instanceId, enqueued.InstanceId);
             Assert.AreEqual(expectedSequenceNumber, enqueued.SequenceNumber);
@@ -699,8 +698,8 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(sentinelSequenceNumber, await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId));
 
             // Clear the messages produced by the run so the recovery's enqueue can be isolated.
-            Queue modifiedInstancesQueue = GetModifiedInstancesQueue(azureStorageClient, settings);
-            await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            Queue[] modifiedInstancesQueues = GetModifiedInstancesQueues(azureStorageClient, settings);
+            await DrainModifiedInstancesQueuesAsync(modifiedInstancesQueues);
 
             // Simulate a crash between the history checkpoint and the instance-table update: the history sentinel holds
             // the final sequence number, but the instance row is stale (Running, and one sequence number behind).
@@ -739,7 +738,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(sentinelSequenceNumberAfterRecovery, instanceSequenceNumberAfterRecovery, "The instance and history sentinel sequence numbers should match after recovery.");
 
             // The recovery enqueued the instance exactly once for the completed generation.
-            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueuesAsync(modifiedInstancesQueues);
             Assert.AreEqual(1, enqueued.Count, "Recovery should enqueue the instance exactly once.");
             Assert.AreEqual(instanceId, enqueued[0].InstanceId);
             Assert.AreEqual(instanceSequenceNumberAfterRecovery, enqueued[0].SequenceNumber);
@@ -911,8 +910,8 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(sequenceNumber, sentinelSequenceNumber, "The history sentinel should carry the same sequence number as the instance row.");
 
             // The instance was enqueued exactly once at each of the five state changes.
-            Queue modifiedInstancesQueue = GetModifiedInstancesQueue(azureStorageClient, settings);
-            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            Queue[] modifiedInstancesQueues = GetModifiedInstancesQueues(azureStorageClient, settings);
+            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueuesAsync(modifiedInstancesQueues);
             Assert.AreEqual(5, enqueued.Count, "The instance should be enqueued once for the create, the completion checkpoint, the purge, the recreate, and the recreate's completion checkpoint.");
             Assert.IsTrue(enqueued.All(message => message.InstanceId == instanceId), "Every enqueued message should be for this instance.");
             CollectionAssert.AreEquivalent(
@@ -947,8 +946,8 @@ namespace DurableTask.AzureStorage.Tests
             long? sequenceNumberBeforePurge = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
             Assert.IsNotNull(sequenceNumberBeforePurge, "The completed instance should carry a sequence number while a migration is active.");
 
-            Queue modifiedInstancesQueue = GetModifiedInstancesQueue(azureStorageClient, settings);
-            await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            Queue[] modifiedInstancesQueues = GetModifiedInstancesQueues(azureStorageClient, settings);
+            await DrainModifiedInstancesQueuesAsync(modifiedInstancesQueues);
 
             // Act: purge the single instance.
             await client.PurgeInstanceHistory();
@@ -964,7 +963,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsFalse(await HistoryExistsAsync(azureStorageClient, instanceId), "Purge should delete all history for the instance.");
 
             // ...and enqueued exactly once.
-            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueuesAsync(modifiedInstancesQueues);
             Assert.AreEqual(1, enqueued.Count, "Purge should enqueue the instance exactly once.");
             Assert.AreEqual(instanceId, enqueued[0].InstanceId);
             Assert.AreEqual(sequenceNumberAfterPurge, enqueued[0].SequenceNumber);
@@ -1015,8 +1014,8 @@ namespace DurableTask.AzureStorage.Tests
                 sequenceNumbersBeforePurge[instanceId] = sequenceNumber;
             }
 
-            Queue modifiedInstancesQueue = GetModifiedInstancesQueue(azureStorageClient, settings);
-            await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            Queue[] modifiedInstancesQueues = GetModifiedInstancesQueues(azureStorageClient, settings);
+            await DrainModifiedInstancesQueuesAsync(modifiedInstancesQueues);
 
             // Act: purge all completed instances by time range.
             await host.service.PurgeInstanceHistoryAsync(createdTimeFrom, DateTime.UtcNow, new[] { OrchestrationStatus.Completed });
@@ -1031,7 +1030,7 @@ namespace DurableTask.AzureStorage.Tests
             }
 
             // ...and every purged instance was enqueued exactly once.
-            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueueAsync(modifiedInstancesQueue);
+            List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueuesAsync(modifiedInstancesQueues);
             Assert.AreEqual(instanceCount, enqueued.Count, "Each purged instance should be enqueued exactly once.");
             CollectionAssert.AreEquivalent(instanceIds, enqueued.Select(message => message.InstanceId).ToList());
             foreach (ModifiedInstanceMessage message in enqueued)
@@ -1127,27 +1126,32 @@ namespace DurableTask.AzureStorage.Tests
             return null;
         }
 
-        static Queue GetModifiedInstancesQueue(AzureStorageClient azureStorageClient, AzureStorageOrchestrationServiceSettings settings)
+        static Queue[] GetModifiedInstancesQueues(AzureStorageClient azureStorageClient, AzureStorageOrchestrationServiceSettings settings)
         {
-            string queueName = AzureStorageOrchestrationService.GetQueueName(settings.TaskHubName, ModifiedInstancesQueueSuffix);
-            return azureStorageClient.GetQueueReference(queueName);
+            return Enumerable.Range(0, settings.PartitionCount)
+                .Select(partitionIndex => azureStorageClient.GetQueueReference(
+                    AzureStorageOrchestrationService.GetModifiedInstancesQueueName(settings.TaskHubName, partitionIndex)))
+                .ToArray();
         }
 
-        static async Task<List<ModifiedInstanceMessage>> DrainModifiedInstancesQueueAsync(Queue queue)
+        static async Task<List<ModifiedInstanceMessage>> DrainModifiedInstancesQueuesAsync(IEnumerable<Queue> queues)
         {
             var drained = new List<ModifiedInstanceMessage>();
-            while (true)
+            foreach (Queue queue in queues)
             {
-                IReadOnlyCollection<QueueMessage> messages = await queue.GetMessagesAsync(batchSize: 32, visibilityTimeout: TimeSpan.FromMinutes(1));
-                if (messages.Count == 0)
+                while (true)
                 {
-                    break;
-                }
+                    IReadOnlyCollection<QueueMessage> messages = await queue.GetMessagesAsync(batchSize: 32, visibilityTimeout: TimeSpan.FromMinutes(1));
+                    if (messages.Count == 0)
+                    {
+                        break;
+                    }
 
-                foreach (QueueMessage message in messages)
-                {
-                    drained.Add(Utils.DeserializeFromJson<ModifiedInstanceMessage>(message.Body.ToString()));
-                    await queue.DeleteMessageAsync(message);
+                    foreach (QueueMessage message in messages)
+                    {
+                        drained.Add(Utils.DeserializeFromJson<ModifiedInstanceMessage>(message.Body.ToString()));
+                        await queue.DeleteMessageAsync(message);
+                    }
                 }
             }
 
