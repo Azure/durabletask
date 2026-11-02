@@ -438,6 +438,125 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        [Timeout(10000)]
+        public async Task Requests_ExpiredSasRetriesWithNewCredential(bool synchronous)
+        {
+            using var storage = new StorageResponses();
+            storage.Settings.MaxStorageOperationConcurrency = 1;
+            var client = new AzureStorageClient(storage.Settings, isMigrationActive: true);
+            try
+            {
+                // 1. Cache the clients and stop background renewal.
+                await client.InitializeMigrationAsync();
+                await client.StopMigrationTokenRefreshAsync();
+                Func<Task>[] writes = CachedWrites(client);
+                if (synchronous)
+                {
+                    QueueClient queue = client.GetQueueClient(new QueueClient(new Uri("https://account.queue.core.windows.net/testhub-control-00")));
+                    TableClient table = client.GetTableClient(new TableClient(new Uri("https://account.table.core.windows.net/TestHubInstances")));
+                    BlobContainerClient blobs = client.GetBlobContainerClient(new BlobContainerClient(new Uri("https://account.blob.core.windows.net/testhub-largemessages")));
+                    writes = new Func<Task>[]
+                    {
+                        () => { queue.SendMessage("message"); return Task.CompletedTask; },
+                        () => { table.AddEntity(new TableEntity("instance", string.Empty)); return Task.CompletedTask; },
+                        () => { blobs.GetBlobClient("payload").Upload(BinaryData.FromString("payload"), overwrite: true); return Task.CompletedTask; },
+                    };
+                }
+                foreach (Func<Task> write in writes)
+                {
+                    // 2. Expire the first request after it was signed.
+                    storage.Workload.Clear();
+                    storage.WorkloadBodies.Clear();
+                    DateTimeOffset oldExpiry = storage.Expiry;
+                    storage.AuthenticationFailures = 1;
+                    await write();
+
+                    // 3. Retry the same body once with only the new SAS.
+                    Assert.AreEqual(2, storage.Workload.Count);
+                    Assert.AreEqual(oldExpiry, DateTimeOffset.Parse(Query(storage.Workload[0])["se"], CultureInfo.InvariantCulture));
+                    Assert.AreEqual(storage.Expiry, DateTimeOffset.Parse(Query(storage.Workload[1])["se"], CultureInfo.InvariantCulture));
+                    Assert.IsTrue(storage.Expiry > oldExpiry);
+                    Assert.AreEqual(storage.WorkloadBodies[0], storage.WorkloadBodies[1]);
+                    Assert.AreEqual("30", Query(storage.Workload[1])["timeout"]);
+                }
+            }
+            finally
+            {
+                await client.StopMigrationTokenRefreshAsync();
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task Requests_ExpiredSasStopsAfterOneRetryOrDrain(bool ending)
+        {
+            using var storage = new StorageResponses();
+            var client = new AzureStorageClient(storage.Settings, isMigrationActive: true);
+            try
+            {
+                // 1. Reject the request, either twice or after closing the gate.
+                await client.InitializeMigrationAsync();
+                await client.StopMigrationTokenRefreshAsync();
+                DateTimeOffset oldExpiry = storage.Expiry;
+                storage.AuthenticationFailures = 2;
+                if (ending)
+                {
+                    storage.BeforeAuthenticationFailure = storage.EndMigrationAsync;
+                }
+                Func<Task> write = CachedWrites(client)[0];
+
+                // 2. A second rejection escapes. Drain prevents the second attempt entirely.
+                if (ending)
+                {
+                    await Assert.ThrowsExceptionAsync<OrchestrationServiceUnavailableException>(write);
+                    Assert.AreEqual(oldExpiry, storage.Expiry);
+                }
+                else
+                {
+                    await Assert.ThrowsExceptionAsync<DurableTaskStorageException>(write);
+                }
+                Assert.AreEqual(ending ? 1 : 2, storage.Workload.Count);
+            }
+            finally
+            {
+                await client.StopMigrationTokenRefreshAsync();
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow("AuthorizationPermissionMismatch", "Signature not valid in the specified time frame", true)]
+        [DataRow("AuthenticationFailed", "Signature did not match", true)]
+        [DataRow("AuthenticationFailed", "Signature not valid in the specified time frame", false)]
+        public async Task Requests_OtherAuthenticationFailuresDoNotRetry(string code, string detail, bool expired)
+        {
+            using var storage = new StorageResponses();
+            var client = new AzureStorageClient(storage.Settings, isMigrationActive: true);
+            try
+            {
+                // 1. Return a permission, signature, or not-yet-valid failure.
+                await client.InitializeMigrationAsync();
+                await client.StopMigrationTokenRefreshAsync();
+                int gateWrites = storage.GateWrites;
+                storage.AuthenticationFailures = 1;
+                storage.AuthenticationErrorCode = code;
+                storage.AuthenticationErrorDetail = detail;
+                storage.ExpireBeforeAuthenticationFailure = expired;
+
+                // 2. Keep the original failure without refreshing or retrying.
+                await Assert.ThrowsExceptionAsync<DurableTaskStorageException>(CachedWrites(client)[0]);
+                Assert.AreEqual(1, storage.Workload.Count);
+                Assert.AreEqual(gateWrites, storage.GateWrites);
+            }
+            finally
+            {
+                await client.StopMigrationTokenRefreshAsync();
+            }
+        }
+
         static T GetPrivateField<T>(object instance, string name) =>
             (T)instance.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(instance)!;
 
@@ -563,6 +682,13 @@ namespace DurableTask.AzureStorage.Tests
             // Fail the next data request, then clear the flag so a retry can succeed.
             public bool FailNextWorkload { get; set; }
 
+            public int AuthenticationFailures { get; set; }
+            public string AuthenticationErrorCode { get; set; } = "AuthenticationFailed";
+            public string AuthenticationErrorDetail { get; set; } = "Signature not valid in the specified time frame";
+            public bool ExpireBeforeAuthenticationFailure { get; set; } = true;
+            public Func<Task>? BeforeAuthenticationFailure { get; set; }
+            public List<string> WorkloadBodies { get; } = new List<string>();
+
             // Run once before checking whether the next gate insert can commit.
             public Func<Task>? BeforeInsert { get; set; }
 
@@ -652,6 +778,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 // Record data requests and check that SAS requests do not also send an identity token.
                 this.Workload.Add(uri);
+                this.WorkloadBodies.Add(body);
                 if (Query(uri).ContainsKey("sig"))
                 {
                     Assert.IsNull(request.Headers.Authorization, "SAS workload requests must not fall back to the source identity.");
@@ -661,6 +788,20 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     this.FailNextWorkload = false;
                     return Error(503, "ServerBusy");
+                }
+                if (this.AuthenticationFailures > 0)
+                {
+                    this.AuthenticationFailures--;
+                    if (this.ExpireBeforeAuthenticationFailure)
+                    {
+                        this.ServerTime = DateTimeOffset.Parse(Query(uri)["se"], CultureInfo.InvariantCulture).AddSeconds(1);
+                    }
+                    if (this.BeforeAuthenticationFailure is Func<Task> hook)
+                    {
+                        this.BeforeAuthenticationFailure = null;
+                        await hook();
+                    }
+                    return Error(403, this.AuthenticationErrorCode, this.AuthenticationErrorDetail);
                 }
                 // Return the success response each SDK expects for its write.
                 if (uri.Host.Contains(".queue."))
@@ -683,12 +824,12 @@ namespace DurableTask.AzureStorage.Tests
                     return response;
                 }
 
-                HttpResponseMessage Error(int status, string code)
+                HttpResponseMessage Error(int status, string code, string? detail = null)
                 {
                     // Match each service's error format so the SDK handles errors normally.
                     HttpResponseMessage response = uri.Host.Contains(".table.")
-                        ? Respond(status, new JObject { ["odata.error"] = new JObject { ["code"] = code, ["message"] = new JObject { ["lang"] = "en-US", ["value"] = code } } }.ToString())
-                        : Respond(status, $"<Error><Code>{code}</Code><Message>{code}</Message></Error>", "application/xml");
+                        ? Respond(status, new JObject { ["odata.error"] = new JObject { ["code"] = code, ["message"] = new JObject { ["lang"] = "en-US", ["value"] = detail ?? code } } }.ToString())
+                        : Respond(status, $"<Error><Code>{code}</Code><Message>{detail ?? code}</Message></Error>", "application/xml");
                     response.Headers.TryAddWithoutValidation("x-ms-error-code", code);
                     return response;
                 }

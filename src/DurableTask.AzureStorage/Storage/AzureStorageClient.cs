@@ -191,6 +191,9 @@ namespace DurableTask.AzureStorage.Storage
                     (settings.TrackingServiceClientProvider ?? settings.StorageAccountClientProvider).Table,
                     () => this.MigrationEnding?.Invoke());
 
+                // Add a retry policy for calls that (unintentionally, before the migration gate closed) failed due to token expiration 
+                var sasRetry = new MigrationSasRetryPolicy(this.migration);
+
                 // Never add the migration policy to provider-owned options: a provider may reuse those options for
                 // another service instance or a management client. SAS pipelines must own their policy lists.
                 this.sasQueueOptions = CopyTransportOptions(queueManagementOptions!, new QueueClientOptions
@@ -198,9 +201,11 @@ namespace DurableTask.AzureStorage.Storage
                     Audience = queueManagementOptions!.Audience,
                     GeoRedundantSecondaryUri = queueManagementOptions.GeoRedundantSecondaryUri,
                 });
+                this.sasQueueOptions.AddPolicy(sasRetry, HttpPipelinePosition.PerCall);
                 ConfigureQueueClientPolicies(this.sasQueueOptions);
                 this.sasQueueOptions.AddPolicy(new MigrationRequestPolicy(this.migration, useDelegationVersion: true), HttpPipelinePosition.PerRetry);
                 this.sasTableOptions = CopyTransportOptions(tableManagementOptions!, new TableClientOptions { Audience = tableManagementOptions!.Audience });
+                this.sasTableOptions.AddPolicy(sasRetry, HttpPipelinePosition.PerCall);
                 ConfigureClientPolicies(this.sasTableOptions);
                 this.sasTableOptions.AddPolicy(new MigrationRequestPolicy(this.migration, useDelegationVersion: true), HttpPipelinePosition.PerRetry);
                 this.sasBlobOptions = CopyTransportOptions(blobManagementOptions!, new BlobClientOptions
@@ -208,6 +213,7 @@ namespace DurableTask.AzureStorage.Storage
                     Audience = blobManagementOptions!.Audience,
                     GeoRedundantSecondaryUri = blobManagementOptions.GeoRedundantSecondaryUri,
                 });
+                this.sasBlobOptions.AddPolicy(sasRetry, HttpPipelinePosition.PerCall);
                 ConfigureClientPolicies(this.sasBlobOptions);
                 this.sasBlobOptions.AddPolicy(new MigrationRequestPolicy(this.migration), HttpPipelinePosition.PerRetry);
             }
@@ -342,9 +348,10 @@ namespace DurableTask.AzureStorage.Storage
             destination.Retry.Mode = source.Retry.Mode;
             destination.Retry.Delay = source.Retry.Delay;
             destination.Retry.MaxDelay = source.Retry.MaxDelay;
+
             // These options are used only by migration SAS clients.
-            // Do not let SDK retries start another storage request, since we require strict time bounds on how long a storage
-            // request can take.
+            // Keep generic SDK retries disabled to maintain strict bounds on how long operations can take.
+            // Only an (unintentional) explicit SAS expiry rejection is retried.
             destination.Retry.MaxRetries = 0;
             destination.Retry.NetworkTimeout = source.Retry.NetworkTimeout;
             destination.Diagnostics.ApplicationId = source.Diagnostics.ApplicationId;
