@@ -492,7 +492,7 @@ namespace DurableTask.AzureStorage.Tests
         [DataTestMethod]
         [DataRow(false)]
         [DataRow(true)]
-        public async Task Requests_ExpiredSasStopsAfterOneRetryOrDrain(bool ending)
+        public async Task Requests_AuthenticationFailureStopsAfterOneRetryOrDrain(bool ending)
         {
             using var storage = new StorageResponses();
             var client = new AzureStorageClient(storage.Settings, isMigrationActive: true);
@@ -528,16 +528,17 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [DataTestMethod]
-        [DataRow("AuthorizationPermissionMismatch", "Signature not valid in the specified time frame", true)]
-        [DataRow("AuthenticationFailed", "Signature did not match", true)]
-        [DataRow("AuthenticationFailed", "Signature not valid in the specified time frame", false)]
-        public async Task Requests_OtherAuthenticationFailuresDoNotRetry(string code, string detail, bool expired)
+        [DataRow("AuthorizationPermissionMismatch", "Signature not valid in the specified time frame", true, false)]
+        [DataRow("AuthenticationFailed", "Signature did not match", true, true)]
+        [DataRow("AuthenticationFailed", "Signature not valid in the specified time frame", false, true)]
+        [DataRow("AuthenticationFailed", "", true, true)]
+        public async Task Requests_OnlyAuthenticationFailedResponsesRetry(string code, string detail, bool expired, bool shouldRetry)
         {
             using var storage = new StorageResponses();
             var client = new AzureStorageClient(storage.Settings, isMigrationActive: true);
             try
             {
-                // 1. Return a permission, signature, or not-yet-valid failure.
+                // 1. Return the chosen error code and detail.
                 await client.InitializeMigrationAsync();
                 await client.StopMigrationTokenRefreshAsync();
                 int gateWrites = storage.GateWrites;
@@ -546,10 +547,18 @@ namespace DurableTask.AzureStorage.Tests
                 storage.AuthenticationErrorDetail = detail;
                 storage.ExpireBeforeAuthenticationFailure = expired;
 
-                // 2. Keep the original failure without refreshing or retrying.
-                await Assert.ThrowsExceptionAsync<DurableTaskStorageException>(CachedWrites(client)[0]);
-                Assert.AreEqual(1, storage.Workload.Count);
-                Assert.AreEqual(gateWrites, storage.GateWrites);
+                // 2. Retry authentication failures, regardless of the detail or expiry.
+                if (shouldRetry)
+                {
+                    await CachedWrites(client)[0]();
+                    Assert.AreEqual(2, storage.Workload.Count);
+                }
+                else
+                {
+                    await Assert.ThrowsExceptionAsync<DurableTaskStorageException>(CachedWrites(client)[0]);
+                    Assert.AreEqual(1, storage.Workload.Count);
+                    Assert.AreEqual(gateWrites, storage.GateWrites);
+                }
             }
             finally
             {

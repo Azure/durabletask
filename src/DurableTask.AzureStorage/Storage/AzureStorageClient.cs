@@ -351,7 +351,7 @@ namespace DurableTask.AzureStorage.Storage
 
             // These options are used only by migration SAS clients.
             // Keep generic SDK retries disabled to maintain strict bounds on how long operations can take.
-            // Only an (unintentional) explicit SAS expiry rejection is retried.
+            // Authentication failures get one refresh and retry.
             destination.Retry.MaxRetries = 0;
             destination.Retry.NetworkTimeout = source.Retry.NetworkTimeout;
             destination.Diagnostics.ApplicationId = source.Diagnostics.ApplicationId;

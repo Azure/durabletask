@@ -312,7 +312,7 @@ namespace DurableTask.AzureStorage.Storage
 
         public async Task<TableTransactionResults> ExecuteBatchAsync(IEnumerable<TableTransactionAction> batchOperation, CancellationToken cancellationToken = default)
         {
-            var stopwatch = new Stopwatch();
+            var stopwatch = Stopwatch.StartNew();
 
             Response<IReadOnlyList<Response>> response = await this.tableClient.SubmitTransactionAsync(batchOperation, cancellationToken).DecorateFailure();
             IReadOnlyList<Response> batchResults = response.Value;
