@@ -27,11 +27,17 @@ namespace DurableTask.Core
     public class OrchestrationRuntimeState
     {
         private OrchestrationStatus orchestrationStatus;
+        SubOrchestrationInstanceIdIndex? subOrchestrationInstanceIdIndex;
 
         /// <summary>
         /// List of all history events for this runtime state.
         /// Note that this list is frequently a combination of <see cref="PastEvents"/> and <see cref="NewEvents"/>, but not always.
         /// </summary>
+        /// <remarks>
+        /// Use <see cref="AddEvent(HistoryEvent)"/> to append accepted events. Custom history rewriters should
+        /// construct a new runtime state, or call <see cref="InvalidateSubOrchestrationInstanceIdIndex"/>
+        /// after directly modifying this list or indexed fields of its events.
+        /// </remarks>
         public IList<HistoryEvent> Events { get; }
 
         /// <summary>
@@ -210,6 +216,27 @@ namespace DurableTask.Core
             AddEvent(historyEvent, true);
         }
 
+        /// <summary>
+        /// Invalidates derived tracking used by the opt-in duplicate sub-orchestration instance ID guard.
+        /// </summary>
+        /// <remarks>
+        /// Call this after directly editing <see cref="Events"/>, or changing an accepted child's event ID,
+        /// instance ID, fire-and-forget tags, or a completion/failure's task schedule ID in place.
+        /// Normal <see cref="AddEvent(HistoryEvent)"/> calls update the tracking automatically.
+        /// The next guarded child-start validation rebuilds it from <see cref="Events"/>.
+        /// This does not reconcile other runtime state; constructing a new runtime state is preferred
+        /// when rewriting history.
+        /// </remarks>
+        public void InvalidateSubOrchestrationInstanceIdIndex()
+        {
+            this.subOrchestrationInstanceIdIndex = null;
+        }
+
+        internal SubOrchestrationInstanceIdIndex GetSubOrchestrationInstanceIdIndex()
+        {
+            return this.subOrchestrationInstanceIdIndex ??= SubOrchestrationInstanceIdIndex.FromHistory(this.Events);
+        }
+
         ExecutionStartedEvent GetExecutionStartedEventOrThrow()
         {
             ExecutionStartedEvent? executionStartedEvent = this.ExecutionStartedEvent;
@@ -245,6 +272,7 @@ namespace DurableTask.Core
             }
 
             SetMarkerEvents(historyEvent);
+            this.subOrchestrationInstanceIdIndex?.AddEvent(historyEvent);
         }
 
         bool IsDuplicateEvent(HistoryEvent historyEvent)
