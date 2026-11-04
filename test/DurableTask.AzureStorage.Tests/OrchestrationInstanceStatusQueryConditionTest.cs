@@ -106,6 +106,7 @@ namespace DurableTask.AzureStorage.Tests
         public void OrchestrationInstanceQuery_NoParameter()
         {
             var condition = new OrchestrationInstanceStatusQueryCondition();
+            Assert.IsFalse(condition.ExcludeEntities);
             Assert.IsTrue(string.IsNullOrWhiteSpace(condition.ToOData().Filter));
         }
 
@@ -185,17 +186,75 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual("RuntimeStatus eq 'Running'", condition.ToOData().Filter);
         }
 
-        [TestMethod]
-        public void OrchestrationInstanceQuery_InstanceIdPrefix()
+        [DataTestMethod]
+        [DataRow("aaab", false, "(PartitionKey ge 'aaab') and (PartitionKey lt 'aaac')")]
+        [DataRow("aaab", true, "(PartitionKey ge 'aaab') and (PartitionKey lt 'aaac') and (PartitionKey lt '@' or PartitionKey ge 'A')")]
+        [DataRow("@", false, "(PartitionKey ge '@') and (PartitionKey lt 'A')")]
+        [DataRow("@", true, "(PartitionKey ge '@') and (PartitionKey lt 'A') and (PartitionKey lt '@' or PartitionKey ge 'A')")]
+        [DataRow("@counter@", false, "(PartitionKey ge '@counter@') and (PartitionKey lt '@counterA')")]
+        [DataRow("@counter@", true, "(PartitionKey ge '@counter@') and (PartitionKey lt '@counterA') and (PartitionKey lt '@' or PartitionKey ge 'A')")]
+        [DataRow("order@", false, "(PartitionKey ge 'order@') and (PartitionKey lt 'orderA')")]
+        [DataRow("order@", true, "(PartitionKey ge 'order@') and (PartitionKey lt 'orderA') and (PartitionKey lt '@' or PartitionKey ge 'A')")]
+        public void OrchestrationInstanceQuery_InstanceIdPrefix(string prefix, bool excludeEntities, string expectedFilter)
         {
             var condition = new OrchestrationInstanceStatusQueryCondition
             {
-                InstanceIdPrefix = "aaab",
+                InstanceIdPrefix = prefix,
+                ExcludeEntities = excludeEntities,
+            };
+
+            Assert.AreEqual(expectedFilter, condition.ToOData().Filter);
+        }
+
+        [DataTestMethod]
+        [DataRow(null, false, null)]
+        [DataRow("", false, null)]
+        [DataRow(null, true, "PartitionKey lt '@' or PartitionKey ge 'A'")]
+        [DataRow("", true, "PartitionKey lt '@' or PartitionKey ge 'A'")]
+        public void OrchestrationInstanceQuery_ExcludeEntitiesWithoutPrefix(string prefix, bool excludeEntities, string expectedFilter)
+        {
+            var condition = new OrchestrationInstanceStatusQueryCondition
+            {
+                InstanceIdPrefix = prefix,
+                ExcludeEntities = excludeEntities,
+            };
+
+            Assert.AreEqual(expectedFilter, condition.ToOData().Filter);
+        }
+
+        [TestMethod]
+        public void OrchestrationInstanceQuery_ExcludeEntitiesWithPrefixAndRuntimeStatus()
+        {
+            var condition = new OrchestrationInstanceStatusQueryCondition
+            {
+                InstanceIdPrefix = "@counter@",
+                ExcludeEntities = true,
+                RuntimeStatus = new[] { OrchestrationStatus.Running, OrchestrationStatus.Completed },
             };
 
             Assert.AreEqual(
-                "(PartitionKey ge 'aaab') and (PartitionKey lt 'aaac')",
+                "(RuntimeStatus eq 'Running' or RuntimeStatus eq 'Completed') and (PartitionKey ge '@counter@') and (PartitionKey lt '@counterA') and (PartitionKey lt '@' or PartitionKey ge 'A')",
                 condition.ToOData().Filter);
+        }
+
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public void OrchestrationInstanceQuery_ExcludeEntitiesWithEscapedPrefix(bool excludeEntities)
+        {
+            var condition = new OrchestrationInstanceStatusQueryCondition
+            {
+                InstanceIdPrefix = "prefix'/\\#?^x",
+                ExcludeEntities = excludeEntities,
+            };
+
+            string expectedFilter = "(PartitionKey ge 'prefix''^0^1^2^3^^x') and (PartitionKey lt 'prefix''^0^1^2^3^^y')";
+            if (excludeEntities)
+            {
+                expectedFilter += " and (PartitionKey lt '@' or PartitionKey ge 'A')";
+            }
+
+            Assert.AreEqual(expectedFilter, condition.ToOData().Filter);
         }
 
         [TestMethod]
