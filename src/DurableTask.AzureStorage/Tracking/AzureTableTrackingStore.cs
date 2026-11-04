@@ -489,7 +489,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             if (this.settings.FetchLargeMessageDataEnabled)
             {
-                if (MessageManager.TryGetLargeMessageReference(orchestrationState.Input, out Uri blobUrl))
+                if (this.messageManager.TryGetLargeMessageReference(orchestrationState.Input, out Uri blobUrl))
                 {
                     string json = await this.messageManager.DownloadAndDecompressAsBytesAsync(blobUrl, cancellationToken);
 

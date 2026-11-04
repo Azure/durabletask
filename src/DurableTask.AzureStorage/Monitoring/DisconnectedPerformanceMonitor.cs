@@ -152,8 +152,8 @@ namespace DurableTask.AzureStorage.Monitoring
                 this.azureStorageClient,
                 defaultPartitionCount: AzureStorageOrchestrationServiceSettings.DefaultPartitionCount);
 
-            Task<QueueMetric> workItemMetricTask = GetQueueMetricsAsync(workItemQueue);
-            List<Task<QueueMetric>> controlQueueMetricTasks = controlQueues.Select(GetQueueMetricsAsync).ToList();
+            Task<QueueMetric> workItemMetricTask = GetQueueMetricsAsync(workItemQueue, includeInvisibleMessages: true);
+            List<Task<QueueMetric>> controlQueueMetricTasks = controlQueues.Select(queue => GetQueueMetricsAsync(queue, includeInvisibleMessages: false)).ToList();
 
             var tasks = new List<Task>(controlQueueMetricTasks.Count + 1);
             tasks.Add(workItemMetricTask);
@@ -201,7 +201,7 @@ namespace DurableTask.AzureStorage.Monitoring
             return true;
         }
 
-        async Task<QueueMetric> GetQueueMetricsAsync(Queue queue)
+        async Task<QueueMetric> GetQueueMetricsAsync(Queue queue, bool includeInvisibleMessages)
         {
             Task<TimeSpan> latencyTask = GetQueueLatencyAsync(queue);
             Task<int> lengthTask = GetQueueLengthAsync(queue);
@@ -212,9 +212,13 @@ namespace DurableTask.AzureStorage.Monitoring
 
             if (latency == TimeSpan.MinValue)
             {
-                // No available queue messages (peek returned null)
+                // No visible messages means no queue latency, but activities may still be running.
                 latency = TimeSpan.Zero;
-                length = 0;
+                if (!includeInvisibleMessages)
+                {
+                    // Control queues can contain timers that are not due yet.
+                    length = 0;
+                }
             }
 
             return new QueueMetric { Latency = latency, Length = length };
@@ -302,7 +306,7 @@ namespace DurableTask.AzureStorage.Monitoring
         /// <returns>Returns a scale recommendation</returns>
         public virtual ScaleRecommendation MakeScaleRecommendation(int workerCount)
         {
-            return MakeScaleRecommendation(workerCount, this.PartitionCount, this.WorkItemQueueLatencies, this.ControlQueueLatencies);
+            return MakeScaleRecommendation(workerCount, this.PartitionCount, this.currentWorkItemQueueLength, this.WorkItemQueueLatencies, this.ControlQueueLatencies);
         }
 
         /// <summary>
@@ -318,7 +322,8 @@ namespace DurableTask.AzureStorage.Monitoring
                 return new ScaleRecommendation(ScaleAction.None, keepWorkersAlive: true, reason: "No heartbeat metrics");
             }
 
-            int partitionCount = performanceHeartbeats.Last().PartitionCount;
+            PerformanceHeartbeat latestHeartbeat = performanceHeartbeats.Last();
+            int partitionCount = latestHeartbeat.PartitionCount;
             QueueMetricHistory workItemQueueLatencyHistory = new QueueMetricHistory(QueueLengthSampleSize);
             List<QueueMetricHistory> controlQueueLatencyHistory = new List<QueueMetricHistory>();
 
@@ -336,17 +341,21 @@ namespace DurableTask.AzureStorage.Monitoring
                 }
             }
 
-            return MakeScaleRecommendation(workerCount, partitionCount, workItemQueueLatencyHistory, controlQueueLatencyHistory);
+            return MakeScaleRecommendation(workerCount, partitionCount, latestHeartbeat.WorkItemQueueLength, workItemQueueLatencyHistory, controlQueueLatencyHistory);
         }
 
         internal ScaleRecommendation MakeScaleRecommendation(
             int workerCount,
             int partitionCount,
+            int workItemQueueLength,
             QueueMetricHistory workItemQueueLatencyHistory,
             List<QueueMetricHistory> controlQueueLatencyHistory)
         {
-            // REVIEW: Is zero latency a reliable indicator of idle?
-            bool taskHubIsIdle = IsIdle(workItemQueueLatencyHistory) && controlQueueLatencyHistory.TrueForAll(IsIdle);
+            // Invisible activity messages still need worker capacity.
+            double requiredActivityWorkers = Math.Ceiling(workItemQueueLength / (double)this.settings.MaxConcurrentTaskActivityWorkItems);
+            bool hasSpareActivityWorkers = workerCount > requiredActivityWorkers;
+            bool workItemsAreIdle = workItemQueueLength == 0 && IsIdle(workItemQueueLatencyHistory);
+            bool taskHubIsIdle = workItemsAreIdle && controlQueueLatencyHistory.TrueForAll(IsIdle);
             if (workerCount == 0 && !taskHubIsIdle)
             {
                 return new ScaleRecommendation(ScaleAction.AddWorker, keepWorkersAlive: true, reason: "First worker");
@@ -365,6 +374,13 @@ namespace DurableTask.AzureStorage.Monitoring
                     keepWorkersAlive: false,
                     reason: "Task hub is idle");
             }
+            else if (workerCount < requiredActivityWorkers)
+            {
+                return new ScaleRecommendation(
+                    ScaleAction.AddWorker,
+                    keepWorkersAlive: true,
+                    reason: $"Activity workers needed: {requiredActivityWorkers} > {workerCount}");
+            }
             else if (this.IsHighLatency(workItemQueueLatencyHistory))
             {
                 return new ScaleRecommendation(
@@ -372,12 +388,12 @@ namespace DurableTask.AzureStorage.Monitoring
                     keepWorkersAlive: true,
                     reason: $"Work-item queue latency: {workItemQueueLatencyHistory.Latest} > {this.highLatencyThreshold}");
             }
-            else if (workerCount > partitionCount && IsIdle(workItemQueueLatencyHistory))
+            else if (workerCount > partitionCount && hasSpareActivityWorkers && IsIdle(workItemQueueLatencyHistory))
             {
                 return new ScaleRecommendation(
                     ScaleAction.RemoveWorker,
                     keepWorkersAlive: true,
-                    reason: $"Work-items idle, #workers > partitions ({workerCount} > {partitionCount})");
+                    reason: $"Activity capacity available, #workers > partitions ({workerCount} > {partitionCount})");
             }
 
             // Control queues are partitioned; only scale-out if there are more partitions than workers.
@@ -390,15 +406,15 @@ namespace DurableTask.AzureStorage.Monitoring
                     keepWorkersAlive: true,
                     reason: $"High control queue latency: {metric.Latest} > {this.highLatencyThreshold}");
             }
-            else if (workerCount > controlQueueLatencyHistory.Count(h => !IsIdle(h)) && IsIdle(workItemQueueLatencyHistory))
+            else if (workerCount > controlQueueLatencyHistory.Count(h => !IsIdle(h)) && hasSpareActivityWorkers && IsIdle(workItemQueueLatencyHistory))
             {
-                // If the work item queues are idle, scale down to the number of non-idle control queues.
+                // Keep enough workers for activities and non-idle control queues.
                 return new ScaleRecommendation(
                     ScaleAction.RemoveWorker,
-                    keepWorkersAlive: controlQueueLatencyHistory.Any(IsIdle),
+                    keepWorkersAlive: workItemQueueLength > 0 || controlQueueLatencyHistory.Any(IsIdle),
                     reason: $"One or more control queues idle");
             }
-            else if (workerCount > 1)
+            else if (workerCount > 1 && hasSpareActivityWorkers)
             {
                 // If all queues are operating efficiently, it can be hard to know if we need to reduce the worker count.
                 // We want to avoid the case where a constant trickle of load after a big scale-out prevents scaling back in.

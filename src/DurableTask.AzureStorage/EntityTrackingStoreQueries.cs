@@ -242,7 +242,7 @@ namespace DurableTask.AzureStorage
             {
                 // first, retrieve the entity scheduler state (= input of the orchestration state), possibly from blob storage.
                 string serializedSchedulerState;
-                if (MessageManager.TryGetLargeMessageReference(state.Input, out Uri blobUrl))
+                if (this.messageManager.TryGetLargeMessageReference(state.Input, out Uri blobUrl))
                 {
                     serializedSchedulerState = await this.messageManager.DownloadAndDecompressAsBytesAsync(blobUrl);
                 }

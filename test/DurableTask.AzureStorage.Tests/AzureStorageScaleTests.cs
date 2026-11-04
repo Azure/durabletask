@@ -701,6 +701,101 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
+        public async Task MonitorInFlightWorkItemsDisconnected()
+        {
+            string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                PartitionCount = 1,
+                MaxConcurrentTaskActivityWorkItems = 6,
+                StorageAccountClientProvider = new StorageAccountClientProvider(connectionString),
+                TaskHubName = nameof(MonitorInFlightWorkItemsDisconnected),
+                UseAppLease = false,
+            };
+            var service = new AzureStorageOrchestrationService(settings);
+            var monitor = new DisconnectedPerformanceMonitor(settings);
+            await service.CreateAsync(recreateInstanceStore: true);
+
+            try
+            {
+                // 1. Queue activities and a timer that is not due yet.
+                const int activityCount = 18;
+                Queue workItems = service.WorkItemQueue.InnerQueue;
+                Queue control = service.AllControlQueues.Single().InnerQueue;
+                for (int i = 0; i < activityCount; i++)
+                {
+                    await workItems.AddMessageAsync("activity", visibilityDelay: null);
+                }
+                await control.AddMessageAsync("timer", visibilityDelay: TimeSpan.FromHours(1));
+
+                PerformanceHeartbeat heartbeat = await monitor.PulseAsync();
+                Assert.AreEqual(activityCount, heartbeat.WorkItemQueueLength);
+                CollectionAssert.AreEqual(new[] { 0 }, heartbeat.ControlQueueLengths.ToArray());
+
+                // 2. Running activities keep their messages invisible.
+                IReadOnlyCollection<QueueMessage> running = await workItems.GetMessagesAsync(activityCount, TimeSpan.FromMinutes(5));
+                Assert.AreEqual(activityCount, running.Count);
+                Assert.IsNull(await workItems.PeekMessageAsync());
+                var heartbeats = new List<PerformanceHeartbeat>();
+                for (int i = 0; i < DisconnectedPerformanceMonitor.QueueLengthSampleSize; i++)
+                {
+                    heartbeat = await monitor.PulseAsync(currentWorkerCount: 3);
+                    heartbeats.Add(heartbeat);
+                    Assert.AreEqual(activityCount, heartbeat.WorkItemQueueLength);
+                    Assert.AreEqual(TimeSpan.Zero, heartbeat.WorkItemQueueLatency);
+                    CollectionAssert.AreEqual(new[] { 0 }, heartbeat.ControlQueueLengths.ToArray());
+                    Assert.AreEqual(ScaleAction.None, heartbeat.ScaleRecommendation.Action);
+                    Assert.IsTrue(heartbeat.ScaleRecommendation.KeepWorkersAlive);
+                }
+                foreach (int workerCount in new[] { 0, 1, 2, 3, 4 })
+                {
+                    ScaleAction expected = workerCount < 3 ? ScaleAction.AddWorker : workerCount == 3 ? ScaleAction.None : ScaleAction.RemoveWorker;
+                    foreach (ScaleRecommendation recommendation in new[]
+                    {
+                        monitor.MakeScaleRecommendation(workerCount),
+                        monitor.MakeScaleRecommendation(workerCount, heartbeats.ToArray()),
+                    })
+                    {
+                        Assert.AreEqual(expected, recommendation.Action);
+                        Assert.IsTrue(recommendation.KeepWorkersAlive);
+                    }
+                }
+
+                // 3. New work adds to the running work, so scale-out is still possible.
+                await workItems.AddMessageAsync("next activity", visibilityDelay: null);
+                heartbeat = await monitor.PulseAsync(currentWorkerCount: 3);
+                Assert.AreEqual(activityCount + 1, heartbeat.WorkItemQueueLength);
+                Assert.AreEqual(ScaleAction.AddWorker, heartbeat.ScaleRecommendation.Action);
+                QueueMessage next = await workItems.GetMessageAsync(TimeSpan.FromMinutes(5));
+                Assert.IsNotNull(next);
+
+                // 4. Completed activities no longer keep workers alive.
+                foreach (QueueMessage message in running.Append(next))
+                {
+                    await workItems.DeleteMessageAsync(message);
+                }
+                heartbeats.Clear();
+                for (int i = 0; i < DisconnectedPerformanceMonitor.QueueLengthSampleSize; i++)
+                {
+                    heartbeat = await monitor.PulseAsync(currentWorkerCount: 1);
+                    heartbeats.Add(heartbeat);
+                    Assert.AreEqual(0, heartbeat.WorkItemQueueLength);
+                    Assert.AreEqual(TimeSpan.Zero, heartbeat.WorkItemQueueLatency);
+                    CollectionAssert.AreEqual(new[] { 0 }, heartbeat.ControlQueueLengths.ToArray());
+                }
+                Assert.AreEqual(ScaleAction.RemoveWorker, heartbeat.ScaleRecommendation.Action);
+                Assert.IsFalse(heartbeat.ScaleRecommendation.KeepWorkersAlive);
+                ScaleRecommendation completed = monitor.MakeScaleRecommendation(1, heartbeats.ToArray());
+                Assert.AreEqual(ScaleAction.RemoveWorker, completed.Action);
+                Assert.IsFalse(completed.KeepWorkersAlive);
+            }
+            finally
+            {
+                await service.DeleteAsync();
+            }
+        }
+
+        [TestMethod]
         public async Task UpdateTaskHubJsonWithNewPartitionCount()
         {
             string connectionString = TestHelpers.GetTestStorageAccountConnectionString();
@@ -1042,6 +1137,90 @@ namespace DurableTask.AzureStorage.Tests
             ScaleRecommendation recommendation = heartbeat.ScaleRecommendation;
             Assert.AreEqual(ScaleAction.AddWorker, recommendation.Action);
             Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [DataTestMethod]
+        [DataRow(0, 1, 0, 0, ScaleAction.AddWorker)]
+        [DataRow(1, 1, 0, 0, ScaleAction.None)]
+        [DataRow(5, 1, 0, 0, ScaleAction.RemoveWorker)]
+        [DataRow(3, 1, 0, 100, ScaleAction.RemoveWorker)]
+        [DataRow(2, 4, 100, 100, ScaleAction.None)]
+        [DataRow(1, 1, 1000, 0, ScaleAction.AddWorker)]
+        [DataRow(1, 1, 0, 1000, ScaleAction.AddWorker)]
+        [DataRow(1, 4, 0, 0, ScaleAction.AddWorker)]
+        [DataRow(2, 6, 0, 0, ScaleAction.None)]
+        [DataRow(2, 7, 0, 0, ScaleAction.AddWorker)]
+        [DataRow(3, 7, 0, 0, ScaleAction.None)]
+        [DataRow(4, 7, 0, 0, ScaleAction.RemoveWorker)]
+        [DataRow(2, 1, 0, 500, ScaleAction.None)]
+        [DataRow(5, 13, 0, 0, ScaleAction.None)]
+        public void ScaleDecision_AdHoc_RetainedWorkItems(
+            int workerCount, int activityCount, int activityLatency, int controlLatency, ScaleAction expected)
+        {
+            // 1. Allow three activities per worker and fill the sampling window.
+            var monitor = GetFakePerformanceMonitor(maxConcurrentActivities: 3);
+            monitor.EnableRandomScaleDownOnLowLatency = true;
+            PerformanceHeartbeat[] heartbeats = Enumerable.Range(0, DisconnectedPerformanceMonitor.QueueLengthSampleSize)
+                .Select(_ => new PerformanceHeartbeat
+                {
+                    PartitionCount = 4,
+                    WorkItemQueueLength = activityCount,
+                    WorkItemQueueLatency = TimeSpan.FromMilliseconds(activityLatency),
+                    ControlQueueLatencies = new List<TimeSpan>
+                    {
+                        TimeSpan.FromMilliseconds(controlLatency), TimeSpan.FromMilliseconds(controlLatency),
+                        TimeSpan.Zero, TimeSpan.Zero,
+                    },
+                }).ToArray();
+
+            // 2. Keep enough activity capacity and respect control queue demand.
+            ScaleRecommendation recommendation = monitor.MakeScaleRecommendation(workerCount, heartbeats);
+            Assert.AreEqual(expected, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [TestMethod]
+        public void ScaleDecision_AdHoc_RetainedWorkItemsWithoutControlQueues()
+        {
+            // 1. Keep one activity while no control queues are reported.
+            var monitor = GetFakePerformanceMonitor(maxConcurrentActivities: 3);
+            PerformanceHeartbeat[] heartbeats = Enumerable.Range(0, DisconnectedPerformanceMonitor.QueueLengthSampleSize)
+                .Select(_ => new PerformanceHeartbeat
+                {
+                    PartitionCount = 4,
+                    WorkItemQueueLength = 1,
+                    ControlQueueLatencies = new List<TimeSpan>(),
+                }).ToArray();
+
+            // 2. Remove the spare worker, but keep the remaining worker alive.
+            ScaleRecommendation recommendation = monitor.MakeScaleRecommendation(2, heartbeats);
+            Assert.AreEqual(ScaleAction.RemoveWorker, recommendation.Action);
+            Assert.IsTrue(recommendation.KeepWorkersAlive);
+        }
+
+        [DataTestMethod]
+        [DataRow(18, 0, 1, ScaleAction.RemoveWorker, false)]
+        [DataRow(18, 4, 2, ScaleAction.None, true)]
+        [DataRow(18, 4, 3, ScaleAction.RemoveWorker, true)]
+        [DataRow(1, 7, 2, ScaleAction.AddWorker, true)]
+        public void ScaleDecision_AdHoc_LatestWorkItemCount(
+            int previousCount, int latestCount, int workerCount, ScaleAction expected, bool keepWorkersAlive)
+        {
+            // 1. Change the activity count in the newest sample.
+            var monitor = GetFakePerformanceMonitor(maxConcurrentActivities: 3);
+            PerformanceHeartbeat[] heartbeats = Enumerable.Range(0, DisconnectedPerformanceMonitor.QueueLengthSampleSize)
+                .Select(_ => new PerformanceHeartbeat
+                {
+                    PartitionCount = 4,
+                    WorkItemQueueLength = previousCount,
+                    ControlQueueLatencies = new List<TimeSpan> { TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero },
+                }).ToArray();
+            heartbeats.Last().WorkItemQueueLength = latestCount;
+
+            // 2. Only the newest count determines activity capacity.
+            ScaleRecommendation recommendation = monitor.MakeScaleRecommendation(workerCount, heartbeats);
+            Assert.AreEqual(expected, recommendation.Action);
+            Assert.AreEqual(keepWorkersAlive, recommendation.KeepWorkersAlive);
         }
 
         [TestMethod]
@@ -1997,9 +2176,9 @@ namespace DurableTask.AzureStorage.Tests
         }
         #endregion
 
-        static FakePerformanceMonitor GetFakePerformanceMonitor()
+        static FakePerformanceMonitor GetFakePerformanceMonitor(int maxConcurrentActivities = 10)
         {
-            return new FakePerformanceMonitor(TestHelpers.GetTestStorageAccountConnectionString(), "taskHub");
+            return new FakePerformanceMonitor(TestHelpers.GetTestStorageAccountConnectionString(), "taskHub", maxConcurrentActivities: maxConcurrentActivities);
         }
 
         class NoOpOrchestration : TaskOrchestration<string, string>
@@ -2015,8 +2194,14 @@ namespace DurableTask.AzureStorage.Tests
             public FakePerformanceMonitor(
                 string storageConnectionString,
                 string taskHub,
-                int partitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount) 
-                : base(storageConnectionString, taskHub)
+                int partitionCount = AzureStorageOrchestrationServiceSettings.DefaultPartitionCount,
+                int maxConcurrentActivities = 10)
+                : base(new AzureStorageOrchestrationServiceSettings
+                {
+                    StorageAccountClientProvider = new StorageAccountClientProvider(storageConnectionString),
+                    TaskHubName = taskHub,
+                    MaxConcurrentTaskActivityWorkItems = maxConcurrentActivities,
+                })
             {
                 this.PartitionCount = partitionCount;
                 for (int i = 0; i < partitionCount; i++)
