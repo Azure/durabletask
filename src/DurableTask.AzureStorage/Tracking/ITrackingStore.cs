@@ -161,8 +161,14 @@ namespace DurableTask.AzureStorage.Tracking
         /// Used to update a state in the tracking store to pending whenever a rewind is initiated from the client
         /// </summary>
         /// <param name="instanceId">The instance being rewound</param>
+        /// <param name="executionId">The execution being rewound</param>
+        /// <param name="rewindStartETag">The instance ETag captured before the rewind changed history.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        Task UpdateStatusForRewindAsync(string instanceId, CancellationToken cancellationToken = default);
+        Task UpdateStatusForRewindAsync(
+            string instanceId,
+            string executionId,
+            ETag rewindStartETag,
+            CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Used to update the instance status to "Terminated" when a pending orchestration is terminated.
