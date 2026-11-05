@@ -815,6 +815,13 @@ namespace DurableTask.AzureStorage.Tracking
             // It is possible that the queue message was small enough to be written directly to a queue message,
             // not a blob, but is too large to be written to a table property.
             await this.CompressLargeMessageAsync(entity, listOfBlobs: null, cancellationToken: cancellationToken);
+            // Pending rows expose large inputs as URLs, just like checkpointed instance rows.
+            this.SetInstancesTablePropertyFromHistoryProperty(
+                entity,
+                entity,
+                historyPropertyName: InputProperty,
+                instancePropertyName: InputProperty,
+                data: inputPayloadOverride ?? executionStartedEvent.Input);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
             try
@@ -881,9 +888,18 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task UpdateStatusForTerminationAsync(
+        public override Task UpdateStatusForTerminationAsync(
             string instanceId,
             ExecutionTerminatedEvent executionTerminatedEvent,
+            CancellationToken cancellationToken = default)
+        {
+            return this.UpdateStatusForTerminationAsync(instanceId, executionTerminatedEvent, ETag.All, cancellationToken);
+        }
+
+        internal async Task UpdateStatusForTerminationAsync(
+            string instanceId,
+            ExecutionTerminatedEvent executionTerminatedEvent,
+            ETag ifMatch,
             CancellationToken cancellationToken = default)
         {
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
@@ -901,7 +917,7 @@ namespace DurableTask.AzureStorage.Tracking
             await this.CompressLargeMessageAsync(instanceEntity, listOfBlobs: null, cancellationToken: cancellationToken, addBlobPropertyName: false);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
-            await this.InstancesTable.MergeEntityAsync(instanceEntity, ETag.All, cancellationToken);
+            await this.InstancesTable.MergeEntityAsync(instanceEntity, ifMatch, cancellationToken);
 
             this.settings.Logger.InstanceStatusUpdate(
                 this.storageAccountName,
