@@ -1086,6 +1086,23 @@ namespace DurableTask.AzureStorage
             bool allowReplayingTerminalInstances,
             CancellationToken cancellationToken)
         {
+            if (runtimeState.ExecutionStartedEvent == null)
+            {
+                ExecutionStartedEvent startEvent = newMessages.Select(message => message.Event).OfType<ExecutionStartedEvent>().FirstOrDefault();
+                if (startEvent != null)
+                {
+                    InstanceStatus status = await this.trackingStore.FetchInstanceStatusAsync(
+                        startEvent.OrchestrationInstance.InstanceId,
+                        cancellationToken);
+                    if (status?.State.OrchestrationStatus == OrchestrationStatus.Terminated &&
+                        string.Equals(status.State.OrchestrationInstance.ExecutionId, startEvent.OrchestrationInstance.ExecutionId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Pending termination has no history event. The delayed start must not revive it.
+                        return $"Instance is {OrchestrationStatus.Terminated}";
+                    }
+                }
+            }
+
             if (runtimeState.ExecutionStartedEvent == null && !newMessages.Any(msg => msg.Event is ExecutionStartedEvent))
             {
                 var instanceId = newMessages[0].OrchestrationInstance.InstanceId;
@@ -1453,9 +1470,64 @@ namespace DurableTask.AzureStorage
                 }
             }
 
+            // Custom instance stores need not support conditional Pending registration or start reconciliation.
             await enqueueOperations.ParallelForEachAsync(
                 this.settings.MaxStorageOperationConcurrency,
-                op => op.Queue.AddMessageAsync(op.Message, session));
+                op => this.trackingStore is AzureTableTrackingStore &&
+                    op.Message.Event is ExecutionStartedEvent &&
+                    DurableTask.Core.Common.Entities.IsEntityInstance(session.Instance.InstanceId)
+                    ? this.SendEntityOrchestrationStartAsync(op.Queue, op.Message, session)
+                    : op.Queue.AddMessageAsync(op.Message, session));
+        }
+
+        internal async Task SendEntityOrchestrationStartAsync(
+            TaskHubQueue queue,
+            TaskMessage message,
+            OrchestrationSession session)
+        {
+            var startEvent = (ExecutionStartedEvent)message.Event;
+            // Retrying a prepared message must not reset a progressed or purged instance.
+            bool registerPending = !startEvent.Generation.HasValue;
+            InstanceStatus existingInstance = null;
+            if (registerPending)
+            {
+                existingInstance = await this.trackingStore.FetchInstanceStatusAsync(message.OrchestrationInstance.InstanceId);
+                if (existingInstance != null &&
+                    (string.Equals(existingInstance.State.OrchestrationInstance.ExecutionId, message.OrchestrationInstance.ExecutionId, StringComparison.OrdinalIgnoreCase) ||
+                    existingInstance.State.OrchestrationStatus is OrchestrationStatus.Pending or OrchestrationStatus.Running or OrchestrationStatus.Suspended or OrchestrationStatus.ContinuedAsNew))
+                {
+                    startEvent.Generation = existingInstance.State.Generation ?? 0;
+                    registerPending = false;
+                }
+                else
+                {
+                    startEvent.Generation = (existingInstance?.State.Generation ?? -1) + 1;
+                }
+            }
+
+            // As with client starts, enqueue before registering Pending and before checkpointing the sender.
+            MessageData queuedMessage = await queue.AddMessageAsync(message, session);
+            if (registerPending)
+            {
+                string inputPayloadOverride = queuedMessage.CompressedBlobName == null
+                    ? null
+                    : this.messageManager.GetBlobUrl(queuedMessage.CompressedBlobName);
+                try
+                {
+                    await this.trackingStore.SetNewExecutionAsync(startEvent, existingInstance?.ETag, inputPayloadOverride);
+                }
+                catch (DurableTaskStorageException e) when (
+                    existingInstance != null &&
+                    e.HttpStatusCode == (int)HttpStatusCode.NotFound &&
+                    e.ErrorCode == "ResourceNotFound")
+                {
+                    this.settings.Logger.GeneralWarning(
+                        this.azureStorageClient.TableAccountName,
+                        this.settings.TaskHubName,
+                        "Skipped Pending registration because the previous instance was purged after its status was read.",
+                        instanceId: message.OrchestrationInstance.InstanceId);
+                }
+            }
         }
 
         async Task DeleteMessageBatchAsync(OrchestrationSession session, IList<MessageData> messagesToDelete)

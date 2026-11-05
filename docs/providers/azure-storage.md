@@ -282,6 +282,14 @@ Checkpoints are written in this order to ensure that no data is lost if there is
 
 Because the checkpoints aren't atomic, duplicates may occur. The replay model handles history duplicates gracefully. Message duplicates may result in activities being executed multiple times if an unexpected failure occurs.
 
+### Entity-Started Orchestrations
+
+With the default Azure Table tracking store, orchestrations started by entities are registered as `Pending`, including their scheduled start time, input, tags, and parent entity ID. They can be queried and terminated before their start messages become visible. Once a Pending termination has been processed, the matching delayed start is discarded without running orchestration code.
+
+The start message is enqueued before its Pending row is registered, and registration completes before the sending entity's history checkpoint. Workers defer registered start messages while registration is in flight. Conditional inserts and ETag-checked replacements prevent a late registration from overwriting an execution that has already started or a newer execution. Retried prepared starts do not reset terminal instances or recreate purged rows. Reusing an instance ID after a terminal execution creates a new generation.
+
+Upgrade all workers sharing a task hub to obtain these guarantees. Older workers do not reconcile entity-generated starts with Pending registrations, and entity start messages produced by older workers without a generation retain their legacy behavior. This does not change the provider's at-least-once delivery model or make entity actions transactional with child execution.
+
 ## Scaling
 
 ### Horizontal Scaling

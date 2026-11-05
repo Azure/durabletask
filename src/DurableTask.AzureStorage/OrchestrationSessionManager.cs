@@ -252,10 +252,12 @@ namespace DurableTask.AzureStorage
 
             foreach (MessageData message in messages)
             {
-                // We do de-duplication when creating top-level orchestrations but not for sub-orchestrations.
-                // De-dupe protection for sub-orchestrations is not implemented and will require a bit more work.
+                // Registered entity starts use the same Pending-row reconciliation as client starts.
+                // Awaited sub-orchestrations and older entity starts do not have Pending registration.
                 if (message.TaskMessage.Event is ExecutionStartedEvent startEvent &&
-                    startEvent.ParentInstance == null)
+                    (startEvent.ParentInstance == null ||
+                    (startEvent.Generation.HasValue &&
+                    DurableTask.Core.Common.Entities.IsEntityInstance(startEvent.ParentInstance.OrchestrationInstance.InstanceId))))
                 {
                     executionStartedMessages ??= new List<MessageData>(messages.Count);
                     executionStartedMessages.Add(message);

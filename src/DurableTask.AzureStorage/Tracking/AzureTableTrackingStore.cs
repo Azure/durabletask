@@ -815,6 +815,13 @@ namespace DurableTask.AzureStorage.Tracking
             // It is possible that the queue message was small enough to be written directly to a queue message,
             // not a blob, but is too large to be written to a table property.
             await this.CompressLargeMessageAsync(entity, listOfBlobs: null, cancellationToken: cancellationToken);
+            // Pending rows expose large inputs as URLs, just like checkpointed instance rows.
+            this.SetInstancesTablePropertyFromHistoryProperty(
+                entity,
+                entity,
+                historyPropertyName: InputProperty,
+                instancePropertyName: InputProperty,
+                data: inputPayloadOverride ?? executionStartedEvent.Input);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
             try

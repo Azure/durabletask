@@ -148,10 +148,10 @@ namespace DurableTask.AzureStorage.Tracking
         AsyncPageable<OrchestrationState> GetStateAsync(OrchestrationInstanceStatusQueryCondition condition, CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Used to set a state in the tracking store whenever a new execution is initiated from the client
+        /// Used to set a Pending state whenever a new execution is initiated by a client or entity.
         /// </summary>
         /// <param name="executionStartedEvent">The Execution Started Event being queued</param>
-        /// <param name="eTag">The eTag value to use for optimistic concurrency or <c>null</c> to overwrite any existing execution status.</param>
+        /// <param name="eTag">The eTag read before enqueueing the start, or <c>null</c> for a new instance.</param>
         /// <param name="inputPayloadOverride">An override value to use for the Input column. If not specified, uses <see cref="ExecutionStartedEvent.Input"/>.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
         /// <returns>Returns <c>true</c> if the record was created successfully; <c>false</c> otherwise.</returns>
