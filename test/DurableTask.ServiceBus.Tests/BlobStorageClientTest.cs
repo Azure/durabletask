@@ -235,6 +235,46 @@ namespace DurableTask.ServiceBus.Tests
             }
         }
 
+        [TestMethod]
+        public async Task TestDeleteExpiredContainersPreservesLegacyNonGregorianContainers()
+        {
+            // Earlier versions formatted the container date with the current culture's calendar: under ar-SA, a message
+            // fired on 2026-11-04 was stored in "{hub}-dtfx-message-14480524". It must survive a purge with a 2026-01-01 cutoff.
+            string storageConnectionString = TestHelpers.GetTestSetting("StorageConnectionString");
+            var serviceClient = new BlobServiceClient(storageConnectionString);
+            string hubName = "my-hub-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            var hubClient = new BlobStorageClient(hubName, storageConnectionString);
+
+            string legacyDate = new DateTime(2026, 11, 04).ToString("yyyyMMdd", new System.Globalization.CultureInfo("ar-SA"));
+            Assert.AreNotEqual("20261104", legacyDate);
+            string legacyKey = $"message-{legacyDate}|instance/execution/payload";
+
+            string hubPrefix = BlobStorageClientHelper.BuildContainerNamePrefix(hubName);
+            string legacyContainer = BlobStorageClientHelper.BuildContainerName(hubPrefix, $"message-{legacyDate}");
+            string expiredContainer = BlobStorageClientHelper.BuildContainerName(hubPrefix, "message-20251231");
+
+            try
+            {
+                await UploadAsync(hubClient, legacyKey);
+                await UploadAsync(hubClient, "message-20251231|a");
+
+                await hubClient.DeleteExpiredContainersAsync(new DateTime(2026, 01, 01));
+
+                Assert.IsFalse(await serviceClient.GetBlobContainerClient(expiredContainer).ExistsAsync(), "The hub's expired container must be deleted.");
+                Assert.IsTrue(await serviceClient.GetBlobContainerClient(legacyContainer).ExistsAsync(), "The legacy non-Gregorian container must be kept.");
+
+                Stream payload = await hubClient.DownloadStreamAsync(legacyKey);
+                Assert.AreEqual("test stream content", new StreamReader(payload).ReadToEnd());
+            }
+            finally
+            {
+                foreach (string name in new[] { legacyContainer, expiredContainer })
+                {
+                    await serviceClient.GetBlobContainerClient(name).DeleteIfExistsAsync();
+                }
+            }
+        }
+
         static async Task UploadAsync(BlobStorageClient client, string key)
         {
             using (Stream stream = new MemoryStream(Encoding.UTF8.GetBytes("test stream content")))

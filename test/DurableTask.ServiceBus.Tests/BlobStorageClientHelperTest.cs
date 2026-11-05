@@ -59,6 +59,48 @@ namespace DurableTask.ServiceBus.Tests
 
         [TestMethod]
         [SuppressMessage("ReSharper", "StringLiteralTypo")]
+        public void IsContainerExpiredIgnoresLegacyNonGregorianContainersTest()
+        {
+            // Before container dates were formatted with the invariant culture, the current culture's calendar was used.
+            // A container written for a recent payload must not be read as centuries old and purged.
+            var messageFireTime = new DateTime(2026, 11, 04);
+            var threshold = new DateTime(2026, 01, 01);
+
+            foreach (string cultureName in new[] { "ar-SA", "fa-IR", "th-TH" })
+            {
+                string legacyDate = BuildLegacyContainerDate(messageFireTime, cultureName);
+                Assert.AreNotEqual("20261104", legacyDate, $"{cultureName} must not use the Gregorian calendar for this test to be meaningful.");
+
+                foreach (string hubPrefix in new[] { "my-hub-dtfx", "myhub-dtfx" })
+                {
+                    string containerName = $"{hubPrefix}-message-{legacyDate}";
+                    Assert.IsTrue(BlobStorageClientHelper.IsContainerOwnedByHub(containerName, hubPrefix), $"{containerName} must still belong to the hub.");
+                    Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired(containerName, threshold), $"Legacy {cultureName} container {containerName} must not be treated as expired.");
+                }
+            }
+
+            // Gregorian dates on or after the guard are still purged.
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerExpired("my-hub-dtfx-message-20000101", threshold));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired("my-hub-dtfx-message-19991231", threshold));
+        }
+
+        // Reproduces the container date formatting of earlier versions: DateTime.ToString("yyyyMMdd") under the current culture.
+        static string BuildLegacyContainerDate(DateTime messageFireTime, string cultureName)
+        {
+            CultureInfo originalCulture = CultureInfo.CurrentCulture;
+            try
+            {
+                CultureInfo.CurrentCulture = new CultureInfo(cultureName);
+                return messageFireTime.ToString("yyyyMMdd");
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = originalCulture;
+            }
+        }
+
+        [TestMethod]
+        [SuppressMessage("ReSharper", "StringLiteralTypo")]
         public void ContainerNamesAreCultureInvariantTest()
         {
             CultureInfo originalCulture = CultureInfo.CurrentCulture;

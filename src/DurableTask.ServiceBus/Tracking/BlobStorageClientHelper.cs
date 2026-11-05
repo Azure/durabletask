@@ -30,6 +30,13 @@ namespace DurableTask.ServiceBus.Tracking
         static readonly string ContainerNameMarker = "dtfx";
         static readonly Regex ContainerNameSuffixRegex = new Regex(@"^[a-z0-9-]+\z", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
+        // Earlier versions formatted container dates with the current culture's calendar, so an existing container
+        // can hold a non-Gregorian date, e.g. Um Al Qura 1448xxxx, Persian 1405xxxx, Japanese 0008xxxx, Taiwan 0115xxxx.
+        // Read as Gregorian, these look centuries old although their payloads may still be referenced, so containers
+        // dated before any Gregorian date this framework could have written are never treated as expired.
+        // Calendars whose years read as far-future Gregorian years (Thai Buddhist, Korean, Hebrew) never expire either.
+        static readonly DateTime MinimumGregorianContainerDate = new DateTime(2000, 1, 1);
+
         /// <summary>
         /// the blob storage access key is in the format of {DateTime}|{blobName}
         /// </summary>
@@ -162,6 +169,16 @@ namespace DurableTask.ServiceBus.Tracking
                     TraceEventType.Warning,
                     "BlobStorageClientHelper-IsContainerExpired-InvalidDate",
                     $"Cannot parse the the date string {dateString} in the format of yyyyMMdd. Container {containerName} is ignored.");
+
+                return false;
+            }
+
+            if (containerDateTime < MinimumGregorianContainerDate)
+            {
+                TraceHelper.Trace(
+                    TraceEventType.Warning,
+                    "BlobStorageClientHelper-IsContainerExpired-LegacyCalendarDate",
+                    $"The date string {dateString} is earlier than {MinimumGregorianContainerDate.ToString(DateFormat, CultureInfo.InvariantCulture)} and may have been written using a non-Gregorian calendar by an earlier version. Container {containerName} is ignored.");
 
                 return false;
             }
