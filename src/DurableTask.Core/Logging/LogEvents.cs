@@ -929,12 +929,19 @@ namespace DurableTask.Core.Logging
         /// </summary>
         internal class OrchestrationExecuted : StructuredLogEvent, IEventSourceEvent
         {
-            public OrchestrationExecuted(OrchestrationInstance instance, string name, int actionCount)
+            public OrchestrationExecuted(
+                OrchestrationInstance instance,
+                string name,
+                int actionCount,
+                int openTaskCount,
+                string openTaskNames)
             {
                 this.InstanceId = instance.InstanceId;
                 this.ExecutionId = instance.ExecutionId ?? string.Empty;
                 this.Name = name;
                 this.ActionCount = actionCount;
+                this.OpenTaskCount = openTaskCount;
+                this.OpenTaskNames = openTaskNames ?? string.Empty;
             }
 
             [StructuredLogField]
@@ -949,14 +956,28 @@ namespace DurableTask.Core.Logging
             [StructuredLogField]
             public int ActionCount { get; }
 
+            [StructuredLogField]
+            public int OpenTaskCount { get; }
+
+            [StructuredLogField]
+            public string OpenTaskNames { get; }
+
             public override EventId EventId => new EventId(
                 EventIds.OrchestrationExecuted,
                 nameof(EventIds.OrchestrationExecuted));
 
             public override LogLevel Level => LogLevel.Information;
 
-            protected override string CreateLogMessage() =>
-                $"{this.InstanceId}: Orchestration '{this.Name}' awaited and scheduled {this.ActionCount} durable operation(s).";
+            protected override string CreateLogMessage()
+            {
+                string message = $"{this.InstanceId}: Orchestration '{this.Name}' awaited and scheduled {this.ActionCount} durable operation(s).";
+                if (this.OpenTaskCount > 0)
+                {
+                    message += $" {this.OpenTaskCount} pending task(s): {this.OpenTaskNames}";
+                }
+
+                return message;
+            }
 
             void IEventSourceEvent.WriteEventSource() =>
                 StructuredEventSource.Log.OrchestrationExecuted(
@@ -964,6 +985,8 @@ namespace DurableTask.Core.Logging
                     this.ExecutionId,
                     this.Name,
                     this.ActionCount,
+                    this.OpenTaskCount,
+                    this.OpenTaskNames,
                     Utils.AppName,
                     Utils.PackageVersion);
         }

@@ -147,6 +147,29 @@ namespace DurableTask.Core.Tests
             }
         }
 
+        [TestMethod]
+        public void GetOpenTasksSummary_WithNoOpenTasks_ReturnsEmptyString()
+        {
+            string summary = context.GetOpenTasksSummary();
+            Assert.AreEqual(string.Empty, summary);
+        }
+
+        [TestMethod]
+        public void GetOpenTasksSummary_WithManyOpenTasks_UsesBoundedSummary()
+        {
+            for (int i = 0; i < 100; i++)
+            {
+                _ = context.ScheduleTask<int>(new string('A', 100), "1.0", i);
+            }
+
+            Assert.AreEqual(100, context.OpenTaskCount);
+
+            string summary = context.GetOpenTasksSummary();
+
+            Assert.IsTrue(summary.Length <= 1024, "Summary should be capped to the configured maximum length.");
+            Assert.IsTrue(summary.Contains("more task(s))"), "Summary should indicate omitted tasks when capped.");
+        }
+
         private class MockTaskOrchestrationContext : TaskOrchestrationContext
         {
             public List<ScheduledTaskInfo> ScheduledTasks { get; } = new List<ScheduledTaskInfo>();
