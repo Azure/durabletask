@@ -30,7 +30,7 @@ namespace DurableTask.ServiceBus.Tracking
         // container prefix is in the format of {hubName}-dtfx. It is not part of the blob key.
         // the container full name is in the format of {hubName}-dtfx-{streamType}-{DateTime};
         // the streamType is the type of the stream, either 'message' or 'session';
-        // the date time is in the format of yyyyMMdd.
+        // the date time is in the format of yyyyMMdd (invariant culture; containers written by earlier versions may use the host's calendar).
         readonly string containerNamePrefix;
         readonly BlobServiceClient blobServiceClient;
 

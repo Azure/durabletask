@@ -169,7 +169,7 @@ namespace DurableTask.ServiceBus.Tracking
                 TraceHelper.Trace(
                     TraceEventType.Warning,
                     "BlobStorageClientHelper-IsContainerExpired-InvalidDate",
-                    $"Cannot parse the the date string {dateString} in the format of yyyyMMdd. Container {containerName} is ignored.");
+                    $"Cannot parse the date string {dateString} in the format of yyyyMMdd. Container {containerName} is ignored.");
 
                 return false;
             }
