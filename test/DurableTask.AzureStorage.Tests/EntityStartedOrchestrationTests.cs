@@ -168,6 +168,293 @@ namespace DurableTask.AzureStorage.Tests
         [DataTestMethod]
         [DataRow(false)]
         [DataRow(true)]
+        public async Task ReusedEntityStartedScheduledOrchestrationCanBeTerminated(bool useInstanceTableEtag)
+        {
+            this.settings.UseInstanceTableEtag = useInstanceTableEtag;
+            string childInstanceId = Guid.NewGuid().ToString("N");
+            DateTime createdTime = DateTime.UtcNow;
+            DateTime scheduledStartTime = default;
+            int executions = 0;
+            this.CreateEntityWorker(() =>
+            {
+                scheduledStartTime = DateTime.UtcNow.AddSeconds(10);
+                return new StartNewOrchestrationOperationAction
+                {
+                    Name = typeof(ChildOrchestration).FullName,
+                    InstanceId = childInstanceId,
+                    Input = "\"must-not-run\"",
+                    ScheduledStartTime = scheduledStartTime,
+                };
+            });
+            this.worker.AddOrchestrationDispatcherMiddleware((context, next) =>
+            {
+                Interlocked.Increment(ref executions);
+                return next();
+            });
+            await this.worker.StartAsync();
+            var client = new TaskHubClient(this.service);
+            OrchestrationInstance previous = await client.CreateOrchestrationInstanceAsync(
+                typeof(ChildOrchestration), childInstanceId, "done");
+            OrchestrationState previousState = await client.WaitForOrchestrationAsync(previous, TimeSpan.FromSeconds(30));
+            Assert.IsNotNull(previousState);
+            Assert.AreEqual(OrchestrationStatus.Completed, previousState.OrchestrationStatus);
+            Interlocked.Exchange(ref executions, 0);
+            OrchestrationHistory previousHistory = await this.service.TrackingStore.GetHistoryEventsAsync(
+                childInstanceId, previous.ExecutionId);
+
+            var entity = new OrchestrationInstance { InstanceId = "@pendingstarter@test" };
+            await this.service.SendTaskOrchestrationMessageAsync(
+                ClientEntityHelpers.EmitOperationSignal(entity, Guid.NewGuid(), "start", null, null).AsTaskMessage());
+            await new TestInstance<string>(client, entity, createdTime, null).WaitForStart(TimeSpan.FromSeconds(30));
+            InstanceStatus pending = await this.service.TrackingStore.FetchInstanceStatusAsync(childInstanceId);
+            Assert.AreEqual(OrchestrationStatus.Pending, pending.State.OrchestrationStatus);
+            Assert.AreNotEqual(previous.ExecutionId, pending.State.OrchestrationInstance.ExecutionId);
+            Assert.AreEqual(previousState.Generation + 1, pending.State.Generation);
+            Assert.IsTrue(DateTime.UtcNow < scheduledStartTime);
+
+            var child = new TestOrchestrationClient(client, typeof(ChildOrchestration), childInstanceId, createdTime);
+            await child.TerminateAsync("terminate the reused Pending execution");
+            using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
+            {
+                while (await this.service.AllControlQueues.Single().InnerQueue.GetApproximateMessagesCountAsync() > 0)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(50), timeout.Token);
+                }
+            }
+
+            OrchestrationState terminated = await child.GetStatusAsync();
+            Assert.AreEqual(OrchestrationStatus.Terminated, terminated.OrchestrationStatus,
+                "Old terminal history must not cause termination of the new Pending execution to be discarded.");
+            Assert.AreEqual(0, executions);
+            Assert.AreEqual(pending.State.OrchestrationInstance.ExecutionId, terminated.OrchestrationInstance.ExecutionId);
+            Assert.AreEqual(pending.State.Generation, terminated.Generation);
+            Assert.AreEqual("terminate the reused Pending execution", terminated.Output);
+            Assert.AreEqual(
+                previousHistory.Events.Count,
+                (await this.service.TrackingStore.GetHistoryEventsAsync(childInstanceId, previous.ExecutionId)).Events.Count);
+            Assert.AreEqual(
+                0,
+                (await this.service.TrackingStore.GetHistoryEventsAsync(childInstanceId, terminated.OrchestrationInstance.ExecutionId)).Events.Count);
+        }
+
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task RegisteredEntityStartRechecksTerminationAfterReconciliation(bool useInstanceTableEtag)
+        {
+            this.settings.UseInstanceTableEtag = useInstanceTableEtag;
+            OrchestrationSession session = this.CreateEntitySession();
+            TaskMessage start = CreateStart(session);
+            ControlQueue queue = this.service.AllControlQueues.Single();
+            await this.service.SendEntityOrchestrationStartAsync(queue, start, session);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            MessageData queued = (await queue.GetMessagesAsync(timeout.Token)).Single();
+            Assert.AreEqual(1, (await this.ReconcileStartAsync(queued)).Count());
+
+            await this.service.TrackingStore.UpdateStatusForTerminationAsync(
+                start.OrchestrationInstance.InstanceId, new ExecutionTerminatedEvent(-1, "terminated after reconciliation"));
+            int reads = this.pendingWritePolicy.InstanceReads;
+            string decision = await this.EvaluateBatchAsync(new OrchestrationRuntimeState(), new[] { queued.TaskMessage });
+
+            Assert.AreEqual("Instance is Terminated", decision);
+            Assert.AreEqual(reads + 1, this.pendingWritePolicy.InstanceReads,
+                "Only registered entity admission needs this fresh termination check.");
+        }
+
+        [DataTestMethod]
+        [DataRow(null, 0)]
+        [DataRow("awaited-parent", 0)]
+        [DataRow("@legacy@test", null)]
+        public async Task HistorylessClientAwaitedAndLegacyStartsDoNotAddStatusReads(string parentInstanceId, int? generation)
+        {
+            TaskMessage start = CreateStart(this.CreateEntitySession());
+            var startEvent = (ExecutionStartedEvent)start.Event;
+            startEvent.Generation = generation;
+            startEvent.ParentInstance = parentInstanceId == null
+                ? null
+                : new ParentInstance { OrchestrationInstance = new OrchestrationInstance { InstanceId = parentInstanceId } };
+            int reads = this.pendingWritePolicy.InstanceReads;
+
+            Assert.IsNull(await this.EvaluateBatchAsync(new OrchestrationRuntimeState(), new[] { start }));
+
+            Assert.AreEqual(reads, this.pendingWritePolicy.InstanceReads);
+        }
+
+        [DataTestMethod]
+        [DataRow(false, OrchestrationStatus.Completed)]
+        [DataRow(true, OrchestrationStatus.Completed)]
+        [DataRow(false, OrchestrationStatus.Failed)]
+        [DataRow(true, OrchestrationStatus.Failed)]
+        [DataRow(false, OrchestrationStatus.Terminated)]
+        [DataRow(true, OrchestrationStatus.Terminated)]
+        [DataRow(false, OrchestrationStatus.Canceled)]
+        [DataRow(true, OrchestrationStatus.Canceled)]
+        public async Task ReusedPendingTerminationPreservesCurrentExecutionMetadata(bool useInstanceTableEtag, OrchestrationStatus oldStatus)
+        {
+            this.settings.UseInstanceTableEtag = useInstanceTableEtag;
+            var (oldRuntime, start, pending) = await this.CreateReusedPendingAsync(oldStatus);
+            string reason = new string('r', 36 * 1024);
+            TaskMessage termination = CreateTermination(start.OrchestrationInstance.InstanceId, reason);
+            int reads = this.pendingWritePolicy.InstanceReads;
+
+            string decision = await this.EvaluateBatchAsync(oldRuntime, new[] { termination });
+
+            Assert.AreEqual("Instance is Terminated", decision);
+            Assert.AreEqual(reads + 1, this.pendingWritePolicy.InstanceReads,
+                "Reuse the terminal-history status snapshot instead of querying it twice.");
+            InstanceStatus after = await this.service.TrackingStore.FetchInstanceStatusAsync(start.OrchestrationInstance.InstanceId);
+            Assert.AreEqual(OrchestrationStatus.Terminated, after.State.OrchestrationStatus);
+            Assert.AreEqual(start.OrchestrationInstance.ExecutionId, after.State.OrchestrationInstance.ExecutionId);
+            Assert.AreEqual(pending.State.Generation, after.State.Generation);
+            Assert.AreEqual(pending.State.CreatedTime, after.State.CreatedTime);
+            Assert.AreEqual(pending.State.ParentInstance.OrchestrationInstance.InstanceId, after.State.ParentInstance.OrchestrationInstance.InstanceId);
+            Assert.AreEqual(reason, after.State.Output);
+            Assert.AreEqual(termination.Event.Timestamp, after.State.LastUpdatedTime);
+            Assert.AreNotEqual(pending.ETag, after.ETag);
+            Assert.AreEqual(
+                oldRuntime.Events.Count,
+                (await this.service.TrackingStore.GetHistoryEventsAsync(start.OrchestrationInstance.InstanceId, oldRuntime.OrchestrationInstance.ExecutionId)).Events.Count);
+        }
+
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task OldExecutionTerminationDoesNotCancelReusedPendingExecution(bool useInstanceTableEtag)
+        {
+            this.settings.UseInstanceTableEtag = useInstanceTableEtag;
+            var (oldRuntime, start, pending) = await this.CreateReusedPendingAsync();
+            TaskMessage termination = CreateTermination(
+                start.OrchestrationInstance.InstanceId, "old execution only", oldRuntime.OrchestrationInstance.ExecutionId);
+
+            Assert.AreEqual("Instance is Completed", await this.EvaluateBatchAsync(oldRuntime, new[] { termination }));
+
+            InstanceStatus after = await this.service.TrackingStore.FetchInstanceStatusAsync(start.OrchestrationInstance.InstanceId);
+            Assert.AreEqual(pending.ETag, after.ETag);
+            Assert.AreEqual(OrchestrationStatus.Pending, after.State.OrchestrationStatus);
+            Assert.AreEqual(start.OrchestrationInstance.ExecutionId, after.State.OrchestrationInstance.ExecutionId);
+        }
+
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task ExecutionIndependentTerminationIsNotHiddenByOldTargetedTermination(bool independentLast)
+        {
+            var (oldRuntime, start, pending) = await this.CreateReusedPendingAsync();
+            TaskMessage oldTermination = CreateTermination(
+                start.OrchestrationInstance.InstanceId, "old execution", oldRuntime.OrchestrationInstance.ExecutionId);
+            TaskMessage independent = CreateTermination(start.OrchestrationInstance.InstanceId, "current execution");
+            TaskMessage[] messages = independentLast
+                ? new[] { oldTermination, independent }
+                : new[] { independent, oldTermination };
+
+            Assert.AreEqual("Instance is Terminated", await this.EvaluateBatchAsync(oldRuntime, messages));
+
+            InstanceStatus after = await this.service.TrackingStore.FetchInstanceStatusAsync(start.OrchestrationInstance.InstanceId);
+            Assert.AreEqual("current execution", after.State.Output);
+            Assert.AreEqual(start.OrchestrationInstance.ExecutionId, after.State.OrchestrationInstance.ExecutionId);
+            Assert.AreEqual(pending.State.Generation, after.State.Generation);
+        }
+
+        [DataTestMethod]
+        [DataRow(false, "replace")]
+        [DataRow(true, "replace")]
+        [DataRow(false, "start")]
+        [DataRow(true, "start")]
+        [DataRow(false, "purge")]
+        [DataRow(true, "purge")]
+        public async Task ReusedPendingTerminationRejectsConcurrentRowChanges(bool useInstanceTableEtag, string change)
+        {
+            this.settings.UseInstanceTableEtag = useInstanceTableEtag;
+            var (oldRuntime, start, pending) = await this.CreateReusedPendingAsync();
+            TaskMessage replacement = CreateStart(this.CreateEntitySession(), start.OrchestrationInstance.InstanceId);
+            ((ExecutionStartedEvent)replacement.Event).Generation = pending.State.Generation + 1;
+            this.pendingWritePolicy.BeforeWrite = async () =>
+            {
+                if (change == "purge")
+                {
+                    await this.service.TrackingStore.PurgeInstanceHistoryAsync(start.OrchestrationInstance.InstanceId);
+                }
+                else if (change == "replace")
+                {
+                    Assert.IsTrue(await this.service.TrackingStore.SetNewExecutionAsync((ExecutionStartedEvent)replacement.Event, pending.ETag, null));
+                }
+                else
+                {
+                    OrchestrationHistory history = await this.service.TrackingStore.GetHistoryEventsAsync(start.OrchestrationInstance.InstanceId, null);
+                    var running = new OrchestrationRuntimeState();
+                    running.AddEvent(new OrchestratorStartedEvent(-1));
+                    running.AddEvent(start.Event);
+                    running.AddEvent(new OrchestratorCompletedEvent(-1));
+                    await this.service.TrackingStore.UpdateStateAsync(
+                        running, new OrchestrationRuntimeState(), start.OrchestrationInstance.InstanceId, start.OrchestrationInstance.ExecutionId,
+                        new OrchestrationETags { HistoryETag = history.ETag, InstanceETag = pending.ETag }, history.TrackingStoreContext);
+                }
+            };
+
+            DurableTaskStorageException error = await Assert.ThrowsExceptionAsync<DurableTaskStorageException>(
+                () => this.EvaluateBatchAsync(oldRuntime, new[] { CreateTermination(start.OrchestrationInstance.InstanceId, "racing termination") }));
+            Assert.AreEqual(change == "purge" ? 404 : 412, error.HttpStatusCode);
+            InstanceStatus after = await this.service.TrackingStore.FetchInstanceStatusAsync(start.OrchestrationInstance.InstanceId);
+            if (change == "purge")
+            {
+                Assert.IsNull(after);
+                Assert.AreEqual(0, (await this.service.TrackingStore.GetHistoryEventsAsync(start.OrchestrationInstance.InstanceId, null)).Events.Count);
+            }
+            else
+            {
+                Assert.IsNotNull(after);
+                Assert.AreEqual(change == "replace" ? replacement.OrchestrationInstance.ExecutionId : start.OrchestrationInstance.ExecutionId, after.State.OrchestrationInstance.ExecutionId);
+                Assert.AreEqual(change == "replace" ? OrchestrationStatus.Pending : OrchestrationStatus.Running, after.State.OrchestrationStatus);
+                Assert.IsNull(after.State.Output);
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(false, 404, "TableNotFound")]
+        [DataRow(true, 404, "TableNotFound")]
+        [DataRow(false, 503, "ServerBusy")]
+        [DataRow(true, 503, "ServerBusy")]
+        public async Task ReusedPendingTerminationPropagatesStorageFailures(bool useInstanceTableEtag, int status, string errorCode)
+        {
+            this.settings.UseInstanceTableEtag = useInstanceTableEtag;
+            var (oldRuntime, start, pending) = await this.CreateReusedPendingAsync();
+            this.pendingWritePolicy.BeforeWrite = () => throw new RequestFailedException(status, "Injected termination failure", errorCode, null);
+
+            DurableTaskStorageException error = await Assert.ThrowsExceptionAsync<DurableTaskStorageException>(
+                () => this.EvaluateBatchAsync(oldRuntime, new[] { CreateTermination(start.OrchestrationInstance.InstanceId, "terminate") }));
+
+            Assert.AreEqual(status, error.HttpStatusCode);
+            Assert.AreEqual(errorCode, error.ErrorCode);
+            Assert.AreEqual(pending.ETag, (await this.service.TrackingStore.FetchInstanceStatusAsync(start.OrchestrationInstance.InstanceId)).ETag);
+        }
+
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task ReusedPendingTerminationPropagatesCancellation(bool useInstanceTableEtag)
+        {
+            this.settings.UseInstanceTableEtag = useInstanceTableEtag;
+            var (oldRuntime, start, pending) = await this.CreateReusedPendingAsync();
+            using var cancellation = new CancellationTokenSource();
+            this.pendingWritePolicy.BeforeWrite = () =>
+            {
+                Assert.AreEqual(cancellation.Token, this.pendingWritePolicy.LastWriteCancellationToken);
+                cancellation.Cancel();
+                cancellation.Token.ThrowIfCancellationRequested();
+                return Task.CompletedTask;
+            };
+
+            await Assert.ThrowsExceptionAsync<OperationCanceledException>(
+                () => this.EvaluateBatchAsync(
+                    oldRuntime, new[] { CreateTermination(start.OrchestrationInstance.InstanceId, "terminate") }, cancellation.Token));
+
+            Assert.IsTrue(cancellation.IsCancellationRequested);
+            Assert.AreEqual(pending.ETag, (await this.service.TrackingStore.FetchInstanceStatusAsync(start.OrchestrationInstance.InstanceId)).ETag);
+        }
+
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
         public async Task ImmediateEntityStartCanCompleteAndContinueAsNew(bool continueAsNew)
         {
             this.settings.UseInstanceTableEtag = true;
@@ -186,7 +473,8 @@ namespace DurableTask.AzureStorage.Tests
             var client = new TaskHubClient(this.service);
             OrchestrationState completed = await client.WaitForOrchestrationAsync(
                 new OrchestrationInstance { InstanceId = childInstanceId }, TimeSpan.FromSeconds(30));
-            Assert.AreEqual(OrchestrationStatus.Completed, completed?.OrchestrationStatus);
+            Assert.IsNotNull(completed);
+            Assert.AreEqual(OrchestrationStatus.Completed, completed.OrchestrationStatus);
             Assert.AreEqual("\"done\"", completed.Output);
         }
 
@@ -441,6 +729,38 @@ namespace DurableTask.AzureStorage.Tests
                 ETag.All, TableUpdateMode.Merge);
         }
 
+        async Task<(OrchestrationRuntimeState OldRuntime, TaskMessage PendingStart, InstanceStatus Pending)> CreateReusedPendingAsync(
+            OrchestrationStatus oldStatus = OrchestrationStatus.Completed)
+        {
+            OrchestrationSession session = this.CreateEntitySession();
+            TaskMessage previousStart = CreateStart(session);
+            ((ExecutionStartedEvent)previousStart.Event).Generation = 7;
+            string instanceId = previousStart.OrchestrationInstance.InstanceId;
+            OrchestrationHistory history = await this.service.TrackingStore.GetHistoryEventsAsync(instanceId, null);
+            var oldRuntime = new OrchestrationRuntimeState();
+            oldRuntime.AddEvent(new OrchestratorStartedEvent(-1));
+            oldRuntime.AddEvent(previousStart.Event);
+            oldRuntime.AddEvent(new ExecutionCompletedEvent(0, "\"previous output\"", oldStatus));
+            oldRuntime.AddEvent(new OrchestratorCompletedEvent(-1));
+            await this.service.TrackingStore.UpdateStateAsync(
+                oldRuntime, new OrchestrationRuntimeState(), instanceId, previousStart.OrchestrationInstance.ExecutionId,
+                new OrchestrationETags { HistoryETag = history.ETag }, history.TrackingStoreContext);
+            TaskMessage start = CreateStart(session, instanceId);
+            await this.service.SendEntityOrchestrationStartAsync(this.service.AllControlQueues.Single(), start, session);
+            InstanceStatus pending = await this.service.TrackingStore.FetchInstanceStatusAsync(instanceId);
+            Assert.AreEqual(OrchestrationStatus.Pending, pending.State.OrchestrationStatus);
+            return (oldRuntime, start, pending);
+        }
+
+        static TaskMessage CreateTermination(string instanceId, string reason, string executionId = null)
+        {
+            return new TaskMessage
+            {
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId, ExecutionId = executionId },
+                Event = new ExecutionTerminatedEvent(-1, reason),
+            };
+        }
+
         void CreateEntityWorker(Func<StartNewOrchestrationOperationAction> createStart)
         {
             this.worker = new TaskHubWorker(this.service);
@@ -501,6 +821,17 @@ namespace DurableTask.AzureStorage.Tests
             });
         }
 
+        Task<string> EvaluateBatchAsync(
+            OrchestrationRuntimeState runtimeState,
+            TaskMessage[] messages,
+            CancellationToken cancellationToken = default)
+        {
+            MethodInfo evaluate = typeof(AzureStorageOrchestrationService)
+                .GetMethod("IsExecutableInstanceAsync", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(evaluate);
+            return (Task<string>)evaluate.Invoke(this.service, new object[] { runtimeState, messages, false, cancellationToken });
+        }
+
         sealed class PendingWritePolicy : HttpPipelinePolicy
         {
             readonly string tableName;
@@ -508,6 +839,10 @@ namespace DurableTask.AzureStorage.Tests
             public PendingWritePolicy(string tableName) => this.tableName = tableName;
 
             public Func<Task> BeforeWrite { get; set; }
+
+            public int InstanceReads { get; private set; }
+
+            public CancellationToken LastWriteCancellationToken { get; private set; }
 
             public override void Process(HttpMessage message, ReadOnlyMemory<HttpPipelinePolicy> pipeline)
             {
@@ -523,13 +858,27 @@ namespace DurableTask.AzureStorage.Tests
 
             Task BeforeWriteAsync(HttpMessage message)
             {
-                if (this.BeforeWrite != null &&
-                    (message.Request.Method == RequestMethod.Post || message.Request.Method == RequestMethod.Put) &&
-                    message.Request.Uri.ToUri().AbsolutePath.IndexOf(this.tableName, StringComparison.Ordinal) >= 0)
+                if (message.Request.Uri.ToUri().AbsolutePath.IndexOf(this.tableName, StringComparison.Ordinal) < 0)
                 {
-                    Func<Task> beforeWrite = this.BeforeWrite;
-                    this.BeforeWrite = null;
-                    return beforeWrite();
+                    return Task.CompletedTask;
+                }
+
+                if (message.Request.Method == RequestMethod.Get)
+                {
+                    this.InstanceReads++;
+                }
+                else if (message.Request.Method == RequestMethod.Post ||
+                    message.Request.Method == RequestMethod.Put ||
+                    message.Request.Method == RequestMethod.Patch ||
+                    message.Request.Method.ToString() == "MERGE")
+                {
+                    this.LastWriteCancellationToken = message.CancellationToken;
+                    if (this.BeforeWrite != null)
+                    {
+                        Func<Task> beforeWrite = this.BeforeWrite;
+                        this.BeforeWrite = null;
+                        return beforeWrite();
+                    }
                 }
 
                 return Task.CompletedTask;

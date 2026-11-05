@@ -888,9 +888,18 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task UpdateStatusForTerminationAsync(
+        public override Task UpdateStatusForTerminationAsync(
             string instanceId,
             ExecutionTerminatedEvent executionTerminatedEvent,
+            CancellationToken cancellationToken = default)
+        {
+            return this.UpdateStatusForTerminationAsync(instanceId, executionTerminatedEvent, ETag.All, cancellationToken);
+        }
+
+        internal async Task UpdateStatusForTerminationAsync(
+            string instanceId,
+            ExecutionTerminatedEvent executionTerminatedEvent,
+            ETag ifMatch,
             CancellationToken cancellationToken = default)
         {
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
@@ -908,7 +917,7 @@ namespace DurableTask.AzureStorage.Tracking
             await this.CompressLargeMessageAsync(instanceEntity, listOfBlobs: null, cancellationToken: cancellationToken, addBlobPropertyName: false);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
-            await this.InstancesTable.MergeEntityAsync(instanceEntity, ETag.All, cancellationToken);
+            await this.InstancesTable.MergeEntityAsync(instanceEntity, ifMatch, cancellationToken);
 
             this.settings.Logger.InstanceStatusUpdate(
                 this.storageAccountName,

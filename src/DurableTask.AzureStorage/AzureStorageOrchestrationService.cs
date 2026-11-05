@@ -1086,24 +1086,44 @@ namespace DurableTask.AzureStorage
             bool allowReplayingTerminalInstances,
             CancellationToken cancellationToken)
         {
-            if (runtimeState.ExecutionStartedEvent == null)
+            ExecutionStartedEvent startEvent = null;
+            ExecutionTerminatedEvent terminationEvent = null;
+            ExecutionTerminatedEvent independentTermination = null;
+            foreach (TaskMessage message in newMessages)
             {
-                ExecutionStartedEvent startEvent = newMessages.Select(message => message.Event).OfType<ExecutionStartedEvent>().FirstOrDefault();
-                if (startEvent != null)
+                if (message.Event is ExecutionStartedEvent started)
                 {
-                    InstanceStatus status = await this.trackingStore.FetchInstanceStatusAsync(
-                        startEvent.OrchestrationInstance.InstanceId,
-                        cancellationToken);
-                    if (status?.State.OrchestrationStatus == OrchestrationStatus.Terminated &&
-                        string.Equals(status.State.OrchestrationInstance.ExecutionId, startEvent.OrchestrationInstance.ExecutionId, StringComparison.OrdinalIgnoreCase))
+                    startEvent ??= started;
+                }
+                else if (message.Event is ExecutionTerminatedEvent terminated)
+                {
+                    terminationEvent = terminated;
+                    if (message.OrchestrationInstance.ExecutionId == null)
                     {
-                        // Pending termination has no history event. The delayed start must not revive it.
-                        return $"Instance is {OrchestrationStatus.Terminated}";
+                        independentTermination = terminated;
                     }
                 }
             }
 
-            if (runtimeState.ExecutionStartedEvent == null && !newMessages.Any(msg => msg.Event is ExecutionStartedEvent))
+            if (runtimeState.ExecutionStartedEvent == null &&
+                startEvent != null &&
+                startEvent.Generation.HasValue &&
+                startEvent.ParentInstance?.OrchestrationInstance?.InstanceId is string parentInstanceId &&
+                DurableTask.Core.Common.Entities.IsEntityInstance(parentInstanceId))
+            {
+                // Reconciliation can precede a Pending termination while this start waits for its session.
+                InstanceStatus status = await this.trackingStore.FetchInstanceStatusAsync(
+                    startEvent.OrchestrationInstance.InstanceId,
+                    cancellationToken);
+                if (status != null &&
+                    status.State.OrchestrationStatus == OrchestrationStatus.Terminated &&
+                    string.Equals(status.State.OrchestrationInstance.ExecutionId, startEvent.OrchestrationInstance.ExecutionId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return $"Instance is {OrchestrationStatus.Terminated}";
+                }
+            }
+
+            if (runtimeState.ExecutionStartedEvent == null && startEvent == null)
             {
                 var instanceId = newMessages[0].OrchestrationInstance.InstanceId;
 
@@ -1113,13 +1133,12 @@ namespace DurableTask.AzureStorage
                 }
                 else
                 {
-                    TaskMessage executionTerminatedEventMessage = newMessages.LastOrDefault(msg => msg.Event is ExecutionTerminatedEvent);
-                    if (executionTerminatedEventMessage is not null)
+                    if (terminationEvent != null)
                     {
-                        var executionTerminatedEvent = (ExecutionTerminatedEvent)executionTerminatedEventMessage.Event;
                         await this.trackingStore.UpdateStatusForTerminationAsync(
                             instanceId,
-                            executionTerminatedEvent);
+                            terminationEvent,
+                            cancellationToken);
                         return $"Instance is {OrchestrationStatus.Terminated}";
                     }
 
@@ -1139,7 +1158,24 @@ namespace DurableTask.AzureStorage
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Pending &&
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Suspended)
             {
-                InstanceStatus instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(runtimeState.OrchestrationInstance.InstanceId);
+                InstanceStatus instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(
+                    runtimeState.OrchestrationInstance.InstanceId,
+                    cancellationToken);
+                if (instanceStatus != null &&
+                    instanceStatus.State.OrchestrationStatus == OrchestrationStatus.Pending &&
+                    !string.Equals(instanceStatus.State.OrchestrationInstance.ExecutionId, runtimeState.OrchestrationInstance.ExecutionId, StringComparison.OrdinalIgnoreCase) &&
+                    independentTermination != null &&
+                    this.trackingStore is AzureTableTrackingStore tableTrackingStore)
+                {
+                    // ID reuse can leave old terminal history while the latest execution is still Pending.
+                    await tableTrackingStore.UpdateStatusForTerminationAsync(
+                        runtimeState.OrchestrationInstance.InstanceId,
+                        independentTermination,
+                        instanceStatus.ETag,
+                        cancellationToken);
+                    return $"Instance is {OrchestrationStatus.Terminated}";
+                }
+
                 if (instanceStatus == null || (instanceStatus.State.OrchestrationInstance.ExecutionId == runtimeState.OrchestrationInstance.ExecutionId
                     && instanceStatus.State.OrchestrationStatus != runtimeState.OrchestrationStatus))
                 {
