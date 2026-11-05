@@ -204,7 +204,7 @@ namespace DurableTask.ServiceBus.Tests
             string[] malformedContainers =
             {
                 BlobStorageClientHelper.BuildContainerName(hubPrefix, "session-backup"),
-                BlobStorageClientHelper.BuildContainerName(hubPrefix, "session-20150230"),
+                BlobStorageClientHelper.BuildContainerName(hubPrefix, "session-201505160"),
             };
 
             try
@@ -216,7 +216,7 @@ namespace DurableTask.ServiceBus.Tests
                 }
 
                 List<string> listed = (await hubClient.ListContainersAsync()).Select(c => c.Name).ToList();
-                CollectionAssert.AreEqual(new[] { hubContainer }, listed, "Containers outside the {type}-{yyyyMMdd} format must not be listed.");
+                CollectionAssert.AreEqual(new[] { hubContainer }, listed, "Containers outside the {type}-{date} format, where date is 8 digits, must not be listed.");
 
                 await hubClient.DeleteBlobStoreContainersAsync();
 
@@ -269,6 +269,54 @@ namespace DurableTask.ServiceBus.Tests
             finally
             {
                 foreach (string name in new[] { legacyContainer, expiredContainer })
+                {
+                    await serviceClient.GetBlobContainerClient(name).DeleteIfExistsAsync();
+                }
+            }
+        }
+
+        [TestMethod]
+        public async Task TestDeleteBlobStoreContainersDeletesLegacyNonGregorianContainers()
+        {
+            // Earlier versions formatted the container date with the current culture's calendar: under th-TH, a message
+            // fired on 2024-02-29 was stored in "{hub}-dtfx-message-25670229", which is not a valid Gregorian date.
+            // Full-store deletion must still remove such containers.
+            string storageConnectionString = TestHelpers.GetTestSetting("StorageConnectionString");
+            var serviceClient = new BlobServiceClient(storageConnectionString);
+            string hubName = "my-hub-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            var hubClient = new BlobStorageClient(hubName, storageConnectionString);
+
+            string thaiDate = new DateTime(2024, 02, 29).ToString("yyyyMMdd", new System.Globalization.CultureInfo("th-TH"));
+            string hijriDate = new DateTime(2026, 11, 04).ToString("yyyyMMdd", new System.Globalization.CultureInfo("ar-SA"));
+            Assert.AreEqual("25670229", thaiDate);
+
+            string hubPrefix = BlobStorageClientHelper.BuildContainerNamePrefix(hubName);
+            string[] containers =
+            {
+                BlobStorageClientHelper.BuildContainerName(hubPrefix, $"message-{thaiDate}"),
+                BlobStorageClientHelper.BuildContainerName(hubPrefix, $"session-{hijriDate}"),
+                BlobStorageClientHelper.BuildContainerName(hubPrefix, "message-20240229"),
+            };
+
+            try
+            {
+                await UploadAsync(hubClient, $"message-{thaiDate}|instance/execution/a");
+                await UploadAsync(hubClient, $"session-{hijriDate}|instance/execution/b");
+                await UploadAsync(hubClient, "message-20240229|instance/execution/c");
+
+                List<string> listed = (await hubClient.ListContainersAsync()).Select(c => c.Name).OrderBy(n => n).ToList();
+                CollectionAssert.AreEquivalent(containers, listed, "Legacy non-Gregorian containers must be listed.");
+
+                await hubClient.DeleteBlobStoreContainersAsync();
+
+                foreach (string name in containers)
+                {
+                    Assert.IsFalse(await serviceClient.GetBlobContainerClient(name).ExistsAsync(), $"Container {name} must be deleted.");
+                }
+            }
+            finally
+            {
+                foreach (string name in containers)
                 {
                     await serviceClient.GetBlobContainerClient(name).DeleteIfExistsAsync();
                 }

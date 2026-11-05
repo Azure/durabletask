@@ -16,6 +16,7 @@ namespace DurableTask.ServiceBus.Tracking
     using System;
     using System.Diagnostics;
     using System.Globalization;
+    using System.Linq;
     using System.Text.RegularExpressions;
     using DurableTask.Core.Tracing;
     using DurableTask.Core.Common;
@@ -188,10 +189,12 @@ namespace DurableTask.ServiceBus.Tracking
 
         /// <summary>
         /// Check if the container belongs to the hub with the given container name prefix.
-        /// Container names are {hubName}-dtfx-{type}-{yyyyMMdd}; because hub names may contain dashes, a different hub
+        /// Container names are {hubName}-dtfx-{type}-{date}; because hub names may contain dashes, a different hub
         /// (e.g. "alpha-dtfx-backup") can share the prefix "alpha-dtfx". The container belongs to the hub only if the
-        /// whole name without its trailing "-{type}-{yyyyMMdd}" segments equals the hub's container name prefix,
-        /// the type is not empty, and the last segment is a valid yyyyMMdd date.
+        /// whole name without its trailing "-{type}-{date}" segments equals the hub's container name prefix,
+        /// the type is not empty, and the date is 8 digits.
+        /// The date is not required to be a valid Gregorian date: earlier versions formatted it with the current culture's
+        /// calendar (e.g. Thai Buddhist 25670229, Hebrew month 13), and those containers still belong to the hub.
         /// </summary>
         /// <param name="containerName">The container name</param>
         /// <param name="containerNamePrefix">The hub's container name prefix, i.e. {hubName}-dtfx</param>
@@ -211,7 +214,12 @@ namespace DurableTask.ServiceBus.Tracking
             }
 
             return string.Equals(containerName.Substring(0, typeDelimiterIndex), containerNamePrefix, StringComparison.OrdinalIgnoreCase) &&
-                TryParseContainerDate(containerName.Substring(dateDelimiterIndex + 1), out _);
+                IsContainerDateSegment(containerName.Substring(dateDelimiterIndex + 1));
+        }
+
+        static bool IsContainerDateSegment(string dateString)
+        {
+            return dateString.Length == DateFormat.Length && dateString.All(c => c >= '0' && c <= '9');
         }
 
         static bool TryParseContainerDate(string dateString, out DateTime date)

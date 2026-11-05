@@ -130,7 +130,7 @@ namespace DurableTask.ServiceBus.Tracking
         }
 
         /// <summary>
-        /// List all containers of this hub, i.e. containers named {hubName}-dtfx-{type}-{yyyyMMdd}.
+        /// List all containers of this hub, i.e. containers named {hubName}-dtfx-{type}-{date}, where date is 8 digits.
         /// Containers of other hubs whose names share this hub's prefix (e.g. hub "alpha-dtfx-backup" for hub "alpha")
         /// are not returned.
         /// </summary>
