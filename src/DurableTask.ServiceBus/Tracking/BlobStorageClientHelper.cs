@@ -32,11 +32,16 @@ namespace DurableTask.ServiceBus.Tracking
         static readonly Regex ContainerNameSuffixRegex = new Regex(@"^[a-z0-9-]+\z", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
         // Earlier versions formatted container dates with the current culture's calendar, so an existing container
-        // can hold a non-Gregorian date, e.g. Um Al Qura 1448xxxx, Persian 1405xxxx, Japanese 0008xxxx, Taiwan 0115xxxx.
+        // can hold a non-Gregorian date, e.g. Um Al Qura 1448xxxx, Persian 1405xxxx.
         // Read as Gregorian, these look centuries old although their payloads may still be referenced, so containers
         // dated before any Gregorian date this framework could have written are never treated as expired.
-        // Calendars whose years read as far-future Gregorian years (Thai Buddhist, Korean, Hebrew) never expire either.
+        // Calendars whose years read as far-future Gregorian years (Thai Buddhist, Korean) never expire either.
+        // Japanese and Taiwan calendars format the era year with as few as 2 digits (e.g. 081106, 1151106);
+        // these dates are shorter than yyyyMMdd, do not parse, and never expire.
         static readonly DateTime MinimumGregorianContainerDate = new DateTime(2000, 1, 1);
+
+        // yyyyMMdd with a 2-digit year, as written by earlier versions for Japanese and Taiwan calendar era years.
+        static readonly int MinimumLegacyDateLength = 6;
 
         /// <summary>
         /// the blob storage access key is in the format of {DateTime}|{blobName}
@@ -192,9 +197,9 @@ namespace DurableTask.ServiceBus.Tracking
         /// Container names are {hubName}-dtfx-{type}-{date}; because hub names may contain dashes, a different hub
         /// (e.g. "alpha-dtfx-backup") can share the prefix "alpha-dtfx". The container belongs to the hub only if the
         /// whole name without its trailing "-{type}-{date}" segments equals the hub's container name prefix,
-        /// the type is not empty, and the date is 8 digits.
+        /// the type is not empty, and the date is 6 to 8 digits.
         /// The date is not required to be a valid Gregorian date: earlier versions formatted it with the current culture's
-        /// calendar (e.g. Thai Buddhist 25670229, Hebrew month 13), and those containers still belong to the hub.
+        /// calendar (e.g. Thai Buddhist 25670229, Japanese 081106, Taiwan 1151106), and those containers still belong to the hub.
         /// </summary>
         /// <param name="containerName">The container name</param>
         /// <param name="containerNamePrefix">The hub's container name prefix, i.e. {hubName}-dtfx</param>
@@ -219,7 +224,7 @@ namespace DurableTask.ServiceBus.Tracking
 
         static bool IsContainerDateSegment(string dateString)
         {
-            return dateString.Length == DateFormat.Length && dateString.All(c => c >= '0' && c <= '9');
+            return dateString.Length >= MinimumLegacyDateLength && dateString.Length <= DateFormat.Length && dateString.All(c => c >= '0' && c <= '9');
         }
 
         static bool TryParseContainerDate(string dateString, out DateTime date)

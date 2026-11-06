@@ -216,7 +216,7 @@ namespace DurableTask.ServiceBus.Tests
                 }
 
                 List<string> listed = (await hubClient.ListContainersAsync()).Select(c => c.Name).ToList();
-                CollectionAssert.AreEqual(new[] { hubContainer }, listed, "Containers outside the {type}-{date} format, where date is 8 digits, must not be listed.");
+                CollectionAssert.AreEqual(new[] { hubContainer }, listed, "Containers outside the {type}-{date} format, where date is 6 to 8 digits, must not be listed.");
 
                 await hubClient.DeleteBlobStoreContainersAsync();
 
@@ -248,27 +248,38 @@ namespace DurableTask.ServiceBus.Tests
             string legacyDate = new DateTime(2026, 11, 04).ToString("yyyyMMdd", new System.Globalization.CultureInfo("ar-SA"));
             Assert.AreNotEqual("20261104", legacyDate);
             string legacyKey = $"message-{legacyDate}|instance/execution/payload";
+            string japaneseDate = new DateTime(2026, 11, 04).ToString("yyyyMMdd", LegacyCulture("ja-JP", new System.Globalization.JapaneseCalendar()));
+            string taiwanDate = new DateTime(2026, 11, 04).ToString("yyyyMMdd", LegacyCulture("zh-TW", new System.Globalization.TaiwanCalendar()));
+            Assert.AreEqual("081104", japaneseDate);
+            Assert.AreEqual("1151104", taiwanDate);
 
             string hubPrefix = BlobStorageClientHelper.BuildContainerNamePrefix(hubName);
             string legacyContainer = BlobStorageClientHelper.BuildContainerName(hubPrefix, $"message-{legacyDate}");
+            string japaneseContainer = BlobStorageClientHelper.BuildContainerName(hubPrefix, $"message-{japaneseDate}");
+            string taiwanContainer = BlobStorageClientHelper.BuildContainerName(hubPrefix, $"message-{taiwanDate}");
             string expiredContainer = BlobStorageClientHelper.BuildContainerName(hubPrefix, "message-20251231");
 
             try
             {
                 await UploadAsync(hubClient, legacyKey);
+                await UploadAsync(hubClient, $"message-{japaneseDate}|instance/execution/a");
+                await UploadAsync(hubClient, $"message-{taiwanDate}|instance/execution/b");
                 await UploadAsync(hubClient, "message-20251231|a");
 
                 await hubClient.DeleteExpiredContainersAsync(new DateTime(2026, 01, 01));
 
                 Assert.IsFalse(await serviceClient.GetBlobContainerClient(expiredContainer).ExistsAsync(), "The hub's expired container must be deleted.");
-                Assert.IsTrue(await serviceClient.GetBlobContainerClient(legacyContainer).ExistsAsync(), "The legacy non-Gregorian container must be kept.");
+                foreach (string name in new[] { legacyContainer, japaneseContainer, taiwanContainer })
+                {
+                    Assert.IsTrue(await serviceClient.GetBlobContainerClient(name).ExistsAsync(), $"The legacy non-Gregorian container {name} must be kept.");
+                }
 
                 Stream payload = await hubClient.DownloadStreamAsync(legacyKey);
                 Assert.AreEqual("test stream content", new StreamReader(payload).ReadToEnd());
             }
             finally
             {
-                foreach (string name in new[] { legacyContainer, expiredContainer })
+                foreach (string name in new[] { legacyContainer, japaneseContainer, taiwanContainer, expiredContainer })
                 {
                     await serviceClient.GetBlobContainerClient(name).DeleteIfExistsAsync();
                 }
@@ -279,7 +290,8 @@ namespace DurableTask.ServiceBus.Tests
         public async Task TestDeleteBlobStoreContainersDeletesLegacyNonGregorianContainers()
         {
             // Earlier versions formatted the container date with the current culture's calendar: under th-TH, a message
-            // fired on 2024-02-29 was stored in "{hub}-dtfx-message-25670229", which is not a valid Gregorian date.
+            // fired on 2024-02-29 was stored in "{hub}-dtfx-message-25670229", which is not a valid Gregorian date, and
+            // Japanese and Taiwan calendars wrote shorter era-year dates such as "081106" and "1151106".
             // Full-store deletion must still remove such containers.
             string storageConnectionString = TestHelpers.GetTestSetting("StorageConnectionString");
             var serviceClient = new BlobServiceClient(storageConnectionString);
@@ -288,21 +300,33 @@ namespace DurableTask.ServiceBus.Tests
 
             string thaiDate = new DateTime(2024, 02, 29).ToString("yyyyMMdd", new System.Globalization.CultureInfo("th-TH"));
             string hijriDate = new DateTime(2026, 11, 04).ToString("yyyyMMdd", new System.Globalization.CultureInfo("ar-SA"));
+            string japaneseDate = new DateTime(2026, 11, 06).ToString("yyyyMMdd", LegacyCulture("ja-JP", new System.Globalization.JapaneseCalendar()));
+            string taiwanDate = new DateTime(2026, 11, 06).ToString("yyyyMMdd", LegacyCulture("zh-TW", new System.Globalization.TaiwanCalendar()));
             Assert.AreEqual("25670229", thaiDate);
+            Assert.AreEqual("081106", japaneseDate);
+            Assert.AreEqual("1151106", taiwanDate);
 
             string hubPrefix = BlobStorageClientHelper.BuildContainerNamePrefix(hubName);
-            string[] containers =
+            string[] keys =
             {
-                BlobStorageClientHelper.BuildContainerName(hubPrefix, $"message-{thaiDate}"),
-                BlobStorageClientHelper.BuildContainerName(hubPrefix, $"session-{hijriDate}"),
-                BlobStorageClientHelper.BuildContainerName(hubPrefix, "message-20240229"),
+                $"message-{thaiDate}|instance/execution/a",
+                $"session-{hijriDate}|instance/execution/b",
+                "message-20240229|instance/execution/c",
+                $"message-{japaneseDate}|instance/execution/d",
+                $"message-{taiwanDate}|instance/execution/e",
             };
+            string[] containers = keys
+                .Select(k => BlobStorageClientHelper.BuildContainerName(hubPrefix, k.Substring(0, k.IndexOf(BlobStorageClientHelper.KeyDelimiter))))
+                .ToArray();
 
             try
             {
-                await UploadAsync(hubClient, $"message-{thaiDate}|instance/execution/a");
-                await UploadAsync(hubClient, $"session-{hijriDate}|instance/execution/b");
-                await UploadAsync(hubClient, "message-20240229|instance/execution/c");
+                foreach (string key in keys)
+                {
+                    await UploadAsync(hubClient, key);
+                    Stream payload = await hubClient.DownloadStreamAsync(key);
+                    Assert.AreEqual("test stream content", new StreamReader(payload).ReadToEnd(), $"Payload {key} must be readable.");
+                }
 
                 List<string> listed = (await hubClient.ListContainersAsync()).Select(c => c.Name).OrderBy(n => n).ToList();
                 CollectionAssert.AreEquivalent(containers, listed, "Legacy non-Gregorian containers must be listed.");
@@ -321,6 +345,13 @@ namespace DurableTask.ServiceBus.Tests
                     await serviceClient.GetBlobContainerClient(name).DeleteIfExistsAsync();
                 }
             }
+        }
+
+        static System.Globalization.CultureInfo LegacyCulture(string cultureName, System.Globalization.Calendar calendar)
+        {
+            var culture = new System.Globalization.CultureInfo(cultureName);
+            culture.DateTimeFormat.Calendar = calendar;
+            return culture;
         }
 
         static async Task UploadAsync(BlobStorageClient client, string key)
