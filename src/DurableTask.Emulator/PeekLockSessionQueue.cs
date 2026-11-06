@@ -177,7 +177,14 @@ namespace DurableTask.Emulator
                                 ts.LockTable.Add(tm);
                             }
 
-                            return ts;
+                            // Producers can append to the locked session as soon as this lock is released.
+                            // Return only the messages recorded in the lock table for this delivery.
+                            return new TaskSession
+                            {
+                                Id = ts.Id,
+                                SessionState = ts.SessionState,
+                                Messages = ts.Messages.ToList(),
+                            };
                         }
                     }
                 }
