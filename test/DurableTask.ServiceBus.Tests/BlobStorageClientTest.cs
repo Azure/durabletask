@@ -104,6 +104,265 @@ namespace DurableTask.ServiceBus.Tests
         }
 
         [TestMethod]
+        public async Task TestDeleteExpiredContainersPreservesOverlappingHub()
+        {
+            // "{hub}-dtfx-backup" shares the container name prefix "{hub}-dtfx" with "{hub}",
+            // so listing "{hub}" containers also returns the other hub's containers.
+            string storageConnectionString = TestHelpers.GetTestSetting("StorageConnectionString");
+            var serviceClient = new BlobServiceClient(storageConnectionString);
+            string hubName = "alpha" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            string overlappingHubName = hubName + "-dtfx-backup";
+            var hubClient = new BlobStorageClient(hubName, storageConnectionString);
+            var overlappingHubClient = new BlobStorageClient(overlappingHubName, storageConnectionString);
+
+            string hubPrefix = BlobStorageClientHelper.BuildContainerNamePrefix(hubName);
+            string overlappingPrefix = BlobStorageClientHelper.BuildContainerNamePrefix(overlappingHubName);
+            string hubExpired = BlobStorageClientHelper.BuildContainerName(hubPrefix, "message-20150516");
+            string hubCurrent = BlobStorageClientHelper.BuildContainerName(hubPrefix, "message-20150518");
+            string overlappingExpiredMessage = BlobStorageClientHelper.BuildContainerName(overlappingPrefix, "message-20150516");
+            string overlappingExpiredSession = BlobStorageClientHelper.BuildContainerName(overlappingPrefix, "session-20150516");
+
+            try
+            {
+                await UploadAsync(hubClient, "message-20150516|a");
+                await UploadAsync(hubClient, "message-20150518|b");
+                await UploadAsync(overlappingHubClient, "message-20150516|c");
+                await UploadAsync(overlappingHubClient, "session-20150516|d");
+
+                await hubClient.DeleteExpiredContainersAsync(new DateTime(2015, 05, 17));
+
+                Assert.IsFalse(await serviceClient.GetBlobContainerClient(hubExpired).ExistsAsync(), "The hub's expired container must be deleted.");
+                Assert.IsTrue(await serviceClient.GetBlobContainerClient(hubCurrent).ExistsAsync(), "The hub's current container must be kept.");
+                Assert.IsTrue(await serviceClient.GetBlobContainerClient(overlappingExpiredMessage).ExistsAsync(), "The other hub's message container must be kept.");
+                Assert.IsTrue(await serviceClient.GetBlobContainerClient(overlappingExpiredSession).ExistsAsync(), "The other hub's session container must be kept.");
+
+                Stream session = await overlappingHubClient.DownloadStreamAsync("session-20150516|d");
+                Assert.AreEqual("test stream content", new StreamReader(session).ReadToEnd());
+            }
+            finally
+            {
+                foreach (string name in new[] { hubExpired, hubCurrent, overlappingExpiredMessage, overlappingExpiredSession })
+                {
+                    await serviceClient.GetBlobContainerClient(name).DeleteIfExistsAsync();
+                }
+            }
+        }
+
+        [TestMethod]
+        public async Task TestDeleteBlobStoreContainersPreservesOverlappingHub()
+        {
+            string storageConnectionString = TestHelpers.GetTestSetting("StorageConnectionString");
+            var serviceClient = new BlobServiceClient(storageConnectionString);
+            string hubName = "alpha" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            string overlappingHubName = hubName + "-dtfx-backup";
+            var hubClient = new BlobStorageClient(hubName, storageConnectionString);
+            var overlappingHubClient = new BlobStorageClient(overlappingHubName, storageConnectionString);
+
+            string hubPrefix = BlobStorageClientHelper.BuildContainerNamePrefix(hubName);
+            string overlappingPrefix = BlobStorageClientHelper.BuildContainerNamePrefix(overlappingHubName);
+            string hubMessage = BlobStorageClientHelper.BuildContainerName(hubPrefix, "message-20150516");
+            string hubSession = BlobStorageClientHelper.BuildContainerName(hubPrefix, "session-20150516");
+            string overlappingMessage = BlobStorageClientHelper.BuildContainerName(overlappingPrefix, "message-20150516");
+            string overlappingSession = BlobStorageClientHelper.BuildContainerName(overlappingPrefix, "session-20150516");
+
+            try
+            {
+                await UploadAsync(hubClient, "message-20150516|a");
+                await UploadAsync(hubClient, "session-20150516|b");
+                await UploadAsync(overlappingHubClient, "message-20150516|c");
+                await UploadAsync(overlappingHubClient, "session-20150516|d");
+
+                List<string> listed = (await hubClient.ListContainersAsync()).Select(c => c.Name).OrderBy(n => n).ToList();
+                CollectionAssert.AreEqual(new[] { hubMessage, hubSession }, listed, "Only the hub's own containers must be listed.");
+
+                await hubClient.DeleteBlobStoreContainersAsync();
+
+                Assert.IsFalse(await serviceClient.GetBlobContainerClient(hubMessage).ExistsAsync(), "The hub's message container must be deleted.");
+                Assert.IsFalse(await serviceClient.GetBlobContainerClient(hubSession).ExistsAsync(), "The hub's session container must be deleted.");
+                Assert.IsTrue(await serviceClient.GetBlobContainerClient(overlappingMessage).ExistsAsync(), "The other hub's message container must be kept.");
+                Assert.IsTrue(await serviceClient.GetBlobContainerClient(overlappingSession).ExistsAsync(), "The other hub's session container must be kept.");
+            }
+            finally
+            {
+                foreach (string name in new[] { hubMessage, hubSession, overlappingMessage, overlappingSession })
+                {
+                    await serviceClient.GetBlobContainerClient(name).DeleteIfExistsAsync();
+                }
+            }
+        }
+
+        [TestMethod]
+        public async Task TestDeleteBlobStoreContainersIgnoresMalformedContainers()
+        {
+            string storageConnectionString = TestHelpers.GetTestSetting("StorageConnectionString");
+            var serviceClient = new BlobServiceClient(storageConnectionString);
+            string hubName = "alpha" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            var hubClient = new BlobStorageClient(hubName, storageConnectionString);
+
+            string hubPrefix = BlobStorageClientHelper.BuildContainerNamePrefix(hubName);
+            string hubContainer = BlobStorageClientHelper.BuildContainerName(hubPrefix, "session-20150516");
+            string[] malformedContainers =
+            {
+                BlobStorageClientHelper.BuildContainerName(hubPrefix, "session-backup"),
+                BlobStorageClientHelper.BuildContainerName(hubPrefix, "session-201505160"),
+            };
+
+            try
+            {
+                await UploadAsync(hubClient, "session-20150516|a");
+                foreach (string name in malformedContainers)
+                {
+                    await serviceClient.GetBlobContainerClient(name).CreateIfNotExistsAsync();
+                }
+
+                List<string> listed = (await hubClient.ListContainersAsync()).Select(c => c.Name).ToList();
+                CollectionAssert.AreEqual(new[] { hubContainer }, listed, "Containers outside the {type}-{date} format, where date is 6 to 8 digits, must not be listed.");
+
+                await hubClient.DeleteBlobStoreContainersAsync();
+
+                Assert.IsFalse(await serviceClient.GetBlobContainerClient(hubContainer).ExistsAsync(), "The hub's container must be deleted.");
+                foreach (string name in malformedContainers)
+                {
+                    Assert.IsTrue(await serviceClient.GetBlobContainerClient(name).ExistsAsync(), $"Malformed container {name} must be kept.");
+                }
+            }
+            finally
+            {
+                foreach (string name in malformedContainers.Append(hubContainer))
+                {
+                    await serviceClient.GetBlobContainerClient(name).DeleteIfExistsAsync();
+                }
+            }
+        }
+
+        [TestMethod]
+        public async Task TestDeleteExpiredContainersPreservesLegacyNonGregorianContainers()
+        {
+            // Earlier versions formatted the container date with the current culture's calendar: under ar-SA, a message
+            // fired on 2026-11-04 was stored in "{hub}-dtfx-message-14480524". It must survive a purge with a 2026-01-01 cutoff.
+            string storageConnectionString = TestHelpers.GetTestSetting("StorageConnectionString");
+            var serviceClient = new BlobServiceClient(storageConnectionString);
+            string hubName = "my-hub-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            var hubClient = new BlobStorageClient(hubName, storageConnectionString);
+
+            string legacyDate = new DateTime(2026, 11, 04).ToString("yyyyMMdd", new System.Globalization.CultureInfo("ar-SA"));
+            Assert.AreNotEqual("20261104", legacyDate);
+            string legacyKey = $"message-{legacyDate}|instance/execution/payload";
+            string japaneseDate = new DateTime(2026, 11, 04).ToString("yyyyMMdd", LegacyCulture("ja-JP", new System.Globalization.JapaneseCalendar()));
+            string taiwanDate = new DateTime(2026, 11, 04).ToString("yyyyMMdd", LegacyCulture("zh-TW", new System.Globalization.TaiwanCalendar()));
+            Assert.AreEqual("081104", japaneseDate);
+            Assert.AreEqual("1151104", taiwanDate);
+
+            string hubPrefix = BlobStorageClientHelper.BuildContainerNamePrefix(hubName);
+            string legacyContainer = BlobStorageClientHelper.BuildContainerName(hubPrefix, $"message-{legacyDate}");
+            string japaneseContainer = BlobStorageClientHelper.BuildContainerName(hubPrefix, $"message-{japaneseDate}");
+            string taiwanContainer = BlobStorageClientHelper.BuildContainerName(hubPrefix, $"message-{taiwanDate}");
+            string expiredContainer = BlobStorageClientHelper.BuildContainerName(hubPrefix, "message-20251231");
+
+            try
+            {
+                await UploadAsync(hubClient, legacyKey);
+                await UploadAsync(hubClient, $"message-{japaneseDate}|instance/execution/a");
+                await UploadAsync(hubClient, $"message-{taiwanDate}|instance/execution/b");
+                await UploadAsync(hubClient, "message-20251231|a");
+
+                await hubClient.DeleteExpiredContainersAsync(new DateTime(2026, 01, 01));
+
+                Assert.IsFalse(await serviceClient.GetBlobContainerClient(expiredContainer).ExistsAsync(), "The hub's expired container must be deleted.");
+                foreach (string name in new[] { legacyContainer, japaneseContainer, taiwanContainer })
+                {
+                    Assert.IsTrue(await serviceClient.GetBlobContainerClient(name).ExistsAsync(), $"The legacy non-Gregorian container {name} must be kept.");
+                }
+
+                Stream payload = await hubClient.DownloadStreamAsync(legacyKey);
+                Assert.AreEqual("test stream content", new StreamReader(payload).ReadToEnd());
+            }
+            finally
+            {
+                foreach (string name in new[] { legacyContainer, japaneseContainer, taiwanContainer, expiredContainer })
+                {
+                    await serviceClient.GetBlobContainerClient(name).DeleteIfExistsAsync();
+                }
+            }
+        }
+
+        [TestMethod]
+        public async Task TestDeleteBlobStoreContainersDeletesLegacyNonGregorianContainers()
+        {
+            // Earlier versions formatted the container date with the current culture's calendar: under th-TH, a message
+            // fired on 2024-02-29 was stored in "{hub}-dtfx-message-25670229", which is not a valid Gregorian date, and
+            // Japanese and Taiwan calendars wrote shorter era-year dates such as "081106" and "1151106".
+            // Full-store deletion must still remove such containers.
+            string storageConnectionString = TestHelpers.GetTestSetting("StorageConnectionString");
+            var serviceClient = new BlobServiceClient(storageConnectionString);
+            string hubName = "my-hub-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            var hubClient = new BlobStorageClient(hubName, storageConnectionString);
+
+            string thaiDate = new DateTime(2024, 02, 29).ToString("yyyyMMdd", new System.Globalization.CultureInfo("th-TH"));
+            string hijriDate = new DateTime(2026, 11, 04).ToString("yyyyMMdd", new System.Globalization.CultureInfo("ar-SA"));
+            string japaneseDate = new DateTime(2026, 11, 06).ToString("yyyyMMdd", LegacyCulture("ja-JP", new System.Globalization.JapaneseCalendar()));
+            string taiwanDate = new DateTime(2026, 11, 06).ToString("yyyyMMdd", LegacyCulture("zh-TW", new System.Globalization.TaiwanCalendar()));
+            Assert.AreEqual("25670229", thaiDate);
+            Assert.AreEqual("081106", japaneseDate);
+            Assert.AreEqual("1151106", taiwanDate);
+
+            string hubPrefix = BlobStorageClientHelper.BuildContainerNamePrefix(hubName);
+            string[] keys =
+            {
+                $"message-{thaiDate}|instance/execution/a",
+                $"session-{hijriDate}|instance/execution/b",
+                "message-20240229|instance/execution/c",
+                $"message-{japaneseDate}|instance/execution/d",
+                $"message-{taiwanDate}|instance/execution/e",
+            };
+            string[] containers = keys
+                .Select(k => BlobStorageClientHelper.BuildContainerName(hubPrefix, k.Substring(0, k.IndexOf(BlobStorageClientHelper.KeyDelimiter))))
+                .ToArray();
+
+            try
+            {
+                foreach (string key in keys)
+                {
+                    await UploadAsync(hubClient, key);
+                    Stream payload = await hubClient.DownloadStreamAsync(key);
+                    Assert.AreEqual("test stream content", new StreamReader(payload).ReadToEnd(), $"Payload {key} must be readable.");
+                }
+
+                List<string> listed = (await hubClient.ListContainersAsync()).Select(c => c.Name).OrderBy(n => n).ToList();
+                CollectionAssert.AreEquivalent(containers, listed, "Legacy non-Gregorian containers must be listed.");
+
+                await hubClient.DeleteBlobStoreContainersAsync();
+
+                foreach (string name in containers)
+                {
+                    Assert.IsFalse(await serviceClient.GetBlobContainerClient(name).ExistsAsync(), $"Container {name} must be deleted.");
+                }
+            }
+            finally
+            {
+                foreach (string name in containers)
+                {
+                    await serviceClient.GetBlobContainerClient(name).DeleteIfExistsAsync();
+                }
+            }
+        }
+
+        static System.Globalization.CultureInfo LegacyCulture(string cultureName, System.Globalization.Calendar calendar)
+        {
+            var culture = new System.Globalization.CultureInfo(cultureName);
+            culture.DateTimeFormat.Calendar = calendar;
+            return culture;
+        }
+
+        static async Task UploadAsync(BlobStorageClient client, string key)
+        {
+            using (Stream stream = new MemoryStream(Encoding.UTF8.GetBytes("test stream content")))
+            {
+                await client.UploadStreamBlobAsync(key, stream);
+            }
+        }
+
+        [TestMethod]
         public async Task TestListContainersOnlyWithPrefix()
         {
             // Create a container that does NOT use the current client's prefix
