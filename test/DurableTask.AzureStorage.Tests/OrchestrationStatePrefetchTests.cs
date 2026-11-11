@@ -367,7 +367,7 @@ namespace DurableTask.AzureStorage.Tests
 
             Task<OrchestrationState> ITrackingStore.GetStateAsync(string instanceId, string executionId, bool fetchInput, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-            Task ITrackingStore.UpdateInstanceStatusForCompletedOrchestrationAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, bool instanceEntityExists, CancellationToken cancellationToken) => throw new NotSupportedException();
+            Task ITrackingStore.UpdateInstanceStatusForCompletedOrchestrationAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, OrchestrationETags eTags, CancellationToken cancellationToken) => throw new NotSupportedException();
 
             IAsyncEnumerable<OrchestrationState> ITrackingStore.GetStateAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 

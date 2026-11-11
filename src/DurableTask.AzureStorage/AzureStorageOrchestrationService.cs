@@ -811,6 +811,7 @@ namespace DurableTask.AzureStorage
 
                     string warningMessage = await this.IsExecutableInstanceAsync(
                         session.RuntimeState,
+                        session.ETags.HistoryETag,
                         orchestrationWorkItem.NewMessages,
                         settings.AllowReplayingTerminalInstances,
                         cancellationToken);
@@ -879,6 +880,15 @@ namespace DurableTask.AzureStorage
                     }
 
                     return orchestrationWorkItem;
+                }
+                catch (DurableTaskStorageException exception) when (exception.HttpStatusCode == 409 || exception.HttpStatusCode == 412)
+                {
+                    // Reload changed state without losing the message that woke this instance.
+                    if (session != null)
+                    {
+                        await this.AbandonAndReleaseSessionAsync(session, "Instance or history changed during status recovery.");
+                    }
+                    return null;
                 }
                 catch (OperationCanceledException)
                 {
@@ -1082,6 +1092,7 @@ namespace DurableTask.AzureStorage
 
         async Task<string> IsExecutableInstanceAsync(
             OrchestrationRuntimeState runtimeState,
+            ETag? historyETag,
             IList<TaskMessage> newMessages,
             bool allowReplayingTerminalInstances,
             CancellationToken cancellationToken)
@@ -1122,7 +1133,7 @@ namespace DurableTask.AzureStorage
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Pending &&
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Suspended)
             {
-                InstanceStatus instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(runtimeState.OrchestrationInstance.InstanceId);
+                InstanceStatus instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(runtimeState.OrchestrationInstance.InstanceId, cancellationToken);
                 if (instanceStatus == null || (instanceStatus.State.OrchestrationInstance.ExecutionId == runtimeState.OrchestrationInstance.ExecutionId
                     && instanceStatus.State.OrchestrationStatus != runtimeState.OrchestrationStatus))
                 {
@@ -1130,7 +1141,7 @@ namespace DurableTask.AzureStorage
                         runtimeState.OrchestrationInstance.InstanceId,
                         runtimeState.OrchestrationInstance.ExecutionId,
                         runtimeState,
-                        instanceStatus is not null,
+                        new OrchestrationETags { HistoryETag = historyETag, InstanceETag = instanceStatus?.ETag },
                         cancellationToken);
                 }
                 if (!allowReplayingTerminalInstances)
