@@ -31,15 +31,14 @@ namespace DurableTask.ServiceBus.Tests
     public class WaitForOrchestrationTests
     {
         const string InstanceId = "instance-1";
-        const string FakeConnectionString =
-            "Endpoint=sb://test.servicebus.windows.net/;SharedAccessKeyName=key;SharedAccessKey=dGVzdGtleQ==";
 
         static readonly DateTime BaseTime = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         static ServiceBusOrchestrationService CreateService(FakeInstanceStore instanceStore)
         {
             return new ServiceBusOrchestrationService(
-                FakeConnectionString,
+                NoOpTokenCredential.NamespaceHostName,
+                new NoOpTokenCredential(),
                 "testhub",
                 instanceStore,
                 null,
