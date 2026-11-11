@@ -289,6 +289,7 @@ namespace DurableTask.AzureStorage.Tracking
             // Wait for that checkpoint before reading or changing its history.
             Stopwatch waitForFailure = Stopwatch.StartNew();
             string executionId = null;
+            ETag instanceETag;
 
             while (true)
             {
@@ -304,6 +305,7 @@ namespace DurableTask.AzureStorage.Tracking
                     executionId = currentExecutionId;
                     if (instanceStatus.State.OrchestrationStatus == OrchestrationStatus.Failed)
                     {
+                        instanceETag = instanceStatus.ETag;
                         break;
                     }
                 }
@@ -411,7 +413,7 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             // reset orchestration status in instance store table
-            await this.UpdateStatusForRewindAsync(instanceId, cancellationToken);
+            await this.UpdateStatusForRewindAsync(instanceId, instanceETag, cancellationToken);
 
             if (!hasFailedSubOrchestrations)
             {
@@ -896,7 +898,7 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task UpdateStatusForRewindAsync(string instanceId, CancellationToken cancellationToken = default)
+        public override async Task UpdateStatusForRewindAsync(string instanceId, ETag eTag, CancellationToken cancellationToken = default)
         {
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
             TableEntity entity = new TableEntity(sanitizedInstanceId, "")
@@ -906,7 +908,8 @@ namespace DurableTask.AzureStorage.Tracking
             };
 
             Stopwatch stopwatch = Stopwatch.StartNew();
-            await this.InstancesTable.MergeEntityAsync(entity, ETag.All, cancellationToken);
+            // Do not reset an instance that changed during rewind.
+            await this.InstancesTable.MergeEntityAsync(entity, eTag, cancellationToken);
 
             // We don't have enough information to get the episode number.
             // It's also not important to have for this particular trace.

@@ -379,7 +379,7 @@ namespace DurableTask.AzureStorage.Tests
 
             Task<bool> ITrackingStore.SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent, ETag? eTag, string inputPayloadOverride, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-            Task ITrackingStore.UpdateStatusForRewindAsync(string instanceId, CancellationToken cancellationToken) => throw new NotSupportedException();
+            Task ITrackingStore.UpdateStatusForRewindAsync(string instanceId, ETag eTag, CancellationToken cancellationToken) => throw new NotSupportedException();
 
             Task ITrackingStore.UpdateStatusForTerminationAsync(string instanceId, ExecutionTerminatedEvent executionTerminatedEvent, CancellationToken cancellationToken) => throw new NotSupportedException();
 

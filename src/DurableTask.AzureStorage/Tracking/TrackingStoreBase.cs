@@ -95,7 +95,7 @@ namespace DurableTask.AzureStorage.Tracking
         public abstract Task<bool> SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent, ETag? eTag, string inputStatusOverride, CancellationToken cancellationToken = default);
 
         /// <inheritdoc />
-        public virtual Task UpdateStatusForRewindAsync(string instanceId, CancellationToken cancellationToken = default)
+        public virtual Task UpdateStatusForRewindAsync(string instanceId, ETag eTag, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
