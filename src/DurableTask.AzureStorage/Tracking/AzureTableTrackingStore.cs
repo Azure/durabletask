@@ -1199,6 +1199,9 @@ namespace DurableTask.AzureStorage.Tracking
             // updated to "Pending", but if we happened to fetch the history BEFORE rewind altered it, then we will see a mismatch between the failed
             // history and the instance status at this point. We do not actually want to set the status to "Failed" here in that case. The easiest way
             // to detect this is to check if the history's etag is still current.
+            // (Note that there remains a known gap for a multi-page history if the sentinel is on a different page from the ExecutionCompletedEvent. Then
+            // it is possible we still fetch a failed history, the rewind goes through and changes the history and the sentinel's etag, and then we read
+            // the sentinel with its new etag and think the history is current)
             if (eTags.HistoryETag.HasValue &&
                 eTags.HistoryETag != await this.GetHistoryETagAsync(instanceId, executionId, cancellationToken))
             {
