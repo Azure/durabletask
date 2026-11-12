@@ -41,6 +41,46 @@ durabletask.event.instance_id | string | The target orchestration instance ID of
 [2] When instance ID is not available (e.g. activities) use the parent orchestration's instance ID
 
 ### Spans
+
+#### Activity retry metadata
+
+Activity client and server spans include the following attributes only when the
+scheduled activity carries durable retry metadata, including on attempt 1:
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `durabletask.task.retry.attempt` | integer | One-based durable attempt number |
+| `durabletask.task.retry.group_id` | string | Opaque replay-stable logical activity identifier |
+| `durabletask.task.retry.max_attempts` | integer | Maximum attempts, including the initial attempt |
+
+The orchestration span includes one `durabletask.task.retry.scheduled` event for
+each persisted retry activity schedule, excluding attempt 1. Events are projected
+from the saved history when the orchestration span is exported at completion,
+using the original `TaskScheduledEvent.Timestamp`. They are **not visible while
+the orchestration is still running**. Replay does not export extra events, and
+stopping at a retry limit, exception filter, or timeout without scheduling another
+activity does not produce an event. Its attributes are `durabletask.task.name`,
+`durabletask.task.task_id` (the next scheduled task ID), the three retry attributes
+above (describing the next attempt), and `durabletask.task.failure.type`
+(the previous attempt's error type). Retry telemetry does not include activity
+inputs, failure messages, or stack traces. Transport redelivery does not increment
+the durable attempt number.
+
+Projection uses only the generation history retained at span export. The existing
+`ContinueAsNew` history reset and span lifecycle are unchanged: when the same trace
+is inherited, prior-generation orchestration retry events are not retained for a
+later final-span reconstruction. With `ContinueAsNewTraceBehavior.StartNewTrace`,
+the completed generation's events are projected before its existing span stops.
+Activity retry metadata and activity spans are independent of this
+orchestration-event retention boundary; no cross-generation telemetry state is added.
+
+The failure type comes from the previous attempt's structured `FailureDetails`,
+or from the sanitized exception type captured by normal orchestration replay.
+If neither is available (for example, an opaque legacy error whose original type
+was not propagated), the value is `DurableTask.Core.Exceptions.TaskFailedException`.
+It does not claim to identify the original user exception in that case. Telemetry
+never deserializes legacy error payloads or parses messages/stacks to infer a type.
+
 #### Client: Starting an Orchestration
 
 Represents enqueueing a new orchestration via TaskHubClient to the backend.

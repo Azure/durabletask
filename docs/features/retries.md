@@ -169,6 +169,24 @@ var result = await context.CreateSubOrchestrationInstanceWithRetry<Result>(
 
 ## Retry Behavior
 
+### Activity Attempt Metadata
+
+For activity calls with a durable retry policy, `TaskContext.RetryMetadata` is available
+starting with the initial attempt. `AttemptNumber` is one-based, `MaxAttempts` includes
+the initial attempt, and `RetryGroupId` identifies the same logical activity across
+attempts and orchestration replay. The group identifier is opaque; do not parse it.
+Timeouts, exception filters, and non-retriable errors can stop before `MaxAttempts`.
+
+The metadata is stored on the scheduled action and `TaskScheduledEvent`, so a worker
+restart or message redelivery preserves it. It is independent of `DeliveryAttempt`,
+which counts transport deliveries rather than durable retries. Calls without a retry
+policy and previously recorded histories without metadata expose `null`, not an
+inferred first attempt. Sub-orchestration retry metadata is not exposed.
+
+`RetryMetadata` validates positive 32-bit attempt counts, `AttemptNumber <= MaxAttempts`,
+and a nonempty group identifier. Malformed metadata is a contract error, not a reason
+to substitute default values.
+
 ### What Happens During Retry
 
 1. Activity throws an exception

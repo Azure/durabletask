@@ -70,6 +70,12 @@ namespace DurableTask.Core
         public long? DeliveryAttempt { get; internal set; }
 
         /// <summary>
+        /// Gets durable retry metadata, or null when the activity was scheduled without it.
+        /// Message redelivery and worker restarts do not change this value.
+        /// </summary>
+        public RetryMetadata? RetryMetadata { get; internal set; }
+
+        /// <summary>
         /// Gets or sets a value indicating how to propagate unhandled exception metadata.
         /// </summary>
         internal ErrorPropagationMode ErrorPropagationMode { get; set; }
