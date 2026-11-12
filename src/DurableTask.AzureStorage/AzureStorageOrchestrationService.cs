@@ -1209,12 +1209,13 @@ namespace DurableTask.AzureStorage
                 if (instanceStatus == null || (instanceStatus.State.OrchestrationInstance.ExecutionId == runtimeState.OrchestrationInstance.ExecutionId
                     && instanceStatus.State.OrchestrationStatus != runtimeState.OrchestrationStatus))
                 {
+                    // Reuse the checkpoint sequence, or start at 1 if none was recorded.
                     await this.trackingStore.UpdateInstanceStatusForCompletedOrchestrationAsync(
                         runtimeState.OrchestrationInstance.InstanceId,
                         runtimeState.OrchestrationInstance.ExecutionId,
                         runtimeState,
                         instanceStatus is not null,
-                        (instanceStatus?.SequenceNumber ?? 0) + 1,
+                        concurrencyTags.SequenceNumber is > 0 ? concurrencyTags.SequenceNumber.Value : 1,
                         cancellationToken);
                 }
                 if (!allowReplayingTerminalInstances)

@@ -311,11 +311,10 @@ namespace DurableTask.AzureStorage.Tracking
             string executionIdFilter = AzureTableQueryFilter.ColumnEquals(nameof(OrchestrationInstance.ExecutionId), executionId);
 
             // Notify migration before changing history
-            string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
             long? newSequenceNumber = null;
             if (this.IsMigrationActive)
             {
-                newSequenceNumber = await this.GetNextSequenceNumberAsync(sanitizedInstanceId, cancellationToken);
+                newSequenceNumber = await this.GetNextSequenceNumberAsync(instanceId, cancellationToken);
                 await this.modifiedInstancesQueue.AddInstanceAsync(
                     instanceId,
                     newSequenceNumber.Value,
@@ -1063,15 +1062,15 @@ namespace DurableTask.AzureStorage.Tracking
         /// the caller (the orchestration service), which does so before invoking the write.
         /// </summary>
         /// <returns>The next sequence number (current value + 1, or 1 if not yet set).</returns>
-        async Task<long> GetNextSequenceNumberAsync(string sanitizedInstanceId, CancellationToken cancellationToken)
+        async Task<long> GetNextSequenceNumberAsync(string instanceId, CancellationToken cancellationToken)
         {
-            long? currentSequenceNumber = await this.GetInstanceSequenceNumberAsync(sanitizedInstanceId, cancellationToken);
+            long? currentSequenceNumber = await this.GetInstanceSequenceNumberAsync(instanceId, cancellationToken);
             return (currentSequenceNumber ?? 0) + 1;
         }
 
-        async Task<long?> GetInstanceSequenceNumberAsync(string sanitizedInstanceId, CancellationToken cancellationToken)
+        async Task<long?> GetInstanceSequenceNumberAsync(string instanceId, CancellationToken cancellationToken)
         {
-            string filter = $"{AzureTableQueryFilter.PartitionKeyEquals(sanitizedInstanceId)} and {AzureTableQueryFilter.ColumnEquals(RowKeyProperty, string.Empty)}";
+            string filter = $"{AzureTableQueryFilter.PartitionKeyEquals(instanceId)} and {AzureTableQueryFilter.ColumnEquals(RowKeyProperty, string.Empty)}";
             TableQueryResults<TableEntity> results = await this.InstancesTable
                 .ExecuteQueryAsync<TableEntity>(filter, select: new[] { SequenceNumberProperty }, cancellationToken: cancellationToken)
                 .GetResultsAsync(cancellationToken: cancellationToken);
@@ -1426,7 +1425,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             Stopwatch orchestrationInstanceUpdateStopwatch = Stopwatch.StartNew();
 
-            // During a migration, persist the incremented sequence number supplied by the caller (or 1 if the instance
+            // During a migration, persist the new sequence number supplied by the caller (or 1 if the instance
             // had none) so the instance row stays consistent with the history sentinel.
             if (this.IsMigrationActive)
             {
