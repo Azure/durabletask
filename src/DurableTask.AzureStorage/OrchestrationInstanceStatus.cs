@@ -39,11 +39,16 @@ namespace DurableTask.AzureStorage
         public string Tags { get; set; }
 
         /// <summary>
-        /// Per-instance sequence number used to resolve races between bulk-migration and modified-instance
-        /// processing during a live migration. Null until the first write after migration starts, at which
-        /// point it becomes 1 and is incremented on every subsequent write (including purges).
+        /// Per-instance sequence number used during migration to track state updates, incremented on every
+        /// write to the instance status table. Treated as null if MigrationId does not match the current migration
+        /// attempt. The first write for an attempt sets it to 1, and subsequent writes increment it (including purges).
         /// </summary>
         public long? SequenceNumber { get; set; }
+
+        /// <summary>
+        /// Identifies the migration attempt that wrote SequenceNumber.
+        /// </summary>
+        public Guid? MigrationId { get; set; }
 
         public string PartitionKey { get; set; }
         public string RowKey { get; set; }

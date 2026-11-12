@@ -89,16 +89,16 @@ namespace DurableTask.AzureStorage
         /// </summary>
         /// <param name="settings">The settings used to configure the orchestration service.</param>
         public AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings)
-            : this(settings, null, isMigrationActive: false)
+            : this(settings, null, migrationId: null)
         { }
 
         /// <summary>
-        /// Initializes the service with live migration enabled or disabled.
+        /// Initializes the service with live migration enabled for the specified migration attempt.
         /// </summary>
         /// <param name="settings">The settings used to configure the orchestration service.</param>
-        /// <param name="isMigrationActive">Whether or not a migration is active from this backend to another.</param>
-        public AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings, bool isMigrationActive)
-            : this(settings, null, isMigrationActive)
+        /// <param name="migrationId">The ID shared by all source workers and the migration orchestration for this migration attempt.</param>
+        public AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings, Guid migrationId)
+            : this(settings, null, migrationId)
         { }
 
         /// <inheritdoc/>
@@ -119,10 +119,10 @@ namespace DurableTask.AzureStorage
         /// <param name="settings">The settings used to configure the orchestration service.</param>
         /// <param name="customInstanceStore">Custom UserDefined Instance store to be used with the AzureStorageOrchestrationService</param>
         public AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings, IOrchestrationServiceInstanceStore customInstanceStore)
-            : this(settings, customInstanceStore, isMigrationActive: false)
+            : this(settings, customInstanceStore, migrationId: null)
         { }
 
-        AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings, IOrchestrationServiceInstanceStore customInstanceStore, bool isMigrationActive)
+        AzureStorageOrchestrationService(AzureStorageOrchestrationServiceSettings settings, IOrchestrationServiceInstanceStore customInstanceStore, Guid? migrationId)
         {
             if (settings == null)
             {
@@ -132,15 +132,15 @@ namespace DurableTask.AzureStorage
             ValidateSettings(settings);
 
             this.settings = settings;
-            this.isMigrationActive = isMigrationActive;
-            this.settings.IsMigrationActive = isMigrationActive;
-            if (isMigrationActive)
+            this.isMigrationActive = migrationId.HasValue;
+            this.settings.IsMigrationActive = this.isMigrationActive;
+            if (this.isMigrationActive)
             {
                 this.settings.ControlQueueVisibilityTimeout = TimeSpan.FromSeconds(
                     AzureStorageOrchestrationServiceSettings.MigrationControlQueueVisibilityTimeoutSeconds);
             }
 
-            this.azureStorageClient = new AzureStorageClient(settings, isMigrationActive);
+            this.azureStorageClient = new AzureStorageClient(settings, this.isMigrationActive);
             this.azureStorageClient.MigrationEnding += this.EnterMigrationEnding;
             this.stats = this.azureStorageClient.Stats;
 
@@ -165,7 +165,8 @@ namespace DurableTask.AzureStorage
                 this.trackingStore = new AzureTableTrackingStore(
                     this.azureStorageClient,
                     this.messageManager,
-                    this.modifiedInstancesQueue);
+                    this.modifiedInstancesQueue,
+                    migrationId);
             }
             else
             {

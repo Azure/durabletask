@@ -41,7 +41,9 @@ namespace DurableTask.AzureStorage.Tests
     public class MigrationTests
     {
         const string SequenceNumberPropertyName = "SequenceNumber";
+        const string MigrationIdPropertyName = "MigrationId";
         const string SentinelRowKey = "sentinel";
+        const long PriorMigrationSequenceNumber = 1000;
 
         [DataTestMethod]
         [DataRow(false)]
@@ -57,7 +59,9 @@ namespace DurableTask.AzureStorage.Tests
                 ControlQueueVisibilityTimeout = configuredTimeout,
                 WorkItemQueueVisibilityTimeout = configuredTimeout,
             };
-            using var service = new AzureStorageOrchestrationService(settings, isMigrationActive: migrating);
+            using var service = migrating
+                ? new AzureStorageOrchestrationService(settings, Guid.NewGuid())
+                : new AzureStorageOrchestrationService(settings);
             var storage = new AzureStorageClient(settings, isMigrationActive: migrating);
             var manager = new MessageManager(settings, storage, settings.TaskHubName + "-largemessages");
             // Dedicated queues let us inspect receipts without the service listeners consuming our messages.
@@ -157,8 +161,10 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// Instance-table ETag concurrency outside migration mode must not introduce migration sequence metadata.
         /// </summary>
-        [TestMethod]
-        public async Task UseInstanceTableEtagWithoutMigration_DoesNotWriteSequenceNumbers()
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task UseInstanceTableEtagWithoutMigration_DoesNotWriteSequenceNumbers(bool hasPriorMigration)
         {
             string taskHubName = $"etagnomigration{Guid.NewGuid():N}";
             using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(
@@ -171,18 +177,24 @@ namespace DurableTask.AzureStorage.Tests
 
             await host.StartAsync();
 
-            TestOrchestrationClient client = await host.StartOrchestrationAsync(
-                typeof(SimpleOrchestration),
-                input: "world");
-            OrchestrationState? status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
-            Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-
-            await host.StopAsync();
-
             AzureStorageOrchestrationServiceSettings settings =
                 TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(enableExtendedSessions: false);
             settings.TaskHubName = taskHubName;
             var azureStorageClient = new AzureStorageClient(settings);
+            string instanceId = $"etag-{Guid.NewGuid():N}";
+            if (hasPriorMigration)
+            {
+                await SeedPriorMigrationAsync(azureStorageClient, instanceId, host.MigrationId, seedHistory: false);
+            }
+
+            TestOrchestrationClient client = await host.StartOrchestrationAsync(
+                typeof(SimpleOrchestration),
+                input: "world",
+                instanceId: instanceId);
+            OrchestrationState? status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
+            Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+            await host.StopAsync();
 
             Assert.IsNull(
                 await GetInstanceSequenceNumberAsync(azureStorageClient, client.InstanceId),
@@ -198,8 +210,10 @@ namespace DurableTask.AzureStorage.Tests
         /// modified-instances queue so the migration process re-copies it. The rewind's effects are inspected
         /// immediately after the rewind (with the worker stopped) so the assertions are deterministic.
         /// </summary>
-        [TestMethod]
-        public async Task RewindDuringMigration_BumpsSequenceNumberAndEnqueuesInstance()
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task RewindDuringMigration_BumpsSequenceNumberAndEnqueuesInstance(bool hasPriorMigration)
         {
             using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(isMigrationActive: true, enableExtendedSessions: false);
 
@@ -223,6 +237,11 @@ namespace DurableTask.AzureStorage.Tests
 
             long? sequenceNumberBeforeRewind = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
             Assert.IsNotNull(sequenceNumberBeforeRewind, "The instance row should carry a sequence number while a migration is active.");
+            if (hasPriorMigration)
+            {
+                await SeedPriorMigrationAsync(azureStorageClient, instanceId, host.MigrationId);
+                sequenceNumberBeforeRewind = null;
+            }
 
             // Drain all messages produced while the orchestration was running so the rewind's enqueue can be isolated.
             Queue[] modifiedInstancesQueues = GetModifiedInstancesQueues(azureStorageClient, settings);
@@ -242,11 +261,11 @@ namespace DurableTask.AzureStorage.Tests
                 EventType.GenericEvent);
 
             // Assert: the rewind bumped the instance sequence number by exactly one...
-            long? sequenceNumberAfterRewind = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
-            Assert.AreEqual(sequenceNumberBeforeRewind + 1, sequenceNumberAfterRewind, "Rewind should bump the instance sequence number by one.");
+            long? sequenceNumberAfterRewind = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId, host.MigrationId);
+            Assert.AreEqual((sequenceNumberBeforeRewind ?? 0) + 1, sequenceNumberAfterRewind, "Rewind should increment only the current migration's sequence number.");
 
             // ...and stamped the same value on the history sentinel row so the two tables stay in sync.
-            long? sentinelSequenceNumber = await GetSentinelSequenceNumberAsync(azureStorageClient, instanceId);
+            long? sentinelSequenceNumber = await GetSentinelSequenceNumberAsync(azureStorageClient, instanceId, host.MigrationId);
             Assert.AreEqual(sequenceNumberAfterRewind, sentinelSequenceNumber, "The history sentinel should carry the same sequence number as the instance row.");
 
             // ...and enqueued exactly one modified-instance message for this instance.
@@ -255,7 +274,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(instanceId, enqueued[0].InstanceId);
             Assert.AreEqual(sequenceNumberAfterRewind, enqueued[0].SequenceNumber);
 
-            var completionService = new AzureStorageOrchestrationService(settings, isMigrationActive: true);
+            var completionService = new AzureStorageOrchestrationService(settings, host.MigrationId);
             using var completionWorker = new TaskHubWorker(completionService, loggerFactory: settings.LoggerFactory);
             completionWorker.AddTaskOrchestrations(typeof(RewindFailOrchestration));
             completionWorker.AddTaskActivities(typeof(RewindFailActivity));
@@ -302,8 +321,10 @@ namespace DurableTask.AzureStorage.Tests
         /// A parent and its failed child can be rewound and complete successfully while migration is active.
         /// Rewind increments both instance sequence numbers and stamps the matching history sentinels.
         /// </summary>
-        [TestMethod]
-        public async Task RewindSubOrchestrationDuringMigration_CompletesParentAndChild()
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task RewindSubOrchestrationDuringMigration_CompletesParentAndChild(bool hasPriorMigration)
         {
             using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(isMigrationActive: true, enableExtendedSessions: false);
 
@@ -329,28 +350,35 @@ namespace DurableTask.AzureStorage.Tests
             long? childSequenceNumberBeforeRewind = await GetInstanceSequenceNumberAsync(azureStorageClient, childInstanceId);
             Assert.IsNotNull(parentSequenceNumberBeforeRewind, "The parent instance should carry a migration sequence number.");
             Assert.IsNotNull(childSequenceNumberBeforeRewind, "The child instance should carry a migration sequence number.");
+            if (hasPriorMigration)
+            {
+                await SeedPriorMigrationAsync(azureStorageClient, parentInstanceId, host.MigrationId);
+                await SeedPriorMigrationAsync(azureStorageClient, childInstanceId, host.MigrationId);
+                parentSequenceNumberBeforeRewind = null;
+                childSequenceNumberBeforeRewind = null;
+            }
 
             RewindFailOnceOrchestration.ShouldFail = false;
             await client.RewindAsync("rewind parent and child during migration");
 
             // The worker is stopped, so only rewind should increment these sequence numbers.
-            long? parentSequenceNumberAfterRewind = await GetInstanceSequenceNumberAsync(azureStorageClient, parentInstanceId);
-            long? childSequenceNumberAfterRewind = await GetInstanceSequenceNumberAsync(azureStorageClient, childInstanceId);
+            long? parentSequenceNumberAfterRewind = await GetInstanceSequenceNumberAsync(azureStorageClient, parentInstanceId, host.MigrationId);
+            long? childSequenceNumberAfterRewind = await GetInstanceSequenceNumberAsync(azureStorageClient, childInstanceId, host.MigrationId);
             Assert.AreEqual(
-                parentSequenceNumberBeforeRewind + 1,
+                (parentSequenceNumberBeforeRewind ?? 0) + 1,
                 parentSequenceNumberAfterRewind,
                 "Rewind should bump the parent instance sequence number by one.");
             Assert.AreEqual(
-                childSequenceNumberBeforeRewind + 1,
+                (childSequenceNumberBeforeRewind ?? 0) + 1,
                 childSequenceNumberAfterRewind,
                 "Rewind should bump the child instance sequence number by one.");
             Assert.AreEqual(
                 parentSequenceNumberAfterRewind,
-                await GetSentinelSequenceNumberAsync(azureStorageClient, parentInstanceId),
+                await GetSentinelSequenceNumberAsync(azureStorageClient, parentInstanceId, host.MigrationId),
                 "The parent history sentinel should match the parent instance sequence number.");
             Assert.AreEqual(
                 childSequenceNumberAfterRewind,
-                await GetSentinelSequenceNumberAsync(azureStorageClient, childInstanceId),
+                await GetSentinelSequenceNumberAsync(azureStorageClient, childInstanceId, host.MigrationId),
                 "The child history sentinel should match the child instance sequence number.");
 
             JArray rewoundParentHistory = JArray.Parse(
@@ -375,7 +403,7 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(OrchestrationStatus.Pending, rewoundChildStatus.OrchestrationStatus);
             Assert.AreEqual(parentInstanceId, rewoundChildStatus.ParentInstance.OrchestrationInstance.InstanceId);
 
-            var completionService = new AzureStorageOrchestrationService(settings, isMigrationActive: true);
+            var completionService = new AzureStorageOrchestrationService(settings, host.MigrationId);
             using var completionWorker = new TaskHubWorker(completionService, loggerFactory: settings.LoggerFactory);
             completionWorker.AddTaskOrchestrations(
                 typeof(FailingRewindParentOrchestration),
@@ -398,8 +426,10 @@ namespace DurableTask.AzureStorage.Tests
         /// history to rewrite for a never-started instance), so the assertions are made after the instance reaches the
         /// terminal state and the worker is stopped.
         /// </summary>
-        [TestMethod]
-        public async Task TerminatePendingDuringMigration_BumpsSequenceNumberAndEnqueuesInstance()
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task TerminatePendingDuringMigration_BumpsSequenceNumberAndEnqueuesInstance(bool hasPriorMigration)
         {
             using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(isMigrationActive: true, enableExtendedSessions: false);
 
@@ -419,6 +449,11 @@ namespace DurableTask.AzureStorage.Tests
 
             // Read the pending instance's sequence number (assigned when it was created) as the baseline.
             long? sequenceNumberBeforeTermination = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
+            if (hasPriorMigration)
+            {
+                await SeedPriorMigrationAsync(azureStorageClient, instanceId, host.MigrationId, seedHistory: false);
+                sequenceNumberBeforeTermination = null;
+            }
 
             // Drain the message enqueued when the instance was created so the termination's enqueue can be isolated.
             Queue[] modifiedInstancesQueues = GetModifiedInstancesQueues(azureStorageClient, settings);
@@ -433,7 +468,7 @@ namespace DurableTask.AzureStorage.Tests
             await host.StopAsync();
 
             // Assert: termination bumped the instance sequence number by one...
-            long? sequenceNumberAfterTermination = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
+            long? sequenceNumberAfterTermination = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId, host.MigrationId);
             Assert.AreEqual((sequenceNumberBeforeTermination ?? 0) + 1, sequenceNumberAfterTermination, "Terminating a pending orchestration should bump the instance sequence number by one.");
 
             // ...and (since the instance never ran) there is no history at all.
@@ -451,27 +486,32 @@ namespace DurableTask.AzureStorage.Tests
         /// the instance in the modified-instances queue. A future scheduled start keeps the instance Pending so that
         /// only the effect of creating it is observed (it never runs).
         /// </summary>
-        [TestMethod]
-        public async Task CreateDuringMigration_SetsSequenceNumberToOneAndEnqueuesInstance()
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task CreateDuringMigration_SetsSequenceNumberToOneAndEnqueuesInstance(bool hasPriorMigration)
         {
             using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(isMigrationActive: true, enableExtendedSessions: false);
 
             await host.StartAsync();
 
-            // Schedule a start time far in the future so the orchestration stays Pending and never runs.
-            TestOrchestrationClient client = await host.StartOrchestrationAsync(
-                typeof(SimpleOrchestration), input: "world", startAt: DateTime.UtcNow.AddMinutes(5));
-            await client.WaitForStatusChange(TimeSpan.FromSeconds(10), OrchestrationStatus.Pending);
-
-            string instanceId = client.InstanceId;
-
-            await host.StopAsync();
-
             AzureStorageOrchestrationServiceSettings settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(
                 enableExtendedSessions: false);
             var azureStorageClient = new AzureStorageClient(settings);
+            string instanceId = $"migration-create-{Guid.NewGuid():N}";
+            if (hasPriorMigration)
+            {
+                await SeedPriorMigrationAsync(azureStorageClient, instanceId, host.MigrationId, seedHistory: false);
+            }
 
-            long? sequenceNumber = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
+            // Schedule a start time far in the future so the orchestration stays Pending and never runs.
+            TestOrchestrationClient client = await host.StartOrchestrationAsync(
+                typeof(SimpleOrchestration), input: "world", instanceId: instanceId, startAt: DateTime.UtcNow.AddMinutes(5));
+            await client.WaitForStatusChange(TimeSpan.FromSeconds(10), OrchestrationStatus.Pending);
+
+            await host.StopAsync();
+
+            long? sequenceNumber = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId, host.MigrationId);
             Assert.AreEqual(1, sequenceNumber, "Creating a brand-new orchestration should set the sequence number to 1.");
 
             // The instance was only created (it never ran), so there is no history.
@@ -490,8 +530,10 @@ namespace DurableTask.AzureStorage.Tests
         /// recreate overwrites the instance row synchronously in the create call, so (with the worker stopped) its
         /// effect is observed immediately without the recreated generation running.
         /// </summary>
-        [TestMethod]
-        public async Task RecreateDuringMigration_BumpsSequenceNumberAndEnqueuesInstance()
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task RecreateDuringMigration_BumpsSequenceNumberAndEnqueuesInstance(bool hasPriorMigration)
         {
             using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(isMigrationActive: true, enableExtendedSessions: false);
 
@@ -513,6 +555,13 @@ namespace DurableTask.AzureStorage.Tests
 
             long? sequenceNumberBeforeRecreate = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
             Assert.IsNotNull(sequenceNumberBeforeRecreate, "The completed instance should carry a sequence number while a migration is active.");
+            Guid sentinelMigrationId = host.MigrationId;
+            if (hasPriorMigration)
+            {
+                sentinelMigrationId = await SeedPriorMigrationAsync(azureStorageClient, instanceId, host.MigrationId);
+                sequenceNumberBeforeRecreate = null;
+            }
+            long? sentinelSequenceNumberBeforeRecreate = await GetSentinelSequenceNumberAsync(azureStorageClient, instanceId, sentinelMigrationId);
 
             // Drain the messages produced by the first run so the recreate's enqueue can be isolated.
             Queue[] modifiedInstancesQueues = GetModifiedInstancesQueues(azureStorageClient, settings);
@@ -522,13 +571,13 @@ namespace DurableTask.AzureStorage.Tests
             await host.StartOrchestrationAsync(typeof(SimpleOrchestration), input: "again", instanceId: instanceId);
 
             // Assert: the recreate bumped the instance sequence number by one...
-            long? sequenceNumberAfterRecreate = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
-            Assert.AreEqual(sequenceNumberBeforeRecreate + 1, sequenceNumberAfterRecreate, "Recreating an orchestration should bump the instance sequence number by one.");
+            long? sequenceNumberAfterRecreate = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId, host.MigrationId);
+            Assert.AreEqual((sequenceNumberBeforeRecreate ?? 0) + 1, sequenceNumberAfterRecreate, "Recreating an orchestration should increment only the current migration's sequence number.");
 
             // ...while leaving the previous generation's history sentinel untouched (the recreate rewrites only the
             // instance row; the sentinel realigns once the new generation runs its first checkpoint).
-            long? sentinelSequenceNumber = await GetSentinelSequenceNumberAsync(azureStorageClient, instanceId);
-            Assert.AreEqual(sequenceNumberBeforeRecreate, sentinelSequenceNumber, "The recreate should not change the previous generation's history sentinel.");
+            long? sentinelSequenceNumber = await GetSentinelSequenceNumberAsync(azureStorageClient, instanceId, sentinelMigrationId);
+            Assert.AreEqual(sentinelSequenceNumberBeforeRecreate, sentinelSequenceNumber, "The recreate should not change the previous generation's history sentinel.");
 
             // ...and enqueued the instance exactly once for the new generation.
             List<ModifiedInstanceMessage> enqueued = await DrainModifiedInstancesQueuesAsync(modifiedInstancesQueues);
@@ -543,8 +592,10 @@ namespace DurableTask.AzureStorage.Tests
         /// checkpoint, which bumps the sequence number and enqueues the instance). A dedicated task hub isolates the
         /// exact enqueue count.
         /// </summary>
-        [TestMethod]
-        public async Task CompletedOrchestrationDuringMigration_SequenceNumberAndEnqueuesMatchCreatePlusEpisodes()
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task CompletedOrchestrationDuringMigration_SequenceNumberAndEnqueuesMatchCreatePlusEpisodes(bool hasPriorMigration)
         {
             string taskHubName = $"migrepisodes{Guid.NewGuid():N}";
             using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(isMigrationActive: true,
@@ -556,19 +607,22 @@ namespace DurableTask.AzureStorage.Tests
 
             await host.StartAsync();
 
-            TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(MultiEpisodeOrchestration), input: "world");
-            OrchestrationState? status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
-            Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
-
-            string instanceId = client.InstanceId;
-
-            // Stop the worker so the observed state is stable.
-            await host.StopAsync();
-
             AzureStorageOrchestrationServiceSettings settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(
                 enableExtendedSessions: false);
             settings.TaskHubName = taskHubName;
             var azureStorageClient = new AzureStorageClient(settings);
+            string instanceId = $"migration-episodes-{Guid.NewGuid():N}";
+            if (hasPriorMigration)
+            {
+                await SeedPriorMigrationAsync(azureStorageClient, instanceId, host.MigrationId);
+            }
+
+            TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(MultiEpisodeOrchestration), input: "world", instanceId: instanceId);
+            OrchestrationState? status = await client.WaitForCompletionAsync(TimeSpan.FromSeconds(60));
+            Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+            // Stop the worker so the observed state is stable.
+            await host.StopAsync();
 
             // Each episode (OrchestratorStarted event) corresponds to one checkpoint.
             int episodeCount = await GetEpisodeCountAsync(azureStorageClient, instanceId);
@@ -576,11 +630,11 @@ namespace DurableTask.AzureStorage.Tests
 
             long expected = 1 + episodeCount;
 
-            long? sequenceNumber = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
+            long? sequenceNumber = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId, host.MigrationId);
             Assert.AreEqual(expected, sequenceNumber, "Sequence number should be 1 for the create plus one per episode.");
 
             // The history sentinel is stamped with the same sequence number as the instance row on every checkpoint.
-            long? sentinelSequenceNumber = await GetSentinelSequenceNumberAsync(azureStorageClient, instanceId);
+            long? sentinelSequenceNumber = await GetSentinelSequenceNumberAsync(azureStorageClient, instanceId, host.MigrationId);
             Assert.AreEqual(sequenceNumber, sentinelSequenceNumber, "The history sentinel should carry the same sequence number as the instance row.");
 
             Queue[] modifiedInstancesQueues = GetModifiedInstancesQueues(azureStorageClient, settings);
@@ -595,7 +649,8 @@ namespace DurableTask.AzureStorage.Tests
         /// <summary>
         /// A work-item checkpoint must advance from the history sentinel sequence when the instance row is stale.
         /// This models a worker fetching history after another checkpoint committed but fetching the instance row
-        /// before that checkpoint's instance update.
+        /// before that checkpoint's instance update, and/or a worker fetching history after one or more crashes between
+        /// history and instance updates by prior workers.
         /// </summary>
         [TestMethod]
         public async Task WorkItemCommit_InstanceSequenceBehindHistory_UsesHistorySequenceNumberPlusOne()
@@ -635,7 +690,7 @@ namespace DurableTask.AzureStorage.Tests
             Table instanceTable = azureStorageClient.GetTableReference(settings.InstanceTableName);
             var staleInstanceEntity = new TableEntity(KeySanitation.EscapePartitionKey(instanceId), string.Empty)
             {
-                [SequenceNumberPropertyName] = sentinelSequenceNumber.Value - 1,
+                [SequenceNumberPropertyName] = sentinelSequenceNumber.Value - 2,
             };
             await instanceTable.MergeEntityAsync(staleInstanceEntity, Azure.ETag.All);
 
@@ -648,12 +703,12 @@ namespace DurableTask.AzureStorage.Tests
             long expectedSequenceNumber = sentinelSequenceNumber.Value + 1;
             Assert.AreEqual(
                 expectedSequenceNumber,
-                await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId),
+                await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId, host.MigrationId),
                 "The checkpoint should advance from the greater history sequence number.");
             Assert.AreEqual(
                 expectedSequenceNumber,
-                await GetSentinelSequenceNumberAsync(azureStorageClient, instanceId),
-                "The history sentinel should be advanced rather than reusing its current sequence number.");
+                await GetSentinelSequenceNumberAsync(azureStorageClient, instanceId, host.MigrationId),
+                "The history sentinel should match the new checkpoint's migration and sequence number.");
 
             ModifiedInstanceMessage enqueued = AssertSingle(
                 await DrainModifiedInstancesQueuesAsync(modifiedInstancesQueues),
@@ -701,13 +756,13 @@ namespace DurableTask.AzureStorage.Tests
             Queue[] modifiedInstancesQueues = GetModifiedInstancesQueues(azureStorageClient, settings);
             await DrainModifiedInstancesQueuesAsync(modifiedInstancesQueues);
 
-            // Simulate a crash between the history checkpoint and the instance-table update: the history sentinel holds
-            // the final sequence number, but the instance row is stale (Running, and one sequence number behind).
+            // Simulate one or more crashes between the history checkpoint and the instance-table update: the history
+            // sentinel holds the final sequence number, but the instance row is stale (Running, and behind in sequence number).
             Table instanceTable = azureStorageClient.GetTableReference(settings.InstanceTableName);
             var staleInstanceEntity = new TableEntity(KeySanitation.EscapePartitionKey(instanceId), string.Empty)
             {
                 ["RuntimeStatus"] = OrchestrationStatus.Running.ToString("G"),
-                [SequenceNumberPropertyName] = sentinelSequenceNumber.Value - 1,
+                [SequenceNumberPropertyName] = sentinelSequenceNumber.Value - 2,
             };
             await instanceTable.MergeEntityAsync(staleInstanceEntity, Azure.ETag.All);
 
@@ -732,8 +787,8 @@ namespace DurableTask.AzureStorage.Tests
             await host.StopAsync();
 
             // The recovery bumped the instance row's sequence number back up to match the history sentinel.
-            long? instanceSequenceNumberAfterRecovery = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
-            long? sentinelSequenceNumberAfterRecovery = await GetSentinelSequenceNumberAsync(azureStorageClient, instanceId);
+            long? instanceSequenceNumberAfterRecovery = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId, host.MigrationId);
+            long? sentinelSequenceNumberAfterRecovery = await GetSentinelSequenceNumberAsync(azureStorageClient, instanceId, host.MigrationId);
             Assert.AreEqual(sentinelSequenceNumber, instanceSequenceNumberAfterRecovery, "Recovery should set the instance sequence number to match the sentinel.");
             Assert.AreEqual(sentinelSequenceNumberAfterRecovery, instanceSequenceNumberAfterRecovery, "The instance and history sentinel sequence numbers should match after recovery.");
 
@@ -765,7 +820,7 @@ namespace DurableTask.AzureStorage.Tests
             AzureStorageOrchestrationService? service = null;
             try
             {
-                service = new AzureStorageOrchestrationService(settings, isMigrationActive: true);
+                service = new AzureStorageOrchestrationService(settings, Guid.NewGuid());
                 AzureStorageOrchestrationService svc = service;
                 if (alreadyStarted)
                 {
@@ -866,8 +921,10 @@ namespace DurableTask.AzureStorage.Tests
         /// defer until its instance row is written (rather than racing it); a regression there would flake this test.
         /// A dedicated task hub isolates the exact enqueue count.
         /// </summary>
-        [TestMethod]
-        public async Task RecreatePurgedCompletedInstanceDuringMigration_HasExpectedSequenceNumberAndEnqueues()
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task RecreatePurgedCompletedInstanceDuringMigration_HasExpectedSequenceNumberAndEnqueues(bool hasPriorMigration)
         {
             string taskHubName = $"migrrp{Guid.NewGuid():N}";
             using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(isMigrationActive: true,
@@ -880,6 +937,15 @@ namespace DurableTask.AzureStorage.Tests
             await host.StartAsync();
 
             string instanceId = $"recreate-purged-{Guid.NewGuid():N}";
+
+            AzureStorageOrchestrationServiceSettings settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(
+                enableExtendedSessions: false);
+            settings.TaskHubName = taskHubName;
+            var azureStorageClient = new AzureStorageClient(settings);
+            if (hasPriorMigration)
+            {
+                await SeedPriorMigrationAsync(azureStorageClient, instanceId, host.MigrationId);
+            }
 
             // Run to completion: create (seq 1) + one completion checkpoint (seq 2).
             TestOrchestrationClient client = await host.StartOrchestrationAsync(typeof(SimpleOrchestration), input: "world", instanceId: instanceId);
@@ -895,18 +961,13 @@ namespace DurableTask.AzureStorage.Tests
 
             await host.StopAsync();
 
-            AzureStorageOrchestrationServiceSettings settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(
-                enableExtendedSessions: false);
-            settings.TaskHubName = taskHubName;
-            var azureStorageClient = new AzureStorageClient(settings);
-
             // The sequence number carries forward across all five state changes: create (1), complete (2), purge (3),
             // recreate-create (4), recreate-complete (5).
-            long? sequenceNumber = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
+            long? sequenceNumber = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId, host.MigrationId);
             Assert.AreEqual(5L, sequenceNumber, "The sequence number should carry forward across create, complete, purge, recreate-create, and recreate-complete.");
 
             // The recreated generation ran to completion, so its history sentinel matches the instance row.
-            long? sentinelSequenceNumber = await GetSentinelSequenceNumberAsync(azureStorageClient, instanceId);
+            long? sentinelSequenceNumber = await GetSentinelSequenceNumberAsync(azureStorageClient, instanceId, host.MigrationId);
             Assert.AreEqual(sequenceNumber, sentinelSequenceNumber, "The history sentinel should carry the same sequence number as the instance row.");
 
             // The instance was enqueued exactly once at each of the five state changes.
@@ -924,8 +985,10 @@ namespace DurableTask.AzureStorage.Tests
         /// incremented sequence number) rather than deleting it, and record the instance in the modified-instances
         /// queue so the migration process can observe the purge.
         /// </summary>
-        [TestMethod]
-        public async Task PurgeInstanceDuringMigration_KeepsRowBumpsSequenceNumberAndEnqueuesInstance()
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task PurgeInstanceDuringMigration_KeepsRowBumpsSequenceNumberAndEnqueuesInstance(bool hasPriorMigration)
         {
             using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(isMigrationActive: true, enableExtendedSessions: false);
 
@@ -945,6 +1008,11 @@ namespace DurableTask.AzureStorage.Tests
 
             long? sequenceNumberBeforePurge = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
             Assert.IsNotNull(sequenceNumberBeforePurge, "The completed instance should carry a sequence number while a migration is active.");
+            if (hasPriorMigration)
+            {
+                await SeedPriorMigrationAsync(azureStorageClient, instanceId, host.MigrationId);
+                sequenceNumberBeforePurge = null;
+            }
 
             Queue[] modifiedInstancesQueues = GetModifiedInstancesQueues(azureStorageClient, settings);
             await DrainModifiedInstancesQueuesAsync(modifiedInstancesQueues);
@@ -956,8 +1024,8 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsTrue(await InstanceRowExistsAsync(azureStorageClient, instanceId), "Purge should keep the instance row while a migration is active.");
 
             // ...with its sequence number bumped by one...
-            long? sequenceNumberAfterPurge = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
-            Assert.AreEqual(sequenceNumberBeforePurge + 1, sequenceNumberAfterPurge, "Purge should bump the instance sequence number by one.");
+            long? sequenceNumberAfterPurge = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId, host.MigrationId);
+            Assert.AreEqual((sequenceNumberBeforePurge ?? 0) + 1, sequenceNumberAfterPurge, "Purge should increment only the current migration's sequence number.");
 
             // ...and its history (including the sentinel) deleted.
             Assert.IsFalse(await HistoryExistsAsync(azureStorageClient, instanceId), "Purge should delete all history for the instance.");
@@ -974,8 +1042,10 @@ namespace DurableTask.AzureStorage.Tests
         /// instance, leave the instance row behind with an incremented sequence number and record it in the
         /// modified-instances queue. A dedicated task hub isolates this task-hub-wide purge from other instances.
         /// </summary>
-        [TestMethod]
-        public async Task PurgeByFilterDuringMigration_KeepsRowsBumpsSequenceNumbersAndEnqueuesInstances()
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task PurgeByFilterDuringMigration_KeepsRowsBumpsSequenceNumbersAndEnqueuesInstances(bool hasPriorMigration)
         {
             string taskHubName = $"migrpurge{Guid.NewGuid():N}";
             using TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(isMigrationActive: true,
@@ -1011,6 +1081,11 @@ namespace DurableTask.AzureStorage.Tests
             {
                 long? sequenceNumber = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
                 Assert.IsNotNull(sequenceNumber, $"The completed instance {instanceId} should carry a sequence number while a migration is active.");
+                if (hasPriorMigration)
+                {
+                    await SeedPriorMigrationAsync(azureStorageClient, instanceId, host.MigrationId);
+                    sequenceNumber = null;
+                }
                 sequenceNumbersBeforePurge[instanceId] = sequenceNumber;
             }
 
@@ -1024,8 +1099,8 @@ namespace DurableTask.AzureStorage.Tests
             foreach (string instanceId in instanceIds)
             {
                 Assert.IsTrue(await InstanceRowExistsAsync(azureStorageClient, instanceId), $"Purge should keep the instance row for {instanceId}.");
-                long? sequenceNumberAfterPurge = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId);
-                Assert.AreEqual(sequenceNumbersBeforePurge[instanceId] + 1, sequenceNumberAfterPurge, $"Purge should bump the sequence number for {instanceId} by one.");
+                long? sequenceNumberAfterPurge = await GetInstanceSequenceNumberAsync(azureStorageClient, instanceId, host.MigrationId);
+                Assert.AreEqual((sequenceNumbersBeforePurge[instanceId] ?? 0) + 1, sequenceNumberAfterPurge, $"Purge should increment only the current migration's sequence number for {instanceId}.");
                 Assert.IsFalse(await HistoryExistsAsync(azureStorageClient, instanceId), $"Purge should delete all history for {instanceId}.");
             }
 
@@ -1036,7 +1111,7 @@ namespace DurableTask.AzureStorage.Tests
             foreach (ModifiedInstanceMessage message in enqueued)
             {
                 Assert.AreEqual(
-                    sequenceNumbersBeforePurge[message.InstanceId] + 1,
+                    (sequenceNumbersBeforePurge[message.InstanceId] ?? 0) + 1,
                     message.SequenceNumber);
             }
         }
@@ -1079,12 +1154,47 @@ namespace DurableTask.AzureStorage.Tests
             return count;
         }
 
-        static async Task<long?> GetInstanceSequenceNumberAsync(AzureStorageClient azureStorageClient, string instanceId)
+        static async Task<Guid> SeedPriorMigrationAsync(
+            AzureStorageClient azureStorageClient,
+            string instanceId,
+            Guid currentMigrationId,
+            bool seedHistory = true)
+        {
+            Guid priorMigrationId = Guid.NewGuid();
+            Assert.AreNotEqual(currentMigrationId, priorMigrationId);
+            string partitionKey = KeySanitation.EscapePartitionKey(instanceId);
+            var instance = new TableEntity(partitionKey, string.Empty)
+            {
+                [SequenceNumberPropertyName] = PriorMigrationSequenceNumber,
+                [MigrationIdPropertyName] = priorMigrationId,
+            };
+            await azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName)
+                .InsertOrMergeEntityAsync(instance);
+
+            if (seedHistory)
+            {
+                var sentinel = new TableEntity(partitionKey, SentinelRowKey)
+                {
+                    [SequenceNumberPropertyName] = PriorMigrationSequenceNumber + 1,
+                    [MigrationIdPropertyName] = priorMigrationId,
+                };
+                await azureStorageClient.GetTableReference(azureStorageClient.Settings.HistoryTableName)
+                    .InsertOrMergeEntityAsync(sentinel);
+            }
+
+            return priorMigrationId;
+        }
+
+        static async Task<long?> GetInstanceSequenceNumberAsync(AzureStorageClient azureStorageClient, string instanceId, Guid? expectedMigrationId = null)
         {
             Table instanceTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.InstanceTableName);
             string filter = AzureTableQueryFilter.PartitionKeyEquals(instanceId);
             await foreach (TableEntity entity in instanceTable.ExecuteQueryAsync<TableEntity>(filter))
             {
+                if (expectedMigrationId.HasValue)
+                {
+                    Assert.AreEqual(expectedMigrationId, entity.GetGuid(MigrationIdPropertyName), "The instance sequence should belong to the expected migration.");
+                }
                 return entity.GetInt64(SequenceNumberPropertyName);
             }
 
@@ -1113,13 +1223,17 @@ namespace DurableTask.AzureStorage.Tests
             return eventType.ToObject<EventType>();
         }
 
-        static async Task<long?> GetSentinelSequenceNumberAsync(AzureStorageClient azureStorageClient, string instanceId)
+        static async Task<long?> GetSentinelSequenceNumberAsync(AzureStorageClient azureStorageClient, string instanceId, Guid? expectedMigrationId = null)
         {
             Table historyTable = azureStorageClient.GetTableReference(azureStorageClient.Settings.HistoryTableName);
             string filter = $"{AzureTableQueryFilter.PartitionKeyEquals(instanceId)} and " +
                 $"{AzureTableQueryFilter.ColumnEquals(nameof(ITableEntity.RowKey), SentinelRowKey)}";
             await foreach (TableEntity entity in historyTable.ExecuteQueryAsync<TableEntity>(filter))
             {
+                if (expectedMigrationId.HasValue)
+                {
+                    Assert.AreEqual(expectedMigrationId, entity.GetGuid(MigrationIdPropertyName), "The sentinel sequence should belong to the expected migration.");
+                }
                 return entity.GetInt64(SequenceNumberPropertyName);
             }
 

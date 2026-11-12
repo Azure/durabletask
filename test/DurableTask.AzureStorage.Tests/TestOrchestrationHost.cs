@@ -41,7 +41,9 @@ namespace DurableTask.AzureStorage.Tests
         public TestOrchestrationHost(AzureStorageOrchestrationServiceSettings settings, VersioningSettings versioningSettings = null, bool isMigrationActive = false)
         {
             this.isMigrationActive = isMigrationActive;
-            this.service = new AzureStorageOrchestrationService(settings, isMigrationActive);
+            this.service = isMigrationActive
+                ? new AzureStorageOrchestrationService(settings, this.MigrationId)
+                : new AzureStorageOrchestrationService(settings);
 
             this.settings = settings;
             this.worker = new TaskHubWorker(service, loggerFactory: settings.LoggerFactory, versioningSettings: versioningSettings);
@@ -51,6 +53,8 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         public string TaskHub => this.settings.TaskHubName;
+
+        public Guid MigrationId { get; } = Guid.NewGuid();
 
         public void Dispose()
         {

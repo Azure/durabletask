@@ -43,7 +43,7 @@ namespace DurableTask.AzureStorage.Tests
         public async Task Ending_RejectsEntityAndHubApisWithoutSendingRequests(bool warmClients)
         {
             using var storage = new StorageResponses();
-            var service = new AzureStorageOrchestrationService(storage.Settings, isMigrationActive: true);
+            var service = new AzureStorageOrchestrationService(storage.Settings, Guid.NewGuid());
             var client = (AzureStorageClient)typeof(AzureStorageOrchestrationService)
                 .GetField("azureStorageClient", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(service)!;
             // Capture the entity API before drain so reuse also exercises the guard.
@@ -358,7 +358,7 @@ namespace DurableTask.AzureStorage.Tests
         public async Task WorkerStop_KeepsClientCredentialsRenewingUntilGateCloses(bool forced)
         {
             using var storage = new StorageResponses();
-            using var service = new AzureStorageOrchestrationService(storage.Settings, isMigrationActive: true);
+            using var service = new AzureStorageOrchestrationService(storage.Settings, Guid.NewGuid());
             var client = GetPrivateField<AzureStorageClient>(service, "azureStorageClient");
             try
             {
@@ -416,7 +416,7 @@ namespace DurableTask.AzureStorage.Tests
         public async Task ServiceDispose_StopsClientOnlyRenewal()
         {
             using var storage = new StorageResponses();
-            using var service = new AzureStorageOrchestrationService(storage.Settings, isMigrationActive: true);
+            using var service = new AzureStorageOrchestrationService(storage.Settings, Guid.NewGuid());
             var client = GetPrivateField<AzureStorageClient>(service, "azureStorageClient");
             try
             {
