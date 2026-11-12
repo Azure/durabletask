@@ -47,7 +47,9 @@ namespace DurableTask.AzureStorage.Messaging
 
         protected override TimeSpan MessageVisibilityTimeout => this.settings.ControlQueueVisibilityTimeout;
 
-        public async Task<IReadOnlyList<MessageData>> GetMessagesAsync(CancellationToken cancellationToken)
+        public async Task<IReadOnlyList<MessageData>> GetMessagesAsync(
+            CancellationToken cancellationToken,
+            List<string>? newlyReservedMessageIds = null)
         {
             using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(this.releaseCancellationToken, cancellationToken))
             {
@@ -171,6 +173,7 @@ namespace DurableTask.AzureStorage.Messaging
                                 this.storageAccountName);
                         }
 
+                        newlyReservedMessageIds?.AddRange(addedMessageIds);
                         return sortedMessages;
                     }
                     catch (Exception e)

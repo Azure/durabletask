@@ -225,8 +225,10 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(2, receiveCalls, "The failed batch must not exhaust the buffer and block the next receive.");
         }
 
-        [TestMethod]
-        public async Task DequeueLoop_DeduplicationFailure_ReleasesUnhandedBufferEntries()
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task DequeueLoop_DeduplicationFailure_ReleasesOnlyNewBufferEntries(bool activeSession)
         {
             var settings = TestHelpers.GetMockQueueSettings(out var queueClient);
             var client = new AzureStorageClient(settings);
@@ -240,21 +242,36 @@ namespace DurableTask.AzureStorage.Tests
                 OrchestrationInstance = message.TaskMessage.OrchestrationInstance,
             };
             DateTimeOffset now = DateTimeOffset.UtcNow;
+            string originalPayload = await messageManager.SerializeMessageDataAsync(CreateMessageData("earlier"));
+            QueueMessage originalQueueMessage = QueuesModelFactory.QueueMessage(
+                "earlier", "original-receipt", originalPayload, 1, now, now.AddDays(1), now.AddMinutes(5));
+            QueueMessage duplicateQueueMessage = QueuesModelFactory.QueueMessage(
+                "earlier", "duplicate-receipt", originalPayload, 2, now, now.AddDays(1), now.AddMinutes(5));
             QueueMessage queueMessage = QueuesModelFactory.QueueMessage(
                 "start", "receipt", await messageManager.SerializeMessageDataAsync(message), 1,
                 now, now.AddDays(1), now.AddMinutes(5));
-            queueClient.Setup(client => client.ReceiveMessagesAsync(
+            queueClient.SetupSequence(client => client.ReceiveMessagesAsync(
                 It.IsAny<int?>(), It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(Response.FromValue(new[] { queueMessage }, Mock.Of<Response>()));
-            client.Stats.PendingOrchestratorMessages.TryAdd("earlier", 1);
+                .ReturnsAsync(Response.FromValue(new[] { originalQueueMessage }, Mock.Of<Response>()))
+                .ReturnsAsync(Response.FromValue(new[] { duplicateQueueMessage, queueMessage }, Mock.Of<Response>()));
 
             var trackingStore = new Mock<ITrackingStore>(MockBehavior.Strict);
+            trackingStore.Setup(store => store.GetHistoryEventsAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new OrchestrationHistory(Array.Empty<HistoryEvent>()));
             trackingStore.Setup(store => store.FetchInstanceStatusAsync(
                 It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
                 .Callback(() => queue.Release(null, "Stop after the simulated deduplication failure."))
                 .Throws(new InvalidOperationException("Simulated instance status lookup failure."));
             using var manager = new OrchestrationSessionManager(
                 client.QueueAccountName, settings, client.Stats, trackingStore.Object);
+            IReadOnlyList<MessageData> originalBatch = await queue.GetMessagesAsync(timeout.Token);
+            MessageData originalMessage = originalBatch.Single();
+            manager.AddMessageToPendingOrchestration(queue, originalBatch, Guid.NewGuid(), timeout.Token);
+            OrchestrationSession? originalSession = activeSession
+                ? await manager.GetNextSessionAsync(entitiesOnly: false, timeout.Token)
+                    ?? throw new InvalidOperationException("The original session was not acquired.")
+                : null;
             MethodInfo dequeueLoop = typeof(OrchestrationSessionManager).GetMethod(
                 "DequeueLoop", BindingFlags.Instance | BindingFlags.NonPublic)
                 ?? throw new MissingMethodException("DequeueLoop");
@@ -264,8 +281,12 @@ namespace DurableTask.AzureStorage.Tests
 
             CollectionAssert.AreEquivalent(new[] { "earlier" }, client.Stats.PendingOrchestratorMessages.Keys.ToArray());
             manager.GetStats(out int pendingInstances, out _, out int activeSessions);
-            Assert.AreEqual(0, pendingInstances);
-            Assert.AreEqual(0, activeSessions);
+            Assert.AreEqual(activeSession ? 0 : 1, pendingInstances);
+            Assert.AreEqual(activeSession ? 1 : 0, activeSessions);
+            OrchestrationSession retainedSession = originalSession
+                ?? await manager.GetNextSessionAsync(entitiesOnly: false, timeout.Token)
+                ?? throw new InvalidOperationException("The original message's session was lost.");
+            Assert.AreSame(originalMessage, retainedSession.CurrentMessageBatch.Single());
             trackingStore.Verify(store => store.FetchInstanceStatusAsync(
                 It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()), Times.Once);
         }

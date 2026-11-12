@@ -147,7 +147,8 @@ namespace DurableTask.AzureStorage
                     Guid traceActivityId = AzureStorageOrchestrationService.StartNewLogicalTraceScope(useExisting: false);
 
                     // This will block until either new messages arrive or the queue is released.
-                    IReadOnlyList<MessageData> messages = await controlQueue.GetMessagesAsync(cancellationToken);
+                    var newlyReservedMessageIds = new List<string>();
+                    IReadOnlyList<MessageData> messages = await controlQueue.GetMessagesAsync(cancellationToken, newlyReservedMessageIds);
                     if (messages.Count > 0)
                     {
                         // De-dupe any execution started messages
@@ -162,10 +163,10 @@ namespace DurableTask.AzureStorage
                         }
                         catch
                         {
-                            // These messages were not handed off. Release their buffer slots.
-                            foreach (MessageData message in messages)
+                            // Keep reservations owned by earlier copies of duplicate messages.
+                            foreach (string messageId in newlyReservedMessageIds)
                             {
-                                this.stats.PendingOrchestratorMessages.TryRemove(message.OriginalQueueMessage.MessageId, out _);
+                                this.stats.PendingOrchestratorMessages.TryRemove(messageId, out _);
                             }
 
                             throw;
