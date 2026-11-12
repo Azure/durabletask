@@ -720,10 +720,17 @@ namespace DurableTask.AzureStorage
                 if (this.activeOrchestrationSessions.TryGetValue(instanceId, out session) &&
                     this.activeOrchestrationSessions.Remove(instanceId))
                 {
+                    IEnumerable<MessageData> retainedMessages = session.PendingMessages.Concat(session.DeferredMessages);
+                    // Abandoning a current message can remove a reservation still needed by a pending duplicate.
+                    foreach (MessageData message in retainedMessages)
+                    {
+                        this.stats.PendingOrchestratorMessages.TryAdd(message.OriginalQueueMessage.MessageId, 1);
+                    }
+
                     // Put any unprocessed messages back into the pending buffer.
                     this.AddMessageToPendingOrchestration(
                         session.ControlQueue,
-                        session.PendingMessages.Concat(session.DeferredMessages),
+                        retainedMessages,
                         session.TraceActivityId,
                         cancellationToken);
                     return true;
