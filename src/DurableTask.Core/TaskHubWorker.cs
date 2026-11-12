@@ -248,6 +248,20 @@ namespace DurableTask.Core
         public ErrorPropagationMode ErrorPropagationMode { get; set; }
 
         /// <summary>
+        /// Gets or sets whether to fail an orchestration that starts an awaited sub-orchestration
+        /// with the same instance ID as another pending awaited sub-orchestration in that execution.
+        /// </summary>
+        /// <remarks>
+        /// Defaults to <c>false</c> for compatibility. Set this property before <see cref="StartAsync"/>.
+        /// When enabled, a conflicting start fails the orchestration and discards its entire current
+        /// decision batch; it does not throw a catchable exception at the individual call site.
+        /// Instance IDs are compared ordinally and case-sensitively. Reuse after completion or failure
+        /// is allowed. Fire-and-forget starts and conflicts across different parents are not checked.
+        /// Existing duplicate history alone does not cause failure or repair stranded orchestrations.
+        /// </remarks>
+        public bool FailOnDuplicateSubOrchestrationInstanceIds { get; set; }
+
+        /// <summary>
         /// Gets or sets the exception properties provider that extracts custom properties from exceptions
         /// when creating FailureDetails objects.
         /// </summary>
@@ -303,7 +317,10 @@ namespace DurableTask.Core
                     this.logHelper,
                     this.ErrorPropagationMode,
                     this.versioningSettings,
-                    this.ExceptionPropertiesProvider);
+                    this.ExceptionPropertiesProvider)
+                {
+                    FailOnDuplicateSubOrchestrationInstanceIds = this.FailOnDuplicateSubOrchestrationInstanceIds,
+                };
                 this.activityDispatcher = new TaskActivityDispatcher(
                     this.orchestrationService,
                     this.activityManager,
