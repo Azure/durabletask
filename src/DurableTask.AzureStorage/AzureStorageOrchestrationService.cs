@@ -901,10 +901,12 @@ namespace DurableTask.AzureStorage
                         session?.Instance.ExecutionId ?? string.Empty,
                         e.ToString());
 
-                    if (orchestrationWorkItem != null)
+                    if (session != null)
                     {
-                        // The work-item needs to be released so that it can be retried later.
-                        await this.ReleaseTaskOrchestrationWorkItemAsync(orchestrationWorkItem);
+                        // No work item was handed off. Release the session and its messages.
+                        await this.AbandonAndReleaseSessionAsync(
+                            session,
+                            "Failed to prepare the orchestration work item.");
                     }
 
                     throw;
@@ -1144,6 +1146,19 @@ namespace DurableTask.AzureStorage
 
         async Task AbandonAndReleaseSessionAsync(OrchestrationSession session, string details)
         {
+            // An earlier cleanup may already have released this session.
+            if (!this.orchestrationSessionManager.TryGetExistingSession(session.Instance.InstanceId, out OrchestrationSession currentSession) ||
+                !ReferenceEquals(session, currentSession))
+            {
+                return;
+            }
+
+            // Deferred messages stay buffered for the next session.
+            foreach (MessageData message in session.DeferredMessages)
+            {
+                session.CurrentMessageBatch.Remove(message);
+            }
+
             try
             {
                 await this.AbandonSessionAsync(session, details);

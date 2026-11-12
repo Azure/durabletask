@@ -151,11 +151,25 @@ namespace DurableTask.AzureStorage
                     if (messages.Count > 0)
                     {
                         // De-dupe any execution started messages
-                        IEnumerable<MessageData> filteredMessages = await this.DedupeExecutionStartedMessagesAsync(
-                            controlQueue,
-                            messages,
-                            traceActivityId,
-                            cancellationToken);
+                        IEnumerable<MessageData> filteredMessages;
+                        try
+                        {
+                            filteredMessages = await this.DedupeExecutionStartedMessagesAsync(
+                                controlQueue,
+                                messages,
+                                traceActivityId,
+                                cancellationToken);
+                        }
+                        catch
+                        {
+                            // These messages were not handed off. Release their buffer slots.
+                            foreach (MessageData message in messages)
+                            {
+                                this.stats.PendingOrchestratorMessages.TryRemove(message.OriginalQueueMessage.MessageId, out _);
+                            }
+
+                            throw;
+                        }
 
                         this.AddMessageToPendingOrchestration(controlQueue, filteredMessages, traceActivityId, cancellationToken);
                     }
@@ -566,7 +580,7 @@ namespace DurableTask.AzureStorage
                     this.orchestrationsReadyForProcessingQueue.Enqueue(node);
                 }
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 // shutting down
             }

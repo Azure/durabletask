@@ -13,17 +13,60 @@
 #nullable enable
 namespace DurableTask.AzureStorage.Tests
 {
+    using Azure;
+    using Azure.Storage.Queues;
+    using Azure.Storage.Queues.Models;
     using DurableTask.Core.Logging;
     using DurableTask.Core.Settings;
     using Microsoft.Extensions.Logging;
+    using Moq;
     using System;
     using System.Configuration;
     using System.Diagnostics;
     using System.Diagnostics.Tracing;
+    using System.Threading;
     using System.Threading.Tasks;
 
     static class TestHelpers
     {
+        public static AzureStorageOrchestrationServiceSettings GetMockQueueSettings(out Mock<QueueClient> queueClient)
+        {
+            const string ConnectionString = "UseDevelopmentStorage=true";
+            const string TaskHubName = "BufferFailureTests";
+            string queueName = AzureStorageOrchestrationService.GetControlQueueName(TaskHubName, 0);
+
+            queueClient = new Mock<QueueClient>(MockBehavior.Strict, ConnectionString, queueName);
+            queueClient.SetupGet(client => client.Name).Returns(queueName);
+            queueClient.SetupGet(client => client.Uri).Returns(new Uri($"http://127.0.0.1:10001/devstoreaccount1/{queueName}"));
+            queueClient.Setup(client => client.UpdateMessageAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<TimeSpan>(),
+                It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Response.FromValue(
+                    QueuesModelFactory.UpdateReceipt("retry-receipt", DateTimeOffset.UtcNow.AddMinutes(1)),
+                    Mock.Of<Response>()));
+
+            var serviceClient = new Mock<QueueServiceClient>(MockBehavior.Strict, ConnectionString);
+            serviceClient.SetupGet(client => client.AccountName).Returns("devstoreaccount1");
+            serviceClient.Setup(client => client.GetQueueClient(It.IsAny<string>())).Returns(queueClient.Object);
+
+            var queueProvider = new Mock<IStorageServiceClientProvider<QueueServiceClient, QueueClientOptions>>();
+            queueProvider.Setup(provider => provider.CreateOptions()).Returns(() => new QueueClientOptions());
+            queueProvider.Setup(provider => provider.CreateClient(It.IsAny<QueueClientOptions>())).Returns(serviceClient.Object);
+
+            return new AzureStorageOrchestrationServiceSettings
+            {
+                TaskHubName = TaskHubName,
+                PartitionCount = 1,
+                StorageAccountClientProvider = new StorageAccountClientProvider(
+                    StorageServiceClientProvider.ForBlob(ConnectionString),
+                    queueProvider.Object,
+                    StorageServiceClientProvider.ForTable(ConnectionString)),
+            };
+        }
+
         public static TestOrchestrationHost GetTestOrchestrationHost(
             bool enableExtendedSessions,
             int extendedSessionTimeoutInSeconds = 30,

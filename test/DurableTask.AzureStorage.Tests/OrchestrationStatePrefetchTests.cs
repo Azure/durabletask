@@ -255,6 +255,41 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreSame(history.Events[0], session.RuntimeState.ExecutionStartedEvent);
         }
 
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task PrefetchRetry_StorageTimeout_RetriesWithoutLosingBatch(bool timeoutFetchingInstanceStatus)
+        {
+            this.settings.UseInstanceTableEtag = timeoutFetchingInstanceStatus;
+            OrchestrationHistory history = CreateHistory();
+            var instanceETag = new ETag("instance-etag");
+            var trackingStore = new FakeTrackingStore
+            {
+                OnGetHistory = attempt => !timeoutFetchingInstanceStatus && attempt == 1
+                    ? throw new OperationCanceledException("Simulated history request timeout.")
+                    : Task.FromResult(history),
+                OnFetchInstanceStatus = attempt => attempt == 1
+                    ? throw new TaskCanceledException("Simulated instance status request timeout.")
+                    : Task.FromResult(new InstanceStatus(new OrchestrationState(), instanceETag)),
+            };
+            MessageData message = this.CreateMessage();
+            using var manager = this.CreateManager(trackingStore);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            manager.AddMessageToPendingOrchestration(this.controlQueue, new[] { message }, Guid.NewGuid(), timeout.Token);
+
+            OrchestrationSession session = await manager.GetNextSessionAsync(entitiesOnly: false, timeout.Token);
+
+            Assert.IsNotNull(session, "A storage timeout must not strand the buffered message.");
+            Assert.AreEqual(timeoutFetchingInstanceStatus ? 1 : 2, trackingStore.HistoryCalls);
+            Assert.AreEqual(timeoutFetchingInstanceStatus ? 2 : 0, trackingStore.InstanceStatusCalls);
+            Assert.AreSame(message, session.CurrentMessageBatch.Single());
+            Assert.AreSame(history.Events[0], session.RuntimeState.ExecutionStartedEvent);
+            if (timeoutFetchingInstanceStatus)
+            {
+                Assert.AreEqual<ETag?>(instanceETag, session.ETags.InstanceETag);
+            }
+        }
+
         [MethodImpl(MethodImplOptions.NoInlining)]
         static bool[] GetLiveStatesAfterFullCollection(WeakReference[] references)
         {

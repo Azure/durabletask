@@ -13,9 +13,13 @@
 #nullable enable
 namespace DurableTask.AzureStorage.Tests
 {
+    using Azure;
     using Azure.Storage.Blobs;
     using Azure.Storage.Blobs.Specialized;
+    using Azure.Storage.Queues.Models;
+    using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Storage;
+    using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using DurableTask.Core.History;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -25,7 +29,9 @@ namespace DurableTask.AzureStorage.Tests
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Reflection;
     using System.Text;
+    using System.Threading;
     using System.Threading.Tasks;
 
     [TestClass]
@@ -174,6 +180,94 @@ namespace DurableTask.AzureStorage.Tests
                     await manager.DeleteContainerAsync();
                 }
             }
+        }
+
+        [TestMethod]
+        public async Task ControlQueue_FailedBatch_ReleasesOnlyNewBufferEntries()
+        {
+            var settings = TestHelpers.GetMockQueueSettings(out var queueClient);
+            settings.ControlQueueBufferThreshold = 3;
+            var client = new AzureStorageClient(settings);
+            var messageManager = new MessageManager(settings, client, "buffer-largemessages");
+            using var queue = new ControlQueue(client, queueClient.Object.Name, messageManager);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+            string payload = await messageManager.SerializeMessageDataAsync(CreateMessageData("valid"));
+            MessageData malformedMessage = CreateMessageData("malformed");
+            malformedMessage.TaskMessage.Event = null;
+            string malformedPayload = await messageManager.SerializeMessageDataAsync(malformedMessage);
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            QueueMessage[] batch =
+            {
+                QueuesModelFactory.QueueMessage("earlier", "receipt", payload, 1, now, now.AddDays(1), now.AddMinutes(5)),
+                QueuesModelFactory.QueueMessage("new", "receipt", payload, 1, now, now.AddDays(1), now.AddMinutes(5)),
+                QueuesModelFactory.QueueMessage("malformed", "receipt", malformedPayload, 1, now, now.AddDays(1), now.AddMinutes(5)),
+            };
+            client.Stats.PendingOrchestratorMessages.TryAdd("earlier", 1);
+            int receiveCalls = 0;
+            queueClient.Setup(client => client.ReceiveMessagesAsync(
+                It.IsAny<int?>(), It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()))
+                .Returns(() =>
+                {
+                    if (++receiveCalls == 1)
+                    {
+                        return Task.FromResult(Response.FromValue(batch, Mock.Of<Response>()));
+                    }
+
+                    timeout.Cancel();
+                    return Task.FromResult(Response.FromValue(Array.Empty<QueueMessage>(), Mock.Of<Response>()));
+                });
+
+            IReadOnlyList<MessageData> messages = await queue.GetMessagesAsync(timeout.Token);
+
+            Assert.AreEqual(0, messages.Count, "A failed batch must not be handed off.");
+            CollectionAssert.AreEquivalent(new[] { "earlier" }, client.Stats.PendingOrchestratorMessages.Keys.ToArray());
+            Assert.AreEqual(2, receiveCalls, "The failed batch must not exhaust the buffer and block the next receive.");
+        }
+
+        [TestMethod]
+        public async Task DequeueLoop_DeduplicationFailure_ReleasesUnhandedBufferEntries()
+        {
+            var settings = TestHelpers.GetMockQueueSettings(out var queueClient);
+            var client = new AzureStorageClient(settings);
+            var messageManager = new MessageManager(settings, client, "buffer-largemessages");
+            using var queue = new ControlQueue(client, queueClient.Object.Name, messageManager);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            MessageData message = CreateMessageData("start");
+            message.TaskMessage.Event = new ExecutionStartedEvent(-1, string.Empty)
+            {
+                Name = "orchestration",
+                OrchestrationInstance = message.TaskMessage.OrchestrationInstance,
+            };
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            QueueMessage queueMessage = QueuesModelFactory.QueueMessage(
+                "start", "receipt", await messageManager.SerializeMessageDataAsync(message), 1,
+                now, now.AddDays(1), now.AddMinutes(5));
+            queueClient.Setup(client => client.ReceiveMessagesAsync(
+                It.IsAny<int?>(), It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Response.FromValue(new[] { queueMessage }, Mock.Of<Response>()));
+            client.Stats.PendingOrchestratorMessages.TryAdd("earlier", 1);
+
+            var trackingStore = new Mock<ITrackingStore>(MockBehavior.Strict);
+            trackingStore.Setup(store => store.FetchInstanceStatusAsync(
+                It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+                .Callback(() => queue.Release(null, "Stop after the simulated deduplication failure."))
+                .Throws(new InvalidOperationException("Simulated instance status lookup failure."));
+            using var manager = new OrchestrationSessionManager(
+                client.QueueAccountName, settings, client.Stats, trackingStore.Object);
+            MethodInfo dequeueLoop = typeof(OrchestrationSessionManager).GetMethod(
+                "DequeueLoop", BindingFlags.Instance | BindingFlags.NonPublic)
+                ?? throw new MissingMethodException("DequeueLoop");
+
+            await (Task)(dequeueLoop.Invoke(manager, new object[] { queue.Name, queue, timeout.Token })
+                ?? throw new InvalidOperationException("The dequeue loop did not return a task."));
+
+            CollectionAssert.AreEquivalent(new[] { "earlier" }, client.Stats.PendingOrchestratorMessages.Keys.ToArray());
+            manager.GetStats(out int pendingInstances, out _, out int activeSessions);
+            Assert.AreEqual(0, pendingInstances);
+            Assert.AreEqual(0, activeSessions);
+            trackingStore.Verify(store => store.FetchInstanceStatusAsync(
+                It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()), Times.Once);
         }
 
         [DataTestMethod]
