@@ -22,9 +22,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Threading.Tasks;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Monitoring;
-    using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
-    using DurableTask.Core;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Moq;
 
@@ -173,13 +171,7 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public void AbortAllSessions_ClearsActiveSessions()
         {
-            var settings = new AzureStorageOrchestrationServiceSettings
-            {
-                StorageAccountClientProvider = new StorageAccountClientProvider("UseDevelopmentStorage=true"),
-            };
-            var client = new AzureStorageClient(settings);
-            var messageManager = new MessageManager(settings, client, "abort-largemessages");
-            using var queue = new ControlQueue(client, "abort-control-00", messageManager);
+            var settings = new AzureStorageOrchestrationServiceSettings();
             var stats = new AzureStorageOrchestrationServiceStats();
             var trackingStore = new Mock<ITrackingStore>();
 
@@ -197,13 +189,9 @@ namespace DurableTask.AzureStorage.Tests
             manager.GetStats(out _, out _, out int initialCount);
             Assert.AreEqual(0, initialCount, "Should start with no active sessions");
 
-            foreach (string instanceId in new[] { "instance1", "instance2", "instance3" })
-            {
-                sessions[instanceId] = new OrchestrationSession(
-                    settings, "testaccount", new OrchestrationInstance { InstanceId = instanceId },
-                    queue, new List<MessageData>(), new OrchestrationRuntimeState(), new OrchestrationETags(),
-                    DateTime.UtcNow, null, TimeSpan.Zero, CancellationToken.None, Guid.NewGuid());
-            }
+            sessions["instance1"] = null;
+            sessions["instance2"] = null;
+            sessions["instance3"] = null;
 
             manager.GetStats(out _, out _, out int activeCount);
             Assert.AreEqual(3, activeCount, "Should have 3 active sessions");
