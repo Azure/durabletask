@@ -147,30 +147,15 @@ namespace DurableTask.AzureStorage
                     Guid traceActivityId = AzureStorageOrchestrationService.StartNewLogicalTraceScope(useExisting: false);
 
                     // This will block until either new messages arrive or the queue is released.
-                    var newlyReservedMessageIds = new List<string>();
-                    IReadOnlyList<MessageData> messages = await controlQueue.GetMessagesAsync(cancellationToken, newlyReservedMessageIds);
+                    IReadOnlyList<MessageData> messages = await controlQueue.GetMessagesAsync(cancellationToken);
                     if (messages.Count > 0)
                     {
                         // De-dupe any execution started messages
-                        IEnumerable<MessageData> filteredMessages;
-                        try
-                        {
-                            filteredMessages = await this.DedupeExecutionStartedMessagesAsync(
-                                controlQueue,
-                                messages,
-                                traceActivityId,
-                                cancellationToken);
-                        }
-                        catch
-                        {
-                            // Keep reservations owned by earlier copies of duplicate messages.
-                            foreach (string messageId in newlyReservedMessageIds)
-                            {
-                                this.stats.PendingOrchestratorMessages.TryRemove(messageId, out _);
-                            }
-
-                            throw;
-                        }
+                        IEnumerable<MessageData> filteredMessages = await this.DedupeExecutionStartedMessagesAsync(
+                            controlQueue,
+                            messages,
+                            traceActivityId,
+                            cancellationToken);
 
                         this.AddMessageToPendingOrchestration(controlQueue, filteredMessages, traceActivityId, cancellationToken);
                     }
@@ -581,7 +566,7 @@ namespace DurableTask.AzureStorage
                     this.orchestrationsReadyForProcessingQueue.Enqueue(node);
                 }
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException)
             {
                 // shutting down
             }
@@ -720,17 +705,10 @@ namespace DurableTask.AzureStorage
                 if (this.activeOrchestrationSessions.TryGetValue(instanceId, out session) &&
                     this.activeOrchestrationSessions.Remove(instanceId))
                 {
-                    IEnumerable<MessageData> retainedMessages = session.PendingMessages.Concat(session.DeferredMessages);
-                    // Abandoning a current message can remove a reservation still needed by a pending duplicate.
-                    foreach (MessageData message in retainedMessages)
-                    {
-                        this.stats.PendingOrchestratorMessages.TryAdd(message.OriginalQueueMessage.MessageId, 1);
-                    }
-
                     // Put any unprocessed messages back into the pending buffer.
                     this.AddMessageToPendingOrchestration(
                         session.ControlQueue,
-                        retainedMessages,
+                        session.PendingMessages.Concat(session.DeferredMessages),
                         session.TraceActivityId,
                         cancellationToken);
                     return true;

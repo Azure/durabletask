@@ -13,19 +13,15 @@
 
 namespace DurableTask.AzureStorage.Tests
 {
-    using Azure;
     using Azure.Data.Tables;
     using Azure.Storage.Blobs;
     using Azure.Storage.Blobs.Models;
-    using Azure.Storage.Queues.Models;
-    using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using DurableTask.Core.Exceptions;
     using DurableTask.Core.History;
     using DurableTask.Core.Settings;
-    using DurableTask.Core.Tracking;
     using Microsoft.Practices.EnterpriseLibrary.SemanticLogging.Utility;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Moq;
@@ -4469,203 +4465,6 @@ namespace DurableTask.AzureStorage.Tests
             {
                 await service?.StopAsync(isForced: true);
             }
-        }
-
-        [TestMethod]
-        public async Task SessionCleanup_PreservesDeferredMessagesAndReplacementSession()
-        {
-            var settings = TestHelpers.GetMockQueueSettings(out var queueClient);
-            var instanceStore = new Mock<IOrchestrationServiceInstanceStore>(MockBehavior.Strict);
-            instanceStore.Setup(store => store.GetOrchestrationHistoryEventsAsync(It.IsAny<string>(), It.IsAny<string>()))
-                .ReturnsAsync(Array.Empty<OrchestrationWorkItemInstanceEntity>());
-            using var shutdown = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            using var service = CreateServiceForSessionFailureTest(settings, instanceStore.Object, shutdown, out var manager);
-            using var queue = service.AllControlQueues.Single();
-            var instance = new OrchestrationInstance { InstanceId = "instance", ExecutionId = "execution" };
-            var messageManager = new MessageManager(settings, new AzureStorageClient(settings), "buffer-largemessages");
-            string payload = await messageManager.SerializeMessageDataAsync(new MessageData(
-                new TaskMessage { OrchestrationInstance = instance, Event = new EventRaisedEvent(-1, "event") },
-                Guid.NewGuid(), queue.Name, null, new OrchestrationInstance()));
-            DateTimeOffset now = DateTimeOffset.UtcNow;
-            queueClient.Setup(client => client.ReceiveMessagesAsync(
-                It.IsAny<int?>(), It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(Response.FromValue(new[]
-                {
-                    QueuesModelFactory.QueueMessage("current", "receipt", payload, 1, now, now.AddDays(1), now.AddMinutes(5)),
-                    QueuesModelFactory.QueueMessage("deferred", "receipt", payload, 1, now, now.AddDays(1), now.AddMinutes(5)),
-                }, Mock.Of<Response>()));
-            IReadOnlyList<MessageData> messages = await queue.GetMessagesAsync(shutdown.Token);
-            manager.AddMessageToPendingOrchestration(queue, messages, Guid.NewGuid(), shutdown.Token);
-            OrchestrationSession session = await manager.GetNextSessionAsync(entitiesOnly: false, shutdown.Token);
-            MessageData deferredMessage = messages.Single(message => message.OriginalQueueMessage.MessageId == "deferred");
-            session.DeferMessage(deferredMessage);
-            MethodInfo cleanupMethod = typeof(AzureStorageOrchestrationService).GetMethod(
-                "AbandonAndReleaseSessionAsync", BindingFlags.Instance | BindingFlags.NonPublic);
-            Assert.IsNotNull(cleanupMethod);
-
-            await (Task)cleanupMethod.Invoke(service, new object[] { session, "Simulated preparation failure." });
-            OrchestrationSession replacement = await manager.GetNextSessionAsync(entitiesOnly: false, shutdown.Token);
-
-            Assert.AreSame(deferredMessage, replacement.CurrentMessageBatch.Single());
-            manager.GetStats(out _, out int bufferedMessages, out _);
-            Assert.AreEqual(1, bufferedMessages, "The deferred message must keep its buffer slot.");
-            queueClient.Verify(client => client.UpdateMessageAsync(
-                "current", It.IsAny<string>(), It.IsAny<string>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Once);
-            queueClient.Verify(client => client.UpdateMessageAsync(
-                "deferred", It.IsAny<string>(), It.IsAny<string>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Never);
-
-            await (Task)cleanupMethod.Invoke(service, new object[] { session, "Repeated cleanup of the old session." });
-
-            Assert.IsTrue(manager.TryGetExistingSession(instance.InstanceId, out OrchestrationSession currentSession));
-            Assert.AreSame(replacement, currentSession, "Cleanup of a released session must not release its replacement.");
-        }
-
-        [DataTestMethod]
-        [DataRow(false)]
-        [DataRow(true)]
-        public async Task WorkItemPreparationFailure_AbandonsMessagesAndReleasesSession(bool failAfterCreatingWorkItem)
-        {
-            var settings = TestHelpers.GetMockQueueSettings(out var queueClient);
-            var instanceStore = new Mock<IOrchestrationServiceInstanceStore>(MockBehavior.Strict);
-            instanceStore.Setup(store => store.GetOrchestrationHistoryEventsAsync(It.IsAny<string>(), It.IsAny<string>()))
-                .ReturnsAsync(Array.Empty<OrchestrationWorkItemInstanceEntity>());
-            instanceStore.Setup(store => store.GetOrchestrationStateAsync(It.IsAny<string>(), false))
-                .ThrowsAsync(new InvalidOperationException("Simulated work item validation failure."));
-            using var shutdown = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            using var service = CreateServiceForSessionFailureTest(settings, instanceStore.Object, shutdown, out var manager);
-            using var queue = service.AllControlQueues.Single();
-            var instance = new OrchestrationInstance { InstanceId = "instance", ExecutionId = "execution" };
-            var messageManager = new MessageManager(settings, new AzureStorageClient(settings), "buffer-largemessages");
-            var taskMessage = new TaskMessage
-            {
-                OrchestrationInstance = instance,
-                Event = failAfterCreatingWorkItem
-                    ? new ExecutionTerminatedEvent(-1, "terminate")
-                    : new EventRaisedEvent(-1, "event"),
-            };
-            string payload = await messageManager.SerializeMessageDataAsync(new MessageData(
-                taskMessage, Guid.NewGuid(), queue.Name, null, new OrchestrationInstance { InstanceId = "sender" }));
-            if (!failAfterCreatingWorkItem)
-            {
-                JObject envelope = JObject.Parse(payload);
-                envelope.Remove(nameof(MessageData.Sender));
-                payload = envelope.ToString(Formatting.None);
-            }
-
-            DateTimeOffset now = DateTimeOffset.UtcNow;
-            QueueMessage queueMessage = QueuesModelFactory.QueueMessage(
-                "failed", "receipt", payload, 1, now, now.AddDays(1), now.AddMinutes(5));
-            queueClient.Setup(client => client.ReceiveMessagesAsync(
-                It.IsAny<int?>(), It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(Response.FromValue(new[] { queueMessage }, Mock.Of<Response>()));
-            IReadOnlyList<MessageData> messages = await queue.GetMessagesAsync(shutdown.Token);
-            manager.AddMessageToPendingOrchestration(queue, messages, Guid.NewGuid(), shutdown.Token);
-
-            if (failAfterCreatingWorkItem)
-            {
-                await Assert.ThrowsExceptionAsync<InvalidOperationException>(
-                    () => service.LockNextTaskOrchestrationWorkItemAsync(TimeSpan.FromSeconds(5), shutdown.Token));
-            }
-            else
-            {
-                // Missing sender metadata faults before a work item is constructed.
-                await Assert.ThrowsExceptionAsync<NullReferenceException>(
-                    () => service.LockNextTaskOrchestrationWorkItemAsync(TimeSpan.FromSeconds(5), shutdown.Token));
-            }
-
-            manager.GetStats(out int pendingInstances, out int bufferedMessages, out int activeSessions);
-            Assert.AreEqual(0, activeSessions, "No session may remain owned when no work item was handed off.");
-            Assert.AreEqual(0, bufferedMessages, "Failed messages must release their buffer slots.");
-            Assert.AreEqual(0, pendingInstances);
-            queueClient.Verify(client => client.UpdateMessageAsync(
-                "failed", It.IsAny<string>(), It.IsAny<string>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Once);
-        }
-
-        [TestMethod]
-        public async Task WorkItemPreparationFailure_PreservesPendingDuplicateReservation()
-        {
-            var settings = TestHelpers.GetMockQueueSettings(out var queueClient);
-            var statusLookupStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var statusLookup = new TaskCompletionSource<IEnumerable<OrchestrationStateInstanceEntity>>(
-                TaskCreationOptions.RunContinuationsAsynchronously);
-            var instanceStore = new Mock<IOrchestrationServiceInstanceStore>(MockBehavior.Strict);
-            instanceStore.Setup(store => store.GetOrchestrationHistoryEventsAsync(It.IsAny<string>(), It.IsAny<string>()))
-                .ReturnsAsync(Array.Empty<OrchestrationWorkItemInstanceEntity>());
-            instanceStore.Setup(store => store.GetOrchestrationStateAsync(It.IsAny<string>(), false))
-                .Callback(() => statusLookupStarted.TrySetResult(true))
-                .Returns(statusLookup.Task);
-            using var shutdown = new CancellationTokenSource(StandardTimeout);
-            using var service = CreateServiceForSessionFailureTest(settings, instanceStore.Object, shutdown, out var manager);
-            using var queue = service.AllControlQueues.Single();
-            var instance = new OrchestrationInstance { InstanceId = "instance", ExecutionId = "execution" };
-            var messageManager = new MessageManager(settings, new AzureStorageClient(settings), "buffer-largemessages");
-            string payload = await messageManager.SerializeMessageDataAsync(new MessageData(
-                new TaskMessage { OrchestrationInstance = instance, Event = new ExecutionTerminatedEvent(-1, "terminate") },
-                Guid.NewGuid(), queue.Name, null, new OrchestrationInstance { InstanceId = "sender" }));
-            DateTimeOffset now = DateTimeOffset.UtcNow;
-            queueClient.SetupSequence(client => client.ReceiveMessagesAsync(
-                It.IsAny<int?>(), It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(Response.FromValue(new[]
-                {
-                    QueuesModelFactory.QueueMessage("current", "original-receipt", payload, 1, now, now.AddDays(1), now.AddMinutes(5)),
-                }, Mock.Of<Response>()))
-                .ReturnsAsync(Response.FromValue(new[]
-                {
-                    QueuesModelFactory.QueueMessage("current", "duplicate-receipt", payload, 2, now, now.AddDays(1), now.AddMinutes(5)),
-                }, Mock.Of<Response>()));
-            IReadOnlyList<MessageData> messages = await queue.GetMessagesAsync(shutdown.Token);
-            manager.AddMessageToPendingOrchestration(queue, messages, Guid.NewGuid(), shutdown.Token);
-            Task<TaskOrchestrationWorkItem> preparation = service.LockNextTaskOrchestrationWorkItemAsync(StandardTimeout, shutdown.Token);
-
-            try
-            {
-                await TestHelpers.WaitFor(() => statusLookupStarted.Task.IsCompleted, StandardTimeout);
-                Assert.IsFalse(preparation.IsCompleted, "Preparation must still be awaiting the storage lookup.");
-                Assert.IsTrue(manager.TryGetExistingSession(instance.InstanceId, out OrchestrationSession session));
-
-                IReadOnlyList<MessageData> duplicates = await queue.GetMessagesAsync(shutdown.Token);
-                MessageData duplicate = duplicates.Single();
-                manager.AddMessageToPendingOrchestration(queue, duplicates, Guid.NewGuid(), shutdown.Token);
-                Assert.AreSame(duplicate, session.PendingMessages.Single());
-                manager.GetStats(out _, out int bufferedBeforeFailure, out _);
-                Assert.AreEqual(1, bufferedBeforeFailure, "The duplicate must share the original message's reservation.");
-
-                statusLookup.SetException(new InvalidOperationException("Simulated work item validation failure."));
-                await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => preparation);
-
-                manager.GetStats(out int pendingInstances, out int bufferedMessages, out int activeSessions);
-                Assert.AreEqual(0, activeSessions);
-                Assert.AreEqual(1, pendingInstances);
-                Assert.AreEqual(1, bufferedMessages, "The retained pending duplicate must keep its buffer reservation.");
-                OrchestrationSession replacement = await manager.GetNextSessionAsync(entitiesOnly: false, shutdown.Token);
-                Assert.AreNotSame(session, replacement);
-                Assert.AreSame(duplicate, replacement.CurrentMessageBatch.Single());
-                queueClient.Verify(client => client.UpdateMessageAsync(
-                    "current", "original-receipt", It.IsAny<string>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()), Times.Once);
-            }
-            finally
-            {
-                shutdown.Cancel();
-                statusLookup.TrySetCanceled();
-            }
-        }
-
-        static AzureStorageOrchestrationService CreateServiceForSessionFailureTest(
-            AzureStorageOrchestrationServiceSettings settings,
-            IOrchestrationServiceInstanceStore instanceStore,
-            CancellationTokenSource shutdown,
-            out OrchestrationSessionManager manager)
-        {
-            var service = new AzureStorageOrchestrationService(settings, instanceStore);
-            const BindingFlags Flags = BindingFlags.Instance | BindingFlags.NonPublic;
-            manager = (OrchestrationSessionManager)typeof(AzureStorageOrchestrationService)
-                .GetField("orchestrationSessionManager", Flags).GetValue(service);
-            typeof(AzureStorageOrchestrationService).GetField("shutdownSource", Flags).SetValue(service, shutdown);
-
-            // Skip task hub creation and listener startup; all queue I/O in these tests is mocked.
-            object creator = typeof(AzureStorageOrchestrationService).GetField("taskHubCreator", Flags).GetValue(service);
-            creator.GetType().GetField("lazy", Flags).SetValue(creator, new Lazy<Task>(() => Task.CompletedTask));
-            return service;
         }
 
         [TestMethod]

@@ -16,10 +16,10 @@ namespace DurableTask.AzureStorage.Tests
     using Azure;
     using Azure.Storage.Blobs;
     using Azure.Storage.Blobs.Specialized;
+    using Azure.Storage.Queues;
     using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Storage;
-    using DurableTask.AzureStorage.Tracking;
     using DurableTask.Core;
     using DurableTask.Core.History;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -29,7 +29,6 @@ namespace DurableTask.AzureStorage.Tests
     using System;
     using System.Collections.Generic;
     using System.Linq;
-    using System.Reflection;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
@@ -185,11 +184,25 @@ namespace DurableTask.AzureStorage.Tests
         [TestMethod]
         public async Task ControlQueue_FailedBatch_ReleasesOnlyNewBufferEntries()
         {
-            var settings = TestHelpers.GetMockQueueSettings(out var queueClient);
-            settings.ControlQueueBufferThreshold = 3;
+            const string ConnectionString = "UseDevelopmentStorage=true";
+            const string QueueName = "buffer-control-00";
+            var queueClient = new Mock<QueueClient>(MockBehavior.Strict, ConnectionString, QueueName);
+            queueClient.SetupGet(client => client.Name).Returns(QueueName);
+            var serviceClient = new Mock<QueueServiceClient>(MockBehavior.Strict, ConnectionString);
+            serviceClient.SetupGet(client => client.AccountName).Returns("devstoreaccount1");
+            serviceClient.Setup(client => client.GetQueueClient(QueueName)).Returns(queueClient.Object);
+            var queueProvider = new Mock<IStorageServiceClientProvider<QueueServiceClient, QueueClientOptions>>(MockBehavior.Strict);
+            queueProvider.Setup(provider => provider.CreateOptions()).Returns(() => new QueueClientOptions());
+            queueProvider.Setup(provider => provider.CreateClient(It.IsAny<QueueClientOptions>())).Returns(serviceClient.Object);
+            var provider = new StorageAccountClientProvider(ConnectionString);
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider(provider.Blob, queueProvider.Object, provider.Table),
+                ControlQueueBufferThreshold = 3,
+            };
             var client = new AzureStorageClient(settings);
             var messageManager = new MessageManager(settings, client, "buffer-largemessages");
-            using var queue = new ControlQueue(client, queueClient.Object.Name, messageManager);
+            using var queue = new ControlQueue(client, QueueName, messageManager);
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
             string payload = await messageManager.SerializeMessageDataAsync(CreateMessageData("valid"));
@@ -223,72 +236,6 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(0, messages.Count, "A failed batch must not be handed off.");
             CollectionAssert.AreEquivalent(new[] { "earlier" }, client.Stats.PendingOrchestratorMessages.Keys.ToArray());
             Assert.AreEqual(2, receiveCalls, "The failed batch must not exhaust the buffer and block the next receive.");
-        }
-
-        [DataTestMethod]
-        [DataRow(false)]
-        [DataRow(true)]
-        public async Task DequeueLoop_DeduplicationFailure_ReleasesOnlyNewBufferEntries(bool activeSession)
-        {
-            var settings = TestHelpers.GetMockQueueSettings(out var queueClient);
-            var client = new AzureStorageClient(settings);
-            var messageManager = new MessageManager(settings, client, "buffer-largemessages");
-            using var queue = new ControlQueue(client, queueClient.Object.Name, messageManager);
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            MessageData message = CreateMessageData("start");
-            message.TaskMessage.Event = new ExecutionStartedEvent(-1, string.Empty)
-            {
-                Name = "orchestration",
-                OrchestrationInstance = message.TaskMessage.OrchestrationInstance,
-            };
-            DateTimeOffset now = DateTimeOffset.UtcNow;
-            string originalPayload = await messageManager.SerializeMessageDataAsync(CreateMessageData("earlier"));
-            QueueMessage originalQueueMessage = QueuesModelFactory.QueueMessage(
-                "earlier", "original-receipt", originalPayload, 1, now, now.AddDays(1), now.AddMinutes(5));
-            QueueMessage duplicateQueueMessage = QueuesModelFactory.QueueMessage(
-                "earlier", "duplicate-receipt", originalPayload, 2, now, now.AddDays(1), now.AddMinutes(5));
-            QueueMessage queueMessage = QueuesModelFactory.QueueMessage(
-                "start", "receipt", await messageManager.SerializeMessageDataAsync(message), 1,
-                now, now.AddDays(1), now.AddMinutes(5));
-            queueClient.SetupSequence(client => client.ReceiveMessagesAsync(
-                It.IsAny<int?>(), It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(Response.FromValue(new[] { originalQueueMessage }, Mock.Of<Response>()))
-                .ReturnsAsync(Response.FromValue(new[] { duplicateQueueMessage, queueMessage }, Mock.Of<Response>()));
-
-            var trackingStore = new Mock<ITrackingStore>(MockBehavior.Strict);
-            trackingStore.Setup(store => store.GetHistoryEventsAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new OrchestrationHistory(Array.Empty<HistoryEvent>()));
-            trackingStore.Setup(store => store.FetchInstanceStatusAsync(
-                It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
-                .Callback(() => queue.Release(null, "Stop after the simulated deduplication failure."))
-                .Throws(new InvalidOperationException("Simulated instance status lookup failure."));
-            using var manager = new OrchestrationSessionManager(
-                client.QueueAccountName, settings, client.Stats, trackingStore.Object);
-            IReadOnlyList<MessageData> originalBatch = await queue.GetMessagesAsync(timeout.Token);
-            MessageData originalMessage = originalBatch.Single();
-            manager.AddMessageToPendingOrchestration(queue, originalBatch, Guid.NewGuid(), timeout.Token);
-            OrchestrationSession? originalSession = activeSession
-                ? await manager.GetNextSessionAsync(entitiesOnly: false, timeout.Token)
-                    ?? throw new InvalidOperationException("The original session was not acquired.")
-                : null;
-            MethodInfo dequeueLoop = typeof(OrchestrationSessionManager).GetMethod(
-                "DequeueLoop", BindingFlags.Instance | BindingFlags.NonPublic)
-                ?? throw new MissingMethodException("DequeueLoop");
-
-            await (Task)(dequeueLoop.Invoke(manager, new object[] { queue.Name, queue, timeout.Token })
-                ?? throw new InvalidOperationException("The dequeue loop did not return a task."));
-
-            CollectionAssert.AreEquivalent(new[] { "earlier" }, client.Stats.PendingOrchestratorMessages.Keys.ToArray());
-            manager.GetStats(out int pendingInstances, out _, out int activeSessions);
-            Assert.AreEqual(activeSession ? 0 : 1, pendingInstances);
-            Assert.AreEqual(activeSession ? 1 : 0, activeSessions);
-            OrchestrationSession retainedSession = originalSession
-                ?? await manager.GetNextSessionAsync(entitiesOnly: false, timeout.Token)
-                ?? throw new InvalidOperationException("The original message's session was lost.");
-            Assert.AreSame(originalMessage, retainedSession.CurrentMessageBatch.Single());
-            trackingStore.Verify(store => store.FetchInstanceStatusAsync(
-                It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()), Times.Once);
         }
 
         [DataTestMethod]
