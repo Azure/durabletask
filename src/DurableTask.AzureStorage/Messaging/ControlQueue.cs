@@ -75,6 +75,7 @@ namespace DurableTask.AzureStorage.Messaging
                     }
 
                     pendingOrchestratorMessageLimitReached = false;
+                    var addedMessageIds = new ConcurrentBag<string>();
 
                     try
                     {
@@ -134,7 +135,11 @@ namespace DurableTask.AzureStorage.Messaging
                             }
 
                             // Check to see whether we've already dequeued this message.
-                            if (!this.stats.PendingOrchestratorMessages.TryAdd(queueMessage.MessageId, 1))
+                            if (this.stats.PendingOrchestratorMessages.TryAdd(queueMessage.MessageId, 1))
+                            {
+                                addedMessageIds.Add(queueMessage.MessageId);
+                            }
+                            else
                             {
                                 // This message is already loaded in memory and is therefore a duplicate.
                                 // We will continue to process it because we need the updated pop receipt.
@@ -170,6 +175,12 @@ namespace DurableTask.AzureStorage.Messaging
                     }
                     catch (Exception e)
                     {
+                        // This batch was not handed off. Keep entries from earlier batches.
+                        foreach (string messageId in addedMessageIds)
+                        {
+                            this.stats.PendingOrchestratorMessages.TryRemove(messageId, out _);
+                        }
+
                         if (!linkedCts.IsCancellationRequested)
                         {
                             this.settings.Logger.MessageFailure(

@@ -13,8 +13,12 @@
 #nullable enable
 namespace DurableTask.AzureStorage.Tests
 {
+    using Azure;
     using Azure.Storage.Blobs;
     using Azure.Storage.Blobs.Specialized;
+    using Azure.Storage.Queues;
+    using Azure.Storage.Queues.Models;
+    using DurableTask.AzureStorage.Messaging;
     using DurableTask.AzureStorage.Storage;
     using DurableTask.Core;
     using DurableTask.Core.History;
@@ -26,6 +30,7 @@ namespace DurableTask.AzureStorage.Tests
     using System.Collections.Generic;
     using System.Linq;
     using System.Text;
+    using System.Threading;
     using System.Threading.Tasks;
 
     [TestClass]
@@ -174,6 +179,63 @@ namespace DurableTask.AzureStorage.Tests
                     await manager.DeleteContainerAsync();
                 }
             }
+        }
+
+        [TestMethod]
+        public async Task ControlQueue_FailedBatch_ReleasesOnlyNewBufferEntries()
+        {
+            const string ConnectionString = "UseDevelopmentStorage=true";
+            const string QueueName = "buffer-control-00";
+            var queueClient = new Mock<QueueClient>(MockBehavior.Strict, ConnectionString, QueueName);
+            queueClient.SetupGet(client => client.Name).Returns(QueueName);
+            var serviceClient = new Mock<QueueServiceClient>(MockBehavior.Strict, ConnectionString);
+            serviceClient.SetupGet(client => client.AccountName).Returns("devstoreaccount1");
+            serviceClient.Setup(client => client.GetQueueClient(QueueName)).Returns(queueClient.Object);
+            var queueProvider = new Mock<IStorageServiceClientProvider<QueueServiceClient, QueueClientOptions>>(MockBehavior.Strict);
+            queueProvider.Setup(provider => provider.CreateOptions()).Returns(() => new QueueClientOptions());
+            queueProvider.Setup(provider => provider.CreateClient(It.IsAny<QueueClientOptions>())).Returns(serviceClient.Object);
+            var provider = new StorageAccountClientProvider(ConnectionString);
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                StorageAccountClientProvider = new StorageAccountClientProvider(provider.Blob, queueProvider.Object, provider.Table),
+                ControlQueueBufferThreshold = 3,
+            };
+            var client = new AzureStorageClient(settings);
+            var messageManager = new MessageManager(settings, client, "buffer-largemessages");
+            using var queue = new ControlQueue(client, QueueName, messageManager);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+            string payload = await messageManager.SerializeMessageDataAsync(CreateMessageData("valid"));
+            MessageData malformedMessage = CreateMessageData("malformed");
+            malformedMessage.TaskMessage.Event = null;
+            string malformedPayload = await messageManager.SerializeMessageDataAsync(malformedMessage);
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            QueueMessage[] batch =
+            {
+                QueuesModelFactory.QueueMessage("earlier", "receipt", payload, 1, now, now.AddDays(1), now.AddMinutes(5)),
+                QueuesModelFactory.QueueMessage("new", "receipt", payload, 1, now, now.AddDays(1), now.AddMinutes(5)),
+                QueuesModelFactory.QueueMessage("malformed", "receipt", malformedPayload, 1, now, now.AddDays(1), now.AddMinutes(5)),
+            };
+            client.Stats.PendingOrchestratorMessages.TryAdd("earlier", 1);
+            int receiveCalls = 0;
+            queueClient.Setup(client => client.ReceiveMessagesAsync(
+                It.IsAny<int?>(), It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()))
+                .Returns(() =>
+                {
+                    if (++receiveCalls == 1)
+                    {
+                        return Task.FromResult(Response.FromValue(batch, Mock.Of<Response>()));
+                    }
+
+                    timeout.Cancel();
+                    return Task.FromResult(Response.FromValue(Array.Empty<QueueMessage>(), Mock.Of<Response>()));
+                });
+
+            IReadOnlyList<MessageData> messages = await queue.GetMessagesAsync(timeout.Token);
+
+            Assert.AreEqual(0, messages.Count, "A failed batch must not be handed off.");
+            CollectionAssert.AreEquivalent(new[] { "earlier" }, client.Stats.PendingOrchestratorMessages.Keys.ToArray());
+            Assert.AreEqual(2, receiveCalls, "The failed batch must not exhaust the buffer and block the next receive.");
         }
 
         [DataTestMethod]
