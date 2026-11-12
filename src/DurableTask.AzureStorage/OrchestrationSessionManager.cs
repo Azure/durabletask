@@ -690,7 +690,8 @@ namespace DurableTask.AzureStorage
         }
 
         /// <summary>
-        /// Immediately removes all active sessions, causing <see cref="IsControlQueueProcessingMessages"/>
+        /// Immediately removes all active sessions and releases their unretained message reservations,
+        /// causing <see cref="IsControlQueueProcessingMessages"/>
         /// to return <c>false</c> for all partitions. This unblocks <see cref="DrainAsync"/> so that
         /// a forced shutdown can complete without waiting for sessions to drain naturally.
         /// </summary>
@@ -698,6 +699,23 @@ namespace DurableTask.AzureStorage
         {
             lock (this.messageAndSessionLock)
             {
+                var pendingMessageIds = new HashSet<string>(this.pendingOrchestrationMessageBatches
+                    .SelectMany(batch => batch.Messages)
+                    .Select(message => message.OriginalQueueMessage.MessageId));
+                foreach (OrchestrationSession session in this.activeOrchestrationSessions.Values)
+                {
+                    foreach (MessageData message in session.PendingMessages
+                        .Concat(session.CurrentMessageBatch)
+                        .Concat(session.DeferredMessages)
+                        .Concat(session.DiscardedMessages))
+                    {
+                        if (!pendingMessageIds.Contains(message.OriginalQueueMessage.MessageId))
+                        {
+                            this.stats.PendingOrchestratorMessages.TryRemove(message.OriginalQueueMessage.MessageId, out _);
+                        }
+                    }
+                }
+
                 this.activeOrchestrationSessions.Clear();
             }
         }
