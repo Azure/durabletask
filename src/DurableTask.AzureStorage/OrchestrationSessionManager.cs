@@ -252,10 +252,12 @@ namespace DurableTask.AzureStorage
 
             foreach (MessageData message in messages)
             {
-                // We do de-duplication when creating top-level orchestrations but not for sub-orchestrations.
-                // De-dupe protection for sub-orchestrations is not implemented and will require a bit more work.
+                // Registered entity starts use the same Pending-row reconciliation as client starts.
+                // Awaited sub-orchestrations and older entity starts do not have Pending registration.
                 if (message.TaskMessage.Event is ExecutionStartedEvent startEvent &&
-                    startEvent.ParentInstance == null)
+                    (startEvent.ParentInstance == null ||
+                    (startEvent.Generation.HasValue &&
+                    DurableTask.Core.Common.Entities.IsEntityInstance(startEvent.ParentInstance.OrchestrationInstance.InstanceId))))
                 {
                     executionStartedMessages ??= new List<MessageData>(messages.Count);
                     executionStartedMessages.Add(message);
@@ -289,9 +291,15 @@ namespace DurableTask.AzureStorage
                 if (remoteOrchestrationsById.TryGetValue(localInstance.InstanceId, out InstanceStatus remoteInstance) &&
                     (remoteInstance.State.OrchestrationInstance.ExecutionId == null || string.Equals(localInstance.ExecutionId, remoteInstance.State.OrchestrationInstance.ExecutionId, StringComparison.OrdinalIgnoreCase)))
                 {
-                    // Happy path: The message matches the table status. Alternatively, if the table doesn't have an ExecutionId field (older clients, pre-v1.8.5),
-                    // then we have no way of knowing if it's a duplicate. Either way, allow it to run.
-                    if (this.settings.UseInstanceTableEtag)
+                    if (remoteInstance.State.OrchestrationStatus == OrchestrationStatus.Terminated &&
+                        remoteInstance.State.OrchestrationInstance.ExecutionId != null)
+                    {
+                        // Pending termination has no history event. Reject its delayed start using the same status read.
+                        messagesToDiscard ??= new List<MessageData>(executionStartedMessages.Count);
+                        messagesToDiscard.Add(message);
+                    }
+                    // A missing execution ID is a legacy record that cannot be safely deduplicated.
+                    else if (this.settings.UseInstanceTableEtag)
                     {
                         message.MessageMetadata = remoteInstance.ETag;
                     }

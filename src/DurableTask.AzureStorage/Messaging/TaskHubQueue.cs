@@ -71,8 +71,8 @@ namespace DurableTask.AzureStorage.Messaging
         /// </summary>
         /// <param name="message">Instance of <see cref="TaskMessage"/></param>
         /// <param name="sourceSession">Instance of <see cref="SessionBase"/></param>
-        /// <returns></returns>
-        public Task AddMessageAsync(TaskMessage message, SessionBase sourceSession)
+        /// <returns>The queued message, including any large-message blob reference.</returns>
+        public Task<MessageData> AddMessageAsync(TaskMessage message, SessionBase sourceSession)
         {
             return this.AddMessageAsync(message, sourceSession.Instance, sourceSession);
         }
