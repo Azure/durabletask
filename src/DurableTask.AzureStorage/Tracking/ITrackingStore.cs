@@ -111,9 +111,9 @@ namespace DurableTask.AzureStorage.Tracking
         /// <param name="instanceId">The ID of the orchestration.</param>
         /// <param name="executionId">The execution ID of the orchestration.</param>
         /// <param name="runtimeState">The runtime state of the orchestration.</param>
-        /// <param name="instanceEntityExists">Whether the instance entity already exists in the instance store.</param>
+        /// <param name="eTags">The history and instance ETags read before recovery. A missing instance ETag means the row did not exist.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        Task UpdateInstanceStatusForCompletedOrchestrationAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, bool instanceEntityExists, CancellationToken cancellationToken = default);
+        Task UpdateInstanceStatusForCompletedOrchestrationAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, OrchestrationETags eTags, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get The Orchestration State for querying all orchestration instances
@@ -161,8 +161,9 @@ namespace DurableTask.AzureStorage.Tracking
         /// Used to update a state in the tracking store to pending whenever a rewind is initiated from the client
         /// </summary>
         /// <param name="instanceId">The instance being rewound</param>
+        /// <param name="eTag">The instance ETag read when its failed status was confirmed.</param>
         /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
-        Task UpdateStatusForRewindAsync(string instanceId, CancellationToken cancellationToken = default);
+        Task UpdateStatusForRewindAsync(string instanceId, ETag eTag, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Used to update the instance status to "Terminated" when a pending orchestration is terminated.

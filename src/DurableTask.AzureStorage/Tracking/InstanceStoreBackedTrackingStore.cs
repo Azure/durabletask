@@ -194,7 +194,7 @@ namespace DurableTask.AzureStorage.Tracking
             string instanceId,
             string executionId,
             OrchestrationRuntimeState runtimeState,
-            bool instanceEntityExists,
+            OrchestrationETags eTags,
             CancellationToken cancellationToken = default)
         {
             if (runtimeState.OrchestrationStatus != OrchestrationStatus.Completed &&

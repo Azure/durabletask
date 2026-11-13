@@ -1505,6 +1505,332 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task RewindRejectsPrefetchedFailedHistory(bool allowReplayingTerminalInstances)
+        {
+            using var service = CreateRewindRaceService();
+            bool started = false;
+            await service.CreateAsync();
+            try
+            {
+                // 1. Prefetch the failed history before rewind changes it.
+                await SaveRewindRaceHistoryAsync(service, "instance", failed: true);
+                OrchestrationHistory stale = await service.TrackingStore.GetHistoryEventsAsync("instance", "execution");
+                var staleRuntime = new OrchestrationRuntimeState(stale.Events);
+
+                // 2. Rewind and enqueue its wake-up message.
+                await service.RewindTaskOrchestrationAsync("instance", "retry");
+                OrchestrationHistory rewound = await service.TrackingStore.GetHistoryEventsAsync("instance", "execution");
+                Assert.AreNotEqual(stale.ETag, rewound.ETag, "Rewind must invalidate prefetched history.");
+
+                // 3. The worker's recovery check must reject the old history and preserve Pending.
+                MethodInfo check = typeof(AzureStorageOrchestrationService).GetMethod(
+                    "IsExecutableInstanceAsync", BindingFlags.Instance | BindingFlags.NonPublic);
+                var recovery = (Task<string>)check.Invoke(service, new object[]
+                {
+                    staleRuntime, stale.ETag, new List<TaskMessage>(), allowReplayingTerminalInstances, CancellationToken.None,
+                });
+                DurableTaskStorageException error = await Assert.ThrowsExceptionAsync<DurableTaskStorageException>(async () => await recovery);
+                Assert.AreEqual(412, error.HttpStatusCode);
+                Assert.AreEqual(OrchestrationStatus.Pending,
+                    (await service.TrackingStore.FetchInstanceStatusAsync("instance")).State.OrchestrationStatus);
+
+                // 4. Fresh history still allows the queued rewind message to run.
+                await service.StartAsync();
+                started = true;
+                using var timeout = new CancellationTokenSource(StandardTimeout);
+                TaskOrchestrationWorkItem workItem = await service.LockNextTaskOrchestrationWorkItemAsync(StandardTimeout, timeout.Token);
+                Assert.IsNotNull(workItem);
+                Assert.AreEqual(OrchestrationStatus.Running, workItem.OrchestrationRuntimeState.OrchestrationStatus);
+                Assert.IsTrue(workItem.NewMessages.Any(message => message.Event is GenericEvent));
+                await service.AbandonTaskOrchestrationWorkItemAsync(workItem);
+                await service.ReleaseTaskOrchestrationWorkItemAsync(workItem);
+            }
+            finally
+            {
+                if (started)
+                {
+                    await service.StopAsync(isForced: true);
+                }
+                await service.DeleteAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task RewindRejectsHistoryFromAnotherExecution()
+        {
+            using var service = CreateRewindRaceService();
+            await service.CreateAsync();
+            try
+            {
+                // 1. Leave the failed instance row behind a newer history execution.
+                await SaveRewindRaceHistoryAsync(service, "instance", failed: true);
+                var store = (AzureTableTrackingStore)service.TrackingStore;
+                await store.HistoryTable.MergeEntityAsync(new TableEntity("instance", "sentinel")
+                {
+                    ["ExecutionId"] = "new-execution",
+                }, Azure.ETag.All);
+                OrchestrationHistory before = await store.GetHistoryEventsAsync("instance", "new-execution");
+
+                // 2. Rewind must reject the mismatch without changing either table.
+                DurableTaskStorageException error = await Assert.ThrowsExceptionAsync<DurableTaskStorageException>(
+                    async () => await store.RewindHistoryAsync("instance").ToListAsync());
+                Assert.AreEqual(412, error.HttpStatusCode);
+                Assert.AreEqual(before.ETag, (await store.GetHistoryEventsAsync("instance", "new-execution")).ETag);
+                Assert.AreEqual(OrchestrationStatus.Failed, (await store.FetchInstanceStatusAsync("instance")).State.OrchestrationStatus);
+            }
+            finally
+            {
+                await service.DeleteAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task RewindDoesNotResetANewExecutionAfterChangingHistory()
+        {
+            var settings = CreateRewindRaceSettings();
+            using var service = new AzureStorageOrchestrationService(settings);
+            await service.CreateAsync();
+            try
+            {
+                // 1. Save the failed execution that rewind will read.
+                await SaveRewindRaceHistoryAsync(service, "instance", failed: true);
+                InstanceStatus failed = await service.TrackingStore.FetchInstanceStatusAsync("instance");
+                OrchestrationHistory original = await service.TrackingStore.GetHistoryEventsAsync("instance", "execution");
+                InstanceStatus replacement = null;
+                OrchestrationHistory replacementHistory = null;
+                var client = new AzureStorageClient(settings);
+                var messages = new MessageManager(settings, client, $"{settings.TaskHubName.ToLowerInvariant()}-largemessages");
+                var store = new RewindStatusTrackingStore(client, messages, async (instanceId, eTag, token) =>
+                {
+                    // 2. Commit a new execution after rewind changes history, before it writes Pending.
+                    Assert.AreEqual(failed.ETag, eTag);
+                    OrchestrationHistory rewound = await service.TrackingStore.GetHistoryEventsAsync(instanceId, "execution", token);
+                    Assert.AreNotEqual(original.ETag, rewound.ETag);
+                    var started = new ExecutionStartedEvent(-1, "new-input")
+                    {
+                        Name = "NewExecution", Version = string.Empty,
+                        OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId, ExecutionId = "new-execution" },
+                    };
+                    Assert.IsTrue(await service.TrackingStore.SetNewExecutionAsync(started, eTag, inputPayloadOverride: null, cancellationToken: token));
+                    InstanceStatus pending = await service.TrackingStore.FetchInstanceStatusAsync(instanceId, token);
+                    var runtime = new OrchestrationRuntimeState();
+                    runtime.AddEvent(new OrchestratorStartedEvent(-1));
+                    runtime.AddEvent(started);
+                    runtime.AddEvent(new ExecutionCompletedEvent(0, "new-output", OrchestrationStatus.Completed));
+                    runtime.AddEvent(new OrchestratorCompletedEvent(-1));
+                    await service.TrackingStore.UpdateStateAsync(runtime, new OrchestrationRuntimeState(), instanceId, "new-execution",
+                        new OrchestrationETags { HistoryETag = rewound.ETag, InstanceETag = pending.ETag }, rewound.TrackingStoreContext, token);
+                    replacement = await service.TrackingStore.FetchInstanceStatusAsync(instanceId, token);
+                    replacementHistory = await service.TrackingStore.GetHistoryEventsAsync(instanceId, "new-execution", token);
+                });
+
+                // 3. The old rewind must fail once and preserve the new execution.
+                DurableTaskStorageException error = await Assert.ThrowsExceptionAsync<DurableTaskStorageException>(
+                    async () => await store.RewindHistoryAsync("instance").ToListAsync());
+                Assert.AreEqual(412, error.HttpStatusCode);
+                Assert.AreEqual(1, store.StatusUpdateAttempts);
+                InstanceStatus actual = await service.TrackingStore.FetchInstanceStatusAsync("instance");
+                Assert.AreEqual("new-execution", actual.State.OrchestrationInstance.ExecutionId);
+                Assert.AreEqual(OrchestrationStatus.Completed, actual.State.OrchestrationStatus);
+                Assert.AreEqual("new-output", actual.State.Output);
+                Assert.AreEqual(replacement.ETag, actual.ETag);
+                Assert.AreEqual(replacementHistory.ETag,
+                    (await service.TrackingStore.GetHistoryEventsAsync("instance", "new-execution")).ETag);
+            }
+            finally
+            {
+                await service.DeleteAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task RewindRecoveryDoesNotOverwriteAChangedInstanceRow()
+        {
+            using var service = CreateRewindRaceService();
+            await service.CreateAsync();
+            try
+            {
+                // 1. Read the history and instance ETags for recovery.
+                await SaveRewindRaceHistoryAsync(service, "instance", failed: true);
+                OrchestrationHistory history = await service.TrackingStore.GetHistoryEventsAsync("instance", "execution");
+                InstanceStatus status = await service.TrackingStore.FetchInstanceStatusAsync("instance");
+
+                // 2. Change only the instance row, as if rewind finished after the history check.
+                await service.TrackingStore.UpdateStatusForRewindAsync("instance", status.ETag);
+                DurableTaskStorageException error = await Assert.ThrowsExceptionAsync<DurableTaskStorageException>(() =>
+                    service.TrackingStore.UpdateInstanceStatusForCompletedOrchestrationAsync(
+                        "instance", "execution", new OrchestrationRuntimeState(history.Events),
+                        new OrchestrationETags { HistoryETag = history.ETag, InstanceETag = status.ETag }));
+
+                // 3. The stale conditional write must leave the rewound status intact.
+                Assert.AreEqual(412, error.HttpStatusCode);
+                Assert.AreEqual(OrchestrationStatus.Pending,
+                    (await service.TrackingStore.FetchInstanceStatusAsync("instance")).State.OrchestrationStatus);
+            }
+            finally
+            {
+                await service.DeleteAsync();
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task RewindWaitsForChildFailureCheckpoint(bool childHasEarlierCheckpoint)
+        {
+            using var service = CreateRewindRaceService();
+            await service.CreateAsync();
+            using var timeout = new CancellationTokenSource(StandardTimeout);
+            Task<List<string>> rewind = null;
+            try
+            {
+                // 1. The parent has failed, but the child's failed checkpoint is still missing.
+                await SaveRewindRaceHistoryAsync(service, "parent", failed: true, childInstanceId: "child");
+                if (childHasEarlierCheckpoint)
+                {
+                    await SaveRewindRaceHistoryAsync(service, "child", failed: false);
+                }
+                rewind = service.TrackingStore.RewindHistoryAsync("parent", timeout.Token).ToListAsync().AsTask();
+
+                // 2. Wait until parent rewind has reached the child.
+                var store = (AzureTableTrackingStore)service.TrackingStore;
+                Stopwatch wait = Stopwatch.StartNew();
+                while (true)
+                {
+                    TableQueryResults<TableEntity> rows = await store.HistoryTable.ExecuteQueryAsync<TableEntity>(
+                        "PartitionKey eq 'parent'", cancellationToken: timeout.Token).GetResultsAsync(cancellationToken: timeout.Token);
+                    if (rows.Entities.Any(row => row.GetString("Reason") == "Rewound: SubOrchestrationInstanceCreated"))
+                    {
+                        break;
+                    }
+                    Assert.IsTrue(wait.Elapsed < StandardTimeout);
+                    await Task.Delay(50, timeout.Token);
+                }
+                Assert.IsFalse(rewind.IsCompleted, "Rewind must wait for the child's failed checkpoint.");
+
+                // 3. Finish that checkpoint, then verify both histories were rewound.
+                await SaveRewindRaceHistoryAsync(service, "child", failed: true);
+                CollectionAssert.AreEqual(new[] { "child" }, await rewind);
+                foreach (string instanceId in new[] { "parent", "child" })
+                {
+                    Assert.AreEqual(OrchestrationStatus.Pending,
+                        (await service.TrackingStore.FetchInstanceStatusAsync(instanceId)).State.OrchestrationStatus);
+                    OrchestrationHistory history = await service.TrackingStore.GetHistoryEventsAsync(instanceId, "execution");
+                    Assert.IsFalse(history.Events.Any(e => e is TaskFailedEvent || e is SubOrchestrationInstanceFailedEvent ||
+                        e is ExecutionCompletedEvent completed && completed.OrchestrationStatus == OrchestrationStatus.Failed));
+                }
+            }
+            finally
+            {
+                timeout.Cancel();
+                if (rewind != null)
+                {
+                    try { await rewind; } catch (OperationCanceledException) { }
+                }
+                await service.DeleteAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task RewindFailureWaitCanBeCanceledWithoutChangingHistory()
+        {
+            using var service = CreateRewindRaceService();
+            await service.CreateAsync();
+            try
+            {
+                // 1. Leave an instance running with no failed checkpoint.
+                await SaveRewindRaceHistoryAsync(service, "instance", failed: false);
+                OrchestrationHistory before = await service.TrackingStore.GetHistoryEventsAsync("instance", "execution");
+
+                // 2. Cancel while rewind waits for failure.
+                using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(250));
+                try
+                {
+                    await service.TrackingStore.RewindHistoryAsync("instance", timeout.Token).ToListAsync();
+                    Assert.Fail("Rewind should have been canceled.");
+                }
+                catch (OperationCanceledException) when (timeout.IsCancellationRequested) { }
+
+                // 3. Neither history nor status should have changed.
+                Assert.AreEqual(before.ETag, (await service.TrackingStore.GetHistoryEventsAsync("instance", "execution")).ETag);
+                Assert.AreEqual(OrchestrationStatus.Running,
+                    (await service.TrackingStore.FetchInstanceStatusAsync("instance")).State.OrchestrationStatus);
+            }
+            finally
+            {
+                await service.DeleteAsync();
+            }
+        }
+
+        sealed class RewindStatusTrackingStore : AzureTableTrackingStore
+        {
+            readonly Func<string, Azure.ETag, CancellationToken, Task> beforeStatusUpdate;
+
+            public RewindStatusTrackingStore(AzureStorageClient client, MessageManager messages,
+                Func<string, Azure.ETag, CancellationToken, Task> beforeStatusUpdate)
+                : base(client, messages)
+            {
+                this.beforeStatusUpdate = beforeStatusUpdate;
+            }
+
+            public int StatusUpdateAttempts { get; private set; }
+
+            public override async Task UpdateStatusForRewindAsync(string instanceId, Azure.ETag eTag, CancellationToken cancellationToken = default)
+            {
+                this.StatusUpdateAttempts++;
+                await this.beforeStatusUpdate(instanceId, eTag, cancellationToken);
+                await base.UpdateStatusForRewindAsync(instanceId, eTag, cancellationToken);
+            }
+        }
+
+        static AzureStorageOrchestrationService CreateRewindRaceService() => new(CreateRewindRaceSettings());
+
+        static AzureStorageOrchestrationServiceSettings CreateRewindRaceSettings() => new()
+        {
+            PartitionCount = 1,
+            StorageAccountClientProvider = new StorageAccountClientProvider(TestHelpers.GetTestStorageAccountConnectionString()),
+            TaskHubName = "RewindRace" + Guid.NewGuid().ToString("N").Substring(0, 12),
+            ExtendedSessionsEnabled = false,
+            UseAppLease = false,
+        };
+
+        static async Task SaveRewindRaceHistoryAsync(
+            AzureStorageOrchestrationService service, string instanceId, bool failed, string childInstanceId = null)
+        {
+            OrchestrationHistory previous = await service.TrackingStore.GetHistoryEventsAsync(instanceId, "execution");
+            InstanceStatus status = await service.TrackingStore.FetchInstanceStatusAsync(instanceId);
+            var runtime = new OrchestrationRuntimeState();
+            runtime.AddEvent(new OrchestratorStartedEvent(-1));
+            runtime.AddEvent(new ExecutionStartedEvent(-1, "input")
+            {
+                Name = "RewindRace", Version = string.Empty,
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = instanceId, ExecutionId = "execution" },
+            });
+            if (childInstanceId != null)
+            {
+                runtime.AddEvent(new SubOrchestrationInstanceCreatedEvent(0) { Name = "Child", InstanceId = childInstanceId });
+                runtime.AddEvent(new SubOrchestrationInstanceFailedEvent(1, 0, "failure", null));
+            }
+            else
+            {
+                runtime.AddEvent(new TaskScheduledEvent(0) { Name = "Activity", Version = string.Empty });
+                if (failed)
+                {
+                    runtime.AddEvent(new TaskFailedEvent(1, 0, "failure", null));
+                }
+            }
+            if (failed)
+            {
+                runtime.AddEvent(new ExecutionCompletedEvent(2, "failure", OrchestrationStatus.Failed));
+            }
+            runtime.AddEvent(new OrchestratorCompletedEvent(-1));
+            await service.TrackingStore.UpdateStateAsync(runtime, new OrchestrationRuntimeState(), instanceId, "execution",
+                new OrchestrationETags { HistoryETag = previous.ETag, InstanceETag = status?.ETag }, previous.TrackingStoreContext);
+        }
+
         /// <summary>
         /// End-to-end test which validates the Rewind functionality on more than one orchestration.
         /// </summary>
@@ -1757,6 +2083,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 await clientGrandparent.RewindAsync("Rewind 1: Nested child activity still fails.");
 
+                statusFail = await clientGrandparent.WaitForCompletionAsync(TimeSpan.FromSeconds(30));
                 Assert.AreEqual(OrchestrationStatus.Failed, statusFail?.OrchestrationStatus);
 
                 Activities.HelloFailNestedSuborchestration.ShouldFail2 = false;
