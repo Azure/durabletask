@@ -59,10 +59,11 @@ namespace DurableTask.AzureStorage.Tests
                 ControlQueueVisibilityTimeout = configuredTimeout,
                 WorkItemQueueVisibilityTimeout = configuredTimeout,
             };
+            Guid migrationId = Guid.NewGuid();
             using var service = migrating
-                ? new AzureStorageOrchestrationService(settings, Guid.NewGuid())
+                ? new AzureStorageOrchestrationService(settings, migrationId)
                 : new AzureStorageOrchestrationService(settings);
-            var storage = new AzureStorageClient(settings, isMigrationActive: migrating);
+            var storage = new AzureStorageClient(settings, migrationId: migrating ? migrationId : (Guid?)null);
             var manager = new MessageManager(settings, storage, settings.TaskHubName + "-largemessages");
             // Dedicated queues let us inspect receipts without the service listeners consuming our messages.
             var control = new ControlQueue(storage, settings.TaskHubName + "-test-control", manager);
@@ -128,7 +129,7 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     await service.StopAsync();
                     started = false;
-                    await TestHelpers.BeginMigrationDrainAsync(settings);
+                    await TestHelpers.BeginMigrationDrainAsync(settings, migrationId);
                     await service.StartAsync();
                     started = true;
                     Assert.AreEqual(TimeSpan.FromSeconds(30), settings.ControlQueueVisibilityTimeout);
@@ -817,16 +818,17 @@ namespace DurableTask.AzureStorage.Tests
                 ExtendedSessionsEnabled = false,
             };
 
+            Guid migrationId = Guid.NewGuid();
             AzureStorageOrchestrationService? service = null;
             try
             {
-                service = new AzureStorageOrchestrationService(settings, Guid.NewGuid());
+                service = new AzureStorageOrchestrationService(settings, migrationId);
                 AzureStorageOrchestrationService svc = service;
                 if (alreadyStarted)
                 {
                     await svc.StartAsync();
                 }
-                DateTimeOffset finalExpiry = await TestHelpers.BeginMigrationDrainAsync(settings);
+                DateTimeOffset finalExpiry = await TestHelpers.BeginMigrationDrainAsync(settings, migrationId);
                 if (alreadyStarted)
                 {
                     await TestHelpers.WaitFor(() => svc.IsMigrationEnding, TimeSpan.FromSeconds(10));
@@ -838,7 +840,7 @@ namespace DurableTask.AzureStorage.Tests
 
                 var provider = settings.StorageAccountClientProvider!.Table;
                 var control = new AzureStorageMigration(provider.CreateClient(provider.CreateOptions()), settings.TaskHubName);
-                await control.CreateIfNotExistsAsync(default);
+                await control.CreateIfNotExistsAsync(default, migrationId);
                 AzureStorageMigration.Gate gate = (await control.ReadAsync(default))!;
                 Assert.IsTrue(gate.IsMigrationEnding, "Startup or creation retries must not reopen the gate.");
                 Assert.AreEqual(finalExpiry, gate.AccessExpiresAt);

@@ -20,8 +20,8 @@ namespace DurableTask.AzureStorage
     using Azure.Data.Tables;
 
     /// <summary>
-    /// Coordinates the migration of a task hub. This control table must not be deleted during migration metadata cleanup:
-    /// its ending flag permanently disables any writes from the backend.
+    /// Coordinates the migration of a task hub. A successful migration retains its control row to disable old-backend
+    /// writes. Rollback cleanup may delete only its own migration's row, using the observed ETag.
     /// </summary>
     public sealed class AzureStorageMigration
     {
@@ -45,17 +45,19 @@ namespace DurableTask.AzureStorage
             this.table = tableServiceClient.GetTableClient(taskHubName + "MigrationCtrl");
         }
 
-        internal async Task CreateIfNotExistsAsync(CancellationToken cancellationToken)
+        internal async Task CreateIfNotExistsAsync(CancellationToken cancellationToken, Guid migrationId)
         {
             await this.table.CreateIfNotExistsAsync(cancellationToken);
             try
             {
-                await this.table.AddEntityAsync(new TableEntity(string.Empty, string.Empty)
+                var entity = new TableEntity(string.Empty, string.Empty)
                 {
+                    [nameof(Gate.MigrationId)] = migrationId,
                     [MigrationEndingPropertyName] = false,
                     // No token has been issued yet. The first host to renew the expiry time will set this to a future value.
                     [nameof(Gate.AccessExpiresAt)] = DateTimeOffset.FromUnixTimeSeconds(0),
-                }, cancellationToken);
+                };
+                await this.table.AddEntityAsync(entity, cancellationToken);
             }
             catch (RequestFailedException e) when (e.Status == 409)
             {
@@ -71,6 +73,7 @@ namespace DurableTask.AzureStorage
                 TableEntity row = response.Value;
                 return new Gate
                 {
+                    MigrationId = row.GetGuid(nameof(Gate.MigrationId)) ?? throw new InvalidOperationException("Migration gate is missing MigrationId."),
                     IsMigrationEnding = row.GetBoolean(MigrationEndingPropertyName) ?? throw new InvalidOperationException($"Migration gate is missing {MigrationEndingPropertyName}."),
                     AccessExpiresAt = row.GetDateTimeOffset(nameof(Gate.AccessExpiresAt)) ?? throw new InvalidOperationException("Migration gate is missing AccessExpiresAt."),
                     ETag = row.ETag,
@@ -88,11 +91,13 @@ namespace DurableTask.AzureStorage
         {
             try
             {
-                await this.table.UpdateEntityAsync(new TableEntity(string.Empty, string.Empty)
+                var entity = new TableEntity(string.Empty, string.Empty)
                 {
+                    [nameof(Gate.MigrationId)] = gate.MigrationId,
                     [MigrationEndingPropertyName] = gate.IsMigrationEnding,
                     [nameof(Gate.AccessExpiresAt)] = gate.AccessExpiresAt,
-                }, gate.ETag, TableUpdateMode.Replace, cancellationToken);
+                };
+                await this.table.UpdateEntityAsync(entity, gate.ETag, TableUpdateMode.Replace, cancellationToken);
                 return true;
             }
             // Another host may have updated the gate. The caller can retry with a fresh read.
@@ -104,6 +109,7 @@ namespace DurableTask.AzureStorage
 
         internal sealed class Gate
         {
+            public Guid MigrationId { get; set; }
             public bool IsMigrationEnding { get; set; }
             public DateTimeOffset AccessExpiresAt { get; set; }
             public ETag ETag { get; set; }

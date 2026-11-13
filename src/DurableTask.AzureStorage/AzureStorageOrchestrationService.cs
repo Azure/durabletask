@@ -140,7 +140,7 @@ namespace DurableTask.AzureStorage
                     AzureStorageOrchestrationServiceSettings.MigrationControlQueueVisibilityTimeoutSeconds);
             }
 
-            this.azureStorageClient = new AzureStorageClient(settings, this.isMigrationActive);
+            this.azureStorageClient = new AzureStorageClient(settings, migrationId);
             this.azureStorageClient.MigrationEnding += this.EnterMigrationEnding;
             this.stats = this.azureStorageClient.Stats;
 

@@ -25,11 +25,11 @@ namespace DurableTask.AzureStorage.Tests
 
     static class TestHelpers
     {
-        public static async Task<DateTimeOffset> BeginMigrationDrainAsync(AzureStorageOrchestrationServiceSettings settings)
+        public static async Task<DateTimeOffset> BeginMigrationDrainAsync(AzureStorageOrchestrationServiceSettings settings, Guid migrationId)
         {
             var provider = settings.TrackingServiceClientProvider ?? settings.StorageAccountClientProvider!;
             var migration = new AzureStorageMigration(provider.Table.CreateClient(provider.Table.CreateOptions()), settings.TaskHubName);
-            await migration.CreateIfNotExistsAsync(default);
+            await migration.CreateIfNotExistsAsync(default, migrationId);
             while (true)
             {
                 AzureStorageMigration.Gate gate = await migration.ReadAsync(default)

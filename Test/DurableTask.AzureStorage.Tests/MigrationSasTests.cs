@@ -37,13 +37,54 @@ namespace DurableTask.AzureStorage.Tests
     [TestClass]
     public class MigrationSasTests
     {
+        [TestMethod]
+        public async Task ControlOwner_RoundTripsThroughCreationRenewalAndDrain()
+        {
+            using var storage = new StorageResponses();
+            using var service = new AzureStorageOrchestrationService(storage.Settings, storage.MigrationId);
+            var client = GetPrivateField<AzureStorageClient>(service, "azureStorageClient");
+            try
+            {
+                await client.InitializeMigrationAsync();
+                await client.StopMigrationTokenRefreshAsync();
+                Assert.AreEqual(storage.MigrationId, (await storage.Control.ReadAsync(default))!.MigrationId);
+
+                DateTimeOffset firstExpiry = storage.Expiry;
+                int writes = storage.GateWrites;
+                await storage.Control.CreateIfNotExistsAsync(default, Guid.NewGuid());
+                Assert.AreEqual(writes, storage.GateWrites, "A duplicate creation must not claim or reset an existing gate.");
+                Assert.AreEqual(firstExpiry, storage.Expiry);
+
+                storage.ServerTime = storage.ServerTime.AddSeconds(5);
+                await client.InitializeMigrationAsync(refresh: true);
+                await client.StopMigrationTokenRefreshAsync();
+                Assert.AreEqual(storage.ServerTime.AddSeconds(15), storage.Expiry);
+                DateTimeOffset finalExpiry = storage.Expiry;
+                await storage.EndMigrationAsync();
+
+                AzureStorageMigration.Gate gate = (await storage.Control.ReadAsync(default))!;
+                Assert.AreEqual(storage.MigrationId, gate.MigrationId);
+                Assert.IsTrue(gate.IsMigrationEnding);
+                Assert.AreEqual(finalExpiry, gate.AccessExpiresAt, "Drain must preserve the published deadline.");
+                foreach (JObject body in storage.GateWriteBodies)
+                {
+                    Assert.AreEqual("Edm.Guid", body.Value<string>("MigrationId@odata.type"));
+                    Assert.AreEqual(storage.MigrationId, body["MigrationId"]!.ToObject<Guid>());
+                }
+            }
+            finally
+            {
+                await client.StopMigrationTokenRefreshAsync();
+            }
+        }
+
         [DataTestMethod]
         [DataRow(false)]
         [DataRow(true)]
         public async Task Ending_RejectsEntityAndHubApisWithoutSendingRequests(bool warmClients)
         {
             using var storage = new StorageResponses();
-            var service = new AzureStorageOrchestrationService(storage.Settings, Guid.NewGuid());
+            var service = new AzureStorageOrchestrationService(storage.Settings, storage.MigrationId);
             var client = (AzureStorageClient)typeof(AzureStorageOrchestrationService)
                 .GetField("azureStorageClient", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(service)!;
             // Capture the entity API before drain so reuse also exercises the guard.
@@ -60,7 +101,7 @@ namespace DurableTask.AzureStorage.Tests
                 }
                 else
                 {
-                    await storage.Control.CreateIfNotExistsAsync(default);
+                    await storage.Control.CreateIfNotExistsAsync(default, storage.MigrationId);
                 }
                 // Close the gate and make the service observe the transition.
                 await storage.EndMigrationAsync();
@@ -97,7 +138,7 @@ namespace DurableTask.AzureStorage.Tests
         public async Task CachedClients_UseRenewedCredentialsAndRejectRequestsAfterDrain()
         {
             using var storage = new StorageResponses();
-            var client = new AzureStorageClient(storage.Settings, isMigrationActive: true);
+            var client = new AzureStorageClient(storage.Settings, storage.MigrationId);
             Func<Task>[] writes = CachedWrites(client);
             try
             {
@@ -149,7 +190,7 @@ namespace DurableTask.AzureStorage.Tests
         public async Task Renewal_PreservesFourSecondCadenceWithElevenSecondMargin(int elapsedSeconds, bool shouldRenew)
         {
             using var storage = new StorageResponses();
-            var client = new AzureStorageClient(storage.Settings, isMigrationActive: true);
+            var client = new AzureStorageClient(storage.Settings, storage.MigrationId);
             try
             {
                 await client.InitializeMigrationAsync();
@@ -188,7 +229,7 @@ namespace DurableTask.AzureStorage.Tests
         public async Task Renewal_LosingEtagRaceToDrainDoesNotExtendAccess()
         {
             using var storage = new StorageResponses();
-            var client = new AzureStorageClient(storage.Settings, isMigrationActive: true);
+            var client = new AzureStorageClient(storage.Settings, storage.MigrationId);
             try
             {
                 await client.InitializeMigrationAsync();
@@ -222,11 +263,11 @@ namespace DurableTask.AzureStorage.Tests
         public async Task Initialization_ObservesDrainDuringCreationOrKeyAcquisition(bool duringCreation)
         {
             using var storage = new StorageResponses();
-            var client = new AzureStorageClient(storage.Settings, isMigrationActive: true);
+            var client = new AzureStorageClient(storage.Settings, storage.MigrationId);
             // Inject drain while startup is creating the gate or fetching a delegation key.
             async Task endMigration()
             {
-                await storage.Control.CreateIfNotExistsAsync(default);
+                await storage.Control.CreateIfNotExistsAsync(default, storage.MigrationId);
                 await storage.EndMigrationAsync();
             }
             if (duringCreation)
@@ -264,7 +305,7 @@ namespace DurableTask.AzureStorage.Tests
         public async Task Initialization_CanRetryFailureButRenewalCannotRecreateMissingGate(bool initialFailure)
         {
             using var storage = new StorageResponses();
-            var client = new AzureStorageClient(storage.Settings, isMigrationActive: true);
+            var client = new AzureStorageClient(storage.Settings, storage.MigrationId);
             try
             {
                 if (initialFailure)
@@ -306,7 +347,7 @@ namespace DurableTask.AzureStorage.Tests
         public async Task Requests_DisableSdkRetriesAndBoundServerTimeoutOnlyDuringMigration(bool migrating)
         {
             using var storage = new StorageResponses();
-            var client = new AzureStorageClient(storage.Settings, isMigrationActive: migrating);
+            var client = new AzureStorageClient(storage.Settings, migrationId: migrating ? storage.MigrationId : (Guid?)null);
             try
             {
                 await client.InitializeMigrationAsync();
@@ -358,7 +399,7 @@ namespace DurableTask.AzureStorage.Tests
         public async Task WorkerStop_KeepsClientCredentialsRenewingUntilGateCloses(bool forced)
         {
             using var storage = new StorageResponses();
-            using var service = new AzureStorageOrchestrationService(storage.Settings, Guid.NewGuid());
+            using var service = new AzureStorageOrchestrationService(storage.Settings, storage.MigrationId);
             var client = GetPrivateField<AzureStorageClient>(service, "azureStorageClient");
             try
             {
@@ -416,7 +457,7 @@ namespace DurableTask.AzureStorage.Tests
         public async Task ServiceDispose_StopsClientOnlyRenewal()
         {
             using var storage = new StorageResponses();
-            using var service = new AzureStorageOrchestrationService(storage.Settings, Guid.NewGuid());
+            using var service = new AzureStorageOrchestrationService(storage.Settings, storage.MigrationId);
             var client = GetPrivateField<AzureStorageClient>(service, "azureStorageClient");
             try
             {
@@ -446,7 +487,7 @@ namespace DurableTask.AzureStorage.Tests
         {
             using var storage = new StorageResponses();
             storage.Settings.MaxStorageOperationConcurrency = 1;
-            var client = new AzureStorageClient(storage.Settings, isMigrationActive: true);
+            var client = new AzureStorageClient(storage.Settings, storage.MigrationId);
             try
             {
                 // 1. Cache the clients and stop background renewal.
@@ -495,7 +536,7 @@ namespace DurableTask.AzureStorage.Tests
         public async Task Requests_AuthenticationFailureStopsAfterOneRetryOrDrain(bool ending)
         {
             using var storage = new StorageResponses();
-            var client = new AzureStorageClient(storage.Settings, isMigrationActive: true);
+            var client = new AzureStorageClient(storage.Settings, storage.MigrationId);
             try
             {
                 // 1. Reject the request, either twice or after closing the gate.
@@ -535,7 +576,7 @@ namespace DurableTask.AzureStorage.Tests
         public async Task Requests_OnlyAuthenticationFailedResponsesRetry(string code, string detail, bool expired, bool shouldRetry)
         {
             using var storage = new StorageResponses();
-            var client = new AzureStorageClient(storage.Settings, isMigrationActive: true);
+            var client = new AzureStorageClient(storage.Settings, storage.MigrationId);
             try
             {
                 // 1. Return the chosen error code and detail.
@@ -664,6 +705,8 @@ namespace DurableTask.AzureStorage.Tests
             // Settings that send all SDK requests through this fake Storage service.
             public AzureStorageOrchestrationServiceSettings Settings { get; }
 
+            public Guid MigrationId { get; } = Guid.NewGuid();
+
             // Real gate helper used by tests to create the gate and start drain.
             public AzureStorageMigration Control { get; }
 
@@ -678,6 +721,9 @@ namespace DurableTask.AzureStorage.Tests
 
             // Number of gate inserts and updates that committed successfully.
             public int GateWrites { get; private set; }
+
+            public Guid GateMigrationId { get; private set; }
+            public List<JObject> GateWriteBodies { get; } = new List<JObject>();
 
             // Number of gate updates rejected because their ETag was out of date.
             public int EtagConflicts { get; private set; }
@@ -754,12 +800,14 @@ namespace DurableTask.AzureStorage.Tests
                         {
                             return Error(404, "ResourceNotFound");
                         }
-                        return Respond(200, new JObject
+                        var gateRow = new JObject
                         {
                             ["PartitionKey"] = "", ["RowKey"] = "", ["IsDraining"] = this.ending,
+                            ["MigrationId@odata.type"] = "Edm.Guid", ["MigrationId"] = this.GateMigrationId.ToString(),
                             ["AccessExpiresAt@odata.type"] = "Edm.DateTime", ["AccessExpiresAt"] = this.Expiry.UtcDateTime,
                             ["odata.etag"] = this.ETag,
-                        }.ToString());
+                        };
+                        return Respond(200, gateRow.ToString());
                     }
 
                     // Run each race hook once, just before checking whether the write can commit.
@@ -770,6 +818,7 @@ namespace DurableTask.AzureStorage.Tests
                     if (hook != null) await hook();
                     // Reject duplicate inserts and updates that used an old ETag.
                     if (inserting && this.GateExists) return Error(409, "EntityAlreadyExists");
+                    if (!inserting && !this.GateExists) return Error(404, "ResourceNotFound");
                     if (!inserting && request.Headers.GetValues("If-Match").Single() != this.ETag)
                     {
                         this.EtagConflicts++;
@@ -779,6 +828,8 @@ namespace DurableTask.AzureStorage.Tests
                     JObject row = JObject.Parse(body);
                     this.ending = row.Value<bool>("IsDraining");
                     this.Expiry = row["AccessExpiresAt"]!.ToObject<DateTimeOffset>();
+                    this.GateMigrationId = row["MigrationId"]!.ToObject<Guid>();
+                    this.GateWriteBodies.Add(row);
                     this.GateExists = true;
                     this.revision++;
                     this.GateWrites++;

@@ -141,7 +141,7 @@ namespace DurableTask.AzureStorage.Storage
                 this.blobClient.GetBlobContainerClient(original.BlobContainerName)).GetBlockBlobClient(original.Name);
         }
 
-        public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings, bool isMigrationActive = false)
+        public AzureStorageClient(AzureStorageOrchestrationServiceSettings settings, Guid? migrationId = null)
         {
             if (settings == null)
             {
@@ -153,7 +153,7 @@ namespace DurableTask.AzureStorage.Storage
                 throw new ArgumentException("Storage account client provider is not specified.", nameof(settings));
             }
 
-            this.isMigrationActive = isMigrationActive;
+            this.isMigrationActive = migrationId.HasValue;
             this.Settings = settings;
             this.Stats = new AzureStorageOrchestrationServiceStats();
 
@@ -180,14 +180,14 @@ namespace DurableTask.AzureStorage.Storage
                 this.tableClient = CreateClient(settings.StorageAccountClientProvider.Table, options => { tableManagementOptions = options; options.Diagnostics.IsLoggingContentEnabled = false; ConfigureClientPolicies(options); });
             }
 
-            if (this.isMigrationActive)
+            if (migrationId.HasValue)
             {
                 this.initializationLock = new object();
                 this.sasQueues = new ConcurrentDictionary<string, QueueClient>();
                 this.sasTables = new ConcurrentDictionary<string, TableClient>();
                 this.sasContainers = new ConcurrentDictionary<string, BlobContainerClient>();
 
-                this.migration = new MigrationSasManager(settings, this.blobClient, this.queueClient, this.tableClient,
+                this.migration = new MigrationSasManager(settings, migrationId.Value, this.blobClient, this.queueClient, this.tableClient,
                     (settings.TrackingServiceClientProvider ?? settings.StorageAccountClientProvider).Table,
                     () => this.MigrationEnding?.Invoke());
 

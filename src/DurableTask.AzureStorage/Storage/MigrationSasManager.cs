@@ -33,6 +33,7 @@ namespace DurableTask.AzureStorage.Storage
         internal static readonly TimeSpan SasLifetime = TimeSpan.FromSeconds(15);
         static readonly TimeSpan RenewBefore = TimeSpan.FromSeconds(11);
         readonly AzureStorageMigration migration;
+        readonly Guid migrationId;
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly BlobServiceClient blobService;
         readonly QueueServiceClient queueService;
@@ -52,11 +53,17 @@ namespace DurableTask.AzureStorage.Storage
         CancellationTokenSource? renewalSource;
         Task renewalTask = Task.CompletedTask;
 
-        public MigrationSasManager(AzureStorageOrchestrationServiceSettings settings, BlobServiceClient blobService,
-            QueueServiceClient queueService, TableServiceClient tableService,
-            IStorageServiceClientProvider<TableServiceClient, TableClientOptions> tableProvider, Action onMigrationEnding)
+        public MigrationSasManager(
+            AzureStorageOrchestrationServiceSettings settings,
+            Guid migrationId,
+            BlobServiceClient blobService,
+            QueueServiceClient queueService,
+            TableServiceClient tableService,
+            IStorageServiceClientProvider<TableServiceClient, TableClientOptions> tableProvider,
+            Action onMigrationEnding)
         {
             this.settings = settings;
+            this.migrationId = migrationId;
             this.blobService = blobService;
             this.queueService = queueService;
             this.tableService = tableService;
@@ -144,7 +151,7 @@ namespace DurableTask.AzureStorage.Storage
                     }
                     // Only initial startup may create the gate. Read it again because another host
                     // may have created or ended migration in the meantime. Renewals must never recreate it.
-                    await this.migration.CreateIfNotExistsAsync(cancellationToken).ConfigureAwait(false);
+                    await this.migration.CreateIfNotExistsAsync(cancellationToken, this.migrationId).ConfigureAwait(false);
                     createGateIfMissing = false;
                     continue;
                 }
