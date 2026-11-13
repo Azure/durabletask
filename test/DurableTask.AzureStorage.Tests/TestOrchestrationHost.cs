@@ -63,7 +63,6 @@ namespace DurableTask.AzureStorage.Tests
 
         public async Task StartAsync()
         {
-            await TestHelpers.ResetMigrationTestControlAsync(this.settings);
             if (this.isMigrationActive)
             {
                 using (var setup = new AzureStorageOrchestrationService(this.settings))

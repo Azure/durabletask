@@ -141,7 +141,7 @@ namespace DurableTask.AzureStorage.Storage
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                AzureStorageMigration.Gate? gate = await this.migration.ReadAsync(cancellationToken).ConfigureAwait(false);
+                AzureStorageMigration.Gate? gate = await this.migration.ReadAsync(cancellationToken, this.migrationId).ConfigureAwait(false);
                 long sampledAt = Stopwatch.GetTimestamp();
                 if (gate == null)
                 {

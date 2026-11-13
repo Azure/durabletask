@@ -47,12 +47,11 @@ namespace DurableTask.AzureStorage.Tests
             {
                 await client.InitializeMigrationAsync();
                 await client.StopMigrationTokenRefreshAsync();
-                Assert.AreEqual(storage.MigrationId, (await storage.Control.ReadAsync(default))!.MigrationId);
 
                 DateTimeOffset firstExpiry = storage.Expiry;
                 int writes = storage.GateWrites;
-                await storage.Control.CreateIfNotExistsAsync(default, Guid.NewGuid());
-                Assert.AreEqual(writes, storage.GateWrites, "A duplicate creation must not claim or reset an existing gate.");
+                await storage.Control.CreateIfNotExistsAsync(default, storage.MigrationId);
+                Assert.AreEqual(writes, storage.GateWrites, "A duplicate creation must not reset an existing gate.");
                 Assert.AreEqual(firstExpiry, storage.Expiry);
 
                 storage.ServerTime = storage.ServerTime.AddSeconds(5);
@@ -62,7 +61,7 @@ namespace DurableTask.AzureStorage.Tests
                 DateTimeOffset finalExpiry = storage.Expiry;
                 await storage.EndMigrationAsync();
 
-                AzureStorageMigration.Gate gate = (await storage.Control.ReadAsync(default))!;
+                AzureStorageMigration.Gate gate = (await storage.Control.ReadAsync(default, storage.MigrationId))!;
                 Assert.AreEqual(storage.MigrationId, gate.MigrationId);
                 Assert.IsTrue(gate.IsMigrationEnding);
                 Assert.AreEqual(finalExpiry, gate.AccessExpiresAt, "Drain must preserve the published deadline.");
@@ -70,11 +69,58 @@ namespace DurableTask.AzureStorage.Tests
                 {
                     Assert.AreEqual("Edm.Guid", body.Value<string>("MigrationId@odata.type"));
                     Assert.AreEqual(storage.MigrationId, body["MigrationId"]!.ToObject<Guid>());
+                    Assert.AreEqual(storage.MigrationId.ToString("D"), body.Value<string>("RowKey"));
                 }
             }
             finally
             {
                 await client.StopMigrationTokenRefreshAsync();
+            }
+        }
+
+        [TestMethod]
+        public async Task ControlRows_NewAttemptDoesNotReopenRetainedAttempt()
+        {
+            using var storage = new StorageResponses();
+            var oldClient = new AzureStorageClient(storage.Settings, storage.MigrationId);
+            Guid newMigrationId = Guid.NewGuid();
+            var newClient = new AzureStorageClient(storage.Settings, newMigrationId);
+            try
+            {
+                await storage.Control.CreateIfNotExistsAsync(default, storage.MigrationId);
+                await storage.EndMigrationAsync();
+                AzureStorageMigration.Gate oldGate = (await storage.Control.ReadAsync(default, storage.MigrationId))!;
+                int writes = storage.GateWrites;
+
+                // A delayed old host must observe its retained drain flag instead of recreating an active gate.
+                await oldClient.InitializeMigrationAsync();
+                Assert.IsTrue(oldClient.IsMigrationEnding);
+                Assert.ThrowsException<OrchestrationServiceUnavailableException>(() => oldClient.EnsureAccess());
+                Assert.AreEqual(writes, storage.GateWrites);
+
+                await newClient.InitializeMigrationAsync();
+                await newClient.StopMigrationTokenRefreshAsync();
+                Assert.IsFalse(newClient.IsMigrationEnding);
+                Assert.AreEqual(2, storage.Gates.Count);
+                AzureStorageMigration.Gate newGate = (await storage.Control.ReadAsync(default, newMigrationId))!;
+                Assert.AreEqual(newMigrationId, newGate.MigrationId);
+                Assert.IsFalse(newGate.IsMigrationEnding);
+                Assert.AreEqual(storage.ServerTime.AddSeconds(15), newGate.AccessExpiresAt);
+
+                storage.ServerTime = storage.ServerTime.AddSeconds(5);
+                await newClient.InitializeMigrationAsync(refresh: true);
+                await newClient.StopMigrationTokenRefreshAsync();
+                newGate = (await storage.Control.ReadAsync(default, newMigrationId))!;
+                Assert.AreEqual(storage.ServerTime.AddSeconds(15), newGate.AccessExpiresAt);
+                AzureStorageMigration.Gate retained = (await storage.Control.ReadAsync(default, storage.MigrationId))!;
+                Assert.AreEqual(oldGate.ETag, retained.ETag, "Renewing a new attempt must not write an old attempt's row.");
+                Assert.AreEqual(oldGate.AccessExpiresAt, retained.AccessExpiresAt);
+                Assert.IsTrue(retained.IsMigrationEnding);
+            }
+            finally
+            {
+                await oldClient.StopMigrationTokenRefreshAsync();
+                await newClient.StopMigrationTokenRefreshAsync();
             }
         }
 
@@ -326,7 +372,7 @@ namespace DurableTask.AzureStorage.Tests
                     await client.StopMigrationTokenRefreshAsync();
                     // Remove a gate that the client has already used successfully.
                     int writes = storage.GateWrites;
-                    storage.GateExists = false;
+                    storage.Gates.Remove(storage.MigrationId.ToString("D"));
 
                     // Renewal must fail instead of recreating the gate and allowing access again.
                     await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => client.InitializeMigrationAsync(refresh: true));
@@ -676,9 +722,6 @@ namespace DurableTask.AzureStorage.Tests
             // Gate version, increased after each accepted write to produce a new ETag.
             int revision;
 
-            // Whether the saved gate says migration is ending.
-            bool ending;
-
             public StorageResponses()
             {
                 // Use real SDK clients, but send their requests to this fake Storage service.
@@ -714,15 +757,16 @@ namespace DurableTask.AzureStorage.Tests
             public DateTimeOffset ServerTime { get; set; } = new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
             // Last SAS access deadline saved in the gate.
-            public DateTimeOffset Expiry { get; private set; }
+            public DateTimeOffset Expiry => this.Gates[this.MigrationId.ToString("D")]["AccessExpiresAt"]!.ToObject<DateTimeOffset>();
 
             // Whether the gate row exists; tests can clear this to simulate its removal.
-            public bool GateExists { get; set; }
+            public bool GateExists => this.Gates.ContainsKey(this.MigrationId.ToString("D"));
+
+            public Dictionary<string, JObject> Gates { get; } = new Dictionary<string, JObject>(StringComparer.Ordinal);
 
             // Number of gate inserts and updates that committed successfully.
             public int GateWrites { get; private set; }
 
-            public Guid GateMigrationId { get; private set; }
             public List<JObject> GateWriteBodies { get; } = new List<JObject>();
 
             // Number of gate updates rejected because their ETag was out of date.
@@ -762,7 +806,7 @@ namespace DurableTask.AzureStorage.Tests
             public async Task EndMigrationAsync()
             {
                 // Start drain through the same conditional gate update used by production code.
-                AzureStorageMigration.Gate gate = (await this.Control.ReadAsync(default))!;
+                AzureStorageMigration.Gate gate = (await this.Control.ReadAsync(default, this.MigrationId))!;
                 gate.IsMigrationEnding = true;
                 Assert.IsTrue(await this.Control.TryUpdateAsync(gate, default));
             }
@@ -789,6 +833,23 @@ namespace DurableTask.AzureStorage.Tests
                 }
                 if (uri.AbsolutePath.StartsWith("/TestHubMigrationCtrl", StringComparison.Ordinal))
                 {
+                    bool inserting = request.Method == HttpMethod.Post;
+                    string rowKey;
+                    if (inserting)
+                    {
+                        rowKey = JObject.Parse(body).Value<string>("RowKey")!;
+                    }
+                    else
+                    {
+                        string path = Uri.UnescapeDataString(uri.AbsolutePath);
+                        const string RowKeyPrefix = "RowKey='";
+                        int start = path.IndexOf(RowKeyPrefix, StringComparison.Ordinal);
+                        Assert.IsTrue(start >= 0, "Control operations must address a single migration row.");
+                        start += RowKeyPrefix.Length;
+                        rowKey = path.Substring(start, path.IndexOf('\'', start) - start);
+                    }
+                    Assert.IsTrue(Guid.TryParseExact(rowKey, "D", out _), "The control row key must be the migration GUID.");
+
                     // Return the saved gate and ETag, or the read failure requested by the test.
                     if (request.Method == HttpMethod.Get)
                     {
@@ -796,42 +857,36 @@ namespace DurableTask.AzureStorage.Tests
                         {
                             return Error(503, "ServerBusy");
                         }
-                        if (!this.GateExists)
+                        if (!this.Gates.TryGetValue(rowKey, out JObject? gateRow))
                         {
                             return Error(404, "ResourceNotFound");
                         }
-                        var gateRow = new JObject
-                        {
-                            ["PartitionKey"] = "", ["RowKey"] = "", ["IsDraining"] = this.ending,
-                            ["MigrationId@odata.type"] = "Edm.Guid", ["MigrationId"] = this.GateMigrationId.ToString(),
-                            ["AccessExpiresAt@odata.type"] = "Edm.DateTime", ["AccessExpiresAt"] = this.Expiry.UtcDateTime,
-                            ["odata.etag"] = this.ETag,
-                        };
                         return Respond(200, gateRow.ToString());
                     }
 
                     // Run each race hook once, just before checking whether the write can commit.
-                    bool inserting = request.Method == HttpMethod.Post;
                     Func<Task>? hook = inserting ? this.BeforeInsert : this.BeforeUpdate;
                     if (inserting) this.BeforeInsert = null;
                     else this.BeforeUpdate = null;
                     if (hook != null) await hook();
                     // Reject duplicate inserts and updates that used an old ETag.
-                    if (inserting && this.GateExists) return Error(409, "EntityAlreadyExists");
-                    if (!inserting && !this.GateExists) return Error(404, "ResourceNotFound");
-                    if (!inserting && request.Headers.GetValues("If-Match").Single() != this.ETag)
+                    bool exists = this.Gates.TryGetValue(rowKey, out JObject? existing);
+                    if (inserting && exists) return Error(409, "EntityAlreadyExists");
+                    if (!inserting && !exists) return Error(404, "ResourceNotFound");
+                    if (!inserting && request.Headers.GetValues("If-Match").Single() != existing!.Value<string>("odata.etag"))
                     {
                         this.EtagConflicts++;
                         return Error(412, "UpdateConditionNotSatisfied");
                     }
                     // Save an accepted gate write and give it a new ETag.
                     JObject row = JObject.Parse(body);
-                    this.ending = row.Value<bool>("IsDraining");
-                    this.Expiry = row["AccessExpiresAt"]!.ToObject<DateTimeOffset>();
-                    this.GateMigrationId = row["MigrationId"]!.ToObject<Guid>();
-                    this.GateWriteBodies.Add(row);
-                    this.GateExists = true;
+                    Assert.AreEqual(string.Empty, row.Value<string>("PartitionKey"));
+                    Assert.AreEqual(rowKey, row.Value<string>("RowKey"));
+                    Assert.AreEqual(Guid.Parse(rowKey), row["MigrationId"]!.ToObject<Guid>());
+                    this.GateWriteBodies.Add((JObject)row.DeepClone());
                     this.revision++;
+                    row["odata.etag"] = this.ETag;
+                    this.Gates[rowKey] = row;
                     this.GateWrites++;
                     return Respond(204);
                 }

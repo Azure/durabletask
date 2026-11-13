@@ -13,7 +13,6 @@
 #nullable enable
 namespace DurableTask.AzureStorage.Tests
 {
-    using Azure;
     using DurableTask.Core.Logging;
     using DurableTask.Core.Settings;
     using Microsoft.Extensions.Logging;
@@ -32,7 +31,7 @@ namespace DurableTask.AzureStorage.Tests
             await migration.CreateIfNotExistsAsync(default, migrationId);
             while (true)
             {
-                AzureStorageMigration.Gate gate = await migration.ReadAsync(default)
+                AzureStorageMigration.Gate gate = await migration.ReadAsync(default, migrationId)
                     ?? throw new InvalidOperationException("Migration gate disappeared. Source access cannot be restored.");
                 if (gate.IsMigrationEnding)
                 {
@@ -44,13 +43,6 @@ namespace DurableTask.AzureStorage.Tests
                     return gate.AccessExpiresAt;
                 }
             }
-        }
-
-        public static async Task ResetMigrationTestControlAsync(AzureStorageOrchestrationServiceSettings settings)
-        {
-            var provider = settings.TrackingServiceClientProvider ?? settings.StorageAccountClientProvider!;
-            try { await provider.Table.CreateClient(provider.Table.CreateOptions()).GetTableClient(settings.TaskHubName + "MigrationCtrl").DeleteEntityAsync(string.Empty, string.Empty); }
-            catch (RequestFailedException e) when (e.Status == 404) { }
         }
 
         public static TestOrchestrationHost GetTestOrchestrationHost(

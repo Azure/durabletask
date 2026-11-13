@@ -20,8 +20,7 @@ namespace DurableTask.AzureStorage
     using Azure.Data.Tables;
 
     /// <summary>
-    /// Coordinates the migration of a task hub. A successful migration retains its control row to disable old-backend
-    /// writes. Rollback cleanup may delete only its own migration's row, using the observed ETag.
+    /// Coordinates migration attempts for a task hub.
     /// </summary>
     public sealed class AzureStorageMigration
     {
@@ -50,7 +49,7 @@ namespace DurableTask.AzureStorage
             await this.table.CreateIfNotExistsAsync(cancellationToken);
             try
             {
-                var entity = new TableEntity(string.Empty, string.Empty)
+                var entity = new TableEntity(string.Empty, migrationId.ToString("D"))
                 {
                     [nameof(Gate.MigrationId)] = migrationId,
                     [MigrationEndingPropertyName] = false,
@@ -65,11 +64,11 @@ namespace DurableTask.AzureStorage
             }
         }
 
-        internal async Task<Gate?> ReadAsync(CancellationToken cancellationToken)
+        internal async Task<Gate?> ReadAsync(CancellationToken cancellationToken, Guid migrationId)
         {
             try
             {
-                Response<TableEntity> response = await this.table.GetEntityAsync<TableEntity>(string.Empty, string.Empty, cancellationToken: cancellationToken);
+                Response<TableEntity> response = await this.table.GetEntityAsync<TableEntity>(string.Empty, migrationId.ToString("D"), cancellationToken: cancellationToken);
                 TableEntity row = response.Value;
                 return new Gate
                 {
@@ -91,7 +90,7 @@ namespace DurableTask.AzureStorage
         {
             try
             {
-                var entity = new TableEntity(string.Empty, string.Empty)
+                var entity = new TableEntity(string.Empty, gate.MigrationId.ToString("D"))
                 {
                     [nameof(Gate.MigrationId)] = gate.MigrationId,
                     [MigrationEndingPropertyName] = gate.IsMigrationEnding,

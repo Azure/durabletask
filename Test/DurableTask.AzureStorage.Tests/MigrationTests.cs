@@ -142,7 +142,6 @@ namespace DurableTask.AzureStorage.Tests
                     await service.StopAsync();
                 }
                 await storage.StopMigrationTokenRefreshAsync();
-                await TestHelpers.ResetMigrationTestControlAsync(settings);
                 var queues = settings.StorageAccountClientProvider!.Queue.CreateClient(settings.StorageAccountClientProvider.Queue.CreateOptions());
                 await queues.GetQueueClient(control.Name).DeleteIfExistsAsync();
                 await queues.GetQueueClient(activity.Name).DeleteIfExistsAsync();
@@ -841,7 +840,7 @@ namespace DurableTask.AzureStorage.Tests
                 var provider = settings.StorageAccountClientProvider!.Table;
                 var control = new AzureStorageMigration(provider.CreateClient(provider.CreateOptions()), settings.TaskHubName);
                 await control.CreateIfNotExistsAsync(default, migrationId);
-                AzureStorageMigration.Gate gate = (await control.ReadAsync(default))!;
+                AzureStorageMigration.Gate gate = (await control.ReadAsync(default, migrationId))!;
                 Assert.IsTrue(gate.IsMigrationEnding, "Startup or creation retries must not reopen the gate.");
                 Assert.AreEqual(finalExpiry, gate.AccessExpiresAt);
 
