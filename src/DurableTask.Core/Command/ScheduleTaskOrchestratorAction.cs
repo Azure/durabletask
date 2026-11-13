@@ -48,5 +48,14 @@ namespace DurableTask.Core.Command
         /// Gets or sets a dictionary of tags of string, string
         /// </summary>
         public IDictionary<string, string>? Tags { get; set; }
+
+        /// <summary>
+        /// Gets or sets durable retry metadata, or null for an activity without a retry policy.
+        /// </summary>
+        [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public RetryMetadata? RetryMetadata { get; set; }
+
+        [Newtonsoft.Json.JsonIgnore]
+        internal string? RetryFailureType { get; set; }
     }
 }

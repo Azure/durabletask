@@ -71,6 +71,38 @@ namespace DurableTask.AzureStorage.Tests
             VerifyEqual(instance, actual);
         }
 
+        [TestMethod]
+        public void ReadWrite_ActivityRetryMetadata_PreservesAttemptOnRedelivery()
+        {
+            var message = new TaskMessage
+            {
+                Event = new TaskScheduledEvent(17, "work")
+                {
+                    RetryMetadata = new RetryMetadata(2, 5, "execution:0"),
+                },
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = "instance", ExecutionId = "execution" },
+            };
+            for (int delivery = 0; delivery < 3; delivery++)
+            {
+                message = Deserialize<TaskMessage>(Serialize(message));
+                var scheduled = (TaskScheduledEvent)message.Event;
+                Assert.AreEqual(2, scheduled.RetryMetadata.AttemptNumber);
+                Assert.AreEqual(5, scheduled.RetryMetadata.MaxAttempts);
+                Assert.AreEqual("execution:0", scheduled.RetryMetadata.RetryGroupId);
+            }
+        }
+
+        [TestMethod]
+        public void Read_ActivityRetryMetadata_RejectsInvalidContract()
+        {
+            var scheduled = new TaskScheduledEvent(17, "work")
+            {
+                RetryMetadata = new RetryMetadata(2, 5, "execution:0"),
+            };
+            string json = Serialize(scheduled).Replace("\"AttemptNumber\":2", "\"AttemptNumber\":0");
+            Assert.ThrowsException<ArgumentOutOfRangeException>(() => Deserialize<TaskScheduledEvent>(json));
+        }
+
         private static void VerifyEqual(TaskMessage expected, TaskMessage actual)
         {
             Assert.IsNotNull(actual);

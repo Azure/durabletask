@@ -208,6 +208,7 @@ namespace DurableTask.Core
                             scheduledEvent.EventId)
                         {
                             DeliveryAttempt = deliveryAttempt,
+                            RetryMetadata = scheduledEvent.RetryMetadata,
                         };
                         context.ErrorPropagationMode = this.errorPropagationMode;
                         context.ExceptionPropertiesProvider = this.exceptionPropertiesProvider;
