@@ -122,6 +122,47 @@ namespace DurableTask.AzureStorage.Tests
                 ((GenericEvent)roundTrippedMessage.TaskMessage.Event).Data);
         }
 
+        [TestMethod]
+        [DataRow(false, false)]
+        [DataRow(false, true)]
+        [DataRow(true, false)]
+        [DataRow(true, true)]
+        public async Task SerializeMessageDataAsync_PreservesActivityStartedTime(bool useDataContractSerialization, bool failed)
+        {
+            var settings = new AzureStorageOrchestrationServiceSettings
+            {
+                UseDataContractSerialization = useDataContractSerialization,
+            };
+            var manager = SetupMessageManager(settings, "$root");
+            DateTime startedTime = new DateTime(2026, 1, 2, 12, 12, 0, DateTimeKind.Utc);
+            MessageData message = CreateMessageData("unused");
+            message.TaskMessage.Event = failed
+                ? new TaskFailedEvent(-1, 7, "failure", "details") { StartedTime = startedTime }
+                : new TaskCompletedEvent(-1, 7, "result") { StartedTime = startedTime };
+
+            string payload = await manager.SerializeMessageDataAsync(message);
+            MessageData actual = manager.DeserializeMessageData(payload);
+
+            Assert.AreEqual(MessageFormatFlags.InlineJson, manager.GetMessageFormatFlags(message));
+            Assert.AreEqual(message.TaskMessage.Event.Timestamp, actual.TaskMessage.Event.Timestamp);
+            Assert.AreEqual(message.TaskMessage.OrchestrationInstance.InstanceId, actual.TaskMessage.OrchestrationInstance.InstanceId);
+            Assert.AreEqual(message.TaskMessage.OrchestrationInstance.ExecutionId, actual.TaskMessage.OrchestrationInstance.ExecutionId);
+            if (failed)
+            {
+                var response = (TaskFailedEvent)actual.TaskMessage.Event;
+                Assert.AreEqual(7, response.TaskScheduledId);
+                Assert.AreEqual(startedTime, response.StartedTime);
+                Assert.AreEqual("failure", response.Reason);
+            }
+            else
+            {
+                var response = (TaskCompletedEvent)actual.TaskMessage.Event;
+                Assert.AreEqual(7, response.TaskScheduledId);
+                Assert.AreEqual(startedTime, response.StartedTime);
+                Assert.AreEqual("result", response.Result);
+            }
+        }
+
         [DataTestMethod]
         [DataRow(false, 0)]
         [DataRow(false, 1)]

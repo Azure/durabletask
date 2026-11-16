@@ -151,6 +151,18 @@ public override async Task<OrderResult> RunTask(
 > [!IMPORTANT]
 > Do not include `TaskContext` or `CancellationToken` parameters in activity interface methods. Only JSON-serializable input and output types are allowed.
 
+## Activity Start Times in History
+
+`TaskCompletedEvent.StartedTime` and `TaskFailedEvent.StartedTime` record the worker's UTC time immediately before the dispatcher calls `TaskActivity.RunAsync`. This excludes queueing and middleware work before that call, but includes any input conversion, host invocation, and output conversion inside `RunAsync`. The scheduled event's `Timestamp` and the response event's `Timestamp` keep their existing meanings.
+
+The value belongs to the invocation associated with that response's `TaskScheduledId`. Each retry scheduled by the orchestration has its own scheduled event. A redelivery of the same scheduled event captures a new start; abandoned invocations do not produce history entries. No separate start event is emitted, so this does not expose in-flight starts or a log of every execution attempt. Timestamps from different workers are subject to clock skew.
+
+Start time is unknown (`null`, omitted from JSON) for older history, older workers, middleware that skips the activity invocation, and default completions synthesized without an activity result. Middleware that replaces a response after invoking the activity retains the observed start only when the replacement refers to the same scheduled event.
+
+The Azure Storage provider preserves this metadata in activity response messages, History-table rows, and `GetOrchestrationHistoryAsync` JSON. Other providers and protocol-specific history mappings are not covered by this guarantee; they must preserve the new fields where they translate events. In particular, the Durable Functions protobuf history contract needs a separate update.
+
+The existing Durable Functions JSON `GetStatusAsync(showHistory: true)` projection can retain the additive fields, but requires adoption of a Core package containing this change. Consumers must not substitute `ScheduledTime` when `StartedTime` is absent.
+
 ## Activity Best Practices
 
 ### 1. Keep Activities Focused

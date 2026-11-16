@@ -188,6 +188,7 @@ namespace DurableTask.Core
                 });
 
                 ActivityExecutionResult? result;
+                DateTime? activityStartedTime = null;
                 try
                 {
                     await this.dispatchPipeline.RunAsync(dispatchContext, async _ =>
@@ -216,6 +217,7 @@ namespace DurableTask.Core
 
                         try
                         {
+                            activityStartedTime = DateTime.UtcNow;
                             string? output = await taskActivity.RunAsync(context, scheduledEvent.Input);
                             responseEvent = new TaskCompletedEvent(-1, scheduledEvent.EventId, output);
                         }
@@ -267,7 +269,12 @@ namespace DurableTask.Core
 
                 if (eventToRespond is TaskCompletedEvent completedEvent)
                 {
+                    completedEvent.StartedTime = completedEvent.TaskScheduledId == scheduledEvent.EventId ? activityStartedTime : null;
                     this.logHelper.TaskActivityCompleted(orchestrationInstance, scheduledEvent.Name, completedEvent);
+                }
+                else if (eventToRespond is TaskFailedEvent failedEvent)
+                {
+                    failedEvent.StartedTime = failedEvent.TaskScheduledId == scheduledEvent.EventId ? activityStartedTime : null;
                 }
                 else if (eventToRespond is null)
                 {
