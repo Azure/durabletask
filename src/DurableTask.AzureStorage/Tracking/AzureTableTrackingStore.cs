@@ -1483,7 +1483,7 @@ namespace DurableTask.AzureStorage.Tracking
             // randomize the blob name to prevent accidental races in split-brain situations (#890)
             uint random = (uint)(new Random()).Next();
 
-            return $"{sanitizedInstanceId}/history-{sequenceNumber}-{eventType}-{random:X8}-{property}.json.gz";
+            return $"{sanitizedInstanceId}/{MessageManager.HistoryBlobKind}{sequenceNumber}-{eventType}-{random:X8}-{property}.json.gz";
         }
 
         async Task<ETag?> GetHistoryETagAsync(string instanceId, string executionId, CancellationToken cancellationToken)
