@@ -29,6 +29,7 @@ namespace DurableTask.AzureStorage.Tests
     using DurableTask.Core.Tracking;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Moq;
+    using Newtonsoft.Json.Linq;
 
     [TestClass]
     public class AzureTableTrackingStoreTest
@@ -163,6 +164,71 @@ namespace DurableTask.AzureStorage.Tests
             Assert.IsNotNull(writtenState);
             Assert.AreSame(startedEvent.ParentInstance, writtenState.State.ParentInstance);
             Assert.AreEqual(ParentInstanceId, writtenState.State.ParentInstance.OrchestrationInstance.InstanceId);
+        }
+
+        [TestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        public async Task ActivityStartedTime_PersistsInHistoryAndHistoryJson(bool failed)
+        {
+            const string InstanceId = "instance";
+            const string ExecutionId = "execution";
+            DateTime scheduledTime = new DateTime(2026, 1, 2, 12, 0, 0, DateTimeKind.Utc);
+            DateTime startedTime = scheduledTime.AddMinutes(12);
+            DateTime completedTime = scheduledTime.AddMinutes(15);
+            var settings = TestHelpers.GetTestAzureStorageOrchestrationServiceSettings(enableExtendedSessions: false);
+            settings.TaskHubName = "started" + Guid.NewGuid().ToString("N");
+            var storageClient = new AzureStorageClient(settings);
+            var messageManager = new MessageManager(settings, storageClient, settings.TaskHubName.ToLowerInvariant() + "-largemessages");
+            var trackingStore = new AzureTableTrackingStore(storageClient, messageManager);
+            using var service = new AzureStorageOrchestrationService(settings);
+            var runtimeState = new OrchestrationRuntimeState();
+            runtimeState.AddEvent(new ExecutionStartedEvent(0, null)
+            {
+                Name = "orchestration",
+                OrchestrationInstance = new OrchestrationInstance { InstanceId = InstanceId, ExecutionId = ExecutionId },
+                Timestamp = scheduledTime,
+            });
+            runtimeState.AddEvent(new TaskScheduledEvent(1, "activity", "v1") { Timestamp = scheduledTime });
+            HistoryEvent response = failed
+                ? new TaskFailedEvent(2, 1, "failure", "details") { StartedTime = startedTime, Timestamp = completedTime }
+                : new TaskCompletedEvent(2, 1, "result") { StartedTime = startedTime, Timestamp = completedTime };
+            runtimeState.AddEvent(response);
+            runtimeState.AddEvent(new TaskScheduledEvent(3, "legacy", "v1") { Timestamp = scheduledTime });
+            runtimeState.AddEvent(new TaskCompletedEvent(4, 3, "legacy") { Timestamp = completedTime });
+
+            try
+            {
+                await trackingStore.CreateAsync();
+                OrchestrationHistory empty = await trackingStore.GetHistoryEventsAsync(InstanceId, ExecutionId);
+                await trackingStore.UpdateStateAsync(
+                    runtimeState, runtimeState, InstanceId, ExecutionId, new OrchestrationETags(), empty.TrackingStoreContext);
+
+                var tableClient = new TableServiceClient(TestHelpers.GetTestStorageAccountConnectionString())
+                    .GetTableClient(settings.TaskHubName + "History");
+                TableEntity row = (await tableClient.GetEntityAsync<TableEntity>(InstanceId, "0000000000000002")).Value;
+                Assert.AreEqual(startedTime, row.GetDateTime("StartedTime"));
+                Assert.AreEqual(completedTime, row.GetDateTime("_Timestamp"));
+                TableEntity legacyRow = (await tableClient.GetEntityAsync<TableEntity>(InstanceId, "0000000000000004")).Value;
+                Assert.IsFalse(legacyRow.ContainsKey("StartedTime"));
+
+                OrchestrationHistory history = await trackingStore.GetHistoryEventsAsync(InstanceId, ExecutionId);
+                HistoryEvent actual = history.Events[2];
+                Assert.AreEqual(response.EventType, actual.EventType);
+                Assert.AreEqual(startedTime, actual is TaskFailedEvent failure ? failure.StartedTime : ((TaskCompletedEvent)actual).StartedTime);
+                Assert.IsNull(((TaskCompletedEvent)history.Events[4]).StartedTime);
+
+                JArray json = JArray.Parse(await service.GetOrchestrationHistoryAsync(InstanceId, ExecutionId));
+                Assert.AreEqual(scheduledTime, (DateTime)json[1]["Timestamp"]);
+                Assert.AreEqual(startedTime, (DateTime)json[2]["StartedTime"]);
+                Assert.AreEqual(completedTime, (DateTime)json[2]["Timestamp"]);
+                Assert.AreEqual(1, (int)json[2]["TaskScheduledId"]);
+                Assert.IsNull(json[4]["StartedTime"]);
+            }
+            finally
+            {
+                await trackingStore.DeleteAsync();
+            }
         }
     }
 }

@@ -13,6 +13,7 @@
 #nullable enable
 namespace DurableTask.Core.History
 {
+    using System;
     using System.Runtime.Serialization;
 
     /// <summary>
@@ -77,5 +78,16 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public FailureDetails? FailureDetails { get; private set; }
+
+        /// <summary>
+        /// Gets or sets the UTC time at which the dispatcher invoked <see cref="TaskActivity.RunAsync"/>.
+        /// </summary>
+        /// <remarks>
+        /// This is the start of the invocation associated with this response, not the time the task was scheduled.
+        /// A redelivered task records only the invocation whose response is persisted. The value is <c>null</c>
+        /// for older history or when the dispatcher did not observe a matching activity invocation.
+        /// </remarks>
+        [DataMember(EmitDefaultValue = false)]
+        public DateTime? StartedTime { get; set; }
     }
 }
