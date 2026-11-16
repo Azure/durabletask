@@ -364,9 +364,12 @@ namespace DurableTask.AzureStorage
         {
             int storageOperationCount = 0;
 
+            // The trailing '/' keeps the prefix from also matching instances whose id starts with this one.
+            string blobPrefix = sanitizedInstanceId + "/";
+
             try
             {
-                await foreach (Page<Blob> page in this.blobContainer.ListBlobsAsync(sanitizedInstanceId, cancellationToken).AsPages())
+                await foreach (Page<Blob> page in this.blobContainer.ListBlobsAsync(blobPrefix, cancellationToken).AsPages())
                 {
                     storageOperationCount++;
 

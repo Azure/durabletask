@@ -789,6 +789,43 @@ namespace DurableTask.AzureStorage.Tests
         }
 
         [TestMethod]
+        public async Task PurgeSingleInstance_DoesNotDeleteBlobsOfInstanceWithPrefixedId()
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+
+                string instanceId = Guid.NewGuid().ToString("N");
+                string otherInstanceId = instanceId + "_other";
+                string largeMessage = new string('x', 70 * 1024);
+
+                TestOrchestrationClient client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.Echo), largeMessage, instanceId);
+                OrchestrationState status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                TestOrchestrationClient otherClient = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.Echo), largeMessage, otherInstanceId);
+                status = await otherClient.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                int otherBlobCount = await this.GetBlobCount("test-largemessages", otherInstanceId + "/");
+                Assert.IsTrue(otherBlobCount > 0, "Should have large message blobs before purge");
+
+                await client.PurgeInstanceHistory();
+
+                Assert.AreEqual(0, await this.GetBlobCount("test-largemessages", instanceId + "/"));
+                Assert.AreEqual(otherBlobCount, await this.GetBlobCount("test-largemessages", otherInstanceId + "/"));
+
+                // Loading the history downloads the large-property blobs, as a replay does.
+                List<HistoryStateEvent> otherHistoryEvents = await otherClient.GetOrchestrationHistoryAsync(otherInstanceId);
+                Assert.IsTrue(otherHistoryEvents.Count > 0);
+
+                await host.StopAsync();
+            }
+        }
+
+        [TestMethod]
         public async Task PurgeInstance_WithManyHistoryRows_DeletesAll()
         {
             using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
