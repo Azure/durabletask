@@ -29,6 +29,7 @@ namespace DurableTask.AzureStorage
     using Azure.Storage.Blobs.Models;
     using Azure.Storage.Queues.Models;
     using DurableTask.AzureStorage.Storage;
+    using DurableTask.AzureStorage.Tracking;
     using Newtonsoft.Json;
 #if NETSTANDARD2_0
     using Newtonsoft.Json.Serialization;
@@ -43,6 +44,8 @@ namespace DurableTask.AzureStorage
         // increasing the size by a factor of 4/3.
         const int MaxStorageQueuePayloadSizeInBytes = 45 * 1024; // 45KB
         const int DefaultBufferSize = 64 * 2014; // 64KB
+        internal const string MessageBlobKind = "message-";
+        internal const string HistoryBlobKind = "history-";
 
         readonly AzureStorageOrchestrationServiceSettings settings;
         readonly AzureStorageClient azureStorageClient;
@@ -357,15 +360,29 @@ namespace DurableTask.AzureStorage
             string eventType = message.TaskMessage.Event.EventType.ToString();
             string activityId = message.ActivityId.ToString("N");
 
-            return $"{instanceId}/message-{activityId}-{eventType}.json.gz";
+            return $"{instanceId}/{MessageBlobKind}{activityId}-{eventType}.json.gz";
         }
 
-        public async Task<int> DeleteLargeMessageBlobs(string sanitizedInstanceId, CancellationToken cancellationToken = default)
+        public async Task<int> DeleteLargeMessageBlobs(string instanceId, CancellationToken cancellationToken = default)
+        {
+            // Message blobs are named "{instanceId}/message-..." (GetNewLargeMessageBlobName) and history blobs
+            // "{escaped instanceId}/history-..." (AzureTableTrackingStore.GetBlobName). Only blobs directly under
+            // each prefix are deleted, so instances whose id starts with this one (e.g. "abc_other" or "abc/other"
+            // when purging "abc") keep their blobs.
+            string escapedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
+            if (escapedInstanceId == instanceId)
+            {
+                return await this.DeleteInstanceBlobs(instanceId + "/", new[] { MessageBlobKind, HistoryBlobKind }, cancellationToken);
+            }
+
+            int messageBlobOperations = await this.DeleteInstanceBlobs(instanceId + "/", new[] { MessageBlobKind }, cancellationToken);
+            int historyBlobOperations = await this.DeleteInstanceBlobs(escapedInstanceId + "/", new[] { HistoryBlobKind }, cancellationToken);
+            return messageBlobOperations + historyBlobOperations;
+        }
+
+        async Task<int> DeleteInstanceBlobs(string blobPrefix, string[] blobKinds, CancellationToken cancellationToken)
         {
             int storageOperationCount = 0;
-
-            // The trailing '/' keeps the prefix from also matching instances whose id starts with this one.
-            string blobPrefix = sanitizedInstanceId + "/";
 
             try
             {
@@ -373,9 +390,10 @@ namespace DurableTask.AzureStorage
                 {
                     storageOperationCount++;
 
-                    await Task.WhenAll(page.Values.Select(b => b.DeleteIfExistsAsync(cancellationToken)));
+                    Blob[] instanceBlobs = page.Values.Where(b => IsInstanceBlob(b.Name, blobPrefix, blobKinds)).ToArray();
+                    await Task.WhenAll(instanceBlobs.Select(b => b.DeleteIfExistsAsync(cancellationToken)));
 
-                    storageOperationCount += page.Values.Count;
+                    storageOperationCount += instanceBlobs.Length;
                 }
 
                 // Count the list operation even if no blobs found (the initial list request still happened)
@@ -396,6 +414,13 @@ namespace DurableTask.AzureStorage
             }
 
             return storageOperationCount;
+        }
+
+        static bool IsInstanceBlob(string blobName, string blobPrefix, string[] blobKinds)
+        {
+            string relativeName = blobName.Substring(blobPrefix.Length);
+            return relativeName.IndexOf('/') < 0
+                && blobKinds.Any(kind => relativeName.StartsWith(kind, StringComparison.Ordinal));
         }
 
         /// Escapes a blob name for safe inclusion in a URI while preserving path structure.
