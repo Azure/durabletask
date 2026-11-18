@@ -260,7 +260,7 @@ namespace DurableTask.Emulator
 
             if (!this.orchestrationWaiters.TryGetValue(key, out TaskCompletionSource<OrchestrationState> tcs))
             {
-                tcs = new TaskCompletionSource<OrchestrationState>();
+                tcs = new TaskCompletionSource<OrchestrationState>(TaskCreationOptions.RunContinuationsAsynchronously);
 
                 if (!this.orchestrationWaiters.TryAdd(key, tcs))
                 {
@@ -417,6 +417,8 @@ namespace DurableTask.Emulator
             TaskMessage continuedAsNewMessage,
             OrchestrationState state)
         {
+            List<KeyValuePair<TaskCompletionSource<OrchestrationState>, OrchestrationState>> waitersToSignal = null;
+
             lock (this.thisLock)
             {
                 byte[] newSessionState;
@@ -462,19 +464,30 @@ namespace DurableTask.Emulator
                 if (workItem.OrchestrationRuntimeState != newOrchestrationRuntimeState)
                 {
                     var oldState = Utils.BuildOrchestrationState(workItem.OrchestrationRuntimeState);
-                    CommitState(workItem.OrchestrationRuntimeState, oldState).GetAwaiter().GetResult();
+                    CommitState(workItem.OrchestrationRuntimeState, oldState, ref waitersToSignal);
                 }
 
                 if (state != null)
                 {
-                    CommitState(newOrchestrationRuntimeState, state).GetAwaiter().GetResult();
+                    CommitState(newOrchestrationRuntimeState, state, ref waitersToSignal);
+                }
+            }
+
+            if (waitersToSignal != null)
+            {
+                foreach (KeyValuePair<TaskCompletionSource<OrchestrationState>, OrchestrationState> waiter in waitersToSignal)
+                {
+                    waiter.Key.TrySetResult(waiter.Value);
                 }
             }
 
             return Task.FromResult(0);
         }
 
-        Task CommitState(OrchestrationRuntimeState runtimeState, OrchestrationState state)
+        void CommitState(
+            OrchestrationRuntimeState runtimeState,
+            OrchestrationState state,
+            ref List<KeyValuePair<TaskCompletionSource<OrchestrationState>, OrchestrationState>> waitersToSignal)
         {
             if (!this.instanceStore.TryGetValue(runtimeState.OrchestrationInstance.InstanceId, out Dictionary<string, OrchestrationState> mapState))
             {
@@ -489,7 +502,7 @@ namespace DurableTask.Emulator
             if (state.OrchestrationStatus == OrchestrationStatus.Running
                 || state.OrchestrationStatus == OrchestrationStatus.Pending)
             {
-                return Task.FromResult(0);
+                return;
             }
 
             string key = runtimeState.OrchestrationInstance.InstanceId + "_" +
@@ -497,11 +510,10 @@ namespace DurableTask.Emulator
 
             string key1 = runtimeState.OrchestrationInstance.InstanceId + "_";
 
-            var tasks = new List<Task>();
-
             if (this.orchestrationWaiters.TryGetValue(key, out TaskCompletionSource<OrchestrationState> tcs))
             {
-                tasks.Add(Task.Run(() => tcs.TrySetResult(state)));
+                (waitersToSignal ??= new List<KeyValuePair<TaskCompletionSource<OrchestrationState>, OrchestrationState>>())
+                    .Add(new KeyValuePair<TaskCompletionSource<OrchestrationState>, OrchestrationState>(tcs, state));
             }
 
             // for instance id level waiters, we will not consider ContinueAsNew as a terminal state because
@@ -509,15 +521,9 @@ namespace DurableTask.Emulator
             if (state.OrchestrationStatus != OrchestrationStatus.ContinuedAsNew
                 && this.orchestrationWaiters.TryGetValue(key1, out TaskCompletionSource<OrchestrationState> tcs1))
             {
-                tasks.Add(Task.Run(() => tcs1.TrySetResult(state)));
+                (waitersToSignal ??= new List<KeyValuePair<TaskCompletionSource<OrchestrationState>, OrchestrationState>>())
+                    .Add(new KeyValuePair<TaskCompletionSource<OrchestrationState>, OrchestrationState>(tcs1, state));
             }
-
-            if (tasks.Count > 0)
-            {
-                Task.WaitAll(tasks.ToArray());
-            }
-
-            return Task.FromResult(0);
         }
 
         /// <inheritdoc />

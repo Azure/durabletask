@@ -344,6 +344,62 @@ namespace DurableTask.Emulator.Tests
             Assert.AreEqual(InheritedTestOrchestrationTasksB.JuggleResult, TestInheritedTasksOrchestration.JuggleResultB);
         }
 
+        [TestMethod]
+        public async Task WaitForOrchestrationAsync_ContinuationReenteringService_DoesNotDeadlock()
+        {
+            using var orchestrationService = new LocalOrchestrationService();
+            var gateActivity = new GatedActivity();
+
+            var worker = new TaskHubWorker(orchestrationService);
+            await worker.AddTaskOrchestrations(typeof(GatedOrchestration))
+                .AddTaskActivities(gateActivity)
+                .StartAsync();
+
+            try
+            {
+                var client = new TaskHubClient(orchestrationService);
+                OrchestrationInstance instance = await client.CreateOrchestrationInstanceAsync(typeof(GatedOrchestration), null);
+
+                await gateActivity.Entered.Task;
+
+                using var waiterRegistered = new ManualResetEventSlim(false);
+                Task continuationTask = Task.Run(() =>
+                {
+                    SynchronizationContext.SetSynchronizationContext(null);
+                    Task flow = WaitAndReenterServiceAsync(client, instance);
+                    waiterRegistered.Set();
+                    return flow;
+                });
+
+                Assert.IsTrue(waiterRegistered.Wait(TimeSpan.FromSeconds(5)));
+                gateActivity.Release.TrySetResult(true);
+
+                Task finished = await Task.WhenAny(continuationTask, Task.Delay(TimeSpan.FromSeconds(5)));
+                Assert.AreSame(continuationTask, finished, "WaitForOrchestrationAsync continuation deadlocked re-entering LocalOrchestrationService.");
+                await continuationTask;
+            }
+            finally
+            {
+                await worker.StopAsync(true);
+            }
+
+            static async Task WaitAndReenterServiceAsync(TaskHubClient client, OrchestrationInstance instance)
+            {
+                OrchestrationState completed = await client.WaitForOrchestrationAsync(
+                    instance,
+                    TimeSpan.FromSeconds(10),
+                    CancellationToken.None);
+                Assert.AreEqual(OrchestrationStatus.Completed, completed.OrchestrationStatus);
+
+                OrchestrationState state = await client.GetOrchestrationStateAsync(instance);
+                Assert.IsNotNull(state);
+                Assert.AreEqual(OrchestrationStatus.Completed, state.OrchestrationStatus);
+
+                await Assert.ThrowsExceptionAsync<OrchestrationAlreadyExistsException>(
+                    () => client.CreateOrchestrationInstanceAsync(typeof(GatedOrchestration), instance.InstanceId, null));
+            }
+        }
+
         private static void AssertTagsEqual(IDictionary<string, string> expectedTags, IDictionary<string, string> actualTags)
         {
             Assert.IsNotNull(actualTags);
@@ -470,6 +526,30 @@ namespace DurableTask.Emulator.Tests
                 JuggleResultB = await tasksB.Juggle(1, true);
 
                 return string.Empty;
+            }
+        }
+
+        public sealed class GatedActivity : AsyncTaskActivity<string, string>
+        {
+            public TaskCompletionSource<bool> Entered { get; } =
+                new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            public TaskCompletionSource<bool> Release { get; } =
+                new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            protected override async Task<string> ExecuteAsync(TaskContext context, string input)
+            {
+                this.Entered.TrySetResult(true);
+                await this.Release.Task;
+                return "done";
+            }
+        }
+
+        public sealed class GatedOrchestration : TaskOrchestration<string, string>
+        {
+            public override Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                return context.ScheduleTask<string>(typeof(GatedActivity), input);
             }
         }
     }
