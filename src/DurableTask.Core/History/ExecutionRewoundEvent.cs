@@ -39,6 +39,12 @@ namespace DurableTask.Core.History
             this.Reason = reason;
         }
 
+        // Private ctor for JSON deserialization (required by some storage providers and out-of-proc executors)
+        ExecutionRewoundEvent()
+            : base(-1)
+        {
+        }
+
         /// <summary>
         /// Gets the event type
         /// </summary>
