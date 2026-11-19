@@ -37,5 +37,9 @@ namespace DurableTask.Core
         public TaskOrchestrationExecutor OrchestrationExecutor { get; }
 
         public IEnumerable<OrchestratorAction> LatestDecisions { get; set; }
+
+        public int OpenTaskCount { get; set; }
+
+        public string OpenTaskNames { get; set; } = string.Empty;
     }
 }

@@ -496,6 +496,8 @@ namespace DurableTask.Core.Logging
             string ExecutionId,
             string Name,
             int ActionCount,
+            int OpenTaskCount,
+            string OpenTaskNames,
             string AppName,
             string ExtensionVersion)
         {
@@ -508,6 +510,8 @@ namespace DurableTask.Core.Logging
                     ExecutionId,
                     Name,
                     ActionCount,
+                    OpenTaskCount,
+                    OpenTaskNames,
                     AppName,
                     ExtensionVersion);
             }
