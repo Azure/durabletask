@@ -296,6 +296,18 @@ namespace DurableTask.Core
 
                 this.logHelper.TaskHubWorkerStarting();
                 var sw = Stopwatch.StartNew();
+
+                // Read the dispatcher counts here (rather than caching them in the constructor) so a backend
+                // that derives them from mutable settings is honored if they changed after construction.
+                // A count of zero disables that dispatcher for this worker; entities ride with orchestrations.
+                bool dispatchOrchestrations = this.orchestrationService.TaskOrchestrationDispatcherCount > 0;
+                bool dispatchActivities = this.orchestrationService.TaskActivityDispatcherCount > 0;
+                bool dispatchEntities = this.dispatchEntitiesSeparately && dispatchOrchestrations;
+
+                // Dispatcher objects are always constructed so the public TaskOrchestrationDispatcher/
+                // TaskActivityDispatcher properties stay non-null for callers that configure them after
+                // StartAsync (e.g. IncludeDetails). Whether each one actually polls is gated below on
+                // StartAsync, and a disabled dispatcher (dispatcher count 0) starts zero fetch loops.
                 this.orchestrationDispatcher = new TaskOrchestrationDispatcher(
                     this.orchestrationService,
                     this.orchestrationManager,
@@ -324,10 +336,18 @@ namespace DurableTask.Core
                 }
 
                 await this.orchestrationService.StartAsync();
-                await this.orchestrationDispatcher.StartAsync();
-                await this.activityDispatcher.StartAsync();
 
-                if (this.dispatchEntitiesSeparately)
+                if (dispatchOrchestrations)
+                {
+                    await this.orchestrationDispatcher.StartAsync();
+                }
+
+                if (dispatchActivities)
+                {
+                    await this.activityDispatcher.StartAsync();
+                }
+
+                if (dispatchEntities)
                 {
                     await this.entityDispatcher.StartAsync();
                 }
