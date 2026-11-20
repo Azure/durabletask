@@ -59,7 +59,7 @@ namespace DurableTask.AzureStorage.Storage
                 // New or in-progress initialization already refreshes credentials and starts the loop.
                 refreshCachedInitialization = refresh && this.migrationInitialization?.Status == TaskStatus.RanToCompletion;
                 // Run on the thread pool because synchronous SDK wrapper properties also call this method.
-                initialization = this.migrationInitialization ??= Task.Run(() => this.InitializeMigrationCoreAsync(createGateIfMissing: true));
+                initialization = this.migrationInitialization ??= Task.Run(this.InitializeMigrationCoreAsync);
             }
             try
             {
@@ -80,7 +80,7 @@ namespace DurableTask.AzureStorage.Storage
             if (refreshCachedInitialization)
             {
                 // A completed initialization may belong to a stopped service; refresh and restart its loop.
-                await this.InitializeMigrationCoreAsync(createGateIfMissing: false);
+                await this.InitializeMigrationCoreAsync();
             }
         }
 
@@ -89,9 +89,9 @@ namespace DurableTask.AzureStorage.Storage
             return this.migration?.StopRefreshing() ?? Task.CompletedTask;
         }
 
-        async Task InitializeMigrationCoreAsync(bool createGateIfMissing)
+        async Task InitializeMigrationCoreAsync()
         {
-            await this.migration!.RefreshAsync(CancellationToken.None, createGateIfMissing).ConfigureAwait(false);
+            await this.migration!.RefreshAsync(CancellationToken.None).ConfigureAwait(false);
             _ = this.migration!.StartRefreshLoop();
         }
 

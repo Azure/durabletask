@@ -74,7 +74,7 @@ namespace DurableTask.AzureStorage.Storage
 
         public bool IsMigrationEnding => this.isMigrationEnding;
 
-        public async Task RefreshAsync(CancellationToken cancellationToken, bool createGateIfMissing = false)
+        public async Task RefreshAsync(CancellationToken cancellationToken)
         {
             // Serialize explicit refreshes and the renewal loop
             await this.refreshLock.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -84,7 +84,7 @@ namespace DurableTask.AzureStorage.Storage
                 {
                     return;
                 }
-                await this.RefreshCoreAsync(cancellationToken, createGateIfMissing).ConfigureAwait(false);
+                await this.RefreshCoreAsync(cancellationToken).ConfigureAwait(false);
             }
             finally
             {
@@ -136,7 +136,7 @@ namespace DurableTask.AzureStorage.Storage
             }
         }
 
-        async Task RefreshCoreAsync(CancellationToken cancellationToken, bool createGateIfMissing)
+        async Task RefreshCoreAsync(CancellationToken cancellationToken)
         {
             while (true)
             {
@@ -145,18 +145,8 @@ namespace DurableTask.AzureStorage.Storage
                 long sampledAt = Stopwatch.GetTimestamp();
                 if (gate == null)
                 {
-                    if (!createGateIfMissing)
-                    {
-                        throw new InvalidOperationException("Migration gate disappeared. Source access cannot be restored.");
-                    }
-                    // Only initial startup may create the gate. Read it again because another host
-                    // may have created or ended migration in the meantime. Renewals must never recreate it.
-                    await this.migration.CreateIfNotExistsAsync(cancellationToken, this.migrationId).ConfigureAwait(false);
-                    createGateIfMissing = false;
-                    continue;
+                    throw new InvalidOperationException("Migration control row is missing. Source access cannot be granted.");
                 }
-
-                createGateIfMissing = false;
 
                 // If the gate indicates migration is ending, exit
                 if (gate.IsMigrationEnding) 

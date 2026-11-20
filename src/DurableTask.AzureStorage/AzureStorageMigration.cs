@@ -44,26 +44,6 @@ namespace DurableTask.AzureStorage
             this.table = tableServiceClient.GetTableClient(taskHubName + "MigrationCtrl");
         }
 
-        internal async Task CreateIfNotExistsAsync(CancellationToken cancellationToken, Guid migrationId)
-        {
-            await this.table.CreateIfNotExistsAsync(cancellationToken);
-            try
-            {
-                var entity = new TableEntity(string.Empty, migrationId.ToString("D"))
-                {
-                    [nameof(Gate.MigrationId)] = migrationId,
-                    [MigrationEndingPropertyName] = false,
-                    // No token has been issued yet. The first host to renew the expiry time will set this to a future value.
-                    [nameof(Gate.AccessExpiresAt)] = DateTimeOffset.FromUnixTimeSeconds(0),
-                };
-                await this.table.AddEntityAsync(entity, cancellationToken);
-            }
-            catch (RequestFailedException e) when (e.Status == 409)
-            {
-                // Another host may have created or drained the row. Leave it unchanged.
-            }
-        }
-
         internal async Task<Gate?> ReadAsync(CancellationToken cancellationToken, Guid migrationId)
         {
             try

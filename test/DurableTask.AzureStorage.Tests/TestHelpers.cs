@@ -1,4 +1,4 @@
-﻿//  ----------------------------------------------------------------------------------
+//  ----------------------------------------------------------------------------------
 //  Copyright Microsoft Corporation
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
 #nullable enable
 namespace DurableTask.AzureStorage.Tests
 {
+    using Azure;
+    using Azure.Data.Tables;
     using DurableTask.Core.Logging;
     using DurableTask.Core.Settings;
     using Microsoft.Extensions.Logging;
@@ -24,11 +26,33 @@ namespace DurableTask.AzureStorage.Tests
 
     static class TestHelpers
     {
+        public static async Task CreateMigrationControlAsync(AzureStorageOrchestrationServiceSettings settings, Guid migrationId)
+        {
+            // Test setup creates the row before starting migration hosts.
+            TrackingServiceClientProvider provider = settings.TrackingServiceClientProvider ?? settings.StorageAccountClientProvider!;
+            TableClient control = provider.Table.CreateClient(provider.Table.CreateOptions()).GetTableClient(settings.TaskHubName + "MigrationCtrl");
+            await control.CreateIfNotExistsAsync();
+            TableEntity row = new(string.Empty, migrationId.ToString("D"))
+            {
+                ["MigrationId"] = migrationId,
+                ["IsDraining"] = false,
+                ["AccessExpiresAt"] = DateTimeOffset.FromUnixTimeSeconds(0),
+            };
+            try
+            {
+                await control.AddEntityAsync(row);
+            }
+            catch (RequestFailedException exception) when (exception.Status == 409 && exception.ErrorCode == "EntityAlreadyExists")
+            {
+                // Preserve an existing row when setup is retried.
+            }
+        }
+
         public static async Task<DateTimeOffset> BeginMigrationDrainAsync(AzureStorageOrchestrationServiceSettings settings, Guid migrationId)
         {
             var provider = settings.TrackingServiceClientProvider ?? settings.StorageAccountClientProvider!;
             var migration = new AzureStorageMigration(provider.Table.CreateClient(provider.Table.CreateOptions()), settings.TaskHubName);
-            await migration.CreateIfNotExistsAsync(default, migrationId);
+            await CreateMigrationControlAsync(settings, migrationId);
             while (true)
             {
                 AzureStorageMigration.Gate gate = await migration.ReadAsync(default, migrationId)

@@ -77,6 +77,7 @@ namespace DurableTask.AzureStorage.Tests
                         this.settings.IsMigrationActive = true;
                     }
                 }
+                await TestHelpers.CreateMigrationControlAsync(this.settings, this.MigrationId);
             }
             else
             {
