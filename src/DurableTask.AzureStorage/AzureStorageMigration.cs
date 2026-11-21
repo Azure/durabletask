@@ -1,0 +1,98 @@
+﻿//  ----------------------------------------------------------------------------------
+//  Copyright Microsoft Corporation
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//  http://www.apache.org/licenses/LICENSE-2.0
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//  ----------------------------------------------------------------------------------
+#nullable enable
+namespace DurableTask.AzureStorage
+{
+    using System;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using Azure;
+    using Azure.Data.Tables;
+
+    /// <summary>
+    /// Coordinates migration attempts for a task hub.
+    /// </summary>
+    public sealed class AzureStorageMigration
+    {
+        const string MigrationEndingPropertyName = "IsDraining";
+
+        readonly TableClient table;
+
+        /// <summary>Creates a migration drain coordinator using the tracking account's authenticated Table service client.</summary>
+        /// <param name="tableServiceClient">An authenticated client independent of workload SAS credentials.</param>
+        /// <param name="taskHubName">The source task hub name.</param>
+        public AzureStorageMigration(TableServiceClient tableServiceClient, string taskHubName)
+        {
+            if (tableServiceClient == null)
+            {
+                throw new ArgumentNullException(nameof(tableServiceClient));
+            }
+            if (string.IsNullOrWhiteSpace(taskHubName))
+            {
+                throw new ArgumentException("A task hub name is required.", nameof(taskHubName));
+            }
+            this.table = tableServiceClient.GetTableClient(taskHubName + "MigrationCtrl");
+        }
+
+        internal async Task<Gate?> ReadAsync(CancellationToken cancellationToken, Guid migrationId)
+        {
+            try
+            {
+                Response<TableEntity> response = await this.table.GetEntityAsync<TableEntity>(string.Empty, migrationId.ToString("D"), cancellationToken: cancellationToken);
+                TableEntity row = response.Value;
+                return new Gate
+                {
+                    MigrationId = row.GetGuid(nameof(Gate.MigrationId)) ?? throw new InvalidOperationException("Migration gate is missing MigrationId."),
+                    IsMigrationEnding = row.GetBoolean(MigrationEndingPropertyName) ?? throw new InvalidOperationException($"Migration gate is missing {MigrationEndingPropertyName}."),
+                    AccessExpiresAt = row.GetDateTimeOffset(nameof(Gate.AccessExpiresAt)) ?? throw new InvalidOperationException("Migration gate is missing AccessExpiresAt."),
+                    ETag = row.ETag,
+                    // Use the storage response clock, not the source host's wall clock
+                    ServerTime = response.GetRawResponse().Headers.Date ?? throw new InvalidOperationException("Migration gate response is missing the Storage Date header."),
+                };
+            }
+            catch (RequestFailedException e) when (e.Status == 404 && (e.ErrorCode == "ResourceNotFound" || e.ErrorCode == "TableNotFound"))
+            {
+                return null;
+            }
+        }
+
+        internal async Task<bool> TryUpdateAsync(Gate gate, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var entity = new TableEntity(string.Empty, gate.MigrationId.ToString("D"))
+                {
+                    [nameof(Gate.MigrationId)] = gate.MigrationId,
+                    [MigrationEndingPropertyName] = gate.IsMigrationEnding,
+                    [nameof(Gate.AccessExpiresAt)] = gate.AccessExpiresAt,
+                };
+                await this.table.UpdateEntityAsync(entity, gate.ETag, TableUpdateMode.Replace, cancellationToken);
+                return true;
+            }
+            // Another host may have updated the gate. The caller can retry with a fresh read.
+            catch (RequestFailedException e) when (e.Status == 412)
+            {
+                return false;
+            }
+        }
+
+        internal sealed class Gate
+        {
+            public Guid MigrationId { get; set; }
+            public bool IsMigrationEnding { get; set; }
+            public DateTimeOffset AccessExpiresAt { get; set; }
+            public ETag ETag { get; set; }
+            public DateTimeOffset ServerTime { get; set; }
+        }
+    }
+}
