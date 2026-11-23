@@ -108,7 +108,7 @@ namespace DurableTask.AzureStorage.Tests
             {
                 requests++;
                 HttpResponseMessage response = requests == 1
-                    ? new HttpResponseMessage((HttpStatusCode)status) { Content = new StringContent("<Error><Code>TestFailure</Code></Error>") }
+                    ? ErrorResponse(status, "<Error><Code>TestFailure</Code><Message>Storage refused the test request.</Message></Error>")
                     : KeyResponse();
                 return Task.FromResult(response);
             }));
@@ -128,8 +128,44 @@ namespace DurableTask.AzureStorage.Tests
                 RequestFailedException failure = await Assert.ThrowsExceptionAsync<RequestFailedException>(() =>
                     TableUserDelegationKey.GetAsync(Endpoint, new TestCredential(), options, ServerTime, default));
                 Assert.AreEqual(status, failure.Status);
+                Assert.AreEqual("TestFailure", failure.ErrorCode);
+                StringAssert.Contains(failure.Message, "Storage refused the test request.");
+                StringAssert.Contains(failure.Message, "Status: " + status);
+                StringAssert.Contains(failure.Message, "<Code>TestFailure</Code>");
+                Response response = failure.GetRawResponse()!;
+                Assert.IsNotNull(response);
+                Assert.IsTrue(response.Headers.TryGetValue("x-ms-request-id", out string? requestId));
+                Assert.AreEqual("test-request-id", requestId);
             }
             Assert.AreEqual(expectedRequests, requests);
+        }
+
+        [DataTestMethod]
+        [DataRow("<Error><Code>TestFailure", null)]
+        [DataRow("<Error><Message>No code was returned.</Message></Error>", null)]
+        [DataRow("Service unavailable", null)]
+        [DataRow("", null)]
+        [DataRow("{\"error\":{\"code\":\"JsonFailure\",\"message\":\"Storage refused the JSON request.\"}}", "JsonFailure")]
+        public async Task Get_PreservesFailuresForOtherResponseBodies(string body, string? expectedCode)
+        {
+            // 1. Return a body that is not a complete XML error.
+            using HttpClient http = new HttpClient(new TestHandler((request, token) =>
+                Task.FromResult(ErrorResponse(403, body))));
+
+            // 2. Keep the HTTP failure and any error code the SDK can parse.
+            RequestFailedException failure = await Assert.ThrowsExceptionAsync<RequestFailedException>(() =>
+                TableUserDelegationKey.GetAsync(Endpoint, new TestCredential(), Options(http), ServerTime, default));
+            Assert.AreEqual(403, failure.Status);
+            Assert.AreEqual(expectedCode, failure.ErrorCode);
+            if (body.Length != 0)
+            {
+                StringAssert.Contains(failure.Message, body);
+            }
+            Response response = failure.GetRawResponse()!;
+            Assert.IsNotNull(response);
+            Assert.AreEqual(403, response.Status);
+            Assert.IsTrue(response.Headers.TryGetValue("x-ms-request-id", out string? requestId));
+            Assert.AreEqual("test-request-id", requestId);
         }
 
         [TestMethod]
@@ -252,6 +288,17 @@ namespace DurableTask.AzureStorage.Tests
         {
             Content = new StringContent((body ?? KeyBody()).ToString(SaveOptions.DisableFormatting), Encoding.UTF8, "application/xml"),
         };
+
+        static HttpResponseMessage ErrorResponse(int status, string body)
+        {
+            // The HTTP pipeline owns and disposes the returned response.
+            HttpResponseMessage response = new HttpResponseMessage((HttpStatusCode)status)
+            {
+                Content = new StringContent(body, Encoding.UTF8, "application/xml"),
+            };
+            response.Headers.Add("x-ms-request-id", "test-request-id");
+            return response;
+        }
 
         sealed class TestCredential : TokenCredential
         {

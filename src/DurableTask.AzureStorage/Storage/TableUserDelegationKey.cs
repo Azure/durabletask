@@ -22,6 +22,7 @@ namespace DurableTask.AzureStorage.Storage
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+    using System.Xml;
     using System.Xml.Linq;
     using Azure;
     using Azure.Core;
@@ -84,8 +85,11 @@ namespace DurableTask.AzureStorage.Storage
             message.Request.Content = RequestContent.Create(Encoding.UTF8.GetBytes(xml.ToString(SaveOptions.DisableFormatting)));
             await pipeline.SendAsync(message, cancellationToken).ConfigureAwait(false);
             if (message.Response.Status != 200)
-            { 
-                throw new RequestFailedException(message.Response);
+            {
+                // Parse Storage XML errors; keep the SDK's parser for other responses.
+                RequestFailedDetailsParser? parser = message.Response.Content.ToString().TrimStart().StartsWith("<", StringComparison.Ordinal)
+                    ? XmlErrorDetailsParser.Instance : null;
+                throw new RequestFailedException(message.Response, innerException: null, detailsParser: parser);
             }
             using var reader = new StreamReader(message.Response.ContentStream!);
             return new TableUserDelegationKey(XElement.Parse(await reader.ReadToEndAsync().ConfigureAwait(false)));
@@ -130,6 +134,33 @@ namespace DurableTask.AzureStorage.Storage
                 ["sig"] = Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(toSign))),
             };
             return string.Join("&", query.Select(pair => pair.Key + "=" + Uri.EscapeDataString(pair.Value)));
+        }
+
+        sealed class XmlErrorDetailsParser : RequestFailedDetailsParser
+        {
+            internal static readonly XmlErrorDetailsParser Instance = new XmlErrorDetailsParser();
+
+            public override bool TryParse(Response response, out ResponseError? error, out IDictionary<string, string>? data)
+            {
+                error = null;
+                data = null;
+                try
+                {
+                    XElement body = XElement.Parse(response.Content.ToString());
+                    string? code = (string?)body.Element("Code");
+                    if (body.Name != "Error" || string.IsNullOrEmpty(code))
+                    {
+                        return false;
+                    }
+                    error = new ResponseError(code, (string?)body.Element("Message") ?? "Service request failed.");
+                    return true;
+                }
+                catch (XmlException)
+                {
+                    // Keep the original HTTP failure when the body is malformed.
+                    return false;
+                }
+            }
         }
 
         static string FormatTime(DateTimeOffset value)
