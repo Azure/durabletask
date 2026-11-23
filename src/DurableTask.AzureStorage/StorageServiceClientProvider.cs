@@ -93,7 +93,7 @@ namespace DurableTask.AzureStorage
 
             return new DefaultStorageServiceClientProvider<BlobServiceClient, BlobClientOptions>(
                 o => new BlobServiceClient(serviceUri, tokenCredential, o),
-                options ?? new BlobClientOptions());
+                options ?? new BlobClientOptions(), tokenCredential);
         }
 
         #endregion
@@ -165,7 +165,7 @@ namespace DurableTask.AzureStorage
 
             return new DefaultStorageServiceClientProvider<QueueServiceClient, QueueClientOptions>(
                 o => new QueueServiceClient(serviceUri, tokenCredential, o),
-                options ?? new QueueClientOptions());
+                options ?? new QueueClientOptions(), tokenCredential);
         }
 
         #endregion
@@ -237,7 +237,7 @@ namespace DurableTask.AzureStorage
 
             return new DefaultStorageServiceClientProvider<TableServiceClient, TableClientOptions>(
                 o => new TableServiceClient(serviceUri, tokenCredential, o),
-                options ?? new TableClientOptions());
+                options ?? new TableClientOptions(), tokenCredential);
         }
 
         #endregion
