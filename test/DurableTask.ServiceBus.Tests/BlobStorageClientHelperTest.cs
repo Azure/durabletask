@@ -15,6 +15,7 @@ namespace DurableTask.ServiceBus.Tests
 {
     using System;
     using System.Diagnostics.CodeAnalysis;
+    using System.Globalization;
     using System.Text.RegularExpressions;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using DurableTask.ServiceBus.Tracking;
@@ -40,6 +41,159 @@ namespace DurableTask.ServiceBus.Tests
             // invalid containers are ignored
             Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired("invalidContainerName", DateTime.UtcNow));
             Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired("hubname-dtfx-message-20146789", DateTime.UtcNow));
+        }
+
+        [TestMethod]
+        [SuppressMessage("ReSharper", "StringLiteralTypo")]
+        public void IsContainerExpiredHubNameWithDashesTest()
+        {
+            var dateTime = new DateTime(2015, 05, 17);
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerExpired("my-hub-dtfx-message-20150516", dateTime));
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerExpired("my-test-hub-dtfx-session-20140518", dateTime));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired("my-hub-dtfx-message-20150518", dateTime));
+
+            // containers not created by the framework are ignored
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired("my-hub-other-message-20100101", DateTime.UtcNow));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired("dtfx-message-20100101", DateTime.UtcNow));
+        }
+
+        [TestMethod]
+        [SuppressMessage("ReSharper", "StringLiteralTypo")]
+        public void IsContainerExpiredIgnoresLegacyNonGregorianContainersTest()
+        {
+            // Before container dates were formatted with the invariant culture, the current culture's calendar was used.
+            // A container written for a recent payload must not be read as centuries old and purged.
+            var messageFireTime = new DateTime(2026, 11, 04);
+            var threshold = new DateTime(2026, 01, 01);
+
+            foreach (string cultureName in new[] { "ar-SA", "fa-IR", "th-TH" })
+            {
+                string legacyDate = BuildLegacyContainerDate(messageFireTime, cultureName);
+                Assert.AreNotEqual("20261104", legacyDate, $"{cultureName} must not use the Gregorian calendar for this test to be meaningful.");
+
+                foreach (string hubPrefix in new[] { "my-hub-dtfx", "myhub-dtfx" })
+                {
+                    string containerName = $"{hubPrefix}-message-{legacyDate}";
+                    Assert.IsTrue(BlobStorageClientHelper.IsContainerOwnedByHub(containerName, hubPrefix), $"{containerName} must still belong to the hub.");
+                    Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired(containerName, threshold), $"Legacy {cultureName} container {containerName} must not be treated as expired.");
+                }
+            }
+
+            // Gregorian dates on or after the guard are still purged.
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerExpired("my-hub-dtfx-message-20000101", threshold));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired("my-hub-dtfx-message-19991231", threshold));
+
+            // th-TH 2024-02-29 is 25670229, which is not a valid Gregorian date: still owned by the hub, never expired.
+            string thaiLeapDay = BuildLegacyContainerDate(new DateTime(2024, 02, 29), "th-TH");
+            Assert.AreEqual("25670229", thaiLeapDay);
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerOwnedByHub($"my-hub-dtfx-message-{thaiLeapDay}", "my-hub-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired($"my-hub-dtfx-message-{thaiLeapDay}", threshold));
+
+            // Japanese and Taiwan calendars format the era year with as few as 2 digits: still owned by the hub, never expired.
+            foreach ((string cultureName, Calendar calendar, DateTime fireTime, string expectedDate) in new (string, Calendar, DateTime, string)[]
+            {
+                ("ja-JP", new JapaneseCalendar(), messageFireTime, "081104"),
+                ("zh-TW", new TaiwanCalendar(), messageFireTime, "1151104"),
+                ("zh-TW", new TaiwanCalendar(), new DateTime(2010, 12, 31), "991231"),
+            })
+            {
+                string legacyDate = BuildLegacyContainerDate(fireTime, cultureName, calendar);
+                Assert.AreEqual(expectedDate, legacyDate);
+
+                string containerName = $"my-hub-dtfx-message-{legacyDate}";
+                Assert.IsTrue(BlobStorageClientHelper.IsContainerOwnedByHub(containerName, "my-hub-dtfx"), $"{containerName} must still belong to the hub.");
+                Assert.IsFalse(BlobStorageClientHelper.IsContainerExpired(containerName, threshold), $"Legacy {cultureName} container {containerName} must not be treated as expired.");
+            }
+        }
+
+        // Reproduces the container date formatting of earlier versions: DateTime.ToString("yyyyMMdd") under the current culture.
+        static string BuildLegacyContainerDate(DateTime messageFireTime, string cultureName, Calendar calendar = null)
+        {
+            CultureInfo originalCulture = CultureInfo.CurrentCulture;
+            try
+            {
+                var culture = new CultureInfo(cultureName);
+                if (calendar != null)
+                {
+                    culture.DateTimeFormat.Calendar = calendar;
+                }
+
+                CultureInfo.CurrentCulture = culture;
+                return messageFireTime.ToString("yyyyMMdd");
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = originalCulture;
+            }
+        }
+
+        [TestMethod]
+        [SuppressMessage("ReSharper", "StringLiteralTypo")]
+        public void ContainerNamesAreCultureInvariantTest()
+        {
+            CultureInfo originalCulture = CultureInfo.CurrentCulture;
+            try
+            {
+                // th-TH uses the Buddhist calendar (year 2558 for 2015)
+                CultureInfo.CurrentCulture = new CultureInfo("th-TH");
+                string key = BlobStorageClientHelper.BuildMessageBlobKey("aa", "bb", new DateTime(2015, 05, 17));
+                StringAssert.StartsWith(key, "message-20150517|");
+
+                // tr-TR lower-cases 'I' to a dotless 'ı', which is invalid in a container name
+                CultureInfo.CurrentCulture = new CultureInfo("tr-TR");
+                Assert.AreEqual("myhubid-dtfx", BlobStorageClientHelper.BuildContainerNamePrefix("MYHUBID"));
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = originalCulture;
+            }
+        }
+
+        [TestMethod]
+        public void ParseKeyRejectsInvalidSuffixCharactersTest()
+        {
+            Assert.ThrowsException<ArgumentException>(
+                () => BlobStorageClientHelper.ParseKey(@"message\-20100319|aa/bb/cc", out _, out _));
+            Assert.ThrowsException<ArgumentException>(
+                () => BlobStorageClientHelper.ParseKey("message-20100319\n|aa/bb/cc", out _, out _));
+        }
+
+        [TestMethod]
+        [SuppressMessage("ReSharper", "StringLiteralTypo")]
+        public void IsContainerOwnedByHubTest()
+        {
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-session-20150516", "alpha-dtfx"));
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-backup-dtfx-session-20150516", "alpha-dtfx-backup-dtfx"));
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerOwnedByHub("my-hub-dtfx-message-20150516", "my-hub-dtfx"));
+
+            // another hub whose container names share this hub's prefix
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-backup-dtfx-session-20150516", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-session-20150516", "alpha-dtfx-backup-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-extra-session-20150516", "alpha-dtfx"));
+
+            // malformed names
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-20150516", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("-session-20150516", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("invalidContainerName", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx--20150516", "alpha-dtfx"));
+
+            // non-date suffixes
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-session-backup", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-session-20150", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-session-201505160", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-session-", "alpha-dtfx"));
+
+            // dates that are not valid Gregorian dates were written by earlier versions using the current culture's
+            // calendar (e.g. Thai Buddhist 25670229 for 2024-02-29, Japanese 081106 and Taiwan 1151106 for 2026-11-06)
+            // and still belong to the hub
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-session-20150230", "alpha-dtfx"));
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerOwnedByHub("my-hub-dtfx-message-25670229", "my-hub-dtfx"));
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerOwnedByHub("my-hub-dtfx-message-081106", "my-hub-dtfx"));
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerOwnedByHub("my-hub-dtfx-message-1151106", "my-hub-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-backup-dtfx-message-081106", "alpha-dtfx"));
+            Assert.IsTrue(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-message-20160229", "alpha-dtfx"));
+            Assert.IsFalse(BlobStorageClientHelper.IsContainerOwnedByHub("alpha-dtfx-session-2015o516", "alpha-dtfx"));
         }
 
         [TestMethod]

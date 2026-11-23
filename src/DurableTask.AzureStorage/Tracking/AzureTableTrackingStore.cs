@@ -305,13 +305,44 @@ namespace DurableTask.AzureStorage.Tracking
             bool hasFailedSubOrchestrations = false;
             string partitionFilter = AzureTableQueryFilter.PartitionKeyEquals(instanceId);
 
-            string orchestratorStartedFilter = $"{partitionFilter} and {nameof(HistoryEvent.EventType)} eq '{nameof(EventType.OrchestratorStarted)}'";
-            IReadOnlyList<TableEntity> orchestratorStartedEntities = await this.QueryHistoryAsync(orchestratorStartedFilter, instanceId, cancellationToken);
+            // A child can report failure before its own checkpoint finishes.
+            // Wait for that checkpoint before reading or changing its history.
+            Stopwatch waitForFailure = Stopwatch.StartNew();
+            string executionId = null;
+            ETag instanceETag;
 
-            // get most recent orchestratorStarted event
-            string recentStartRowKey = orchestratorStartedEntities.Max(x => x.RowKey);
-            var recentStartRow = orchestratorStartedEntities.Where(y => y.RowKey == recentStartRowKey).ToList();
-            string executionId = recentStartRow[0].GetString(nameof(OrchestrationInstance.ExecutionId));
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                InstanceStatus instanceStatus = await this.FetchInstanceStatusAsync(instanceId, cancellationToken);
+                if (instanceStatus != null)
+                {
+                    string currentExecutionId = instanceStatus.State.OrchestrationInstance.ExecutionId;
+                    if (executionId != null && executionId != currentExecutionId)
+                    {
+                        throw new InvalidOperationException($"Cannot rewind instance '{instanceId}': execution '{executionId}' no longer exists.");
+                    }
+                    executionId = currentExecutionId;
+                    if (instanceStatus.State.OrchestrationStatus == OrchestrationStatus.Failed)
+                    {
+                        instanceETag = instanceStatus.ETag;
+                        break;
+                    }
+                }
+                else if (executionId != null)
+                {
+                    throw new InvalidOperationException($"Cannot rewind instance '{instanceId}': execution '{executionId}' no longer exists.");
+                }
+
+                if (waitForFailure.Elapsed >= TimeSpan.FromMinutes(1))
+                {
+                    throw new TimeoutException($"Timed out waiting for instance '{instanceId}' to commit its failed status before rewind.");
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+            }
+
+            ETag? historyETag = await this.GetHistoryETagAsync(instanceId, executionId, cancellationToken);
 
             // Use parameterized filter to prevent OData injection via crafted execution IDs
             string executionIdFilter = AzureTableQueryFilter.ColumnEquals(nameof(OrchestrationInstance.ExecutionId), executionId);
@@ -344,11 +375,12 @@ namespace DurableTask.AzureStorage.Tracking
             IReadOnlyList<TableEntity> entitiesToClear = await this.QueryHistoryAsync(updateFilterBuilder.ToString(), instanceId, cancellationToken);
             if (newSequenceNumber.HasValue)
             {
-                TableEntity sentinel = entitiesToClear.Single(entity => entity.RowKey == SentinelRowKey);
-                sentinel[SequenceNumberProperty] = newSequenceNumber.Value;
-                sentinel[MigrationIdProperty] = this.migrationId;
-                Response response = await this.HistoryTable.MergeEntityAsync(sentinel, sentinel.ETag, cancellationToken);
-                sentinel.ETag = response.Headers.ETag.Value;
+                TableEntity sequenceSentinel = entitiesToClear.Single(entity => entity.RowKey == SentinelRowKey);
+                sequenceSentinel[SequenceNumberProperty] = newSequenceNumber.Value;
+                sequenceSentinel[MigrationIdProperty] = this.migrationId;
+                Response response = await this.HistoryTable.MergeEntityAsync(sequenceSentinel, historyETag ?? sequenceSentinel.ETag, cancellationToken);
+                // The sequence write changed the sentinel version used by the final rewind check.
+                historyETag = response.Headers.ETag;
             }
 
             foreach (TableEntity entity in entitiesToClear)
@@ -414,11 +446,22 @@ namespace DurableTask.AzureStorage.Tracking
                 await this.HistoryTable.ReplaceEntityAsync(entity, entity.ETag, cancellationToken);
             }
 
+            // Invalidate prefetched history before making the instance Pending.
+            var sentinel = new TableEntity(KeySanitation.EscapePartitionKey(instanceId), SentinelRowKey)
+            {
+                [nameof(OrchestrationInstance.ExecutionId)] = executionId,
+            };
+            if (historyETag.HasValue)
+            {
+                await this.HistoryTable.MergeEntityAsync(sentinel, historyETag.Value, cancellationToken);
+            }
+            else
+            {
+                await this.HistoryTable.InsertEntityAsync(sentinel, cancellationToken);
+            }
+
             // reset orchestration status in instance store table
-            await this.UpdateStatusForRewindAsync(
-                instanceId,
-                newSequenceNumber,
-                cancellationToken);
+            await this.UpdateStatusForRewindAsync(instanceId, instanceETag, newSequenceNumber, cancellationToken);
 
             if (!hasFailedSubOrchestrations)
             {
@@ -543,7 +586,7 @@ namespace DurableTask.AzureStorage.Tracking
 
             if (this.settings.FetchLargeMessageDataEnabled)
             {
-                if (MessageManager.TryGetLargeMessageReference(orchestrationState.Input, out Uri blobUrl))
+                if (this.messageManager.TryGetLargeMessageReference(orchestrationState.Input, out Uri blobUrl))
                 {
                     string json = await this.messageManager.DownloadAndDecompressAsBytesAsync(blobUrl, cancellationToken);
 
@@ -977,7 +1020,7 @@ namespace DurableTask.AzureStorage.Tracking
         }
 
         /// <inheritdoc />
-        public override async Task UpdateStatusForRewindAsync(string instanceId, long? sequenceNumber, CancellationToken cancellationToken = default)
+        public override async Task UpdateStatusForRewindAsync(string instanceId, ETag eTag, long? sequenceNumber = null, CancellationToken cancellationToken = default)
         {
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
             TableEntity entity = new TableEntity(sanitizedInstanceId, "")
@@ -993,7 +1036,8 @@ namespace DurableTask.AzureStorage.Tracking
             }
 
             Stopwatch stopwatch = Stopwatch.StartNew();
-            await this.InstancesTable.MergeEntityAsync(entity, ETag.All, cancellationToken);
+            // Do not reset an instance that changed during rewind.
+            await this.InstancesTable.MergeEntityAsync(entity, eTag, cancellationToken);
 
             // We don't have enough information to get the episode number.
             // It's also not important to have for this particular trace.
@@ -1337,8 +1381,7 @@ namespace DurableTask.AzureStorage.Tracking
             string instanceId,
             string executionId,
             OrchestrationRuntimeState runtimeState,
-            bool instanceEntityExists,
-            long sequenceNumber,
+            OrchestrationConcurrencyTags eTags,
             CancellationToken cancellationToken = default)
         {
             if (runtimeState.OrchestrationStatus != OrchestrationStatus.Completed &&
@@ -1349,12 +1392,26 @@ namespace DurableTask.AzureStorage.Tracking
                 return;
             }
 
+            // There is a particular race condition which can occur with rewind if a worker crashes after updating the instance and history state
+            // to "Failed", but before deleting the triggering messages. If rewind is then requested on the failed instance, its status will be
+            // updated to "Pending", but if we happened to fetch the history BEFORE rewind altered it, then we will see a mismatch between the failed
+            // history and the instance status at this point. We do not actually want to set the status to "Failed" here in that case. The easiest way
+            // to detect this is to check if the history's etag is still current.
+            // (Note that there remains a known gap for a multi-page history if the sentinel is on a different page from the ExecutionCompletedEvent. Then
+            // it is possible we still fetch a failed history, the rewind goes through and changes the history and the sentinel's etag, and then we read
+            // the sentinel with its new etag and think the history is current)
+            if (eTags.HistoryETag.HasValue &&
+                eTags.HistoryETag != await this.GetHistoryETagAsync(instanceId, executionId, cancellationToken))
+            {
+                throw new DurableTaskStorageException(new RequestFailedException(
+                    412, "The history changed before its terminal status could be restored.", "UpdateConditionNotSatisfied", null));
+            }
+
+            // Reuse the history checkpoint sequence when repairing its instance row.
+            long sequenceNumber = eTags.SequenceNumber is > 0 ? eTags.SequenceNumber.Value : 1;
             if (this.IsMigrationActive)
             {
-                await this.modifiedInstancesQueue.AddInstanceAsync(
-                    instanceId,
-                    sequenceNumber,
-                    cancellationToken);
+                await this.modifiedInstancesQueue.AddInstanceAsync(instanceId, sequenceNumber, cancellationToken);
             }
 
             string sanitizedInstanceId = KeySanitation.EscapePartitionKey(instanceId);
@@ -1422,7 +1479,7 @@ namespace DurableTask.AzureStorage.Tracking
             }
             
             // If the input has not been set by a previous execution, set the input.
-            if (!instanceEntityExists)
+            if (!eTags.InstanceETag.HasValue)
             {
                 // In the case that the input is too large and is stored in blob storage, extract the blob name from the ExecutionStarted history entity.
                 if (this.ExceedsMaxTablePropertySize(runtimeState.Input))
@@ -1455,7 +1512,17 @@ namespace DurableTask.AzureStorage.Tracking
                 instanceEntity[MigrationIdProperty] = this.migrationId;
             }
 
-            await this.InstancesTable.InsertOrMergeEntityAsync(instanceEntity);
+            // Do not overwrite an instance row that changed after we read it.
+            // In particular, this guards against the race condition where an instance row was not committed for a failed history, and the
+            // instance is then recreated with the same instance ID. In that case we do not want to override the new instance state.
+            if (eTags.InstanceETag.HasValue)
+            {
+                await this.InstancesTable.MergeEntityAsync(instanceEntity, eTags.InstanceETag.Value, cancellationToken);
+            }
+            else
+            {
+                await this.InstancesTable.InsertEntityAsync(instanceEntity, cancellationToken);
+            }
 
             this.settings.Logger.InstanceStatusUpdate(
                 this.storageAccountName,
@@ -1631,6 +1698,21 @@ namespace DurableTask.AzureStorage.Tracking
             uint random = (uint)(new Random()).Next();
 
             return $"{sanitizedInstanceId}/history-{sequenceNumber}-{eventType}-{random:X8}-{property}.json.gz";
+        }
+
+        async Task<ETag?> GetHistoryETagAsync(string instanceId, string executionId, CancellationToken cancellationToken)
+        {
+            string filter = $"{AzureTableQueryFilter.PartitionKeyEquals(instanceId)} and {AzureTableQueryFilter.ColumnEquals(nameof(ITableEntity.RowKey), SentinelRowKey)}";
+            TableQueryResults<TableEntity> results = await this.HistoryTable.ExecuteQueryAsync<TableEntity>(
+                filter, select: new[] { nameof(OrchestrationInstance.ExecutionId) }, cancellationToken: cancellationToken)
+                .GetResultsAsync(cancellationToken: cancellationToken);
+            TableEntity sentinel = results.Entities.SingleOrDefault();
+            if (sentinel?.GetString(nameof(OrchestrationInstance.ExecutionId)) is string historyExecutionId && historyExecutionId != executionId)
+            {
+                throw new DurableTaskStorageException(new RequestFailedException(
+                    412, "The history belongs to a different execution.", "UpdateConditionNotSatisfied", null));
+            }
+            return sentinel?.ETag;
         }
 
         async Task<ETag?> UploadHistoryBatch(

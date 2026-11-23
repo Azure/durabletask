@@ -96,7 +96,7 @@ namespace DurableTask.AzureStorage.Tracking
         public abstract Task<bool> SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent, ETag? eTag, string inputStatusOverride, long sequenceNumber, CancellationToken cancellationToken = default);
 
         /// <inheritdoc />
-        public virtual Task UpdateStatusForRewindAsync(string instanceId, long? sequenceNumber, CancellationToken cancellationToken = default)
+        public virtual Task UpdateStatusForRewindAsync(string instanceId, ETag eTag, long? sequenceNumber = null, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
@@ -114,6 +114,6 @@ namespace DurableTask.AzureStorage.Tracking
         public abstract Task UpdateStateAsync(OrchestrationRuntimeState newRuntimeState, OrchestrationRuntimeState oldRuntimeState, string instanceId, string executionId, OrchestrationConcurrencyTags eTags, object executionData, CancellationToken cancellationToken = default);
         
         /// <inheritdoc />
-        public abstract Task UpdateInstanceStatusForCompletedOrchestrationAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, bool instanceEntityExists, long sequenceNumber, CancellationToken cancellationToken = default);
+        public abstract Task UpdateInstanceStatusForCompletedOrchestrationAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, OrchestrationConcurrencyTags eTags, CancellationToken cancellationToken = default);
     }
 }

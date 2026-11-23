@@ -3,8 +3,11 @@ namespace DurableTask.ServiceBus.Common.Abstraction
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Linq;
+    using System.Threading;
     using System.Threading.Tasks;
+    using DurableTask.Core.Tracing;
 
     /// <inheritdoc />
     public class IMessageSession
@@ -330,15 +333,35 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             await sender.SendMessageAsync(message);
         }
 
+        /// <summary>
+        /// Sends the messages in a single batch. Messages that do not fit in the batch are not sent and are traced as errors.
+        /// </summary>
         public async Task SendAsync(IEnumerable<Message> messageList)
         {
-            var batch = await sender.CreateMessageBatchAsync();
-            foreach (var message in messageList)
+            using (Azure.Messaging.ServiceBus.ServiceBusMessageBatch batch = await sender.CreateMessageBatchAsync())
             {
-                batch.TryAddMessage(message);
-            }
+                int droppedCount = 0;
+                long droppedBodyBytes = 0;
+                foreach (Azure.Messaging.ServiceBus.ServiceBusMessage sbMessage in messageList)
+                {
+                    if (!batch.TryAddMessage(sbMessage))
+                    {
+                        droppedCount++;
+                        droppedBodyBytes += sbMessage.Body.ToMemory().Length;
+                    }
+                }
 
-            await sender.SendMessagesAsync(batch);
+                if (droppedCount > 0)
+                {
+                    TraceHelper.Trace(
+                        TraceEventType.Error,
+                        "MessageSender-SendAsync-MessagesDropped",
+                        () => $"{droppedCount} message(s) ({droppedBodyBytes} body bytes) did not fit in the batch for '{sender.EntityPath}' " +
+                              $"and were not sent; {batch.Count} message(s) were added to the batch (maximum batch size: {batch.MaxSizeInBytes} bytes).");
+                }
+
+                await sender.SendMessagesAsync(batch);
+            }
         }
 
         public async Task CloseAsync()
@@ -497,19 +520,31 @@ namespace DurableTask.ServiceBus.Common.Abstraction
             this.serviceBusClient = serviceBusConnection.GetSendViaEntityScopedClient(entityPath);
         }
 
+        /// <summary>
+        /// Accepts the next available session, or returns null if none becomes available within <paramref name="operationTimeout"/>.
+        /// A non-positive timeout falls back to the client's retry policy timeout.
+        /// </summary>
         public async Task<IMessageSession> AcceptMessageSessionAsync(TimeSpan operationTimeout)
         {
-            try
+            var options = new Azure.Messaging.ServiceBus.ServiceBusSessionReceiverOptions
             {
-                var options = new Azure.Messaging.ServiceBus.ServiceBusSessionReceiverOptions
+                ReceiveMode = receiveMode,
+            };
+
+            using (var timeoutCts = operationTimeout > TimeSpan.Zero ? new CancellationTokenSource(operationTimeout) : new CancellationTokenSource())
+            {
+                try
                 {
-                    ReceiveMode = receiveMode,
-                };
-                return new IMessageSession(await this.serviceBusClient.AcceptNextSessionAsync(entityPath, options));
-            }
-            catch (Azure.Messaging.ServiceBus.ServiceBusException e) when (e.Reason.Equals(Azure.Messaging.ServiceBus.ServiceBusFailureReason.ServiceTimeout))
-            {
-                return null;
+                    return new IMessageSession(await this.serviceBusClient.AcceptNextSessionAsync(entityPath, options, timeoutCts.Token));
+                }
+                catch (Azure.Messaging.ServiceBus.ServiceBusException e) when (e.Reason.Equals(Azure.Messaging.ServiceBus.ServiceBusFailureReason.ServiceTimeout))
+                {
+                    return null;
+                }
+                catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+                {
+                    return null;
+                }
             }
         }
 

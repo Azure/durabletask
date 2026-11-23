@@ -906,6 +906,7 @@ namespace DurableTask.AzureStorage
 
                     string warningMessage = await this.IsExecutableInstanceAsync(
                         session.RuntimeState,
+                        session.ConcurrencyTags.HistoryETag,
                         orchestrationWorkItem.NewMessages,
                         settings.AllowReplayingTerminalInstances,
                         session.ConcurrencyTags,
@@ -975,6 +976,15 @@ namespace DurableTask.AzureStorage
                     }
 
                     return orchestrationWorkItem;
+                }
+                catch (DurableTaskStorageException exception) when (exception.HttpStatusCode == 409 || exception.HttpStatusCode == 412)
+                {
+                    // Reload changed state without losing the message that woke this instance.
+                    if (session != null)
+                    {
+                        await this.AbandonAndReleaseSessionAsync(session, "Instance or history changed during status recovery.");
+                    }
+                    return null;
                 }
                 catch (OperationCanceledException)
                 {
@@ -1161,6 +1171,7 @@ namespace DurableTask.AzureStorage
 
         async Task<string> IsExecutableInstanceAsync(
             OrchestrationRuntimeState runtimeState,
+            ETag? historyETag,
             IList<TaskMessage> newMessages,
             bool allowReplayingTerminalInstances,
             OrchestrationConcurrencyTags concurrencyTags,
@@ -1206,7 +1217,7 @@ namespace DurableTask.AzureStorage
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Pending &&
                 runtimeState.OrchestrationStatus != OrchestrationStatus.Suspended)
             {
-                InstanceStatus instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(runtimeState.OrchestrationInstance.InstanceId);
+                InstanceStatus instanceStatus = await this.trackingStore.FetchInstanceStatusAsync(runtimeState.OrchestrationInstance.InstanceId, cancellationToken);
                 if (instanceStatus == null || (instanceStatus.State.OrchestrationInstance.ExecutionId == runtimeState.OrchestrationInstance.ExecutionId
                     && instanceStatus.State.OrchestrationStatus != runtimeState.OrchestrationStatus))
                 {
@@ -1215,8 +1226,7 @@ namespace DurableTask.AzureStorage
                         runtimeState.OrchestrationInstance.InstanceId,
                         runtimeState.OrchestrationInstance.ExecutionId,
                         runtimeState,
-                        instanceStatus is not null,
-                        concurrencyTags.SequenceNumber is > 0 ? concurrencyTags.SequenceNumber.Value : 1,
+                        new OrchestrationConcurrencyTags { HistoryETag = historyETag, InstanceETag = instanceStatus?.ETag, SequenceNumber = concurrencyTags.SequenceNumber },
                         cancellationToken);
                 }
                 if (!allowReplayingTerminalInstances)
@@ -2314,6 +2324,7 @@ namespace DurableTask.AzureStorage
         /// such as the input or output status fields, and for which the blob URI was stored instead.
         /// </summary>
         /// <param name="blobUri">The URI of the blob.</param>
+        /// <exception cref="ArgumentException">The URI is not in this task hub's large-message container.</exception>
         public Task<string> DownloadBlobAsync(string blobUri)
         {
             return this.messageManager.DownloadAndDecompressAsBytesAsync(new Uri(blobUri));

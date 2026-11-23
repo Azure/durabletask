@@ -369,7 +369,7 @@ namespace DurableTask.AzureStorage.Tests
 
             Task<OrchestrationState> ITrackingStore.GetStateAsync(string instanceId, string executionId, bool fetchInput, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-            Task ITrackingStore.UpdateInstanceStatusForCompletedOrchestrationAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, bool instanceEntityExists, long sequenceNumber, CancellationToken cancellationToken) => throw new NotSupportedException();
+            Task ITrackingStore.UpdateInstanceStatusForCompletedOrchestrationAsync(string instanceId, string executionId, OrchestrationRuntimeState runtimeState, OrchestrationConcurrencyTags eTags, CancellationToken cancellationToken) => throw new NotSupportedException();
 
             IAsyncEnumerable<OrchestrationState> ITrackingStore.GetStateAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
@@ -381,7 +381,7 @@ namespace DurableTask.AzureStorage.Tests
 
             Task<bool> ITrackingStore.SetNewExecutionAsync(ExecutionStartedEvent executionStartedEvent, ETag? eTag, string inputPayloadOverride, long sequenceNumber, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-            Task ITrackingStore.UpdateStatusForRewindAsync(string instanceId, long? sequenceNumber, CancellationToken cancellationToken) => throw new NotSupportedException();
+            Task ITrackingStore.UpdateStatusForRewindAsync(string instanceId, ETag eTag, long? sequenceNumber, CancellationToken cancellationToken) => throw new NotSupportedException();
 
             Task ITrackingStore.UpdateStatusForTerminationAsync(string instanceId, ExecutionTerminatedEvent executionTerminatedEvent, long sequenceNumber, CancellationToken cancellationToken) => throw new NotSupportedException();
 

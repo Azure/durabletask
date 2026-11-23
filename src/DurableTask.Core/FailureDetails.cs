@@ -162,6 +162,10 @@ namespace DurableTask.Core
         /// <summary>
         /// Gets additional properties associated with the failure.
         /// </summary>
+        /// <remarks>
+        /// The backing field is optional so that data persisted before this property existed can still be deserialized.
+        /// </remarks>
+        [field: OptionalField]
         public IDictionary<string, object?>? Properties { get; }
 
         /// <summary>
