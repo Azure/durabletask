@@ -44,7 +44,10 @@ namespace DurableTask.AzureStorage.Storage
                 ["skt"] = Read("SignedStart"), ["ske"] = Read("SignedExpiry"),
                 ["sks"] = Read("SignedService"), ["skv"] = Read("SignedVersion"),
             };
-            if (this.fields["sks"] != "t") throw new InvalidOperationException("Expected a Table user delegation key.");
+            if (this.fields["sks"] != "t")
+            {
+                throw new InvalidOperationException("Expected a Table user delegation key.");
+            }
             this.key = Convert.FromBase64String(Read("Value"));
             this.ExpiresOn = DateTimeOffset.Parse(this.fields["ske"], CultureInfo.InvariantCulture);
             string Read(string name) => (string?)xml.Element(name) ?? throw new InvalidOperationException("Missing user delegation key field: " + name);
@@ -80,7 +83,10 @@ namespace DurableTask.AzureStorage.Storage
                 new XElement("Expiry", FormatTime(serverTime.AddHours(24))));
             message.Request.Content = RequestContent.Create(Encoding.UTF8.GetBytes(xml.ToString(SaveOptions.DisableFormatting)));
             await pipeline.SendAsync(message, cancellationToken).ConfigureAwait(false);
-            if (message.Response.Status != 200) throw new RequestFailedException(message.Response);
+            if (message.Response.Status != 200)
+            { 
+                throw new RequestFailedException(message.Response);
+            }
             using var reader = new StreamReader(message.Response.ContentStream!);
             return new TableUserDelegationKey(XElement.Parse(await reader.ReadToEndAsync().ConfigureAwait(false)));
         }
@@ -91,20 +97,44 @@ namespace DurableTask.AzureStorage.Storage
             string expiry = FormatTime(expiresOn);
             string permissions = "raud";
             // Empty delegated tenant/user, IP, and partition/row ranges are required positions in the signature.
-            string toSign = string.Join("\n", permissions, start, expiry,
+            string toSign = string.Join(
+                "\n",
+                permissions,
+                start,
+                expiry,
                 "/table/" + accountName + "/" + tableName.ToLowerInvariant(),
-                this.fields["skoid"], this.fields["sktid"], this.fields["skt"], this.fields["ske"],
-                this.fields["sks"], this.fields["skv"], "", "", "", "https", ServiceVersion, "", "", "", "");
+                this.fields["skoid"],
+                this.fields["sktid"],
+                this.fields["skt"],
+                this.fields["ske"],
+                this.fields["sks"],
+                this.fields["skv"],
+                "",
+                "",
+                "",
+                "https",
+                ServiceVersion,
+                "",
+                "",
+                "",
+                "");
             using var hmac = new HMACSHA256(this.key);
             var query = new Dictionary<string, string>(this.fields)
             {
-                ["sp"] = permissions, ["st"] = start, ["se"] = expiry,
-                ["spr"] = "https", ["sv"] = ServiceVersion, ["tn"] = tableName,
+                ["sp"] = permissions,
+                ["st"] = start,
+                ["se"] = expiry,
+                ["spr"] = "https",
+                ["sv"] = ServiceVersion,
+                ["tn"] = tableName,
                 ["sig"] = Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(toSign))),
             };
             return string.Join("&", query.Select(pair => pair.Key + "=" + Uri.EscapeDataString(pair.Value)));
         }
 
-        static string FormatTime(DateTimeOffset value) => value.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
+        static string FormatTime(DateTimeOffset value)
+        {
+            return value.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
+        }
     }
 }
