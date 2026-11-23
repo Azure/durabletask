@@ -34,28 +34,40 @@ namespace DurableTask.AzureStorage.Storage
     sealed class TableUserDelegationKey
     {
         internal const string ServiceVersion = "2025-07-05";
+        const string SignedKeyObjectIdParameter = "skoid";
+        const string SignedKeyTenantIdParameter = "sktid";
+        const string SignedKeyStartParameter = "skt";
+        const string SignedKeyExpiryParameter = "ske";
+        const string SignedKeyServiceParameter = "sks";
+        const string SignedKeyVersionParameter = "skv";
+        const string TableService = "t";
         readonly Dictionary<string, string> fields;
         readonly byte[] key;
 
         TableUserDelegationKey(XElement xml)
         {
+            string Read(string name) => (string?)xml.Element(name) ?? throw new InvalidOperationException("Missing user delegation key field: " + name);
+
             this.fields = new Dictionary<string, string>
             {
-                ["skoid"] = Read("SignedOid"), ["sktid"] = Read("SignedTid"),
-                ["skt"] = Read("SignedStart"), ["ske"] = Read("SignedExpiry"),
-                ["sks"] = Read("SignedService"), ["skv"] = Read("SignedVersion"),
+                [SignedKeyObjectIdParameter] = Read("SignedOid"),
+                [SignedKeyTenantIdParameter] = Read("SignedTid"),
+                [SignedKeyStartParameter] = Read("SignedStart"),
+                [SignedKeyExpiryParameter] = Read("SignedExpiry"),
+                [SignedKeyServiceParameter] = Read("SignedService"),
+                [SignedKeyVersionParameter] = Read("SignedVersion"),
             };
-            if (this.fields["sks"] != "t")
+            if (this.fields[SignedKeyServiceParameter] != TableService)
             {
                 throw new InvalidOperationException("Expected a Table user delegation key.");
             }
             this.key = Convert.FromBase64String(Read("Value"));
-            this.ExpiresOn = DateTimeOffset.Parse(this.fields["ske"], CultureInfo.InvariantCulture);
-            string Read(string name) => (string?)xml.Element(name) ?? throw new InvalidOperationException("Missing user delegation key field: " + name);
+            this.ExpiresOn = DateTimeOffset.Parse(this.fields[SignedKeyExpiryParameter], CultureInfo.InvariantCulture);
         }
 
         public DateTimeOffset ExpiresOn { get; }
 
+        // Request a Table delegation key using the provider's Entra credential.
         public static async Task<TableUserDelegationKey> GetAsync(Uri endpoint, TokenCredential credential, TableClientOptions options, DateTimeOffset serverTime, CancellationToken cancellationToken)
         {
             TableAudience audience = options.Audience ?? TableAudience.AzurePublicCloud;
@@ -95,9 +107,10 @@ namespace DurableTask.AzureStorage.Storage
             return new TableUserDelegationKey(XElement.Parse(await reader.ReadToEndAsync().ConfigureAwait(false)));
         }
 
+        // Build a signed SAS query string granting read, add, update, and delete access to one table.
         public string Sign(string accountName, string tableName, DateTimeOffset expiresOn)
         {
-            string start = this.fields["skt"];
+            string start = this.fields[SignedKeyStartParameter];
             string expiry = FormatTime(expiresOn);
             string permissions = "raud";
             // Empty delegated tenant/user, IP, and partition/row ranges are required positions in the signature.
@@ -107,12 +120,12 @@ namespace DurableTask.AzureStorage.Storage
                 start,
                 expiry,
                 "/table/" + accountName + "/" + tableName.ToLowerInvariant(),
-                this.fields["skoid"],
-                this.fields["sktid"],
-                this.fields["skt"],
-                this.fields["ske"],
-                this.fields["sks"],
-                this.fields["skv"],
+                this.fields[SignedKeyObjectIdParameter],
+                this.fields[SignedKeyTenantIdParameter],
+                this.fields[SignedKeyStartParameter],
+                this.fields[SignedKeyExpiryParameter],
+                this.fields[SignedKeyServiceParameter],
+                this.fields[SignedKeyVersionParameter],
                 "",
                 "",
                 "",
