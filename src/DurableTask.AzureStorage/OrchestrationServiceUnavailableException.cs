@@ -14,48 +14,19 @@
 namespace DurableTask.AzureStorage
 {
     using System;
-    using System.Runtime.Serialization;
 
     /// <summary>
     /// Thrown when a client request is rejected because the Azure Storage backend is unavailable, for example while a
     /// live migration is ending.
     /// </summary>
-    [Serializable]
     public class OrchestrationServiceUnavailableException : Exception
     {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="OrchestrationServiceUnavailableException"/> class.
-        /// </summary>
-        public OrchestrationServiceUnavailableException()
-        {
-        }
-
         /// <summary>
         /// Initializes a new instance of the <see cref="OrchestrationServiceUnavailableException"/> class.
         /// </summary>
         /// <param name="message">The message that describes the error.</param>
         public OrchestrationServiceUnavailableException(string message)
             : base(message)
-        {
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="OrchestrationServiceUnavailableException"/> class.
-        /// </summary>
-        /// <param name="message">The message that describes the error.</param>
-        /// <param name="innerException">The exception that is the cause of the current exception.</param>
-        public OrchestrationServiceUnavailableException(string message, Exception innerException)
-            : base(message, innerException)
-        {
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="OrchestrationServiceUnavailableException"/> class with serialized data.
-        /// </summary>
-        /// <param name="info">The object that holds the serialized object data.</param>
-        /// <param name="context">The contextual information about the source or destination.</param>
-        protected OrchestrationServiceUnavailableException(SerializationInfo info, StreamingContext context)
-            : base(info, context)
         {
         }
     }
