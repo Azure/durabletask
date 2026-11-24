@@ -126,7 +126,10 @@ namespace DurableTask.AzureStorage.Storage
                     await Task.Delay(TimeSpan.FromMilliseconds(1000 + (uint)this.settings.WorkerId.GetHashCode() % 1000), cancellationToken).ConfigureAwait(false);
                     await this.RefreshAsync(cancellationToken).ConfigureAwait(false);
                 }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                { 
+                    break;
+                }
                 catch (Exception e)
                 {
                     // Keep the last credentials, never extend them locally or use unrestricted authentication.
@@ -143,6 +146,8 @@ namespace DurableTask.AzureStorage.Storage
                 cancellationToken.ThrowIfCancellationRequested();
                 AzureStorageMigration.Gate? gate = await this.migration.ReadAsync(cancellationToken, this.migrationId).ConfigureAwait(false);
                 long sampledAt = Stopwatch.GetTimestamp();
+
+                // If the gate is missing, migration has been misconfigured
                 if (gate == null)
                 {
                     throw new InvalidOperationException("Migration control row is missing. Source access cannot be granted.");
@@ -183,6 +188,7 @@ namespace DurableTask.AzureStorage.Storage
                         entry.Value.Update(this.Sign(entry.Key[0], entry.Key.Substring(2)));
                     }
                 }
+
                 // Some slowdown in the renewal path consumed the whole expiry interval. Re-read before returning
                 if (this.EstimatedServerTime >= gate.AccessExpiresAt)
                 {
@@ -194,8 +200,10 @@ namespace DurableTask.AzureStorage.Storage
 
         async Task<bool> RefreshKeysAsync(DateTimeOffset serverTime, CancellationToken cancellationToken)
         {
-            // Delegation keys are cached for a day; short-lived SAS renewal normally needs only the gate.
+            // Reuse delegation keys to sign new SAS tokens; normally only the control row needs refreshing.
             bool refreshed = false;
+
+            // Tables has no CanGenerateAccountSasUri property, so check the provider's identity credential.
             TokenCredential? credential = (this.tableProvider as IStorageTokenCredentialProvider)?.TokenCredential;
             if (credential != null && (this.tableKey == null || this.tableKey.ExpiresOn <= serverTime.AddMinutes(5)))
             {
@@ -207,6 +215,8 @@ namespace DurableTask.AzureStorage.Storage
                 }
                 refreshed = true;
             }
+
+            // Blob and Queue clients with an account key do not need delegation keys.
             if (!this.blobService.CanGenerateAccountSasUri && (this.blobKey == null || this.blobKey.SignedExpiresOn <= serverTime.AddMinutes(5)))
             {
                 BlobKey key = await this.blobService.GetUserDelegationKeyAsync(
@@ -238,7 +248,7 @@ namespace DurableTask.AzureStorage.Storage
             {
                 if (this.isMigrationEnding)
                 {
-                    throw new OrchestrationServiceUnavailableException("The source migration credentials have expired or migration is ending.");
+                    throw new OrchestrationServiceUnavailableException("Migration is ending; source storage access is disabled.");
                 }
             }
         }
@@ -260,13 +270,17 @@ namespace DurableTask.AzureStorage.Storage
 
         string Sign(char service, string resource)
         {
+            // CanGenerateAccountSasUri means the client has an account key and can sign directly.
             switch (service)
             {
                 case 'b':
                     var blob = new BlobSasBuilder { BlobContainerName = resource, Resource = "c", ExpiresOn = this.expiresAt };
-                    blob.SetPermissions(BlobContainerSasPermissions.Read | BlobContainerSasPermissions.Write | BlobContainerSasPermissions.Create | BlobContainerSasPermissions.Delete | BlobContainerSasPermissions.List);
+                    blob.SetPermissions(BlobContainerSasPermissions.Read | BlobContainerSasPermissions.Write | BlobContainerSasPermissions.Create
+                        | BlobContainerSasPermissions.Delete | BlobContainerSasPermissions.List);
                     if (this.blobService.CanGenerateAccountSasUri)
+                    {
                         return this.blobService.GetBlobContainerClient(resource).GenerateSasUri(blob).Query.TrimStart('?');
+                    }
                     blob.Protocol = SasProtocol.Https;
                     blob.StartsOn = this.blobKey!.SignedStartsOn;
                     return blob.ToSasQueryParameters(this.blobKey, this.blobService.AccountName).ToString();
@@ -274,12 +288,19 @@ namespace DurableTask.AzureStorage.Storage
                     var queue = new QueueSasBuilder { QueueName = resource, ExpiresOn = this.expiresAt };
                     queue.SetPermissions(QueueSasPermissions.Read | QueueSasPermissions.Add | QueueSasPermissions.Update | QueueSasPermissions.Process);
                     if (this.queueService.CanGenerateAccountSasUri)
+                    {
                         return this.queueService.GetQueueClient(resource).GenerateSasUri(queue).Query.TrimStart('?');
+                    }
                     queue.Protocol = SasProtocol.Https;
                     queue.StartsOn = this.queueKey!.SignedStartsOn;
                     return queue.ToSasQueryParameters(this.queueKey, this.queueService.AccountName).ToString();
                 case 't':
-                    if (this.tableKey != null) return this.tableKey.Sign(this.tableService.AccountName, resource, this.expiresAt);
+                    // Tables has no capability flag; identity clients use the key loaded during refresh.
+                    if (this.tableKey != null)
+                    {
+                        return this.tableKey.Sign(this.tableService.AccountName, resource, this.expiresAt);
+                    }
+
                     // Account-key connections also use bounded SAS. Queries and batches require container scope;
                     // individual entity operations require object scope. Resource deletion is blocked by our wrappers.
                     return this.tableService.GenerateSasUri(TableAccountSasPermissions.Read | TableAccountSasPermissions.Add

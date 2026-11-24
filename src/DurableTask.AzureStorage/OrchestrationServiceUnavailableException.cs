@@ -18,7 +18,7 @@ namespace DurableTask.AzureStorage
 
     /// <summary>
     /// Thrown when a client request is rejected because the Azure Storage backend is unavailable, for example while a
-    /// live migration is ending and requests should be directed to the new backend.
+    /// live migration is ending.
     /// </summary>
     [Serializable]
     public class OrchestrationServiceUnavailableException : Exception

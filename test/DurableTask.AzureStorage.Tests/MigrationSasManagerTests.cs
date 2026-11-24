@@ -43,7 +43,7 @@ namespace DurableTask.AzureStorage.Tests
         public async Task Renewal_UpdatesCachedCredentialsUsingStorageTime(bool sharedKey)
         {
             // 1. Issue credentials from the prepared control row.
-            using StorageResponses storage = new StorageResponses(sharedKey);
+            using StorageResponses storage = new(sharedKey);
             MigrationSasManager manager = storage.CreateManager();
             await manager.RefreshAsync(default);
             (char Service, string Resource)[] resources = { ('b', "payloads"), ('q', "testhub-control-00"), ('t', "TestHubHistory") };
@@ -91,7 +91,7 @@ namespace DurableTask.AzureStorage.Tests
         public async Task Renewal_UsesTheElevenSecondMargin(int elapsedSeconds, bool renew)
         {
             // 1. Publish the first deadline, then advance the Storage clock.
-            using StorageResponses storage = new StorageResponses();
+            using StorageResponses storage = new();
             MigrationSasManager manager = storage.CreateManager();
             await manager.RefreshAsync(default);
             DateTimeOffset expiry = storage.Expiry;
@@ -110,7 +110,7 @@ namespace DurableTask.AzureStorage.Tests
         public async Task Renewal_RechecksTheGateAfterLosingAnEtagRace(bool ending)
         {
             // 1. Another host changes the row after renewal reads it.
-            using StorageResponses storage = new StorageResponses();
+            using StorageResponses storage = new();
             MigrationSasManager manager = storage.CreateManager();
             await manager.RefreshAsync(default);
             DateTimeOffset originalExpiry = storage.Expiry;
@@ -120,7 +120,10 @@ namespace DurableTask.AzureStorage.Tests
             {
                 AzureStorageMigration.Gate gate = (await storage.Control.ReadAsync(default, storage.MigrationId))!;
                 gate.IsMigrationEnding = ending;
-                if (!ending) gate.AccessExpiresAt = storage.ServerTime.AddSeconds(30);
+                if (!ending)
+                {
+                    gate.AccessExpiresAt = storage.ServerTime.AddSeconds(30);
+                }
                 Assert.IsTrue(await storage.Control.TryUpdateAsync(gate, default));
             };
 
@@ -147,10 +150,16 @@ namespace DurableTask.AzureStorage.Tests
         public async Task Refresh_ObservesDrainBeforeStartupOrDuringKeyAcquisition(bool beforeStartup)
         {
             // 1. Close the row before startup or while a key request is in flight.
-            using StorageResponses storage = new StorageResponses();
+            using StorageResponses storage = new();
             MigrationSasManager manager = storage.CreateManager();
-            if (beforeStartup) await storage.EndAsync();
-            else storage.BeforeKey = _ => storage.EndAsync();
+            if (beforeStartup)
+            {
+                await storage.EndAsync();
+            }
+            else
+            {
+                storage.BeforeKey = _ => storage.EndAsync();
+            }
 
             // 2. No deadline is published, and ending is reported only once.
             await manager.RefreshAsync(default);
@@ -169,9 +178,12 @@ namespace DurableTask.AzureStorage.Tests
         public async Task Refresh_MissingGateDoesNotCreateOrRenewIt(bool initialized)
         {
             // 1. Remove the row before startup or after credentials have been issued.
-            using StorageResponses storage = new StorageResponses();
+            using StorageResponses storage = new();
             MigrationSasManager manager = storage.CreateManager();
-            if (initialized) await manager.RefreshAsync(default);
+            if (initialized)
+            {
+                await manager.RefreshAsync(default);
+            }
             int writes = storage.GateWrites;
             storage.Row = null;
 
@@ -188,7 +200,7 @@ namespace DurableTask.AzureStorage.Tests
         public async Task Refresh_FailureDoesNotExtendCredentialsAndCanBeRetried(bool failKey)
         {
             // 1. Fail a renewal after the original credentials have been issued.
-            using StorageResponses storage = new StorageResponses();
+            using StorageResponses storage = new();
             MigrationSasManager manager = storage.CreateManager();
             await manager.RefreshAsync(default);
             AzureSasCredential credential = manager.GetCredential('q', "queue");
@@ -213,7 +225,7 @@ namespace DurableTask.AzureStorage.Tests
         public async Task Refresh_RereadsStorageTimeAfterSlowKeyAcquisition()
         {
             // 1. Advance Storage's clock while fetching a delegation key.
-            using StorageResponses storage = new StorageResponses();
+            using StorageResponses storage = new();
             MigrationSasManager manager = storage.CreateManager();
             storage.BeforeKey = _ =>
             {
@@ -233,17 +245,17 @@ namespace DurableTask.AzureStorage.Tests
         public async Task Refresh_CanceledWaiterDoesNotCancelTheCurrentRefresh()
         {
             // 1. Hold the first refresh in key acquisition.
-            using StorageResponses storage = new StorageResponses();
+            using StorageResponses storage = new();
             MigrationSasManager manager = storage.CreateManager();
-            TaskCompletionSource<bool> started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            TaskCompletionSource<bool> release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource<bool> started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource<bool> release = new(TaskCreationOptions.RunContinuationsAsynchronously);
             storage.BeforeKey = async _ => { started.SetResult(true); await release.Task; };
             Task first = manager.RefreshAsync(default);
             await started.Task;
             try
             {
                 // 2. Cancel a second caller while it waits for the first refresh.
-                using CancellationTokenSource cancellation = new CancellationTokenSource();
+                using CancellationTokenSource cancellation = new();
                 Task second = manager.RefreshAsync(cancellation.Token);
                 cancellation.Cancel();
                 await AssertCanceledAsync(second);
@@ -263,11 +275,11 @@ namespace DurableTask.AzureStorage.Tests
         public async Task Refresh_CancellationDuringKeyAcquisitionAllowsAnotherRefresh()
         {
             // 1. Block key acquisition until its caller cancels.
-            using StorageResponses storage = new StorageResponses();
+            using StorageResponses storage = new();
             MigrationSasManager manager = storage.CreateManager();
-            TaskCompletionSource<bool> started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource<bool> started = new(TaskCreationOptions.RunContinuationsAsynchronously);
             storage.BeforeKey = async token => { started.SetResult(true); await Task.Delay(Timeout.Infinite, token); };
-            using CancellationTokenSource cancellation = new CancellationTokenSource();
+            using CancellationTokenSource cancellation = new();
             Task pending = manager.RefreshAsync(cancellation.Token);
             await started.Task;
             cancellation.Cancel();
@@ -284,7 +296,7 @@ namespace DurableTask.AzureStorage.Tests
         public async Task RefreshLoop_CanStopAndRestartAndStopsWhenMigrationEnds()
         {
             // 1. Repeated starts share one loop, which can be stopped and restarted.
-            using StorageResponses storage = new StorageResponses();
+            using StorageResponses storage = new();
             MigrationSasManager manager = storage.CreateManager();
             await manager.RefreshAsync(default);
             Task first = manager.StartRefreshLoop();
