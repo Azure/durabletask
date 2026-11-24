@@ -240,6 +240,38 @@ namespace DurableTask.AzureStorage.Tests
             Assert.AreEqual(3, storage.KeyRequests);
         }
 
+        [DataTestMethod]
+        [DataRow(false)]
+        [DataRow(true)]
+        [Timeout(60000)]
+        public async Task Refresh_RereadsStorageTimeAfterDelayedGateOperation(bool delayWrite)
+        {
+            // 1. Delay a gate read or write beyond the SAS lifetime.
+            using StorageResponses storage = new(sharedKey: true);
+            MigrationSasManager manager = storage.CreateManager();
+            TimeSpan delay = MigrationSasManager.SasLifetime + TimeSpan.FromSeconds(1);
+            async Task DelayResponseAsync(CancellationToken token)
+            {
+                await Task.Delay(delay, token);
+                storage.ServerTime += delay;
+            }
+            if (delayWrite)
+            {
+                storage.BeforeWrite = () => DelayResponseAsync(default);
+            }
+            else
+            {
+                storage.AfterRead = DelayResponseAsync;
+            }
+
+            // 2. Retry before returning credentials with an expired deadline.
+            await manager.RefreshAsync(default);
+            Assert.AreEqual(2, storage.GateWrites);
+            Assert.AreEqual(storage.ServerTime + MigrationSasManager.SasLifetime, storage.Expiry);
+            AzureSasCredential credential = manager.GetCredential('q', "queue");
+            Assert.AreEqual(storage.Expiry, DateTimeOffset.Parse(Query(credential.Signature)["se"], CultureInfo.InvariantCulture));
+        }
+
         [TestMethod]
         [Timeout(10000)]
         public async Task Refresh_CanceledWaiterDoesNotCancelTheCurrentRefresh()
@@ -378,6 +410,7 @@ namespace DurableTask.AzureStorage.Tests
             public int EndingCalls { get; private set; }
             public bool FailReads { get; set; }
             public bool FailKeys { get; set; }
+            public Func<CancellationToken, Task>? AfterRead { get; set; }
             public Func<Task>? BeforeWrite { get; set; }
             public Func<CancellationToken, Task>? BeforeKey { get; set; }
             public AzureStorageMigration Control { get; }
@@ -431,8 +464,12 @@ namespace DurableTask.AzureStorage.Tests
                 if (request.Method == HttpMethod.Get)
                 {
                     if (this.FailReads) return this.Error(HttpStatusCode.ServiceUnavailable, "ServerBusy");
-                    return this.Row is null ? this.Error(HttpStatusCode.NotFound, "ResourceNotFound")
+                    HttpResponseMessage response = this.Row is null ? this.Error(HttpStatusCode.NotFound, "ResourceNotFound")
                         : this.Response(HttpStatusCode.OK, this.Row.ToString());
+                    Func<CancellationToken, Task>? afterRead = this.AfterRead;
+                    this.AfterRead = null;
+                    if (afterRead is not null) await afterRead(cancellationToken);
+                    return response;
                 }
 
                 Assert.AreEqual(HttpMethod.Put, request.Method, "The manager must not create the control row.");

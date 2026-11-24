@@ -144,14 +144,13 @@ namespace DurableTask.AzureStorage.Storage
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                AzureStorageMigration.Gate? gate = await this.migration.ReadAsync(cancellationToken, this.migrationId).ConfigureAwait(false);
+
+                // Include the read time when checking whether the credentials have expired.
                 long sampledAt = Stopwatch.GetTimestamp();
 
                 // If the gate is missing, migration has been misconfigured
-                if (gate == null)
-                {
-                    throw new InvalidOperationException("Migration control row is missing. Source access cannot be granted.");
-                }
+                AzureStorageMigration.Gate? gate = await this.migration.ReadAsync(cancellationToken, this.migrationId).ConfigureAwait(false)
+                    ?? throw new InvalidOperationException("Migration control row is missing. Source access cannot be granted.");
 
                 // If the gate indicates migration is ending, exit
                 if (gate.IsMigrationEnding)
